@@ -1761,6 +1761,16 @@ a { color: inherit; text-decoration: none; }
   cursor: not-allowed;
   pointer-events: none;
 }
+.j-kurir .j-kurir-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.j-kurir .j-kurir-act:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 .j-kurir .j-kurir-note {
   margin: 4px 2px 0;
   font-size: 0.74rem;
@@ -1770,7 +1780,178 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
 }
 
-/* Request Antar — list lokasi + Tarif */
+.j-kurir-pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.j-kurir-pending-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(255, 196, 87, 0.18), rgba(255, 255, 255, 0.9));
+  border: 1px solid rgba(194, 120, 20, 0.22);
+}
+.j-kurir-pending-item__ico {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff7e8;
+  color: #b45309;
+  flex-shrink: 0;
+}
+.j-kurir-pending-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.j-kurir-pending-item__text strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--j-ink);
+}
+.j-kurir-pending-item__text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+}
+
+.j-kurir-sales {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
+}
+.j-kurir-sales-empty {
+  padding: 18px 14px;
+  text-align: center;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--j-muted);
+}
+.j-kurir-sales-group + .j-kurir-sales-group {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+.j-kurir-sales-group__head {
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #475569;
+  background: rgba(15, 23, 42, 0.04);
+}
+.j-kurir-sales-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0;
+  cursor: pointer;
+  border-top: 1px solid rgba(15, 23, 42, 0.05);
+  background: #fff;
+}
+.j-kurir-sales-item input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.j-kurir-sales-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.j-kurir-sales-item__text strong {
+  font-size: 0.86rem;
+  color: var(--j-ink);
+  font-weight: 700;
+}
+.j-kurir-sales-item__text small {
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+}
+
+.j-kurir-lokasi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.j-kurir-lokasi-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  margin: 0;
+  cursor: pointer;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+}
+.j-kurir-lokasi-item.is-disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+.j-kurir-lokasi-item.is-disabled input {
+  pointer-events: none;
+}
+.j-kurir-lokasi-item .j-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.j-kurir-lokasi-item input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.j-kurir-lokasi-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.j-kurir-lokasi-item__text strong {
+  font-size: 0.9rem;
+  color: var(--j-ink);
+}
+.j-kurir-lokasi-item__text small {
+  font-size: 0.74rem;
+  color: var(--j-muted);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.j-kurir-lokasi-item__tarif {
+  flex-shrink: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.j-kurir-lokasi-item__tarif-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--j-muted);
+}
+.j-kurir-lokasi-item__tarif strong {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--j-mint);
+  letter-spacing: -0.02em;
+}
+.j-kurir-lokasi-item__tarif small {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--j-ink-soft);
+}
+
+/* Partial list lokasi + Tarif (J/load/lokasiAntar) */
 .j-lokasi-antar__list {
   display: flex;
   flex-direction: column;
@@ -1843,4 +2024,60 @@ a { color: inherit; text-decoration: none; }
 }
 .j-lokasi-antar__empty {
   margin: 0;
+}
+.j-kurir-map-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 8px;
+  flex-wrap: wrap;
+}
+.j-kurir-map-tools small {
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+}
+.j-kurir-map {
+  width: 100%;
+  height: 220px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #e2e8f0;
+  z-index: 1;
+  position: relative;
+}
+.j-kurir-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+.j-kurir-lokasi-chosen {
+  margin: 0 0 12px;
+}
+.j-kurir-lokasi-chosen__inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(11, 61, 58, 0.06);
+  border: 1px solid rgba(11, 61, 58, 0.14);
+  text-align: left;
+}
+.j-kurir-lokasi-chosen__inner i {
+  color: #0B3D3A;
+  margin-top: 2px;
+}
+.j-kurir-lokasi-chosen__inner strong {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--j-ink);
+}
+.j-kurir-lokasi-chosen__inner small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.leaflet-container {
+  font: inherit;
 }

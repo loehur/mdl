@@ -27,7 +27,8 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=44">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=48">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
 <div class="j-app"
@@ -239,10 +240,113 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Kurir: pilih lokasi -->
+<div class="modal fade" id="jModalKurirLokasi" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Sameday</p>
+          <h5 class="j-sheet-title" id="jKurirLokasiTitle">Pilih lokasi</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body">
+        <div id="jKurirLokasiPick">
+          <p class="j-sheet-desc" style="margin-top:0">Pilih alamat untuk permintaan ini.</p>
+          <div class="j-kurir-lokasi-list" id="jKurirLokasiList">
+            <div class="j-kurir-sales-empty">Memuat lokasi…</div>
+          </div>
+          <button type="button" class="j-btn j-btn-soft j-btn-block" id="jBtnKurirLokasiAdd" style="margin-top:12px">
+            <i class="fas fa-plus"></i> Tambah lokasi
+          </button>
+        </div>
+        <div id="jKurirLokasiForm" hidden>
+          <p class="j-sheet-desc" style="margin-top:0">Isi nama &amp; detail, lalu set titik di peta.</p>
+          <label class="j-field-label" for="jLokasiNama">Nama</label>
+          <input type="text" id="jLokasiNama" class="j-select" maxlength="50" placeholder="Rumah, Kantor, Kos">
+          <label class="j-field-label" for="jLokasiDetail" style="margin-top:10px">Detail</label>
+          <input type="text" id="jLokasiDetail" class="j-select" maxlength="255" placeholder="Perum. Graha Nusa, No. 31, Pagar Hitam atau Merek Usaha">
+          <div class="j-kurir-map-tools">
+            <button type="button" class="j-btn j-btn-soft" id="jBtnLokasiGps">
+              <i class="fas fa-location-arrow"></i> Titik saya
+            </button>
+            <small id="jLokasiMapHint">Klik peta untuk geser pin</small>
+          </div>
+          <div id="jKurirMap" class="j-kurir-map" aria-label="Peta lokasi"></div>
+          <input type="hidden" id="jLokasiLatt" value="">
+          <input type="hidden" id="jLokasiLongt" value="">
+        </div>
+      </div>
+      <div class="j-sheet-foot" id="jKurirLokasiFootPick">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnKurirLokasiNext">
+          Lanjut
+        </button>
+      </div>
+      <div class="j-sheet-foot" id="jKurirLokasiFootForm" hidden>
+        <button type="button" class="j-sheet-btn ghost" id="jBtnKurirLokasiBack">Kembali</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnKurirLokasiSave">
+          <i class="fas fa-save"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Kurir Antar: pilih item -->
+<div class="modal fade" id="jModalKurirAntar" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Sameday</p>
+          <h5 class="j-sheet-title">Antar laundry</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body">
+        <p class="j-sheet-desc" style="margin-top:0">Pilih item yang ingin diantar oleh kurir.</p>
+        <div class="j-kurir-lokasi-chosen" id="jKurirAntarLokasi"></div>
+        <div class="j-kurir-sales" id="jKurirSalesBox">
+          <div class="j-kurir-sales-empty">Memuat item…</div>
+        </div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirAntar">
+          <i class="fas fa-truck"></i> Kirim permintaan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Kurir Jemput: konfirmasi -->
+<div class="modal fade" id="jModalKurirJemput" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-sheet-ico"><i class="fas fa-hand-holding"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Jemput laundry?</h5>
+        <p class="j-sheet-desc">Kurir akan datang menjemput. Item dipilih petugas saat selesai.</p>
+        <div class="j-kurir-lokasi-chosen" id="jKurirJemputLokasi"></div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnConfirmKurirJemput">
+          <i class="fas fa-check"></i> Ya, jemput
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=11"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=15"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

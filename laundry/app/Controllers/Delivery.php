@@ -13,6 +13,7 @@ class Delivery extends Controller
       $data_operasi = ['title' => 'Delivery Order'];
       $transfers = $this->getPendingCabangTransfers();
       $customers = $this->getPendingCustomerDeliveries();
+      $customerRequests = $this->getPendingCustomerRequests();
       $canCekDetail = $this->canCekDetail();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -20,6 +21,7 @@ class Delivery extends Controller
          'data_operasi' => $data_operasi,
          'transfers' => $transfers,
          'customers' => $customers,
+         'customerRequests' => $customerRequests,
          'canCekDetail' => $canCekDetail,
       ]);
    }
@@ -132,16 +134,19 @@ class Delivery extends Controller
       header('Content-Type: application/json; charset=utf-8');
 
       $phoneTail = preg_replace('/[^0-9]/', '', (string) $phoneTail);
-      if (strlen($phoneTail) < 9) {
+      if (strlen($phoneTail) < 8) {
          echo json_encode(['status' => 'error', 'message' => 'Nomor tidak valid']);
          return;
       }
-      $phoneTail = substr($phoneTail, -9);
+      if (strlen($phoneTail) >= 9) {
+         $phoneTail = substr($phoneTail, -9);
+      }
       $jenis = strtolower(trim((string) ($_GET['jenis'] ?? '')));
       if (!in_array($jenis, ['jemput', 'antar'], true)) {
          echo json_encode(['status' => 'error', 'message' => 'Pilih jenis jemput/antar']);
          return;
       }
+      $exceptRequestId = (int) ($_GET['id_request'] ?? 0);
 
       $pelangganIds = $this->pelangganIdsByPhoneTail($phoneTail);
       if (empty($pelangganIds)) {
@@ -153,7 +158,7 @@ class Delivery extends Controller
          return;
       }
 
-      $orders = $this->buildEligibleSalesOrders($pelangganIds, $jenis);
+      $orders = $this->buildEligibleSalesOrders($pelangganIds, $jenis, $exceptRequestId);
       echo json_encode([
          'status' => 'success',
          'data' => [
@@ -193,6 +198,20 @@ class Delivery extends Controller
          }
          $ids = array_values($ids);
 
+         $sekalian = (int) ($_POST['sekalian'] ?? 0) === 1;
+         $idsSekalianRaw = $_POST['ids_sekalian'] ?? [];
+         if (!is_array($idsSekalianRaw)) {
+            $idsSekalianRaw = [$idsSekalianRaw];
+         }
+         $idsSekalian = [];
+         foreach ($idsSekalianRaw as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+               $idsSekalian[$id] = $id;
+            }
+         }
+         $idsSekalian = array_values($idsSekalian);
+
          if (strlen($phoneTail) < 9) {
             throw new Exception('Nomor tidak valid');
          }
@@ -205,6 +224,9 @@ class Delivery extends Controller
          }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
+         }
+         if ($sekalian && empty($idsSekalian)) {
+            throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
          }
 
          // Wajib Access Key milik karyawan yang dipilih (semua user boleh submit)
@@ -219,48 +241,312 @@ class Delivery extends Controller
             throw new Exception('Pelanggan tidak ditemukan untuk nomor ini');
          }
 
-         $eligibleMap = [];
-         foreach ($this->fetchEligibleSaleRows($pelangganIds, $jenis) as $row) {
-            $eligibleMap[(int) $row['id_penjualan']] = $row;
-         }
-
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
          $idCabang = (int) ($this->id_cabang ?? 0);
-         $inserted = 0;
 
-         foreach ($ids as $idPenjualan) {
-            if (!isset($eligibleMap[$idPenjualan])) {
-               throw new Exception("Item #$idPenjualan tidak eligible atau sudah ada riwayat $jenis");
-            }
-            $sale = $eligibleMap[$idPenjualan];
-            $data = [
-               'phone_tail' => $phoneTail,
-               'id_pelanggan' => (int) ($sale['id_pelanggan'] ?? 0),
-               'id_penjualan' => $idPenjualan,
-               'no_ref' => (string) ($sale['no_ref'] ?? ''),
-               'jenis' => $jenis,
-               'id_karyawan' => $idKaryawan,
-               'nama_karyawan' => strtoupper($namaKaryawan),
-               'id_cabang' => $idCabang,
-               'id_user' => $idKaryawan,
-               'insertTime' => $now,
-            ];
-            $ins = $this->db(0)->insert('delivery_riwayat', $data);
-            if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-               throw new Exception($ins['error'] ?? 'Gagal menyimpan riwayat');
-            }
-            $inserted++;
+         $inserted = $this->insertDeliveryRiwayatBatch(
+            $phoneTail,
+            $pelangganIds,
+            $jenis,
+            $ids,
+            $idKaryawan,
+            $namaKaryawan,
+            $idCabang,
+            $now
+         );
+
+         $insertedSekalian = 0;
+         $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
+         if ($sekalian) {
+            $insertedSekalian = $this->insertDeliveryRiwayatBatch(
+               $phoneTail,
+               $pelangganIds,
+               $jenisSekalian,
+               $idsSekalian,
+               $idKaryawan,
+               $namaKaryawan,
+               $idCabang,
+               $now
+            );
          }
 
          $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
+         $msg = "Delivery $jenis selesai ($inserted item)";
+         if ($sekalian) {
+            $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+
          $response = [
             'status' => 'success',
-            'message' => "Delivery $jenis selesai ($inserted item)",
+            'message' => $msg,
             'data' => [
                'phone_tail' => $phoneTail,
                'jenis' => $jenis,
                'count' => $inserted,
+               'sekalian' => $sekalian ? $jenisSekalian : null,
+               'count_sekalian' => $insertedSekalian,
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
+   }
+
+   /**
+    * Selesaikan request customer (delivery_request berjalan).
+    * Wajib karyawan + Access Key + item utama; opsional sekalian lawan jenis.
+    */
+   public function selesai_request()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idRequest = (int) ($_POST['id_request'] ?? 0);
+         $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+         $idsRaw = $_POST['ids'] ?? [];
+         if (!is_array($idsRaw)) {
+            $idsRaw = [$idsRaw];
+         }
+         $ids = [];
+         foreach ($idsRaw as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+               $ids[$id] = $id;
+            }
+         }
+         $ids = array_values($ids);
+
+         $sekalian = (int) ($_POST['sekalian'] ?? 0) === 1;
+         $idsSekalianRaw = $_POST['ids_sekalian'] ?? [];
+         if (!is_array($idsSekalianRaw)) {
+            $idsSekalianRaw = [$idsSekalianRaw];
+         }
+         $idsSekalian = [];
+         foreach ($idsSekalianRaw as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+               $idsSekalian[$id] = $id;
+            }
+         }
+         $idsSekalian = array_values($idsSekalian);
+
+         if ($idRequest <= 0) {
+            throw new Exception('Request tidak valid');
+         }
+         if ($idKaryawan <= 0) {
+            throw new Exception('Pilih karyawan yang menyelesaikan');
+         }
+         if (empty($ids)) {
+            throw new Exception('Pilih minimal satu item penjualan');
+         }
+         if ($sekalian && empty($idsSekalian)) {
+            throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
+         }
+
+         $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+         if (!$karyawan) {
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+         }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+
+         $req = $this->db(0)->get_where_row(
+            'delivery_request',
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan'"
+         );
+         if (!is_array($req) || empty($req['id_request'])) {
+            throw new Exception('Request tidak ditemukan atau sudah selesai');
+         }
+
+         $jenis = strtolower((string) ($req['jenis'] ?? ''));
+         if (!in_array($jenis, ['antar', 'jemput'], true)) {
+            throw new Exception('Jenis request tidak valid');
+         }
+
+         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($req['phone_tail'] ?? ''));
+         if (strlen($phoneTail) >= 9) {
+            $phoneTail = substr($phoneTail, -9);
+         }
+         if ($phoneTail === '') {
+            throw new Exception('Nomor request tidak valid');
+         }
+
+         $idPelanggan = (int) ($req['id_pelanggan'] ?? 0);
+         $pelangganIds = $idPelanggan > 0
+            ? [$idPelanggan]
+            : $this->pelangganIdsByPhoneTail($phoneTail);
+         if (empty($pelangganIds)) {
+            throw new Exception('Pelanggan tidak ditemukan');
+         }
+
+         $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+         $idCabang = (int) ($req['id_cabang'] ?? $this->id_cabang ?? 0);
+
+         $inserted = $this->insertDeliveryRiwayatBatch(
+            $phoneTail,
+            $pelangganIds,
+            $jenis,
+            $ids,
+            $idKaryawan,
+            $namaKaryawan,
+            $idCabang,
+            $now,
+            $idRequest
+         );
+
+         $insertedSekalian = 0;
+         $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
+         if ($sekalian) {
+            $insertedSekalian = $this->insertDeliveryRiwayatBatch(
+               $phoneTail,
+               $pelangganIds,
+               $jenisSekalian,
+               $idsSekalian,
+               $idKaryawan,
+               $namaKaryawan,
+               $idCabang,
+               $now,
+               $idRequest
+            );
+         }
+
+         $upd = $this->db(0)->update(
+            'delivery_request',
+            [
+               'delivery_status' => 'selesai',
+               'id_karyawan' => $idKaryawan,
+               'nama_karyawan' => strtoupper($namaKaryawan),
+               'selesaiTime' => $now,
+            ],
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan'"
+         );
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal memperbarui status request');
+         }
+
+         $msg = "Request $jenis selesai ($inserted item)";
+         if ($sekalian) {
+            $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+
+         $response = [
+            'status' => 'success',
+            'message' => $msg,
+            'data' => [
+               'id_request' => $idRequest,
+               'jenis' => $jenis,
+               'count' => $inserted,
+               'sekalian' => $sekalian ? $jenisSekalian : null,
+               'count_sekalian' => $insertedSekalian,
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
+   }
+
+   /**
+    * Batalkan request customer: status batal + catatan, tanpa riwayat.
+    */
+   public function batal_request()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idRequest = (int) ($_POST['id_request'] ?? 0);
+         $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+         $catatan = trim((string) ($_POST['catatan'] ?? ''));
+
+         if ($idRequest <= 0) {
+            throw new Exception('Request tidak valid');
+         }
+         if ($idKaryawan < 1) {
+            throw new Exception('Pilih karyawan yang membatalkan');
+         }
+         if ($catatan === '') {
+            throw new Exception('Catatan wajib diisi');
+         }
+
+         $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+         if (!$karyawan) {
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+         }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+         $idCabang = (int) ($this->id_cabang ?? 0);
+
+         $req = $this->db(0)->get_where_row(
+            'delivery_request',
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan'"
+         );
+         if (!is_array($req) || empty($req['id_request'])) {
+            throw new Exception('Request tidak ditemukan atau sudah selesai');
+         }
+
+         $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+         $upd = $this->db(0)->update(
+            'delivery_request',
+            [
+               'delivery_status' => 'batal',
+               'id_karyawan' => $idKaryawan,
+               'nama_karyawan' => strtoupper($namaKaryawan),
+               'catatan_batal' => $catatan,
+               'selesaiTime' => $now,
+            ],
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan'"
+         );
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal membatalkan request');
+         }
+
+         $log = $this->helper('ActivityLog')->write([
+            'modul' => 'delivery',
+            'aksi' => 'batal_request',
+            'id_ref' => (string) $idRequest,
+            'ref' => (string) ($req['phone_tail'] ?? ''),
+            'id_karyawan' => $idKaryawan,
+            'nama_karyawan' => strtoupper($namaKaryawan),
+            'id_user' => $idUser,
+            'id_cabang' => $idCabang,
+            'catatan' => $catatan,
+            'meta' => [
+               'id_request' => $idRequest,
+               'jenis' => $req['jenis'] ?? '',
+               'phone_tail' => $req['phone_tail'] ?? '',
+            ],
+         ]);
+         if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
+            throw new Exception($log['error'] ?? 'Gagal menyimpan log');
+         }
+
+         $response = [
+            'status' => 'success',
+            'message' => 'Request dibatalkan',
+            'data' => [
+               'id_request' => $idRequest,
+               'id_karyawan' => $idKaryawan,
             ],
          ];
       } catch (\Throwable $e) {
@@ -614,6 +900,120 @@ class Delivery extends Controller
       return $out;
    }
 
+   /**
+    * Request kurir customer (delivery_request berjalan) — semua cabang.
+    */
+   private function getPendingCustomerRequests(): array
+   {
+      $rows = $this->db(0)->query_array(
+         "SELECT r.*, p.nama_pelanggan
+          FROM delivery_request r
+          LEFT JOIN pelanggan p ON p.id_pelanggan = r.id_pelanggan
+          WHERE r.delivery_status = 'berjalan'
+          ORDER BY r.insertTime DESC
+          LIMIT 200"
+      );
+      if (!is_array($rows)) {
+         return [];
+      }
+
+      $cabangMap = $this->buildCabangMap();
+      $out = [];
+      foreach ($rows as $row) {
+         $idRequest = (int) ($row['id_request'] ?? 0);
+         if ($idRequest <= 0) {
+            continue;
+         }
+         $jenis = strtolower((string) ($row['jenis'] ?? ''));
+         $idCabang = (int) ($row['id_cabang'] ?? 0);
+         $nama = trim((string) ($row['nama_pelanggan'] ?? ''));
+         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($row['phone_tail'] ?? ''));
+         if (strlen($phoneTail) >= 9) {
+            $phoneTail = substr($phoneTail, -9);
+         }
+
+         $prefillIds = [];
+         if ($jenis === 'antar') {
+            $items = $this->db(0)->get_where(
+               'delivery_request_item',
+               'id_request = ' . $idRequest
+            );
+            if (is_array($items)) {
+               foreach ($items as $it) {
+                  $sid = (int) ($it['id_penjualan'] ?? 0);
+                  if ($sid > 0) {
+                     $prefillIds[] = $sid;
+                  }
+               }
+            }
+         }
+
+         $out[] = [
+            'id_request' => $idRequest,
+            'nama' => strtoupper($nama !== '' ? $nama : 'Customer'),
+            'phone_tail' => $phoneTail,
+            'jenis' => $jenis,
+            'layanan' => (string) ($row['layanan'] ?? 'sameday'),
+            'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
+            'insertTime' => $row['insertTime'] ?? '',
+            'prefill_ids' => $prefillIds,
+            'lokasi_nama' => (string) ($row['lokasi_nama'] ?? ''),
+            'lokasi_detail' => (string) ($row['lokasi_detail'] ?? ''),
+            'lokasi_latt' => isset($row['lokasi_latt']) ? (float) $row['lokasi_latt'] : null,
+            'lokasi_longt' => isset($row['lokasi_longt']) ? (float) $row['lokasi_longt'] : null,
+         ];
+      }
+      return $out;
+   }
+
+   /**
+    * Insert delivery_riwayat untuk daftar id_penjualan eligible.
+    * @throws Exception
+    */
+   private function insertDeliveryRiwayatBatch(
+      string $phoneTail,
+      array $pelangganIds,
+      string $jenis,
+      array $ids,
+      int $idKaryawan,
+      string $namaKaryawan,
+      int $idCabang,
+      string $now,
+      int $exceptRequestId = 0
+   ): int {
+      $eligibleMap = [];
+      foreach ($this->fetchEligibleSaleRows($pelangganIds, $jenis, $exceptRequestId) as $row) {
+         $eligibleMap[(int) $row['id_penjualan']] = $row;
+      }
+
+      $inserted = 0;
+      foreach ($ids as $idPenjualan) {
+         $idPenjualan = (int) $idPenjualan;
+         if (!isset($eligibleMap[$idPenjualan])) {
+            throw new Exception("Item #$idPenjualan tidak eligible atau sudah ada riwayat $jenis");
+         }
+         $sale = $eligibleMap[$idPenjualan];
+         $data = [
+            'phone_tail' => $phoneTail,
+            'id_pelanggan' => (int) ($sale['id_pelanggan'] ?? 0),
+            'id_penjualan' => $idPenjualan,
+            'no_ref' => (string) ($sale['no_ref'] ?? ''),
+            'jenis' => $jenis,
+            'id_karyawan' => $idKaryawan,
+            'nama_karyawan' => strtoupper($namaKaryawan),
+            'id_cabang' => $idCabang,
+            'id_user' => $idKaryawan,
+            'insertTime' => $now,
+         ];
+         $ins = $this->db(0)->insert('delivery_riwayat', $data);
+         if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+            throw new Exception($ins['error'] ?? 'Gagal menyimpan riwayat');
+         }
+         $inserted++;
+      }
+      return $inserted;
+   }
+
    private function conversationHasOpenCase2($raw): bool
    {
       if (!is_string($raw) || $raw === '') {
@@ -706,13 +1106,17 @@ class Delivery extends Controller
       return array_values($ids);
    }
 
-   private function fetchEligibleSaleRows(array $pelangganIds, string $jenis): array
+   private function fetchEligibleSaleRows(array $pelangganIds, string $jenis, int $exceptRequestId = 0): array
    {
       if (empty($pelangganIds)) {
          return [];
       }
       $idsIn = implode(',', array_map('intval', $pelangganIds));
       $jenisEsc = $this->db(0)->escape($jenis);
+      $exceptClause = '';
+      if ($exceptRequestId > 0) {
+         $exceptClause = ' AND dri.id_request <> ' . (int) $exceptRequestId;
+      }
       $rows = $this->db(0)->query_array(
          "SELECT s.*
           FROM sale s
@@ -726,15 +1130,24 @@ class Delivery extends Controller
               SELECT 1 FROM delivery_riwayat dr
               WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
             )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM delivery_request_item dri
+              INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+              WHERE dri.id_penjualan = s.id_penjualan
+                AND drq.jenis = '$jenisEsc'
+                AND drq.delivery_status = 'berjalan'
+                $exceptClause
+            )
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 300"
       );
       return is_array($rows) ? $rows : [];
    }
 
-   private function buildEligibleSalesOrders(array $pelangganIds, string $jenis): array
+   private function buildEligibleSalesOrders(array $pelangganIds, string $jenis, int $exceptRequestId = 0): array
    {
-      $rows = $this->fetchEligibleSaleRows($pelangganIds, $jenis);
+      $rows = $this->fetchEligibleSaleRows($pelangganIds, $jenis, $exceptRequestId);
       if (empty($rows)) {
          return [];
       }

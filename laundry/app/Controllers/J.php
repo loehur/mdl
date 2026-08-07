@@ -194,7 +194,7 @@ class J extends Controller
    }
 
    /**
-    * POST: Request Antar — insert surcas Pengantaran (id_jenis_surcas=2)
+    * POST: Request Antar - insert surcas Pengantaran (id_jenis_surcas=2)
     * ke satu no_ref belum tuntas dari item terpilih.
     * Body: id_lokasi, ids[] (id_penjualan)
     */
@@ -412,6 +412,7 @@ class J extends Controller
             break;
 
          case 'kurir':
+            $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
             $this->view('j/partials/kurir', $payload);
             break;
 
@@ -1238,6 +1239,505 @@ class J extends Controller
       ];
    }
 
+   /** GET JSON: item sale eligible untuk Antar Sameday */
+   public function kurirSalesOptions($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      $this->ensureKurirLookups();
+      $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar');
+      echo json_encode([
+         'ok' => true,
+         'orders' => $orders,
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** GET JSON: daftar lokasi pelanggan + default map (kota cabang) */
+   public function kurirLokasiList($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      echo json_encode([
+         'ok' => true,
+         'lokasi' => $this->listPelangganLokasi($pelanggan),
+         'default_map' => $this->getDefaultMapCoords(),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST: tambah lokasi pelanggan */
+   public function kurirLokasiAdd($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $nama = trim((string) ($_POST['nama'] ?? ''));
+      $detail = trim((string) ($_POST['detail'] ?? ''));
+      $latt = (float) ($_POST['latt'] ?? 0);
+      $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
+
+      if ($nama === '') {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi wajib diisi']);
+         return;
+      }
+      if (strlen($nama) > 50) {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi terlalu panjang']);
+         return;
+      }
+      if ($detail === '') {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat wajib diisi']);
+         return;
+      }
+      if (strlen($detail) > 255) {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat terlalu panjang']);
+         return;
+      }
+      if ($latt < -90 || $latt > 90 || $longt < -180 || $longt > 180 || ($latt == 0.0 && $longt == 0.0)) {
+         echo json_encode(['ok' => false, 'message' => 'Titik peta belum valid. Geser/klik peta dulu.']);
+         return;
+      }
+
+      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+      $ins = $this->db(0)->insert('pelanggan_lokasi', [
+         'id_pelanggan' => (int) $pelanggan,
+         'nama' => $nama,
+         'detail' => $detail,
+         'latt' => round($latt, 7),
+         'longt' => round($longt, 7),
+         'insertTime' => $now,
+      ]);
+      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal menyimpan lokasi']);
+         return;
+      }
+      $idLokasi = (int) ($ins['insert_id'] ?? 0);
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan lokasi']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'message' => 'Lokasi ditambahkan',
+         'lokasi' => [
+            'id_lokasi' => $idLokasi,
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => round($latt, 7),
+            'longt' => round($longt, 7),
+         ],
+         'list' => $this->listPelangganLokasi($pelanggan),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST: buat request Sameday (antar|jemput) */
+   public function kurirSamedaySubmit($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
+      if (!in_array($jenis, ['antar', 'jemput'], true)) {
+         echo json_encode(['ok' => false, 'message' => 'Jenis tidak valid']);
+         return;
+      }
+
+      $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih lokasi dulu']);
+         return;
+      }
+      $lokasi = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($lokasi) || empty($lokasi['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+
+      $idsRaw = $_POST['ids'] ?? [];
+      if (!is_array($idsRaw)) {
+         $idsRaw = [$idsRaw];
+      }
+      $ids = [];
+      foreach ($idsRaw as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $ids[$id] = $id;
+         }
+      }
+      $ids = array_values($ids);
+
+      if ($jenis === 'antar' && empty($ids)) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih minimal satu item untuk diantar']);
+         return;
+      }
+      if ($jenis === 'jemput' && !empty($ids)) {
+         // Jemput tidak butuh item di awal — abaikan ids jika ada
+         $ids = [];
+      }
+
+      if ($jenis === 'jemput') {
+         $pendingLokasi = (int) ($this->db(0)->count_where(
+            'delivery_request',
+            'id_pelanggan = ' . (int) $pelanggan
+               . " AND jenis = 'jemput'"
+               . " AND delivery_status = 'berjalan'"
+               . ' AND id_lokasi = ' . $idLokasi
+         ) ?? 0);
+         if ($pendingLokasi > 0) {
+            echo json_encode([
+               'ok' => false,
+               'message' => 'Sudah ada jemput berjalan di lokasi ini. Tunggu selesai dulu.',
+            ]);
+            return;
+         }
+      }
+
+      $eligibleMap = [];
+      if ($jenis === 'antar') {
+         foreach ($this->fetchKurirEligibleSaleRows($pelanggan, 'antar') as $row) {
+            $eligibleMap[(int) $row['id_penjualan']] = $row;
+         }
+         foreach ($ids as $idSale) {
+            if (!isset($eligibleMap[$idSale])) {
+               $reason = $this->antarItemBlockReason($pelanggan, $idSale);
+               echo json_encode([
+                  'ok' => false,
+                  'message' => $reason !== ''
+                     ? $reason
+                     : "Item #$idSale tidak bisa diantar",
+               ]);
+               return;
+            }
+         }
+      }
+
+      $phoneTail = $this->phoneTailFromPelanggan($this->pelanggan_p);
+      if (strlen($phoneTail) < 8) {
+         echo json_encode(['ok' => false, 'message' => 'Nomor pelanggan belum lengkap']);
+         return;
+      }
+
+      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+      $ins = $this->db(0)->insert('delivery_request', [
+         'sumber' => 'customer',
+         'jenis' => $jenis,
+         'layanan' => 'sameday',
+         'delivery_status' => 'berjalan',
+         'id_pelanggan' => (int) $pelanggan,
+         'phone_tail' => $phoneTail,
+         'id_cabang' => (int) $this->id_cabang_p,
+         'id_lokasi' => $idLokasi,
+         'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
+         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+         'lokasi_latt' => (float) ($lokasi['latt'] ?? 0),
+         'lokasi_longt' => (float) ($lokasi['longt'] ?? 0),
+         'insertTime' => $now,
+      ]);
+      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal membuat permintaan']);
+         return;
+      }
+      $idRequest = (int) ($ins['insert_id'] ?? 0);
+      if ($idRequest <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Gagal membuat permintaan']);
+         return;
+      }
+
+      $surcasInfo = null;
+      if ($jenis === 'antar') {
+         foreach ($ids as $idSale) {
+            $sale = $eligibleMap[$idSale];
+            $itemIns = $this->db(0)->insert('delivery_request_item', [
+               'id_request' => $idRequest,
+               'id_penjualan' => $idSale,
+               'no_ref' => (string) ($sale['no_ref'] ?? ''),
+            ]);
+            if (is_array($itemIns) && isset($itemIns['errno']) && (int) $itemIns['errno'] !== 0) {
+               echo json_encode(['ok' => false, 'message' => $itemIns['error'] ?? 'Gagal menyimpan item']);
+               return;
+            }
+         }
+
+         // Surcas Pengantaran (jenis 2) ke satu ref belum tuntas; jumlah = tarif jarak
+         $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+         $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+         $locLat = (float) ($lokasi['latt'] ?? 0);
+         $locLon = (float) ($lokasi['longt'] ?? 0);
+         $tarifHelper = $this->helper('AntarTarif');
+         $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $jumlahSurcas = (int) $calc['tarif'];
+         $noRefSurcas = $this->pickBelumTuntasRef($pelanggan, $ids);
+         if ($noRefSurcas !== null && $noRefSurcas !== '') {
+            $insertedSurcas = $this->insertSurcasPengantaran($noRefSurcas, $jumlahSurcas);
+            if ($insertedSurcas !== false) {
+               $surcasInfo = [
+                  'no_ref' => $noRefSurcas,
+                  'jumlah' => $jumlahSurcas,
+                  'km' => $calc['km'],
+                  'already_exists' => $insertedSurcas === 'exists',
+               ];
+            }
+         }
+      }
+
+      $label = $jenis === 'antar' ? 'Antar' : 'Jemput';
+      echo json_encode([
+         'ok' => true,
+         'message' => "Permintaan $label Sameday dikirim. Driver akan memproses.",
+         'id_request' => $idRequest,
+         'surcas' => $surcasInfo,
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   private function listPelangganLokasi(int $pelanggan): array
+   {
+      $rows = $this->db(0)->get_where(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . (int) $pelanggan . ' ORDER BY insertTime DESC, id_lokasi DESC'
+      );
+      if (!is_array($rows)) {
+         return [];
+      }
+
+      $jemputBerjalan = [];
+      $pendingJemput = $this->db(0)->get_where(
+         'delivery_request',
+         'id_pelanggan = ' . (int) $pelanggan
+            . " AND jenis = 'jemput' AND delivery_status = 'berjalan'"
+      );
+      if (is_array($pendingJemput)) {
+         foreach ($pendingJemput as $pj) {
+            $lid = (int) ($pj['id_lokasi'] ?? 0);
+            if ($lid > 0) {
+               $jemputBerjalan[$lid] = true;
+            }
+         }
+      }
+
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      $tarifHelper = $this->helper('AntarTarif');
+      $canTarif = !($cabLat == 0.0 && $cabLon == 0.0);
+
+      $out = [];
+      foreach ($rows as $r) {
+         $idLokasi = (int) ($r['id_lokasi'] ?? 0);
+         $locLat = (float) ($r['latt'] ?? 0);
+         $locLon = (float) ($r['longt'] ?? 0);
+         $km = null;
+         $tarif = null;
+         if ($canTarif) {
+            $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+            $km = $calc['km'];
+            $tarif = $calc['tarif'];
+         }
+         $out[] = [
+            'id_lokasi' => $idLokasi,
+            'nama' => (string) ($r['nama'] ?? ''),
+            'detail' => (string) ($r['detail'] ?? ''),
+            'latt' => $locLat,
+            'longt' => $locLon,
+            'km' => $km,
+            'tarif' => $tarif,
+            'jemput_berjalan' => !empty($jemputBerjalan[$idLokasi]),
+         ];
+      }
+      return $out;
+   }
+
+   /** Alasan item tidak bisa antar (untuk pesan error jelas) */
+   private function antarItemBlockReason(int $pelanggan, int $idPenjualan): string
+   {
+      $pid = (int) $pelanggan;
+      $sid = (int) $idPenjualan;
+      $inRiwayat = (int) ($this->db(0)->count_where(
+         'delivery_riwayat',
+         "id_penjualan = $sid AND jenis = 'antar'"
+      ) ?? 0);
+      if ($inRiwayat > 0) {
+         return "Item #$sid sudah pernah diantar — tidak bisa request ulang";
+      }
+      $busy = $this->db(0)->query_array(
+         "SELECT dri.id
+          FROM delivery_request_item dri
+          INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+          WHERE dri.id_penjualan = $sid
+            AND drq.id_pelanggan = $pid
+            AND drq.jenis = 'antar'
+            AND drq.delivery_status = 'berjalan'
+          LIMIT 1"
+      );
+      if (is_array($busy) && !empty($busy)) {
+         return "Item #$sid sudah ada di permintaan antar yang berjalan";
+      }
+      return '';
+   }
+
+   /** Default titik peta: kota cabang pelanggan (kota.latt / kota.longt) */
+   private function getDefaultMapCoords(): array
+   {
+      $fallback = [
+         'latt' => 0.507068,
+         'longt' => 101.447779,
+         'nama_kota' => 'PEKANBARU',
+         'source' => 'fallback',
+      ];
+      $idKota = (int) ($this->dCabangPublic['id_kota'] ?? 0);
+      if ($idKota <= 0) {
+         return $fallback;
+      }
+      $kota = $this->db(0)->get_where_row('kota', 'id_kota = ' . $idKota);
+      if (!is_array($kota)) {
+         return $fallback;
+      }
+      $latt = (float) ($kota['latt'] ?? 0);
+      $longt = (float) ($kota['longt'] ?? 0);
+      if ($latt == 0.0 && $longt == 0.0) {
+         return $fallback;
+      }
+      return [
+         'latt' => $latt,
+         'longt' => $longt,
+         'nama_kota' => (string) ($kota['nama_kota'] ?? ''),
+         'source' => 'kota',
+      ];
+   }
+
+   private function ensureKurirLookups(): void
+   {
+      if (empty($this->dDurasi)) {
+         $this->dDurasi = $this->db(0)->get('durasi');
+      }
+      if (empty($this->itemGroup)) {
+         $this->itemGroup = $this->db(0)->get('item_group');
+      }
+      if (empty($this->dPenjualan)) {
+         $this->dPenjualan = $this->db(0)->get('penjualan_jenis');
+      }
+      if (empty($this->dSatuan)) {
+         $this->dSatuan = $this->db(0)->get('satuan');
+      }
+   }
+
+   private function getPendingKurirRequests($pelanggan): array
+   {
+      $rows = $this->db(0)->get_where(
+         'delivery_request',
+         'id_pelanggan = ' . (int) $pelanggan . " AND delivery_status = 'berjalan' ORDER BY insertTime DESC"
+      );
+      if (!is_array($rows)) {
+         return [];
+      }
+      $out = [];
+      foreach ($rows as $r) {
+         $out[] = [
+            'id_request' => (int) ($r['id_request'] ?? 0),
+            'jenis' => (string) ($r['jenis'] ?? ''),
+            'layanan' => (string) ($r['layanan'] ?? 'sameday'),
+            'insertTime' => (string) ($r['insertTime'] ?? ''),
+            'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
+            'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
+         ];
+      }
+      return $out;
+   }
+
+   private function phoneTailFromPelanggan(array $pelanggan): string
+   {
+      $digits = preg_replace('/[^0-9]/', '', (string) ($pelanggan['nomor_pelanggan'] ?? ''));
+      if (strlen($digits) >= 9) {
+         return substr($digits, -9);
+      }
+      return $digits;
+   }
+
+   private function fetchKurirEligibleSaleRows(int $pelanggan, string $jenis): array
+   {
+      $jenisEsc = $this->db(0)->escape($jenis);
+      $pid = (int) $pelanggan;
+      $rows = $this->db(0)->query_array(
+         "SELECT s.*
+          FROM sale s
+          WHERE s.bin = 0
+            AND s.id_pelanggan = $pid
+            AND (
+              s.tuntas = 0
+              OR (s.tuntas = 1 AND s.tuntasTime IS NOT NULL AND s.tuntasTime >= (NOW() - INTERVAL 2 DAY))
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM delivery_riwayat dr
+              WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM delivery_request_item dri
+              INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+              WHERE dri.id_penjualan = s.id_penjualan
+                AND drq.jenis = '$jenisEsc'
+                AND drq.delivery_status = 'berjalan'
+            )
+          ORDER BY s.insertTime DESC, s.id_penjualan DESC
+          LIMIT 200"
+      );
+      return is_array($rows) ? $rows : [];
+   }
+
+   private function buildKurirEligibleOrders(int $pelanggan, string $jenis): array
+   {
+      $rows = $this->fetchKurirEligibleSaleRows($pelanggan, $jenis);
+      if (empty($rows)) {
+         return [];
+      }
+
+      $mapSatuan = [];
+      foreach ($this->dPenjualan ?? [] as $l) {
+         $sat = '';
+         foreach ($this->dSatuan ?? [] as $sa) {
+            if (($sa['id_satuan'] ?? null) == ($l['id_satuan'] ?? null)) {
+               $sat = $sa['nama_satuan'] ?? '';
+               break;
+            }
+         }
+         $mapSatuan[$l['id_penjualan_jenis']] = $sat;
+      }
+      $mapKategori = [];
+      foreach ($this->itemGroup ?? [] as $g) {
+         $mapKategori[$g['id_item_group']] = $g['item_kategori'];
+      }
+      $mapDurasi = [];
+      foreach ($this->dDurasi ?? [] as $d) {
+         $mapDurasi[$d['id_durasi']] = $d['durasi'];
+      }
+
+      $orders = [];
+      foreach ($rows as $a) {
+         $ref = (string) ($a['no_ref'] ?? '');
+         if ($ref === '') {
+            $ref = 'ID' . (int) $a['id_penjualan'];
+         }
+         if (!isset($orders[$ref])) {
+            $orders[$ref] = [
+               'no_ref' => $ref,
+               'insertTime' => $a['insertTime'] ?? '',
+               'items' => [],
+            ];
+         }
+         $qty = round((float) ($a['qty'] ?? 0), 2);
+         $satuan = $mapSatuan[$a['id_penjualan_jenis'] ?? 0] ?? '';
+         $qtyShow = rtrim(rtrim(number_format($qty, 2, ',', '.'), '0'), ',') . $satuan;
+         $orders[$ref]['items'][] = [
+            'id' => (int) $a['id_penjualan'],
+            'kategori' => $mapKategori[$a['id_item_group'] ?? 0] ?? '',
+            'durasi' => strtoupper((string) ($mapDurasi[$a['id_durasi'] ?? 0] ?? '')),
+            'qty_show' => $qtyShow,
+            'tuntas' => (int) ($a['tuntas'] ?? 0),
+         ];
+      }
+      return array_values($orders);
+   }
+
    /**
     * List pelanggan_lokasi + km/tarif dari koordinat cabang.
     * @return array{ok:bool,message?:string,list?:array,cabang?:array}
@@ -1325,7 +1825,7 @@ class J extends Controller
    }
 
    /**
-    * Insert surcas Pengantaran (jenis 2) ke no_ref — skip jika sudah ada.
+    * Insert surcas Pengantaran (jenis 2) ke no_ref - skip jika sudah ada.
     * @return true|'exists'|false
     */
    private function insertSurcasPengantaran($noRef, $jumlah)

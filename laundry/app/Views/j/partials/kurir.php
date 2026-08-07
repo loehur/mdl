@@ -2,15 +2,44 @@
 $p = $data['data_pelanggan'];
 $id = (int) $p['id_pelanggan'];
 $base = $data['base'];
+$pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
 ?>
 
 <section class="j-hero">
   <div class="j-hero-label">Kurir</div>
   <div class="j-hero-name">Pilih jenis kurir</div>
   <div style="font-size:0.78rem;opacity:0.85;position:relative;z-index:1;margin-top:4px">
-    Bandingkan dulu — pesanan online segera dibuka
+    Sameday siap dipesan — Instant segera hadir
   </div>
 </section>
+
+<?php if (!empty($pending)) { ?>
+<section class="j-section j-kurir-pending">
+  <div class="j-section-head">
+    <h2>Permintaan berjalan</h2>
+  </div>
+  <div class="j-kurir-pending-list">
+    <?php foreach ($pending as $pr) {
+      $jenis = strtolower((string) ($pr['jenis'] ?? ''));
+      $label = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
+      $ts = strtotime($pr['insertTime'] ?? '');
+      $when = $ts ? date('d M Y H:i', $ts) : '-';
+      $lokNama = trim((string) ($pr['lokasi_nama'] ?? ''));
+    ?>
+      <div class="j-kurir-pending-item">
+        <div class="j-kurir-pending-item__ico" aria-hidden="true">
+          <i class="fas <?= $jenis === 'jemput' ? 'fa-hand-holding' : 'fa-truck' ?>"></i>
+        </div>
+        <div class="j-kurir-pending-item__text">
+          <strong><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?> Sameday</strong>
+          <small>Menunggu driver · <?= htmlspecialchars($when, ENT_QUOTES, 'UTF-8') ?><?= $lokNama !== '' ? ' · ' . htmlspecialchars($lokNama, ENT_QUOTES, 'UTF-8') : '' ?></small>
+        </div>
+        <span class="j-badge warn">Berjalan</span>
+      </div>
+    <?php } ?>
+  </div>
+</section>
+<?php } ?>
 
 <section class="j-section j-kurir">
   <div class="j-section-head">
@@ -53,9 +82,20 @@ $base = $data['base'];
       </div>
     </div>
 
-    <button type="button" class="j-btn j-btn-soft j-btn-block j-kurir-soon" disabled>
-      <i class="fas fa-clock"></i> Segera hadir
-    </button>
+    <div class="j-kurir-actions">
+      <button type="button"
+              class="j-btn j-btn-primary j-kurir-act"
+              data-j-kurir-jenis="antar">
+        <i class="fas fa-truck"></i>
+        Antar
+      </button>
+      <button type="button"
+              class="j-btn j-btn-soft j-kurir-act"
+              data-j-kurir-jenis="jemput">
+        <i class="fas fa-hand-holding"></i>
+        Jemput
+      </button>
+    </div>
   </article>
 
   <!-- Instant -->
@@ -98,6 +138,6 @@ $base = $data['base'];
   </article>
 
   <p class="j-kurir-note">
-    Fitur pemesanan kurir masih dalam tahap pengembangan. Nanti Anda bisa pilih langsung dari halaman ini.
+    Antar: item yang sudah/sedang diantar tidak bisa dipilih lagi. Jemput: lokasi yang masih ada jemput berjalan tidak bisa dipilih lagi.
   </p>
 </section>
