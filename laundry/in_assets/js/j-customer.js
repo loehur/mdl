@@ -914,6 +914,7 @@
   var kurirDefaultMap = { latt: 0.507068, longt: 101.447779, nama_kota: 'PEKANBARU', source: 'fallback' };
   var kurirMap = null;
   var kurirMarker = null;
+  var kurirEditingLokasiId = 0;
 
   function escapeHtmlKurir(s) {
     return String(s == null ? '' : s)
@@ -943,6 +944,14 @@
       '<div><strong>' + escapeHtmlKurir(lok.nama || '-') + '</strong>' +
       '<small>' + escapeHtmlKurir(lok.detail || '') + '</small></div>' +
     '</div>';
+  }
+
+  function findLokasiById(id) {
+    id = Number(id);
+    for (var i = 0; i < kurirLokasiCache.length; i++) {
+      if (Number(kurirLokasiCache[i].id_lokasi) === id) return kurirLokasiCache[i];
+    }
+    return null;
   }
 
   function renderKurirLokasiList(list, selectedId) {
@@ -994,18 +1003,34 @@
             '<small>lihat di langkah berikutnya</small>' +
           '</span>';
       }
-      return '<label class="' + cls + '">' +
-        '<input type="radio" name="j_kurir_lokasi" value="' + escapeHtmlKurir(id) + '"' + checked + disabled + '>' +
-        '<span class="j-kurir-lokasi-item__text">' +
-          '<strong>' + escapeHtmlKurir(lok.nama || '-') +
-            (blocked ? ' <span class="j-badge warn">Jemput berjalan</span>' : '') +
-          '</strong>' +
-          '<small>' + escapeHtmlKurir(lok.detail || '') +
-            (blocked ? ' · Tidak bisa request jemput lagi ke lokasi ini sampai selesai' : '') +
-          '</small>' +
-        '</span>' +
-        tarifHtml +
-      '</label>';
+      return (
+        '<div class="' + cls + '">' +
+          '<label class="j-kurir-lokasi-item__main">' +
+            '<input type="radio" name="j_kurir_lokasi" value="' + escapeHtmlKurir(id) + '"' + checked + disabled + '>' +
+            '<span class="j-kurir-lokasi-item__text">' +
+              '<strong>' + escapeHtmlKurir(lok.nama || '-') +
+                (blocked ? ' <span class="j-badge warn">Jemput berjalan</span>' : '') +
+              '</strong>' +
+              '<small>' + escapeHtmlKurir(lok.detail || '') +
+                (blocked ? ' · Tidak bisa request jemput lagi ke lokasi ini sampai selesai' : '') +
+              '</small>' +
+            '</span>' +
+          '</label>' +
+          tarifHtml +
+          '<div class="j-kurir-lokasi-item__acts">' +
+            '<button type="button" class="j-kurir-lokasi-act j-kurir-lokasi-edit" data-id="' +
+              escapeHtmlKurir(id) +
+              '" title="Edit" aria-label="Edit lokasi">' +
+              '<i class="fas fa-pen"></i>' +
+            '</button>' +
+            '<button type="button" class="j-kurir-lokasi-act j-kurir-lokasi-del" data-id="' +
+              escapeHtmlKurir(id) +
+              '" title="Hapus" aria-label="Hapus lokasi">' +
+              '<i class="fas fa-trash"></i>' +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      );
     }).join('');
 
     if (kurirPendingJenis === 'jemput' && !selectable.length) {
@@ -1019,11 +1044,7 @@
   function getSelectedLokasiFromList() {
     var checked = document.querySelector('#jKurirLokasiList input[name="j_kurir_lokasi"]:checked');
     if (!checked) return null;
-    var id = parseInt(checked.value, 10);
-    for (var i = 0; i < kurirLokasiCache.length; i++) {
-      if (Number(kurirLokasiCache[i].id_lokasi) === id) return kurirLokasiCache[i];
-    }
-    return null;
+    return findLokasiById(checked.value);
   }
 
   function showLokasiPickView() {
@@ -1035,9 +1056,12 @@
     if (form) form.hidden = true;
     if (footPick) footPick.hidden = false;
     if (footForm) footForm.hidden = true;
+    kurirEditingLokasiId = 0;
+    var editId = document.getElementById('jLokasiEditId');
+    if (editId) editId.value = '';
   }
 
-  function showLokasiFormView() {
+  function showLokasiFormView(editLok) {
     var pick = document.getElementById('jKurirLokasiPick');
     var form = document.getElementById('jKurirLokasiForm');
     var footPick = document.getElementById('jKurirLokasiFootPick');
@@ -1046,13 +1070,35 @@
     if (form) form.hidden = false;
     if (footPick) footPick.hidden = true;
     if (footForm) footForm.hidden = false;
+
+    var isEdit = !!(editLok && editLok.id_lokasi);
+    kurirEditingLokasiId = isEdit ? Number(editLok.id_lokasi) : 0;
+    var editId = document.getElementById('jLokasiEditId');
+    if (editId) editId.value = kurirEditingLokasiId ? String(kurirEditingLokasiId) : '';
+    var desc = document.getElementById('jKurirLokasiFormDesc');
+    if (desc) {
+      desc.textContent = isEdit
+        ? 'Ubah nama, detail, atau titik peta lokasi ini.'
+        : 'Isi nama & detail, lalu set titik di peta.';
+    }
+    var saveLbl = document.getElementById('jBtnKurirLokasiSaveLabel');
+    if (saveLbl) saveLbl.textContent = isEdit ? 'Simpan perubahan' : 'Simpan';
+
     var nama = document.getElementById('jLokasiNama');
     var detail = document.getElementById('jLokasiDetail');
-    if (nama) nama.value = '';
-    if (detail) detail.value = '';
+    if (nama) nama.value = isEdit ? String(editLok.nama || '') : '';
+    if (detail) detail.value = isEdit ? String(editLok.detail || '') : '';
+
+    var lat = isEdit ? parseFloat(editLok.latt) : NaN;
+    var lng = isEdit ? parseFloat(editLok.longt) : NaN;
     // Tunggu layout form terlihat dulu — kalau map diinit saat hidden, tiles/pin bergeser
     setTimeout(function () {
-      initKurirMapThenLocate();
+      if (isEdit && !isNaN(lat) && !isNaN(lng) && !(lat === 0 && lng === 0)) {
+        ensureKurirMap(lat, lng);
+        syncKurirMapView(lat, lng, 16);
+      } else {
+        initKurirMapThenLocate();
+      }
     }, 50);
   }
 
@@ -1231,7 +1277,12 @@
     var box = document.getElementById('jKurirSalesBox');
     if (!box) return;
     if (!orders || !orders.length) {
-      box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada item yang bisa diantar saat ini.</div>';
+      box.innerHTML =
+        '<div class="j-kurir-sales-empty">' +
+        (kurirPendingLayanan === 'instant'
+          ? 'Belum ada item selesai yang bisa diantar Instant.'
+          : 'Tidak ada item yang bisa diantar saat ini.') +
+        '</div>';
       return;
     }
     box.innerHTML = orders.map(function (ord) {
@@ -1260,7 +1311,8 @@
   function loadKurirSalesOptions() {
     var box = document.getElementById('jKurirSalesBox');
     if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat item…</div>';
-    return fetch(base + 'J/kurirSalesOptions/' + pelangganId, {
+    var qs = 'layanan=' + encodeURIComponent(kurirPendingLayanan === 'instant' ? 'instant' : 'sameday');
+    return fetch(base + 'J/kurirSalesOptions/' + pelangganId + '?' + qs, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'same-origin'
     })
@@ -1340,6 +1392,10 @@
     var detail = String((document.getElementById('jLokasiDetail') || {}).value || '').trim();
     var latt = parseFloat((document.getElementById('jLokasiLatt') || {}).value || '');
     var longt = parseFloat((document.getElementById('jLokasiLongt') || {}).value || '');
+    var editId =
+      kurirEditingLokasiId ||
+      parseInt(String((document.getElementById('jLokasiEditId') || {}).value || '0'), 10) ||
+      0;
     if (!nama) { toast('Isi nama lokasi', 'warn'); return; }
     if (!detail) { toast('Isi detail alamat', 'warn'); return; }
     if (isNaN(latt) || isNaN(longt)) { toast('Set titik di peta dulu', 'warn'); return; }
@@ -1350,8 +1406,13 @@
     body.set('detail', detail);
     body.set('latt', String(latt));
     body.set('longt', String(longt));
+    var url = base + 'J/kurirLokasiAdd/' + pelangganId;
+    if (editId > 0) {
+      body.set('id_lokasi', String(editId));
+      url = base + 'J/kurirLokasiUpdate/' + pelangganId;
+    }
 
-    fetch(base + 'J/kurirLokasiAdd/' + pelangganId, {
+    fetch(url, {
       method: 'POST',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
@@ -1376,6 +1437,47 @@
       })
       .catch(function (err) {
         toast((err && err.message) || 'Gagal menyimpan lokasi', 'warn');
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function deleteKurirLokasi(id, btn) {
+    id = parseInt(id, 10) || 0;
+    if (id <= 0) return;
+    var lok = findLokasiById(id);
+    var label = lok && lok.nama ? lok.nama : 'lokasi ini';
+    if (!window.confirm('Hapus "' + label + '"?')) return;
+    if (btn) btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('id_lokasi', String(id));
+    fetch(base + 'J/kurirLokasiDelete/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal menghapus lokasi');
+        }
+        toast(data.message || 'Lokasi dihapus', 'ok');
+        if (kurirSelectedLokasi && Number(kurirSelectedLokasi.id_lokasi) === id) {
+          kurirSelectedLokasi = null;
+        }
+        renderKurirLokasiList(data.list || [], null);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal menghapus lokasi', 'warn');
       })
       .finally(function () {
         if (btn) btn.disabled = false;
@@ -1482,9 +1584,28 @@
   });
 
   document.addEventListener('click', function (e) {
+    var editBtn = e.target.closest('.j-kurir-lokasi-edit');
+    if (editBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      var editLok = findLokasiById(editBtn.getAttribute('data-id'));
+      if (!editLok) {
+        toast('Lokasi tidak ditemukan', 'warn');
+        return;
+      }
+      showLokasiFormView(editLok);
+      return;
+    }
+    var delBtn = e.target.closest('.j-kurir-lokasi-del');
+    if (delBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteKurirLokasi(delBtn.getAttribute('data-id'), delBtn);
+      return;
+    }
     if (e.target.closest('#jBtnKurirLokasiAdd')) {
       e.preventDefault();
-      showLokasiFormView();
+      showLokasiFormView(null);
       return;
     }
     if (e.target.closest('#jBtnKurirLokasiBack')) {

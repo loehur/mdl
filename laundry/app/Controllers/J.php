@@ -1240,16 +1240,24 @@ class J extends Controller
       ];
    }
 
-   /** GET JSON: item sale eligible untuk Antar Sameday */
+   /** GET JSON: item sale eligible untuk Antar (Sameday / Instant) */
    public function kurirSalesOptions($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
       $this->ensureKurirLookups();
-      $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar');
+      $layanan = strtolower(trim((string) ($_GET['layanan'] ?? $_POST['layanan'] ?? 'sameday')));
+      if ($layanan !== 'instant') {
+         $layanan = 'sameday';
+      }
+      // Instant Antar: hanya item yang sudah selesai (ada notif tipe=2)
+      $requireSelesai = ($layanan === 'instant');
+      $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar', $requireSelesai);
       echo json_encode([
          'ok' => true,
          'orders' => $orders,
+         'layanan' => $layanan,
+         'require_selesai' => $requireSelesai,
       ], JSON_UNESCAPED_UNICODE);
    }
 
@@ -1326,6 +1334,130 @@ class J extends Controller
             'latt' => round($latt, 7),
             'longt' => round($longt, 7),
          ],
+         'list' => $this->listPelangganLokasi($pelanggan),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST: ubah lokasi pelanggan */
+   public function kurirLokasiUpdate($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+      $nama = trim((string) ($_POST['nama'] ?? ''));
+      $detail = trim((string) ($_POST['detail'] ?? ''));
+      $latt = (float) ($_POST['latt'] ?? 0);
+      $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
+
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak valid']);
+         return;
+      }
+      $row = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($row) || empty($row['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+      if ($nama === '') {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi wajib diisi']);
+         return;
+      }
+      if (strlen($nama) > 50) {
+         echo json_encode(['ok' => false, 'message' => 'Nama lokasi terlalu panjang']);
+         return;
+      }
+      if ($detail === '') {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat wajib diisi']);
+         return;
+      }
+      if (strlen($detail) > 255) {
+         echo json_encode(['ok' => false, 'message' => 'Detail alamat terlalu panjang']);
+         return;
+      }
+      if ($latt < -90 || $latt > 90 || $longt < -180 || $longt > 180 || ($latt == 0.0 && $longt == 0.0)) {
+         echo json_encode(['ok' => false, 'message' => 'Titik peta belum valid. Geser/klik peta dulu.']);
+         return;
+      }
+
+      $upd = $this->db(0)->update(
+         'pelanggan_lokasi',
+         [
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => round($latt, 7),
+            'longt' => round($longt, 7),
+         ],
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $upd['error'] ?? 'Gagal mengubah lokasi']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'message' => 'Lokasi diperbarui',
+         'lokasi' => [
+            'id_lokasi' => $idLokasi,
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => round($latt, 7),
+            'longt' => round($longt, 7),
+         ],
+         'list' => $this->listPelangganLokasi($pelanggan),
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST: hapus lokasi pelanggan */
+   public function kurirLokasiDelete($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak valid']);
+         return;
+      }
+      $row = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($row) || empty($row['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+
+      $aktif = (int) ($this->db(0)->count_where(
+         'delivery_request',
+         'id_pelanggan = ' . (int) $pelanggan
+            . ' AND id_lokasi = ' . $idLokasi
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+      ) ?? 0);
+      if ($aktif > 0) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Lokasi tidak bisa dihapus karena masih ada permintaan kurir aktif.',
+         ]);
+         return;
+      }
+
+      $del = $this->db(0)->delete(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (is_array($del) && isset($del['errno']) && (int) $del['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $del['error'] ?? 'Gagal menghapus lokasi']);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'message' => 'Lokasi dihapus',
          'list' => $this->listPelangganLokasi($pelanggan),
       ], JSON_UNESCAPED_UNICODE);
    }
@@ -1731,13 +1863,13 @@ class J extends Controller
 
       $eligibleMap = [];
       if ($jenis === 'antar') {
-         $eligibleRows = $this->fetchKurirEligibleSaleRows((int) $pelanggan, 'antar');
+         $eligibleRows = $this->fetchKurirEligibleSaleRows((int) $pelanggan, 'antar', true);
          foreach ($eligibleRows as $row) {
             $eligibleMap[(int) $row['id_penjualan']] = $row;
          }
          foreach ($ids as $idSale) {
             if (!isset($eligibleMap[$idSale])) {
-               $reason = $this->antarItemBlockReason($pelanggan, $idSale);
+               $reason = $this->antarItemBlockReason($pelanggan, $idSale, true);
                echo json_encode([
                   'ok' => false,
                   'message' => $reason !== '' ? $reason : "Item #$idSale tidak bisa diantar",
@@ -2128,10 +2260,19 @@ class J extends Controller
    }
 
    /** Alasan item tidak bisa antar (untuk pesan error jelas) */
-   private function antarItemBlockReason(int $pelanggan, int $idPenjualan): string
+   private function antarItemBlockReason(int $pelanggan, int $idPenjualan, bool $requireNotifSelesai = false): string
    {
       $pid = (int) $pelanggan;
       $sid = (int) $idPenjualan;
+      if ($requireNotifSelesai) {
+         $selesai = (int) ($this->db(0)->count_where(
+            'notif',
+            "tipe = 2 AND no_ref = '" . $this->db(0)->escape((string) $sid) . "'"
+         ) ?? 0);
+         if ($selesai < 1) {
+            return "Item #$sid belum selesai dicuci — tunggu notifikasi selesai dulu";
+         }
+      }
       $inRiwayat = (int) ($this->db(0)->count_where(
          'delivery_riwayat',
          "id_penjualan = $sid AND jenis = 'antar'"
@@ -2242,10 +2383,20 @@ class J extends Controller
       return $digits;
    }
 
-   private function fetchKurirEligibleSaleRows(int $pelanggan, string $jenis): array
+   private function fetchKurirEligibleSaleRows(int $pelanggan, string $jenis, bool $requireNotifSelesai = false): array
    {
       $jenisEsc = $this->db(0)->escape($jenis);
       $pid = (int) $pelanggan;
+      $selesaiClause = '';
+      if ($requireNotifSelesai) {
+         // Notif selesai laundry = tipe 2; no_ref = id_penjualan
+         $selesaiClause = "
+            AND EXISTS (
+              SELECT 1 FROM notif n
+              WHERE n.tipe = 2
+                AND n.no_ref = CAST(s.id_penjualan AS CHAR)
+            )";
+      }
       $rows = $this->db(0)->query_array(
          "SELECT s.*
           FROM sale s
@@ -2267,15 +2418,16 @@ class J extends Controller
                 AND drq.jenis = '$jenisEsc'
                 AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')
             )
+            $selesaiClause
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 200"
       );
       return is_array($rows) ? $rows : [];
    }
 
-   private function buildKurirEligibleOrders(int $pelanggan, string $jenis): array
+   private function buildKurirEligibleOrders(int $pelanggan, string $jenis, bool $requireNotifSelesai = false): array
    {
-      $rows = $this->fetchKurirEligibleSaleRows($pelanggan, $jenis);
+      $rows = $this->fetchKurirEligibleSaleRows($pelanggan, $jenis, $requireNotifSelesai);
       if (empty($rows)) {
          return [];
       }

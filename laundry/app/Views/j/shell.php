@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=48">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=49">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
@@ -263,7 +263,8 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           </button>
         </div>
         <div id="jKurirLokasiForm" hidden>
-          <p class="j-sheet-desc" style="margin-top:0">Isi nama &amp; detail, lalu set titik di peta.</p>
+          <p class="j-sheet-desc" id="jKurirLokasiFormDesc" style="margin-top:0">Isi nama &amp; detail, lalu set titik di peta.</p>
+          <input type="hidden" id="jLokasiEditId" value="">
           <label class="j-field-label" for="jLokasiNama">Nama</label>
           <input type="text" id="jLokasiNama" class="j-select" maxlength="50" placeholder="Rumah, Kantor, Kos">
           <label class="j-field-label" for="jLokasiDetail" style="margin-top:10px">Detail</label>
@@ -288,7 +289,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       <div class="j-sheet-foot" id="jKurirLokasiFootForm" hidden>
         <button type="button" class="j-sheet-btn ghost" id="jBtnKurirLokasiBack">Kembali</button>
         <button type="button" class="j-sheet-btn primary" id="jBtnKurirLokasiSave">
-          <i class="fas fa-save"></i> Simpan
+          <i class="fas fa-save"></i> <span id="jBtnKurirLokasiSaveLabel">Simpan</span>
         </button>
       </div>
     </div>
@@ -383,7 +384,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=19"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=21"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {
