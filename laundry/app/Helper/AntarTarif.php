@@ -2,12 +2,13 @@
 
 /**
  * Jarak cabang → lokasi pelanggan + tarif antar.
- * Tarif = max(7000, round(km × 1000)).
+ * Tarif = max(5000, round(km × 1000)).
  */
 class AntarTarif
 {
-   const MIN_TARIF = 7000;
+   const MIN_TARIF = 5000;
    const SURCAS_JENIS_PENGANTARAN = 2;
+   const SURCAS_JENIS_PENJEMPUTAN = 3;
 
    /**
     * Haversine distance in kilometers.
@@ -34,7 +35,7 @@ class AntarTarif
    }
 
    /**
-    * Tarif antar dari jarak km (minimal 7000).
+    * Tarif antar dari jarak km (minimal 5000).
     */
    public function tarifFromKm($km)
    {

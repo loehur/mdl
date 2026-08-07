@@ -255,6 +255,21 @@ class Delivery extends Controller
             $now
          );
 
+         $surcasJemput = null;
+         if ($jenis === 'jemput') {
+            $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? 0);
+            if ($jumlahSurcas <= 0) {
+               throw new Exception('Isi jumlah Surcas Penjemputan');
+            }
+            $surcasJemput = $this->upsertSurcasPenjemputan(
+               $idCabang,
+               $ids,
+               $jumlahSurcas,
+               $idKaryawan,
+               0
+            );
+         }
+
          $insertedSekalian = 0;
          $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
          if ($sekalian) {
@@ -286,6 +301,7 @@ class Delivery extends Controller
                'count' => $inserted,
                'sekalian' => $sekalian ? $jenisSekalian : null,
                'count_sekalian' => $insertedSekalian,
+               'surcas_jemput' => $surcasJemput,
             ],
          ];
       } catch (\Throwable $e) {
@@ -405,6 +421,21 @@ class Delivery extends Controller
             $idRequest
          );
 
+         $surcasJemput = null;
+         if ($jenis === 'jemput') {
+            $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
+            if ($jumlahSurcas <= 0) {
+               throw new Exception('Tarif surcas penjemputan belum tersedia di request');
+            }
+            $surcasJemput = $this->upsertSurcasPenjemputan(
+               $idCabang,
+               $ids,
+               $jumlahSurcas,
+               $idKaryawan,
+               $idRequest
+            );
+         }
+
          $insertedSekalian = 0;
          $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
          if ($sekalian) {
@@ -449,6 +480,7 @@ class Delivery extends Controller
                'count' => $inserted,
                'sekalian' => $sekalian ? $jenisSekalian : null,
                'count_sekalian' => $insertedSekalian,
+               'surcas_jemput' => $surcasJemput,
             ],
          ];
       } catch (\Throwable $e) {
@@ -519,6 +551,15 @@ class Delivery extends Controller
          );
          if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
             throw new Exception($upd['error'] ?? 'Gagal membatalkan request');
+         }
+
+         // Hapus surcas otomatis yang tertaut request ini (bukan surcas polos Operasi)
+         $delSc = $this->db(0)->delete(
+            'surcas',
+            'dari_delivery = 1 AND id_delivery_request = ' . $idRequest
+         );
+         if (is_array($delSc) && isset($delSc['errno']) && (int) $delSc['errno'] !== 0) {
+            throw new Exception($delSc['error'] ?? 'Gagal menghapus surcas terkait');
          }
 
          $log = $this->helper('ActivityLog')->write([
@@ -961,6 +1002,9 @@ class Delivery extends Controller
             'lokasi_detail' => (string) ($row['lokasi_detail'] ?? ''),
             'lokasi_latt' => isset($row['lokasi_latt']) ? (float) $row['lokasi_latt'] : null,
             'lokasi_longt' => isset($row['lokasi_longt']) ? (float) $row['lokasi_longt'] : null,
+            'tarif_surcas' => isset($row['tarif_surcas']) && $row['tarif_surcas'] !== null
+               ? (int) $row['tarif_surcas']
+               : null,
          ];
       }
       return $out;
@@ -1183,6 +1227,7 @@ class Delivery extends Controller
                'no_ref' => $ref,
                'insertTime' => $a['insertTime'] ?? '',
                'items' => [],
+               'surcas_penjemputan' => null,
             ];
          }
          $qty = round((float) ($a['qty'] ?? 0), 2);
@@ -1203,6 +1248,35 @@ class Delivery extends Controller
             'member' => (int) ($a['member'] ?? 0),
          ];
       }
+
+      if ($jenis === 'jemput' && !empty($orders)) {
+         $this->helper('AntarTarif');
+         $jenisSc = AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+         $idCabang = (int) ($this->id_cabang ?? 0);
+         $refs = array_keys($orders);
+         $safe = [];
+         foreach ($refs as $rk) {
+            $safe[] = "'" . $this->db(0)->escape((string) $rk) . "'";
+         }
+         if (!empty($safe)) {
+            $refsIn = implode(',', $safe);
+            $scRows = $this->db(0)->get_where(
+               'surcas',
+               'id_cabang = ' . $idCabang
+                  . ' AND transaksi_jenis = 1 AND id_jenis_surcas = ' . $jenisSc
+                  . " AND no_ref IN ($refsIn)"
+            );
+            if (is_array($scRows)) {
+               foreach ($scRows as $sc) {
+                  $r = (string) ($sc['no_ref'] ?? '');
+                  if ($r !== '' && isset($orders[$r])) {
+                     $orders[$r]['surcas_penjemputan'] = (int) ($sc['jumlah'] ?? 0);
+                  }
+               }
+            }
+         }
+      }
+
       return array_values($orders);
    }
 
@@ -1294,5 +1368,95 @@ class Delivery extends Controller
       } catch (\Throwable $e) {
          // ignore WS failure
       }
+   }
+
+   /**
+    * Satu no_ref dari id_penjualan terpilih (urut id ASC).
+    * @param int[] $ids
+    * @return string|null
+    */
+   private function pickRefFromSaleIds(array $ids): ?string
+   {
+      $safe = [];
+      foreach ($ids as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $safe[] = $id;
+         }
+      }
+      if (empty($safe)) {
+         return null;
+      }
+      $rows = $this->db(0)->get_where(
+         'sale',
+         'bin = 0 AND id_penjualan IN (' . implode(',', $safe) . ') ORDER BY id_penjualan ASC'
+      );
+      if (!is_array($rows) || empty($rows)) {
+         return null;
+      }
+      $noRef = trim((string) ($rows[0]['no_ref'] ?? ''));
+      return $noRef !== '' ? $noRef : null;
+   }
+
+   /**
+    * Upsert Surcas Penjemputan (jenis 3) ke satu ref dari ids.
+    * Menandai dari_delivery=1 (+ id_delivery_request bila ada).
+    *
+    * @param int[] $ids
+    * @return array{no_ref:string,jumlah:int,updated:bool}
+    * @throws Exception
+    */
+   private function upsertSurcasPenjemputan(
+      int $idCabang,
+      array $ids,
+      int $jumlah,
+      int $idUser,
+      int $idDeliveryRequest = 0
+   ): array {
+      $jumlah = (int) $jumlah;
+      if ($jumlah <= 0) {
+         throw new Exception('Jumlah surcas penjemputan tidak valid');
+      }
+      $noRef = $this->pickRefFromSaleIds($ids);
+      if ($noRef === null || $noRef === '') {
+         throw new Exception('Tidak ada ref dari item yang dipilih');
+      }
+
+      $this->helper('AntarTarif');
+      $jenis = AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+      $noRefEsc = $this->db(0)->escape($noRef);
+      $where = 'id_cabang = ' . (int) $idCabang
+         . " AND transaksi_jenis = 1 AND id_jenis_surcas = $jenis"
+         . " AND no_ref = '" . $noRefEsc . "'";
+
+      $existing = $this->db(0)->get_where_row('surcas', $where);
+      $set = [
+         'jumlah' => $jumlah,
+         'id_user' => (int) $idUser,
+         'dari_delivery' => 1,
+      ];
+      if ($idDeliveryRequest > 0) {
+         $set['id_delivery_request'] = $idDeliveryRequest;
+      }
+
+      if (is_array($existing) && !empty($existing['id_surcas'])) {
+         $idSurcas = (int) $existing['id_surcas'];
+         $upd = $this->db(0)->update('surcas', $set, 'id_surcas = ' . $idSurcas);
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal update surcas penjemputan');
+         }
+         return ['no_ref' => $noRef, 'jumlah' => $jumlah, 'updated' => true];
+      }
+
+      $ins = $this->db(0)->insert('surcas', array_merge([
+         'id_cabang' => (int) $idCabang,
+         'transaksi_jenis' => 1,
+         'id_jenis_surcas' => $jenis,
+         'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
+      ], $set));
+      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+         throw new Exception($ins['error'] ?? 'Gagal insert surcas penjemputan');
+      }
+      return ['no_ref' => $noRef, 'jumlah' => $jumlah, 'updated' => false];
    }
 }

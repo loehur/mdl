@@ -1420,7 +1420,28 @@ class J extends Controller
       }
 
       $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
-      $ins = $this->db(0)->insert('delivery_request', [
+
+      $tarifSurcas = null;
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      $locLat = (float) ($lokasi['latt'] ?? 0);
+      $locLon = (float) ($lokasi['longt'] ?? 0);
+      if ($jenis === 'jemput' || $jenis === 'antar') {
+         if ($cabLat == 0.0 && $cabLon == 0.0) {
+            echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
+            return;
+         }
+         if ($locLat == 0.0 && $locLon == 0.0) {
+            echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
+            return;
+         }
+      }
+      if ($jenis === 'jemput') {
+         $calcJemput = $this->helper('AntarTarif')->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $tarifSurcas = (int) $calcJemput['tarif'];
+      }
+
+      $insData = [
          'sumber' => 'customer',
          'jenis' => $jenis,
          'layanan' => 'sameday',
@@ -1431,10 +1452,14 @@ class J extends Controller
          'id_lokasi' => $idLokasi,
          'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
          'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
-         'lokasi_latt' => (float) ($lokasi['latt'] ?? 0),
-         'lokasi_longt' => (float) ($lokasi['longt'] ?? 0),
+         'lokasi_latt' => $locLat,
+         'lokasi_longt' => $locLon,
          'insertTime' => $now,
-      ]);
+      ];
+      if ($tarifSurcas !== null) {
+         $insData['tarif_surcas'] = $tarifSurcas;
+      }
+      $ins = $this->db(0)->insert('delivery_request', $insData);
       if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
          echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal membuat permintaan']);
          return;
@@ -1461,16 +1486,12 @@ class J extends Controller
          }
 
          // Surcas Pengantaran (jenis 2) ke satu ref belum tuntas; jumlah = tarif jarak
-         $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
-         $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
-         $locLat = (float) ($lokasi['latt'] ?? 0);
-         $locLon = (float) ($lokasi['longt'] ?? 0);
          $tarifHelper = $this->helper('AntarTarif');
          $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
          $jumlahSurcas = (int) $calc['tarif'];
          $noRefSurcas = $this->pickBelumTuntasRef($pelanggan, $ids);
          if ($noRefSurcas !== null && $noRefSurcas !== '') {
-            $insertedSurcas = $this->insertSurcasPengantaran($noRefSurcas, $jumlahSurcas);
+            $insertedSurcas = $this->insertSurcasPengantaran($noRefSurcas, $jumlahSurcas, $idRequest);
             if ($insertedSurcas !== false) {
                $surcasInfo = [
                   'no_ref' => $noRefSurcas,
@@ -1826,12 +1847,14 @@ class J extends Controller
 
    /**
     * Insert surcas Pengantaran (jenis 2) ke no_ref - skip jika sudah ada.
+    * @param int $idDeliveryRequest 0 = tidak ditandai delivery
     * @return true|'exists'|false
     */
-   private function insertSurcasPengantaran($noRef, $jumlah)
+   private function insertSurcasPengantaran($noRef, $jumlah, $idDeliveryRequest = 0)
    {
       $noRef = trim((string) $noRef);
       $jumlah = (int) $jumlah;
+      $idDeliveryRequest = (int) $idDeliveryRequest;
       if ($noRef === '' || $jumlah <= 0) {
          return false;
       }
@@ -1848,14 +1871,19 @@ class J extends Controller
          return 'exists';
       }
 
-      $in = $this->db(0)->insert('surcas', [
+      $row = [
          'id_cabang' => $idCabang,
          'transaksi_jenis' => 1,
          'id_jenis_surcas' => $jenis,
          'jumlah' => $jumlah,
          'id_user' => 0,
          'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
-      ]);
+         'dari_delivery' => 1,
+      ];
+      if ($idDeliveryRequest > 0) {
+         $row['id_delivery_request'] = $idDeliveryRequest;
+      }
+      $in = $this->db(0)->insert('surcas', $row);
       if (is_array($in) && isset($in['errno']) && (int) $in['errno'] !== 0) {
          $this->model('Log')->write(__CLASS__ . '->insertSurcasPengantaran() ' . ($in['error'] ?? ''));
          return false;

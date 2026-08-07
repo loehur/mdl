@@ -703,11 +703,15 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                     if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
                       $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
                     }
+                    $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
+                      ? (int) $rq['tarif_surcas']
+                      : '';
                   ?>
                     <div class="dlv-item dlv-item--customer dlv-item--request"
                          data-id-request="<?= $idReq ?>"
                          data-phone-tail="<?= $tail ?>"
-                         data-source="customer">
+                         data-source="customer"
+                         data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>">
                       <div class="dlv-item__text">
                         <p class="dlv-item__title">
                           <?= $nama ?>
@@ -716,6 +720,9 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                         </p>
                         <div class="dlv-item__meta">
                           #<?= $idReq ?> · <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
+                          <?php if ($jenis === 'jemput' && $tarifSurcas !== '') { ?>
+                            · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
+                          <?php } ?>
                         </div>
                         <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
                           <div class="dlv-item__meta dlv-item__lokasi">
@@ -737,6 +744,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                                 data-phone-tail="<?= $tail ?>"
                                 data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
                                 data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
+                                data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
                                 data-nama="<?= $nama ?>">
                           <i class="fas fa-check"></i> Selesai
                         </button>
@@ -875,6 +883,15 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
           <label class="dlv-field-label mt-2">Item penjualan</label>
           <div class="dlv-sales-box" id="dlvSelesaiSales">
             <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
+          </div>
+
+          <div id="dlvSurcasJemputRow" hidden>
+            <label class="dlv-field-label mt-2" for="dlvSurcasJemputJumlah">Surcas Penjemputan</label>
+            <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="1" step="1000" placeholder="0" inputmode="numeric">
+            <p class="dlv-hint mt-1 mb-0" id="dlvSurcasJemputHint">
+              <i class="fas fa-info-circle me-1"></i>
+              Wajib diisi. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.
+            </p>
           </div>
 
           <label class="dlv-sekalian" id="dlvSekalianRow" hidden>
@@ -1151,6 +1168,9 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var sekalianRow = document.getElementById('dlvSekalianRow');
     var sekalianWrap = document.getElementById('dlvSekalianWrap');
     var sekalianSales = document.getElementById('dlvSekalianSales');
+    var surcasRow = document.getElementById('dlvSurcasJemputRow');
+    var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
+    var surcasHint = document.getElementById('dlvSurcasJemputHint');
     if (jenis) {
       jenis.value = '';
       jenis.disabled = false;
@@ -1165,11 +1185,74 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     if (sekalianRow) sekalianRow.hidden = true;
     if (sekalianWrap) sekalianWrap.hidden = true;
     if (sekalianSales) sekalianSales.innerHTML = '<div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>';
+    if (surcasRow) surcasRow.hidden = true;
+    if (surcasJumlah) {
+      surcasJumlah.value = '';
+      surcasJumlah.readOnly = false;
+      surcasJumlah.required = false;
+      surcasJumlah.removeAttribute('data-tarif-fixed');
+    }
+    if (surcasHint) {
+      surcasHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Jika ref sudah punya surcas, nilai lama ditampilkan — ubah untuk update.';
+    }
+    window._dlvSurcasByRef = {};
     if (karyawanSelectize) {
       karyawanSelectize.clear(true);
     } else {
       var sel = document.getElementById('dlvSelesaiKaryawan');
       if (sel) sel.value = '';
+    }
+  }
+
+  function syncSurcasJemputUi() {
+    var row = document.getElementById('dlvSurcasJemputRow');
+    var input = document.getElementById('dlvSurcasJemputJumlah');
+    var hint = document.getElementById('dlvSurcasJemputHint');
+    var jenis = (document.getElementById('dlvSelesaiJenis') || {}).value || '';
+    var mode = (document.getElementById('dlvSelesaiMode') || {}).value || 'crm';
+    if (!row || !input) return;
+
+    if (jenis !== 'jemput') {
+      row.hidden = true;
+      input.required = false;
+      return;
+    }
+    row.hidden = false;
+
+    if (mode === 'request') {
+      var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
+      input.value = fixed > 0 ? String(fixed) : '';
+      input.readOnly = true;
+      input.required = false;
+      if (hint) {
+        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Tarif dari request customer (jarak). Tidak bisa diubah.';
+      }
+      return;
+    }
+
+    input.readOnly = false;
+    input.required = true;
+    var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
+    var prefills = window._dlvSurcasByRef || {};
+    var found = null;
+    for (var i = 0; i < checks.length; i++) {
+      var group = checks[i].closest('.dlv-sales-group');
+      var ref = group ? (group.getAttribute('data-no-ref') || '') : '';
+      if (ref && prefills[ref] != null && prefills[ref] !== '') {
+        found = Number(prefills[ref]);
+        break;
+      }
+    }
+    if (found != null && !isNaN(found) && found > 0) {
+      if (!input.dataset.userEdited) input.value = String(found);
+      if (hint) {
+        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ref sudah punya Surcas Penjemputan Rp' +
+          Number(found).toLocaleString('id-ID') + '. Ubah untuk update.';
+      }
+    } else if (!input.dataset.userEdited) {
+      if (hint) {
+        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Akan ditambahkan ke salah satu ref item terpilih.';
+      }
     }
   }
 
@@ -1207,11 +1290,18 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     (prefillIds || []).forEach(function (id) {
       pref[String(id)] = true;
     });
+    if (name === 'ids[]') {
+      window._dlvSurcasByRef = {};
+    }
     if (!orders || !orders.length) {
       box.innerHTML = '<div class="dlv-sales-empty">Tidak ada item eligible</div>';
       return;
     }
     var html = orders.map(function (ord) {
+      var ref = ord.no_ref || '-';
+      if (name === 'ids[]' && ord.surcas_penjemputan != null && ord.surcas_penjemputan !== '') {
+        window._dlvSurcasByRef[String(ref)] = Number(ord.surcas_penjemputan);
+      }
       var items = (ord.items || []).map(function (it) {
         var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
         var member = Number(it.member) === 1 ? ' · Member' : '';
@@ -1226,13 +1316,23 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
           '</span>' +
         '</label>';
       }).join('');
-      return '<div class="dlv-sales-group">' +
-        '<div class="dlv-sales-group__head">#' + escapeHtml(ord.no_ref || '-') +
+      return '<div class="dlv-sales-group" data-no-ref="' + escapeHtml(String(ref)) + '">' +
+        '<div class="dlv-sales-group__head">#' + escapeHtml(String(ref)) +
           (ord.insertTime ? ' · ' + escapeHtml(fmtTime(ord.insertTime)) : '') +
         '</div>' + items +
       '</div>';
     }).join('');
     box.innerHTML = html;
+    if (name === 'ids[]') {
+      box.querySelectorAll('input[name="ids[]"]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+          var input = document.getElementById('dlvSurcasJemputJumlah');
+          if (input) delete input.dataset.userEdited;
+          syncSurcasJemputUi();
+        });
+      });
+      syncSurcasJemputUi();
+    }
   }
 
   function loadSalesOptions() {
@@ -1327,6 +1427,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var phone = btn.getAttribute('data-phone-tail') || '';
     var jenis = (btn.getAttribute('data-jenis') || '').toLowerCase();
     var prefill = btn.getAttribute('data-prefill') || '';
+    var tarif = btn.getAttribute('data-tarif-surcas') || '';
     var nama = btn.getAttribute('data-nama') || 'Customer';
     ensureKaryawanSelectize();
     resetSelesaiForm();
@@ -1339,11 +1440,16 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       jenisEl.value = jenis;
       jenisEl.disabled = true;
     }
+    var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
+    if (surcasJumlah) {
+      surcasJumlah.setAttribute('data-tarif-fixed', tarif || '0');
+    }
     var sub = document.getElementById('dlvSelesaiSub');
     if (sub) sub.textContent = nama + ' · ' + phone + ' · Request #' + idReq;
     var title = document.getElementById('dlvSelesaiTitle');
     if (title) title.textContent = 'Selesai Request Customer';
     openModal('dlvSelesaiModal');
+    syncSurcasJemputUi();
     loadSalesOptions();
   }
 
@@ -1415,6 +1521,13 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       toast('Sekalian aktif: pilih minimal satu item lawan jenis', 'warn');
       return;
     }
+    if (jenis === 'jemput' && mode === 'crm') {
+      var jumlahSc = parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0;
+      if (jumlahSc <= 0) {
+        toast('Isi jumlah Surcas Penjemputan', 'warn');
+        return;
+      }
+    }
 
     var fd = new FormData();
     fd.append('jenis', jenis);
@@ -1428,6 +1541,9 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       Array.prototype.forEach.call(checksSekalian, function (cb) {
         fd.append('ids_sekalian[]', cb.value);
       });
+    }
+    if (jenis === 'jemput' && mode === 'crm') {
+      fd.append('jumlah_surcas_jemput', String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0));
     }
 
     var endpoint = selesaiUrl;
@@ -1873,7 +1989,24 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
   });
 
   var jenisEl = document.getElementById('dlvSelesaiJenis');
-  if (jenisEl) jenisEl.addEventListener('change', loadSalesOptions);
+  if (jenisEl) {
+    jenisEl.addEventListener('change', function () {
+      var input = document.getElementById('dlvSurcasJemputJumlah');
+      if (input) {
+        delete input.dataset.userEdited;
+        input.value = '';
+      }
+      syncSurcasJemputUi();
+      loadSalesOptions();
+    });
+  }
+
+  var surcasInput = document.getElementById('dlvSurcasJemputJumlah');
+  if (surcasInput) {
+    surcasInput.addEventListener('input', function () {
+      this.dataset.userEdited = '1';
+    });
+  }
 
   var sekalianCheck = document.getElementById('dlvSekalianCheck');
   if (sekalianCheck) {

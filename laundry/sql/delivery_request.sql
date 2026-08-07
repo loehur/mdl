@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS `delivery_request` (
   `lokasi_detail` VARCHAR(255) NULL,
   `lokasi_latt` DECIMAL(10,7) NULL,
   `lokasi_longt` DECIMAL(10,7) NULL,
+  `tarif_surcas` INT UNSIGNED NULL DEFAULT NULL,
   `id_karyawan` INT NULL,
   `nama_karyawan` VARCHAR(100) NULL,
   `catatan_batal` TEXT NULL,
