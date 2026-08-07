@@ -62,6 +62,19 @@ class CleanKas extends Controller
         try {
             $stats['checked'] = (int) ($db->query("SELECT COUNT(*) as cnt FROM kas WHERE $whereBase")->result_array()[0]['cnt'] ?? 0);
 
+            // Before hard-delete: batal unpaid Instant (jt=10)
+            $toDelete = $db->query(
+                "SELECT id_kas, ref_finance, ref_transaksi, jenis_transaksi FROM kas WHERE $whereDelete"
+            )->result_array();
+            if (is_array($toDelete) && !empty($toDelete)) {
+                if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
+                    require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
+                }
+                foreach ($toDelete as $rowDel) {
+                    \App\Helpers\Laundry\InstantKurir::cancelUnpaidByKas($db, $rowDel);
+                }
+            }
+
             $stats['deleted'] = (int) ($db->query("SELECT COUNT(*) as cnt FROM kas WHERE $whereDelete")->result_array()[0]['cnt'] ?? 0);
             $db->query("DELETE FROM kas WHERE $whereDelete");
 
@@ -163,6 +176,19 @@ class CleanKas extends Controller
 
         if (!$ok) {
             return 'errors';
+        }
+
+        // Load kas for Instant kurir side-effects
+        $kasRow = $db->get_where('kas', ['ref_finance' => $refFinance])->row_array();
+        if ($kasRow) {
+            if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
+                require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
+            }
+            if ($bucket === 'paid') {
+                \App\Helpers\Laundry\InstantKurir::activateAfterPayment($db, $kasRow);
+            } else {
+                \App\Helpers\Laundry\InstantKurir::cancelUnpaidByKas($db, $kasRow);
+            }
         }
 
         return $bucket === 'paid' ? 'paid' : 'failed';

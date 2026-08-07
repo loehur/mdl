@@ -100,6 +100,14 @@ class Env
     const QRIS_STATUS_EXPIRED = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'];
 
     // -------------------------------------------------------------------------
+    // Shipping — Biteship (Kurir Instant laundry)
+    // -------------------------------------------------------------------------
+    const BITESHIP_API_KEY = 'change-me-biteship-api-key';
+    const BITESHIP_API_URL = 'https://api.biteship.com';
+    // Opsional: verifikasi webhook /Webhook/Biteship (kosongkan untuk skip)
+    const BITESHIP_WEBHOOK_SECRET = '';
+
+    // -------------------------------------------------------------------------
     // Auth endpoint internal
     // -------------------------------------------------------------------------
     // Cron: ?secret= atau header X-Cron-Secret (node/cron_server)

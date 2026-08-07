@@ -402,6 +402,16 @@ class Delivery extends Controller
             throw new Exception('Jenis request tidak valid');
          }
 
+         $layanan = strtolower((string) ($req['layanan'] ?? 'sameday'));
+         if ($layanan === 'instant') {
+            if ($jenis !== 'jemput') {
+               throw new Exception('Instant Antar selesai otomatis dari Biteship (tidak via Delivery)');
+            }
+            // Instant Jemput: riwayat saja, tanpa surcas / sekalian
+            $sekalian = false;
+            $idsSekalian = [];
+         }
+
          $phoneTail = preg_replace('/[^0-9]/', '', (string) ($req['phone_tail'] ?? ''));
          if (strlen($phoneTail) >= 9) {
             $phoneTail = substr($phoneTail, -9);
@@ -434,7 +444,7 @@ class Delivery extends Controller
          );
 
          $surcasJemput = null;
-         if ($jenis === 'jemput') {
+         if ($jenis === 'jemput' && $layanan !== 'instant') {
             $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
             if ($jumlahSurcas <= 0) {
                throw new Exception('Tarif surcas penjemputan belum tersedia di request');
@@ -547,6 +557,11 @@ class Delivery extends Controller
          );
          if (!is_array($req) || empty($req['id_request'])) {
             throw new Exception('Request tidak ditemukan atau sudah selesai');
+         }
+
+         $layananBatal = strtolower((string) ($req['layanan'] ?? 'sameday'));
+         if ($layananBatal === 'instant') {
+            throw new Exception('Request Instant tidak bisa dibatalkan dari Delivery');
          }
 
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
@@ -1017,6 +1032,13 @@ class Delivery extends Controller
             'tarif_surcas' => isset($row['tarif_surcas']) && $row['tarif_surcas'] !== null
                ? (int) $row['tarif_surcas']
                : null,
+            'courier_name' => (string) ($row['courier_name'] ?? ''),
+            'ongkir' => isset($row['ongkir']) ? (int) $row['ongkir'] : null,
+            'biteship_status' => (string) ($row['biteship_status'] ?? ''),
+            'tracking_url' => (string) ($row['tracking_url'] ?? ''),
+            'driver_name' => (string) ($row['driver_name'] ?? ''),
+            'driver_phone' => (string) ($row['driver_phone'] ?? ''),
+            'waybill_id' => (string) ($row['waybill_id'] ?? ''),
          ];
       }
       return $out;

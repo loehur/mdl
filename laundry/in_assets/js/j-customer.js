@@ -564,7 +564,273 @@
   /* ===== Kurir Sameday ===== */
   var kurirBusy = false;
   var kurirPendingJenis = '';
+  var kurirPendingLayanan = 'sameday';
   var kurirSelectedLokasi = null;
+  var kurirSelectedCourier = null;
+  var kurirPendingIds = [];
+  var kurirInstantPoll = null;
+
+  function layananLabel() {
+    return kurirPendingLayanan === 'instant' ? 'Instant' : 'Sameday';
+  }
+
+  function jenisHintText(jenis) {
+    if (jenis === 'antar') {
+      return 'Antar — Mengantar Pakaian dari Laundry ke Lokasi Anda.';
+    }
+    return 'Jemput — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.';
+  }
+
+  function setKurirKickers() {
+    var label = layananLabel();
+    ['jKurirLokasiKicker', 'jKurirAntarKicker', 'jKurirJemputKicker'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = label;
+    });
+    var antLbl = document.getElementById('jBtnSubmitKurirAntarLabel');
+    if (antLbl) {
+      antLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Kirim permintaan';
+    }
+    var jemLbl = document.getElementById('jBtnConfirmKurirJemputLabel');
+    if (jemLbl) {
+      jemLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Ya, jemput';
+    }
+  }
+
+  function stopKurirInstantPoll() {
+    if (kurirInstantPoll) {
+      clearInterval(kurirInstantPoll);
+      kurirInstantPoll = null;
+    }
+  }
+
+  function openInstantQr(ref, total) {
+    var nama = '';
+    try {
+      var cfgEl = document.getElementById('jPayConfig');
+      if (cfgEl) {
+        var cfg = JSON.parse(cfgEl.textContent || '{}');
+        nama = cfg.nama || '';
+      }
+    } catch (e) {}
+    fetch(
+      base +
+        'I/payment_gateway_order/' +
+        encodeURIComponent(ref) +
+        '?nominal=' +
+        encodeURIComponent(total) +
+        '&metode=QRIS',
+      { credentials: 'same-origin' }
+    )
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (res) {
+        if (res && res.status === 'paid') {
+          toast('Pembayaran berhasil', 'ok');
+          loadPage('kurir', '', false);
+          return;
+        }
+        if (!res || !res.qr_string) {
+          toast((res && res.msg) || 'QRIS sementara tidak tersedia', 'warn');
+          loadPage('kurir', '', false);
+          return;
+        }
+        var box = document.getElementById('jQrcode');
+        if (box) {
+          box.innerHTML = '';
+          if (window.QRCode) {
+            new QRCode(box, { text: res.qr_string, width: 180, height: 180 });
+          } else {
+            box.textContent = 'QR library gagal dimuat';
+          }
+        }
+        var tot = document.getElementById('jQrTotal');
+        if (tot) tot.textContent = 'Rp' + Number(total || 0).toLocaleString('id-ID');
+        var nm = document.getElementById('jQrNama');
+        if (nm) nm.textContent = nama || 'Ongkir Instant';
+        var cek = document.getElementById('jBtnCekStatusQR');
+        if (cek) cek.setAttribute('data-ref', ref);
+        showModal('jModalQR');
+        stopKurirInstantPoll();
+        kurirInstantPoll = setInterval(function () {
+          fetch(base + 'I/payment_gateway_status_poll/' + encodeURIComponent(ref), {
+            credentials: 'same-origin',
+          })
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (st) {
+              if (st && String(st.status).toUpperCase() === 'PAID') {
+                stopKurirInstantPoll();
+                hideModal('jModalQR');
+                toast('Pembayaran berhasil. Order Instant diproses.', 'ok');
+                loadPage('kurir', '', false);
+              }
+            })
+            .catch(function () {});
+        }, 3000);
+      })
+      .catch(function () {
+        toast('Gagal memuat QRIS', 'warn');
+        loadPage('kurir', '', false);
+      });
+  }
+
+  function fmtOngkir(n) {
+    return 'Rp' + Number(n || 0).toLocaleString('id-ID');
+  }
+
+  function renderKurirCouriers(rates) {
+    var box = document.getElementById('jKurirCourierBox');
+    var btn = document.getElementById('jBtnSubmitKurirCourier');
+    kurirSelectedCourier = null;
+    if (btn) btn.disabled = true;
+    if (!box) return;
+    if (!rates || !rates.length) {
+      box.innerHTML = '<div class="j-kurir-sales-empty">Tidak ada kurir Instant tersedia untuk rute ini.</div>';
+      return;
+    }
+    box.innerHTML = rates
+      .map(function (r, idx) {
+        var price = Number(r.price || 0);
+        var name = r.courier_name || r.courier_company || 'Kurir';
+        var desc = r.description || r.duration || '';
+        return (
+          '<label class="j-kurir-sales-item">' +
+          '<input type="radio" name="kurir_courier" value="' +
+          idx +
+          '">' +
+          '<span class="j-kurir-sales-item__text">' +
+          '<strong>' +
+          escapeHtmlKurir(name) +
+          ' · ' +
+          fmtOngkir(price) +
+          '</strong>' +
+          '<small>' +
+          escapeHtmlKurir(String(r.courier_company || '')) +
+          (r.courier_type ? ' / ' + escapeHtmlKurir(String(r.courier_type)) : '') +
+          (desc ? ' · ' + escapeHtmlKurir(desc) : '') +
+          '</small>' +
+          '</span>' +
+          '</label>'
+        );
+      })
+      .join('');
+    box._rates = rates;
+    Array.prototype.forEach.call(box.querySelectorAll('input[name="kurir_courier"]'), function (inp) {
+      inp.addEventListener('change', function () {
+        var i = parseInt(inp.value, 10);
+        kurirSelectedCourier = (box._rates && box._rates[i]) || null;
+        if (btn) btn.disabled = !kurirSelectedCourier;
+      });
+    });
+  }
+
+  function openKurirCourierModal() {
+    var lokBox = document.getElementById('jKurirCourierLokasi');
+    if (lokBox) lokBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
+    var box = document.getElementById('jKurirCourierBox');
+    if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat kurir…</div>';
+    showModal('jModalKurirCourier');
+    var qs =
+      'id_lokasi=' +
+      encodeURIComponent(String(kurirSelectedLokasi.id_lokasi)) +
+      '&jenis=' +
+      encodeURIComponent(kurirPendingJenis);
+    fetch(base + 'J/kurirInstantRates/' + pelangganId + '?' + qs, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal memuat kurir');
+        }
+        renderKurirCouriers(data.rates || []);
+      })
+      .catch(function (err) {
+        if (box) {
+          box.innerHTML =
+            '<div class="j-kurir-sales-empty">' +
+            escapeHtmlKurir((err && err.message) || 'Gagal memuat kurir') +
+            '</div>';
+        }
+      });
+  }
+
+  function submitKurirInstant(jenis, ids, btn) {
+    if (kurirBusy) return;
+    if (!kurirSelectedLokasi || !kurirSelectedLokasi.id_lokasi) {
+      toast('Pilih lokasi dulu', 'warn');
+      return;
+    }
+    if (!kurirSelectedCourier) {
+      toast('Pilih kurir Instant dulu', 'warn');
+      return;
+    }
+    kurirBusy = true;
+    if (btn) btn.disabled = true;
+
+    var body = new URLSearchParams();
+    body.set('jenis', jenis);
+    body.set('id_lokasi', String(kurirSelectedLokasi.id_lokasi));
+    body.set('courier_company', String(kurirSelectedCourier.courier_company || ''));
+    body.set('courier_type', String(kurirSelectedCourier.courier_type || ''));
+    body.set('courier_name', String(kurirSelectedCourier.courier_name || ''));
+    body.set('ongkir', String(kurirSelectedCourier.price || 0));
+    (ids || []).forEach(function (id) {
+      body.append('ids[]', id);
+    });
+
+    fetch(base + 'J/kurirInstantSubmit/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal membuat permintaan Instant');
+        }
+        hideModal('jModalKurirCourier');
+        hideModal('jModalKurirAntar');
+        hideModal('jModalKurirJemput');
+        hideModal('jModalKurirLokasi');
+        toast(data.message || 'Lanjutkan pembayaran', 'ok');
+        var ref = data.ref_finance;
+        var total = data.ongkir || (kurirSelectedCourier && kurirSelectedCourier.price) || 0;
+        kurirSelectedLokasi = null;
+        kurirSelectedCourier = null;
+        kurirPendingJenis = '';
+        kurirPendingLayanan = 'sameday';
+        kurirPendingIds = [];
+        if (ref) {
+          openInstantQr(ref, total);
+        } else {
+          loadPage('kurir', '', false);
+        }
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal mengirim permintaan', 'warn');
+      })
+      .finally(function () {
+        kurirBusy = false;
+        if (btn) btn.disabled = false;
+      });
+  }
   var kurirLokasiCache = [];
   var kurirDefaultMap = { latt: 0.507068, longt: 101.447779, nama_kota: 'PEKANBARU', source: 'fallback' };
   var kurirMap = null;
@@ -824,13 +1090,19 @@
       });
   }
 
-  function openKurirFlow(jenis) {
+  function openKurirFlow(jenis, layanan) {
     kurirPendingJenis = jenis;
+    kurirPendingLayanan = layanan === 'instant' ? 'instant' : 'sameday';
     kurirSelectedLokasi = null;
+    kurirSelectedCourier = null;
+    kurirPendingIds = [];
+    setKurirKickers();
     var title = document.getElementById('jKurirLokasiTitle');
     if (title) {
       title.textContent = jenis === 'antar' ? 'Lokasi antar' : 'Lokasi jemput';
     }
+    var hint = document.getElementById('jKurirJenisHint');
+    if (hint) hint.textContent = jenisHintText(jenis);
     showLokasiPickView();
     showModal('jModalKurirLokasi');
     loadKurirLokasiList();
@@ -849,13 +1121,19 @@
     if (kurirPendingJenis === 'antar') {
       var antBox = document.getElementById('jKurirAntarLokasi');
       if (antBox) antBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
+      setKurirKickers();
       loadKurirSalesOptions();
       showModal('jModalKurirAntar');
       return;
     }
     if (kurirPendingJenis === 'jemput') {
+      if (kurirPendingLayanan === 'instant') {
+        openKurirCourierModal();
+        return;
+      }
       var jemBox = document.getElementById('jKurirJemputLokasi');
       if (jemBox) jemBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
+      setKurirKickers();
       showModal('jModalKurirJemput');
     }
   }
@@ -1021,8 +1299,52 @@
     e.preventDefault();
     if (act.disabled) return;
     var jenis = (act.getAttribute('data-j-kurir-jenis') || '').toLowerCase();
+    var layanan = (act.getAttribute('data-j-kurir-layanan') || 'sameday').toLowerCase();
     if (jenis !== 'antar' && jenis !== 'jemput') return;
-    openKurirFlow(jenis);
+    openKurirFlow(jenis, layanan);
+  });
+
+  document.addEventListener('click', function (e) {
+    var payBtn = e.target.closest('.j-kurir-pay-instant');
+    if (payBtn && content.contains(payBtn)) {
+      e.preventDefault();
+      openInstantQr(payBtn.getAttribute('data-ref'), payBtn.getAttribute('data-total'));
+      return;
+    }
+    var batalBtn = e.target.closest('.j-kurir-batal-instant');
+    if (batalBtn && content.contains(batalBtn)) {
+      e.preventDefault();
+      var idReq = batalBtn.getAttribute('data-id-request');
+      if (!idReq || !window.confirm('Batalkan permintaan Instant yang belum dibayar?')) return;
+      batalBtn.disabled = true;
+      var body = new URLSearchParams();
+      body.set('id_request', String(idReq));
+      fetch(base + 'J/kurirInstantBatal/' + pelangganId, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        credentials: 'same-origin',
+        body: body.toString(),
+      })
+        .then(function (res) {
+          return res.json().catch(function () {
+            throw new Error('Respons tidak valid');
+          });
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            throw new Error((data && data.message) || 'Gagal membatalkan');
+          }
+          toast(data.message || 'Dibatalkan', 'ok');
+          loadPage('kurir', '', false);
+        })
+        .catch(function (err) {
+          toast((err && err.message) || 'Gagal membatalkan', 'warn');
+          batalBtn.disabled = false;
+        });
+    }
   });
 
   document.addEventListener('click', function (e) {
@@ -1077,6 +1399,12 @@
     Array.prototype.forEach.call(checks, function (cb) {
       ids.push(cb.value);
     });
+    if (kurirPendingLayanan === 'instant') {
+      kurirPendingIds = ids;
+      hideModal('jModalKurirAntar');
+      openKurirCourierModal();
+      return;
+    }
     submitKurirSameday('antar', ids, btn);
   });
 
@@ -1084,7 +1412,20 @@
     var btn = e.target.closest('#jBtnConfirmKurirJemput');
     if (!btn) return;
     e.preventDefault();
+    if (kurirPendingLayanan === 'instant') {
+      hideModal('jModalKurirJemput');
+      openKurirCourierModal();
+      return;
+    }
     submitKurirSameday('jemput', [], btn);
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('#jBtnSubmitKurirCourier');
+    if (!btn) return;
+    e.preventDefault();
+    var ids = kurirPendingJenis === 'antar' ? kurirPendingIds || [] : [];
+    submitKurirInstant(kurirPendingJenis, ids, btn);
   });
 
   var lokasiModal = document.getElementById('jModalKurirLokasi');

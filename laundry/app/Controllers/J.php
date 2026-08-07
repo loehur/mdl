@@ -1382,7 +1382,7 @@ class J extends Controller
             'delivery_request',
             'id_pelanggan = ' . (int) $pelanggan
                . " AND jenis = 'jemput'"
-               . " AND delivery_status = 'berjalan'"
+               . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
                . ' AND id_lokasi = ' . $idLokasi
          ) ?? 0);
          if ($pendingLokasi > 0) {
@@ -1512,6 +1512,346 @@ class J extends Controller
       ], JSON_UNESCAPED_UNICODE);
    }
 
+   /**
+    * GET rates Instant dari Biteship via API proxy.
+    */
+   public function kurirInstantRates($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      $idLokasi = (int) ($_GET['id_lokasi'] ?? $_POST['id_lokasi'] ?? 0);
+      $jenis = strtolower(trim((string) ($_GET['jenis'] ?? $_POST['jenis'] ?? 'antar')));
+      if (!in_array($jenis, ['antar', 'jemput'], true)) {
+         echo json_encode(['ok' => false, 'message' => 'Jenis tidak valid']);
+         return;
+      }
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi wajib dipilih']);
+         return;
+      }
+
+      $lokasi = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($lokasi) || empty($lokasi['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      $locLat = (float) ($lokasi['latt'] ?? 0);
+      $locLon = (float) ($lokasi['longt'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
+         return;
+      }
+      if ($locLat == 0.0 && $locLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
+         return;
+      }
+
+      // Rates: always laundry ↔ customer (same distance either direction)
+      $payload = [
+         'origin_latitude' => $cabLat,
+         'origin_longitude' => $cabLon,
+         'destination_latitude' => $locLat,
+         'destination_longitude' => $locLon,
+      ];
+      $api = $this->helper('BiteshipApi');
+      $res = $api->rates($payload);
+      if (empty($res['ok'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => $res['message'] ?? 'Gagal mengambil tarif Instant',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+      echo json_encode([
+         'ok' => true,
+         'rates' => $res['rates'] ?? [],
+         'jenis' => $jenis,
+         'id_lokasi' => $idLokasi,
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Submit Kurir Instant → menunggu_pembayaran + kas jt=10 + QRIS.
+    * Tanpa surcas.
+    */
+   public function kurirInstantSubmit($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+
+      $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
+      $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+      $courierCompany = trim((string) ($_POST['courier_company'] ?? ''));
+      $courierType = trim((string) ($_POST['courier_type'] ?? ''));
+      $courierName = trim((string) ($_POST['courier_name'] ?? ''));
+      $ongkir = (int) ($_POST['ongkir'] ?? 0);
+      $idsRaw = $_POST['ids'] ?? [];
+      if (!is_array($idsRaw)) {
+         $idsRaw = [$idsRaw];
+      }
+      $ids = [];
+      foreach ($idsRaw as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $ids[$id] = $id;
+         }
+      }
+      $ids = array_values($ids);
+
+      if (!in_array($jenis, ['antar', 'jemput'], true)) {
+         echo json_encode(['ok' => false, 'message' => 'Jenis tidak valid']);
+         return;
+      }
+      if ($idLokasi <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih lokasi']);
+         return;
+      }
+      if ($courierCompany === '' || $courierType === '') {
+         echo json_encode(['ok' => false, 'message' => 'Pilih kurir Instant']);
+         return;
+      }
+      if ($ongkir < 1000) {
+         echo json_encode(['ok' => false, 'message' => 'Ongkir Instant tidak valid']);
+         return;
+      }
+      if ($jenis === 'antar' && empty($ids)) {
+         echo json_encode(['ok' => false, 'message' => 'Pilih minimal satu item untuk diantar']);
+         return;
+      }
+      if ($jenis === 'jemput' && !empty($ids)) {
+         echo json_encode(['ok' => false, 'message' => 'Jemput tidak memerlukan item']);
+         return;
+      }
+
+      if ($jenis === 'jemput') {
+         $pendingLokasi = (int) ($this->db(0)->count_where(
+            'delivery_request',
+            'id_pelanggan = ' . (int) $pelanggan
+               . " AND jenis = 'jemput'"
+               . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+               . ' AND id_lokasi = ' . $idLokasi
+         ) ?? 0);
+         if ($pendingLokasi > 0) {
+            echo json_encode([
+               'ok' => false,
+               'message' => 'Sudah ada jemput berjalan di lokasi ini. Tunggu selesai dulu.',
+            ]);
+            return;
+         }
+      }
+
+      $lokasi = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
+      );
+      if (!is_array($lokasi) || empty($lokasi['id_lokasi'])) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
+         return;
+      }
+
+      $eligibleMap = [];
+      if ($jenis === 'antar') {
+         $eligibleRows = $this->fetchKurirEligibleSaleRows((int) $pelanggan, 'antar');
+         foreach ($eligibleRows as $row) {
+            $eligibleMap[(int) $row['id_penjualan']] = $row;
+         }
+         foreach ($ids as $idSale) {
+            if (!isset($eligibleMap[$idSale])) {
+               $reason = $this->antarItemBlockReason($pelanggan, $idSale);
+               echo json_encode([
+                  'ok' => false,
+                  'message' => $reason !== '' ? $reason : "Item #$idSale tidak bisa diantar",
+               ]);
+               return;
+            }
+         }
+      }
+
+      $phoneTail = $this->phoneTailFromPelanggan($this->pelanggan_p);
+      if (strlen($phoneTail) < 8) {
+         echo json_encode(['ok' => false, 'message' => 'Nomor pelanggan belum lengkap']);
+         return;
+      }
+
+      $cabLat = (float) ($this->dCabangPublic['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabangPublic['long'] ?? 0);
+      $locLat = (float) ($lokasi['latt'] ?? 0);
+      $locLon = (float) ($lokasi['longt'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Lokasi cabang belum diatur']);
+         return;
+      }
+      if ($locLat == 0.0 && $locLon == 0.0) {
+         echo json_encode(['ok' => false, 'message' => 'Koordinat lokasi pelanggan belum lengkap']);
+         return;
+      }
+
+      // Cegah pending Instant ganda
+      $pendingInstant = (int) ($this->db(0)->count_where(
+         'delivery_request',
+         'id_pelanggan = ' . (int) $pelanggan
+            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+      ) ?? 0);
+      if ($pendingInstant > 0) {
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Masih ada Instant menunggu pembayaran. Bayar atau batalkan dulu.',
+         ]);
+         return;
+      }
+
+      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+      $insData = [
+         'sumber' => 'customer',
+         'jenis' => $jenis,
+         'layanan' => 'instant',
+         'delivery_status' => 'menunggu_pembayaran',
+         'id_pelanggan' => (int) $pelanggan,
+         'phone_tail' => $phoneTail,
+         'id_cabang' => (int) $this->id_cabang_p,
+         'id_lokasi' => $idLokasi,
+         'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
+         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+         'lokasi_latt' => $locLat,
+         'lokasi_longt' => $locLon,
+         'courier_company' => $courierCompany,
+         'courier_type' => $courierType,
+         'courier_name' => $courierName !== '' ? $courierName : ($courierCompany . ' ' . $courierType),
+         'ongkir' => $ongkir,
+         'insertTime' => $now,
+      ];
+      $ins = $this->db(0)->insert('delivery_request', $insData);
+      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal membuat permintaan']);
+         return;
+      }
+      $idRequest = (int) ($ins['insert_id'] ?? 0);
+      if ($idRequest <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Gagal membuat permintaan']);
+         return;
+      }
+
+      if ($jenis === 'antar') {
+         foreach ($ids as $idSale) {
+            $sale = $eligibleMap[$idSale];
+            $itemIns = $this->db(0)->insert('delivery_request_item', [
+               'id_request' => $idRequest,
+               'id_penjualan' => $idSale,
+               'no_ref' => (string) ($sale['no_ref'] ?? ''),
+            ]);
+            if (is_array($itemIns) && isset($itemIns['errno']) && (int) $itemIns['errno'] !== 0) {
+               echo json_encode(['ok' => false, 'message' => $itemIns['error'] ?? 'Gagal menyimpan item']);
+               return;
+            }
+         }
+      }
+
+      $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
+      $idKas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+      $kasIns = $this->db(0)->insert('kas', [
+         'id_kas' => $idKas,
+         'id_cabang' => (int) $this->id_cabang_p,
+         'jenis_mutasi' => 1,
+         'jenis_transaksi' => 10,
+         'metode_mutasi' => 2,
+         'note' => 'QRIS',
+         'status_mutasi' => 2,
+         'jumlah' => $ongkir,
+         'id_user' => 0,
+         'id_client' => (int) $pelanggan,
+         'ref_transaksi' => (string) $idRequest,
+         'ref_finance' => $refFinance,
+      ]);
+      if (is_array($kasIns) && isset($kasIns['errno']) && (int) $kasIns['errno'] !== 0) {
+         $this->db(0)->update(
+            'delivery_request',
+            ['delivery_status' => 'batal', 'catatan_batal' => 'Gagal buat kas', 'selesaiTime' => $now],
+            'id_request = ' . $idRequest
+         );
+         echo json_encode(['ok' => false, 'message' => $kasIns['error'] ?? 'Gagal membuat pembayaran']);
+         return;
+      }
+
+      $this->db(0)->update(
+         'delivery_request',
+         ['payment_ref_finance' => $refFinance],
+         'id_request = ' . $idRequest
+      );
+
+      $label = $jenis === 'antar' ? 'Antar' : 'Jemput';
+      echo json_encode([
+         'ok' => true,
+         'message' => "Permintaan $label Instant dibuat. Lanjutkan pembayaran ongkir.",
+         'id_request' => $idRequest,
+         'ref_finance' => $refFinance,
+         'ongkir' => $ongkir,
+         'note' => 'QRIS',
+         'pay' => true,
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Batalkan Instant hanya saat menunggu_pembayaran.
+    */
+   public function kurirInstantBatal($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $pelanggan = $this->bootCustomer($pelanggan);
+      $idRequest = (int) ($_POST['id_request'] ?? 0);
+      if ($idRequest <= 0) {
+         echo json_encode(['ok' => false, 'message' => 'Request tidak valid']);
+         return;
+      }
+
+      $req = $this->db(0)->get_where_row(
+         'delivery_request',
+         'id_request = ' . $idRequest
+            . ' AND id_pelanggan = ' . (int) $pelanggan
+            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+      );
+      if (!is_array($req) || empty($req['id_request'])) {
+         echo json_encode(['ok' => false, 'message' => 'Request tidak ditemukan atau sudah dibayar']);
+         return;
+      }
+
+      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+      $refFinance = trim((string) ($req['payment_ref_finance'] ?? ''));
+      if ($refFinance !== '') {
+         $this->db(0)->delete(
+            'kas',
+            "ref_finance = '" . $this->db(0)->escape($refFinance)
+               . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+         );
+      } else {
+         $this->db(0)->delete(
+            'kas',
+            "ref_transaksi = '" . $idRequest . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+         );
+      }
+
+      $upd = $this->db(0)->update(
+         'delivery_request',
+         [
+            'delivery_status' => 'batal',
+            'catatan_batal' => 'Dibatalkan pelanggan sebelum bayar',
+            'selesaiTime' => $now,
+         ],
+         'id_request = ' . $idRequest . " AND delivery_status = 'menunggu_pembayaran'"
+      );
+      if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+         echo json_encode(['ok' => false, 'message' => $upd['error'] ?? 'Gagal membatalkan']);
+         return;
+      }
+
+      echo json_encode(['ok' => true, 'message' => 'Permintaan Instant dibatalkan']);
+   }
+
    private function listPelangganLokasi(int $pelanggan): array
    {
       $rows = $this->db(0)->get_where(
@@ -1526,7 +1866,7 @@ class J extends Controller
       $pendingJemput = $this->db(0)->get_where(
          'delivery_request',
          'id_pelanggan = ' . (int) $pelanggan
-            . " AND jenis = 'jemput' AND delivery_status = 'berjalan'"
+            . " AND jenis = 'jemput' AND delivery_status IN ('berjalan','menunggu_pembayaran')"
       );
       if (is_array($pendingJemput)) {
          foreach ($pendingJemput as $pj) {
@@ -1587,7 +1927,7 @@ class J extends Controller
           WHERE dri.id_penjualan = $sid
             AND drq.id_pelanggan = $pid
             AND drq.jenis = 'antar'
-            AND drq.delivery_status = 'berjalan'
+            AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')
           LIMIT 1"
       );
       if (is_array($busy) && !empty($busy)) {
@@ -1646,7 +1986,9 @@ class J extends Controller
    {
       $rows = $this->db(0)->get_where(
          'delivery_request',
-         'id_pelanggan = ' . (int) $pelanggan . " AND delivery_status = 'berjalan' ORDER BY insertTime DESC"
+         'id_pelanggan = ' . (int) $pelanggan
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+            . ' ORDER BY insertTime DESC'
       );
       if (!is_array($rows)) {
          return [];
@@ -1657,9 +1999,16 @@ class J extends Controller
             'id_request' => (int) ($r['id_request'] ?? 0),
             'jenis' => (string) ($r['jenis'] ?? ''),
             'layanan' => (string) ($r['layanan'] ?? 'sameday'),
+            'delivery_status' => (string) ($r['delivery_status'] ?? ''),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
             'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
             'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
+            'ongkir' => isset($r['ongkir']) ? (int) $r['ongkir'] : null,
+            'courier_name' => (string) ($r['courier_name'] ?? ''),
+            'biteship_status' => (string) ($r['biteship_status'] ?? ''),
+            'tracking_url' => (string) ($r['tracking_url'] ?? ''),
+            'payment_ref_finance' => (string) ($r['payment_ref_finance'] ?? ''),
+            'driver_name' => (string) ($r['driver_name'] ?? ''),
          ];
       }
       return $out;
@@ -1697,7 +2046,7 @@ class J extends Controller
               INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
               WHERE dri.id_penjualan = s.id_penjualan
                 AND drq.jenis = '$jenisEsc'
-                AND drq.delivery_status = 'berjalan'
+                AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')
             )
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 200"

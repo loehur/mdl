@@ -717,6 +717,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                     $tail = htmlspecialchars((string) ($rq['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
                     $kode = htmlspecialchars((string) ($rq['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
                     $jenis = strtolower((string) ($rq['jenis'] ?? ''));
+                    $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
                     $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
                     $idReq = (int) ($rq['id_request'] ?? 0);
                     $prefill = implode(',', array_map('intval', $rq['prefill_ids'] ?? []));
@@ -734,24 +735,53 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                     $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
                       ? (int) $rq['tarif_surcas']
                       : '';
+                    $isInstant = $layanan === 'instant';
+                    $canSelesai = !$isInstant || $jenis === 'jemput';
+                    $courierName = trim((string) ($rq['courier_name'] ?? ''));
+                    $bsStatus = trim((string) ($rq['biteship_status'] ?? ''));
+                    $trackUrl = trim((string) ($rq['tracking_url'] ?? ''));
+                    $driverName = trim((string) ($rq['driver_name'] ?? ''));
+                    $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
                   ?>
-                    <div class="dlv-item dlv-item--customer dlv-item--request"
+                    <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
                          data-id-request="<?= $idReq ?>"
                          data-phone-tail="<?= $tail ?>"
                          data-source="customer"
+                         data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
                          data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>">
                       <div class="dlv-item__text">
                         <p class="dlv-item__title">
                           <?= $nama ?>
                           <span class="dlv-jenis-pill <?= $pillClass ?>"><?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?></span>
+                          <?php if ($isInstant) { ?>
+                            <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
+                          <?php } ?>
                           <span class="dlv-kode">· <?= $kode ?></span>
                         </p>
                         <div class="dlv-item__meta">
                           #<?= $idReq ?> · <?= $tail ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
-                          <?php if ($jenis === 'jemput' && $tarifSurcas !== '') { ?>
+                          <?php if ($isInstant && $ongkir > 0) { ?>
+                            · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
+                          <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && !$isInstant) { ?>
                             · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
                           <?php } ?>
                         </div>
+                        <?php if ($isInstant && ($courierName !== '' || $bsStatus !== '' || $driverName !== '')) { ?>
+                          <div class="dlv-item__meta">
+                            <?php if ($courierName !== '') { ?>
+                              <i class="fas fa-motorcycle"></i> <?= htmlspecialchars($courierName, ENT_QUOTES, 'UTF-8') ?>
+                            <?php } ?>
+                            <?php if ($bsStatus !== '') { ?>
+                              · <?= htmlspecialchars($bsStatus, ENT_QUOTES, 'UTF-8') ?>
+                            <?php } ?>
+                            <?php if ($driverName !== '') { ?>
+                              · Driver <?= htmlspecialchars($driverName, ENT_QUOTES, 'UTF-8') ?>
+                            <?php } ?>
+                            <?php if ($trackUrl !== '') { ?>
+                              · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a>
+                            <?php } ?>
+                          </div>
+                        <?php } ?>
                         <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
                           <div class="dlv-item__meta dlv-item__lokasi">
                             <i class="fas fa-map-marker-alt"></i>
@@ -766,16 +796,21 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
                         <?php } ?>
                       </div>
                       <div class="dlv-item__actions">
-                        <button type="button"
-                                class="dlv-btn dlv-btn--selesai"
-                                data-dlv-selesai-request="<?= $idReq ?>"
-                                data-phone-tail="<?= $tail ?>"
-                                data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                                data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                                data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-                                data-nama="<?= $nama ?>">
-                          <i class="fas fa-check"></i> Selesai
-                        </button>
+                        <?php if ($canSelesai) { ?>
+                          <button type="button"
+                                  class="dlv-btn dlv-btn--selesai"
+                                  data-dlv-selesai-request="<?= $idReq ?>"
+                                  data-phone-tail="<?= $tail ?>"
+                                  data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
+                                  data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
+                                  data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
+                                  data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
+                                  data-nama="<?= $nama ?>">
+                            <i class="fas fa-check"></i> Selesai
+                          </button>
+                        <?php } else { ?>
+                          <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
+                        <?php } ?>
                       </div>
                     </div>
                   <?php } ?>
@@ -878,6 +913,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
         <div class="op-modal__body">
           <input type="hidden" id="dlvSelesaiMode" value="crm">
           <input type="hidden" id="dlvSelesaiRequestId" name="id_request" value="">
+          <input type="hidden" id="dlvSelesaiLayanan" value="sameday">
           <input type="hidden" id="dlvSelesaiPhone" name="phone_tail" value="">
           <input type="hidden" id="dlvSelesaiPrefill" value="">
           <label class="dlv-field-label" for="dlvSelesaiJenis">Jenis</label>
@@ -1191,6 +1227,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var keyEl = document.getElementById('dlvSelesaiKey');
     var modeEl = document.getElementById('dlvSelesaiMode');
     var reqEl = document.getElementById('dlvSelesaiRequestId');
+    var layananEl = document.getElementById('dlvSelesaiLayanan');
     var prefillEl = document.getElementById('dlvSelesaiPrefill');
     var sekalianCheck = document.getElementById('dlvSekalianCheck');
     var sekalianRow = document.getElementById('dlvSekalianRow');
@@ -1199,6 +1236,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var surcasRow = document.getElementById('dlvSurcasJemputRow');
     var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
     var surcasHint = document.getElementById('dlvSurcasJemputHint');
+    var batalBtn = document.getElementById('dlvSelesaiBatal');
     if (jenis) {
       jenis.value = '';
       jenis.disabled = false;
@@ -1207,8 +1245,9 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     if (keyEl) keyEl.value = '';
     if (modeEl) modeEl.value = 'crm';
     if (reqEl) reqEl.value = '';
+    if (layananEl) layananEl.value = 'sameday';
     if (prefillEl) prefillEl.value = '';
-    if (box) box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
+    if (batalBtn) batalBtn.hidden = false;    if (box) box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
     if (sekalianCheck) sekalianCheck.checked = false;
     if (sekalianRow) sekalianRow.hidden = true;
     if (sekalianWrap) sekalianWrap.hidden = true;
@@ -1238,9 +1277,10 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var hint = document.getElementById('dlvSurcasJemputHint');
     var jenis = (document.getElementById('dlvSelesaiJenis') || {}).value || '';
     var mode = (document.getElementById('dlvSelesaiMode') || {}).value || 'crm';
+    var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
     if (!row || !input) return;
 
-    if (jenis !== 'jemput') {
+    if (jenis !== 'jemput' || layanan === 'instant') {
       row.hidden = true;
       input.required = false;
       return;
@@ -1286,13 +1326,14 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
 
   function updateSekalianUi() {
     var jenis = (document.getElementById('dlvSelesaiJenis') || {}).value || '';
+    var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
     var row = document.getElementById('dlvSekalianRow');
     var label = document.getElementById('dlvSekalianLabel');
     var check = document.getElementById('dlvSekalianCheck');
     var wrap = document.getElementById('dlvSekalianWrap');
     var sales = document.getElementById('dlvSekalianSales');
     if (!row || !label) return;
-    if (!jenis) {
+    if (!jenis || layanan === 'instant') {
       row.hidden = true;
       if (check) check.checked = false;
       if (wrap) wrap.hidden = true;
@@ -1506,6 +1547,7 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     var idReq = btn.getAttribute('data-dlv-selesai-request') || '';
     var phone = btn.getAttribute('data-phone-tail') || '';
     var jenis = (btn.getAttribute('data-jenis') || '').toLowerCase();
+    var layanan = (btn.getAttribute('data-layanan') || 'sameday').toLowerCase();
     var prefill = btn.getAttribute('data-prefill') || '';
     var tarif = btn.getAttribute('data-tarif-surcas') || '';
     var nama = btn.getAttribute('data-nama') || 'Customer';
@@ -1515,6 +1557,8 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
     document.getElementById('dlvSelesaiRequestId').value = idReq;
     document.getElementById('dlvSelesaiPhone').value = phone;
     document.getElementById('dlvSelesaiPrefill').value = prefill;
+    var layananEl = document.getElementById('dlvSelesaiLayanan');
+    if (layananEl) layananEl.value = layanan;
     var jenisEl = document.getElementById('dlvSelesaiJenis');
     if (jenisEl) {
       jenisEl.value = jenis;
@@ -1525,11 +1569,35 @@ $isEmptyCustomer = empty($customers) && empty($customerRequests);
       surcasJumlah.setAttribute('data-tarif-fixed', tarif || '0');
     }
     var sub = document.getElementById('dlvSelesaiSub');
-    if (sub) sub.textContent = nama + ' · ' + phone + ' · Request #' + idReq;
+    if (sub) {
+      sub.textContent = nama + ' · ' + phone + ' · Request #' + idReq + (layanan === 'instant' ? ' · Instant' : '');
+    }
     var title = document.getElementById('dlvSelesaiTitle');
-    if (title) title.textContent = 'Selesai Request Customer';
+    if (title) title.textContent = layanan === 'instant' ? 'Selesai Instant Jemput' : 'Selesai Request Customer';
+
+    var batalBtn = document.getElementById('dlvSelesaiBatal');
+    var sekalianRow = document.getElementById('dlvSekalianRow');
+    if (layanan === 'instant') {
+      if (batalBtn) batalBtn.hidden = true;
+      if (sekalianRow) sekalianRow.hidden = true;
+      if (surcasJumlah) {
+        surcasJumlah.removeAttribute('data-tarif-fixed');
+        surcasJumlah.value = '';
+        surcasJumlah.required = false;
+      }
+      var surcasRow = document.getElementById('dlvSurcasJemputRow');
+      if (surcasRow) surcasRow.hidden = true;
+    } else if (batalBtn) {
+      batalBtn.hidden = false;
+    }
+
     openModal('dlvSelesaiModal');
     syncSurcasJemputUi();
+    if (layanan === 'instant') {
+      var surcasRow2 = document.getElementById('dlvSurcasJemputRow');
+      if (surcasRow2) surcasRow2.hidden = true;
+      if (sekalianRow) sekalianRow.hidden = true;
+    }
     loadSalesOptions();
   }
 

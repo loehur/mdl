@@ -246,12 +246,13 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-head">
         <div>
-          <p class="j-sheet-kicker">Sameday</p>
+          <p class="j-sheet-kicker" id="jKurirLokasiKicker">Sameday</p>
           <h5 class="j-sheet-title" id="jKurirLokasiTitle">Pilih lokasi</h5>
         </div>
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <div class="j-sheet-body">
+        <p class="j-sheet-desc" id="jKurirJenisHint" style="margin-top:0"></p>
         <div id="jKurirLokasiPick">
           <p class="j-sheet-desc" style="margin-top:0">Pilih alamat untuk permintaan ini.</p>
           <div class="j-kurir-lokasi-list" id="jKurirLokasiList">
@@ -300,13 +301,13 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-head">
         <div>
-          <p class="j-sheet-kicker">Sameday</p>
+          <p class="j-sheet-kicker" id="jKurirAntarKicker">Sameday</p>
           <h5 class="j-sheet-title">Antar laundry</h5>
         </div>
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <div class="j-sheet-body">
-        <p class="j-sheet-desc" style="margin-top:0">Pilih item yang ingin diantar oleh kurir.</p>
+        <p class="j-sheet-desc" style="margin-top:0">Mengantar Pakaian dari Laundry ke Lokasi Anda. Pilih item yang ingin diantar.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirAntarLokasi"></div>
         <div class="j-kurir-sales" id="jKurirSalesBox">
           <div class="j-kurir-sales-empty">Memuat item…</div>
@@ -315,7 +316,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirAntar">
-          <i class="fas fa-truck"></i> Kirim permintaan
+          <i class="fas fa-truck"></i> <span id="jBtnSubmitKurirAntarLabel">Kirim permintaan</span>
         </button>
       </div>
     </div>
@@ -328,14 +329,43 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
         <div class="j-sheet-ico"><i class="fas fa-hand-holding"></i></div>
+        <p class="j-sheet-kicker" id="jKurirJemputKicker" style="margin:0 0 4px">Sameday</p>
         <h5 class="j-sheet-title" style="margin:0 0 6px">Jemput laundry?</h5>
-        <p class="j-sheet-desc">Kurir akan datang menjemput. Item dipilih petugas saat selesai.</p>
+        <p class="j-sheet-desc">Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry. Item dipilih petugas saat selesai.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirJemputLokasi"></div>
       </div>
       <div class="j-sheet-foot">
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="j-sheet-btn primary" id="jBtnConfirmKurirJemput">
-          <i class="fas fa-check"></i> Ya, jemput
+          <i class="fas fa-check"></i> <span id="jBtnConfirmKurirJemputLabel">Ya, jemput</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Kurir Instant: pilih kurir Biteship -->
+<div class="modal fade" id="jModalKurirCourier" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Instant</p>
+          <h5 class="j-sheet-title">Pilih kurir</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body">
+        <p class="j-sheet-desc" style="margin-top:0">Ongkir dibayar via QRIS sebelum order berjalan.</p>
+        <div class="j-kurir-lokasi-chosen" id="jKurirCourierLokasi"></div>
+        <div class="j-kurir-sales" id="jKurirCourierBox">
+          <div class="j-kurir-sales-empty">Memuat kurir…</div>
+        </div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirCourier" disabled>
+          <i class="fas fa-qrcode"></i> Bayar ongkir
         </button>
       </div>
     </div>
@@ -346,7 +376,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=15"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=16"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

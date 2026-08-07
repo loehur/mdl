@@ -1,12 +1,13 @@
--- Request Kurir Sameday (customer) — jalankan di database mdl_laundry
+-- Request Kurir Sameday / Instant (customer) — jalankan di database mdl_laundry
 -- Riwayat selesai tetap di delivery_riwayat.
+-- kas jenis_transaksi = 10 → ongkir Kurir Instant (QRIS).
 
 CREATE TABLE IF NOT EXISTS `delivery_request` (
   `id_request` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `sumber` ENUM('customer') NOT NULL DEFAULT 'customer',
   `jenis` ENUM('antar','jemput') NOT NULL,
-  `layanan` ENUM('sameday') NOT NULL DEFAULT 'sameday',
-  `delivery_status` ENUM('berjalan','selesai','batal') NOT NULL DEFAULT 'berjalan',
+  `layanan` ENUM('sameday','instant') NOT NULL DEFAULT 'sameday',
+  `delivery_status` ENUM('menunggu_pembayaran','berjalan','selesai','batal') NOT NULL DEFAULT 'berjalan',
   `id_pelanggan` INT NOT NULL,
   `phone_tail` VARCHAR(9) NOT NULL,
   `id_cabang` INT NOT NULL,
@@ -16,6 +17,17 @@ CREATE TABLE IF NOT EXISTS `delivery_request` (
   `lokasi_latt` DECIMAL(10,7) NULL,
   `lokasi_longt` DECIMAL(10,7) NULL,
   `tarif_surcas` INT UNSIGNED NULL DEFAULT NULL,
+  `courier_company` VARCHAR(50) NULL DEFAULT NULL,
+  `courier_type` VARCHAR(50) NULL DEFAULT NULL,
+  `courier_name` VARCHAR(100) NULL DEFAULT NULL,
+  `ongkir` INT UNSIGNED NULL DEFAULT NULL,
+  `payment_ref_finance` VARCHAR(50) NULL DEFAULT NULL,
+  `biteship_order_id` VARCHAR(64) NULL DEFAULT NULL,
+  `biteship_status` VARCHAR(50) NULL DEFAULT NULL,
+  `waybill_id` VARCHAR(100) NULL DEFAULT NULL,
+  `tracking_url` VARCHAR(255) NULL DEFAULT NULL,
+  `driver_name` VARCHAR(100) NULL DEFAULT NULL,
+  `driver_phone` VARCHAR(30) NULL DEFAULT NULL,
   `id_karyawan` INT NULL,
   `nama_karyawan` VARCHAR(100) NULL,
   `catatan_batal` TEXT NULL,
@@ -26,7 +38,9 @@ CREATE TABLE IF NOT EXISTS `delivery_request` (
   KEY `idx_pelanggan` (`id_pelanggan`),
   KEY `idx_jenis_status` (`jenis`, `delivery_status`),
   KEY `idx_phone` (`phone_tail`),
-  KEY `idx_lokasi` (`id_lokasi`)
+  KEY `idx_lokasi` (`id_lokasi`),
+  KEY `idx_payment_ref` (`payment_ref_finance`),
+  KEY `idx_biteship_order` (`biteship_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `delivery_request_item` (

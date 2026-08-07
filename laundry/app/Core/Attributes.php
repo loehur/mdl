@@ -609,6 +609,7 @@ trait Attributes
                         if (isset($kas['ref_transaksi'])) {
                            $this->updateSalesState($kas['ref_transaksi']);
                         }
+                        $this->activateInstantKurirPayment($kas);
                         
                         // Pastikan exit dengan benar
                         echo json_encode(['status' => 'paid']);
@@ -915,6 +916,7 @@ trait Attributes
             $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
             if ($update['errno'] == 0) {
                $this->updateSalesState($kas['ref_transaksi']);
+               $this->activateInstantKurirPayment($kas);
                echo json_encode(['status' => 'PAID']);
             } else {
                if (!$is_public) $this->model('Log')->write("[payment_gateway_check_status] Tokopay Update Kas Error: " . $update['error']);
@@ -946,6 +948,28 @@ trait Attributes
          } else {
             echo json_encode(['status' => 'PENDING', 'data' => $data]);
          }
+      }
+   }
+
+   /**
+    * Setelah kas QRIS lunas: jika Kurir Instant (jt=10), aktifkan order Biteship via API.
+    */
+   private function activateInstantKurirPayment($kas)
+   {
+      $jt = (int) ($kas['jenis_transaksi'] ?? 0);
+      if ($jt !== 10) {
+         return;
+      }
+      $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
+      if ($refFinance === '') {
+         return;
+      }
+      try {
+         $api = $this->helper('BiteshipApi');
+         $res = $api->activate(['ref_finance' => $refFinance]);
+         $this->model('Log')->write('[InstantKurir] activate ' . $refFinance . ' ' . json_encode($res));
+      } catch (\Throwable $e) {
+         $this->model('Log')->write('[InstantKurir] activate err ' . $e->getMessage());
       }
    }
 }

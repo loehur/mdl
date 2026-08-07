@@ -276,8 +276,20 @@ class Tokopay extends Controller
                 
                 // Send Webhook to QR Server (Node.js) to notify frontend
                 $this->notifyQRServer($cek_kas);
+
+                // Kurir Instant (jt=10): create Biteship order after paid
+                $this->activateInstantKurirIfNeeded($db_kas, $cek_kas);
             }
         } elseif ($isExpired || $isFailed) {
+            // Before delete: batal unpaid Instant request (jt=10)
+            $kasExp = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id])->row();
+            if (!$kasExp) {
+                $kasExp = $db_kas->get_where("kas", ["ref_finance" => $ref_finance_extracted])->row();
+            }
+            if ($kasExp) {
+                $this->cancelInstantKurirIfNeeded($db_kas, $kasExp);
+            }
+
             // Delete kas if status_mutasi is not yet 3 (not paid)
             $db_kas->query("DELETE FROM kas WHERE payment_trx_id = ? AND status_mutasi != 3", [$tokopay_trx_id]);
             $affected = $db_kas->affected_rows();
@@ -413,5 +425,36 @@ class Tokopay extends Controller
             }
         }
         // If not fully paid, step remains 0 (order open)
+    }
+
+    private function activateInstantKurirIfNeeded($db, $kas)
+    {
+        try {
+            if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
+                require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
+            }
+            $jt = is_array($kas)
+                ? (int) ($kas['jenis_transaksi'] ?? 0)
+                : (int) ($kas->jenis_transaksi ?? 0);
+            if ($jt !== \App\Helpers\Laundry\InstantKurir::JENIS_TRANSAKSI) {
+                return;
+            }
+            $result = \App\Helpers\Laundry\InstantKurir::activateAfterPayment($db, $kas);
+            \Log::write('Instant activate: ' . json_encode($result), 'webhook', 'Tokopay');
+        } catch (\Throwable $e) {
+            \Log::write('Instant activate err: ' . $e->getMessage(), 'webhook', 'Tokopay');
+        }
+    }
+
+    private function cancelInstantKurirIfNeeded($db, $kas)
+    {
+        try {
+            if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
+                require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
+            }
+            \App\Helpers\Laundry\InstantKurir::cancelUnpaidByKas($db, $kas);
+        } catch (\Throwable $e) {
+            \Log::write('Instant cancel err: ' . $e->getMessage(), 'webhook', 'Tokopay');
+        }
     }
 }
