@@ -370,47 +370,48 @@
       <div class="op-modal__head op-modal__head--blue">
         <div>
           <h3 id="opSelesaiTitle">Selesai <b class="operasi"></b>!</h3>
-          <small>Catat karyawan &amp; letak</small>
+          <small id="opSelesaiHint">Catat karyawan &amp; letak</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
       <div class="op-modal__body">
-        <div class="op-row op-field">
-          <div>
-            <label class="op-label">Karyawan</label>
-            <select name="f1" class="operasi tize userChange" style="width: 100%;" required>
-              <option value="" selected disabled></option>
-              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                <?php foreach ($this->user as $a) { ?>
+        <div class="op-field">
+          <label class="op-label">Karyawan</label>
+          <select name="f1" class="operasi tize userChange" style="width: 100%;" required>
+            <option value="" selected disabled></option>
+            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+              <?php foreach ($this->user as $a) { ?>
+                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+              <?php } ?>
+            </optgroup>
+            <?php if (count($this->userCabang) > 0) { ?>
+              <optgroup label="----- Cabang Lain -----">
+                <?php foreach ($this->userCabang as $a) { ?>
                   <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                 <?php } ?>
               </optgroup>
-              <?php if (count($this->userCabang) > 0) { ?>
-                <optgroup label="----- Cabang Lain -----">
-                  <?php foreach ($this->userCabang as $a) { ?>
-                    <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-              <?php } ?>
-            </select>
-          </div>
-          <div>
-            <label class="op-label">Letak / Rak</label>
-            <input id="letakRAK" type="text" maxlength="2" name="rak" style="text-transform: uppercase" class="op-input">
-          </div>
+            <?php } ?>
+          </select>
         </div>
         <input type="hidden" class="idItem" name="f2" value="" required>
         <input type="hidden" class="valueItem" name="f3" value="" required>
         <input type="hidden" name="inTotalNotif" value="" required>
-        <div class="op-field letakRAK">
-          <div class="op-row">
-            <div>
-              <label class="op-label">Pack</label>
-              <input type="number" min="0" value="1" name="pack" class="op-input" required>
-            </div>
-            <div>
-              <label class="op-label">Hanger</label>
-              <input type="number" min="0" value="0" name="hanger" class="op-input" required>
+        <!-- Rak/Pack/Hanger hanya untuk layanan terakhir (endLayanan); disembunyikan di addOperasi -->
+        <div class="letakRAK">
+          <div class="op-field">
+            <label class="op-label">Letak / Rak</label>
+            <input id="letakRAK" type="text" maxlength="2" name="rak" style="text-transform: uppercase" class="op-input">
+          </div>
+          <div class="op-field">
+            <div class="op-row">
+              <div>
+                <label class="op-label">Pack</label>
+                <input type="number" min="0" value="1" name="pack" class="op-input" id="letakPack">
+              </div>
+              <div>
+                <label class="op-label">Hanger</label>
+                <input type="number" min="0" value="0" name="hanger" class="op-input" id="letakHanger">
+              </div>
             </div>
           </div>
         </div>

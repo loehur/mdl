@@ -854,8 +854,12 @@
 
   $("span.addOperasi").on("click", function (e) {
     e.preventDefault();
+    // Bukan layanan terakhir: tanpa rak & tanpa WA selesai
     $("div.letakRAK").hide();
-    $("input#letakRAK").prop("required", false);
+    $("input#letakRAK").val("").prop("required", false);
+    $("input#letakPack, input#letakHanger").prop("required", false);
+    $("form.operasi").attr("data-operasi", "operasi");
+    $("#opSelesaiHint").text("Catat karyawan penyelesai");
 
     window.idNya = $(this).attr("data-id");
     var valueNya = $(this).attr("data-value");
@@ -864,8 +868,6 @@
     $("input.valueItem").val(valueNya);
     $("b.operasi").html(layanan);
     window.idtargetOperasi = $(this).attr("id");
-
-
   });
 
   $("span.gantiOperasi").on("click", function (e) {
@@ -941,9 +943,12 @@
 
   $("span.endLayanan").on("click", function (e) {
     e.preventDefault();
+    // Layanan terakhir: wajib rak (+ pack/hanger), WA selesai dikirim setelah rak terisi
     $("div.letakRAK").show();
     $("input#letakRAK").prop("required", true);
+    $("input#letakPack, input#letakHanger").prop("required", true);
     $("form.operasi").attr("data-operasi", "operasiSelesai");
+    $("#opSelesaiHint").text("Catat karyawan & letak");
     window.idNya = $(this).attr("data-id");
     var valueNya = $(this).attr("data-value");
     var layanan = $(this).attr("data-layanan");
@@ -952,8 +957,6 @@
     $("input.valueItem").val(valueNya);
     $("b.operasi").html(layanan);
     window.idtargetOperasi = $(this).attr("id");
-
-
   });
 
   $(".tambahCas").click(function () {

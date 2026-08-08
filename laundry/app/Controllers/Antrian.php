@@ -426,53 +426,66 @@ class Antrian extends Controller
       $penjualan = $_POST['f2'];
       $operasi = $_POST['f3'];
 
-      // Get sale data to retrieve customer phone
+      // Get sale data
       $sale = $this->db(0)->get_where_row('sale', "id_penjualan = '$penjualan'");
       if (!$sale) {
          $this->model('Log')->write("[operasi] ERROR: Sale data not found - ID: " . $penjualan);
          echo "Error: Sale data tidak ditemukan";
          exit();
       }
-      $id_pelanggan = $sale['id_pelanggan'];
-      
-      // Get customer phone
-      $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '$id_pelanggan'");
-      if (!$pelanggan) {
-         $this->model('Log')->write("[operasi] ERROR: Customer data not found - ID Pelanggan: " . $id_pelanggan);
-         echo "Error: Data pelanggan tidak ditemukan";
-         exit();
-      }
-      $hp = $pelanggan['nomor_pelanggan'];
-      
-      // NOTE: empty() treats 0/"0" as empty; we still want the process to continue
-      // even if phone is "0". Only block when truly missing/blank.
-      if ($hp === null || trim((string)$hp) === '') {
-         $this->model('Log')->write("[operasi] ERROR: Customer phone empty - ID Pelanggan: " . $id_pelanggan);
-         echo "Error: Nomor HP pelanggan kosong";
-         exit();
-      }
 
-      // Generate text using WAGenerator (text sudah final, tidak perlu replace lagi)
-      $waGen = $this->helper('WAGenerator');
-      $jsonText = $waGen->get_selesai_text($penjualan, $karyawan);
-      $objText = json_decode($jsonText, true);
-      $text = $objText['text'] ?? "";
-      
-      if (empty($text)) {
-         $this->model('Log')->write("[operasi] ERROR: Generated text empty - ID Penjualan: " . $penjualan . " | Karyawan: " . $karyawan . " | JSON: " . $jsonText);
-         echo "Error: Text notifikasi kosong";
+      // Hanya layanan terakhir yang pakai rak + WA notif selesai
+      $listLayanan = @unserialize($sale['list_layanan'] ?? '');
+      if (!is_array($listLayanan) || count($listLayanan) < 1) {
+         $this->model('Log')->write("[operasi] ERROR: list_layanan invalid - ID: " . $penjualan);
+         echo "Error: Data layanan tidak valid";
          exit();
+      }
+      $endLayanan = end($listLayanan);
+      $isEndLayanan = ((string) $operasi === (string) $endLayanan);
+      $this->model('Log')->write("[operasi] Layanan check - ID: " . $penjualan . " | Operasi: " . $operasi . " | End: " . $endLayanan . " | isEnd: " . ($isEndLayanan ? '1' : '0'));
+
+      $hp = '';
+      $text = '';
+      if ($isEndLayanan) {
+         $id_pelanggan = $sale['id_pelanggan'];
+         $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '$id_pelanggan'");
+         if (!$pelanggan) {
+            $this->model('Log')->write("[operasi] ERROR: Customer data not found - ID Pelanggan: " . $id_pelanggan);
+            echo "Error: Data pelanggan tidak ditemukan";
+            exit();
+         }
+         $hp = $pelanggan['nomor_pelanggan'];
+
+         // NOTE: empty() treats 0/"0" as empty; we still want the process to continue
+         // even if phone is "0". Only block when truly missing/blank.
+         if ($hp === null || trim((string) $hp) === '') {
+            $this->model('Log')->write("[operasi] ERROR: Customer phone empty - ID Pelanggan: " . $id_pelanggan);
+            echo "Error: Nomor HP pelanggan kosong";
+            exit();
+         }
+
+         $waGen = $this->helper('WAGenerator');
+         $jsonText = $waGen->get_selesai_text($penjualan, $karyawan);
+         $objText = json_decode($jsonText, true);
+         $text = $objText['text'] ?? "";
+
+         if (empty($text)) {
+            $this->model('Log')->write("[operasi] ERROR: Generated text empty - ID Penjualan: " . $penjualan . " | Karyawan: " . $karyawan . " | JSON: " . $jsonText);
+            echo "Error: Text notifikasi kosong";
+            exit();
+         }
       }
 
       // ===== START TRANSACTION =====
-      // Insert operasi dan notif harus atomic (all or nothing)
+      // Insert operasi (dan notif jika layanan terakhir) harus atomic
       if (!$this->db(0)->beginTransaction()) {
          $this->model('Log')->write("[operasi] CRITICAL: Failed to start transaction for: " . $penjualan);
          echo json_encode(['error' => 1, 'msg' => 'Gagal memulai transaction']);
          exit();
       }
       $this->model('Log')->write("[operasi] Transaction started for: " . $penjualan);
-      
+
       try {
          $setOne = "id_penjualan = '" . $penjualan . "' AND jenis_operasi = " . $operasi;
          $where = $this->wCabang . " AND " . $setOne;
@@ -499,91 +512,91 @@ class Antrian extends Controller
             $this->model('Log')->write("[operasi] Operasi already exists: " . $penjualan . " - " . $operasi);
          }
 
-         //INSERT NOTIF SELESAI TAPI NOT READY
-         $time = date('Y-m-d H:i:s');
-
-         $whereNotif = $this->wCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
-         $data_main = $this->db(0)->count_where('notif', $whereNotif);
-         
-         $this->model('Log')->write("[operasi] Check existing notif - Where: " . $whereNotif . " | Count: " . $data_main);
-         
+         // Notif selesai hanya saat penyelesaian layanan terakhir
          $notifInserted = false;
-         if ($data_main < 1) {
-            $notifData = [
-               'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9),
-               'insertTime' => $time,
-               'id_cabang' => $this->id_cabang,
-               'no_ref' => $penjualan,
-               'phone' => $hp,
-               'text' => $text,
-               'state' => 'pending',
-               'tipe' => 2
-            ];
-            
-            $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
-            
-            $do = $this->db(0)->insert('notif', $notifData);
-            if ($do['errno'] <> 0) {
-               throw new Exception("Insert Notif Error: " . $do['error']);
+         if ($isEndLayanan) {
+            $time = date('Y-m-d H:i:s');
+            $whereNotif = $this->wCabang . " AND no_ref = '" . $penjualan . "' AND tipe = 2";
+            $data_main = $this->db(0)->count_where('notif', $whereNotif);
+
+            $this->model('Log')->write("[operasi] Check existing notif - Where: " . $whereNotif . " | Count: " . $data_main);
+
+            if ($data_main < 1) {
+               $notifData = [
+                  'id_notif' => (date('Y') - 2020) . date('mdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9),
+                  'insertTime' => $time,
+                  'id_cabang' => $this->id_cabang,
+                  'no_ref' => $penjualan,
+                  'phone' => $hp,
+                  'text' => $text,
+                  'state' => 'pending',
+                  'tipe' => 2
+               ];
+
+               $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
+
+               $do = $this->db(0)->insert('notif', $notifData);
+               if ($do['errno'] <> 0) {
+                  throw new Exception("Insert Notif Error: " . $do['error']);
+               }
+               $notifInserted = true;
+               $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
+            } else {
+               $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
             }
-            $notifInserted = true;
-            $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
          } else {
-            $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
+            $this->model('Log')->write("[operasi] Skip notif (bukan layanan terakhir) for: " . $penjualan . " - operasi: " . $operasi);
          }
-         
+
          // ===== COMMIT TRANSACTION =====
          if (!$this->db(0)->commit()) {
             throw new Exception("Failed to commit transaction");
          }
          $this->model('Log')->write("[operasi] Transaction committed successfully - Operasi: " . ($operasiInserted ? 'inserted' : 'skipped') . " | Notif: " . ($notifInserted ? 'inserted' : 'skipped'));
-         
+
       } catch (Exception $e) {
          // ===== ROLLBACK TRANSACTION =====
          $rollbackSuccess = $this->db(0)->rollback();
          $error_msg = "[operasi] CRITICAL: Transaction FAILED and " . ($rollbackSuccess ? "ROLLED BACK" : "ROLLBACK FAILED") . " - Error: " . $e->getMessage() . " | Ref: " . $penjualan;
          $this->model('Log')->write($error_msg);
-         
+
          echo json_encode(['error' => 1, 'msg' => 'Gagal menyimpan data: ' . $e->getMessage()]);
          exit();
       }
 
-      if (isset($_POST['rak'])) {
-         if (strlen($_POST['rak']) > 0) {
-            $rak = $_POST['rak'];
-            $pack = $_POST['pack'];
-            $hanger = $_POST['hanger'];
-            $set = ['letak' => $rak, 'pack' => $pack, 'hanger' => $hanger];
-            $where = $this->wCabang . " AND id_penjualan = '" . $penjualan . "'";
-            $upResult = $this->db(0)->update('sale', $set, $where);
-            
-            if ($upResult['errno'] <> 0) {
-               $this->model('Log')->write("[operasi] ERROR: Update rak failed - " . $upResult['error']);
-            } else {
-               $this->model('Log')->write("[operasi] Update rak success - Rak: " . $rak . " | Pack: " . $pack . " | Hanger: " . $hanger);
-            }
+      // Rak + kirim WA hanya untuk layanan terakhir
+      if ($isEndLayanan && isset($_POST['rak']) && strlen((string) $_POST['rak']) > 0) {
+         $rak = $_POST['rak'];
+         $pack = $_POST['pack'] ?? 1;
+         $hanger = $_POST['hanger'] ?? 0;
+         $set = ['letak' => $rak, 'pack' => $pack, 'hanger' => $hanger];
+         $where = $this->wCabang . " AND id_penjualan = '" . $penjualan . "'";
+         $upResult = $this->db(0)->update('sale', $set, $where);
 
-            //CEK DATA NOTIF
-            $setOne = "no_ref = '" . $penjualan . "' AND tipe = 2 AND (state = 'pending' || state = 'queue')";
-            $where = $setOne;
-            $data_main = $this->db(0)->count_where('notif', $where);
-            
-            $this->model('Log')->write("[operasi] Check notif ready to send - Count: " . $data_main . " | Expected: 1");
-            
-             if ($data_main == 1) {
-                $this->model('Log')->write("[operasi] Calling notifReadySend for: " . $penjualan);
-                $this->notifReadySend($penjualan);
-             } else {
-                $this->model('Log')->write("[operasi] WARNING: Notif not ready or not found - Count: " . $data_main);
-             }
-          } else {
-             $this->model('Log')->write("[operasi] WARNING: Rak kosong, skip notifReadySend for: " . $penjualan);
-          }
-       } else {
-          $this->model('Log')->write("[operasi] WARNING: Rak not set in POST, skip notifReadySend for: " . $penjualan);
-       }
+         if ($upResult['errno'] <> 0) {
+            $this->model('Log')->write("[operasi] ERROR: Update rak failed - " . $upResult['error']);
+         } else {
+            $this->model('Log')->write("[operasi] Update rak success - Rak: " . $rak . " | Pack: " . $pack . " | Hanger: " . $hanger);
+         }
 
-       echo 0;
+         $setOne = "no_ref = '" . $penjualan . "' AND tipe = 2 AND (state = 'pending' || state = 'queue')";
+         $data_main = $this->db(0)->count_where('notif', $setOne);
+
+         $this->model('Log')->write("[operasi] Check notif ready to send - Count: " . $data_main . " | Expected: 1");
+
+         if ($data_main == 1) {
+            $this->model('Log')->write("[operasi] Calling notifReadySend for: " . $penjualan);
+            $this->notifReadySend($penjualan);
+         } else {
+            $this->model('Log')->write("[operasi] WARNING: Notif not ready or not found - Count: " . $data_main);
+         }
+      } elseif (!$isEndLayanan) {
+         $this->model('Log')->write("[operasi] Skip rak/WA (bukan layanan terakhir) for: " . $penjualan);
+      } else {
+         $this->model('Log')->write("[operasi] WARNING: Rak kosong, skip notifReadySend for: " . $penjualan);
+      }
+
+      echo 0;
    }
 
    public function surcas()
