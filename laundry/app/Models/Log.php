@@ -26,12 +26,18 @@ class Log
 
             // Hapus log yang sudah lebih dari 7 hari
             $limit_date = date('Y-m-d', strtotime('-7 days'));
-            foreach (glob("logs/*", GLOB_ONLYDIR) as $old_dir) {
-                if (basename($old_dir) < $limit_date) {
-                    foreach (glob("$old_dir/*") as $old_file) {
-                        @unlink($old_file);
+            $oldDirs = glob('logs/*', GLOB_ONLYDIR);
+            if (is_array($oldDirs)) {
+                foreach ($oldDirs as $old_dir) {
+                    if (basename($old_dir) < $limit_date) {
+                        $oldFiles = glob("$old_dir/*");
+                        if (is_array($oldFiles)) {
+                            foreach ($oldFiles as $old_file) {
+                                @unlink($old_file);
+                            }
+                        }
+                        @rmdir($old_dir);
                     }
-                    @rmdir($old_dir);
                 }
             }
 

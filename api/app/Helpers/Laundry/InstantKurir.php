@@ -468,12 +468,13 @@ class InstantKurir
         $items = [];
 
         if ($jenis === 'antar') {
-            $rows = $db->query(
+            $q = $db->query(
                 "SELECT dri.id_penjualan, dri.no_ref, s.total
                  FROM delivery_request_item dri
                  LEFT JOIN sale s ON s.id_penjualan = dri.id_penjualan
                  WHERE dri.id_request = " . $idRequest
-            )->result_array();
+            );
+            $rows = (is_object($q) && method_exists($q, 'result_array')) ? $q->result_array() : [];
             if (is_array($rows)) {
                 foreach ($rows as $r) {
                     $items[] = [
@@ -518,8 +519,13 @@ class InstantKurir
         if (is_array($row)) {
             return $row;
         }
+        if ($row instanceof \stdClass) {
+            return get_object_vars($row);
+        }
         if (is_object($row)) {
-            return (array) $row;
+            // Hindari (array) cast pada object bertipe lain (null-byte keys)
+            $vars = get_object_vars($row);
+            return is_array($vars) ? $vars : [];
         }
         return [];
     }

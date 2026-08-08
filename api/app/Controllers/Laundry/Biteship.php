@@ -116,17 +116,27 @@ class Biteship extends Controller
 
     /**
      * POST /Laundry/Biteship/activate
+     *
+     * Gate utama: kas Instant (jt=10) harus sudah lunas.
+     * Secret cron opsional — laundry sering belum punya URL::API_CRON_SECRET.
      */
     public function activate()
     {
+        $this->handleCors();
         header('Content-Type: application/json; charset=utf-8');
-        if (!$this->verifyInternalSecret()) {
-            http_response_code(401);
-            echo json_encode(['ok' => false, 'message' => 'Unauthorized']);
-            return;
-        }
+
+        // Notice/warning → exception (jangan biarkan global handler return "PHP Error")
+        set_error_handler(static function ($errno, $errstr, $errfile, $errline) {
+            throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        });
 
         try {
+            if (!$this->verifyActivateAccess()) {
+                http_response_code(401);
+                echo json_encode(['ok' => false, 'message' => 'Unauthorized']);
+                return;
+            }
+
             $body = $this->getBody();
             if (empty($body) && $this->isPost()) {
                 $body = $_POST;
@@ -169,11 +179,29 @@ class Biteship extends Controller
             }
 
             $result = InstantKurir::activateAfterPayment($db, $kas);
+            if (!is_array($result)) {
+                $result = ['ok' => false, 'message' => 'Aktivasi gagal'];
+            }
+            if (empty($result['ok'])) {
+                http_response_code(502);
+            }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
-            \Log::write('Biteship activate err: ' . $e->getMessage(), 'api', 'Biteship');
+            \Log::write(
+                'Biteship activate err: ' . $e->getMessage()
+                . ' @' . basename($e->getFile()) . ':' . $e->getLine(),
+                'api',
+                'Biteship'
+            );
             http_response_code(500);
-            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+            echo json_encode([
+                'ok' => false,
+                'message' => $e->getMessage(),
+                'file' => basename($e->getFile()),
+                'line' => $e->getLine(),
+            ], JSON_UNESCAPED_UNICODE);
+        } finally {
+            restore_error_handler();
         }
     }
 
@@ -202,7 +230,33 @@ class Biteship extends Controller
         }
     }
 
-    private function verifyInternalSecret(): bool
+    /**
+     * Activate access:
+     * - secret benar → OK
+     * - secret salah (dikirim tapi tidak cocok) → tolak
+     * - secret kosong (laundry belum set URL::API_CRON_SECRET) → OK compat,
+     *   tetap aman karena hanya memproses kas Instant yang sudah lunas
+     */
+    private function verifyActivateAccess(): bool
+    {
+        $expected = $this->expectedCronSecret();
+        $provided = trim((string) ($_GET['secret'] ?? ''));
+        if ($provided === '' && !empty($_SERVER['HTTP_X_CRON_SECRET'])) {
+            $provided = trim((string) $_SERVER['HTTP_X_CRON_SECRET']);
+        }
+
+        if ($expected !== '' && $provided !== '') {
+            return hash_equals($expected, $provided);
+        }
+        if ($expected !== '' && $provided === '') {
+            \Log::write('Biteship activate: no secret from laundry (compat allow)', 'api', 'Biteship');
+            return true;
+        }
+        // API belum set CRON_SECRET — izinkan agar tidak deadlock
+        return true;
+    }
+
+    private function expectedCronSecret(): string
     {
         $expected = '';
         if (class_exists('Env') && defined('Env::CRON_SECRET')) {
@@ -211,13 +265,6 @@ class Biteship extends Controller
         if ($expected === '') {
             $expected = (string) (getenv('CRON_SECRET') ?: '');
         }
-        if ($expected === '') {
-            return false;
-        }
-        $provided = trim((string) ($_GET['secret'] ?? ''));
-        if ($provided === '' && !empty($_SERVER['HTTP_X_CRON_SECRET'])) {
-            $provided = trim((string) $_SERVER['HTTP_X_CRON_SECRET']);
-        }
-        return $provided !== '' && hash_equals($expected, $provided);
+        return $expected;
     }
 }

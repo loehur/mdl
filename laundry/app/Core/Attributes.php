@@ -1048,6 +1048,17 @@ trait Attributes
          if (!is_array($res)) {
             $res = ['ok' => false, 'message' => 'Respons aktivasi tidak valid'];
          }
+         // Prefer detail asli (bukan mask "PHP Error")
+         if (empty($res['ok'])) {
+            $detail = trim((string) ($res['error'] ?? ''));
+            $msg = trim((string) ($res['message'] ?? ''));
+            if ($detail !== '' && ($msg === '' || strcasecmp($msg, 'PHP Error') === 0 || strcasecmp($msg, 'Exception') === 0)) {
+               $res['message'] = $detail;
+            }
+            if ($msg === '' && $detail === '') {
+               $res['message'] = 'Gagal aktivasi order Instant';
+            }
+         }
          $this->model('Log')->write('[InstantKurir] activate ' . $refFinance . ' ' . json_encode($res));
          return $res;
       } catch (\Throwable $e) {

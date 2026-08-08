@@ -430,6 +430,10 @@ class Tokopay extends Controller
 
     private function activateInstantKurirIfNeeded($db, $kas)
     {
+        // Notice/warning jangan sampai ke global handler ("PHP Error") yang memutus webhook
+        set_error_handler(static function ($errno, $errstr, $errfile, $errline) {
+            throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        });
         try {
             if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
                 require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
@@ -443,7 +447,14 @@ class Tokopay extends Controller
             $result = \App\Helpers\Laundry\InstantKurir::activateAfterPayment($db, $kas);
             \Log::write('Instant activate: ' . json_encode($result), 'webhook', 'Tokopay');
         } catch (\Throwable $e) {
-            \Log::write('Instant activate err: ' . $e->getMessage(), 'webhook', 'Tokopay');
+            \Log::write(
+                'Instant activate err: ' . $e->getMessage()
+                . ' @' . basename($e->getFile()) . ':' . $e->getLine(),
+                'webhook',
+                'Tokopay'
+            );
+        } finally {
+            restore_error_handler();
         }
     }
 

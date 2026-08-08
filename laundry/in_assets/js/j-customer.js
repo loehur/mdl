@@ -570,6 +570,7 @@
   var kurirPendingIds = [];
   var kurirInstantPoll = null;
   var kurirSaldoTunai = 0;
+  var pendingCancelKurirInstant = null;
 
   function getKurirSaldo() {
     try {
@@ -1693,37 +1694,78 @@
     if (batalBtn && content.contains(batalBtn)) {
       e.preventDefault();
       var idReq = batalBtn.getAttribute('data-id-request');
-      if (!idReq || !window.confirm('Batalkan permintaan Instant yang belum dibayar?')) return;
-      batalBtn.disabled = true;
-      var body = new URLSearchParams();
-      body.set('id_request', String(idReq));
-      fetch(base + 'J/kurirInstantBatal/' + pelangganId, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        credentials: 'same-origin',
-        body: body.toString(),
-      })
-        .then(function (res) {
-          return res.json().catch(function () {
-            throw new Error('Respons tidak valid');
-          });
-        })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            throw new Error((data && data.message) || 'Gagal membatalkan');
-          }
-          toast(data.message || 'Dibatalkan', 'ok');
-          loadPage('kurir', '', false);
-        })
-        .catch(function (err) {
-          toast((err && err.message) || 'Gagal membatalkan', 'warn');
-          batalBtn.disabled = false;
-        });
+      if (!idReq || batalBtn.disabled) return;
+      pendingCancelKurirInstant = { idRequest: idReq, btn: batalBtn };
+      var info = document.getElementById('jCancelKurirInstantInfo');
+      if (info) {
+        info.textContent = 'Order #' + idReq + ' yang belum dibayar akan dibatalkan.';
+      }
+      var modalEl = document.getElementById('jModalCancelKurirInstant');
+      if (!modalEl || !window.bootstrap) {
+        if (!window.confirm('Batalkan permintaan Instant yang belum dibayar?')) {
+          pendingCancelKurirInstant = null;
+          return;
+        }
+        submitCancelKurirInstant();
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      return;
     }
   });
+
+  function submitCancelKurirInstant() {
+    if (!pendingCancelKurirInstant || !pendingCancelKurirInstant.idRequest) return;
+    var idReq = pendingCancelKurirInstant.idRequest;
+    var batalBtn = pendingCancelKurirInstant.btn;
+    pendingCancelKurirInstant = null;
+    if (batalBtn) batalBtn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('id_request', String(idReq));
+    fetch(base + 'J/kurirInstantBatal/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal membatalkan');
+        }
+        toast(data.message || 'Dibatalkan', 'ok');
+        loadPage('kurir', '', false);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal membatalkan', 'warn');
+        if (batalBtn) batalBtn.disabled = false;
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var confirmBtn = e.target.closest('#jBtnConfirmCancelKurirInstant');
+    if (!confirmBtn) return;
+    e.preventDefault();
+    hideModal('jModalCancelKurirInstant');
+    submitCancelKurirInstant();
+  });
+
+  var cancelKurirInstantModal = document.getElementById('jModalCancelKurirInstant');
+  if (cancelKurirInstantModal) {
+    cancelKurirInstantModal.addEventListener('hidden.bs.modal', function () {
+      if (pendingCancelKurirInstant && pendingCancelKurirInstant.btn) {
+        pendingCancelKurirInstant.btn.disabled = false;
+      }
+      pendingCancelKurirInstant = null;
+    });
+  }
 
   document.addEventListener('click', function (e) {
     var editBtn = e.target.closest('.j-kurir-lokasi-edit');

@@ -210,6 +210,24 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Batalkan Kurir Instant -->
+<div class="modal fade" id="jModalCancelKurirInstant" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-alert-ico"><i class="fas fa-times-circle"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Batalkan order Instant?</h5>
+        <p class="j-sheet-desc" id="jCancelKurirInstantInfo">Permintaan yang belum dibayar akan dibatalkan.</p>
+        <p class="j-sheet-warn">Aksi ini tidak bisa dibatalkan.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tidak</button>
+        <button type="button" class="j-sheet-btn danger" id="jBtnConfirmCancelKurirInstant"><i class="fas fa-trash-alt"></i> Ya, batalkan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Topup Saldo Tunai -->
 <div class="modal fade" id="jModalSaldoTopup" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
