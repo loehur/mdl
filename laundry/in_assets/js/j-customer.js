@@ -653,6 +653,12 @@
     if (jemLbl) {
       jemLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Ya, jemput';
     }
+    // Instant: catatan hanya di modal pilih kurir (hindari isi 2x).
+    // Sameday: catatan di modal antar/jemput.
+    var antCatatanWrap = document.getElementById('jKurirCatatanAntarWrap');
+    if (antCatatanWrap) {
+      antCatatanWrap.style.display = kurirPendingLayanan === 'instant' ? 'none' : '';
+    }
   }
 
   function stopKurirInstantPoll() {
@@ -813,6 +819,16 @@
     if (payWrap) payWrap.style.display = 'none';
     var metodeSel = document.getElementById('jKurirCourierMetode');
     if (metodeSel) metodeSel.removeAttribute('data-touched');
+    // Bawa catatan dari langkah sebelumnya jika sudah terisi (mis. antar sameday→instant edge)
+    var courierCatatan = document.getElementById('jKurirCatatanCourier');
+    if (courierCatatan && !String(courierCatatan.value || '').trim()) {
+      var prev =
+        getKurirCatatan(kurirPendingJenis === 'jemput' ? 'jemput' : 'antar') || '';
+      if (prev) {
+        courierCatatan.value = prev;
+        courierCatatan.dispatchEvent(new Event('input'));
+      }
+    }
     showModal('jModalKurirCourier');
     var qs =
       'id_lokasi=' +

@@ -319,7 +319,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <div class="j-kurir-sales" id="jKurirSalesBox">
           <div class="j-kurir-sales-empty">Memuat item…</div>
         </div>
-        <div class="j-field" style="margin-top:12px">
+        <div class="j-field" id="jKurirCatatanAntarWrap" style="margin-top:12px">
           <label class="j-field-label" for="jKurirCatatanAntar">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
           <textarea id="jKurirCatatanAntar" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
           <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanAntarCount">0</span>/150</p>
