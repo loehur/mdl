@@ -284,10 +284,11 @@ class Tokopay extends Controller
                 
                 // Send Webhook to QR Server (Node.js) to notify frontend
                 $this->notifyQRServer($cek_kas);
-
-                // Kurir Instant (jt=10): create Biteship order after paid
-                $this->activateInstantKurirIfNeeded($db_kas, $cek_kas);
             }
+
+            // Always try Instant activate when paid (even if kas already status_mutasi=3
+            // from a prior webhook / poll — createOrder is idempotent via biteship_order_id).
+            $this->activateInstantKurirIfNeeded($db_kas, $cek_kas);
         } elseif ($isExpired || $isFailed) {
             // Before delete: batal unpaid Instant request (jt=10)
             $kasExp = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id])->row();
@@ -437,6 +438,10 @@ class Tokopay extends Controller
 
     private function activateInstantKurirIfNeeded($db, $kas)
     {
+        // Notice/warning jangan sampai ke global handler ("PHP Error") yang memutus webhook
+        set_error_handler(static function ($errno, $errstr, $errfile, $errline) {
+            throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        });
         try {
             if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
                 require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
@@ -450,7 +455,14 @@ class Tokopay extends Controller
             $result = \App\Helpers\Laundry\InstantKurir::activateAfterPayment($db, $kas);
             \Log::write('Instant activate: ' . json_encode($result), 'webhook', 'Tokopay');
         } catch (\Throwable $e) {
-            \Log::write('Instant activate err: ' . $e->getMessage(), 'webhook', 'Tokopay');
+            \Log::write(
+                'Instant activate err: ' . $e->getMessage()
+                . ' @' . basename($e->getFile()) . ':' . $e->getLine(),
+                'webhook',
+                'Tokopay'
+            );
+        } finally {
+            restore_error_handler();
         }
     }
 

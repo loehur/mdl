@@ -222,10 +222,15 @@ class InstantKurir
 
         $localStatus = (string) ($req['delivery_status'] ?? '');
         $failStatuses = ['cancelled', 'canceled', 'returned', 'courier_not_found', 'rejected', 'disposed'];
+        $shouldRefund = false;
         if (in_array($statusBs, $failStatuses, true) && $localStatus === 'berjalan') {
             $upd['delivery_status'] = 'batal';
             $upd['catatan_batal'] = 'Biteship: ' . $statusBs;
             $upd['selesaiTime'] = date('Y-m-d H:i:s');
+            $shouldRefund = true;
+        } elseif (in_array($statusBs, $failStatuses, true) && $localStatus === 'batal') {
+            // Retry refund jika webhook ulang / gagal di run sebelumnya
+            $shouldRefund = true;
         } elseif ($statusBs === 'delivered' && $jenis === 'antar' && $localStatus === 'berjalan') {
             $upd['delivery_status'] = 'selesai';
             $upd['selesaiTime'] = date('Y-m-d H:i:s');
@@ -233,7 +238,139 @@ class InstantKurir
         // jemput + delivered: track only — selesai hanya dari Delivery staff
 
         $db->update('delivery_request', $upd, ['id_request' => $idRequest]);
-        return ['ok' => true, 'message' => 'Updated', 'id_request' => $idRequest, 'jenis' => $jenis];
+
+        $refund = null;
+        if ($shouldRefund) {
+            $catatanPrefix = (string) ($upd['catatan_batal'] ?? $req['catatan_batal'] ?? '');
+            $refund = self::refundInstantOngkirToSaldo($db, $req, $catatanPrefix);
+        }
+
+        $out = ['ok' => true, 'message' => 'Updated', 'id_request' => $idRequest, 'jenis' => $jenis];
+        if (is_array($refund)) {
+            $out['refund'] = $refund;
+        }
+        return $out;
+    }
+
+    /**
+     * Kredit Saldo Deposit (jt=6, non-tunai) saat Instant batal setelah lunas.
+     * metode_mutasi=2 agar tidak menambah Kas Kasir (hanya metode=1 yang masuk kasir).
+     *
+     * @return array{ok:bool,message:string,id_kas?:string,jumlah?:int,skipped?:bool}
+     */
+    public static function refundInstantOngkirToSaldo($db, array $req, $catatanBatalPrefix = '')
+    {
+        $idRequest = (int) ($req['id_request'] ?? 0);
+        $layanan = strtolower((string) ($req['layanan'] ?? ''));
+        if ($idRequest <= 0) {
+            return ['ok' => false, 'message' => 'id_request invalid'];
+        }
+        if ($layanan !== '' && $layanan !== 'instant') {
+            return ['ok' => true, 'message' => 'Not Instant — skip refund', 'skipped' => true];
+        }
+
+        $noteRefund = 'Refund Instant #' . $idRequest;
+
+        // Idempotent: sudah ada kredit refund untuk request ini
+        $existing = $db->get_where('kas', [
+            'jenis_transaksi' => 6,
+            'jenis_mutasi' => 1,
+            'status_mutasi' => 3,
+            'ref_transaksi' => (string) $idRequest,
+            'note' => $noteRefund,
+        ])->row_array();
+        if ($existing) {
+            return [
+                'ok' => true,
+                'message' => 'Already refunded',
+                'skipped' => true,
+                'id_kas' => (string) ($existing['id_kas'] ?? ''),
+                'jumlah' => (int) ($existing['jumlah'] ?? 0),
+            ];
+        }
+
+        // Harus ada kas Instant yang sudah lunas
+        $paidKas = $db->get_where('kas', [
+            'jenis_transaksi' => self::JENIS_TRANSAKSI,
+            'status_mutasi' => 3,
+            'ref_transaksi' => (string) $idRequest,
+        ])->row_array();
+        if (!$paidKas) {
+            // fallback by payment_ref_finance
+            $refPay = trim((string) ($req['payment_ref_finance'] ?? ''));
+            if ($refPay !== '') {
+                $paidKas = $db->get_where('kas', [
+                    'jenis_transaksi' => self::JENIS_TRANSAKSI,
+                    'status_mutasi' => 3,
+                    'ref_finance' => $refPay,
+                ])->row_array();
+            }
+        }
+        if (!$paidKas) {
+            \Log::write("InstantKurir refund skip unpaid id=$idRequest", 'webhook', 'Biteship');
+            return ['ok' => true, 'message' => 'No paid Instant kas — skip refund', 'skipped' => true];
+        }
+
+        $jumlah = (int) ($req['ongkir'] ?? 0);
+        if ($jumlah <= 0) {
+            $jumlah = (int) ($paidKas['jumlah'] ?? 0);
+        }
+        if ($jumlah <= 0) {
+            return ['ok' => false, 'message' => 'Ongkir amount empty'];
+        }
+
+        $idPelanggan = (int) ($req['id_pelanggan'] ?? $paidKas['id_client'] ?? 0);
+        $idCabang = (int) ($req['id_cabang'] ?? $paidKas['id_cabang'] ?? 0);
+        if ($idPelanggan <= 0 || $idCabang <= 0) {
+            return ['ok' => false, 'message' => 'Missing pelanggan/cabang for refund'];
+        }
+
+        $idKas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+        $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
+
+        $ins = $db->insert('kas', [
+            'id_kas' => $idKas,
+            'id_cabang' => $idCabang,
+            'jenis_mutasi' => 1,
+            'jenis_transaksi' => 6,
+            'metode_mutasi' => 2, // Non-tunai — tidak masuk Kas Kasir
+            'note' => $noteRefund,
+            'status_mutasi' => 3,
+            'jumlah' => $jumlah,
+            'id_user' => 0,
+            'id_client' => $idPelanggan,
+            'ref_transaksi' => (string) $idRequest,
+            'ref_finance' => $refFinance,
+        ]);
+
+        if ($ins === false) {
+            \Log::write("InstantKurir refund insert fail id=$idRequest", 'webhook', 'Biteship');
+            return ['ok' => false, 'message' => 'Failed to insert refund kas'];
+        }
+
+        $catatan = trim((string) $catatanBatalPrefix);
+        if ($catatan === '') {
+            $catatan = (string) ($req['catatan_batal'] ?? 'Biteship: cancelled');
+        }
+        if (stripos($catatan, 'Saldo Deposit') === false) {
+            $catatan = rtrim($catatan, " \t.|") . ' | Ongkir dikembalikan ke Saldo Deposit';
+            $db->update('delivery_request', [
+                'catatan_batal' => $catatan,
+            ], ['id_request' => $idRequest]);
+        }
+
+        \Log::write(
+            "InstantKurir refund OK id=$idRequest kas=$idKas jumlah=$jumlah",
+            'webhook',
+            'Biteship'
+        );
+
+        return [
+            'ok' => true,
+            'message' => 'Refunded to Saldo Deposit',
+            'id_kas' => $idKas,
+            'jumlah' => $jumlah,
+        ];
     }
 
     /**
@@ -468,30 +605,38 @@ class InstantKurir
         $items = [];
 
         if ($jenis === 'antar') {
-            $rows = $db->query(
+            $q = $db->query(
                 "SELECT dri.id_penjualan, dri.no_ref, s.total
                  FROM delivery_request_item dri
                  LEFT JOIN sale s ON s.id_penjualan = dri.id_penjualan
                  WHERE dri.id_request = " . $idRequest
-            )->result_array();
+            );
+            $rows = (is_object($q) && method_exists($q, 'result_array')) ? $q->result_array() : [];
+            $totalValue = 0;
+            $qty = 0;
             if (is_array($rows)) {
                 foreach ($rows as $r) {
-                    $items[] = [
-                        'name' => 'Laundry #' . (int) ($r['id_penjualan'] ?? 0),
-                        'description' => (string) ($r['no_ref'] ?? ''),
-                        'category' => 'fashion',
-                        'value' => max(10000, (int) ($r['total'] ?? 10000)),
-                        'quantity' => 1,
-                        'weight' => 1000,
-                    ];
+                    $totalValue += max(10000, (int) ($r['total'] ?? 10000));
+                    $qty += 1;
                 }
+            }
+            if ($qty > 0) {
+                // Satu paket ramah kurir (hindari ID/angka di nama barang)
+                $items[] = [
+                    'name' => 'Pakaian Laundry',
+                    'description' => 'Antar laundry' . ($qty > 1 ? (' (' . $qty . ' paket)') : ''),
+                    'category' => 'fashion',
+                    'value' => max(10000, $totalValue),
+                    'quantity' => 1,
+                    'weight' => max(1000, $qty * 1000),
+                ];
             }
         }
 
         if (empty($items)) {
             $items[] = [
-                'name' => $jenis === 'jemput' ? 'Jemput Laundry' : 'Paket Laundry',
-                'description' => 'Kurir Instant',
+                'name' => 'Pakaian Laundry',
+                'description' => $jenis === 'jemput' ? 'Jemput laundry' : 'Antar laundry',
                 'category' => 'fashion',
                 'value' => 50000,
                 'quantity' => 1,
@@ -518,8 +663,13 @@ class InstantKurir
         if (is_array($row)) {
             return $row;
         }
+        if ($row instanceof \stdClass) {
+            return get_object_vars($row);
+        }
         if (is_object($row)) {
-            return (array) $row;
+            // Hindari (array) cast pada object bertipe lain (null-byte keys)
+            $vars = get_object_vars($row);
+            return is_array($vars) ? $vars : [];
         }
         return [];
     }

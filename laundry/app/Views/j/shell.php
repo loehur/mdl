@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=50">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=51">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
@@ -210,6 +210,24 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Batalkan Kurir Instant -->
+<div class="modal fade" id="jModalCancelKurirInstant" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
+        <div class="j-alert-ico"><i class="fas fa-times-circle"></i></div>
+        <h5 class="j-sheet-title" style="margin:0 0 6px">Batalkan order Instant?</h5>
+        <p class="j-sheet-desc" id="jCancelKurirInstantInfo">Permintaan yang belum dibayar akan dibatalkan.</p>
+        <p class="j-sheet-warn">Aksi ini tidak bisa dibatalkan.</p>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tidak</button>
+        <button type="button" class="j-sheet-btn danger" id="jBtnConfirmCancelKurirInstant"><i class="fas fa-trash-alt"></i> Ya, batalkan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Topup Saldo Tunai -->
 <div class="modal fade" id="jModalSaldoTopup" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
@@ -319,7 +337,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <div class="j-kurir-sales" id="jKurirSalesBox">
           <div class="j-kurir-sales-empty">Memuat item…</div>
         </div>
-        <div class="j-field" style="margin-top:12px">
+        <div class="j-field" id="jKurirCatatanAntarWrap" style="margin-top:12px">
           <label class="j-field-label" for="jKurirCatatanAntar">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
           <textarea id="jKurirCatatanAntar" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
           <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanAntarCount">0</span>/150</p>
@@ -405,7 +423,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=25"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=26"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

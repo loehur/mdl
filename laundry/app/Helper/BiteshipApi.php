@@ -14,16 +14,62 @@ class BiteshipApi
 
     public function activate(array $payload)
     {
-        $secret = '';
-        // Prefer laundry URL config if present
-        if (class_exists('URL') && defined('URL::API_CRON_SECRET')) {
-            $secret = (string) URL::API_CRON_SECRET;
-        }
+        $secret = $this->resolveCronSecret();
         $url = $this->apiUrl . '/activate';
         if ($secret !== '') {
             $url .= '?secret=' . rawurlencode($secret);
         }
-        return $this->callApi($url, 'POST', $payload, $secret);
+        $res = $this->callApi($url, 'POST', $payload, $secret);
+        return $this->normalizeActivateResponse($res);
+    }
+
+    private function resolveCronSecret(): string
+    {
+        if (class_exists('URL') && defined('URL::API_CRON_SECRET')) {
+            $s = trim((string) URL::API_CRON_SECRET);
+            if ($s !== '') {
+                return $s;
+            }
+        }
+        foreach (['API_CRON_SECRET', 'CRON_SECRET'] as $envKey) {
+            $s = trim((string) (getenv($envKey) ?: ''));
+            if ($s !== '') {
+                return $s;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * API global handler kadang mengembalikan message="PHP Error" + detail di "error".
+     */
+    private function normalizeActivateResponse($res): array
+    {
+        if (!is_array($res)) {
+            return ['ok' => false, 'message' => 'Respons aktivasi tidak valid'];
+        }
+        if (isset($res['ok'])) {
+            if (empty($res['ok'])) {
+                $detail = trim((string) ($res['error'] ?? ''));
+                $msg = trim((string) ($res['message'] ?? ''));
+                if ($msg === '' || strcasecmp($msg, 'PHP Error') === 0 || strcasecmp($msg, 'Exception') === 0) {
+                    if ($detail !== '') {
+                        $res['message'] = $detail;
+                    }
+                }
+            }
+            return $res;
+        }
+        // Bentuk error global API: {status:false, message:"PHP Error", error:"..."}
+        if (array_key_exists('status', $res) && $res['status'] === false) {
+            $detail = trim((string) ($res['error'] ?? ''));
+            $msg = trim((string) ($res['message'] ?? 'Gagal aktivasi'));
+            if ($detail !== '' && ($msg === '' || strcasecmp($msg, 'PHP Error') === 0 || strcasecmp($msg, 'Exception') === 0)) {
+                $msg = $detail;
+            }
+            return ['ok' => false, 'message' => $msg, 'error' => $detail];
+        }
+        return $res;
     }
 
     private function callApi($url, $method = 'GET', $data = [], $cronSecret = '')

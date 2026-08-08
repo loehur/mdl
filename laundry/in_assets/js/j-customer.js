@@ -570,6 +570,7 @@
   var kurirPendingIds = [];
   var kurirInstantPoll = null;
   var kurirSaldoTunai = 0;
+  var pendingCancelKurirInstant = null;
 
   function getKurirSaldo() {
     try {
@@ -653,6 +654,12 @@
     if (jemLbl) {
       jemLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Ya, jemput';
     }
+    // Instant: catatan hanya di modal pilih kurir (hindari isi 2x).
+    // Sameday: catatan di modal antar/jemput.
+    var antCatatanWrap = document.getElementById('jKurirCatatanAntarWrap');
+    if (antCatatanWrap) {
+      antCatatanWrap.style.display = kurirPendingLayanan === 'instant' ? 'none' : '';
+    }
   }
 
   function stopKurirInstantPoll() {
@@ -662,7 +669,7 @@
     }
   }
 
-  function openInstantQr(ref, total) {
+  function openInstantQr(ref, total, btn) {
     var nama = '';
     try {
       var cfgEl = document.getElementById('jPayConfig');
@@ -671,6 +678,21 @@
         nama = cfg.nama || '';
       }
     } catch (e) {}
+
+    var restoreBtn = null;
+    if (btn) {
+      if (btn.disabled || btn.getAttribute('aria-busy') === 'true') return;
+      if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Memuat…';
+      restoreBtn = function () {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = btn.dataset.origHtml || '<i class="fas fa-qrcode"></i> Bayar QRIS';
+      };
+    }
+
     fetch(
       base +
         'I/payment_gateway_order/' +
@@ -685,15 +707,26 @@
       })
       .then(function (res) {
         if (res && res.status === 'paid') {
-          toast('Pembayaran berhasil', 'ok');
+          if (res.instant_activated === false) {
+            if (restoreBtn) restoreBtn();
+            toast(
+              (res.msg && String(res.msg)) ||
+                'Pembayaran berhasil, tapi order Instant gagal diproses. Coba klik Bayar QRIS lagi.',
+              'warn'
+            );
+          } else {
+            toast('Pembayaran berhasil', 'ok');
+          }
           loadPage('kurir', '', false);
           return;
         }
         if (!res || !res.qr_string) {
+          if (restoreBtn) restoreBtn();
           toast((res && res.msg) || 'QRIS sementara tidak tersedia', 'warn');
           loadPage('kurir', '', false);
           return;
         }
+        if (restoreBtn) restoreBtn();
         var box = document.getElementById('jQrcode');
         if (box) {
           box.innerHTML = '';
@@ -730,7 +763,15 @@
               if (st && String(st.status).toUpperCase() === 'PAID') {
                 stopKurirInstantPoll();
                 hideModal('jModalQR');
-                toast('Pembayaran berhasil. Order Instant diproses.', 'ok');
+                if (st.instant_activated === false) {
+                  toast(
+                    (st.msg && String(st.msg)) ||
+                      'Pembayaran berhasil, tapi order Instant gagal diproses. Coba klik Bayar QRIS lagi.',
+                    'warn'
+                  );
+                } else {
+                  toast('Pembayaran berhasil. Order Instant diproses.', 'ok');
+                }
                 loadPage('kurir', '', false);
               }
             })
@@ -738,6 +779,7 @@
         }, 3000);
       })
       .catch(function () {
+        if (restoreBtn) restoreBtn();
         toast('Gagal memuat QRIS', 'warn');
         loadPage('kurir', '', false);
       });
@@ -805,6 +847,16 @@
     if (payWrap) payWrap.style.display = 'none';
     var metodeSel = document.getElementById('jKurirCourierMetode');
     if (metodeSel) metodeSel.removeAttribute('data-touched');
+    // Bawa catatan dari langkah sebelumnya jika sudah terisi (mis. antar sameday→instant edge)
+    var courierCatatan = document.getElementById('jKurirCatatanCourier');
+    if (courierCatatan && !String(courierCatatan.value || '').trim()) {
+      var prev =
+        getKurirCatatan(kurirPendingJenis === 'jemput' ? 'jemput' : 'antar') || '';
+      if (prev) {
+        courierCatatan.value = prev;
+        courierCatatan.dispatchEvent(new Event('input'));
+      }
+    }
     showModal('jModalKurirCourier');
     var qs =
       'id_lokasi=' +
@@ -1603,6 +1655,17 @@
   }
 
   document.addEventListener('click', function (e) {
+    var riwayatToggle = e.target.closest('#jBtnKurirRiwayatToggle');
+    if (riwayatToggle && content.contains(riwayatToggle)) {
+      e.preventDefault();
+      var list = document.getElementById('jKurirRiwayatList');
+      if (!list) return;
+      var open = list.hidden;
+      list.hidden = !open;
+      riwayatToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      riwayatToggle.textContent = open ? 'Sembunyikan' : 'Lihat';
+      return;
+    }
     var act = e.target.closest('.j-kurir-act');
     if (!act || !content.contains(act)) return;
     e.preventDefault();
@@ -1662,44 +1725,89 @@
     var payBtn = e.target.closest('.j-kurir-pay-instant');
     if (payBtn && content.contains(payBtn)) {
       e.preventDefault();
-      openInstantQr(payBtn.getAttribute('data-ref'), payBtn.getAttribute('data-total'));
+      openInstantQr(
+        payBtn.getAttribute('data-ref'),
+        payBtn.getAttribute('data-total'),
+        payBtn
+      );
       return;
     }
     var batalBtn = e.target.closest('.j-kurir-batal-instant');
     if (batalBtn && content.contains(batalBtn)) {
       e.preventDefault();
       var idReq = batalBtn.getAttribute('data-id-request');
-      if (!idReq || !window.confirm('Batalkan permintaan Instant yang belum dibayar?')) return;
-      batalBtn.disabled = true;
-      var body = new URLSearchParams();
-      body.set('id_request', String(idReq));
-      fetch(base + 'J/kurirInstantBatal/' + pelangganId, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        credentials: 'same-origin',
-        body: body.toString(),
-      })
-        .then(function (res) {
-          return res.json().catch(function () {
-            throw new Error('Respons tidak valid');
-          });
-        })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            throw new Error((data && data.message) || 'Gagal membatalkan');
-          }
-          toast(data.message || 'Dibatalkan', 'ok');
-          loadPage('kurir', '', false);
-        })
-        .catch(function (err) {
-          toast((err && err.message) || 'Gagal membatalkan', 'warn');
-          batalBtn.disabled = false;
-        });
+      if (!idReq || batalBtn.disabled) return;
+      pendingCancelKurirInstant = { idRequest: idReq, btn: batalBtn };
+      var info = document.getElementById('jCancelKurirInstantInfo');
+      if (info) {
+        info.textContent = 'Order #' + idReq + ' yang belum dibayar akan dibatalkan.';
+      }
+      var modalEl = document.getElementById('jModalCancelKurirInstant');
+      if (!modalEl || !window.bootstrap) {
+        if (!window.confirm('Batalkan permintaan Instant yang belum dibayar?')) {
+          pendingCancelKurirInstant = null;
+          return;
+        }
+        submitCancelKurirInstant();
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      return;
     }
   });
+
+  function submitCancelKurirInstant() {
+    if (!pendingCancelKurirInstant || !pendingCancelKurirInstant.idRequest) return;
+    var idReq = pendingCancelKurirInstant.idRequest;
+    var batalBtn = pendingCancelKurirInstant.btn;
+    pendingCancelKurirInstant = null;
+    if (batalBtn) batalBtn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('id_request', String(idReq));
+    fetch(base + 'J/kurirInstantBatal/' + pelangganId, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      credentials: 'same-origin',
+      body: body.toString(),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          throw new Error('Respons tidak valid');
+        });
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          throw new Error((data && data.message) || 'Gagal membatalkan');
+        }
+        toast(data.message || 'Dibatalkan', 'ok');
+        loadPage('kurir', '', false);
+      })
+      .catch(function (err) {
+        toast((err && err.message) || 'Gagal membatalkan', 'warn');
+        if (batalBtn) batalBtn.disabled = false;
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var confirmBtn = e.target.closest('#jBtnConfirmCancelKurirInstant');
+    if (!confirmBtn) return;
+    e.preventDefault();
+    hideModal('jModalCancelKurirInstant');
+    submitCancelKurirInstant();
+  });
+
+  var cancelKurirInstantModal = document.getElementById('jModalCancelKurirInstant');
+  if (cancelKurirInstantModal) {
+    cancelKurirInstantModal.addEventListener('hidden.bs.modal', function () {
+      if (pendingCancelKurirInstant && pendingCancelKurirInstant.btn) {
+        pendingCancelKurirInstant.btn.disabled = false;
+      }
+      pendingCancelKurirInstant = null;
+    });
+  }
 
   document.addEventListener('click', function (e) {
     var editBtn = e.target.closest('.j-kurir-lokasi-edit');
