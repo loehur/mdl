@@ -381,8 +381,9 @@
 </div>
 
 <!-- Floating Action Button - Order -->
+<!-- FAB always visible; stay behind Order offcanvas + backdrop -->
 <button id="btnSalesOrder" class="btn btn-warning bg-gradient rounded-3 shadow-lg position-fixed align-items-center gap-2 px-3 py-2" 
-   type="button" style="bottom: 24px; right: 24px; z-index: 1020; display: flex;">
+   type="button" style="bottom: 24px; right: 24px; z-index: 1040; display: flex;">
   <i class="fas fa-shopping-cart fa-lg"></i>
   <span class="fw-bold fs-6">Order</span>
 </button>
@@ -407,7 +408,6 @@
   .offcanvas-backdrop { z-index: 1090 !important; }
   .modal { z-index: 1200 !important; }
   .modal-backdrop { z-index: 1190 !important; }
-  #btnSalesOrder.is-fab-hidden { display: none !important; }
 </style>
 
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
@@ -437,13 +437,11 @@
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasSalesOrderEl);
       
       $('#btnSalesOrder').on('click', function() {
-          $('#btnSalesOrder').addClass('is-fab-hidden');
           bsOffcanvas.toggle();
       });
       
       // Load form when offcanvas opens
       offcanvasSalesOrderEl.addEventListener('show.bs.offcanvas', function () {
-          $('#btnSalesOrder').addClass('is-fab-hidden');
           if(!formLoaded) {
               $('#salesOrderContent').load('<?= URL::BASE_URL ?>Sales/form', function(response, status, xhr) {
                   if (status == "error") {
@@ -455,10 +453,6 @@
                   }
               });
           }
-      });
-
-      offcanvasSalesOrderEl.addEventListener('hidden.bs.offcanvas', function () {
-          $('#btnSalesOrder').removeClass('is-fab-hidden');
       });
   }
   
