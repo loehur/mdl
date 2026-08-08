@@ -104,30 +104,8 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
           <span class="j-badge ok">Direkomendasikan</span>
           <span class="j-badge muted">Sameday</span>
         </div>
-        <strong>Sameday (Kurir Laundry)</strong>
-        <small>Hemat &amp; nyaman — sampai maksimal keesokan hari</small>
-      </div>
-    </div>
-
-    <p class="j-kurir-card__lead">
-      Cocok untuk Anda yang ingin biaya lebih ringan dan ritme antar-jemput yang teratur.
-    </p>
-
-    <div class="j-kurir-cols">
-      <div class="j-kurir-col j-kurir-col--pro">
-        <h3><i class="fas fa-check-circle"></i> Kelebihan</h3>
-        <ul>
-          <li>Lebih murah</li>
-          <li>Bisa titip laundry berikutnya tanpa biaya</li>
-          <li>Order berulang, kurir hafal lokasi tanpa perlu tanya jawab lokasi lagi.</li>
-        </ul>
-      </div>
-      <div class="j-kurir-col j-kurir-col--con">
-        <h3><i class="fas fa-minus-circle"></i> Kekurangan</h3>
-        <ul>
-          <li>Lebih lambat — maksimal sampai hari berikutnya</li>
-          <li>Pastikan selalu ada orang di rumah (satpam/keluarga) saat jam kerja driver</li>
-        </ul>
+        <strong>Sameday</strong>
+        <small>Kurir laundry · lebih hemat · sampai maks. besok</small>
       </div>
     </div>
 
@@ -157,30 +135,8 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
         <div class="j-kurir-card__badges">
           <span class="j-badge warn">Instant</span>
         </div>
-        <strong>Instant (Gojek/Grab)</strong>
-        <small>Super cepat — biasanya tiba &lt; 2 jam</small>
-      </div>
-    </div>
-
-    <p class="j-kurir-card__lead">
-      Pilihan saat butuh laundry berangkat atau sampai secepat mungkin. Ongkir dibayar dulu via QRIS.
-    </p>
-
-    <div class="j-kurir-cols">
-      <div class="j-kurir-col j-kurir-col--pro">
-        <h3><i class="fas fa-check-circle"></i> Kelebihan</h3>
-        <ul>
-          <li>Cepat — biasanya kurang dari 2 jam</li>
-          <li>Bisa dilacak sampai selesai</li>
-        </ul>
-      </div>
-      <div class="j-kurir-col j-kurir-col--con">
-        <h3><i class="fas fa-minus-circle"></i> Kekurangan</h3>
-        <ul>
-          <li>Lebih mahal</li>
-          <li>Tidak bisa titip laundry berikutnya</li>
-          <li>Kadang harus angkat telepon/chat soal titik lokasi</li>
-        </ul>
+        <strong>Instant</strong>
+        <small>Gojek/Grab · biasanya &lt; 2 jam · bayar QRIS/Saldo</small>
       </div>
     </div>
 
@@ -211,10 +167,9 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
   </article>
 
   <p class="j-kurir-note">
-    <strong>Antar</strong> — Mengantar Pakaian dari Laundry ke Lokasi Anda.<br>
-    <strong>Jemput</strong> — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.<br>
-    <strong>Instant</strong> — ongkir sesuai tarif Gojek/Grab; bisa bayar Saldo Deposit atau QRIS.
-    Tersedia jam operasional <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>.
+    <strong>Antar</strong> laundry → lokasi Anda.
+    <strong>Jemput</strong> lokasi Anda → laundry.
+    Instant: jam <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>.
   </p>
 </section>
 
