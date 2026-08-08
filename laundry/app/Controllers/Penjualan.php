@@ -133,19 +133,27 @@ class Penjualan extends Controller
 
    public function proses()
    {
-      $no_ref = (date('Y') - 2024) . date("mdHis") . rand(0, 9). rand(0, 9);
+      $pelanggan = (int) ($_POST['f1'] ?? 0);
+      $id_penerima = (int) ($_POST['f2'] ?? 0);
 
-      $pelanggan = $_POST['f1'];
-      $id_penerima = $_POST['f2'];
-      //cek last ref;
-
-      $where = $this->wCabang . " AND id_pelanggan <> 0 AND no_ref <> '' AND tuntas = 0 AND bin = 0 AND insertTime LIKE '" . date('Y-m-d') . "%' ORDER BY id_penjualan DESC LIMIT 1";
+      // Gabung ke ref lama hanya jika order terbuka terakhir hari ini
+      // punya id_pelanggan + id_user yang sama (urut insertTime).
+      $where = $this->wCabang
+         . " AND id_pelanggan <> 0"
+         . " AND no_ref <> ''"
+         . " AND bin = 0"
+         . " AND tuntas = 0"
+         . " AND insertTime LIKE '" . date('Y-m-d') . "%'"
+         . " ORDER BY insertTime DESC, id_penjualan DESC LIMIT 1";
       $cek_ref = $this->db(0)->get_where_row('sale', $where);
 
-      if (isset($cek_ref['id_user'])) {
-         if ($id_penerima == $cek_ref['id_user'] && $pelanggan == $cek_ref['id_pelanggan']) {
-            $no_ref = $cek_ref['no_ref'];
-         }
+      $no_ref = (date('Y') - 2024) . date("mdHis") . rand(0, 9) . rand(0, 9);
+      if (
+         !empty($cek_ref['no_ref'])
+         && (int) $cek_ref['id_pelanggan'] === $pelanggan
+         && (int) $cek_ref['id_user'] === $id_penerima
+      ) {
+         $no_ref = $cek_ref['no_ref'];
       }
 
       $where = $this->wCabang . " AND id_pelanggan = 0";
