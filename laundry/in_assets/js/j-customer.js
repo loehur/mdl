@@ -685,7 +685,15 @@
       })
       .then(function (res) {
         if (res && res.status === 'paid') {
-          toast('Pembayaran berhasil', 'ok');
+          if (res.instant_activated === false) {
+            toast(
+              (res.msg && String(res.msg)) ||
+                'Pembayaran berhasil, tapi order Instant gagal diproses. Coba klik Bayar QRIS lagi.',
+              'warn'
+            );
+          } else {
+            toast('Pembayaran berhasil', 'ok');
+          }
           loadPage('kurir', '', false);
           return;
         }
@@ -722,7 +730,15 @@
               if (st && String(st.status).toUpperCase() === 'PAID') {
                 stopKurirInstantPoll();
                 hideModal('jModalQR');
-                toast('Pembayaran berhasil. Order Instant diproses.', 'ok');
+                if (st.instant_activated === false) {
+                  toast(
+                    (st.msg && String(st.msg)) ||
+                      'Pembayaran berhasil, tapi order Instant gagal diproses. Coba klik Bayar QRIS lagi.',
+                    'warn'
+                  );
+                } else {
+                  toast('Pembayaran berhasil. Order Instant diproses.', 'ok');
+                }
                 loadPage('kurir', '', false);
               }
             })

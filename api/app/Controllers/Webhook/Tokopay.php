@@ -276,10 +276,11 @@ class Tokopay extends Controller
                 
                 // Send Webhook to QR Server (Node.js) to notify frontend
                 $this->notifyQRServer($cek_kas);
-
-                // Kurir Instant (jt=10): create Biteship order after paid
-                $this->activateInstantKurirIfNeeded($db_kas, $cek_kas);
             }
+
+            // Always try Instant activate when paid (even if kas already status_mutasi=3
+            // from a prior webhook / poll — createOrder is idempotent via biteship_order_id).
+            $this->activateInstantKurirIfNeeded($db_kas, $cek_kas);
         } elseif ($isExpired || $isFailed) {
             // Before delete: batal unpaid Instant request (jt=10)
             $kasExp = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id])->row();

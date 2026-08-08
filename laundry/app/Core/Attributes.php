@@ -550,7 +550,20 @@ trait Attributes
       // Update ref_finance dengan yang bersih untuk digunakan selanjutnya
       $ref_finance = $clean_ref_finance;
       if ($kas && $kas['status_mutasi'] == 3) {
-         echo json_encode(['status' => 'paid']);
+         // Kas sudah lunas: tetap retry aktivasi Instant (jt=10) bila Biteship belum dibuat.
+         // Tanpa ini, klik "Bayar QRIS" ulang hanya toast sukses tanpa create order.
+         $instant = $this->activateInstantKurirPayment($kas);
+         $payload = ['status' => 'paid'];
+         if (is_array($instant)) {
+            $payload['instant_activated'] = !empty($instant['ok']);
+            if (!empty($instant['biteship_order_id'])) {
+               $payload['biteship_order_id'] = $instant['biteship_order_id'];
+            }
+            if (empty($instant['ok']) && !empty($instant['message'])) {
+               $payload['msg'] = $instant['message'];
+            }
+         }
+         echo json_encode($payload);
          exit();
       } else if ($kas) {
          // Check QR from kas table directly (no longer using wh_tokopay)
@@ -882,7 +895,19 @@ trait Attributes
       }
 
       if ($kas['status_mutasi'] == 3) {
-         echo json_encode(['status' => 'PAID']);
+         // Saat poll: jika Instant belum ke Biteship, aktifkan di sini (webhook bisa gagal diam-diam).
+         $instant = $this->activateInstantKurirPayment($kas);
+         $payload = ['status' => 'PAID'];
+         if (is_array($instant)) {
+            $payload['instant_activated'] = !empty($instant['ok']);
+            if (!empty($instant['biteship_order_id'])) {
+               $payload['biteship_order_id'] = $instant['biteship_order_id'];
+            }
+            if (empty($instant['ok']) && !empty($instant['message'])) {
+               $payload['msg'] = $instant['message'];
+            }
+         }
+         echo json_encode($payload);
          exit();
       }
 
@@ -905,7 +930,18 @@ trait Attributes
       }
 
       if ($kas['status_mutasi'] == 3) {
-         echo json_encode(['status' => 'PAID']);
+         $instant = $this->activateInstantKurirPayment($kas);
+         $payload = ['status' => 'PAID'];
+         if (is_array($instant)) {
+            $payload['instant_activated'] = !empty($instant['ok']);
+            if (!empty($instant['biteship_order_id'])) {
+               $payload['biteship_order_id'] = $instant['biteship_order_id'];
+            }
+            if (empty($instant['ok']) && !empty($instant['message'])) {
+               $payload['msg'] = $instant['message'];
+            }
+         }
+         echo json_encode($payload);
          exit();
       }
 
@@ -994,23 +1030,29 @@ trait Attributes
 
    /**
     * Setelah kas QRIS lunas: jika Kurir Instant (jt=10), aktifkan order Biteship via API.
+    * @return array|null hasil activate (ok/message/...), atau null jika bukan jt=10
     */
    private function activateInstantKurirPayment($kas)
    {
       $jt = (int) ($kas['jenis_transaksi'] ?? 0);
       if ($jt !== 10) {
-         return;
+         return null;
       }
       $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
       if ($refFinance === '') {
-         return;
+         return ['ok' => false, 'message' => 'ref_finance kosong'];
       }
       try {
          $api = $this->helper('BiteshipApi');
          $res = $api->activate(['ref_finance' => $refFinance]);
+         if (!is_array($res)) {
+            $res = ['ok' => false, 'message' => 'Respons aktivasi tidak valid'];
+         }
          $this->model('Log')->write('[InstantKurir] activate ' . $refFinance . ' ' . json_encode($res));
+         return $res;
       } catch (\Throwable $e) {
          $this->model('Log')->write('[InstantKurir] activate err ' . $e->getMessage());
+         return ['ok' => false, 'message' => $e->getMessage()];
       }
    }
 }

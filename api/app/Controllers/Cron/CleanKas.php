@@ -107,15 +107,19 @@ class CleanKas extends Controller
                 }
             }
 
+            // Recover Instant: kas sudah lunas tapi Biteship belum dibuat
+            $stats['instant_retry'] = $this->retryPaidInstantWithoutBiteship($db);
+
             $output = sprintf(
-                "OK: CleanKas checked=%d deleted=%d paid=%d failed=%d skipped_pending=%d logged=%d errors=%d\n",
+                "OK: CleanKas checked=%d deleted=%d paid=%d failed=%d skipped_pending=%d logged=%d errors=%d instant_retry=%d\n",
                 $stats['checked'],
                 $stats['deleted'],
                 $stats['paid'],
                 $stats['failed'],
                 $stats['skipped_pending'],
                 $stats['logged'],
-                $stats['errors']
+                $stats['errors'],
+                $stats['instant_retry']
             );
         } catch (\Exception $e) {
             $output = "ERROR: " . $e->getMessage() . "\n";
@@ -289,6 +293,50 @@ class CleanKas extends Controller
         }
 
         return 'failed';
+    }
+
+    /**
+     * Kas Instant (jt=10) sudah paid tapi delivery_request belum punya biteship_order_id.
+     * Retry activateAfterPayment (idempotent).
+     * @return int jumlah yang berhasil diaktifkan
+     */
+    private function retryPaidInstantWithoutBiteship($db): int
+    {
+        if (!class_exists('\\App\\Helpers\\Laundry\\InstantKurir')) {
+            require_once __DIR__ . '/../../Helpers/Laundry/InstantKurir.php';
+        }
+
+        $jt = (int) \App\Helpers\Laundry\InstantKurir::JENIS_TRANSAKSI;
+        $sql = "SELECT k.*"
+            . " FROM kas k"
+            . " INNER JOIN delivery_request d ON d.id_request = k.ref_transaksi"
+            . " WHERE k.jenis_transaksi = {$jt}"
+            . " AND k.status_mutasi = 3"
+            . " AND UPPER(IFNULL(k.note,'')) = 'QRIS'"
+            . " AND (d.biteship_order_id IS NULL OR d.biteship_order_id = '')"
+            . " AND d.delivery_status IN ('menunggu_pembayaran','berjalan')"
+            . " LIMIT 50";
+
+        $rows = $db->query($sql)->result_array();
+        if (!is_array($rows) || empty($rows)) {
+            return 0;
+        }
+
+        $ok = 0;
+        foreach ($rows as $kasRow) {
+            $result = \App\Helpers\Laundry\InstantKurir::activateAfterPayment($db, $kasRow);
+            if (!empty($result['ok'])) {
+                $ok++;
+            } else {
+                \Log::write(
+                    'CleanKas Instant retry fail ref=' . ($kasRow['ref_finance'] ?? '')
+                    . ' msg=' . ($result['message'] ?? ''),
+                    'cron',
+                    'CleanKas'
+                );
+            }
+        }
+        return $ok;
     }
 
     protected function verifyCronSecret(): bool
