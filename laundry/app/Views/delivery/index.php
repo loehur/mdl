@@ -1118,9 +1118,14 @@ $isEmptyCustomer = empty($customerGroups);
         <div class="dlv-detail-loading">Memuat…</div>
       </div>
       <div class="op-modal__foot op-modal__foot--selesai">
-        <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiBtn" hidden>
-          <i class="fas fa-bolt"></i> Terima Pakai
-        </button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button type="button" class="dlv-btn dlv-btn--edit" id="dlvEditQtyBtn" hidden title="Edit qty semua item" aria-label="Edit qty">
+            <i class="fas fa-pen"></i>
+          </button>
+          <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiBtn" hidden>
+            <i class="fas fa-bolt"></i> Terima Pakai
+          </button>
+        </div>
         <div class="op-modal__foot-right">
           <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tutup</button>
         </div>
@@ -1184,7 +1189,7 @@ $isEmptyCustomer = empty($customerGroups);
 
         <p class="dlv-hint mt-2 mb-0">
           <i class="fas fa-info-circle me-1"></i>
-          Hanya Admin / Kurir. Access Key harus milik karyawan yang dipilih.
+          Hanya Admin / Kurir. Satu Access Key untuk update semua qty sekaligus.
         </p>
       </div>
       <div class="op-modal__foot">
@@ -2065,14 +2070,7 @@ $isEmptyCustomer = empty($customerGroups);
           '<div style="font-size:0.72rem;font-weight:700;color:#64748b;margin-top:2px">' +
             fmtQty(it.qty) + unit + ' × ' + fmtRp(it.price) +
           '</div></td>' +
-        '<td style="text-align:right;white-space:nowrap">' +
-          '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">' +
-            '<span>' + fmtRp(it.total) + '</span>' +
-            '<button type="button" class="dlv-btn dlv-btn--edit" data-dlv-edit-qty title="Edit qty" aria-label="Edit qty">' +
-              '<i class="fas fa-pen"></i>' +
-            '</button>' +
-          '</div>' +
-        '</td>' +
+        '<td style="text-align:right;white-space:nowrap">' + fmtRp(it.total) + '</td>' +
       '</tr>';
     }).join('');
 
@@ -2140,6 +2138,7 @@ $isEmptyCustomer = empty($customerGroups);
 
   function setTerimaPakaiBtn(data) {
     var btn = document.getElementById('dlvTerimaPakaiBtn');
+    var editBtn = document.getElementById('dlvEditQtyBtn');
     detailTerimaPakai = {
       ref: (data && data.ref) ? String(data.ref) : '',
       sourceKode: (data && data.source_kode) ? String(data.source_kode) : '-',
@@ -2154,6 +2153,10 @@ $isEmptyCustomer = empty($customerGroups);
     if (btn) {
       btn.hidden = !detailTerimaPakai.ref;
       btn.disabled = false;
+    }
+    if (editBtn) {
+      editBtn.hidden = !detailEditQty.ref || !detailEditQty.items.length;
+      editBtn.disabled = false;
     }
   }
 
@@ -2486,13 +2489,6 @@ $isEmptyCustomer = empty($customerGroups);
       loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
       return;
     }
-
-    var editQtyBtn = e.target.closest('[data-dlv-edit-qty]');
-    if (editQtyBtn && root.contains(editQtyBtn)) {
-      e.preventDefault();
-      openEditQtyModal();
-      return;
-    }
   });
 
   var jenisEl = document.getElementById('dlvSelesaiJenis');
@@ -2543,6 +2539,9 @@ $isEmptyCustomer = empty($customerGroups);
 
   var terimaPakaiConfirmBtn = document.getElementById('dlvTerimaPakaiConfirm');
   if (terimaPakaiConfirmBtn) terimaPakaiConfirmBtn.addEventListener('click', confirmTerimaPakai);
+
+  var editQtyBtn = document.getElementById('dlvEditQtyBtn');
+  if (editQtyBtn) editQtyBtn.addEventListener('click', openEditQtyModal);
 
   var editQtyConfirmBtn = document.getElementById('dlvEditQtyConfirm');
   if (editQtyConfirmBtn) editQtyConfirmBtn.addEventListener('click', confirmEditQty);
