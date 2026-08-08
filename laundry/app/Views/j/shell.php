@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=49">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=50">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
@@ -275,7 +275,13 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
             </button>
             <small id="jLokasiMapHint">Klik peta untuk geser pin</small>
           </div>
-          <div id="jKurirMap" class="j-kurir-map" aria-label="Peta lokasi"></div>
+          <div class="j-kurir-map-wrap" id="jKurirMapWrap">
+            <div id="jKurirMap" class="j-kurir-map" aria-label="Peta lokasi"></div>
+            <div class="j-kurir-map-overlay" id="jKurirMapOverlay" hidden>
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Mencari titik…</span>
+            </div>
+          </div>
           <input type="hidden" id="jLokasiLatt" value="">
           <input type="hidden" id="jLokasiLongt" value="">
         </div>
@@ -399,7 +405,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=23"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=25"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

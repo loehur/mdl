@@ -1200,8 +1200,39 @@
 
   var KURIR_GPS_BTN_HTML = '<i class="fas fa-location-arrow"></i> Titik saya';
 
+  function setKurirMapLocateLoading(on) {
+    var wrap = document.getElementById('jKurirMapWrap');
+    var overlay = document.getElementById('jKurirMapOverlay');
+    if (wrap) wrap.classList.toggle('is-locating', !!on);
+    if (overlay) overlay.hidden = !on;
+    if (kurirMap) {
+      try {
+        if (on) {
+          kurirMap.dragging.disable();
+          kurirMap.touchZoom.disable();
+          kurirMap.doubleClickZoom.disable();
+          kurirMap.scrollWheelZoom.disable();
+          kurirMap.boxZoom.disable();
+          kurirMap.keyboard.disable();
+          if (kurirMap.tap) kurirMap.tap.disable();
+          if (kurirMarker && kurirMarker.dragging) kurirMarker.dragging.disable();
+        } else {
+          kurirMap.dragging.enable();
+          kurirMap.touchZoom.enable();
+          kurirMap.doubleClickZoom.enable();
+          kurirMap.scrollWheelZoom.enable();
+          kurirMap.boxZoom.enable();
+          kurirMap.keyboard.enable();
+          if (kurirMap.tap) kurirMap.tap.enable();
+          if (kurirMarker && kurirMarker.dragging) kurirMarker.dragging.enable();
+        }
+      } catch (err) { /* ignore */ }
+    }
+  }
+
   function setKurirGpsBtnLoading(on) {
     var btn = document.getElementById('jBtnLokasiGps');
+    setKurirMapLocateLoading(on);
     if (!btn) return;
     if (on) {
       if (!btn.dataset.minW) btn.dataset.minW = String(btn.offsetWidth || 0);
@@ -1224,6 +1255,8 @@
     if (btn && btn.disabled) return;
     setKurirGpsBtnLoading(true);
     useDefaultMapPoint('Mencari titik Anda…');
+    // Map baru dibuat setelah loading start — pastikan interaksi ikut disabled
+    setKurirMapLocateLoading(true);
     if (!navigator.geolocation) {
       useDefaultMapPoint('GPS tidak tersedia · default kota cabang');
       setKurirGpsBtnLoading(false);
