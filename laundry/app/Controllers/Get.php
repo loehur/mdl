@@ -31,7 +31,7 @@ class Get extends Controller
       $qrisUrl = URL::QRIS_PUBLIC_URL;
       $guide = URL::NON_TUNAI_GUIDE;
       $accounts = [];
-      $lines = ['QRIS ' . $qrisUrl];
+      $lines = ['QRIS', $qrisUrl, ''];
       $ownerName = 'LUHUR GUNAWAN';
 
       foreach ($guide as $code => $row) {
@@ -50,7 +50,9 @@ class Get extends Controller
             'number' => $number,
             'name' => $name !== '' ? $name : $ownerName,
          ];
-         $lines[] = $label . ' ' . $number;
+         $lines[] = $label;
+         $lines[] = $number;
+         $lines[] = '';
       }
       $lines[] = 'an. ' . $ownerName;
 
@@ -58,7 +60,7 @@ class Get extends Controller
          'ok' => true,
          'qris_url' => $qrisUrl,
          'accounts' => $accounts,
-         'message' => implode("\n", $lines),
+         'message' => rtrim(implode("\n", $lines)),
       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
    }
 
