@@ -1264,10 +1264,18 @@ class WhatsAppService
                 'cust_id' => $customer->id_pelanggan,
             ];
             
-            $last_sale = $db->query("SELECT * FROM sale WHERE id_pelanggan = " . $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
-            if ($last_sale) {
-                $result['assigned_user_id'] = $last_sale->id_cabang;
-                $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . $last_sale->id_cabang)->row();
+            // Prefer cabang of latest sale (multi-cabang customers); else pelanggan.id_cabang
+            $idCabang = null;
+            $last_sale = $db->query("SELECT id_cabang FROM sale WHERE id_pelanggan = " . (int) $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
+            if ($last_sale && !empty($last_sale->id_cabang)) {
+                $idCabang = $last_sale->id_cabang;
+            } elseif (!empty($customer->id_cabang)) {
+                $idCabang = $customer->id_cabang;
+            }
+
+            if ($idCabang) {
+                $result['assigned_user_id'] = $idCabang;
+                $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . (int) $idCabang)->row();
                 if ($cabang) $result['code'] = $cabang->kode_cabang;
             }
             

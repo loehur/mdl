@@ -1021,21 +1021,27 @@ class WhatsApp extends Controller
             return null;
         }
 
+        // Prefer cabang of latest sale (multi-cabang customers); else pelanggan.id_cabang
+        $idCabang = null;
         $last_sale = $db->query(
             "SELECT id_cabang FROM sale WHERE id_pelanggan = ? ORDER BY insertTime DESC LIMIT 1",
             [$customer->id_pelanggan]
         )->row();
-        if ($last_sale) {
-            $return->assigned_user_id = $last_sale->id_cabang;
+        if ($last_sale && !empty($last_sale->id_cabang)) {
+            $idCabang = $last_sale->id_cabang;
+        } elseif (!empty($customer->id_cabang)) {
+            $idCabang = $customer->id_cabang;
+        }
+
+        if ($idCabang) {
+            $return->assigned_user_id = $idCabang;
             $cabang = $db->query(
                 "SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1",
-                [$last_sale->id_cabang]
+                [$idCabang]
             )->row();
             if ($cabang) {
                 $return->code = $cabang->kode_cabang;
             }
-        } else {
-            return null;
         }
 
         return $return;
