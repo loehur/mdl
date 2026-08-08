@@ -16,7 +16,8 @@ $isEmptyCustomer = empty($customerGroups);
      data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
      data-selesai-request-url="<?= URL::BASE_URL ?>Delivery/selesai_request"
      data-batal-request-url="<?= URL::BASE_URL ?>Delivery/batal_request"
-     data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai">
+     data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai"
+     data-update-qty-url="<?= URL::BASE_URL ?>Delivery/update_qty">
   <style>
     #dlv-root {
       --dlv-ink: #0f172a;
@@ -207,6 +208,65 @@ $isEmptyCustomer = empty($customerGroups);
     #dlv-root .dlv-btn--pakai {
       background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffc107 100%);
       color: #fff;
+    }
+    #dlv-root .dlv-btn--edit {
+      background: #fff;
+      color: var(--dlv-blue-deep);
+      border-color: var(--dlv-blue);
+      padding: 8px 10px;
+      min-width: 38px;
+    }
+    #dlv-root .dlv-btn--edit:hover {
+      background: #eff6ff;
+    }
+    #dlv-root .dlv-detail-table .dlv-btn--edit {
+      padding: 6px 8px;
+      min-width: 32px;
+      font-size: 0.72rem;
+    }
+    #dlv-root .dlv-edit-qty-list {
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+      max-height: min(48vh, 420px);
+      overflow: auto;
+    }
+    #dlv-root .dlv-edit-qty-row {
+      display: grid;
+      grid-template-columns: 1fr 110px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-edit-qty-row:last-child { border-bottom: 0; }
+    #dlv-root .dlv-edit-qty-row__name {
+      font-size: 0.84rem;
+      font-weight: 800;
+      color: var(--dlv-ink);
+      line-height: 1.3;
+    }
+    #dlv-root .dlv-edit-qty-row__meta {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    #dlv-root .dlv-edit-qty-row__input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--dlv-line);
+      border-radius: 0;
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-align: right;
+      color: var(--dlv-ink);
+      background: #fff;
+    }
+    #dlv-root .dlv-edit-qty-row__input:focus {
+      outline: none;
+      border-color: var(--dlv-blue);
+      border-width: 2px;
+      padding: 7px 9px;
     }
     #dlv-root .dlv-btn:disabled { opacity: 0.55; cursor: wait; }
     #dlv-root .dlv-btn--ghost {
@@ -1068,6 +1128,74 @@ $isEmptyCustomer = empty($customerGroups);
     </div>
   </div>
 
+  <?php
+  $editQtyUsers = [];
+  foreach (($this->user ?? []) as $a) {
+    $p = (int) ($a['id_privilege'] ?? 0);
+    if ($p === 12 || $p === 100) {
+      $editQtyUsers[] = $a;
+    }
+  }
+  $editQtyUsersCabang = [];
+  foreach (($this->userCabang ?? []) as $a) {
+    $p = (int) ($a['id_privilege'] ?? 0);
+    if ($p === 12 || $p === 100) {
+      $editQtyUsersCabang[] = $a;
+    }
+  }
+  ?>
+  <div class="op-modal" id="dlvEditQtyModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--selesai" role="dialog" aria-modal="true" aria-labelledby="dlvEditQtyTitle">
+      <div class="op-modal__head">
+        <div>
+          <h3 id="dlvEditQtyTitle">Edit Qty</h3>
+          <small id="dlvEditQtySub">Ubah qty item transfer</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <input type="hidden" id="dlvEditQtyRef" value="">
+        <div class="dlv-edit-qty-list" id="dlvEditQtyList">
+          <div class="dlv-detail-loading">Memuat…</div>
+        </div>
+
+        <label class="dlv-field-label mt-2" for="dlvEditQtyKaryawan">Karyawan yang mengedit</label>
+        <select id="dlvEditQtyKaryawan" class="tize" style="width:100%" required>
+          <option value="" selected disabled></option>
+          <?php if (!empty($editQtyUsers)) { ?>
+            <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+              <?php foreach ($editQtyUsers as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php } ?>
+            </optgroup>
+          <?php } ?>
+          <?php if (!empty($editQtyUsersCabang)) { ?>
+            <optgroup label="----- Cabang Lain -----">
+              <?php foreach ($editQtyUsersCabang as $a) { ?>
+                <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . htmlspecialchars(strtoupper((string) ($a['nama_user'] ?? '')), ENT_QUOTES, 'UTF-8') ?></option>
+              <?php } ?>
+            </optgroup>
+          <?php } ?>
+        </select>
+
+        <label class="dlv-field-label mt-2" for="dlvEditQtyKey">Access Key karyawan</label>
+        <input type="password" id="dlvEditQtyKey" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
+
+        <p class="dlv-hint mt-2 mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Hanya Admin / Kurir. Access Key harus milik karyawan yang dipilih.
+        </p>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+        <button type="button" class="dlv-btn dlv-btn--submit" id="dlvEditQtyConfirm">
+          <i class="fas fa-check"></i> Update
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="op-modal op-modal--confirm" id="dlvTerimaPakaiModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
     <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvTerimaPakaiTitle">
@@ -1139,10 +1267,13 @@ $isEmptyCustomer = empty($customerGroups);
   var selesaiRequestUrl = root.getAttribute('data-selesai-request-url') || '';
   var batalRequestUrl = root.getAttribute('data-batal-request-url') || '';
   var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
+  var updateQtyUrl = root.getAttribute('data-update-qty-url') || '';
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
   var batalKaryawanSelectize = null;
+  var editQtyKaryawanSelectize = null;
   var detailTerimaPakai = { ref: '', sourceKode: '', targetKode: '' };
+  var detailEditQty = { ref: '', sourceKode: '', targetKode: '', items: [] };
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -1225,6 +1356,13 @@ $isEmptyCustomer = empty($customerGroups);
       if ($batal.length) {
         if ($batal[0].selectize) batalKaryawanSelectize = $batal[0].selectize;
         else batalKaryawanSelectize = $batal.selectize()[0].selectize;
+      }
+    }
+    if (!editQtyKaryawanSelectize) {
+      var $editQty = jQuery('#dlvEditQtyKaryawan');
+      if ($editQty.length) {
+        if ($editQty[0].selectize) editQtyKaryawanSelectize = $editQty[0].selectize;
+        else editQtyKaryawanSelectize = $editQty.selectize()[0].selectize;
       }
     }
   }
@@ -1927,7 +2065,14 @@ $isEmptyCustomer = empty($customerGroups);
           '<div style="font-size:0.72rem;font-weight:700;color:#64748b;margin-top:2px">' +
             fmtQty(it.qty) + unit + ' × ' + fmtRp(it.price) +
           '</div></td>' +
-        '<td style="text-align:right;white-space:nowrap">' + fmtRp(it.total) + '</td>' +
+        '<td style="text-align:right;white-space:nowrap">' +
+          '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">' +
+            '<span>' + fmtRp(it.total) + '</span>' +
+            '<button type="button" class="dlv-btn dlv-btn--edit" data-dlv-edit-qty title="Edit qty" aria-label="Edit qty">' +
+              '<i class="fas fa-pen"></i>' +
+            '</button>' +
+          '</div>' +
+        '</td>' +
       '</tr>';
     }).join('');
 
@@ -1995,14 +2140,143 @@ $isEmptyCustomer = empty($customerGroups);
 
   function setTerimaPakaiBtn(data) {
     var btn = document.getElementById('dlvTerimaPakaiBtn');
-    if (!btn) return;
     detailTerimaPakai = {
       ref: (data && data.ref) ? String(data.ref) : '',
       sourceKode: (data && data.source_kode) ? String(data.source_kode) : '-',
       targetKode: (data && data.target_kode) ? String(data.target_kode) : '-'
     };
-    btn.hidden = !detailTerimaPakai.ref;
-    btn.disabled = false;
+    detailEditQty = {
+      ref: detailTerimaPakai.ref,
+      sourceKode: detailTerimaPakai.sourceKode,
+      targetKode: detailTerimaPakai.targetKode,
+      items: (data && Array.isArray(data.items)) ? data.items : []
+    };
+    if (btn) {
+      btn.hidden = !detailTerimaPakai.ref;
+      btn.disabled = false;
+    }
+  }
+
+  function fmtQtyInput(n) {
+    var v = Number(n);
+    if (!isFinite(v)) return '';
+    if (Math.abs(v - Math.round(v)) < 0.00001) return String(Math.round(v));
+    return String(Math.round(v * 100) / 100);
+  }
+
+  function renderEditQtyList(items) {
+    if (!items || !items.length) {
+      return '<div class="dlv-detail-error">Tidak ada item</div>';
+    }
+    return items.map(function (it) {
+      var unit = it.unit ? ' ' + escapeHtml(it.unit) : '';
+      var desc = it.deskripsi ? '<div class="dlv-edit-qty-row__meta">' + escapeHtml(it.deskripsi) + '</div>' : '';
+      return '<div class="dlv-edit-qty-row" data-id="' + escapeHtml(String(it.id || 0)) + '">' +
+        '<div>' +
+          '<div class="dlv-edit-qty-row__name">' + escapeHtml(it.nama || '-') + '</div>' +
+          desc +
+          '<div class="dlv-edit-qty-row__meta">Qty lama: ' + escapeHtml(fmtQty(it.qty)) + unit + '</div>' +
+        '</div>' +
+        '<input type="number" class="dlv-edit-qty-row__input" min="0.01" step="any" inputmode="decimal" value="' + escapeHtml(fmtQtyInput(it.qty)) + '" aria-label="Qty ' + escapeHtml(it.nama || '') + '">' +
+      '</div>';
+    }).join('');
+  }
+
+  function openEditQtyModal() {
+    if (!detailEditQty.ref || !detailEditQty.items.length) {
+      toast('Data transfer tidak valid', 'error');
+      return;
+    }
+    ensureKaryawanSelectize();
+    if (editQtyKaryawanSelectize) {
+      editQtyKaryawanSelectize.clear(true);
+    }
+    var keyEl = document.getElementById('dlvEditQtyKey');
+    if (keyEl) keyEl.value = '';
+    var refEl = document.getElementById('dlvEditQtyRef');
+    if (refEl) refEl.value = detailEditQty.ref;
+    var sub = document.getElementById('dlvEditQtySub');
+    if (sub) {
+      sub.textContent = '#' + detailEditQty.ref + ' · ' + (detailEditQty.sourceKode || '-') + ' → ' + (detailEditQty.targetKode || '-');
+    }
+    var list = document.getElementById('dlvEditQtyList');
+    if (list) list.innerHTML = renderEditQtyList(detailEditQty.items);
+    openModal('dlvEditQtyModal');
+  }
+
+  function confirmEditQty() {
+    var ref = String((document.getElementById('dlvEditQtyRef') || {}).value || '').trim() || detailEditQty.ref;
+    if (!ref || !updateQtyUrl) {
+      toast('Ref tidak valid', 'error');
+      return;
+    }
+    ensureKaryawanSelectize();
+    var idKaryawan = '';
+    if (editQtyKaryawanSelectize) idKaryawan = editQtyKaryawanSelectize.getValue();
+    else {
+      var sel = document.getElementById('dlvEditQtyKaryawan');
+      if (sel) idKaryawan = sel.value;
+    }
+    var accessKey = String((document.getElementById('dlvEditQtyKey') || {}).value || '').trim();
+    if (!idKaryawan) {
+      toast('Pilih karyawan yang mengedit', 'warn');
+      return;
+    }
+    if (!/^\d{4}$/.test(accessKey)) {
+      toast('Access Key harus 4 digit', 'warn');
+      return;
+    }
+
+    var items = [];
+    var rows = document.querySelectorAll('#dlvEditQtyList .dlv-edit-qty-row');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var id = parseInt(row.getAttribute('data-id') || '0', 10);
+      var inp = row.querySelector('.dlv-edit-qty-row__input');
+      var qty = inp ? parseFloat(String(inp.value || '').replace(',', '.')) : NaN;
+      if (!id) {
+        toast('Item tidak valid', 'error');
+        return;
+      }
+      if (!isFinite(qty) || qty <= 0) {
+        toast('Qty harus lebih dari 0', 'warn');
+        if (inp) inp.focus();
+        return;
+      }
+      items.push({ id: id, qty: qty });
+    }
+    if (!items.length) {
+      toast('Tidak ada item', 'warn');
+      return;
+    }
+
+    var btn = document.getElementById('dlvEditQtyConfirm');
+    var fd = new FormData();
+    fd.append('ref', ref);
+    fd.append('id_karyawan', idKaryawan);
+    fd.append('access_key', accessKey);
+    fd.append('items', JSON.stringify(items));
+    if (btn) btn.disabled = true;
+    fetch(updateQtyUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal update qty', 'error');
+          return;
+        }
+        toast(res.message || 'Qty berhasil diupdate', 'success');
+        closeModal('dlvEditQtyModal');
+        loadDetail(ref, null);
+      })
+      .catch(function () { toast('Gagal update qty', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
   }
 
   function openTerimaPakaiConfirm() {
@@ -2212,6 +2486,13 @@ $isEmptyCustomer = empty($customerGroups);
       loadDetail(cekBtn.getAttribute('data-dlv-cek'), cekBtn);
       return;
     }
+
+    var editQtyBtn = e.target.closest('[data-dlv-edit-qty]');
+    if (editQtyBtn && root.contains(editQtyBtn)) {
+      e.preventDefault();
+      openEditQtyModal();
+      return;
+    }
   });
 
   var jenisEl = document.getElementById('dlvSelesaiJenis');
@@ -2262,6 +2543,9 @@ $isEmptyCustomer = empty($customerGroups);
 
   var terimaPakaiConfirmBtn = document.getElementById('dlvTerimaPakaiConfirm');
   if (terimaPakaiConfirmBtn) terimaPakaiConfirmBtn.addEventListener('click', confirmTerimaPakai);
+
+  var editQtyConfirmBtn = document.getElementById('dlvEditQtyConfirm');
+  if (editQtyConfirmBtn) editQtyConfirmBtn.addEventListener('click', confirmEditQty);
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;

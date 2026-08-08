@@ -779,6 +779,7 @@ class Delivery extends Controller
          $lineTotal = $price * $qty;
          $total += $lineTotal;
          $list[] = [
+            'id' => (int) ($item['id'] ?? 0),
             'nama' => $item['nama_barang'] ?? '-',
             'deskripsi' => $item['deskripsi_barang'] ?? '',
             'qty' => $qty,
@@ -802,6 +803,166 @@ class Delivery extends Controller
             'total' => $total,
          ],
       ]);
+   }
+
+   /**
+    * Edit qty multi-item transfer cabang (belum diterima).
+    * Semua user boleh buka; authorize wajib karyawan priv 12/100 + Access Key.
+    */
+   public function update_qty()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $ref = trim((string) ($_POST['ref'] ?? ''));
+         $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $accessKey = trim((string) ($_POST['access_key'] ?? ''));
+         $itemsRaw = $_POST['items'] ?? '[]';
+
+         if ($ref === '') {
+            throw new Exception('Ref tidak valid');
+         }
+         if ($idKaryawan < 1) {
+            throw new Exception('Pilih karyawan yang mengedit');
+         }
+
+         $karyawan = $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+         if (!$karyawan) {
+            throw new Exception('Access Key tidak cocok dengan karyawan yang dipilih');
+         }
+         $priv = (int) ($karyawan['id_privilege'] ?? 0);
+         if ($priv !== 12 && $priv !== 100) {
+            throw new Exception('Hanya Admin atau Kurir yang boleh mengedit qty');
+         }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+
+         if (is_string($itemsRaw)) {
+            $itemsIn = json_decode($itemsRaw, true);
+         } else {
+            $itemsIn = $itemsRaw;
+         }
+         if (!is_array($itemsIn) || empty($itemsIn)) {
+            throw new Exception('Data item tidak valid');
+         }
+
+         $qtyById = [];
+         foreach ($itemsIn as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id < 1) {
+               continue;
+            }
+            $qty = (float) ($row['qty'] ?? 0);
+            if ($qty <= 0) {
+               throw new Exception('Qty harus lebih dari 0');
+            }
+            $qtyById[$id] = $qty;
+         }
+         if (empty($qtyById)) {
+            throw new Exception('Tidak ada item yang diubah');
+         }
+
+         $refEsc = $this->db(0)->escape($ref);
+         $dbItems = $this->db(0)->get_where(
+            'barang_mutasi',
+            "ref = '$refEsc' AND type = 2 AND state = 0 AND source_id > 0 AND target_id > 0"
+         );
+         if (!is_array($dbItems) || empty($dbItems)) {
+            throw new Exception('Transfer tidak ditemukan atau sudah diterima');
+         }
+
+         $dbById = [];
+         foreach ($dbItems as $item) {
+            $dbById[(int) ($item['id'] ?? 0)] = $item;
+         }
+
+         $changes = [];
+         foreach ($qtyById as $id => $newQty) {
+            if (!isset($dbById[$id])) {
+               throw new Exception('Item #' . $id . ' tidak ada di transfer ini');
+            }
+            $oldQty = (float) ($dbById[$id]['qty'] ?? 0);
+            if (abs($oldQty - $newQty) < 0.00001) {
+               continue;
+            }
+            $changes[] = [
+               'id' => $id,
+               'id_barang' => (int) ($dbById[$id]['id_barang'] ?? 0),
+               'qty_lama' => $oldQty,
+               'qty_baru' => $newQty,
+            ];
+         }
+         if (empty($changes)) {
+            throw new Exception('Tidak ada perubahan qty');
+         }
+
+         if (!$this->db(0)->beginTransaction()) {
+            throw new Exception('Gagal memulai transaksi');
+         }
+
+         try {
+            foreach ($changes as $ch) {
+               $id = (int) $ch['id'];
+               $upd = $this->db(0)->update(
+                  'barang_mutasi',
+                  ['qty' => $ch['qty_baru']],
+                  "id = $id AND ref = '$refEsc' AND type = 2 AND state = 0"
+               );
+               if (isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+                  throw new Exception($upd['error'] ?? 'Gagal update qty item #' . $id);
+               }
+            }
+
+            $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+            $idCabang = (int) ($this->id_cabang ?? 0);
+            $log = $this->helper('ActivityLog')->write([
+               'modul' => 'delivery',
+               'aksi' => 'update_qty_cabang',
+               'id_ref' => $ref,
+               'ref' => $ref,
+               'id_karyawan' => $idKaryawan,
+               'nama_karyawan' => strtoupper($namaKaryawan),
+               'id_user' => $idUser,
+               'id_cabang' => $idCabang,
+               'catatan' => 'Edit qty transfer cabang',
+               'meta' => [
+                  'ref' => $ref,
+                  'changes' => $changes,
+               ],
+            ]);
+            if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
+               throw new Exception($log['error'] ?? 'Gagal menyimpan log');
+            }
+
+            if (!$this->db(0)->commit()) {
+               throw new Exception('Gagal commit transaksi');
+            }
+
+            $response = [
+               'status' => 'success',
+               'message' => 'Qty berhasil diupdate',
+               'data' => [
+                  'ref' => $ref,
+                  'updated' => count($changes),
+                  'id_karyawan' => $idKaryawan,
+               ],
+            ];
+         } catch (\Throwable $e) {
+            $this->db(0)->rollback();
+            throw $e;
+         }
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
    }
 
    /**
