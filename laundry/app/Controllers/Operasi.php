@@ -452,39 +452,7 @@ class Operasi extends Controller
 
    public function cancel_payment($ref_finance)
    {
-      // Check if transaction exists with cabang filter
-      $where = $this->wCabang . " AND ref_finance = '" . $ref_finance . "'";
-      $kas = $this->db(0)->get_where_row('kas', $where); // Changed to db(0)
-
-      if (!isset($kas['id_kas'])) {
-         echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
-         exit();
-      }
-
-      // Reject if status_mutasi == 3 (already successful)
-      if ($kas['status_mutasi'] == 3) {
-         echo json_encode(['status' => 'error', 'msg' => 'Transaksi sudah berhasil, tidak dapat dibatalkan']);
-         exit();
-      }
-
-      // Delete from kas table
-      $deleteKas = $this->db(0)->delete('kas', $this->wCabang . " AND ref_finance = '$ref_finance'"); // Changed to db(0)
-      if ($deleteKas['errno'] != 0) {
-         $this->model('Log')->write("[cancel_payment] Delete Kas Error: " . $deleteKas['error']);
-         echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
-         exit();
-      }
-
-      // Note: wh_tokopay not used anymore - payment info is now in kas table
-      // Delete from wh_midtrans (ignore if table doesn't exist)
-      try {
-         $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'");
-      } catch (Exception $e) {
-      } // Changed to db(0)
-
-      // Note: Moota integration removed - no wh_moota cleanup needed
-
-      echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
+      $this->cancel_payment_logic($ref_finance, false);
    }
 
    public function durasi_options()

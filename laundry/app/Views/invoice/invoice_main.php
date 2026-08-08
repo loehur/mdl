@@ -1238,8 +1238,11 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 invoiceQRPollInterval = null;
             }
         }
-        function doPoll() {
-            $.getJSON('<?= URL::BASE_URL ?>I/payment_gateway_status_poll/' + ref_id).done(function(res) {
+        var pollTick = 0;
+        function doPoll(syncGateway) {
+            var url = '<?= URL::BASE_URL ?>I/payment_gateway_status_poll/' + ref_id;
+            if (syncGateway) url += '?sync=1';
+            $.getJSON(url).done(function(res) {
                 if (res.status === 'PAID') {
                     stopInvoiceQRPoll();
                     $('#qrcode').html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">LUNAS/PAID</h3></div>');
@@ -1251,8 +1254,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
         if (invoiceQRPollInterval) { stopInvoiceQRPoll(); }
         modalEl.addEventListener('shown.bs.modal', function() {
             stopInvoiceQRPoll();
-            invoiceQRPollInterval = setInterval(doPoll, 3000);
-            doPoll();
+            pollTick = 0;
+            invoiceQRPollInterval = setInterval(function() {
+                pollTick += 1;
+                doPoll(pollTick % 3 === 0);
+            }, 3000);
+            doPoll(true);
         }, { once: true });
         modalEl.addEventListener('hidden.bs.modal', stopInvoiceQRPoll, { once: true });
 
@@ -1477,11 +1484,12 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
                 btn.prop('disabled', false).html(originalHtml);
                 bootstrap.Modal.getInstance(document.getElementById('modalCancelPayment')).hide();
                 
-                if (response.status === 'success') {
-                    console.log('Payment cancelled successfully');
+                if (response.status === 'success' || response.status === 'paid') {
+                    console.log('Cancel/sync result:', response.status, response.msg);
                     location.reload();
                 } else {
                     console.log('Cancel failed:', response.msg);
+                    if (response.msg) alert(response.msg);
                 }
             },
             error: function(xhr, status, error) {

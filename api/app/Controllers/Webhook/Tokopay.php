@@ -253,13 +253,21 @@ class Tokopay extends Controller
             // Lookup kas record
             $cek_kas = $db_kas->get_where("kas", ["payment_trx_id" => $tokopay_trx_id])->row();
             
-            // Fallback: lookup by ref_finance
+            // Fallback: lookup by ref_finance (QR bisa digenerate ulang / payment_trx_id berubah)
             if (!$cek_kas) {
                 $cek_kas = $db_kas->get_where("kas", ["ref_finance" => $ref_finance_extracted])->row();
+                if ($cek_kas) {
+                    // Kembalikan trx Success yang benar agar sync/poll berikutnya akurat
+                    $db_kas->update("kas", [
+                        "payment_trx_id" => $tokopay_trx_id,
+                        "payment_state" => "paid",
+                    ], ["ref_finance" => $ref_finance_extracted]);
+                    \Log::write("OK: Restored payment_trx_id=$tokopay_trx_id for ref=$ref_finance_extracted", 'webhook', 'Tokopay');
+                }
             }
 
             if (!$cek_kas) {
-                \Log::write("Err: Kas Not Found trx=$tokopay_trx_id ref=$ref_finance_extracted", 'webhook', 'Tokopay');
+                \Log::write("Err: Kas Not Found (ORPHAN PAID) trx=$tokopay_trx_id ref=$ref_finance_extracted — kas mungkin sudah dibatalkan/dihapus sebelum webhook", 'webhook', 'Tokopay');
                 echo json_encode(['status' => false, 'message' => 'Kas Not Found']);
                 return;
             }

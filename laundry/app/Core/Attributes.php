@@ -566,11 +566,17 @@ trait Attributes
             $diff_minutes = ($now - $created_at) / 60;
             
             if ($diff_minutes < 5) {
-               // QR masih fresh, return existing
+               // QR masih fresh — tetap cek gateway dulu (webhook bisa terlewat)
+               if (!empty($payment_trx_id) && $gateway == 'tokopay') {
+                  if ($this->syncQrisPaidFromGateway($kas, $ref_finance, $is_public)) {
+                     echo json_encode(['status' => 'paid']);
+                     exit();
+                  }
+               }
                echo json_encode([
                   'status' => $payment_state ?: 'pending',
                   'qr_string' => $payment_qr_string,
-                  'trx_id' => $ref_finance
+                  'trx_id' => $payment_trx_id ?: $ref_finance
                ]);
                exit();
             }
@@ -864,8 +870,9 @@ trait Attributes
    }
 
    /**
-    * Polling status dari DB saja (tanpa panggil API).
-    * Untuk auto-refresh saat QR ditampilkan - webhook akan update kas saat pembayaran diterima.
+    * Polling status: cek DB dulu.
+    * Sync ke QRIS/Tokopay hanya jika ?sync=1 (client kirim berkala) agar tidak flood API.
+    * Webhook tetap sumber utama; sync menutup celah webhook telat/gagal.
     */
    public function payment_gateway_status_db($ref_finance, $is_public = false)
    {
@@ -886,8 +893,165 @@ trait Attributes
          exit();
       }
 
+      $wantSync = isset($_GET['sync']) && (string) $_GET['sync'] === '1';
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
+      if ($wantSync && $note === 'QRIS' && $payment_trx_id !== '') {
+         if ($this->syncQrisPaidFromGateway($kas, $ref_finance, $is_public)) {
+            echo json_encode(['status' => 'PAID']);
+            exit();
+         }
+      }
+
       echo json_encode(['status' => 'PENDING']);
       exit();
+   }
+
+   /**
+    * Batalkan pembayaran pending. Jika QRIS sudah Success di gateway, sync jadi lunas
+    * (jangan hapus kas) agar uang masuk tidak orphan dari tagihan.
+    */
+   public function cancel_payment_logic($ref_finance, $is_public = false)
+   {
+      $where = "ref_finance = '" . $ref_finance . "'";
+      if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
+         $where = $this->wCabang . " AND " . $where;
+      }
+
+      $kas = $this->db(0)->get_where_row('kas', $where);
+
+      if (!isset($kas['id_kas'])) {
+         echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
+         exit();
+      }
+
+      if ((int) $kas['status_mutasi'] === 3) {
+         echo json_encode(['status' => 'error', 'msg' => 'Transaksi sudah berhasil, tidak dapat dibatalkan']);
+         exit();
+      }
+
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
+      if ($note === 'QRIS' && $payment_trx_id !== '') {
+         if ($this->syncQrisPaidFromGateway($kas, $ref_finance, $is_public)) {
+            echo json_encode([
+               'status' => 'paid',
+               'msg' => 'Pembayaran sudah berhasil di QRIS. Status tagihan diperbarui (tidak dibatalkan).'
+            ]);
+            exit();
+         }
+      }
+
+      $deleteWhere = "ref_finance = '$ref_finance'";
+      if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
+         $deleteWhere = $this->wCabang . " AND " . $deleteWhere;
+      }
+
+      $deleteKas = $this->db(0)->delete('kas', $deleteWhere);
+      if ($deleteKas['errno'] != 0) {
+         if (!$is_public) {
+            $this->model('Log')->write('[cancel_payment] Delete Kas Error: ' . $deleteKas['error']);
+         }
+         echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
+         exit();
+      }
+
+      try {
+         $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'");
+      } catch (Exception $e) {
+      }
+
+      echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
+   }
+
+   /**
+    * Sync kas pending → lunas jika Tokopay/QRIS sudah paid.
+    * @return bool true jika kas sekarang paid
+    */
+   protected function syncQrisPaidFromGateway($kas, $ref_finance, $is_public = false)
+   {
+      if (!$kas || (int) ($kas['status_mutasi'] ?? 0) === 3) {
+         return true;
+      }
+
+      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
+      if ($payment_trx_id === '') {
+         return false;
+      }
+
+      $sumRow = $this->db(0)->sum_col_where('kas', 'jumlah', "ref_finance = '$ref_finance'");
+      $nominal = intval($sumRow ?? 0);
+      if ($nominal <= 0) {
+         $nominal = intval($kas['jumlah'] ?? 0);
+      }
+      if ($nominal <= 0) {
+         return false;
+      }
+
+      try {
+         $this->helper('QRISApi');
+         $qrisApi = new QRISApi();
+         $res = $qrisApi->checkStatus($payment_trx_id, $nominal, 'QRIS');
+         $data = is_array($res) ? $res : json_decode($res, true);
+
+         $payment_status = isset($data['payment_status']) ? strtolower(trim($data['payment_status'])) : '';
+         $trx_status = isset($data['trx_status']) ? strtolower(trim($data['trx_status'])) : '';
+         if ($payment_status === '' && isset($data['status_detail'])) {
+            $trx_status = strtolower(trim($data['status_detail']));
+         }
+
+         $isPaid = ($payment_status === 'paid')
+            || in_array($trx_status, ['success', 'paid', 'settlement', 'capture', 'completed'], true);
+
+         if (!$isPaid) {
+            return false;
+         }
+
+         $update = $this->db(0)->update('kas', [
+            'status_mutasi' => 3,
+            'payment_state' => 'paid'
+         ], "ref_finance = '$ref_finance'");
+
+         if ($update['errno'] != 0) {
+            if (!$is_public) {
+               $this->model('Log')->write("[syncQrisPaid] Update failed ref=$ref_finance: " . $update['error']);
+            }
+            return false;
+         }
+
+         if (!$is_public) {
+            $this->model('Log')->write("[syncQrisPaid] PAID synced ref=$ref_finance trx=$payment_trx_id");
+         }
+
+         $rows = $this->db(0)->get_where('kas', "ref_finance = '$ref_finance'");
+         if (is_array($rows)) {
+            $seen = [];
+            foreach ($rows as $row) {
+               $rt = $row['ref_transaksi'] ?? '';
+               if ($rt === '' || isset($seen[$rt])) {
+                  continue;
+               }
+               $seen[$rt] = true;
+               $this->updateSalesState($rt);
+            }
+            foreach ($rows as $row) {
+               if ((int) ($row['jenis_transaksi'] ?? 0) === 10) {
+                  $this->activateInstantKurirPayment($row);
+                  break;
+               }
+            }
+         } elseif (isset($kas['ref_transaksi'])) {
+            $this->updateSalesState($kas['ref_transaksi']);
+            $this->activateInstantKurirPayment($kas);
+         }
+
+         return true;
+      } catch (Exception $e) {
+         if (!$is_public) {
+            $this->model('Log')->write('[syncQrisPaid] Error ref=' . $ref_finance . ' ' . $e->getMessage());
+         }
+         return false;
+      }
    }
 
    public function payment_gateway_status_logic($ref_finance, $is_public = false)
@@ -934,9 +1098,14 @@ trait Attributes
             exit();
          }
          // Gunakan payment_trx_id (order_id yang dikirim ke TokoPay), BUKAN ref_finance
+         // Nominal = total semua baris kas dengan ref_finance yang sama (bisa multi-item)
          $this->helper('QRISApi');
          $qrisApi = new QRISApi();
-         $statusResponse = $qrisApi->checkStatus($payment_trx_id, $kas['jumlah'], 'QRIS');
+         $sumNominal = intval($this->db(0)->sum_col_where('kas', 'jumlah', "ref_finance = '$ref_finance'") ?? 0);
+         if ($sumNominal <= 0) {
+            $sumNominal = intval($kas['jumlah']);
+         }
+         $statusResponse = $qrisApi->checkStatus($payment_trx_id, $sumNominal, 'QRIS');
          $data = is_array($statusResponse) ? $statusResponse : json_decode($statusResponse, true);
 
          // Format response API terbaru: {status, trx_id, ref_id, payment_status, trx_status}
@@ -954,7 +1123,10 @@ trait Attributes
          $isPaid = ($payment_status === 'paid') || in_array($trx_status ?: $payment_status, ['success', 'paid', 'settlement', 'capture', 'completed'], true);
 
          if ($isPaid) {
-            $update = $this->db(0)->update('kas', ['status_mutasi' => 3], "ref_finance = '$ref_finance'");
+            $update = $this->db(0)->update('kas', [
+               'status_mutasi' => 3,
+               'payment_state' => 'paid'
+            ], "ref_finance = '$ref_finance'");
             if ($update['errno'] == 0) {
                $this->updateSalesState($kas['ref_transaksi']);
                $this->activateInstantKurirPayment($kas);

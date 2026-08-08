@@ -383,8 +383,11 @@
           operasiQRPollInterval = null;
         }
       }
-      function doPoll() {
-        $.getJSON(BASE_URL + "Operasi/payment_gateway_status_poll/" + ref_id).done(function (res) {
+      var pollTick = 0;
+      function doPoll(syncGateway) {
+        var url = BASE_URL + "Operasi/payment_gateway_status_poll/" + ref_id;
+        if (syncGateway) url += "?sync=1";
+        $.getJSON(url).done(function (res) {
           if (res.status === "PAID") {
             stopOperasiQRPoll();
             $("#qrcode").html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">LUNAS/PAID</h3></div>');
@@ -406,8 +409,12 @@
       var onOpenQR = function () {
         if (!isDev && ref_id) {
           stopOperasiQRPoll();
-          operasiQRPollInterval = setInterval(doPoll, 3000);
-          doPoll();
+          pollTick = 0;
+          operasiQRPollInterval = setInterval(function () {
+            pollTick += 1;
+            doPoll(pollTick % 3 === 0);
+          }, 3000);
+          doPoll(true);
         }
         modalEl.removeEventListener("op-modal:open", onOpenQR);
       };
@@ -2568,8 +2575,17 @@
       success: function (response) {
         btn.prop('disabled', false).html(originalHtml);
         if (window.OpModal) window.OpModal.close('modalCancelPayment');
-        if (response.status === 'success') {
+        if (response.status === 'success' || response.status === 'paid') {
+          if (response.status === 'paid') {
+            var warnFn = typeof showAlert === 'function' ? showAlert : null;
+            if (warnFn) warnFn(response.msg || 'Pembayaran sudah berhasil di QRIS. Status diperbarui.', 'success');
+            else if (typeof alert === 'function') alert(response.msg || 'Pembayaran sudah berhasil');
+          }
           loadDiv();
+        } else if (response.msg) {
+          var warnFn = typeof showAlert === 'function' ? showAlert : null;
+          if (warnFn) warnFn(response.msg, 'warning');
+          else if (typeof alert === 'function') alert(response.msg);
         }
       },
       error: function (xhr, status, error) {

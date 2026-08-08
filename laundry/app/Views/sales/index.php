@@ -684,8 +684,11 @@
         salesQRPollInterval = null;
       }
     }
-    function doPoll() {
-      $.getJSON('<?= URL::BASE_URL ?>Operasi/payment_gateway_status_poll/' + ref).done(function(res) {
+    var pollTick = 0;
+    function doPoll(syncGateway) {
+      var url = '<?= URL::BASE_URL ?>Operasi/payment_gateway_status_poll/' + ref;
+      if (syncGateway) url += '?sync=1';
+      $.getJSON(url).done(function(res) {
         if (res.status === 'PAID') {
           stopSalesQRPoll();
           $('#salesQRCode').html('<div class="text-success text-center"><i class="fas fa-check-circle fa-5x"></i><h3 class="mt-2">PAID</h3></div>');
@@ -696,8 +699,12 @@
     }
     modalEl.addEventListener('shown.bs.modal', function() {
       stopSalesQRPoll();
-      salesQRPollInterval = setInterval(doPoll, 3000);
-      doPoll(); // Cek sekali langsung
+      pollTick = 0;
+      salesQRPollInterval = setInterval(function() {
+        pollTick += 1;
+        doPoll(pollTick % 3 === 0);
+      }, 3000);
+      doPoll(true); // Cek sekali langsung + sync gateway
     }, { once: true });
     modalEl.addEventListener('hidden.bs.modal', stopSalesQRPoll, { once: true });
     

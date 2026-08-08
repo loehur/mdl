@@ -210,15 +210,22 @@
     $('#jBtnCekStatusQR').setAttribute('data-ref', refId);
     modalShow('jModalQR');
     stopPoll();
+    var pollTick = 0;
     pollTimer = setInterval(function () {
-      pollStatus(refId, true);
+      pollTick += 1;
+      pollStatus(refId, true, pollTick % 3 === 0);
     }, 3000);
   }
 
-  function pollStatus(refId, silent) {
+  function pollStatus(refId, silent, syncGateway) {
     var cfg = getConfig();
     if (!cfg) return;
-    fetch(cfg.base + 'I/payment_gateway_status_poll/' + encodeURIComponent(refId), {
+    var url =
+      cfg.base +
+      'I/payment_gateway_status_poll/' +
+      encodeURIComponent(refId) +
+      (syncGateway ? '?sync=1' : '');
+    fetch(url, {
       credentials: 'same-origin',
     })
       .then(function (r) {
@@ -392,7 +399,10 @@
       .then(function (res) {
         btn.disabled = false;
         modalHide('jModalCancel');
-        if (res && res.status === 'success') {
+        if (res && res.status === 'paid') {
+          toast(res.msg || 'Pembayaran sudah berhasil', 'ok');
+          reloadTagihan();
+        } else if (res && res.status === 'success') {
           toast('Pembayaran dibatalkan', 'ok');
           reloadTagihan();
         } else {
@@ -565,7 +575,7 @@
     var cek = e.target.closest('#jBtnCekStatusQR');
     if (cek) {
       e.preventDefault();
-      pollStatus(cek.getAttribute('data-ref'), false);
+      pollStatus(cek.getAttribute('data-ref'), false, true);
       return;
     }
 

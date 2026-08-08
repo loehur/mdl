@@ -501,35 +501,6 @@ class I extends Controller
 
    public function cancel_payment($ref_finance)
    {
-      // Check if transaction exists
-      $where = "ref_finance = '" . $ref_finance . "'";
-      $kas = $this->db(0)->get_where_row('kas', $where);
-      
-      if (!isset($kas['id_kas'])) {
-         echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
-         exit();
-      }
-
-      // Reject if status_mutasi == 3 (already successful)
-      if ($kas['status_mutasi'] == 3) {
-         echo json_encode(['status' => 'error', 'msg' => 'Transaksi sudah berhasil, tidak dapat dibatalkan']);
-         exit();
-      }
-
-      // Delete from kas table
-      $deleteKas = $this->db(0)->delete('kas', "ref_finance = '$ref_finance'");
-      if ($deleteKas['errno'] != 0) {
-         echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
-         exit();
-      }
-
-      // Note: wh_tokopay not used anymore - payment info is now in kas table
-      
-      // Delete from wh_midtrans (ignore if table doesn't exist) - FIX: use db(0)
-      try { $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'"); } catch (Exception $e) {}
-      
-      // Note: Moota integration removed - no wh_moota cleanup needed
-
-      echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
+      $this->cancel_payment_logic($ref_finance, true);
    }
 }

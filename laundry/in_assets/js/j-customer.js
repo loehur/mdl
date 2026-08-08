@@ -711,8 +711,16 @@
         if (cek) cek.setAttribute('data-ref', ref);
         showModal('jModalQR');
         stopKurirInstantPoll();
+        var pollTick = 0;
         kurirInstantPoll = setInterval(function () {
-          fetch(base + 'I/payment_gateway_status_poll/' + encodeURIComponent(ref), {
+          pollTick += 1;
+          var sync = pollTick % 3 === 0;
+          var url =
+            base +
+            'I/payment_gateway_status_poll/' +
+            encodeURIComponent(ref) +
+            (sync ? '?sync=1' : '');
+          fetch(url, {
             credentials: 'same-origin',
           })
             .then(function (r) {
