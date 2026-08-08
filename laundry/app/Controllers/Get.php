@@ -104,12 +104,20 @@ class Get extends Controller
             if ($kode === '') {
                continue;
             }
+            $nama = trim((string) ($row['nama'] ?? ''));
+            $alamat = (string) ($row['alamat'] ?? '');
+            $mapsUrl = 'https://www.google.com/maps?q=' . $latt . ',' . $long;
+            $kodeUp = strtoupper($kode);
+            $namaUp = strtoupper($nama !== '' ? $nama : 'MADINAH LAUNDRY');
+            $message = $namaUp . ' (' . $kodeUp . ")\n" . $alamat . "\n" . $mapsUrl;
             $data[] = [
                'kode_cabang' => $kode,
-               'nama' => trim((string) ($row['nama'] ?? '')),
+               'nama' => $nama,
+               'alamat' => $alamat,
                'latt' => $latt,
                'long' => $long,
-               'maps_url' => 'https://www.google.com/maps?q=' . $latt . ',' . $long,
+               'maps_url' => $mapsUrl,
+               'message' => $message,
             ];
          }
       }

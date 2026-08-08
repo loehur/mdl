@@ -36,11 +36,16 @@ export async function loadQuickRepliesFromLaundry() {
     for (const cabang of lokasiRes.data) {
       const kode = String(cabang.kode_cabang || "").trim();
       if (!kode || !cabang.maps_url) continue;
+      const nama = String(cabang.nama || "Madinah Laundry").trim();
+      const alamat = String(cabang.alamat ?? "");
+      const message =
+        cabang.message ||
+        `${nama.toUpperCase()} (${kode.toUpperCase()})\n${alamat}\n${cabang.maps_url}`;
       list.push({
         id: id++,
         shortcut: `/${kode.toLowerCase()}-location`,
-        title: `Lokasi MDL ${kode.toUpperCase()}`,
-        message: cabang.maps_url,
+        title: `Lokasi ${nama.toUpperCase()} - ${kode.toUpperCase()}`,
+        message,
       });
     }
   }
