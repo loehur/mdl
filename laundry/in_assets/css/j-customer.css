@@ -1820,6 +1820,61 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
 }
 
+.j-kurir-riwayat .j-section-head {
+  align-items: center;
+}
+.j-kurir-riwayat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.j-kurir-riwayat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+.j-kurir-riwayat-item.is-batal {
+  background: linear-gradient(135deg, rgba(231, 111, 81, 0.08), rgba(255, 255, 255, 0.95));
+  border-color: rgba(194, 74, 48, 0.18);
+}
+.j-kurir-riwayat-item__ico {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3f2;
+  color: var(--j-muted);
+  flex-shrink: 0;
+}
+.j-kurir-riwayat-item.is-batal .j-kurir-riwayat-item__ico {
+  background: rgba(231, 111, 81, 0.12);
+  color: #c24a30;
+}
+.j-kurir-riwayat-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.j-kurir-riwayat-item__text strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--j-ink);
+}
+.j-kurir-riwayat-item__text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--j-muted);
+  font-weight: 600;
+}
+.j-kurir-riwayat-refund {
+  color: #1a7a6e !important;
+}
+
 .j-kurir-sales {
   max-height: min(52vh, 420px);
   overflow: auto;

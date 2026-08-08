@@ -217,3 +217,76 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
     Tersedia jam operasional <?= htmlspecialchars($instantOpenLabel, ENT_QUOTES, 'UTF-8') ?>–<?= htmlspecialchars($instantCutoffLabel, ENT_QUOTES, 'UTF-8') ?>.
   </p>
 </section>
+
+<?php
+$riwayat = is_array($data['riwayatKurir'] ?? null) ? $data['riwayatKurir'] : [];
+?>
+<section class="j-section j-kurir-riwayat" id="jKurirRiwayat">
+  <div class="j-section-head">
+    <h2>Riwayat kurir</h2>
+    <?php if (!empty($riwayat)) { ?>
+    <button type="button" class="j-btn j-btn-soft j-kurir-riwayat-toggle" id="jBtnKurirRiwayatToggle" aria-expanded="false">
+      Lihat
+    </button>
+    <?php } ?>
+  </div>
+  <?php if (empty($riwayat)) { ?>
+    <p class="j-sheet-desc" style="margin:0">Belum ada riwayat antar/jemput.</p>
+  <?php } else { ?>
+  <div class="j-kurir-riwayat-list" id="jKurirRiwayatList" hidden>
+    <?php foreach ($riwayat as $rh) {
+      $jenis = strtolower((string) ($rh['jenis'] ?? ''));
+      $layanan = strtolower((string) ($rh['layanan'] ?? 'sameday'));
+      $status = strtolower((string) ($rh['delivery_status'] ?? ''));
+      $labelJenis = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
+      $labelLayanan = $layanan === 'instant' ? 'Instant' : 'Sameday';
+      $tsRaw = (string) (($rh['selesaiTime'] ?? '') !== '' ? $rh['selesaiTime'] : ($rh['insertTime'] ?? ''));
+      $ts = strtotime($tsRaw);
+      $when = $ts ? date('d M Y H:i', $ts) : '-';
+      $lokNama = trim((string) ($rh['lokasi_nama'] ?? ''));
+      $ongkir = (int) ($rh['ongkir'] ?? 0);
+      $courier = trim((string) ($rh['courier_name'] ?? ''));
+      $track = trim((string) ($rh['tracking_url'] ?? ''));
+      $catatanBatal = trim((string) ($rh['catatan_batal'] ?? ''));
+      $refunded = !empty($rh['refunded']);
+      $isBatal = $status === 'batal';
+      $badgeClass = $isBatal ? 'danger' : 'ok';
+      $badgeText = $isBatal ? 'Batal' : 'Selesai';
+      $metaParts = [];
+      if ($courier !== '') {
+        $metaParts[] = $courier;
+      }
+      if ($ongkir > 0) {
+        $metaParts[] = 'Rp' . number_format($ongkir, 0, ',', '.');
+      }
+      $metaParts[] = $when;
+      if ($lokNama !== '') {
+        $metaParts[] = $lokNama;
+      }
+    ?>
+      <div class="j-kurir-riwayat-item<?= $isBatal ? ' is-batal' : '' ?>">
+        <div class="j-kurir-riwayat-item__ico" aria-hidden="true">
+          <i class="fas <?= $jenis === 'jemput' ? 'fa-hand-holding' : 'fa-truck' ?>"></i>
+        </div>
+        <div class="j-kurir-riwayat-item__text">
+          <strong><?= htmlspecialchars($labelJenis . ' ' . $labelLayanan, ENT_QUOTES, 'UTF-8') ?></strong>
+          <small><?= htmlspecialchars(implode(' · ', $metaParts), ENT_QUOTES, 'UTF-8') ?></small>
+          <?php if ($isBatal && $refunded) { ?>
+            <small class="j-kurir-riwayat-refund">Ongkir dikembalikan ke Saldo Deposit</small>
+          <?php } elseif ($isBatal && $catatanBatal !== '') { ?>
+            <small><?= htmlspecialchars($catatanBatal, ENT_QUOTES, 'UTF-8') ?></small>
+          <?php } ?>
+          <?php if (!$isBatal && $track !== '') { ?>
+            <div style="margin-top:6px">
+              <a class="j-btn j-btn-soft" href="<?= htmlspecialchars($track, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+                <i class="fas fa-map-marked-alt"></i> Lacak
+              </a>
+            </div>
+          <?php } ?>
+        </div>
+        <span class="j-badge <?= $badgeClass ?>"><?= htmlspecialchars($badgeText, ENT_QUOTES, 'UTF-8') ?></span>
+      </div>
+    <?php } ?>
+  </div>
+  <?php } ?>
+</section>

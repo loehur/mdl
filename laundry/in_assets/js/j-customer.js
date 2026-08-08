@@ -669,7 +669,7 @@
     }
   }
 
-  function openInstantQr(ref, total) {
+  function openInstantQr(ref, total, btn) {
     var nama = '';
     try {
       var cfgEl = document.getElementById('jPayConfig');
@@ -678,6 +678,21 @@
         nama = cfg.nama || '';
       }
     } catch (e) {}
+
+    var restoreBtn = null;
+    if (btn) {
+      if (btn.disabled || btn.getAttribute('aria-busy') === 'true') return;
+      if (!btn.dataset.origHtml) btn.dataset.origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Memuat…';
+      restoreBtn = function () {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = btn.dataset.origHtml || '<i class="fas fa-qrcode"></i> Bayar QRIS';
+      };
+    }
+
     fetch(
       base +
         'I/payment_gateway_order/' +
@@ -693,6 +708,7 @@
       .then(function (res) {
         if (res && res.status === 'paid') {
           if (res.instant_activated === false) {
+            if (restoreBtn) restoreBtn();
             toast(
               (res.msg && String(res.msg)) ||
                 'Pembayaran berhasil, tapi order Instant gagal diproses. Coba klik Bayar QRIS lagi.',
@@ -705,10 +721,12 @@
           return;
         }
         if (!res || !res.qr_string) {
+          if (restoreBtn) restoreBtn();
           toast((res && res.msg) || 'QRIS sementara tidak tersedia', 'warn');
           loadPage('kurir', '', false);
           return;
         }
+        if (restoreBtn) restoreBtn();
         var box = document.getElementById('jQrcode');
         if (box) {
           box.innerHTML = '';
@@ -753,6 +771,7 @@
         }, 3000);
       })
       .catch(function () {
+        if (restoreBtn) restoreBtn();
         toast('Gagal memuat QRIS', 'warn');
         loadPage('kurir', '', false);
       });
@@ -1628,6 +1647,17 @@
   }
 
   document.addEventListener('click', function (e) {
+    var riwayatToggle = e.target.closest('#jBtnKurirRiwayatToggle');
+    if (riwayatToggle && content.contains(riwayatToggle)) {
+      e.preventDefault();
+      var list = document.getElementById('jKurirRiwayatList');
+      if (!list) return;
+      var open = list.hidden;
+      list.hidden = !open;
+      riwayatToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      riwayatToggle.textContent = open ? 'Sembunyikan' : 'Lihat';
+      return;
+    }
     var act = e.target.closest('.j-kurir-act');
     if (!act || !content.contains(act)) return;
     e.preventDefault();
@@ -1687,7 +1717,11 @@
     var payBtn = e.target.closest('.j-kurir-pay-instant');
     if (payBtn && content.contains(payBtn)) {
       e.preventDefault();
-      openInstantQr(payBtn.getAttribute('data-ref'), payBtn.getAttribute('data-total'));
+      openInstantQr(
+        payBtn.getAttribute('data-ref'),
+        payBtn.getAttribute('data-total'),
+        payBtn
+      );
       return;
     }
     var batalBtn = e.target.closest('.j-kurir-batal-instant');

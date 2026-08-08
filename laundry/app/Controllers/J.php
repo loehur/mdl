@@ -413,6 +413,7 @@ class J extends Controller
 
          case 'kurir':
             $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
+            $payload['riwayatKurir'] = $this->getKurirRiwayat($pelanggan);
             $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
             $payload['instantWindow'] = $this->helper('OperatingHours')->instantOrderStatus();
             $this->view('j/partials/kurir', $payload);
@@ -2408,6 +2409,75 @@ class J extends Controller
             'tracking_url' => (string) ($r['tracking_url'] ?? ''),
             'payment_ref_finance' => (string) ($r['payment_ref_finance'] ?? ''),
             'driver_name' => (string) ($r['driver_name'] ?? ''),
+         ];
+      }
+      return $out;
+   }
+
+   /**
+    * Riwayat kurir (selesai + batal) untuk portal J — agar order tidak "hilang".
+    */
+   private function getKurirRiwayat($pelanggan): array
+   {
+      $pelanggan = (int) $pelanggan;
+      $rows = $this->db(0)->get_where(
+         'delivery_request',
+         'id_pelanggan = ' . $pelanggan
+            . " AND delivery_status IN ('selesai','batal')"
+            . ' ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC'
+            . ' LIMIT 30'
+      );
+      if (!is_array($rows) || empty($rows)) {
+         return [];
+      }
+
+      $ids = [];
+      foreach ($rows as $r) {
+         $id = (int) ($r['id_request'] ?? 0);
+         if ($id > 0) {
+            $ids[] = $id;
+         }
+      }
+      $refundedMap = [];
+      if (!empty($ids)) {
+         $idList = implode(',', $ids);
+         $refundRows = $this->db(0)->get_where(
+            'kas',
+            'id_client = ' . $pelanggan
+               . ' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3'
+               . " AND ref_transaksi IN ($idList)"
+               . " AND note LIKE 'Refund Instant #%'"
+         );
+         if (is_array($refundRows)) {
+            foreach ($refundRows as $rk) {
+               $rid = (int) ($rk['ref_transaksi'] ?? 0);
+               if ($rid > 0) {
+                  $refundedMap[$rid] = true;
+               }
+            }
+         }
+      }
+
+      $out = [];
+      foreach ($rows as $r) {
+         $idReq = (int) ($r['id_request'] ?? 0);
+         $catatanBatal = (string) ($r['catatan_batal'] ?? '');
+         $refunded = !empty($refundedMap[$idReq])
+            || (stripos($catatanBatal, 'Saldo Deposit') !== false);
+         $out[] = [
+            'id_request' => $idReq,
+            'jenis' => (string) ($r['jenis'] ?? ''),
+            'layanan' => (string) ($r['layanan'] ?? 'sameday'),
+            'delivery_status' => (string) ($r['delivery_status'] ?? ''),
+            'insertTime' => (string) ($r['insertTime'] ?? ''),
+            'selesaiTime' => (string) ($r['selesaiTime'] ?? ''),
+            'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
+            'ongkir' => isset($r['ongkir']) ? (int) $r['ongkir'] : null,
+            'courier_name' => (string) ($r['courier_name'] ?? ''),
+            'biteship_status' => (string) ($r['biteship_status'] ?? ''),
+            'tracking_url' => (string) ($r['tracking_url'] ?? ''),
+            'catatan_batal' => $catatanBatal,
+            'refunded' => $refunded,
          ];
       }
       return $out;
