@@ -205,64 +205,59 @@ $totalTerima = 0;
                       $totalDapat += $bonus;
                     }
                   }
-
-                  $totalTerima = 0;
-                  foreach ($data['kinerja']['terima'] as $a) {
-                    if ($uc['id_user'] == $a['id_user']) {
-                      $totalTerima = $totalTerima + $a['terima'];
-                    }
-                  }
-
-                  $feeTerima = (int) ($pengali_ref[1] ?? 0);
-
-                  $totalFeeTerima = $totalTerima * $feeTerima;
-
-
-                  echo "<tr>";
-                  echo "<td nowrap><small>Laundry</small><br>Terima</td>";
-                  echo "<td class='text-right'><small>Qty</small><br>" . $totalTerima . "</td>";
-                  echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeTerima) . "</td>";
-                  echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeTerima) . "</td>";
-                  echo "</tr>";
-
-                  if ($totalFeeTerima >= 0) {
-                    $totalDapat += $totalFeeTerima;
-                  }
-
-                  $totalKembali = 0;
-                  foreach ($data['kinerja']['kembali'] as $a) {
-                    if ($uc['id_user'] == $a['id_user_ambil']) {
-                      $totalKembali = $totalKembali + $a['kembali'];
-                    }
-                  }
-
-                  $feeKembali = (int) ($pengali_ref[2] ?? 0);
-
-                  $totalFeeKembali = $totalKembali * $feeKembali;
-                  echo "<tr>";
-                  echo "<td nowrap class=''><small>Laundry</small><br>Kembali</td>";
-                  echo "<td class='text-right'><small>Qty</small><br>" . $totalKembali . "</td>";
-                  echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeKembali) . "</td>";
-                  echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeKembali) . "</td>";
-                  echo "</tr>";
-
-                  if ($totalFeeKembali >= 0) {
-                    $totalDapat += $totalFeeKembali;
-                  }
                 }
               }
             }
 
-            $dataPengali = $data['data'];
-            if (count($dataPengali) > 0) {
-              $feePTotal = 0;
-              $dGajiHelper = $this->helper('D_Gaji');
-              $gajiYm = $currentYear . '-' . $currentMonth;
-              foreach ($dataPengali as $b) {
-                if ($b['id_karyawan'] == $id_user) {
+            // Terima / Kembali — selalu preview untuk karyawan terpilih
+            $totalTerima = 0;
+            foreach ($data['kinerja']['terima'] as $a) {
+              if ((int) $id_user === (int) $a['id_user']) {
+                $totalTerima = $totalTerima + $a['terima'];
+              }
+            }
+            $feeTerima = (int) ($pengali_ref[1] ?? 0);
+            $totalFeeTerima = $totalTerima * $feeTerima;
+            echo "<tr>";
+            echo "<td nowrap><small>Laundry</small><br>Terima</td>";
+            echo "<td class='text-right'><small>Qty</small><br>" . $totalTerima . "</td>";
+            echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeTerima) . "</td>";
+            echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeTerima) . "</td>";
+            echo "</tr>";
+            if ($totalFeeTerima >= 0) {
+              $totalDapat += $totalFeeTerima;
+            }
 
+            $totalKembali = 0;
+            foreach ($data['kinerja']['kembali'] as $a) {
+              if ((int) $id_user === (int) $a['id_user_ambil']) {
+                $totalKembali = $totalKembali + $a['kembali'];
+              }
+            }
+            $feeKembali = (int) ($pengali_ref[2] ?? 0);
+            $totalFeeKembali = $totalKembali * $feeKembali;
+            echo "<tr>";
+            echo "<td nowrap class=''><small>Laundry</small><br>Kembali</td>";
+            echo "<td class='text-right'><small>Qty</small><br>" . $totalKembali . "</td>";
+            echo "<td class='text-right'><small>Fee</small><br>Rp" . number_format($feeKembali) . "</td>";
+            echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($totalFeeKembali) . "</td>";
+            echo "</tr>";
+            if ($totalFeeKembali >= 0) {
+              $totalDapat += $totalFeeKembali;
+            }
+
+            // Pengali: data ditetapkan + preview absen (sebelum Tetapkan)
+            $dGajiHelper = $this->helper('D_Gaji');
+            $gajiYm = $currentYear . '-' . $currentMonth;
+            $pengaliRows = $dGajiHelper->mergePengaliPreviewRows(
+              is_array($data['data']) ? $data['data'] : [],
+              (int) $id_user,
+              $gajiYm
+            );
+            foreach ($pengaliRows as $b) {
                   $idPengali = (int) $b['id_pengali'];
-                  $idPengaliData = $b['id_pengali_data'];
+                  $idPengaliData = (int) ($b['id_pengali_data'] ?? 0);
+                  $isPreview = !empty($b['is_preview']);
 
                   $pengaliJenis = "";
                   foreach ($pengali_list as $pl) {
@@ -270,6 +265,13 @@ $totalTerima = 0;
                       $pengaliJenis = $pl['pengali_jenis'];
                     }
                   }
+
+                  $qtyCell = function ($qty) use ($isPreview, $idPengaliData) {
+                    if ($isPreview || $idPengaliData < 1) {
+                      return (int) $qty . "<br><small class='text-muted'>preview</small>";
+                    }
+                    return "<span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . (int) $qty . "</span>";
+                  };
 
                   if ($idPengali === 5) {
                     $malam = $dGajiHelper->hitungJumlahGajiMalam((int) $id_user, $gajiYm);
@@ -290,10 +292,8 @@ $totalTerima = 0;
                     }
                     $sumber = ($feeKaryawan > 0 && $feeKaryawan >= $feeP) ? 'karyawan' : 'global';
                     echo "<tr>";
-                    echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . "</td>";
-                    echo "<td class='text-right'><small>Qty</small><br>
-                    <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
-                    </td>";
+                    echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . ($isPreview ? " <small class='text-muted'>(preview)</small>" : "") . "</td>";
+                    echo "<td class='text-right'><small>Qty</small><br>" . $qtyCell($qty) . "</td>";
                     echo "<td class='text-right'><small>Fee efektif</small><br>Rp" . number_format($feeP) . "
                     <br><small>Karyawan</small><br>Rp
                     <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='5' data-id_karyawan='" . (int) $id_user . "' data-id_edit='" . $id_gp . "'>" . $feeKaryawan . "</span>
@@ -323,10 +323,8 @@ $totalTerima = 0;
                     }
                     $sumber = ($feeKaryawan > 0 && $feeKaryawan >= $feeP) ? 'karyawan' : 'global';
                     echo "<tr>";
-                    echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . "</td>";
-                    echo "<td class='text-right'><small>Qty</small><br>
-                    <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
-                    </td>";
+                    echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . ($isPreview ? " <small class='text-muted'>(preview)</small>" : "") . "</td>";
+                    echo "<td class='text-right'><small>Qty</small><br>" . $qtyCell($qty) . "</td>";
                     echo "<td class='text-right'><small>Fee efektif</small><br>Rp" . number_format($feeP) . "
                     <br><small>Karyawan</small><br>Rp
                     <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='6' data-id_karyawan='" . (int) $id_user . "' data-id_edit='" . $id_gp . "'>" . $feeKaryawan . "</span>
@@ -345,27 +343,19 @@ $totalTerima = 0;
                     $id_gp = 0;
                   }
 
-                  $qty = $b['qty'];
+                  $qty = (int) $b['qty'];
                   $feePTotal = $qty * $feeP;
 
                   echo "<tr>";
-                  echo "<td nowrap class=''><small>Laundry</small><br>" . $pengaliJenis . "</td>";
-                  echo "<td class='text-right'><small>Qty</small><br>
-                  
-                  <span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . $qty . "</span>
-
-                  </td>";
+                  echo "<td nowrap class=''><small>Laundry</small><br>" . htmlspecialchars($pengaliJenis) . ($isPreview ? " <small class='text-muted'>(preview)</small>" : "") . "</td>";
+                  echo "<td class='text-right'><small>Qty</small><br>" . $qtyCell($qty) . "</td>";
                   echo "<td class='text-right'><small>Fee</small><br>Rp
-              
-              <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_edit='" . $id_gp . "'>" . $feeP . "</span>
-    
+              <span class='edit' data-table='gaji_pengali' data-col='gaji_pengali' data-id_pengali='" . $idPengali . "' data-id_karyawan='" . (int) $id_user . "' data-id_edit='" . $id_gp . "'>" . $feeP . "</span>
               </td>";
                   echo "<td class='text-right'><small>Total</small><br>Rp" . number_format($feePTotal) . "</td>";
                   echo "</tr>";
 
                   $totalDapat += $feePTotal;
-                }
-              }
             }
 
             //POTONGAN

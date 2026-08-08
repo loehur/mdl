@@ -641,6 +641,109 @@ class D_Gaji extends Controller
     }
 
     /**
+     * Qty absen untuk preview/penetapan pengali (exclude cabang training).
+     *
+     * @return array{cuci:int,malam:int,harian:int}
+     */
+    public function countAbsenPengali(int $id_user, string $dateYm): array
+    {
+        $id_user = (int) $id_user;
+        $dateYm = substr((string) $dateYm, 0, 7);
+        $empty = ['cuci' => 0, 'malam' => 0, 'harian' => 0];
+        if ($id_user < 1 || !preg_match('/^\d{4}-\d{2}$/', $dateYm)) {
+            return $empty;
+        }
+
+        $exTrain = $this->sqlExcludeTrainingCabang('id_cabang');
+        $dateEsc = $this->db(0)->escape($dateYm);
+        $rows = $this->db(0)->query_array(
+            "SELECT
+                CASE
+                    WHEN jenis = 0 THEN 'cuci'
+                    WHEN jenis = 1 THEN 'malam'
+                    WHEN jenis IN (2, 3) THEN 'harian'
+                    ELSE 'lain'
+                END AS tipe,
+                COUNT(*) AS qty
+             FROM absen
+             WHERE {$exTrain}id_karyawan = $id_user
+               AND tanggal LIKE '{$dateEsc}%'
+             GROUP BY CASE
+                    WHEN jenis = 0 THEN 'cuci'
+                    WHEN jenis = 1 THEN 'malam'
+                    WHEN jenis IN (2, 3) THEN 'harian'
+                    ELSE 'lain'
+                END"
+        );
+        if (!is_array($rows)) {
+            return $empty;
+        }
+        foreach ($rows as $row) {
+            $tipe = $row['tipe'] ?? '';
+            if (isset($empty[$tipe])) {
+                $empty[$tipe] = (int) ($row['qty'] ?? 0);
+            }
+        }
+        return $empty;
+    }
+
+    /**
+     * Baris gaji_pengali_data + preview absen (malam/cuci/harian/tunjangan) jika belum ditetapkan.
+     *
+     * @param array $dataPengali rows gaji_pengali_data
+     * @return list<array{id_karyawan:int,id_pengali:int,qty:int,id_pengali_data:int,is_preview:bool}>
+     */
+    public function mergePengaliPreviewRows(array $dataPengali, int $id_user, string $dateYm): array
+    {
+        $id_user = (int) $id_user;
+        $rows = [];
+        $shown = [];
+        foreach ($dataPengali as $b) {
+            if ((int) ($b['id_karyawan'] ?? 0) !== $id_user) {
+                continue;
+            }
+            $idPengali = (int) ($b['id_pengali'] ?? 0);
+            $shown[$idPengali] = true;
+            $rows[] = [
+                'id_karyawan' => $id_user,
+                'id_pengali' => $idPengali,
+                'qty' => (int) ($b['qty'] ?? 0),
+                'id_pengali_data' => (int) ($b['id_pengali_data'] ?? 0),
+                'is_preview' => false,
+            ];
+        }
+
+        if ($id_user < 1) {
+            return $rows;
+        }
+
+        $absen = $this->countAbsenPengali($id_user, $dateYm);
+        $previewMap = [
+            6 => (int) ($absen['cuci'] ?? 0),
+            5 => (int) ($absen['malam'] ?? 0),
+            3 => (int) ($absen['harian'] ?? 0),
+            4 => 1, // tunjangan bulanan — selalu preview sebelum tetapkan
+        ];
+        foreach ($previewMap as $idPengali => $qty) {
+            if (isset($shown[$idPengali])) {
+                continue;
+            }
+            if ($idPengali !== 4 && $qty < 1) {
+                continue;
+            }
+            $rows[] = [
+                'id_karyawan' => $id_user,
+                'id_pengali' => $idPengali,
+                'qty' => $qty,
+                'id_pengali_data' => 0,
+                'is_preview' => true,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * Hitung qty & jumlah gaji jaga malam dari absen (group by id_cabang)
      * × max(fee snapshot cabang, fee karyawan id_pengali=5).
      *
