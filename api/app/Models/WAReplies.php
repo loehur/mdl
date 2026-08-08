@@ -132,12 +132,12 @@ class WAReplies
     }
 
     /**
-     * Durasi cooldown per handler (menit). Default 1; jam operasional/tutup = 60.
+     * Durasi cooldown per handler (menit). Default 1; jam operasional/tutup & minta jemput/antar = 60.
      */
     private function getAutoreplyCooldownMinutes(string $handler): int
     {
         $h = strtoupper($handler);
-        if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
+        if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP' || $h === 'MINTA_JEMPUT_ANTAR') {
             return 60;
         }
 
