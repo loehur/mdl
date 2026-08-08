@@ -62,10 +62,17 @@ class Gaji extends Controller
 
    public function set_harian_tunjangan()
    {
-      $id_pengali = $_POST['pengali'];
+      $id_pengali = (int) $_POST['pengali'];
       $id_user = $_POST['id_user'];
       $tgl = $_POST['tgl'];
-      $qty = $_POST['qty'];
+      $qty = (int) $_POST['qty'];
+      // Tunjangan bulanan: qty maksimal 1
+      if ($id_pengali === 4) {
+         $qty = 1;
+      }
+      if ($qty < 1) {
+         $qty = 1;
+      }
       $data = [
          'id_karyawan' => $id_user,
          'id_pengali' => $id_pengali,
@@ -112,7 +119,14 @@ class Gaji extends Controller
       $where = "";
       switch ($table) {
          case 'gaji_pengali_data':
-            $where = "id_pengali_data = " . $id;
+            $where = "id_pengali_data = " . (int) $id;
+            // Tunjangan bulanan (id_pengali=4): qty maksimal 1
+            if ($col === 'qty') {
+               $row = $this->db(0)->get_where_row('gaji_pengali_data', $where);
+               if (is_array($row) && (int) ($row['id_pengali'] ?? 0) === 4) {
+                  $value = 1;
+               }
+            }
             break;
       }
 

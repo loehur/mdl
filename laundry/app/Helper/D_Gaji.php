@@ -425,7 +425,10 @@ class D_Gaji extends Controller
                             } else {
                                 $feeP = 0;
                             }
-                            $qty = $b['qty'];
+                            $qty = (int) $b['qty'];
+                            if ($idPengali === 4) {
+                                $qty = 1; // Tunjangan: qty maksimal 1
+                            }
                             $feePTotal = $qty * $feeP;
                         }
 
@@ -704,10 +707,14 @@ class D_Gaji extends Controller
             }
             $idPengali = (int) ($b['id_pengali'] ?? 0);
             $shown[$idPengali] = true;
+            $qtyRow = (int) ($b['qty'] ?? 0);
+            if ($idPengali === 4) {
+                $qtyRow = 1; // Tunjangan: qty maksimal 1
+            }
             $rows[] = [
                 'id_karyawan' => $id_user,
                 'id_pengali' => $idPengali,
-                'qty' => (int) ($b['qty'] ?? 0),
+                'qty' => $qtyRow,
                 'id_pengali_data' => (int) ($b['id_pengali_data'] ?? 0),
                 'is_preview' => false,
             ];

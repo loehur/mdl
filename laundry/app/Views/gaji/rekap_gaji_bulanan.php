@@ -266,7 +266,12 @@ $totalTerima = 0;
                     }
                   }
 
-                  $qtyCell = function ($qty) use ($isPreview, $idPengaliData) {
+                  $qtyCell = function ($qty) use ($isPreview, $idPengaliData, $idPengali) {
+                    // Tunjangan: qty tetap 1, tidak diedit
+                    if ($idPengali === 4) {
+                      $label = $isPreview ? "<br><small class='text-muted'>preview</small>" : "";
+                      return "1" . $label;
+                    }
                     if ($isPreview || $idPengaliData < 1) {
                       return (int) $qty . "<br><small class='text-muted'>preview</small>";
                     }
@@ -344,6 +349,9 @@ $totalTerima = 0;
                   }
 
                   $qty = (int) $b['qty'];
+                  if ($idPengali === 4) {
+                    $qty = 1; // Tunjangan: qty maksimal 1
+                  }
                   $feePTotal = $qty * $feeP;
 
                   echo "<tr>";
@@ -517,7 +525,8 @@ $totalTerima = 0;
             <input name='tgl' type="hidden" value="<?= $currentYear . "-" . $currentMonth ?>" />
             <div class="form-group">
               <label for="exampleInputEmail1">Qty (Banyak)</label>
-              <input type="number" name="qty" min="1" class="form-control" id="exampleInputEmail1" value="1" required>
+              <input type="number" name="qty" min="1" class="form-control" id="qtyPengaliInput" value="1" required>
+              <small class="text-muted" id="qtyTunjanganHint" style="display:none">Tunjangan: qty maksimal 1</small>
             </div>
             <div class="modal-footer">
               <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
@@ -554,6 +563,23 @@ $totalTerima = 0;
     var t = new bootstrap.Toast(toastEl, { delay: 4500 });
     t.show();
   }
+
+  function syncQtyTunjanganLock() {
+    var sel = $('#exampleModal2 select[name="pengali"]');
+    var inp = $('#qtyPengaliInput');
+    var hint = $('#qtyTunjanganHint');
+    if (!sel.length || !inp.length) return;
+    if (String(sel.val()) === '4') {
+      inp.val(1).prop('max', 1).prop('readonly', true);
+      hint.show();
+    } else {
+      inp.prop('max', null).prop('readonly', false);
+      hint.hide();
+    }
+  }
+  $('#exampleModal2 select[name="pengali"]').on('change', syncQtyTunjanganLock);
+  $('#exampleModal2').on('shown.bs.modal', syncQtyTunjanganLock);
+  syncQtyTunjanganLock();
 
   $("form.jq").on("submit", function(e) {
     e.preventDefault();
