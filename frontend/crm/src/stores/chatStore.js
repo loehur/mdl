@@ -8,6 +8,45 @@ import { ref, computed } from "vue";
 // API Configuration
 // ============================================================================
 export const API_BASE = "https://api.nalju.com";
+export const LAUNDRY_BASE = "https://ml.nalju.com";
+
+/**
+ * Load quick replies from laundry public GET endpoints (rekening + lokasi).
+ * Returns [{ id, shortcut, title, message }, ...]
+ */
+export async function loadQuickRepliesFromLaundry() {
+  const [rekeningRes, lokasiRes] = await Promise.all([
+    fetch(`${LAUNDRY_BASE}/Get/rekening`).then((r) => r.json()),
+    fetch(`${LAUNDRY_BASE}/Get/lokasi`).then((r) => r.json()),
+  ]);
+
+  const list = [];
+  let id = 1;
+
+  if (rekeningRes?.ok && rekeningRes.message) {
+    list.push({
+      id: id++,
+      shortcut: "/rekening",
+      title: "Rekening Pembayaran",
+      message: rekeningRes.message,
+    });
+  }
+
+  if (lokasiRes?.ok && Array.isArray(lokasiRes.data)) {
+    for (const cabang of lokasiRes.data) {
+      const kode = String(cabang.kode_cabang || "").trim();
+      if (!kode || !cabang.maps_url) continue;
+      list.push({
+        id: id++,
+        shortcut: `/${kode.toLowerCase()}-location`,
+        title: `Lokasi MDL ${kode.toUpperCase()}`,
+        message: cabang.maps_url,
+      });
+    }
+  }
+
+  return list;
+}
 
 // ============================================================================
 // Authentication State

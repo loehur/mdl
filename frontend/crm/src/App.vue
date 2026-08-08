@@ -32,6 +32,7 @@ const scheduleResumeReconnect = (delayMs = 400) => {
 import {
   // API
   API_BASE,
+  loadQuickRepliesFromLaundry,
   // Auth
   authId, currentUserRole, userName, senderCode,
   isConnected, isConnecting, connectionError,
@@ -2064,10 +2065,9 @@ const fetchQuickReplies = async () => {
 
   isLoadingQuickReplies.value = true;
   try {
-    const response = await fetch(`${API_BASE}/CRM/QuickReply/getAll`);
-    const res = await response.json();
-    if (res.status && res.data) {
-      quickReplies.value = res.data;
+    const list = await loadQuickRepliesFromLaundry();
+    if (list.length > 0) {
+      quickReplies.value = list;
     }
   } catch (e) {
     console.error("Failed to load quick replies:", e);

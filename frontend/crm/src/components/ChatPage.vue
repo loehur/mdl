@@ -3,7 +3,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -737,14 +737,14 @@ watch(messageInput, (newVal) => {
   }
 });
 
-// Fetch quick replies from API
+// Fetch quick replies from laundry
 const fetchQuickReplies = async () => {
   if (isLoadingQuickReplies.value) return;
   isLoadingQuickReplies.value = true;
   try {
-    const res = await fetch(`${props.API_BASE}/CRM/QuickReply/getAll`).then(r => r.json());
-    if (res.status && res.data) {
-      quickReplies.value = res.data;
+    const list = await loadQuickRepliesFromLaundry();
+    if (list.length > 0) {
+      quickReplies.value = list;
     }
   } catch (e) {
     console.error("Failed to load quick replies:", e);
@@ -835,12 +835,10 @@ onMounted(() => {
       }
     }
     
-    // Load Quick Replies - simple fetch
-    if(props.API_BASE) {
-        fetch(`${props.API_BASE}/CRM/QuickReply/getAll`).then(r=>r.json()).then(res => {
-            if(res.status) quickReplies.value = res.data;
-        }).catch(e=>{});
-    }
+    // Load Quick Replies from laundry
+    loadQuickRepliesFromLaundry().then((list) => {
+      if (list.length > 0) quickReplies.value = list;
+    }).catch(() => {});
     
     // Click outside handler to close dropdown menus
     document.addEventListener('click', handleClickOutside);
