@@ -51,6 +51,7 @@ import AppLayout from "./views/AppLayout.vue";
 import Dashboard from "./views/Dashboard.vue";
 import CreateInvoice from "./views/CreateInvoice.vue";
 import History from "./views/History.vue";
+import Berjalan from "./views/Berjalan.vue";
 import InvoiceDetail from "./views/InvoiceDetail.vue";
 import PublicInvoice from "./views/PublicInvoice.vue";
 import Customers from "./views/Customers.vue";
@@ -69,6 +70,7 @@ const router = createRouter({
       component: AppLayout,
       children: [
         { path: "dashboard", component: Dashboard },
+        { path: "berjalan", component: Berjalan },
         { path: "buat", component: CreateInvoice },
         { path: "edit/:id", component: CreateInvoice },
         { path: "riwayat", component: History },

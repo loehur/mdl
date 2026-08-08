@@ -1198,19 +1198,46 @@
     setMapHint(reason || ('Default: ' + kota + ' — klik/geser pin'));
   }
 
+  var KURIR_GPS_BTN_HTML = '<i class="fas fa-location-arrow"></i> Titik saya';
+
+  function setKurirGpsBtnLoading(on) {
+    var btn = document.getElementById('jBtnLokasiGps');
+    if (!btn) return;
+    if (on) {
+      if (!btn.dataset.minW) btn.dataset.minW = String(btn.offsetWidth || 0);
+      if (btn.dataset.minW && Number(btn.dataset.minW) > 0) {
+        btn.style.minWidth = btn.dataset.minW + 'px';
+      }
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';
+      return;
+    }
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.style.minWidth = '';
+    btn.innerHTML = KURIR_GPS_BTN_HTML;
+  }
+
   function initKurirMapThenLocate() {
+    var btn = document.getElementById('jBtnLokasiGps');
+    if (btn && btn.disabled) return;
+    setKurirGpsBtnLoading(true);
     useDefaultMapPoint('Mencari titik Anda…');
     if (!navigator.geolocation) {
       useDefaultMapPoint('GPS tidak tersedia · default kota cabang');
+      setKurirGpsBtnLoading(false);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       function (pos) {
         ensureKurirMap(pos.coords.latitude, pos.coords.longitude);
         setMapHint('Titik saat ini — klik/geser pin jika perlu');
+        setKurirGpsBtnLoading(false);
       },
       function () {
         useDefaultMapPoint('Izin lokasi ditolak · default kota cabang');
+        setKurirGpsBtnLoading(false);
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );

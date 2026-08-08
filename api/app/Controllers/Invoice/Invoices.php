@@ -9,34 +9,64 @@ class Invoices extends InvoiceController
         $this->verifyAuth();
         $userId = (int) $this->currentUser()['id'];
 
-        $month = $_GET['month'] ?? date('Y-m');
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $this->error('Format month tidak valid (YYYY-MM)', 400);
+        $all = in_array(strtolower(trim((string) ($_GET['all'] ?? ''))), ['1', 'true', 'yes'], true);
+        $month = trim((string) ($_GET['month'] ?? ''));
+        if (!$all) {
+            if ($month === '') {
+                $month = date('Y-m');
+            }
+            if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+                $this->error('Format month tidak valid (YYYY-MM)', 400);
+            }
         }
 
         $status = trim($_GET['status'] ?? '');
+        $today = date('Y-m-d');
 
         try {
             $sql = "SELECT id, invoice_number, public_token, title, customer_name, total,
                            payment_status, status, issue_date, due_date, created_at
                     FROM invoices
-                    WHERE user_id = ? AND DATE_FORMAT(issue_date, '%Y-%m') = ?";
-            $bind = [$userId, $month];
+                    WHERE user_id = ?";
+            $bind = [$userId];
+
+            if (!$all) {
+                $sql .= " AND DATE_FORMAT(issue_date, '%Y-%m') = ?";
+                $bind[] = $month;
+            }
 
             if ($status === 'paid') {
                 $sql .= " AND payment_status = 'paid'";
             } elseif ($status === 'unpaid') {
                 $sql .= " AND payment_status != 'paid' AND status != 'cancelled'";
+            } elseif ($status === 'current') {
+                // Belum bayar dan belum lewat jatuh tempo
+                $sql .= " AND payment_status != 'paid'
+                          AND status != 'cancelled'
+                          AND (due_date IS NULL OR due_date >= ?)";
+                $bind[] = $today;
+            } elseif ($status === 'overdue') {
+                // Telat bayar: lewat jatuh tempo
+                $sql .= " AND payment_status != 'paid'
+                          AND status != 'cancelled'
+                          AND due_date IS NOT NULL
+                          AND due_date < ?";
+                $bind[] = $today;
             } elseif ($status === 'cancelled') {
                 $sql .= " AND status = 'cancelled'";
             }
 
-            $sql .= " ORDER BY created_at DESC";
+            if ($status === 'overdue') {
+                $sql .= " ORDER BY due_date ASC, id ASC";
+            } else {
+                $sql .= " ORDER BY created_at DESC";
+            }
 
             $rows = $this->db($this->db_index)->query($sql, $bind)->result_array();
 
             $this->success([
-                'month' => $month,
+                'month' => $all ? null : $month,
+                'all' => $all,
                 'invoices' => $rows,
             ], 'Daftar invoice');
         } catch (\Throwable $e) {

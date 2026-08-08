@@ -60,6 +60,12 @@ const IconHome = () =>
     h("path", { d: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z", strokeLinejoin: "round" }),
   ]);
 
+const IconBerjalan = () =>
+  h("svg", iconProps, [
+    h("circle", { cx: "12", cy: "12", r: "9" }),
+    h("path", { d: "M12 7v5l3 2", strokeLinecap: "round", strokeLinejoin: "round" }),
+  ]);
+
 const IconCreate = () =>
   h("svg", iconProps, [
     h("path", { d: "M12 5v14M5 12h14", strokeLinecap: "round" }),
@@ -92,6 +98,7 @@ const IconLangganan = () =>
 
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
+  { path: "/berjalan", label: "Berjalan", icon: IconBerjalan },
   { path: "/buat", label: "Buat", icon: IconCreate },
   { path: "/pelanggan", label: "Pelanggan", icon: IconCustomers },
   { path: "/langganan", label: "Langganan", icon: IconLangganan },
@@ -100,6 +107,7 @@ const navItems = [
 
 const titles = {
   "/dashboard": "Overview",
+  "/berjalan": "Berjalan",
   "/buat": "Buat Invoice",
   "/pelanggan": "Pelanggan",
   "/pelanggan/buat": "Tambah Pelanggan",
@@ -109,6 +117,7 @@ const titles = {
 };
 
 function isNavActive(path, itemPath) {
+  if (itemPath === "/berjalan") return path === "/berjalan" || path.startsWith("/berjalan");
   if (path === itemPath) return true;
   if (itemPath === "/riwayat" && (path.startsWith("/detail") || path.startsWith("/edit"))) return true;
   if (itemPath === "/pelanggan" && path.startsWith("/pelanggan")) return true;

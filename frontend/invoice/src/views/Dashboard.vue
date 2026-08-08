@@ -16,11 +16,11 @@
           <p class="label-caps">Sudah Dibayar</p>
           <p class="money-display-sm mt-2 text-credit-dim">Rp {{ formatRupiah(summary.paid_amount) }}</p>
         </div>
-        <div class="stat-tile">
+        <router-link to="/berjalan?filter=belum" class="stat-tile block transition hover:border-ledger/30">
           <p class="label-caps">Belum Dibayar</p>
           <p class="money-display-sm mt-2 text-debit-dim">Rp {{ formatRupiah(summary.unpaid_amount) }}</p>
-        </div>
-        <div class="stat-tile col-span-2">
+        </router-link>
+        <router-link to="/berjalan?filter=telat" class="stat-tile col-span-2 block transition hover:border-debit-dim/30">
           <p class="label-caps">Lewat Jatuh Tempo</p>
           <div class="mt-2 flex items-end justify-between gap-3">
             <p class="money-display-sm text-debit-dim">{{ summary.overdue_count || 0 }}</p>
@@ -28,7 +28,7 @@
               Rp {{ formatRupiah(summary.overdue_amount) }}
             </p>
           </div>
-        </div>
+        </router-link>
       </div>
 
       <div class="flex gap-3">
@@ -39,7 +39,9 @@
       <section v-if="summary.overdue?.length" class="glass-strong border border-debit-dim/20 p-3.5">
         <div class="mb-2.5 flex items-center justify-between gap-3">
           <h2 class="section-title text-debit-dim">Lewat Jatuh Tempo</h2>
-          <span class="chip chip-out">{{ summary.overdue.length }}</span>
+          <router-link to="/berjalan?filter=telat" class="chip chip-out">
+            Lihat semua
+          </router-link>
         </div>
 
         <div class="space-y-3">
