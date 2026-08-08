@@ -25,7 +25,6 @@ class Absen extends Controller
 
       $tgl_kemarin = date('Y-m-d', strtotime("-1 day"));
       $data['kemarin'] = $this->db(0)->get_where('absen', 'id_cabang = ' . $_SESSION[URL::SESSID]['user']['id_cabang'] . " AND tanggal LIKE '" . $tgl_kemarin . "%'");
-      $data['isAdmin'] = ((int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0) === 100);
 
       $this->view($viewData, $data);
    }
@@ -34,12 +33,8 @@ class Absen extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
 
-      if ((int) ($_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0) !== 100) {
-         echo json_encode(['code' => 0, 'msg' => 'GAGAL - HANYA ADMIN YANG BOLEH MENGHAPUS ABSEN']);
-         exit;
-      }
-
       $id = (int) ($_POST['id'] ?? 0);
+      $accessKey = $_POST['access_key'] ?? '';
       if ($id <= 0) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - ID ABSEN TIDAK VALID']);
          exit;
@@ -49,6 +44,24 @@ class Absen extends Controller
       $row = $this->db(0)->get_where_row('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang);
       if (!$row || empty($row['id'])) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - DATA ABSEN TIDAK DITEMUKAN']);
+         exit;
+      }
+
+      $tglAbsen = substr(trim((string) ($row['tanggal'] ?? '')), 0, 10);
+      $hariIni = date('Y-m-d');
+      $kemarin = date('Y-m-d', strtotime('-1 day'));
+      if ($tglAbsen !== $hariIni && $tglAbsen !== $kemarin) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - HANYA ABSEN HARI INI ATAU KEMARIN YANG BOLEH DIHAPUS']);
+         exit;
+      }
+      if (date('Y-m', strtotime($tglAbsen)) !== date('Y-m')) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - HAPUS ABSEN HANYA UNTUK BULAN INI']);
+         exit;
+      }
+
+      $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
+      if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - ACCESS KEY TIDAK COCOK DENGAN KARYAWAN YANG ABSEN']);
          exit;
       }
 

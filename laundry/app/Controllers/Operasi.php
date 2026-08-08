@@ -371,15 +371,9 @@ class Operasi extends Controller
 
    public function ganti_operasi()
    {
-      // Hanya admin (privilege 100) yang boleh ubah/kosongkan penyelesai
-      $priv = (int) ($this->id_privilege ?? $_SESSION[URL::SESSID]['user']['id_privilege'] ?? 0);
-      if ($priv !== 100) {
-         echo 'Unauthorized: Hanya admin yang dapat mengubah penyelesai.';
-         return;
-      }
-
       $karyawan = $_POST['f1'] ?? '';
       $id = $_POST['id'] ?? '';
+      $accessKey = $_POST['access_key'] ?? '';
 
       // id_operasi bisa alfanumerik (mis. 51681407012 atau A168070), harus di-quote agar tidak error "Truncated incorrect DOUBLE value"
       $idEsc = $this->db(0)->escape(trim((string) $id));
@@ -388,6 +382,13 @@ class Operasi extends Controller
       $row = $this->db(0)->get_where_row('operasi', $where);
       if (!isset($row['id_operasi'])) {
          echo 'Data operasi tidak ditemukan.';
+         return;
+      }
+
+      // Wajib Access Key milik penyelesai sebelumnya
+      $prevId = (int) ($row['id_user_operasi'] ?? 0);
+      if (!$this->helper('User')->by_id_access_key($prevId, $accessKey)) {
+         echo 'Access Key tidak cocok dengan penyelesai sebelumnya.';
          return;
       }
 

@@ -138,6 +138,22 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       text-transform: uppercase;
       color: var(--abs-muted);
     }
+    #absen-root .absen-input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--abs-line);
+      background: #fff;
+      color: var(--abs-ink);
+      font-weight: 800;
+      min-height: 42px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    #absen-root .absen-input:focus {
+      border-color: var(--abs-blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    }
     #absen-root .absen-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -627,13 +643,18 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       <div class="absen-modal__body">
         <div class="absen-modal__warn">
           <i class="fas fa-exclamation-triangle"></i>
-          Data absen akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+          Data absen akan dihapus permanen. Tindakan ini tidak dapat dibatalkan. Wajib Access Key karyawan yang absen; hanya hari ini/kemarin dalam bulan ini.
         </div>
         <div class="absen-summary">
           <div><span>ID</span><strong id="hapus_absen_id">-</strong></div>
           <div><span>Nama Karyawan</span><strong id="hapus_absen_nama">-</strong></div>
           <div><span>Tugas</span><strong id="hapus_absen_tugas">-</strong></div>
           <div><span>Tanggal / Jam</span><strong id="hapus_absen_waktu">-</strong></div>
+        </div>
+        <div class="absen-field" style="margin-top:12px;">
+          <label class="absen-label" for="hapusAbsenAccessKey">Access Key karyawan yang absen</label>
+          <input type="password" class="absen-input" name="access_key" id="hapusAbsenAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik <span id="hapusAbsenKeyHint" style="color:#dc2626;font-weight:600;"></span>.</small>
         </div>
       </div>
       <div class="absen-modal__foot">
@@ -680,6 +701,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
   function closeHapus() {
     $modalHapus.removeClass('is-open').attr('aria-hidden', 'true');
     hapusAbsenId = 0;
+    $('#hapusAbsenAccessKey').val('');
     syncBodyLock();
   }
 
@@ -779,15 +801,23 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     var $btn = $(this);
     hapusAbsenId = parseInt($btn.attr('data-id'), 10) || 0;
     if (!hapusAbsenId) return;
+    var nama = $btn.attr('data-nama') || '-';
     $('#hapus_absen_id').text('#' + hapusAbsenId);
-    $('#hapus_absen_nama').text($btn.attr('data-nama') || '-');
+    $('#hapus_absen_nama').text(nama);
     $('#hapus_absen_tugas').text($btn.attr('data-tugas') || '-');
     $('#hapus_absen_waktu').text(($btn.attr('data-tanggal') || '-') + ' / ' + ($btn.attr('data-jam') || '-'));
+    $('#hapusAbsenKeyHint').text(nama);
+    $('#hapusAbsenAccessKey').val('');
     openHapus();
   });
 
   $('#btnKonfirmasiHapusAbsen').on('click', function () {
     if (!hapusAbsenId) return;
+    var accessKey = String($('#hapusAbsenAccessKey').val() || '').trim();
+    if (!/^\d{4}$/.test(accessKey)) {
+      showInfo('Access Key karyawan yang absen wajib 4 digit', false);
+      return;
+    }
     var $btn = $(this);
     var oldHtml = $btn.html();
     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menghapus...');
@@ -797,7 +827,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       url: '<?= URL::BASE_URL ?>Absen/hapus',
       type: 'POST',
       dataType: 'json',
-      data: { id: hapusAbsenId },
+      data: { id: hapusAbsenId, access_key: accessKey },
       success: function (res) {
         closeHapus();
         if (res && res.code == 1) {

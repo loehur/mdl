@@ -696,13 +696,14 @@
 
     // Guard form Ubah Penyelesai
     if ($(this).find("#modalGanti").length) {
-      if (parseInt(window.MDL_PRIVILEGE || "0", 10) !== 100) {
-        showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
-        return;
-      }
       var valGanti = String($(this).find("select[name='f1']").val() || "");
       var tuntasGanti = parseInt($(this).data("tuntas") || "0", 10);
       var bulanOk = parseInt($(this).data("bulanOk") || "0", 10) === 1;
+      var keyGanti = String($(this).find("input[name='access_key']").val() || "").trim();
+      if (!/^\d{4}$/.test(keyGanti)) {
+        showAlert("Access Key penyelesai sebelumnya wajib 4 digit.", "error");
+        return;
+      }
       if (valGanti === "0" || valGanti === "") {
         if (tuntasGanti === 1) {
           showAlert("Tidak dapat mengosongkan penyelesai: order sudah tuntas.", "error");
@@ -870,12 +871,8 @@
 
   $("span.gantiOperasi").on("click", function (e) {
     e.preventDefault();
-    if (parseInt(window.MDL_PRIVILEGE || "0", 10) !== 100) {
-      showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
-      return;
-    }
     if (!$("#modalGanti").length) {
-      showAlert("Hanya admin yang dapat mengubah penyelesai.", "error");
+      showAlert("Form ubah penyelesai tidak tersedia.", "error");
       return;
     }
     window.idNya = $(this).attr("data-id");
@@ -891,6 +888,8 @@
 
     $("input#id_ganti").val(window.idNya);
     $("span#awalOP").html(awal);
+    $("span#gantiAccessKeyHint").text(awal || "penyelesai sebelumnya");
+    $("input#gantiAccessKey").val("");
 
     var $formGanti = $("#modalGanti").closest("form");
     $formGanti.data("tuntas", tuntas);

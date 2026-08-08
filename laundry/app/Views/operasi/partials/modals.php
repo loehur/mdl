@@ -423,8 +423,7 @@
   </div>
 </form>
 
-<!-- Ubah Penyelesai (admin only) -->
-<?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
+<!-- Ubah Penyelesai (semua user; wajib Access Key penyelesai sebelumnya) -->
 <form class="operasi ajax" action="<?= URL::BASE_URL; ?>Operasi/ganti_operasi" method="POST">
   <div class="op-modal" id="modalGanti" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
@@ -432,7 +431,7 @@
       <div class="op-modal__head op-modal__head--red">
         <div>
           <h3 id="opGantiTitle">Ubah Penyelesai</h3>
-          <small>Ganti karyawan (hanya order bulan ini), atau Kosong jika belum tuntas</small>
+          <small>Ganti karyawan (hanya order bulan ini), atau Kosong jika belum tuntas. Wajib Access Key penyelesai sebelumnya.</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
@@ -457,6 +456,11 @@
           </select>
           <input type="hidden" id="id_ganti" name="id" required>
         </div>
+        <div class="op-field">
+          <label class="op-label" for="gantiAccessKey">Access Key penyelesai sebelumnya</label>
+          <input type="password" class="op-input" name="access_key" id="gantiAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
+          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik <span id="gantiAccessKeyHint" style="color:#dc2626;font-weight:600;"></span>.</small>
+        </div>
       </div>
       <div class="op-modal__foot">
         <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
@@ -465,7 +469,6 @@
     </div>
   </div>
 </form>
-<?php } ?>
 
 <!-- Ubah ke Member -->
 <div class="op-modal" id="modalUbahMember" aria-hidden="true">

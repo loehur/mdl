@@ -85,7 +85,7 @@ if (!function_exists('absen_jenis_label')) {
     font-size: 0.84rem;
     font-weight: 750;
   }
-  #absen-root .absen-list__row.is-admin {
+  #absen-root .absen-list__row.has-del {
     grid-template-columns: 52px 1.1fr 1fr 64px 36px;
   }
   #absen-root .absen-list__row:last-child { border-bottom: 0; }
@@ -149,7 +149,7 @@ if (!function_exists('absen_jenis_label')) {
         "id task time"
         "id name time";
     }
-    #absen-root .absen-list__row.is-admin {
+    #absen-root .absen-list__row.has-del {
       grid-template-columns: 44px 1fr 36px 56px;
       grid-template-areas:
         "id task del time"
@@ -164,7 +164,6 @@ if (!function_exists('absen_jenis_label')) {
 </style>
 
 <?php
-$isAdmin = !empty($data['isAdmin']);
 $lists = [
   ['key' => 'hari_ini', 'title' => 'Hari Ini', 'class' => 'absen-list--today', 'icon' => 'fa-calendar-day'],
   ['key' => 'kemarin', 'title' => 'Kemarin', 'class' => 'absen-list--yesterday', 'icon' => 'fa-calendar-minus'],
@@ -186,7 +185,7 @@ foreach ($lists as $list) {
       $nama = absen_nama_user($this->userMerge, $d['id_karyawan']);
       $meta = absen_jenis_label($d['jenis']);
   ?>
-    <div class="absen-list__row<?= $isAdmin ? ' is-admin' : '' ?>">
+    <div class="absen-list__row has-del">
       <div class="absen-list__id">#<?= (int) $d['id'] ?></div>
       <div class="absen-list__task is-<?= htmlspecialchars($meta[1]) ?>">
         <i class="fas <?= htmlspecialchars($meta[2]) ?>"></i>
@@ -194,18 +193,16 @@ foreach ($lists as $list) {
       </div>
       <div class="absen-list__name"><?= htmlspecialchars($nama) ?></div>
       <div class="absen-list__time"><i class="far fa-clock"></i> <?= htmlspecialchars((string) $d['jam']) ?></div>
-      <?php if ($isAdmin) { ?>
-        <button type="button"
-          class="absen-list__del btnHapusAbsen"
-          title="Hapus absen"
-          data-id="<?= (int) $d['id'] ?>"
-          data-nama="<?= htmlspecialchars($nama, ENT_QUOTES, 'UTF-8') ?>"
-          data-tugas="<?= htmlspecialchars($meta[0], ENT_QUOTES, 'UTF-8') ?>"
-          data-jam="<?= htmlspecialchars((string) $d['jam'], ENT_QUOTES, 'UTF-8') ?>"
-          data-tanggal="<?= htmlspecialchars((string) $d['tanggal'], ENT_QUOTES, 'UTF-8') ?>">
-          <i class="fas fa-trash-alt"></i>
-        </button>
-      <?php } ?>
+      <button type="button"
+        class="absen-list__del btnHapusAbsen"
+        title="Hapus absen"
+        data-id="<?= (int) $d['id'] ?>"
+        data-nama="<?= htmlspecialchars($nama, ENT_QUOTES, 'UTF-8') ?>"
+        data-tugas="<?= htmlspecialchars($meta[0], ENT_QUOTES, 'UTF-8') ?>"
+        data-jam="<?= htmlspecialchars((string) $d['jam'], ENT_QUOTES, 'UTF-8') ?>"
+        data-tanggal="<?= htmlspecialchars((string) $d['tanggal'], ENT_QUOTES, 'UTF-8') ?>">
+        <i class="fas fa-trash-alt"></i>
+      </button>
     </div>
   <?php }
   } ?>
