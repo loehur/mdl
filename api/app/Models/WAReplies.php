@@ -2041,22 +2041,62 @@ class WAReplies
 
     /**
      * Handle intent REKENING - balas data rekening pembayaran dan QRIS (customer bisa menyebut "barcode")
+     * Sumber: laundry GET /Get/rekening (URL::NON_TUNAI_GUIDE + QRIS)
      */
     private function handleRekening($phoneIn, $waNumber, $textBody = '')
     {
         $waService = $this->getWaService();
 
+        $rekeningBody = $this->fetchLaundryRekeningMessage();
         $text = "Berikut *Rekening Pembayaran* Madinah Laundry:\n\n" .
-            "QRIS\nhttps://ml.nalju.com/I/q\n\n" .
-            "BRI 327901031534535\n" .
-            "BCA 8455103793\n" .
-            "a.n. LUHUR GUNAWAN\n\n" .
+            $rekeningBody . "\n\n" .
             "Terima kasih 😊";
 
         $res = $waService->sendFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
+    }
+
+    /**
+     * Ambil teks rekening terformat dari laundry public endpoint.
+     */
+    private function fetchLaundryRekeningMessage(): string
+    {
+        $fallback =
+            "QRIS\nhttps://ml.nalju.com/I/q\n\n" .
+            "BCA (BANK CENTRAL ASIA)\n8455103793\n\n" .
+            "BRI (BANK RAKYAT INDONESIA)\n327901031534535\n\n" .
+            "an. LUHUR GUNAWAN";
+
+        $url = 'https://ml.nalju.com/Get/rekening';
+        try {
+            if (!function_exists('curl_init')) {
+                return $fallback;
+            }
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 5,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            ]);
+            $raw = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($raw === false || $code < 200 || $code >= 300) {
+                return $fallback;
+            }
+            $json = json_decode($raw, true);
+            if (!empty($json['ok']) && !empty($json['message']) && is_string($json['message'])) {
+                return trim($json['message']);
+            }
+        } catch (\Throwable $e) {
+            // keep fallback
+        }
+        return $fallback;
     }
 
     /**
