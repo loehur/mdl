@@ -797,14 +797,6 @@
       success: function (res) {
         if (res == 0) {
           var reloadAfterPay = function () {
-            try {
-              // Paksa tampil: saat timeout, offcanvas bisa masih ber-class "show"
-              $("#fabOperasiButtons").removeClass("is-fab-hidden");
-              if (typeof window.showFabOperasi === "function") {
-                window.showFabOperasi();
-              }
-            } catch (e) { }
-
             if (window.OpModal) {
               window.OpModal.closeAll();
             }

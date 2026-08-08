@@ -290,8 +290,9 @@ $modeOperasi = (int) $data['mode'];
     }
   }
 
+  /* FAB always visible; stay behind Order/Pay offcanvas + backdrop */
   #fabOperasiButtons {
-    z-index: 1020;
+    z-index: 1040;
     display: flex;
     gap: 8px;
     bottom: 20px;
@@ -319,7 +320,6 @@ $modeOperasi = (int) $data['mode'];
     background: linear-gradient(135deg, #22c55e, #16a34a);
     color: #fff;
   }
-  #fabOperasiButtons.is-fab-hidden { display: none !important; }
   #offcanvasBukaOrderOp,
   #offcanvasPayment { z-index: 1100 !important; }
   .offcanvas-backdrop { z-index: 1090 !important; }
@@ -563,32 +563,15 @@ $modeOperasi = (int) $data['mode'];
 <script>
   var orderLoaded = false;
   var offcanvasBukaOrderEl = document.getElementById('offcanvasBukaOrderOp');
-  var $fabOperasi = $('#fabOperasiButtons');
-
-  function hideFabOperasi() {
-      $fabOperasi.addClass('is-fab-hidden');
-  }
-  function showFabOperasi() {
-      var orderOpen = offcanvasBukaOrderEl && offcanvasBukaOrderEl.classList.contains('show');
-      var paymentEl = document.getElementById('offcanvasPayment');
-      var paymentOpen = paymentEl && paymentEl.classList.contains('show');
-      if (!orderOpen && !paymentOpen) {
-          $fabOperasi.removeClass('is-fab-hidden');
-      }
-  }
-  window.hideFabOperasi = hideFabOperasi;
-  window.showFabOperasi = showFabOperasi;
 
   if (offcanvasBukaOrderEl) {
       var bsOffcanvas = new bootstrap.Offcanvas(offcanvasBukaOrderEl);
 
       $('#btnBukaOrderOp').on('click', function() {
-          hideFabOperasi();
           bsOffcanvas.toggle();
       });
 
       offcanvasBukaOrderEl.addEventListener('show.bs.offcanvas', function () {
-          hideFabOperasi();
           if(!orderLoaded) {
               $('#bukaOrderContentOp').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                   if (status == "error") {
@@ -602,27 +585,13 @@ $modeOperasi = (int) $data['mode'];
               });
           }
       });
-
-      offcanvasBukaOrderEl.addEventListener('hidden.bs.offcanvas', showFabOperasi);
   }
 
   $(document).on('click', '#btnTriggerPayment', function() {
-      hideFabOperasi();
       var offcanvasPaymentEl = document.getElementById('offcanvasPayment');
       if (offcanvasPaymentEl) {
           var paymentOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasPaymentEl);
           paymentOffcanvas.toggle();
-      }
-  });
-
-  document.addEventListener('show.bs.offcanvas', function (e) {
-      if (e.target && e.target.id === 'offcanvasPayment') {
-          hideFabOperasi();
-      }
-  });
-  document.addEventListener('hidden.bs.offcanvas', function (e) {
-      if (e.target && e.target.id === 'offcanvasPayment') {
-          showFabOperasi();
       }
   });
 </script>

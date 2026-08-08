@@ -266,10 +266,11 @@
     }
   }
 
+  /* FAB always visible; stay behind Order offcanvas + backdrop */
   #btnBukaOrderAntrian {
     bottom: 24px;
     right: 24px;
-    z-index: 1020;
+    z-index: 1040;
     padding: 10px 18px;
     font-weight: 700;
     border: 0;
@@ -282,7 +283,6 @@
     filter: brightness(1.05);
     color: #0f172a;
   }
-  #btnBukaOrderAntrian.is-fab-hidden { display: none !important; }
   #offcanvasBukaOrder { z-index: 1100 !important; }
   .offcanvas-backdrop { z-index: 1090 !important; }
   .modal { z-index: 1200 !important; }
@@ -474,7 +474,6 @@
     var orderOffcanvas = document.getElementById('offcanvasBukaOrder');
 
     orderOffcanvas.addEventListener('show.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').addClass('is-fab-hidden');
         if(!orderLoaded) {
             $('#bukaOrderContent').load('<?= URL::BASE_URL ?>Penjualan', function(response, status, xhr) {
                 if (status == "error") {
@@ -487,9 +486,5 @@
                 }
             });
         }
-    });
-
-    orderOffcanvas.addEventListener('hidden.bs.offcanvas', function () {
-        $('#btnBukaOrderAntrian').removeClass('is-fab-hidden');
     });
 </script>
