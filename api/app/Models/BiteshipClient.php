@@ -52,7 +52,7 @@ class BiteshipClient
         );
     }
 
-    private function request($method, $path, array $payload = null)
+    private function request($method, $path, ?array $payload = null)
     {
         if ($this->apiKey === '' || $this->apiKey === 'change-me-biteship-api-key') {
             return [
