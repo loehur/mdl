@@ -209,20 +209,32 @@ $isEmptyCustomer = empty($customerGroups);
       background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ffc107 100%);
       color: #fff;
     }
-    #dlv-root .dlv-btn--edit {
-      background: #fff;
-      color: var(--dlv-blue-deep);
-      border-color: var(--dlv-blue);
-      padding: 8px 10px;
-      min-width: 38px;
+    #dlv-root .dlv-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
     }
-    #dlv-root .dlv-btn--edit:hover {
-      background: #eff6ff;
+    #dlv-root .dlv-btn--edit-head {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 0;
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-size: 0.85rem;
     }
-    #dlv-root .dlv-detail-table .dlv-btn--edit {
-      padding: 6px 8px;
-      min-width: 32px;
-      font-size: 0.72rem;
+    #dlv-root .dlv-btn--edit-head:hover {
+      background: rgba(255, 255, 255, 0.32);
+    }
+    #dlv-root .dlv-btn--edit-head[hidden] {
+      display: none !important;
     }
     #dlv-root .dlv-edit-qty-list {
       border: 1px solid var(--dlv-line);
@@ -1112,20 +1124,20 @@ $isEmptyCustomer = empty($customerGroups);
           <h3 id="dlvDetailTitle">Detail Transfer</h3>
           <small id="dlvDetailSub">—</small>
         </div>
-        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+        <div class="dlv-head-actions">
+          <button type="button" class="dlv-btn--edit-head" id="dlvEditQtyBtn" hidden title="Edit qty semua item" aria-label="Edit qty">
+            <i class="fas fa-pen"></i>
+          </button>
+          <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+        </div>
       </div>
       <div class="op-modal__body" id="dlvDetailBody">
         <div class="dlv-detail-loading">Memuat…</div>
       </div>
       <div class="op-modal__foot op-modal__foot--selesai">
-        <div style="display:flex;align-items:center;gap:8px">
-          <button type="button" class="dlv-btn dlv-btn--edit" id="dlvEditQtyBtn" hidden title="Edit qty semua item" aria-label="Edit qty">
-            <i class="fas fa-pen"></i>
-          </button>
-          <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiBtn" hidden>
-            <i class="fas fa-bolt"></i> Terima Pakai
-          </button>
-        </div>
+        <button type="button" class="dlv-btn dlv-btn--pakai" id="dlvTerimaPakaiBtn" hidden>
+          <i class="fas fa-bolt"></i> Terima Pakai
+        </button>
         <div class="op-modal__foot-right">
           <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tutup</button>
         </div>
