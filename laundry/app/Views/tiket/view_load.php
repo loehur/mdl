@@ -114,11 +114,13 @@ $renderCard = function ($row) use ($mode, $jenisTone, $fmtDt, $kodeCabang) {
     gap: 4px 6px;
     align-items: center;
   }
+  /* Badge/chip = label status (soft tint), bukan tombol solid */
   #tiket-root .tk-badge {
     display: inline-block;
     padding: 1px 6px;
-    background: #0f172a;
-    color: #fff;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
     font-size: 0.68rem;
     font-weight: 900;
     letter-spacing: 0.03em;
@@ -126,14 +128,31 @@ $renderCard = function ($row) use ($mode, $jenisTone, $fmtDt, $kodeCabang) {
   #tiket-root .tk-chip {
     display: inline-block;
     padding: 1px 6px;
+    border: 1px solid transparent;
     font-size: 0.68rem;
     font-weight: 900;
     letter-spacing: 0.02em;
   }
-  #tiket-root .tk-chip--blue { background: #2563eb; color: #fff; }
-  #tiket-root .tk-chip--green { background: #16a34a; color: #fff; }
-  #tiket-root .tk-chip--yellow { background: #f59e0b; color: #111; }
-  #tiket-root .tk-chip--red { background: #dc2626; color: #fff; }
+  #tiket-root .tk-chip--blue {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+  #tiket-root .tk-chip--green {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #15803d;
+  }
+  #tiket-root .tk-chip--yellow {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #b45309;
+  }
+  #tiket-root .tk-chip--red {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
   #tiket-root .tk-card__time {
     margin-left: auto;
     font-size: 0.7rem;
@@ -212,15 +231,18 @@ $renderCard = function ($row) use ($mode, $jenisTone, $fmtDt, $kodeCabang) {
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    background: #15803d;
-    color: #fff;
+    border: 1px solid #86efac;
+    background: linear-gradient(180deg, #f0fdf4, #fff);
+    color: #0f172a;
     font-size: 0.8rem;
     font-weight: 900;
     letter-spacing: -0.02em;
   }
   #tiket-root .tk-month__head .tk-month__count {
     margin-left: auto;
-    background: rgba(255,255,255,.22);
+    border: 1px solid #86efac;
+    background: #dcfce7;
+    color: #15803d;
     padding: 1px 6px;
     font-size: 0.68rem;
   }

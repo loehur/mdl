@@ -190,6 +190,26 @@ OpModal.closeAll();
 
 Radius tombol: **`0`**. Border (jika ada): **`1px`**. Weight: `900`.
 
+### Badge / chip (label status — bukan tombol)
+
+**Wajib bedakan** dari tombol. Label meta (cabang, jenis, status, count) **bukan** aksi klik → pakai **tint soft cerah**, bukan fill solid putih-di-atas-warna seperti tombol.
+
+| Varian | Background | Border | Teks |
+|--------|------------|--------|------|
+| Neutral | `#f1f5f9` | `#cbd5e1` | `#0f172a` |
+| Blue | `#eff6ff` | `#93c5fd` | `#1d4ed8` |
+| Green | `#f0fdf4` | `#86efac` | `#15803d` |
+| Yellow | `#fffbeb` | `#fcd34d` | `#b45309` |
+| Red | `#fef2f2` | `#fca5a5` | `#b91c1c` |
+
+Aturan:
+- Badge/chip: soft tint + border token + teks berwarna gelap/token — **bukan** `background: #2563eb; color: #fff`.
+- Tombol: fill solid/gradient + teks kontras (putih / `#111`) — hanya untuk elemen `button` / aksi klik.
+- **Dilarang** membuat label status tampak seperti tombol (solid block penuh warna).
+- Radius tetap `0`, border `1px`, weight `800–900`.
+
+Referensi: Tiket `#tiket-root` `.tk-badge` / `.tk-chip` di `tiket/view_load.php`.
+
 ### Input / Selectize
 
 #### Aturan wajib — SATU BORDER SAJA
@@ -516,6 +536,7 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - [ ] Tidak memakai class Bootstrap `rounded` / `rounded-*`
 - [ ] Border default **1px**; focus ring **2px**; selected radio max **2px**
 - [ ] Tombol primary hijau / info biru / warn kuning / danger merah
+- [ ] Badge/chip status pakai **tint soft** (bukan solid seperti tombol); hanya tombol yang fill solid
 - [ ] Radio/option terpilih sangat jelas vs yang tidak
 - [ ] Header (topnav / offcanvas / modal) gradient **satu hue** — bukan pelangi 3+ warna
 - [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
@@ -528,6 +549,7 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 ## 7. Anti-pola
 
 - Soft muted labels `#5a6a7c` sebagai teks utama
+- **Badge/chip solid penuh warna seperti tombol** (mis. biru `#2563eb` + teks putih) untuk label status — dilarang; pakai tint soft
 - Border tebal `2px`/`3px` sebagai default panel/input (kecuali selected radio = `2px`)
 - Shadow lembut generik saja tanpa warna token
 - Selected radio hanya beda ring tipis (sulit dibedakan)
