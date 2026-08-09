@@ -107,11 +107,11 @@ return [
 
     'TAGIHAN' => [
         'patterns' => [
-            '/^\s*(bill|tagihan)\s*$/i',
-            // Permintaan kirim bill/tagihan: "bisa kirimkan bill saya", "kirim tagihan", "minta bill"
-            '/\b(kirim|kirimkan|minta|tolong)\s*(bill|tagihan)\s*(saya|ku|punya)?/i',
-            '/\b(bisa|boleh)\s*(kirim|kirimkan)?\s*(bill|tagihan)/i',
-            '/\b(bill|tagihan)\s*(saya|ku|punya)?\s*(kirim|kirimkan)?/i',
+            '/^\s*(bil+|tagihan)\s*$/i',
+            // Permintaan kirim bill/tagihan: "bisa kirimkan bill saya", "kirim tagihan", "minta bill" / typo "bil"
+            '/\b(kirim|kirimkan|minta|tolong)\s*(bil+|tagihan)\s*(saya|ku|punya)?/i',
+            '/\b(bisa|boleh)\s*(kirim|kirimkan)?\s*(bil+|tagihan)/i',
+            '/\b(bil+|tagihan)\s*(saya|ku|punya)?\s*(kirim|kirimkan)?/i',
             // "laundry aku ada kk?", "laundry saya ada?" = tanya tagihan/bill punya saya (BUKAN "ada yang tinggal/luntur")
             '/\b(laundry|loundry)\s+(aku|saya|ku|punya\s+saya)\s+ada(?!\s+yang)\b/i',
             // "berapa kilo itu kak?", "brpa kilo kk?" = tanya berat order (kait tagihan/kg) — bukan daftar harga per item
@@ -126,12 +126,13 @@ return [
         'ai_prompt' => "User menanyakan TOTAL BIAYA/TAGIHAN laundry (jumlah uang yang harus dibayar) ATAU meminta dikirimkan bill/tagihan, seperti:\n
         | berapa total punya saya? | brapa total strika/cuci tadi? | totalnya berapa? | berapa tagihan? | berapa biaya laundry saya? |\n
         | total berapa kak? | brp total? | berapa total cuci? | berapa biayanya? |\n
-        | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | kirimkan tagihan saya |\n
+        | bisa kirimkan bill saya | halo kak bisa kirimkan bill saya | kirim tagihan | minta bill | minta bil | kirimkan tagihan saya |\n
+        | bill | bil | tagihan | = keyword tegas tagihan = TAGIHAN\n
         | laundry aku ada kk? | laundry saya ada? | laundry punya saya ada? | = tanya tagihan/bill punya saya = TAGIHAN\n
         | berapa kilo itu kak? | brpa kilo itu kk? | brp kilo? | = tanya berat cucian/order (hubungan ke tagihan) = TAGIHAN, BUKAN FALSE\n
         | brp londry ku kak? | berapa laundry ku bang? | brp laundry saya? | = typo londry / tanya total tagihan cucian saya = TAGIHAN, BUKAN FALSE\n
         Jika user bertanya 'berapa' + (total/biaya/tagihan) atau (total/biaya) + 'berapa' = TAGIHAN\n
-        Jika user minta/bisa kirimkan bill/tagihan = TAGIHAN (permintaan bill/tagihan)\n
+        Jika user minta/bisa kirimkan bill/bil/tagihan = TAGIHAN (permintaan bill/tagihan; typo 'bil' sama dengan 'bill')\n
         Jika user tanya 'laundry aku/saya ada?' = tanya tagihan punya saya = TAGIHAN\n
         \n
         CRITICAL - FALSE (BUKAN TAGIHAN) = NOTA:\n
@@ -164,26 +165,33 @@ return [
          // Trailing ellipsis/emoji/punctuation OK: "Lunas ya kak...🙏"
          '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
          '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
-         // Ucapan terima kasih
+         // Ucapan terima kasih (termasuk typo: trima ksih, trima kasih)
          '/\bma*ka*(s|c)(i|e)*h\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
+         '/\b(trima|terima)\s+(kasih|ksih|ksh)\b/i',
+         '/\btrimakasih\b/i',
+         '/\b(trmksh|trm\s*ksh)\b/i',
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty)\b/i',
+         // Oke + ditunggu kabar + terima kasih = penutup (bukan minta "kabari ya")
+         '/\bok(?:e+)?\b.{0,100}?\b(di\s*)?tungg[uo]\b.{0,40}?\b(kbr|kabar)\b.{0,60}?\b(trima|terima|makasih|thanks|thx)/iu',
          // WhatsApp reactions
          '/^reacted\s+[^\s]+$/i',
       ],
       'ai_prompt' => "User memberikan PENUTUP — HANYA 3 jenis berikut (selain itu = FALSE):\n
-      (1) Ucapan terima kasih: | terima kasih | makasih | thanks | thx | tq |\n
+      (1) Ucapan terima kasih (termasuk typo): | terima kasih | makasih | thanks | thx | tq | trima ksih | trima kasih byk |\n
+      (1b) Ack + tunggu kabar PASIF + terima kasih = PENUTUP: | Oke kk, di tunggu kbr ny dn trima ksih byk | oke kak ditunggu kabarnya dan terima kasih banyak |\n
       (2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening |\n
       (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | oke | baik | sip | siap | ok kak | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.\n
       - EMOJI/REACTION SAJA: | ❤️ | 👍 | Reacted 👍 | = boleh PENUTUP.\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
-      - CRITICAL: 'Ok'/'Baik'/'Siap' + isi lain (otw, jemput, antar, mau, nanti, jadwal, info order) = FALSE. Contoh: | Ok kk,aku otw ya kk | baik nanti dijemput | siap besok diantar | = BUKAN PENUTUP.\n
+      - CRITICAL: 'Ok'/'Baik'/'Siap' + isi lain (otw, jemput, antar, mau, nanti, jadwal, info order) TANPA terima kasih = FALSE. Contoh: | Ok kk,aku otw ya kk | baik nanti dijemput | siap besok diantar | = BUKAN PENUTUP.\n
       - CRITICAL: Janji AKAN bayar/transfer (belum kirim): | nnti transfer | besok bayar | = FALSE. Hanya SUDAH bayar/transfer = PENUTUP.\n
       - CRITICAL: Rujukan order/jadwal: | yg tadi sore besok di ambil | = FALSE.\n
-      - CRITICAL: Pesan >50 karakter selain konfirmasi bayar/lunas = FALSE.\n
-      - kabari ya / infokan ya / kasih kabar ya = FALSE (bukan PENUTUP).\n
+      - CRITICAL: Pesan >50 karakter selain konfirmasi bayar/lunas ATAU ucapan terima kasih = FALSE.\n
+      - kabari ya / kabarin ya / infokan ya (minta CS update, TANPA penutup terima kasih) = FALSE.\n
+      - BEDA: 'di tunggu kabarnya' / 'ditunggu kbr nya' + terima kasih = PENUTUP (pasif menunggu + closing), BUKAN 'kabari ya'.\n
       - Info proses (belum diambil, sudah diantar suami) = FALSE.\n
       - Komplain, permintaan, daftar item laundry, pertanyaan = FALSE.\n
       - Contoh FALSE: | Ok kk,aku otw ya kk | baik nanti jemput | siap diantar sore | kabari ya kak | nanti saya jemput |"
