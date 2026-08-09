@@ -193,7 +193,7 @@ const toggleNotificationSound = () => {
 // Load font size from localStorage on mount
 const loadFontSize = () => {
   const saved = localStorage.getItem("cms_font_size");
-  if (saved && ["medium", "large"].includes(saved)) {
+  if (saved && ["medium", "large", "xlarge"].includes(saved)) {
     fontSize.value = saved;
   }
 };
@@ -204,19 +204,111 @@ const setFontSize = (size) => {
   localStorage.setItem("cms_font_size", size);
 };
 
-// Theme Functions
-const loadTheme = () => {
-  const saved = localStorage.getItem("cms_theme");
-  if (saved && ["dark", "light"].includes(saved)) {
-    theme.value = saved;
-  }
-  applyTheme(theme.value);
+// Theme Functions — auto day/night, manual override only for current period
+const THEME_DAY_START_HOUR = 6;   // 06:00 → light
+const THEME_NIGHT_START_HOUR = 18; // 18:00 → dark
+let themeCheckInterval = null;
+
+const getThemePeriod = (date = new Date()) => {
+  const hour = date.getHours();
+  return hour >= THEME_DAY_START_HOUR && hour < THEME_NIGHT_START_HOUR
+    ? "day"
+    : "night";
 };
 
-const setTheme = (newTheme) => {
+const getAutoTheme = (date = new Date()) => {
+  return getThemePeriod(date) === "day" ? "light" : "dark";
+};
+
+const getThemeOverride = () => {
+  try {
+    const raw = localStorage.getItem("cms_theme_override");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      ["dark", "light"].includes(parsed.theme) &&
+      ["day", "night"].includes(parsed.period)
+    ) {
+      return parsed;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return null;
+};
+
+const clearThemeOverride = () => {
+  localStorage.removeItem("cms_theme_override");
+  localStorage.removeItem("cms_theme"); // legacy key
+};
+
+const resolveTheme = () => {
+  const period = getThemePeriod();
+  const override = getThemeOverride();
+  if (override && override.period === period) {
+    return override.theme;
+  }
+  if (override) {
+    clearThemeOverride();
+  }
+  return getAutoTheme();
+};
+
+const loadTheme = () => {
+  // Migrate old permanent preference into a one-period override
+  const legacy = localStorage.getItem("cms_theme");
+  if (legacy && ["dark", "light"].includes(legacy) && !getThemeOverride()) {
+    localStorage.setItem(
+      "cms_theme_override",
+      JSON.stringify({ theme: legacy, period: getThemePeriod() })
+    );
+    localStorage.removeItem("cms_theme");
+  }
+
+  const resolved = resolveTheme();
+  theme.value = resolved;
+  applyTheme(resolved);
+};
+
+const setTheme = (newTheme, { manual = false } = {}) => {
   theme.value = newTheme;
-  localStorage.setItem("cms_theme", newTheme);
+  if (manual) {
+    localStorage.setItem(
+      "cms_theme_override",
+      JSON.stringify({ theme: newTheme, period: getThemePeriod() })
+    );
+    localStorage.removeItem("cms_theme");
+  }
   applyTheme(newTheme);
+};
+
+const syncAutoTheme = () => {
+  const resolved = resolveTheme();
+  if (resolved !== theme.value) {
+    theme.value = resolved;
+    applyTheme(resolved);
+  }
+};
+
+const startThemeAutoSync = () => {
+  if (themeCheckInterval) return;
+  themeCheckInterval = setInterval(syncAutoTheme, 60 * 1000);
+  document.addEventListener("visibilitychange", onThemeVisibilityChange);
+};
+
+const stopThemeAutoSync = () => {
+  if (themeCheckInterval) {
+    clearInterval(themeCheckInterval);
+    themeCheckInterval = null;
+  }
+  document.removeEventListener("visibilitychange", onThemeVisibilityChange);
+};
+
+const onThemeVisibilityChange = () => {
+  if (document.visibilityState === "visible") {
+    syncAutoTheme();
+  }
 };
 
 const applyTheme = (themeName) => {
@@ -306,7 +398,7 @@ const applyTheme = (themeName) => {
 
 const toggleTheme = () => {
   const newTheme = theme.value === "dark" ? "light" : "dark";
-  setTheme(newTheme);
+  setTheme(newTheme, { manual: true });
 };
 
 // Computed: Cases available to resolve based on Role
@@ -2595,6 +2687,8 @@ onUnmounted(() => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value);
   }
+
+  stopThemeAutoSync();
   
   // Stop chat polling
   stopChatPolling();
@@ -4427,8 +4521,9 @@ onMounted(() => {
   // Load font size preference
   loadFontSize();
 
-  // Load theme preference
+  // Load theme preference (auto day/night + temporary manual override)
   loadTheme();
+  startThemeAutoSync();
 
   // Initialize notification sound
   initNotificationSound();
@@ -5219,6 +5314,36 @@ const handleLinkClick = (e) => {
                   />
                 </svg>
               </button>
+
+              <!-- X-Large Option -->
+              <button
+                @click="setFontSize('xlarge')"
+                class="w-full flex items-center justify-between p-3 rounded-lg border transition-all"
+                :class="
+                  fontSize === 'xlarge'
+                    ? 'border-[var(--wa-accent-green)] bg-[var(--wa-accent-green)]/10'
+                    : 'border-[var(--wa-border)] hover:bg-[var(--wa-hover)]'
+                "
+              >
+                <span
+                  class="text-[var(--wa-text-primary)]"
+                  style="font-size: 18px"
+                  >X-Large</span
+                >
+                <svg
+                  v-if="fontSize === 'xlarge'"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 text-[var(--wa-accent-green)]"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -5266,7 +5391,7 @@ const handleLinkClick = (e) => {
                     {{ theme === "dark" ? "Dark Mode" : "Light Mode" }}
                   </p>
                   <p class="text-xs text-[var(--wa-text-tertiary)]">
-                    Ubah tampilan aplikasi
+                    Auto siang/malam · manual sementara
                   </p>
                 </div>
               </div>

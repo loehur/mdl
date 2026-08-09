@@ -74,7 +74,9 @@ const props = defineProps({
 
 // Computed font size class based on prop
 const messageFontClass = computed(() => {
-  return props.fontSize === 'large' ? 'text-base' : 'text-sm';
+  if (props.fontSize === 'xlarge') return 'text-lg';
+  if (props.fontSize === 'large') return 'text-base';
+  return 'text-sm';
 });
 
 const emit = defineEmits([
