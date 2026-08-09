@@ -9,20 +9,19 @@ echo  Sync MDL Chat APK
 echo ========================================
 echo.
 
-if not exist "%APK_SRC%" (
-  echo APK belum ada. Building debug APK...
-  if defined JAVA_HOME (
-    echo Using JAVA_HOME=%JAVA_HOME%
-  ) else if exist "C:\Program Files\Android\Android Studio\jbr\bin\java.exe" (
-    set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-    echo Using Android Studio JBR
-  )
-  call gradlew.bat assembleDebug --no-daemon
-  if errorlevel 1 (
-    echo [ERROR] Build gagal.
-    pause
-    exit /b 1
-  )
+if defined JAVA_HOME (
+  echo Using JAVA_HOME=%JAVA_HOME%
+) else if exist "C:\Program Files\Android\Android Studio\jbr\bin\java.exe" (
+  set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
+  echo Using Android Studio JBR
+)
+
+echo Building debug APK...
+call gradlew.bat assembleDebug --no-daemon
+if errorlevel 1 (
+  echo [ERROR] Build gagal.
+  pause
+  exit /b 1
 )
 
 if not exist "%APK_SRC%" (

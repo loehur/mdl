@@ -22,6 +22,8 @@ object NotificationHelper {
     private const val TAG = "NotificationHelper"
     private const val PREFS_NAME = "notification_ids"
     private const val PREFS_MESSAGES = "notification_messages"
+    private const val PREFS_DISMISSED = "notification_dismissed"
+    private const val PREFS_LAST_SHOWN = "notification_last_shown"
     // Use OneSignal's default channel instead of creating our own
     private const val CHANNEL_ID = "fcm_fallback_notification_channel" // OneSignal default
     private const val GROUP_KEY = "com.cms.mdl.CHAT_GROUP"
@@ -31,6 +33,13 @@ object NotificationHelper {
     
     // Summary notification ID for grouped notifications
     private const val SUMMARY_NOTIFICATION_ID = 0
+
+    /**
+     * After user opens/cancels a chat notification, suppress the same message text
+     * for this window so delayed FCM/OneSignal re-delivery cannot re-alert.
+     * Short enough that a real customer repeat of the same words still notifies later.
+     */
+    private const val DISMISS_COOLDOWN_MS = 3 * 60 * 1000L // 3 minutes
     
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -38,6 +47,71 @@ object NotificationHelper {
     
     private fun getMessagePrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_MESSAGES, Context.MODE_PRIVATE)
+    }
+
+    private fun getDismissedPrefs(context: Context): SharedPreferences {
+        return context.getSharedPreferences(PREFS_DISMISSED, Context.MODE_PRIVATE)
+    }
+
+    private fun getLastShownPrefs(context: Context): SharedPreferences {
+        return context.getSharedPreferences(PREFS_LAST_SHOWN, Context.MODE_PRIVATE)
+    }
+
+    private fun dismissedKey(cleanPhone: String, message: String): String {
+        return "$cleanPhone|${message.trim()}"
+    }
+
+    private fun saveLastShownMessage(context: Context, cleanPhone: String, message: String) {
+        val trimmed = message.trim()
+        if (cleanPhone.isEmpty() || trimmed.isEmpty()) return
+        getLastShownPrefs(context).edit().putString(cleanPhone, trimmed).apply()
+    }
+
+    private fun getLastShownMessage(context: Context, cleanPhone: String): String? {
+        return getLastShownPrefs(context).getString(cleanPhone, null)?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun clearLastShownMessage(context: Context, cleanPhone: String) {
+        getLastShownPrefs(context).edit().remove(cleanPhone).apply()
+    }
+
+    /**
+     * Mark message texts as recently dismissed (opened/cancelled by user).
+     */
+    fun markMessagesDismissed(context: Context, cleanPhone: String, messages: Collection<String>) {
+        if (cleanPhone.isEmpty()) return
+        val expiry = System.currentTimeMillis() + DISMISS_COOLDOWN_MS
+        val editor = getDismissedPrefs(context).edit()
+        var count = 0
+        messages.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { msg ->
+            editor.putLong(dismissedKey(cleanPhone, msg), expiry)
+            count++
+        }
+        editor.apply()
+        if (count > 0) {
+            Log.i(TAG, "Marked $count message(s) dismissed for $cleanPhone (cooldown ${DISMISS_COOLDOWN_MS / 1000}s)")
+        }
+    }
+
+    /**
+     * True if this phone+message was opened/cancelled recently (within cooldown).
+     */
+    fun isRecentlyDismissed(context: Context, cleanPhone: String, message: String): Boolean {
+        val trimmed = message.trim()
+        if (cleanPhone.isEmpty() || trimmed.isEmpty()) return false
+
+        val prefs = getDismissedPrefs(context)
+        val key = dismissedKey(cleanPhone, trimmed)
+        if (!prefs.contains(key)) return false
+
+        val expiry = prefs.getLong(key, 0L)
+        val now = System.currentTimeMillis()
+        if (expiry <= now) {
+            prefs.edit().remove(key).apply()
+            return false
+        }
+        Log.d(TAG, "Recently dismissed hit for $cleanPhone (${(expiry - now) / 1000}s left)")
+        return true
     }
     
     /**
@@ -83,15 +157,26 @@ object NotificationHelper {
     }
     
     /**
-     * Add message to history for stacking display
+     * Add message to history for stacking display.
+     * Skips if identical to the last entry (prevents spam from re-pushed same message).
+     * @return true if a new line was appended, false if duplicate skipped
      */
-    fun addMessageToHistory(context: Context, cleanPhone: String, message: String) {
+    fun addMessageToHistory(context: Context, cleanPhone: String, message: String): Boolean {
         val prefs = getMessagePrefs(context)
         val existing = prefs.getString(cleanPhone, "") ?: ""
         
         // Keep last 10 messages, separated by newline
         val messages = existing.split("\n").filter { it.isNotEmpty() }.toMutableList()
-        messages.add(message)
+        val trimmed = message.trim()
+        if (trimmed.isEmpty()) return false
+
+        // Same as last line → re-delivery / re-alert of the same push, ignore
+        if (messages.isNotEmpty() && messages.last() == trimmed) {
+            Log.d(TAG, "Skipped duplicate history for $cleanPhone: \"$trimmed\"")
+            return false
+        }
+
+        messages.add(trimmed)
         
         // Keep only last 10
         while (messages.size > 10) {
@@ -99,6 +184,7 @@ object NotificationHelper {
         }
         
         prefs.edit().putString(cleanPhone, messages.joinToString("\n")).apply()
+        return true
     }
     
     /**
@@ -175,15 +261,32 @@ object NotificationHelper {
         // Save the ID mapping
         saveNotificationId(context, cleanPhone, notificationId)
         
-        // Add message to history
-        val messageToAdd = singleMessage ?: body
-        if (messageToAdd.isNotBlank()) {
-            addMessageToHistory(context, cleanPhone, messageToAdd.take(100))
+        val messageToAdd = (singleMessage ?: body).take(100).trim()
+
+        // After user opened this chat, delayed re-delivery of the same text must not reappear
+        if (messageToAdd.isNotBlank() && isRecentlyDismissed(context, cleanPhone, messageToAdd)) {
+            Log.i(TAG, "⏭️ Skipped recently-dismissed notification for $cleanPhone")
+            return
+        }
+
+        // Add message to history (dedupe identical re-pushes while still in tray)
+        val isNewMessage = if (messageToAdd.isNotBlank()) {
+            addMessageToHistory(context, cleanPhone, messageToAdd)
+        } else {
+            false
         }
         
         // Get all messages for inbox style
         val messages = getMessageHistory(context, cleanPhone)
         val messageCount = messages.size
+
+        // Duplicate re-push / empty payload → skip (stops spam re-alerts)
+        if (!isNewMessage) {
+            Log.i(TAG, "⏭️ Skipped duplicate/empty notification for $cleanPhone")
+            return
+        }
+
+        saveLastShownMessage(context, cleanPhone, messageToAdd)
         
         // Create intent for notification click
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -210,7 +313,7 @@ object NotificationHelper {
             .setColor(Color.parseColor("#6366F1"))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setDefaults(NotificationCompat.DEFAULT_ALL) // Sound, vibrate, lights
+            .setDefaults(NotificationCompat.DEFAULT_ALL) // Sound/vibrate only for new distinct messages (dupes return early above)
         
         if (messageCount > 1) {
             // Multiple messages: use inbox style
@@ -251,6 +354,7 @@ object NotificationHelper {
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true) // summary must never re-alert on every child update
             .setColor(Color.parseColor("#6366F1"))
         
         notificationManager.notify(SUMMARY_NOTIFICATION_ID, summaryBuilder.build())
@@ -393,9 +497,15 @@ object NotificationHelper {
             }
         }
         
+        // Remember texts that were shown so delayed re-push after open won't re-alert
+        val toDismiss = getMessageHistory(context, cleanPhone).toMutableList()
+        getLastShownMessage(context, cleanPhone)?.let { toDismiss.add(it) }
+        markMessagesDismissed(context, cleanPhone, toDismiss)
+
         // Clean up stored data
         removeNotificationId(context, cleanPhone)
         clearMessageHistory(context, cleanPhone)
+        clearLastShownMessage(context, cleanPhone)
         
         // Update group summary if needed (cancel it if no more notifications in group)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -459,10 +569,19 @@ object NotificationHelper {
      */
     fun cancelAllNotifications(context: Context) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Suppress delayed re-delivery for everything currently stacked
+        val messagePrefs = getMessagePrefs(context)
+        messagePrefs.all.forEach { (phone, value) ->
+            val msgs = (value as? String)?.split("\n")?.filter { it.isNotEmpty() }.orEmpty()
+            val last = getLastShownMessage(context, phone)
+            markMessagesDismissed(context, phone, msgs + listOfNotNull(last))
+        }
         
-        // Clear all stored IDs
+        // Clear all stored IDs / stacks
         getPrefs(context).edit().clear().apply()
         getMessagePrefs(context).edit().clear().apply()
+        getLastShownPrefs(context).edit().clear().apply()
         
         // Cancel all notifications from this app
         notificationManager.cancelAll()
