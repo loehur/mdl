@@ -526,14 +526,27 @@ trait WARepliesKurirTrait
 
     private function kurirExtractCoords(string $msg): ?array
     {
-        if (preg_match('/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/', $msg, $m)) {
+        // Langsung dari pasangan lat,lng (YCloud caption / Fonnte location / teks)
+        if (preg_match('/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/', $msg, $m)
+            || preg_match('/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/', $msg, $m)) {
             $lat = (float) $m[1];
             $lng = (float) $m[2];
-            if (abs($lat) <= 90 && abs($lng) <= 180) {
+            if (abs($lat) <= 90 && abs($lng) <= 180 && !($lat == 0.0 && $lng == 0.0)) {
                 return ['lat' => $lat, 'lng' => $lng];
             }
         }
-        if (preg_match('/https?:\/\/[^\s]+/i', $msg)) {
+        // URL sudah jelas: maps?q=lat,lng atau @lat,lng — parse lokal, tanpa maps_server
+        if (preg_match('/[?&]q=(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/i', $msg, $m)
+            || preg_match('/@(-?\d+\.?\d+),(-?\d+\.?\d+)/', $msg, $m)
+            || preg_match('/maps\/place\/(-?\d+\.?\d+),(-?\d+\.?\d+)/i', $msg, $m)) {
+            $lat = (float) $m[1];
+            $lng = (float) $m[2];
+            if (abs($lat) <= 90 && abs($lng) <= 180 && !($lat == 0.0 && $lng == 0.0)) {
+                return ['lat' => $lat, 'lng' => $lng];
+            }
+        }
+        // Short link / URL Maps tanpa koordinat eksplisit → maps_server
+        if (preg_match('/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|[^\s]*google\.[^\s]*\/maps)[^\s]*/i', $msg)) {
             if (!class_exists('\\App\\Helpers\\CRM\\MapsServer')) {
                 require_once __DIR__ . '/../Helpers/CRM/MapsServer.php';
             }

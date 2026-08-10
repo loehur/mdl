@@ -59,14 +59,16 @@ class WA_Fonnte extends Controller
         $inboxid = $data['inboxid'] ?? null;
         $url = $data['url'] ?? null;
         $filename = $data['filename'] ?? null;
+        // Pin lokasi WhatsApp: Fonnte kirim "latitude,longitude" di field location (bukan di message)
+        $location = trim((string) ($data['location'] ?? ''));
 
         $replyText = '';
 
         $rawText = trim((string) ($message ?? $text ?? ''));
         // Gambar/file/voice dari Fonnte biasanya punya url; tanpa caption = anggap panjang teks 0 (tidak intent AI, tidak DEFAULT_FALLBACK_REPLY_FONNTE)
-        $isMediaWithoutCaption = ($rawText === '' && ! empty($url));
+        $isMediaWithoutCaption = ($rawText === '' && ! empty($url) && $location === '');
 
-        if ($rawText === '' && empty($url)) {
+        if ($rawText === '' && empty($url) && $location === '') {
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
 
             return;
@@ -86,7 +88,14 @@ class WA_Fonnte extends Controller
             return;
         }
 
+        // Gabungkan koordinat pin ke teks agar kurirExtractCoords / Maps flow bisa baca
         $messageText = $rawText;
+        if ($location !== '' && preg_match('/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/', $location)) {
+            $messageText = trim($messageText . ' ' . $location);
+            if ($messageText === $location || $rawText === '') {
+                $messageText = "📍 Shared Location {$location}";
+            }
+        }
 
         $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
         $phone0 = '0' . substr($cleanPhone, 2);

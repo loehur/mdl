@@ -167,8 +167,14 @@ app.get('/favicon.ico', (_req, res) => res.status(204).end());
  * GET  /resolve?url=...
  * Header opsional: X-Maps-Token (wajib jika MAPS_SERVER_TOKEN di-set)
  */
-app.post('/resolve', requireToken, handleResolve);
-app.get('/resolve', requireToken, handleResolve);
+app.post('/resolve', requireToken, async (req, res) => {
+  console.log('[maps_server] POST /resolve', JSON.stringify(req.body || {}).slice(0, 200));
+  return handleResolve(req, res);
+});
+app.get('/resolve', requireToken, async (req, res) => {
+  console.log('[maps_server] GET /resolve', req.query && req.query.url);
+  return handleResolve(req, res);
+});
 
 app.listen(PORT, HOST, () => {
   console.log('========================================');

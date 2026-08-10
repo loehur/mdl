@@ -191,7 +191,14 @@ class WhatsApp extends Controller
         } elseif ($messageType === 'location') {
             $locName = $msg['location']['name'] ?? null;
             $locAddr = $msg['location']['address'] ?? null;
+            $locLat = $msg['location']['latitude'] ?? null;
+            $locLng = $msg['location']['longitude'] ?? null;
             $messageText = '📍 ' . ($locName ?: ($locAddr ?: 'Shared Location'));
+            // Sertakan koordinat di teks intent (process hanya terima string text)
+            if ($locLat !== null && $locLng !== null && $locLat !== '' && $locLng !== '') {
+                $messageText .= " {$locLat},{$locLng}";
+                $messageText .= " https://maps.google.com/maps?q={$locLat},{$locLng}";
+            }
         } elseif (isset($msg[$messageType]['caption'])) {
             $messageText = $msg[$messageType]['caption'];
         }
@@ -286,6 +293,9 @@ class WhatsApp extends Controller
                 if ($latitude && $longitude) {
                     $mediaUrl = "https://maps.google.com/maps?q={$latitude},{$longitude}";
                     $mediaCaption = "{$latitude},{$longitude}";
+                    // Pastikan teks intent ikut bawa lat/lng + URL (process() hanya dapat 1 string)
+                    $textBody .= " {$latitude},{$longitude} {$mediaUrl}";
+                    $messageText = $textBody;
                 }
                 break;
         }
@@ -477,9 +487,17 @@ class WhatsApp extends Controller
                 }
 
                 // 3) Intent detect + auto-reply (bisa lambat: OpenAI/Groq)
+                // Gabungkan text + media_url + caption agar pin lokasi / link maps terbaca di kurir flow
+                $processText = trim((string) ($messageText !== '' ? $messageText : ($textBody ?? '')));
+                if (!empty($mediaCaption) && stripos($processText, (string) $mediaCaption) === false) {
+                    $processText = trim($processText . ' ' . $mediaCaption);
+                }
+                if (!empty($mediaUrl) && stripos($processText, (string) $mediaUrl) === false) {
+                    $processText = trim($processText . ' ' . $mediaUrl);
+                }
                 $autoReplyResult = $replies->process(
                     $phoneIn,
-                    $messageText,
+                    $processText !== '' ? $processText : $messageText,
                     $waNumber,
                     $contact_name,
                     $assigned_user_id,
