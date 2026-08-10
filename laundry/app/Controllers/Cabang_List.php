@@ -126,6 +126,7 @@ class Cabang_List extends Controller
 
    /**
      * Parse ID group Fonnte (…@g.us). Kosong → null (hapus). Angka saja → tambah @g.us.
+     * Menerima format baru (1203630…@g.us) dan lama (62812…-1625…@g.us).
      * @return array{ok:bool,value:?string,error:?string}
      */
    private function parseIdGroupFonnte($raw): array
@@ -134,14 +135,14 @@ class Cabang_List extends Controller
       if ($v === '') {
          return ['ok' => true, 'value' => null, 'error' => null];
       }
-      if (preg_match('/^\d+$/', $v)) {
+      if (preg_match('/^\d+(-\d+)?$/', $v)) {
          $v .= '@g.us';
       }
-      if (!preg_match('/^\d+@g\.us$/i', $v)) {
+      if (!preg_match('/^\d+(-\d+)?@g\.us$/i', $v)) {
          return [
             'ok' => false,
             'value' => null,
-            'error' => 'ID group Fonnte tidak valid (contoh: 1203630…@g.us)',
+            'error' => 'ID group Fonnte tidak valid (contoh: 1203630…@g.us atau 62812…-1625…@g.us)',
          ];
       }
       return ['ok' => true, 'value' => $v, 'error' => null];
