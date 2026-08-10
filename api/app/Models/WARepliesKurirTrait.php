@@ -284,7 +284,7 @@ trait WARepliesKurirTrait
             return;
         }
 
-        if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'terms_setuju', 'lokasi_check', 'pick_lokasi'], true)) {
+        if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'request_aktif', 'lokasi_check', 'pick_lokasi'], true)) {
             $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
             return;
         }
@@ -308,8 +308,9 @@ trait WARepliesKurirTrait
             case 'confirm_lokasi':
                 $this->kurirHandleConfirmLokasi($waNumber, $sapaan, $session, $msg);
                 break;
-            case 'terms_setuju':
-                $this->kurirHandleTerms($waNumber, $sapaan, $session, $msg);
+            case 'terms_setuju': // legacy → treat as request aktif
+            case 'request_aktif':
+                $this->kurirHandleRequestAktif($waNumber, $sapaan, $session, $msg);
                 break;
             case 'wait_driver_jam':
                 $this->sendAutoreplyText(
@@ -675,11 +676,26 @@ trait WARepliesKurirTrait
     private function kurirHandleConfirmLokasi(string $waNumber, string $sapaan, array $session, string $msg): void
     {
         if ($this->kurirLooksWantJam($msg)) {
-            $this->kurirSendTermsThenMaybeJam($waNumber, $sapaan, $session, $msg, true);
+            $waktu = $this->parseEstimasiRequestWaktu($msg);
+            if ($waktu === null) {
+                if (!$this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session)) {
+                    return;
+                }
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Jam berapa {$sapaan} ingin " . $this->kurirJenisLabel($session) . "? (contoh: jam 14)"
+                );
+                return;
+            }
+            if (!$this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session)) {
+                return;
+            }
+            $session = $this->getKurirSession($waNumber) ?: $session;
+            $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $msg, $waktu);
             return;
         }
         if ($this->kurirLooksAgree($msg)) {
-            $this->kurirSendTerms($waNumber, $sapaan, $session);
+            $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;
         }
         if ($this->kurirLooksRefuse($msg)) {
@@ -690,39 +706,29 @@ trait WARepliesKurirTrait
         $this->sendAutoreplyText($waNumber, "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut.");
     }
 
-    private function kurirSendTerms(string $waNumber, string $sapaan, array $session): void
+    /**
+     * Setelah lokasi+ongkir dikonfirmasi: insert delivery_request + info (tanpa tanya setuju lagi).
+     * Session tetap aktif (request_aktif) untuk jam khusus / batal.
+     */
+    private function kurirAcceptLokasiAndCreateRequest(string $waNumber, string $sapaan, array $session): bool
     {
-        $jenis = $this->kurirJenisLabel($session);
+        $ok = $this->kurirInsertSamedayRequest($waNumber, $session, null);
+        if (!$ok) {
+            return false;
+        }
         $noun = $this->kurirJenisNoun($session);
-        $text = "Baik permintaan diterima, namun kami informasikan bahwa jam kerja driver pukul 08.00 - 17.00, "
-            . "jam {$noun} belum dapat dipastikan, tergantung pada posisi dan rute driver laundry.";
-        $hour = (int) date('G');
-        if ($hour >= 12) {
-            $text .= " Pesanan {$jenis} melewati jam 12 paling lama {$noun} besok ya {$sapaan}.";
-        }
-        $text .= " Pastikan selalu ada orang (satpam/saudara/teman) di rumah, apakah setuju?";
-        $this->saveKurirSession($waNumber, ['step' => 'terms_setuju']);
+        $text = "Baik {$sapaan}, permintaan diterima, jam kerja driver pukul 08.00 - 17.00, "
+            . "waktu {$noun} tergantung pada posisi dan rute driver. "
+            . "Pastikan selalu ada orang (satpam/saudara/teman) di lokasi. Terima kasih 😊";
+        $this->saveKurirSession($waNumber, ['step' => 'request_aktif']);
         $this->sendAutoreplyText($waNumber, $text);
+        return true;
     }
 
-    private function kurirSendTermsThenMaybeJam(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        bool $forceJam
-    ): void {
-        $this->kurirSendTerms($waNumber, $sapaan, $session);
-        if ($forceJam) {
-            // stay on terms; next message or same — handle jam after agree path via terms
-            $this->saveKurirSession($waNumber, [
-                'step' => 'terms_setuju',
-                'request_text' => $msg,
-            ]);
-        }
-    }
-
-    private function kurirHandleTerms(string $waNumber, string $sapaan, array $session, string $msg): void
+    /**
+     * Request sudah jalan — siap jam khusus, instant, atau batal.
+     */
+    private function kurirHandleRequestAktif(string $waNumber, string $sapaan, array $session, string $msg): void
     {
         if ($this->kurirLooksWantFast($msg)) {
             $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
@@ -732,57 +738,35 @@ trait WARepliesKurirTrait
         $wantJam = $this->kurirLooksWantJam($msg);
         $waktu = $this->parseEstimasiRequestWaktu($msg);
         if ($wantJam && $waktu === null && preg_match('/\bjam\s*(brp|berapa)|kapan\b/iu', $msg)) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Tunggu ya {$sapaan}, kami tanyakan dulu ke driver."
-            );
-            // still need a concrete jam — ask
+            $this->sendAutoreplyText($waNumber, "Tunggu ya {$sapaan}, kami tanyakan dulu ke driver.");
             $this->sendAutoreplyText(
                 $waNumber,
                 "Jam berapa {$sapaan} ingin " . $this->kurirJenisLabel($session) . "? (contoh: jam 14)"
             );
             return;
         }
-
         if ($wantJam && $waktu !== null) {
             $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $msg, $waktu);
             return;
         }
 
-        // Pending jam text from earlier confirm
-        if (!empty($session['request_text']) && empty($session['request_jam'])) {
-            $prevWaktu = $this->parseEstimasiRequestWaktu((string) $session['request_text']);
-            if ($prevWaktu && $this->kurirLooksAgree($msg)) {
-                $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, (string) $session['request_text'], $prevWaktu);
-                return;
-            }
-        }
-
-        if ($this->kurirLooksAgree($msg)) {
-            $ok = $this->kurirInsertSamedayRequest($waNumber, $session, null);
-            if ($ok) {
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Terima kasih {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
-                    . " sameday sudah kami terima. Driver akan memproses ya 😊"
-                );
-                $this->clearKurirSession($waNumber);
-            }
-            return;
-        }
-
-        if ($this->kurirLooksRefuse($msg)) {
+        if ($this->kurirLooksRefuse($msg) || preg_match('/\b(batal|cancel|batalkan)\b/iu', $msg)) {
+            $this->kurirCancelDeliveryRequest($session);
             $id = (int) ($session['id_pelanggan'] ?? 0);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Baik, maaf ya {$sapaan}, untuk pemesanan antar/jemput bisa juga via link berikut:\n"
+                "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
                 . "https://ml.nalju.com/J/kurir/{$id}"
             );
             $this->clearKurirSession($waNumber);
             return;
         }
 
-        $this->sendAutoreplyText($waNumber, "Apakah setuju dengan ketentuan di atas {$sapaan}?");
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Permintaan " . $this->kurirJenisLabel($session) . " sudah kami terima {$sapaan}. "
+            . "Kalau ada jam tertentu atau ingin batalkan, tinggal bilang saja ya."
+        );
     }
 
     private function kurirEscalateJamRequest(
@@ -862,28 +846,81 @@ trait WARepliesKurirTrait
                 'tanggal' => $session['driver_alt_tanggal'] ?? date('Y-m-d'),
                 'jam' => $session['driver_alt_jam'] ?? null,
             ];
-            $ok = $this->kurirInsertSamedayRequest($waNumber, $session, $alt);
-            if ($ok) {
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Baik {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
-                    . " kami lanjutkan sesuai jam alternatif driver. Terima kasih 😊"
-                );
-                $this->clearKurirSession($waNumber);
+            // Request biasanya sudah ada — update catatan saja
+            if (!empty($session['id_request'])) {
+                $this->kurirUpdateRequestCatatanJam($session, $alt);
+            } else {
+                $this->kurirInsertSamedayRequest($waNumber, $session, $alt);
             }
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Baik {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
+                . " kami lanjutkan sesuai jam alternatif driver. Terima kasih 😊"
+            );
+            $this->saveKurirSession($waNumber, [
+                'step' => 'request_aktif',
+                'request_granted' => 1,
+            ]);
             return;
         }
         if ($this->kurirLooksRefuse($msg)) {
+            $this->kurirCancelDeliveryRequest($session);
             $id = (int) ($session['id_pelanggan'] ?? 0);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Baik, maaf ya {$sapaan}, untuk pemesanan antar/jemput bisa juga via link berikut:\n"
+                "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
                 . "https://ml.nalju.com/J/kurir/{$id}"
             );
             $this->clearKurirSession($waNumber);
             return;
         }
         $this->sendAutoreplyText($waNumber, "Apakah permintaan tetap dilanjutkan {$sapaan}?");
+    }
+
+    private function kurirCancelDeliveryRequest(array $session): void
+    {
+        $idRequest = (int) ($session['id_request'] ?? 0);
+        if ($idRequest <= 0) {
+            return;
+        }
+        try {
+            DB::getInstance(1)->update(
+                'delivery_request',
+                [
+                    'delivery_status' => 'batal',
+                    'catatan_batal' => 'Dibatalkan customer via WA AI',
+                    'selesaiTime' => date('Y-m-d H:i:s'),
+                ],
+                ['id_request' => $idRequest]
+            );
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirCancelDeliveryRequest: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
+    private function kurirUpdateRequestCatatanJam(array $session, array $jamMeta): void
+    {
+        $idRequest = (int) ($session['id_request'] ?? 0);
+        if ($idRequest <= 0 || empty($jamMeta['jam'])) {
+            return;
+        }
+        $tgl = $jamMeta['tanggal'] ?? date('Y-m-d');
+        $catatan = mb_substr(
+            'Minta jam ' . $this->formatKurirJamLabel((float) $jamMeta['jam']) . " tanggal {$tgl}",
+            0,
+            150
+        );
+        try {
+            DB::getInstance(1)->update(
+                'delivery_request',
+                ['catatan_kurir' => $catatan],
+                ['id_request' => $idRequest]
+            );
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
 
     /**
@@ -943,6 +980,20 @@ trait WARepliesKurirTrait
         $now = date('Y-m-d H:i:s');
         $db = DB::getInstance(1);
         try {
+            // Sudah ada request dari konfirmasi lokasi — update catatan saja
+            $existingId = (int) ($session['id_request'] ?? 0);
+            if ($existingId > 0) {
+                if ($catatan !== '') {
+                    $db->update(
+                        'delivery_request',
+                        ['catatan_kurir' => mb_substr($catatan, 0, 150)],
+                        ['id_request' => $existingId]
+                    );
+                }
+                $this->saveKurirSession($waNumber, ['id_request' => $existingId, 'step' => 'request_aktif']);
+                return true;
+            }
+
             $insData = [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
@@ -980,7 +1031,7 @@ trait WARepliesKurirTrait
                     ]);
                 }
             }
-            $this->saveKurirSession($waNumber, ['id_request' => $idRequest, 'step' => 'done']);
+            $this->saveKurirSession($waNumber, ['id_request' => $idRequest, 'step' => 'request_aktif']);
             return true;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -1185,8 +1236,20 @@ trait WARepliesKurirTrait
 
         if (!$this->kurirLooksAgree($msg)) {
             if ($this->kurirLooksRefuse($msg)) {
-                $this->saveKurirSession($waNumber, ['layanan' => 'sameday', 'step' => 'terms_setuju']);
-                $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kita kembali ke sameday. Apakah setuju ketentuan driver?");
+                // Kembali ke sameday: jika request sudah ada, tetap di request_aktif
+                $stepBack = !empty($session['id_request']) ? 'request_aktif' : 'confirm_lokasi';
+                $this->saveKurirSession($waNumber, ['layanan' => 'sameday', 'step' => $stepBack]);
+                if ($stepBack === 'request_aktif') {
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        "Baik {$sapaan}, kita lanjutkan permintaan sameday yang sudah diterima."
+                    );
+                } else {
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        "Baik {$sapaan}, kita kembali ke sameday. Balas *ya* untuk konfirmasi lokasi/ongkir."
+                    );
+                }
                 return;
             }
             $this->sendAutoreplyText($waNumber, "Lanjut pesan Instant {$sapaan}? Balas ya/tidak.");

@@ -297,11 +297,26 @@ class Estimasi extends Controller
             $reqTgl = $session['request_tanggal'] ?? date('Y-m-d');
             $jamLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
             $replyText = "Baik {$sapaan}, driver telah mengonfirmasi, akan dilakukan {$noun} perkiraan jam {$jamLabel}, terima kasih 😊";
-            $set['step'] = 'done';
-            $insertOk = $this->insertKurirSamedayFromSession($session, (string) $reqTgl, (float) $requestJam);
-            if (!$insertOk) {
-                echo json_encode(['ok' => 0, 'msg' => 'Gagal membuat delivery_request']);
-                return;
+            $set['step'] = 'request_aktif';
+            $existingId = (int) ($session['id_request'] ?? 0);
+            if ($existingId > 0) {
+                $catatan = mb_substr("Minta jam {$jamLabel} tanggal {$reqTgl}", 0, 150);
+                $upd = $this->db(0)->update(
+                    'delivery_request',
+                    ['catatan_kurir' => $catatan],
+                    'id_request = ' . $existingId . " AND delivery_status = 'berjalan'"
+                );
+                if (!empty($upd['errno'])) {
+                    echo json_encode(['ok' => 0, 'msg' => $upd['error'] ?? 'Gagal update delivery_request']);
+                    return;
+                }
+            } else {
+                $newId = $this->insertKurirSamedayFromSession($session, (string) $reqTgl, (float) $requestJam);
+                if ($newId === false || $newId <= 0) {
+                    echo json_encode(['ok' => 0, 'msg' => 'Gagal membuat delivery_request']);
+                    return;
+                }
+                $set['id_request'] = $newId;
             }
         } else {
             $parsed = $this->parseEstimasiTanggalJamFromPost();
@@ -331,7 +346,8 @@ class Estimasi extends Controller
         $this->respondAfterUpdate($phone, $replyText);
     }
 
-    private function insertKurirSamedayFromSession(array $session, string $tgl, float $jam): bool
+    /** @return int|false id_request baru, atau false */
+    private function insertKurirSamedayFromSession(array $session, string $tgl, float $jam)
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $idCabang = (int) ($session['id_cabang'] ?? 0);
@@ -384,7 +400,7 @@ class Estimasi extends Controller
         if (!empty($ins['errno']) || (int) ($ins['insert_id'] ?? 0) <= 0) {
             return false;
         }
-        return true;
+        return (int) $ins['insert_id'];
     }
 
     private function updateGrantTask(string $phone, string $phoneEsc, array $session): void
