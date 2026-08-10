@@ -272,30 +272,38 @@ class Delivery extends Controller
 
          $surcasJemput = null;
          $surcasAntar = null;
-         if ($jenis === 'jemput') {
-            $surcasSplit = $this->splitSurcasJenis1To23($idCabang, $ids, $idKaryawan, 0);
-            if ($surcasSplit !== null) {
-               $surcasJemput = $surcasSplit['surcas_jemput'];
-               $surcasAntar = $surcasSplit['surcas_antar'];
-            } else {
-               $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? 0);
-               if ($jumlahSurcas < 0) {
-                  throw new Exception('Jumlah Surcas Penjemputan tidak valid');
-               }
-               $surcasJemput = $this->upsertSurcasPenjemputan(
-                  $idCabang,
-                  $ids,
-                  $jumlahSurcas,
-                  $idKaryawan,
-                  0
-               );
-            }
-         } elseif ($jenis === 'antar') {
+         $surcasSplit = null;
+
+         $antarKembali = (int) ($_POST['antar_kembali'] ?? 0) === 1 && $jenis === 'jemput';
+         if ($antarKembali && $sekalian) {
+            throw new Exception('Pilih salah satu: Sekalian Antar atau Request Antar kembali');
+         }
+
+         $hasJenis1 = $this->getSurcasJenis1ForSaleIds($idCabang, $ids);
+         if ($hasJenis1 !== null && $jenis === 'jemput' && $sekalian) {
+            throw new Exception(
+               'Ref punya Surcas gabungan (jenis 1): Request Antar kembali otomatis dibuat. Tidak bisa Sekalian Antar.'
+            );
+         }
+
+         if ($hasJenis1 !== null) {
             $surcasSplit = $this->splitSurcasJenis1To23($idCabang, $ids, $idKaryawan, 0);
             if ($surcasSplit !== null) {
                $surcasJemput = $surcasSplit['surcas_jemput'];
                $surcasAntar = $surcasSplit['surcas_antar'];
             }
+         } elseif ($jenis === 'jemput') {
+            $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? 0);
+            if ($jumlahSurcas < 0) {
+               throw new Exception('Jumlah Surcas Penjemputan tidak valid');
+            }
+            $surcasJemput = $this->upsertSurcasPenjemputan(
+               $idCabang,
+               $ids,
+               $jumlahSurcas,
+               $idKaryawan,
+               0
+            );
          }
 
          $insertedSekalian = 0;
@@ -313,11 +321,48 @@ class Delivery extends Controller
             );
          }
 
-         $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
+         $antarKembaliId = 0;
+         if ($surcasSplit !== null && $jenis === 'jemput') {
+            $jumlahAntar = (int) ($surcasSplit['jumlah_pengantaran'] ?? 0);
+            $seed = $this->buildCrmAntarKembaliSeed($pelangganIds, $phoneTail, $idCabang);
+            $antarKembaliId = $this->createAntarKembaliRequest($seed, $jumlahAntar, 0);
+            if ($antarKembaliId <= 0) {
+               throw new Exception('Gagal membuat request Antar kembali');
+            }
+         } elseif ($antarKembali) {
+            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            if ($jumlahAntar < 0) {
+               throw new Exception('Surcas Pengantaran tidak valid');
+            }
+            $surcasAntar = $this->upsertSurcasPengantaran(
+               $idCabang,
+               $ids,
+               $jumlahAntar,
+               $idKaryawan,
+               0
+            );
+            $this->deleteSurcasJenis1OnRef($idCabang, (string) ($surcasAntar['no_ref'] ?? ''));
+            $seed = $this->buildCrmAntarKembaliSeed($pelangganIds, $phoneTail, $idCabang);
+            $antarKembaliId = $this->createAntarKembaliRequest($seed, $jumlahAntar, 0);
+            if ($antarKembaliId <= 0) {
+               throw new Exception('Gagal membuat request Antar kembali');
+            }
+         }
+
+         // Jika Antar kembali dibuat, biarkan case CRM terbuka sampai request Antar selesai
+         $crmClosed = $antarKembaliId > 0
+            ? $this->maybeCloseCrmCase2ByPhoneTail($phoneTail, $idKaryawan)
+            : $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
          $msg = "Delivery $jenis selesai ($inserted item)";
          if ($sekalian) {
             $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+         if ($antarKembaliId > 0) {
+            $msg .= " + Request Antar kembali #$antarKembaliId";
+         }
+         if ($crmClosed) {
+            $msg .= '. Case CRM ikut ditutup.';
          }
 
          $response = [
@@ -331,7 +376,9 @@ class Delivery extends Controller
                'count_sekalian' => $insertedSekalian,
                'surcas_jemput' => $surcasJemput,
                'surcas_antar' => $surcasAntar,
-               'crm_closed' => true,
+               'surcas_split' => $surcasSplit,
+               'antar_kembali_id' => $antarKembaliId > 0 ? $antarKembaliId : null,
+               'crm_closed' => $crmClosed,
             ],
          ];
       } catch (\Throwable $e) {
@@ -2139,6 +2186,50 @@ class Delivery extends Controller
    }
 
    /**
+    * Seed delivery_request Antar dari selesai CRM (bukan portal request).
+    * Ambil lokasi terakhir pelanggan bila ada.
+    *
+    * @param int[] $pelangganIds
+    */
+   private function buildCrmAntarKembaliSeed(array $pelangganIds, string $phoneTail, int $idCabang): array
+   {
+      $safe = [];
+      foreach ($pelangganIds as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $safe[$id] = $id;
+         }
+      }
+      $safe = array_values($safe);
+      $idPelanggan = (int) ($safe[0] ?? 0);
+      $lokasi = null;
+      if (!empty($safe)) {
+         $lokasi = $this->db(0)->get_where_row(
+            'pelanggan_lokasi',
+            'id_pelanggan IN (' . implode(',', $safe) . ') ORDER BY insertTime DESC, id_lokasi DESC'
+         );
+         if (is_array($lokasi) && !empty($lokasi['id_pelanggan'])) {
+            $idPelanggan = (int) $lokasi['id_pelanggan'];
+         } else {
+            $lokasi = null;
+         }
+      }
+      if ($idPelanggan <= 0) {
+         throw new Exception('Pelanggan tidak ditemukan untuk Request Antar kembali');
+      }
+      return [
+         'id_pelanggan' => $idPelanggan,
+         'id_cabang' => $idCabang,
+         'phone_tail' => $phoneTail,
+         'id_lokasi' => (int) ($lokasi['id_lokasi'] ?? 0),
+         'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
+         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+         'lokasi_latt' => isset($lokasi['latt']) ? (float) $lokasi['latt'] : 0,
+         'lokasi_longt' => isset($lokasi['longt']) ? (float) $lokasi['longt'] : 0,
+      ];
+   }
+
+   /**
     * Buat delivery_request Antar baru (menunggu laundry selesai) dari request jemput.
     * @return int id_request baru
     */
@@ -2155,11 +2246,10 @@ class Delivery extends Controller
       }
 
       $now = date('Y-m-d H:i:s');
-      $catatan = mb_substr(
-         'Antar kembali setelah laundry selesai (dari jemput #' . (int) $fromJemputId . ')',
-         0,
-         150
-      );
+      $catatan = $fromJemputId > 0
+         ? 'Antar kembali setelah laundry selesai (dari jemput #' . (int) $fromJemputId . ')'
+         : 'Antar kembali setelah laundry selesai (dari jemput CRM)';
+      $catatan = mb_substr($catatan, 0, 150);
       $idLokasi = (int) ($jemputReq['id_lokasi'] ?? 0);
       $data = [
          'sumber' => 'customer',

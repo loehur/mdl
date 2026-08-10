@@ -1099,7 +1099,7 @@ $isEmptyCustomer = empty($customerGroups);
               <input type="number" id="dlvSurcasAntarJumlah" name="jumlah_surcas_antar" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
               <p class="dlv-hint mt-1 mb-0">
                 <i class="fas fa-info-circle me-1"></i>
-                Default = tarif jarak (sama jemput). Setelah selesai, request <strong>Antar</strong> baru dibuat agar driver ingat antar kembali.
+                Default = tarif jarak / surcas jemput. Setelah selesai, request <strong>Antar</strong> baru dibuat agar driver ingat antar kembali.
               </p>
             </div>
           </div>
@@ -1599,7 +1599,7 @@ $isEmptyCustomer = empty($customerGroups);
       ' → otomatis: Pengantaran Rp' + Number(halfPengantaran).toLocaleString('id-ID') +
       ' + Penjemputan Rp' + Number(halfPenjemputan).toLocaleString('id-ID') +
       '. Input manual diabaikan.';
-    if (mode === 'request' && jenis === 'jemput') {
+    if (jenis === 'jemput') {
       msg += ' Request <strong>Antar kembali</strong> otomatis dibuat.';
     }
     row.innerHTML = msg;
@@ -1611,11 +1611,10 @@ $isEmptyCustomer = empty($customerGroups);
     var surcasRow = document.getElementById('dlvSurcasAntarRow');
     var surcasInput = document.getElementById('dlvSurcasAntarJumlah');
     var jenis = getSelesaiJenis();
-    var mode = (document.getElementById('dlvSelesaiMode') || {}).value || 'crm';
     var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
     if (!block) return;
 
-    var show = mode === 'request' && jenis === 'jemput' && layanan !== 'instant';
+    var show = jenis === 'jemput' && layanan !== 'instant';
     var jenis1 = getSelectedSurcasJenis1();
     if (jenis1 != null && show) {
       block.hidden = false;
@@ -1640,6 +1639,7 @@ $isEmptyCustomer = empty($customerGroups);
       if (surcasInput) {
         surcasInput.value = '';
         surcasInput.required = false;
+        surcasInput.readOnly = false;
       }
       return;
     }
@@ -1647,6 +1647,7 @@ $isEmptyCustomer = empty($customerGroups);
     var on = !!(check && check.checked);
     if (surcasRow) surcasRow.hidden = !on;
     if (surcasInput) {
+      surcasInput.readOnly = false;
       surcasInput.required = on;
       if (on && (surcasInput.value === '' || surcasInput.value == null)) {
         var fixed = parseInt(
@@ -2184,7 +2185,7 @@ $isEmptyCustomer = empty($customerGroups);
     var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
     var jenis1Amt = getSelectedSurcasJenis1();
     if (antarKembaliOn && jenis1Amt == null) {
-      if (mode !== 'request' || jenis !== 'jemput') {
+      if (jenis !== 'jemput') {
         toast('Request Antar kembali hanya untuk selesai Jemput', 'warn');
         return;
       }
@@ -2200,6 +2201,11 @@ $isEmptyCustomer = empty($customerGroups);
       }
     }
 
+    if (jenis === 'jemput' && jenis1Amt != null && sekalianOn) {
+      toast('Ref punya Surcas gabungan: Request Antar kembali otomatis. Tidak bisa Sekalian Antar.', 'warn');
+      return;
+    }
+
     var fd = new FormData();
     fd.append('jenis', jenis);
     fd.append('id_karyawan', idKaryawan);
@@ -2213,18 +2219,20 @@ $isEmptyCustomer = empty($customerGroups);
         fd.append('ids_sekalian[]', cb.value);
       });
     }
-    if (jenis === 'jemput' && mode === 'crm') {
+    if (jenis === 'jemput' && mode === 'crm' && getSelectedSurcasJenis1() == null) {
       fd.append(
         'jumlah_surcas_jemput',
         String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0)
       );
     }
-    if (antarKembaliOn) {
+    if (antarKembaliOn || (jenis === 'jemput' && getSelectedSurcasJenis1() != null)) {
       fd.append('antar_kembali', '1');
-      fd.append(
-        'jumlah_surcas_antar',
-        String(parseInt((document.getElementById('dlvSurcasAntarJumlah') || {}).value || '0', 10) || 0)
-      );
+      if (getSelectedSurcasJenis1() == null) {
+        fd.append(
+          'jumlah_surcas_antar',
+          String(parseInt((document.getElementById('dlvSurcasAntarJumlah') || {}).value || '0', 10) || 0)
+        );
+      }
     }
 
     var endpoint = selesaiUrl;
