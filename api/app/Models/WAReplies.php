@@ -99,7 +99,10 @@ class WAReplies
     {
         $res = $this->getWaService()->sendFreeText($waNumber, $text);
         if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            // Jangan push WS di sini untuk yCloud: WhatsAppService::saveOutboundMessage
+            // sudah broadcast agent_message_sent (id = DB). Push kedua pakai id provider
+            // membuat CRM tampil double sampai refresh.
+            // Fonnte (customSender): pushToWebSocket memang no-op.
         } else {
             $handler = $this->currentHandler ?? 'unknown';
             if (class_exists('\Log')) {
@@ -3748,14 +3751,11 @@ class WAReplies
 
         $now = date('Y-m-d H:i:s');
         $expires = date('Y-m-d H:i:s', time() + (self::ESTIMASI_SESSION_TTL_MINUTES * 60));
-        $idPenjualan = array_key_exists('id_penjualan', $data) ? $data['id_penjualan'] : null;
-        $fase = $data['fase_proses'] ?? null;
-        $butuh = !empty($data['butuh_estimasi']) ? 1 : 0;
 
         $existing = null;
         try {
             $ex = DB::getInstance(0)->query(
-                'SELECT estimasi_jam, estimasi_tanggal, request_text, request_tanggal, request_jam, request_granted, id_cabang
+                'SELECT butuh_estimasi, estimasi_jam, estimasi_tanggal, request_text, request_tanggal, request_jam, request_granted, id_cabang, id_penjualan, fase_proses, summary
                  FROM wa_estimasi_session WHERE phone = ? LIMIT 1',
                 [$phone]
             );
@@ -3775,6 +3775,15 @@ class WAReplies
         $idCabang = array_key_exists('id_cabang', $data)
             ? $data['id_cabang']
             : ($existing['id_cabang'] ?? null);
+        $idPenjualan = array_key_exists('id_penjualan', $data)
+            ? $data['id_penjualan']
+            : ($existing['id_penjualan'] ?? null);
+        $fase = array_key_exists('fase_proses', $data)
+            ? ($data['fase_proses'] ?? null)
+            : ($existing['fase_proses'] ?? null);
+        $butuh = array_key_exists('butuh_estimasi', $data)
+            ? (!empty($data['butuh_estimasi']) ? 1 : 0)
+            : (!empty($existing['butuh_estimasi']) ? 1 : 0);
         $requestText = array_key_exists('request_text', $data)
             ? $data['request_text']
             : ($existing['request_text'] ?? null);
@@ -3787,7 +3796,9 @@ class WAReplies
         $requestGranted = array_key_exists('request_granted', $data)
             ? $data['request_granted']
             : ($existing['request_granted'] ?? null);
-        $summary = $data['summary'] ?? null;
+        $summary = array_key_exists('summary', $data)
+            ? $data['summary']
+            : ($existing['summary'] ?? null);
 
         $db = DB::getInstance(0);
         try {
@@ -4351,7 +4362,9 @@ class WAReplies
         ]);
 
         $sendAck = empty($decision['no_ack']);
-        $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang, $sendAck, $session);
+        // Reload agar ack_ts append tidak menimpa butuh_estimasi dari session lama
+        $freshSession = $this->getEstimasiSession($waNumber) ?: $session;
+        $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang, $sendAck, $freshSession);
         return true;
     }
 
@@ -4490,18 +4503,25 @@ class WAReplies
 
     private function estimasiAppendSummary(string $waNumber, array $session, string $note): void
     {
-        $merged = $this->estimasiMergeSummaryText((string) ($session['summary'] ?? ''), $note);
+        // Pakai state terbaru di DB — jangan overwrite butuh_estimasi/request dari session stale
+        // (mis. escalate baru set butuh=1, lalu ack_ts append pakai session lama butuh=0 → notif petugas hilang)
+        $live = $this->getEstimasiSession($waNumber);
+        $base = is_array($live) ? $live : $session;
+        $summaryBase = array_key_exists('summary', $session)
+            ? (string) $session['summary']
+            : (string) ($base['summary'] ?? '');
+        $merged = $this->estimasiMergeSummaryText($summaryBase, $note);
         $this->saveEstimasiSession($waNumber, [
-            'id_penjualan' => $session['id_penjualan'] ?? null,
-            'id_cabang' => $session['id_cabang'] ?? null,
-            'fase_proses' => $session['fase_proses'] ?? null,
-            'butuh_estimasi' => !empty($session['butuh_estimasi']) ? 1 : 0,
-            'estimasi_tanggal' => $session['estimasi_tanggal'] ?? null,
-            'estimasi_jam' => $session['estimasi_jam'] ?? null,
-            'request_text' => $session['request_text'] ?? null,
-            'request_tanggal' => $session['request_tanggal'] ?? null,
-            'request_jam' => $session['request_jam'] ?? null,
-            'request_granted' => array_key_exists('request_granted', $session) ? $session['request_granted'] : null,
+            'id_penjualan' => $base['id_penjualan'] ?? null,
+            'id_cabang' => $base['id_cabang'] ?? null,
+            'fase_proses' => $base['fase_proses'] ?? null,
+            'butuh_estimasi' => !empty($base['butuh_estimasi']) ? 1 : 0,
+            'estimasi_tanggal' => $base['estimasi_tanggal'] ?? null,
+            'estimasi_jam' => $base['estimasi_jam'] ?? null,
+            'request_text' => $base['request_text'] ?? null,
+            'request_tanggal' => $base['request_tanggal'] ?? null,
+            'request_jam' => $base['request_jam'] ?? null,
+            'request_granted' => array_key_exists('request_granted', $base) ? $base['request_granted'] : null,
             'summary' => $merged,
         ]);
     }

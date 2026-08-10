@@ -1259,20 +1259,26 @@ const sanitizeMessages = (messages) => {
           .trim();
       const msgTime = new Date(msg.rawTime || msg.time).getTime();
       const msgText = normalize(msg.text);
-      // Hanya lekatkan optimistic ↔ server (bukan dua pesan DB berbeda dengan teks sama)
+      // Optimistic ↔ server: window lebar.
+      // Dua pesan nyata outbound: hanya merge echo WS ganda (id DB vs provider),
+      // bukan dua kiriman WA berbeda (wamid keduanya ada dan beda).
       const msgOptimistic = isOptimistic(msg);
-      // Wider window only when reconciling optimistic bubble with server copy
-      const timeWindowMs = msgOptimistic ? 120000 : 5000;
 
       for (let i = result.length - 1; i >= 0 && i >= result.length - 15; i--) {
         const cand = result[i];
         if (cand.sender !== msg.sender) continue;
 
         const candOptimistic = isOptimistic(cand);
-        // Dua pesan nyata (bukan temp/optimistic) jangan di-merge meski teks identik
-        if (!msgOptimistic && !candOptimistic) {
-          continue;
+        const bothReal = !msgOptimistic && !candOptimistic;
+        if (bothReal) {
+          if (msg.sender !== "me") continue;
+          const w1 = msg.wamid ? String(msg.wamid) : "";
+          const w2 = cand.wamid ? String(cand.wamid) : "";
+          if (w1 && w2 && w1 !== w2) continue; // dua WA send nyata
         }
+
+        const timeWindowMs =
+          msgOptimistic || candOptimistic ? 120000 : 12000;
 
         // Outgoing media: merge optimistic preview with server message
         if (isMediaMessage(msg) || isMediaMessage(cand)) {
@@ -1280,7 +1286,7 @@ const sanitizeMessages = (messages) => {
             msg.sender === "me" &&
             isMediaMessage(msg) &&
             isMediaMessage(cand) &&
-            (msgOptimistic || candOptimistic) &&
+            (msgOptimistic || candOptimistic || bothReal) &&
             normalize(cand.text) === msgText
           ) {
             const candTime = new Date(cand.rawTime || cand.time).getTime();
@@ -3540,6 +3546,66 @@ const connectWebSocket = () => {
                 conversation.messages = sanitizeMessages(conversation.messages);
                 messageUpdateTrigger.value++;
                 return; // Stop, don't add new
+              }
+
+              // Echo defense: WS ganda (id DB dari WhatsAppService + id provider dari push lama)
+              // Merge jika teks sama, jendela pendek, dan wamid tidak konflik
+              const incomingText = normalizeText(messageData.text);
+              const incomingType = messageData.type || "text";
+              const incomingWamid = messageData.wamid
+                ? String(messageData.wamid)
+                : "";
+              const incomingTime = new Date(messageData.time).getTime();
+              let echoMatch = null;
+              for (let i = conversation.messages.length - 1; i >= 0; i--) {
+                if (conversation.messages.length - i > 10) break;
+                const m = conversation.messages[i];
+                if (m.sender !== "me") continue;
+                if ((m.type || "text") !== incomingType) continue;
+                if (normalizeText(m.text) !== incomingText || incomingText === "")
+                  continue;
+                const mw = m.wamid ? String(m.wamid) : "";
+                if (mw && incomingWamid && mw !== incomingWamid) continue;
+                const mt = new Date(m.rawTime || m.time).getTime();
+                if (
+                  !isNaN(mt) &&
+                  !isNaN(incomingTime) &&
+                  Math.abs(mt - incomingTime) > 12000
+                ) {
+                  continue;
+                }
+                echoMatch = m;
+                break;
+              }
+              if (echoMatch) {
+                const echoIdNum = /^\d+$/.test(String(echoMatch.id));
+                const newIdNum = /^\d+$/.test(String(messageData.id));
+                if (newIdNum && !echoIdNum) echoMatch.id = messageData.id;
+                else if (messageData.id != null && echoMatch.id == null)
+                  echoMatch.id = messageData.id;
+                if (messageData.wamid && !echoMatch.wamid)
+                  echoMatch.wamid = messageData.wamid;
+                if (
+                  shouldApplyMessageStatus(
+                    echoMatch.status,
+                    messageData.status || "sent"
+                  )
+                ) {
+                  echoMatch.status = normalizeMessageStatus(
+                    messageData.status || "sent"
+                  );
+                }
+                const senderCode =
+                  messageData.sender_code ?? payload.sender_code;
+                if (senderCode !== undefined)
+                  echoMatch.sender_code = senderCode;
+                const echoIdx = conversation.messages.indexOf(echoMatch);
+                if (echoIdx !== -1) {
+                  conversation.messages.splice(echoIdx, 1, { ...echoMatch });
+                }
+                conversation.messages = sanitizeMessages(conversation.messages);
+                messageUpdateTrigger.value++;
+                return;
               }
 
               // Own echo (same agent): never add a second bubble
