@@ -7,6 +7,8 @@
 class AntarTarif
 {
    const MIN_TARIF = 5000;
+   /** Legacy: gabungan jemput+antar — dibagi 2 saat penyelesaian delivery */
+   const SURCAS_JENIS_GABUNGAN = 1;
    const SURCAS_JENIS_PENGANTARAN = 2;
    const SURCAS_JENIS_PENJEMPUTAN = 3;
 
