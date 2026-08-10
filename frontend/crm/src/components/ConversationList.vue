@@ -265,7 +265,9 @@ const parseEmoji = (text) => {
         <!-- Kolom Kiri: Kode Cabang + Cust ID + Case Badges -->
         <div class="flex flex-col items-center justify-start gap-1.5 pt-1 min-w-[42px] flex-shrink-0">
           <!-- Kode Cabang (tanpa []) -->
-          <div v-if="chat.kode_cabang" class="text-xs font-bold px-2 py-0.5 rounded" :class="chat.kode_cabang === '00' ? 'text-pink-500 bg-pink-500/10' : 'text-[var(--wa-accent-blue)] bg-blue-500/10'">
+          <div v-if="chat.kode_cabang" class="text-xs font-bold px-2 py-0.5 rounded" :style="chat.kode_cabang === '00'
+            ? { color: 'var(--wa-cabang-hq-text)', backgroundColor: 'var(--wa-cabang-hq-bg)' }
+            : { color: 'var(--wa-cabang-text)', backgroundColor: 'var(--wa-cabang-bg)' }">
             {{ chat.kode_cabang }}
           </div>
           
@@ -280,14 +282,14 @@ const parseEmoji = (text) => {
         <!-- Kolom Kanan: Nama + Message -->
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-1 gap-2">
-            <h3 class="text-[16px] truncate text-[var(--wa-text-primary)] opacity-90 max-w-[240px] uppercase" style="font-weight: 600;" :title="chat.name">
+            <h3 class="text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" style="font-weight: 650;" :title="chat.name">
               {{ chat.name }}
             </h3>
             <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
           </div>
 
           <div class="flex justify-between items-center">
-            <p class="text-sm text-[var(--wa-text-secondary)] opacity-80 truncate w-64" :class="{ 'font-normal text-[var(--wa-text-primary)] opacity-90': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
+            <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-medium text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
         </div>

@@ -315,43 +315,48 @@ const applyTheme = (themeName) => {
   const root = document.documentElement;
 
   if (themeName === "light") {
-    // Light theme colors (WhatsApp-like)
-    root.style.setProperty("--wa-bg-primary", "#f0f2f5");
+    // Light theme — firmer contrast (not solid/harsh)
+    root.style.setProperty("--wa-bg-primary", "#eef0f3");
     root.style.setProperty("--wa-bg-secondary", "#ffffff");
-    root.style.setProperty("--wa-bg-tertiary", "#f0f2f5");
+    root.style.setProperty("--wa-bg-tertiary", "#e8ebef");
     root.style.setProperty("--wa-bg-panel", "#ffffff");
-    root.style.setProperty("--wa-bg-chat", "#efeae2"); // Chat area background
-    root.style.setProperty("--wa-border", "#e9edef");
-    root.style.setProperty("--wa-text-primary", "#111b21");
-    root.style.setProperty("--wa-text-secondary", "#54656f");
-    root.style.setProperty("--wa-text-tertiary", "#8696a0");
-    root.style.setProperty("--wa-bubble-out", "#d9fdd3");
-    root.style.setProperty("--wa-bubble-outgoing", "#d9fdd3"); // Alias
-    root.style.setProperty("--wa-bubble-out-text", "#111b21");
+    root.style.setProperty("--wa-bg-chat", "#e8e4dc");
+    root.style.setProperty("--wa-border", "#cfd6db");
+    root.style.setProperty("--wa-text-primary", "#0b141a");
+    root.style.setProperty("--wa-text-secondary", "#3b4a54");
+    root.style.setProperty("--wa-text-tertiary", "#5e6e78");
+    root.style.setProperty("--wa-bubble-out", "#d1f4cc");
+    root.style.setProperty("--wa-bubble-outgoing", "#d1f4cc");
+    root.style.setProperty("--wa-bubble-out-text", "#0b141a");
     root.style.setProperty("--wa-bubble-in", "#ffffff");
-    root.style.setProperty("--wa-bubble-incoming", "#ffffff"); // Alias
-    root.style.setProperty("--wa-bubble-in-text", "#111b21");
-    root.style.setProperty("--wa-hover", "#f5f6f6");
-    root.style.setProperty("--wa-active", "#f0f2f5");
-    root.style.setProperty("--wa-bubble-out-meta", "#54656f"); // Dark gray for light mode
-    root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.05)");
-    root.style.setProperty("--wa-bubble-out-quoted-text", "#54656f");
-    root.style.setProperty("--wa-icon-default", "#54656f");
-    root.style.setProperty("--wa-accent-green", "#00a884");
-    root.style.setProperty("--wa-divider", "#f0f2f5"); // Light divider merging with bg
-    root.style.setProperty("--wa-link-color", "#027eb5");
+    root.style.setProperty("--wa-bubble-incoming", "#ffffff");
+    root.style.setProperty("--wa-bubble-in-text", "#0b141a");
+    root.style.setProperty("--wa-hover", "#e8ebef");
+    root.style.setProperty("--wa-active", "#dde3e8");
+    root.style.setProperty("--wa-bubble-out-meta", "#3b4a54");
+    root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.07)");
+    root.style.setProperty("--wa-bubble-out-quoted-text", "#3b4a54");
+    root.style.setProperty("--wa-icon-default", "#3b4a54");
+    root.style.setProperty("--wa-accent-green", "#008f72");
+    root.style.setProperty("--wa-accent-blue", "#0277bd");
+    root.style.setProperty("--wa-divider", "#d8dee3");
+    root.style.setProperty("--wa-link-color", "#015f96");
     root.style.setProperty("--wa-date-badge", "#ffffff");
-    root.style.setProperty("--wa-date-badge-text", "#54656f");
-    root.style.setProperty("--wa-header-bg", "#f0f2f5");
+    root.style.setProperty("--wa-date-badge-text", "#3b4a54");
+    root.style.setProperty("--wa-header-bg", "#eef0f3");
     root.style.setProperty("--wa-input-bg", "#ffffff");
-    root.style.setProperty("--wa-conversation-active", "#f0f2f5");
+    root.style.setProperty("--wa-conversation-active", "#dde3e8");
+    root.style.setProperty("--wa-cabang-text", "#0277bd");
+    root.style.setProperty("--wa-cabang-bg", "rgba(2, 119, 189, 0.16)");
+    root.style.setProperty("--wa-cabang-hq-text", "#c2185b");
+    root.style.setProperty("--wa-cabang-hq-bg", "rgba(194, 24, 91, 0.16)");
 
     // Filter Tabs
-    root.style.setProperty("--wa-filter-active-bg", "#d9fdd3");
-    root.style.setProperty("--wa-filter-active-text", "#008069");
+    root.style.setProperty("--wa-filter-active-bg", "#c8f0c4");
+    root.style.setProperty("--wa-filter-active-text", "#006b54");
     root.style.setProperty("--wa-filter-inactive-bg", "transparent");
-    root.style.setProperty("--wa-filter-inactive-border", "#e9edef");
-    root.style.setProperty("--wa-filter-inactive-text", "#54656f");
+    root.style.setProperty("--wa-filter-inactive-border", "#cfd6db");
+    root.style.setProperty("--wa-filter-inactive-text", "#3b4a54");
   } else {
     // Dark theme colors - Soft black/gray like WhatsApp (no blue tint)
     root.style.setProperty("--wa-bg-primary", "#0d0d0d");
@@ -379,6 +384,7 @@ const applyTheme = (themeName) => {
     );
     root.style.setProperty("--wa-icon-default", "#c5c9cc");
     root.style.setProperty("--wa-accent-green", "#00a884");
+    root.style.setProperty("--wa-accent-blue", "#53bdeb");
     root.style.setProperty("--wa-divider", "#3a3a3a"); // More visible divider
     root.style.setProperty("--wa-link-color", "#53bdeb");
     root.style.setProperty("--wa-date-badge", "#1a1a1a");
@@ -386,6 +392,10 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-header-bg", "#1a1a1a");
     root.style.setProperty("--wa-input-bg", "#2a2a2a");
     root.style.setProperty("--wa-conversation-active", "#2a2a2a");
+    root.style.setProperty("--wa-cabang-text", "#53bdeb");
+    root.style.setProperty("--wa-cabang-bg", "rgba(83, 189, 235, 0.18)");
+    root.style.setProperty("--wa-cabang-hq-text", "#f472b6");
+    root.style.setProperty("--wa-cabang-hq-bg", "rgba(244, 114, 182, 0.18)");
 
     // Filter Tabs
     root.style.setProperty("--wa-filter-active-bg", "#00a884");

@@ -1133,7 +1133,7 @@ onUnmounted(() => {
                                                  🔒 Pesan ini bersifat private
                                             </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-0.5" style="margin-left: 8px;">
-                                                 <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-70">~{{ msg.sender_code }}</span>
+                                                 <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-85">~{{ msg.sender_code }}</span>
                                                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                                  <!-- Status Icon for outgoing -->
                                                  <span v-if="msg.sender === 'me'" class="text-[var(--wa-bubble-out-meta)]">

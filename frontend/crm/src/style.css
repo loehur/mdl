@@ -23,6 +23,10 @@
   /* Accent Colors */
   --wa-accent-green: #00a884;
   --wa-accent-blue: #53bdeb;
+  --wa-cabang-text: #53bdeb;
+  --wa-cabang-bg: rgba(83, 189, 235, 0.18);
+  --wa-cabang-hq-text: #f472b6;
+  --wa-cabang-hq-bg: rgba(244, 114, 182, 0.18);
 
   /* Border/Divider Colors - More Visible */
   --wa-border: #3a3a3a;
