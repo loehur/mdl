@@ -6,6 +6,8 @@ use App\Core\DB;
 
 class WAReplies
 {
+    use WARepliesKurirTrait;
+
     private $waService = null;
     private $noRegisterTextVariations = [
         "Maaf, nomor kakak belum terdaftar di sistem kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 🙏",
@@ -151,7 +153,8 @@ class WAReplies
             return 60;
         }
         if ($h === 'MINTA_JEMPUT_ANTAR') {
-            return 1440;
+            // Multi-turn session aktif: jangan blok 24 jam
+            return 1;
         }
 
         return 1;
@@ -1509,6 +1512,25 @@ class WAReplies
             ];
         }
 
+        // Session KURIR aktif: follow-up MINTA_JEMPUT_ANTAR
+        if ($this->getKurirSession($waNumber) !== null
+            && !$this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→MINTA_JEMPUT_ANTAR case=2');
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+            );
+            $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
+            // Bypass cooldown for active session
+            $this->handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody);
+            $this->logAutoreplyTrace($waNumber, 'DONE', 'kurir_session_followup_ok');
+
+            return (object) [
+                'case' => 2,
+                'notify' => true,
+                'conversation_id' => $conversationId,
+            ];
+        }
+
         // "masih/msh/msih bisa/bs terima kain?" atau "masih nerima ga klo gosok aj?" -> konfirmasi ke petugas + jam operasional (PRIORITAS)
         // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
         $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
@@ -2350,43 +2372,8 @@ class WAReplies
     }
 
     /**
-     * Intent MINTA_JEMPUT_ANTAR: balasan "CS menunggu" + link kurir jika pelanggan terdaftar.
-     * id_pelanggan = yang terakhir muncul di sale; jika belum pernah sale → id pertama dari lookup WA.
-     * Belum terdaftar → teks BON/CEK/BILL seperti DEFAULT. Di luar jam → jam tutup.
+     * Intent MINTA_JEMPUT_ANTAR — logic di WARepliesKurirTrait.
      */
-    private function handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody = '')
-    {
-        if (!$this->isOperatingHours()) {
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
-            return;
-        }
-
-        $idPelanggan = $this->resolveIdPelangganForKurirLink($phoneIn, $waNumber);
-
-        if ($idPelanggan !== null) {
-            $mid = "Untuk permintaan Jemput/Antar, dapat juga dipesan via link berikut:\n"
-                . "https://ml.nalju.com/J/kurir/{$idPelanggan}";
-        } else {
-            $mid = "Untuk balasan otomatis, silahkan ketik:\n"
-                . "- *BON* untuk info nota\n"
-                . "- *CEK* untuk info status\n"
-                . "- *BILL* untuk info tagihan";
-        }
-
-        if ($this->autoReplyProvider === 'B') {
-            $text = "Maaf, mohon menunggu. Admin sedang melayani customer lain.\n\n"
-                . $mid
-                . "\n\nUntuk informasi lainnya, kirimkan pesan ke *Madinah Laundry (CS)*\n"
-                . "💬 wa.me/6281170706611";
-        } else {
-            $text = "Maaf, mohon menunggu. CS sedang melayani customer lain.\n\n"
-                . $mid
-                . "\n\nUntuk pengaduan, kirimkan pesan ke *Madinah Laundry (Admin)*\n"
-                . "💬 wa.me/628117686252";
-        }
-
-        $this->sendAutoreplyText($waNumber, $text);
-    }
 
     /**
      * id_pelanggan untuk link J/kurir: sale terakhir (insertTime DESC), fallback id terkecil dari WA.

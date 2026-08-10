@@ -438,6 +438,9 @@ return [
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
+      - Minta jemput ATAU antar (beda: jemput = ambil dari lokasi customer, antar = antar ke lokasi customer).\n
+      - Follow-up session (konfirmasi lokasi/tarif/jam/setuju/instant) tetap MINTA_JEMPUT_ANTAR.\n
+      HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
       - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n

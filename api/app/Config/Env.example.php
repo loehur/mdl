@@ -52,6 +52,10 @@ class Env
     const WA_PHONE_NUMBER = '+628xxxxxxxxxx';              // Nomor WA bisnis (E.164)
     const WA_SERVER_URL = 'http://127.0.0.1:3003/incoming'; // Node wa_server
 
+    // Node maps_server — resolve URL Google Maps → lat/lng (MINTA_JEMPUT_ANTAR, dll.)
+    const MAPS_SERVER_URL = 'http://127.0.0.1:3020/resolve';
+    const MAPS_SERVER_TOKEN = ''; // sama dengan MAPS_SERVER_TOKEN di node/maps_server/.env (opsional)
+
     // Nomor admin (fitur khusus WA replies)
     const ADMIN_NUMBERS = ['0812xxxxxxxx', '0852xxxxxxxx'];
 

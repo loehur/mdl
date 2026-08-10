@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Helpers\Laundry;
+
+/**
+ * Jarak cabang → lokasi pelanggan + tarif antar/jemput sameday.
+ * Tarif = max(5000, round(km × 1000)). Mirror laundry AntarTarif.
+ */
+class AntarTarif
+{
+    public const MIN_TARIF = 5000;
+
+    public static function distanceKm($lat1, $lon1, $lat2, $lon2): float
+    {
+        $lat1 = (float) $lat1;
+        $lon1 = (float) $lon1;
+        $lat2 = (float) $lat2;
+        $lon2 = (float) $lon2;
+
+        if (!is_finite($lat1) || !is_finite($lon1) || !is_finite($lat2) || !is_finite($lon2)) {
+            return 0.0;
+        }
+
+        $R = 6371.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(max(0.0, 1 - $a)));
+        return $R * $c;
+    }
+
+    public static function tarifFromKm($km): int
+    {
+        return max(self::MIN_TARIF, (int) round((float) $km * 1000));
+    }
+
+    /**
+     * @return array{km:float,tarif:int}
+     */
+    public static function tarifFromCoords($latCabang, $lonCabang, $latLokasi, $lonLokasi): array
+    {
+        $km = self::distanceKm($latCabang, $lonCabang, $latLokasi, $lonLokasi);
+        return [
+            'km' => round($km, 3),
+            'tarif' => self::tarifFromKm($km),
+        ];
+    }
+
+    public static function formatRp(int $n): string
+    {
+        return 'Rp' . number_format($n, 0, ',', '.');
+    }
+}

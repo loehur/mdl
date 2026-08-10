@@ -45,4 +45,12 @@ class Fonnte
     {
         return '120363024779416973@g.us';
     }
+
+    /**
+     * Group WhatsApp driver (semua cabang) — konfirmasi jam jemput/antar.
+     */
+    public static function getDriverGroupId(): string
+    {
+        return '6281268098300-1625376610@g.us';
+    }
 }
