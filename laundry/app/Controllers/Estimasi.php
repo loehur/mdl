@@ -153,11 +153,55 @@ class Estimasi extends Controller
                 // tabel belum ada / skip
             }
 
-            // Estimasi dulu, lalu grant / kurir_grant
+            // Ambil lewat tutup (wa_ambil_tutup_session)
+            try {
+                $ambilRows = $this->db(100)->query_array(
+                    'SELECT phone, id_penjualan, id_cabang, step, request_text, request_tanggal, request_jam,
+                            request_granted, summary, updated_at, expires_at
+                     FROM wa_ambil_tutup_session
+                     WHERE expires_at > NOW()
+                       AND id_cabang = ' . (int) $this->currentCabangId() . '
+                       AND request_jam IS NOT NULL
+                       AND request_granted IS NULL
+                       AND step = \'pending_grant\'
+                     ORDER BY updated_at DESC
+                     LIMIT 50'
+                );
+                if (!is_array($ambilRows)) {
+                    $ambilRows = [];
+                }
+                foreach ($ambilRows as $row) {
+                    $phone = (string) ($row['phone'] ?? '');
+                    $pelanggan = $this->resolvePelangganByPhone($phone);
+                    $reqJam = $row['request_jam'] ?? null;
+                    $reqTgl = $row['request_tanggal'] ?? null;
+                    $items[] = [
+                        'task_type' => 'ambil_tutup',
+                        'task_id' => 'ambil_tutup:' . $phone,
+                        'phone' => $phone,
+                        'phone_display' => $this->displayPhone($phone),
+                        'id_penjualan' => isset($row['id_penjualan']) ? (int) $row['id_penjualan'] : null,
+                        'fase_proses' => 'selesai',
+                        'customer_message' => trim((string) ($row['request_text'] ?? '')),
+                        'request_text' => $row['request_text'] ?? '',
+                        'request_tanggal' => $reqTgl,
+                        'request_jam' => $reqJam,
+                        'request_jam_label' => $this->formatEstimasiJamLabelFromDb($reqJam),
+                        'request_waktu_label' => $this->formatRequestWaktuLabel($reqTgl, (float) $reqJam),
+                        'updated_at' => $row['updated_at'] ?? null,
+                        'expires_at' => $row['expires_at'] ?? null,
+                        'nama' => $pelanggan['nama'] ?? '',
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // tabel belum ada / skip
+            }
+
+            // Estimasi dulu, lalu grant / kurir / ambil tutup
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
                     if ($t === 'estimasi') return 0;
-                    if ($t === 'grant' || $t === 'kurir_grant') return 1;
+                    if ($t === 'grant' || $t === 'kurir_grant' || $t === 'ambil_tutup') return 1;
                     return 2;
                 };
                 $wa = $rank($a['task_type'] ?? '');
@@ -176,7 +220,7 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|grant|kurir_grant, estimasi_jam?, request_granted?, send_wa?
+     * POST: phone, task_type=estimasi|grant|kurir_grant|ambil_tutup, estimasi_jam?, request_granted?, reject_reason?, send_wa?
      */
     public function update()
     {
@@ -189,8 +233,8 @@ class Estimasi extends Controller
             echo json_encode(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant'], true)) {
-            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, atau kurir_grant']);
+        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'ambil_tutup'], true)) {
+            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, atau ambil_tutup']);
             return;
         }
 
@@ -206,6 +250,19 @@ class Estimasi extends Controller
                 return;
             }
             $this->updateKurirGrantTask($phone, $phoneEsc, $session);
+            return;
+        }
+
+        if ($taskType === 'ambil_tutup') {
+            $session = $this->db(100)->get_where_row(
+                'wa_ambil_tutup_session',
+                "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
+            );
+            if (!is_array($session) || empty($session['phone'])) {
+                echo json_encode(['ok' => 0, 'msg' => 'Session ambil tutup tidak ditemukan / kedaluwarsa']);
+                return;
+            }
+            $this->updateAmbilTutupTask($phone, $phoneEsc, $session);
             return;
         }
 
@@ -403,6 +460,67 @@ class Estimasi extends Controller
         return (int) $ins['insert_id'];
     }
 
+    private function updateAmbilTutupTask(string $phone, string $phoneEsc, array $session): void
+    {
+        $requestJam = $session['request_jam'] ?? null;
+        if ($requestJam === null || $requestJam === ''
+            || !($session['request_granted'] === null || $session['request_granted'] === '')) {
+            echo json_encode(['ok' => 0, 'msg' => 'Task ambil tutup sudah tidak pending']);
+            return;
+        }
+
+        $grantedRaw = $_POST['request_granted'] ?? '';
+        if ($grantedRaw === '' || $grantedRaw === null) {
+            echo json_encode(['ok' => 0, 'msg' => 'Pilih Setujui atau Tolak']);
+            return;
+        }
+        $requestGranted = ((int) $grantedRaw === 1) ? 1 : 0;
+        $sapaan = 'kak';
+        $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : 0;
+        $idLabel = $idPenjualan > 0 ? '#' . $idPenjualan : '';
+        $jamLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
+
+        $set = [
+            'request_granted' => $requestGranted,
+            'step' => 'done',
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($requestGranted === 1) {
+            $replyText = $idLabel !== ''
+                ? "Baik {$sapaan}, petugas menyetujui. Silakan ambil Laundry ID {$idLabel} sekitar jam {$jamLabel}. Terima kasih 😊"
+                : "Baik {$sapaan}, petugas menyetujui. Silakan ambil sekitar jam {$jamLabel}. Terima kasih 😊";
+            $set['reject_reason'] = null;
+        } else {
+            $reason = trim((string) ($_POST['reject_reason'] ?? ''));
+            if ($reason === '' || mb_strlen($reason) < 3) {
+                echo json_encode(['ok' => 0, 'msg' => 'Untuk tolak, isi alasan (teks)']);
+                return;
+            }
+            $set['reject_reason'] = mb_substr($reason, 0, 500);
+            $replyText = "Mohon maaf {$sapaan}, petugas belum bisa menunggu hingga jam {$jamLabel}. "
+                . "Alasan: {$reason}. Silakan ambil di jam operasional ya {$sapaan}. 🙏";
+        }
+
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $summary .= ($summary !== '' ? ' | ' : '')
+            . 'Petugas ambil_tutup=' . ($requestGranted ? 'setuju' : 'tolak');
+
+        $set['summary'] = mb_substr($summary, 0, 500);
+
+        $up = $this->db(100)->update(
+            'wa_ambil_tutup_session',
+            $set,
+            "phone = '" . $phoneEsc . "'"
+        );
+        if (!empty($up['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update']);
+            return;
+        }
+
+        $this->respondAfterUpdate($phone, $replyText);
+    }
+
     private function updateGrantTask(string $phone, string $phoneEsc, array $session): void
     {
         $requestText = trim((string) ($session['request_text'] ?? ''));
@@ -527,6 +645,17 @@ class Estimasi extends Controller
                    AND request_jam IS NOT NULL AND request_granted IS NULL'
             );
             $n += (int) ($kurirRows[0]['c'] ?? 0);
+            try {
+                $ambilRows = $this->db(100)->query_array(
+                    'SELECT COUNT(*) AS c FROM wa_ambil_tutup_session
+                     WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId . '
+                       AND request_jam IS NOT NULL AND request_granted IS NULL
+                       AND step = \'pending_grant\''
+                );
+                $n += (int) ($ambilRows[0]['c'] ?? 0);
+            } catch (\Throwable $e) {
+                // tabel belum ada
+            }
         } catch (\Throwable $e) {
             $n = $this->getNotifTaskCountFromSession();
         }

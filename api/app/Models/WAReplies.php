@@ -7,6 +7,7 @@ use App\Core\DB;
 class WAReplies
 {
     use WARepliesKurirTrait;
+    use WARepliesAmbilTutupTrait;
 
     private $waService = null;
     private $noRegisterTextVariations = [
@@ -239,6 +240,7 @@ class WAReplies
         $allow = [
             'STATUS',
             'ESTIMASI_SELESAI',
+            'AMBIL_LEWAT_TUTUP',
             'TAGIHAN',
             'NOTA',
             'HARGA',
@@ -1516,6 +1518,27 @@ class WAReplies
             }
         }
 
+        // Session AMBIL_LEWAT_TUTUP aktif
+        if ($this->getAmbilTutupSession($waNumber) !== null
+            && !$this->messageBreaksAmbilTutupSession($textBodyToCheck, $fullKeywordConfig)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ambil_tutup_session_followup→AMBIL_LEWAT_TUTUP case=4');
+            $this->currentHandler = 'AMBIL_LEWAT_TUTUP';
+            $consumed = $this->handleAmbil_Lewat_Tutup($phoneIn, $waNumber, $textBody);
+            if ($consumed !== false) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                $this->logAutoreplyTrace($waNumber, 'DONE', 'ambil_tutup_session_followup_ok');
+
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                ];
+            }
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ambil_tutup_session_unrelated→continue_routing');
+        }
+
         // Session ESTIMASI aktif (TTL 1 jam): follow-up ke petugas HANYA jika masih relevan;
         // pesan tidak terkait → jangan spam ack, biarkan intent lain / diam.
         if ($this->getEstimasiSession($waNumber) !== null
@@ -1685,6 +1708,23 @@ class WAReplies
                     // "jam berapa bisa jemput/diambil?" = ESTIMASI_SELESAI (bukan jam buka, bukan otomatis minta kurir)
                     if ($handler === 'JAM_OPERASIONAL' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
                         continue;
+                    }
+                    // Ambil sendiri lewat tutup → AMBIL_LEWAT_TUTUP (bukan jam operasional / minta kurir / estimasi)
+                    if (in_array($handler, ['JAM_OPERASIONAL', 'MINTA_JEMPUT_ANTAR', 'ESTIMASI_SELESAI'], true)
+                        && $this->messageLooksLikeAmbilLewatTutup($textBodyToCheck)
+                        && $this->isOperatingHours()
+                        && $this->pickSelesaiSaleForAmbil($phoneIn, $waNumber) !== null) {
+                        $handler = 'AMBIL_LEWAT_TUTUP';
+                        $config = $fullKeywordConfig['AMBIL_LEWAT_TUTUP'] ?? $config;
+                    }
+                    // AMBIL_LEWAT_TUTUP: wajib jam operasional + order selesai
+                    if ($handler === 'AMBIL_LEWAT_TUTUP') {
+                        if (!$this->isOperatingHours()) {
+                            $handler = 'JAM_OPERASIONAL';
+                            $config = $fullKeywordConfig['JAM_OPERASIONAL'] ?? $config;
+                        } elseif ($this->pickSelesaiSaleForAmbil($phoneIn, $waNumber) === null) {
+                            continue;
+                        }
                     }
                     // "bs jmpt?" tanpa estimasi = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
@@ -1900,6 +1940,29 @@ class WAReplies
                 $aiIntent = 'ESTIMASI_SELESAI';
                 $aiCase = $fullKeywordConfig['ESTIMASI_SELESAI']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['ESTIMASI_SELESAI']['notify'] ?? false;
+            }
+
+            // Ambil sendiri lewat tutup (order selesai + jam operasional)
+            if ($this->messageLooksLikeAmbilLewatTutup($textBodyToCheck)
+                && $this->isOperatingHours()
+                && $this->pickSelesaiSaleForAmbil($phoneIn, $waNumber) !== null) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override→AMBIL_LEWAT_TUTUP');
+                $aiIntent = 'AMBIL_LEWAT_TUTUP';
+                $aiCase = $fullKeywordConfig['AMBIL_LEWAT_TUTUP']['case'] ?? 4;
+                $aiNotify = $fullKeywordConfig['AMBIL_LEWAT_TUTUP']['notify'] ?? true;
+            }
+
+            // AMBIL_LEWAT_TUTUP di luar jam → JAM_OPERASIONAL; tanpa order selesai → jangan pakai intent
+            if ($aiIntent === 'AMBIL_LEWAT_TUTUP') {
+                if (!$this->isOperatingHours()) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_ambil_tutup→JAM_OPERASIONAL outside_hours');
+                    $aiIntent = 'JAM_OPERASIONAL';
+                    $aiCase = $fullKeywordConfig['JAM_OPERASIONAL']['case'] ?? null;
+                    $aiNotify = $fullKeywordConfig['JAM_OPERASIONAL']['notify'] ?? false;
+                } elseif ($this->pickSelesaiSaleForAmbil($phoneIn, $waNumber) === null) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_ambil_tutup_no_selesai→FALSE');
+                    $aiIntent = 'FALSE';
+                }
             }
 
             // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR

@@ -282,7 +282,41 @@ return [
         - 'tolong jemput di kamar 212' = MINTA_JEMPUT_ANTAR.\n
         \n
         CRITICAL - bedakan dari JAM_OPERASIONAL:\n
-        - 'jam berapa buka/tutup?' = JAM_OPERASIONAL, BUKAN ESTIMASI_SELESAI."
+        - 'jam berapa buka/tutup?' = JAM_OPERASIONAL, BUKAN ESTIMASI_SELESAI.\n
+        \n
+        CRITICAL - bedakan dari AMBIL_LEWAT_TUTUP:\n
+        - Customer mau AMBIL SENDIRI order yang sudah selesai LEWAT/SETELAH jam tutup = AMBIL_LEWAT_TUTUP, BUKAN ESTIMASI_SELESAI.\n
+        - Contoh AMBIL_LEWAT_TUTUP: | nanti jam 9 malam ambil ya | bisa ambil setelah tutup? |"
+    ],
+
+    'AMBIL_LEWAT_TUTUP' => [
+        'case' => 4,
+        'notify' => true,
+        'patterns' => [
+            // ambil/jemput + setelah/lewat tutup
+            '/\b(ambil|jemput|ngambil|mengambil)\b.{0,80}\b(setelah|lewat|habis|pas|nunggu|tunggu).{0,40}\b(tutup|jam\s*tutup)\b/iu',
+            '/\b(setelah|lewat|habis)\s*(jam\s*)?tutup\b.{0,60}\b(ambil|jemput|ngambil)\b/iu',
+            '/\b(bisa|boleh|mau)\b.{0,40}\b(ambil|jemput)\b.{0,50}\b(setelah|lewat)\s*(jam\s*)?tutup\b/iu',
+            // nanti malam ambil + konteks tutup/nunggu
+            '/\b(nanti|nti|malam|mlm)\b.{0,40}\b(ambil|jemput|ngambil)\b.{0,50}\b(tutup|nunggu|tunggu|lewat)\b/iu',
+            '/\b(nunggu|tunggu)\b.{0,40}\b(tutup|habis\s*tutup)\b.{0,40}\b(ambil|jemput)\b/iu',
+            // ambil jam X malam (indikasi lewat tutup)
+            '/\b(ambil|jemput|ngambil)\b.{0,30}\bjam\s*(2[0-3]|1[89])\b.{0,30}\b(malam|mlm|tutup|lewat)?/iu',
+            '/\bjam\s*(2[0-3]|1[89])(?:[.:]\d{1,2})?\b.{0,40}\b(ambil|jemput|ngambil)\b.{0,30}\b(malam|mlm|tutup)?/iu',
+        ],
+        'ai_prompt' => "User akan MENGAMBIL/JEMPUT SENDIRI laundry ke outlet, dan perkiraan datang di / LEWAT jam tutup (nunggu petugas setelah tutup).\n
+        TRUE (AMBIL_LEWAT_TUTUP):\n
+        - | nanti jam 9 malam saya ambil | bisa ambil setelah tutup? | jemput sendiri lewat jam tutup boleh? |\n
+        - | nunggu tutup ya kak saya ambil | bisa nunggu saya ambil jam 21.30? |\n
+        - | mau ambil jam 22 | nanti malem ambil ya lewat dikit |\n
+        \n
+        CRITICAL - FALSE (BUKAN AMBIL_LEWAT_TUTUP):\n
+        - Di luar jam operasional toko = sistem pakai JAM_TUTUP, BUKAN intent ini.\n
+        - Tanya KAPAN laundry siap / estimasi selesai = ESTIMASI_SELESAI.\n
+        - Minta KURIR antar/jemput ke alamat = MINTA_JEMPUT_ANTAR.\n
+        - Tanya masih buka? / jam berapa tutup? = JAM_OPERASIONAL.\n
+        - User ambil di jam operasional biasa tanpa sebut lewat tutup = bukan intent ini.\n
+        - Order BELUM selesai: tetap bisa TRUE jika user jelas minta ambil lewat tutup — sistem cek order selesai di backend."
     ],
 
     'HARGA' => [
@@ -464,6 +498,7 @@ return [
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
       - CRITICAL: 'masih bisa antar laundry?' / 'masih bisa antar?' = tanya AVAILABILITAS operasional = JAM_OPERASIONAL (bukan MINTA_JEMPUT_ANTAR). Kata 'masih' membedakan: tanya masih buka/bisa vs permintaan.\n
       - CRITICAL: 'kira jam berapa bisa dijemput' / 'jam berapa bisa dijemput' (tanpa lokasi kamar/hotel) = tanya kapan order SIAP diambil = ESTIMASI_SELESAI, BUKAN MINTA_JEMPUT_ANTAR.\n
+      - CRITICAL: Customer mau AMBIL SENDIRI lewat/setelah jam tutup = AMBIL_LEWAT_TUTUP, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL: 'Mau jemput' / 'saya jemput nanti' = User SENDIRI yang akan mengambil = FALSE (bedakan dari 'ambil baju di kamar X' = minta kurir)\n
       - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
       - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir paket/delivery (berapa harga paket include antar? harga member pakai antar? paket member antar jemput) = HARGA_PAKET_D, BUKAN MINTA_JEMPUT_ANTAR.\n
@@ -544,6 +579,7 @@ return [
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
         - 'jam berapa bisa jemput?' / 'kira jam berapa bisa dijemput?' = tanya estimasi kapan order siap diambil = ESTIMASI_SELESAI (bukan JAM_OPERASIONAL, bukan MINTA_JEMPUT kecuali ada lokasi kamar/hotel)\n
+        - 'bisa ambil setelah tutup?' / 'nanti jam 9 malam ambil' = AMBIL_LEWAT_TUTUP (ambil sendiri lewat tutup), BUKAN JAM_OPERASIONAL\n
         - 'jam brp bsk diantarnya?' / 'jam berapa besok diantar?' / 'kapan diantarnya?' = tanya jadwal PENGANTARAN order = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
         - 'bisa antar laundry?' / 'tolong antar laundry' / 'bs jmpt baju?' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
         - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?', 'jam brp bsk diantarnya?'"

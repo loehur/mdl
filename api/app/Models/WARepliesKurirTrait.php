@@ -11,6 +11,8 @@ use App\Helpers\Laundry\AntarTarif;
 trait WARepliesKurirTrait
 {
     private const KURIR_SESSION_TTL_MINUTES = 60;
+    /** Session belum lengkap nama/detail lokasi: tahan lebih lama agar bisa dilanjutkan hari berikutnya */
+    private const KURIR_INCOMPLETE_LOKASI_TTL_MINUTES = 10080; // 7 hari
 
     private function getKurirSession(string $waNumber): ?array
     {
@@ -68,14 +70,23 @@ trait WARepliesKurirTrait
         };
 
         $now = date('Y-m-d H:i:s');
-        $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
+        $step = (string) $merge('step', 'ask_jenis');
+        $ttlMin = self::KURIR_SESSION_TTL_MINUTES;
+        $hasCoords = $merge('latt') !== null && $merge('latt') !== ''
+            && $merge('longt') !== null && $merge('longt') !== '';
+        $detailIncomplete = trim((string) ($merge('lokasi_detail') ?? '')) === '';
+        if (in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail', 'ask_shareloc'], true)
+            || ($hasCoords && $detailIncomplete && in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail'], true))) {
+            $ttlMin = self::KURIR_INCOMPLETE_LOKASI_TTL_MINUTES;
+        }
+        $expires = date('Y-m-d H:i:s', time() + ($ttlMin * 60));
         $vals = [
             $phone,
             $merge('id_pelanggan'),
             $merge('id_cabang'),
             $merge('jenis'),
             $merge('layanan', 'sameday'),
-            $merge('step', 'ask_jenis'),
+            $step,
             $merge('id_lokasi'),
             $merge('lokasi_nama'),
             $merge('lokasi_detail'),
@@ -558,7 +569,43 @@ trait WARepliesKurirTrait
     private function kurirLokasiCheck(string $waNumber, string $sapaan, array $session): void
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+
+        // Lanjutkan lokasi draft (shareloc sudah ada, nama/detail belum lengkap)
+        $incomplete = $this->kurirFindIncompleteLokasi($idPelanggan);
+        if ($incomplete !== null) {
+            $this->kurirResumeIncompleteLokasi($waNumber, $sapaan, $session, $incomplete);
+            return;
+        }
+
+        // Session masih punya coords tapi belum selesai isi
+        $sessLatt = (float) ($session['latt'] ?? 0);
+        $sessLongt = (float) ($session['longt'] ?? 0);
+        $sessNama = trim((string) ($session['lokasi_nama'] ?? ''));
+        $sessDetail = trim((string) ($session['lokasi_detail'] ?? ''));
+        if (abs($sessLatt) > 0.0001 && abs($sessLongt) > 0.0001 && $sessDetail === '') {
+            if ($sessNama === '') {
+                $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_nama']);
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    $this->kurirAskLokasiJenisPrompt($sapaan)
+                );
+            } else {
+                $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_detail']);
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    $this->kurirAskLokasiDetailPrompt($sessNama, $sapaan)
+                );
+            }
+            return;
+        }
+
         $list = $this->kurirListLokasi($idPelanggan);
+        // Sembunyikan draft belum lengkap dari daftar pilih
+        $list = array_values(array_filter($list, static function ($lok) {
+            $n = trim((string) ($lok['nama'] ?? ''));
+            $d = trim((string) ($lok['detail'] ?? ''));
+            return $n !== '' && $d !== '';
+        }));
         if (empty($list)) {
             $this->saveKurirSession($waNumber, ['step' => 'ask_shareloc']);
             $this->sendAutoreplyText(
@@ -689,15 +736,38 @@ trait WARepliesKurirTrait
             );
             return;
         }
+
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
+        $latt = (float) $coords['lat'];
+        $longt = (float) $coords['lng'];
+
+        // Progressive save: langsung simpan lat/long (nama & detail masih kosong)
+        if ($idLokasi > 0) {
+            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
+                'latt' => $latt,
+                'longt' => $longt,
+            ]);
+        } else {
+            $idLokasi = $this->kurirInsertLokasi($idPelanggan, '', '', $latt, $longt);
+            if ($idLokasi <= 0) {
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Maaf {$sapaan}, gagal menyimpan titik lokasi. Coba kirim shareloc lagi ya."
+                );
+                return;
+            }
+        }
+
         $this->saveKurirSession($waNumber, [
-            'latt' => $coords['lat'],
-            'longt' => $coords['lng'],
+            'id_lokasi' => $idLokasi,
+            'latt' => $latt,
+            'longt' => $longt,
+            'lokasi_nama' => null,
+            'lokasi_detail' => null,
             'step' => 'ask_lokasi_nama',
         ]);
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Lokasi diterima {$sapaan}. Ini *rumah / kos / kantor / penginapan*?"
-        );
+        $this->sendAutoreplyText($waNumber, $this->kurirAskLokasiJenisPrompt($sapaan));
     }
 
     private function kurirExtractCoords(string $msg): ?array
@@ -734,33 +804,80 @@ trait WARepliesKurirTrait
         return null;
     }
 
+    private function kurirAskLokasiJenisPrompt(string $sapaan): string
+    {
+        return "Lokasi diterima {$sapaan}. Apakah ini *rumah / kos / kantor / penginapan / lainnya*?";
+    }
+
+    /**
+     * Pertanyaan detail sesuai jenis lokasi (hasil pilihan kategori).
+     */
+    private function kurirAskLokasiDetailPrompt(string $nama, string $sapaan): string
+    {
+        switch (mb_strtolower(trim($nama))) {
+            case 'rumah':
+                return "Baik {$sapaan}. Boleh sebut *nomor rumah* atau *ciri-ciri rumahnya* ya?";
+            case 'kos':
+                return "Baik {$sapaan}. *Nama kosnya* apa?";
+            case 'penginapan':
+                return "Baik {$sapaan}. Sebut *nama penginapan* dan *nomor kamar*, atau titip di *lobby*?";
+            case 'kantor':
+                return "Baik {$sapaan}. *Nama kantornya* apa?";
+            default:
+                return "Baik {$sapaan}. Boleh jelaskan *detail titiknya* ya?";
+        }
+    }
+
+    /** @return 'Rumah'|'Kos'|'Kantor'|'Penginapan'|'Lainnya'|null */
+    private function kurirParseLokasiJenis(string $msg): ?string
+    {
+        $t = mb_strtolower(trim($msg));
+        if ($t === '') {
+            return null;
+        }
+        if (preg_match('/\b(lainnya|lain|other|dll)\b/iu', $t)) {
+            return 'Lainnya';
+        }
+        if (preg_match('/\b(rumah|rmh)\b/iu', $t)) {
+            return 'Rumah';
+        }
+        if (preg_match('/\b(kos|kost|kosan)\b/iu', $t)) {
+            return 'Kos';
+        }
+        if (preg_match('/\b(kantor|office|perusahaan)\b/iu', $t)) {
+            return 'Kantor';
+        }
+        if (preg_match('/\b(penginapan|hotel|apartemen|apartment|kontrakan|inn|homestay)\b/iu', $t)) {
+            return 'Penginapan';
+        }
+        return null;
+    }
+
     private function kurirHandleLokasiNama(string $waNumber, string $sapaan, array $session, string $msg): void
     {
-        $nama = null;
-        $t = mb_strtolower($msg);
-        foreach (['rumah', 'kos', 'kost', 'kantor', 'penginapan', 'hotel', 'apartemen', 'kontrakan'] as $k) {
-            if (mb_strpos($t, $k) !== false) {
-                $nama = ($k === 'kost') ? 'Kos' : ucfirst($k);
-                if ($nama === 'Hotel' || $nama === 'Apartemen' || $nama === 'Kontrakan') {
-                    $nama = 'Penginapan';
-                }
-                break;
-            }
-        }
+        $nama = $this->kurirParseLokasiJenis($msg);
         if ($nama === null) {
-            $clean = trim(preg_replace('/\s+/', ' ', $msg));
-            if (mb_strlen($clean) >= 2 && mb_strlen($clean) <= 50) {
-                $nama = mb_substr($clean, 0, 50);
-            }
-        }
-        if ($nama === null) {
-            $this->sendAutoreplyText($waNumber, "Pilih ya {$sapaan}: *rumah*, *kos*, *kantor*, atau *penginapan*?");
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Pilih ya {$sapaan}: *rumah*, *kos*, *kantor*, *penginapan*, atau *lainnya*?"
+            );
             return;
         }
-        $this->saveKurirSession($waNumber, ['lokasi_nama' => $nama, 'step' => 'ask_lokasi_detail']);
+
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
+        if ($idLokasi > 0) {
+            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, ['nama' => $nama]);
+        }
+
+        $this->saveKurirSession($waNumber, [
+            'lokasi_nama' => $nama,
+            'step' => 'ask_lokasi_detail',
+            'id_lokasi' => $idLokasi > 0 ? $idLokasi : ($session['id_lokasi'] ?? null),
+        ]);
         $this->sendAutoreplyText(
             $waNumber,
-            "Baik {$sapaan}. Tuliskan detailnya (nama jalan, no rumah/kamar, atau merek toko)."
+            $this->kurirAskLokasiDetailPrompt($nama, $sapaan)
         );
     }
 
@@ -768,8 +885,12 @@ trait WARepliesKurirTrait
     {
         $detail = trim(preg_replace("/[\r\n]+/", ' ', $msg));
         $detail = trim(preg_replace('/\s+/u', ' ', $detail));
-        if (mb_strlen($detail) < 3) {
-            $this->sendAutoreplyText($waNumber, "Detail terlalu singkat {$sapaan}. Contoh: Jl Melati no 12 kamar 3.");
+        if (mb_strlen($detail) < 2) {
+            $nama = (string) ($session['lokasi_nama'] ?? 'Lainnya');
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Detail terlalu singkat {$sapaan}. " . $this->kurirAskLokasiDetailPrompt($nama, $sapaan)
+            );
             return;
         }
         if (mb_strlen($detail) > 255) {
@@ -778,12 +899,28 @@ trait WARepliesKurirTrait
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $latt = (float) ($session['latt'] ?? 0);
         $longt = (float) ($session['longt'] ?? 0);
-        $nama = (string) ($session['lokasi_nama'] ?? 'Rumah');
-        $idLokasi = $this->kurirInsertLokasi($idPelanggan, $nama, $detail, $latt, $longt);
-        if ($idLokasi <= 0) {
-            $this->sendAutoreplyText($waNumber, "Maaf {$sapaan}, gagal menyimpan lokasi. Coba kirim detail lagi.");
-            return;
+        $nama = (string) ($session['lokasi_nama'] ?? 'Lainnya');
+        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
+
+        if ($idLokasi > 0) {
+            $ok = $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
+                'nama' => $nama,
+                'detail' => $detail,
+                'latt' => $latt,
+                'longt' => $longt,
+            ]);
+            if (!$ok) {
+                $this->sendAutoreplyText($waNumber, "Maaf {$sapaan}, gagal menyimpan detail lokasi. Coba kirim lagi.");
+                return;
+            }
+        } else {
+            $idLokasi = $this->kurirInsertLokasi($idPelanggan, $nama, $detail, $latt, $longt);
+            if ($idLokasi <= 0) {
+                $this->sendAutoreplyText($waNumber, "Maaf {$sapaan}, gagal menyimpan lokasi. Coba kirim detail lagi.");
+                return;
+            }
         }
+
         $lok = [
             'id_lokasi' => $idLokasi,
             'nama' => $nama,
@@ -791,7 +928,93 @@ trait WARepliesKurirTrait
             'latt' => $latt,
             'longt' => $longt,
         ];
+        $this->saveKurirSession($waNumber, [
+            'id_lokasi' => $idLokasi,
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+        ]);
         $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
+    }
+
+    /**
+     * Lokasi draft: punya koordinat, tapi nama atau detail masih kosong.
+     */
+    private function kurirFindIncompleteLokasi(int $idPelanggan): ?array
+    {
+        if ($idPelanggan <= 0) {
+            return null;
+        }
+        try {
+            $rows = DB::getInstance(1)->query(
+                "SELECT id_lokasi, nama, detail, latt, longt
+                 FROM pelanggan_lokasi
+                 WHERE id_pelanggan = ?
+                   AND latt IS NOT NULL AND longt IS NOT NULL
+                   AND ABS(latt) > 0.0001 AND ABS(longt) > 0.0001
+                   AND (
+                     nama IS NULL OR TRIM(nama) = ''
+                     OR detail IS NULL OR TRIM(detail) = ''
+                   )
+                 ORDER BY id_lokasi DESC
+                 LIMIT 1",
+                [$idPelanggan]
+            )->result_array();
+            if (!empty($rows[0])) {
+                return $rows[0];
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+        return null;
+    }
+
+    private function kurirResumeIncompleteLokasi(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        array $incomplete
+    ): void {
+        $idLokasi = (int) ($incomplete['id_lokasi'] ?? 0);
+        $nama = trim((string) ($incomplete['nama'] ?? ''));
+        $detail = trim((string) ($incomplete['detail'] ?? ''));
+        $latt = (float) ($incomplete['latt'] ?? 0);
+        $longt = (float) ($incomplete['longt'] ?? 0);
+
+        if ($nama !== '' && $detail !== '') {
+            $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $incomplete);
+            return;
+        }
+
+        if ($nama === '') {
+            $this->saveKurirSession($waNumber, [
+                'id_lokasi' => $idLokasi,
+                'latt' => $latt,
+                'longt' => $longt,
+                'lokasi_nama' => null,
+                'lokasi_detail' => null,
+                'step' => 'ask_lokasi_nama',
+            ]);
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Lokasi sebelumnya sudah tersimpan {$sapaan}. "
+                . "Apakah ini *rumah / kos / kantor / penginapan / lainnya*?"
+            );
+            return;
+        }
+
+        $this->saveKurirSession($waNumber, [
+            'id_lokasi' => $idLokasi,
+            'latt' => $latt,
+            'longt' => $longt,
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => null,
+            'step' => 'ask_lokasi_detail',
+        ]);
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Lanjut melengkapi lokasi *{$nama}* ya {$sapaan}. "
+            . preg_replace('/^Baik\s+\S+\.\s*/u', '', $this->kurirAskLokasiDetailPrompt($nama, $sapaan))
+        );
     }
 
     private function kurirInsertLokasi(int $idPelanggan, string $nama, string $detail, float $latt, float $longt): int
@@ -812,6 +1035,45 @@ trait WARepliesKurirTrait
                 \Log::write('kurirInsertLokasi: ' . $e->getMessage(), 'wa_error', 'Autoreply');
             }
             return 0;
+        }
+    }
+
+    /**
+     * @param array{nama?:string,detail?:string,latt?:float,longt?:float} $fields
+     */
+    private function kurirUpdateLokasi(int $idLokasi, int $idPelanggan, array $fields): bool
+    {
+        if ($idLokasi <= 0 || $idPelanggan <= 0) {
+            return false;
+        }
+        $set = [];
+        if (array_key_exists('nama', $fields)) {
+            $set['nama'] = (string) $fields['nama'];
+        }
+        if (array_key_exists('detail', $fields)) {
+            $set['detail'] = (string) $fields['detail'];
+        }
+        if (array_key_exists('latt', $fields)) {
+            $set['latt'] = round((float) $fields['latt'], 7);
+        }
+        if (array_key_exists('longt', $fields)) {
+            $set['longt'] = round((float) $fields['longt'], 7);
+        }
+        if (empty($set)) {
+            return true;
+        }
+        try {
+            $ok = DB::getInstance(1)->update(
+                'pelanggan_lokasi',
+                $set,
+                ['id_lokasi' => $idLokasi, 'id_pelanggan' => $idPelanggan]
+            );
+            return $ok !== false;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirUpdateLokasi: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return false;
         }
     }
 
@@ -951,6 +1213,8 @@ trait WARepliesKurirTrait
             $note = 'minta_shareloc "' . mb_substr(trim($msg), 0, 80) . '"';
             $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 500);
         }
+        // Buang draft lokasi lama agar resume tidak nyangkut ke titik sebelumnya
+        $this->kurirClearIncompleteLokasi((int) ($session['id_pelanggan'] ?? 0));
         $this->saveKurirSession($waNumber, [
             'step' => 'ask_shareloc',
             'id_lokasi' => null,
@@ -965,6 +1229,27 @@ trait WARepliesKurirTrait
             $waNumber,
             "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya, biar kami catat titik yang dimaksud."
         );
+    }
+
+    /** Hapus draft lokasi (coords ada, nama/detail kosong) — saat minta shareloc baru. */
+    private function kurirClearIncompleteLokasi(int $idPelanggan): void
+    {
+        if ($idPelanggan <= 0) {
+            return;
+        }
+        try {
+            DB::getInstance(1)->query(
+                "DELETE FROM pelanggan_lokasi
+                 WHERE id_pelanggan = ?
+                   AND (
+                     nama IS NULL OR TRIM(nama) = ''
+                     OR detail IS NULL OR TRIM(detail) = ''
+                   )",
+                [$idPelanggan]
+            );
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
 
     /**
@@ -1810,6 +2095,8 @@ trait WARepliesKurirTrait
             . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
             . "Jika minta cepat/gojek/grab/instant → want_instant. "
             . "Jika typo/kurang jelas → clarify + suggested_text (contoh: 'jemput laundry ke rumah kak'). "
+            . "Di step ask_lokasi_nama: customer harus pilih rumah/kos/kantor/penginapan/lainnya. "
+            . "Di step ask_lokasi_detail: isi detail sesuai jenis (no/ciri rumah, nama kos, nama+kamar/lobby penginapan, nama kantor, atau detail titik). "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
             . "Jangan minta shareloc jika pesan jelas tentang estimasi siap/hari ini. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
