@@ -5373,7 +5373,12 @@ class WAReplies
         }
 
         $sapaan = $this->getSapaanForGreeting($waNumber);
-        $ack = "Sebentar ya {$sapaan} kami tanyakan petugas terlebih dahulu.";
+        if (!$this->isOperatingHours()) {
+            $ack = "Baik {$sapaan}, saat ini di luar jam operasional. "
+                . "Kami catat dulu dan tanyakan ke petugas di jam operasional berikutnya ya {$sapaan}.";
+        } else {
+            $ack = "Sebentar ya {$sapaan} kami tanyakan petugas terlebih dahulu.";
+        }
         $this->sendAutoreplyText($waNumber, $ack);
         $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'escalate_ack_sent');
 

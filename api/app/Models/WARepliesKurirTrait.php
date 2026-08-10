@@ -197,11 +197,7 @@ trait WARepliesKurirTrait
      */
     private function handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->isOperatingHours()) {
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
-            return true;
-        }
-
+        // Di luar jam operasional: flow sameday tetap jalan; instant ditolak / tidak ditawarkan
         $msg = trim((string) $textBody);
         $session = $this->getKurirSession($waNumber);
         $idPelanggan = $session['id_pelanggan'] ?? null;
@@ -214,10 +210,15 @@ trait WARepliesKurirTrait
         }
         $idPelanggan = (int) $idPelanggan;
         $idCabang = $this->resolveKurirIdCabang($idPelanggan, $session);
+        $outsideHours = !$this->isOperatingHours();
 
         if ($session === null) {
             $jenis = $this->detectKurirJenis($msg);
             $layananPref = $this->detectKurirLayanan($msg);
+            // Luar jam: jangan simpan prefer instant — anggap sameday; chat grab/gosend ditolak di route
+            if ($outsideHours && $layananPref === 'instant') {
+                $layananPref = null;
+            }
             $summary = '[pesan] ' . mb_substr($msg, 0, 200);
             if ($layananPref) {
                 $summary .= ' | prefer_layanan=' . $layananPref;
@@ -230,13 +231,28 @@ trait WARepliesKurirTrait
                 'step' => $jenis ? 'lokasi_check' : 'ask_jenis',
                 'summary' => $summary,
             ]);
-            // Simpan prefer instant di summary; layanan di-set ulang saat lokasi siap
             if ($layananPref === 'instant') {
                 $this->saveKurirSession($waNumber, ['layanan' => 'instant']);
             } elseif ($layananPref === 'sameday') {
                 $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
             }
             $session = $this->getKurirSession($waNumber) ?: [];
+
+            // Chat langsung minta grab/gosend di luar jam → tolak sekali, lanjut sameday
+            if ($outsideHours && $this->kurirLooksWantFast($msg)) {
+                $sapaan = $this->getSapaanForGreeting($waNumber);
+                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+                if (!$jenis) {
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
+                    );
+                    return true;
+                }
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                return true;
+            }
+
             if (!$jenis) {
                 $sapaan = $this->getSapaanForGreeting($waNumber);
                 $this->sendAutoreplyText(
@@ -487,8 +503,27 @@ trait WARepliesKurirTrait
         }
 
         if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'request_aktif', 'lokasi_check', 'pick_lokasi', 'ask_layanan'], true)) {
-            $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
-            return;
+            if (!$this->isOperatingHours()) {
+                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+                if ($step === 'request_aktif') {
+                    return;
+                }
+                if (!empty($session['id_lokasi']) && in_array($step, ['confirm_lokasi', 'ask_layanan'], true)) {
+                    $lok = [
+                        'id_lokasi' => (int) $session['id_lokasi'],
+                        'nama' => (string) ($session['lokasi_nama'] ?? ''),
+                        'detail' => (string) ($session['lokasi_detail'] ?? ''),
+                        'latt' => (float) ($session['latt'] ?? 0),
+                        'longt' => (float) ($session['longt'] ?? 0),
+                    ];
+                    $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
+                    return;
+                }
+                // lokasi_check / pick_lokasi: lanjut switch di bawah (sameday)
+            } else {
+                $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
+                return;
+            }
         }
 
         switch ($step) {
@@ -947,6 +982,14 @@ trait WARepliesKurirTrait
         ]);
 
         $pref = $this->kurirResolvePreferredLayanan($session, $hintMsg);
+        // Di luar jam: tidak tawarkan instant / ask_layanan → langsung sameday
+        if (!$this->isOperatingHours()) {
+            if ($pref === 'instant' || $this->kurirLooksWantFast($hintMsg)) {
+                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+            }
+            $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
+            return;
+        }
         if ($pref === 'instant') {
             $this->saveKurirSession($waNumber, ['layanan' => 'instant']);
             $session['layanan'] = 'instant';
@@ -970,11 +1013,21 @@ trait WARepliesKurirTrait
     ): void {
         $layanan = $this->detectKurirLayanan($msg);
         if ($layanan === null) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Belum jelas {$sapaan}. " . $this->kurirAskLayananPrompt($sapaan)
-            );
-            return;
+            if (!$this->isOperatingHours()) {
+                // Di luar jam tidak tawarkan pilihan → sameday
+                $layanan = 'sameday';
+            } else {
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Belum jelas {$sapaan}. " . $this->kurirAskLayananPrompt($sapaan)
+                );
+                return;
+            }
+        }
+
+        if ($layanan === 'instant' && !$this->isOperatingHours()) {
+            $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+            $layanan = 'sameday';
         }
 
         $summary = preg_replace('/\s*\|\s*prefer_layanan=(instant|sameday)/', '', (string) ($session['summary'] ?? ''));
@@ -1854,6 +1907,10 @@ trait WARepliesKurirTrait
         }
 
         if ($this->kurirLooksWantFast($msg)) {
+            if (!$this->isOperatingHours()) {
+                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+                return;
+            }
             $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
             return;
         }
@@ -2025,7 +2082,14 @@ trait WARepliesKurirTrait
             'driver_alt_jam' => null,
         ]);
         if ($pastCutoffToday) {
-            $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+            // Soft "petugas alternatif" HANYA di jam operasional; luar jam → escalate ack next hours
+            if ($this->isOperatingHours()) {
+                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+            } else {
+                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
+            }
+        } elseif (!$this->isOperatingHours()) {
+            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
         } else {
             $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya.");
         }
@@ -2033,7 +2097,7 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Soft-ack ≥16:00 (hari ini, jam permintaan ≤20): ketenangan + escalate.
+     * Soft-ack ≥16:00 (hari ini, jam permintaan ≤20) — HANYA saat jam operasional.
      * <17:00 = dekat jam pulang; ≥17:00 = sudah pulang.
      */
     private function kurirPastCutoffAlternatifAck(string $sapaan): string
@@ -2045,6 +2109,20 @@ trait WARepliesKurirTrait
 
         return "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
             . "Kami coba tanyakan dulu ke petugas alternatif ya {$sapaan}.";
+    }
+
+    /** Ack escalate di luar jam operasional (task tetap pending untuk petugas). */
+    private function kurirEscalateOutsideHoursAck(string $sapaan): string
+    {
+        return "Baik {$sapaan}, saat ini di luar jam operasional. "
+            . "Kami catat dulu dan tanyakan ke petugas di jam operasional berikutnya ya {$sapaan}.";
+    }
+
+    /** Tolak Grab/Gojek/instant di luar jam operasional. */
+    private function kurirRejectInstantOutsideHoursAck(string $sapaan): string
+    {
+        return "Maaf {$sapaan}, layanan *Grab/Gojek/instant* tidak tersedia di luar jam operasional. "
+            . "Silakan gunakan kurir *sameday* atau hubungi kami lagi saat jam buka ya {$sapaan}.";
     }
 
     /** Jam permintaan hari ini > 20:00 → hard-cut, jadwalkan besok (tanpa escalate). */
@@ -2151,7 +2229,13 @@ trait WARepliesKurirTrait
             'driver_alt_jam' => null,
         ]);
         if ($pastCutoffToday) {
-            $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+            if ($this->isOperatingHours()) {
+                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+            } else {
+                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
+            }
+        } elseif (!$this->isOperatingHours()) {
+            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
         } else {
             $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan driver dulu ya {$sapaan}.");
         }
@@ -2473,6 +2557,11 @@ trait WARepliesKurirTrait
 
     private function kurirStartInstant(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if (!$this->isOperatingHours()) {
+            $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+            return;
+        }
+
         $jenis = $this->kurirJenisLabel($session);
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         if ($jenis === 'antar') {
@@ -2752,38 +2841,65 @@ trait WARepliesKurirTrait
         $common = ['cancel', 'clarify', 'unrelated'];
         switch ($step) {
             case 'ask_jenis':
-                return array_merge($common, ['confirm']); // confirm = pilih jenis via slots later → treat as clarify if no jenis
+                $actions = array_merge($common, ['confirm']); // confirm = pilih jenis via slots later → treat as clarify if no jenis
+                break;
             case 'lokasi_check':
-                return array_merge($common, ['other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant', 'want_jam']);
+                $actions = array_merge($common, ['other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant', 'want_jam']);
+                break;
             case 'ask_shareloc':
-                return array_merge($common, ['ask_shareloc']);
+                $actions = array_merge($common, ['ask_shareloc']);
+                break;
             case 'ask_lokasi_nama':
             case 'ask_lokasi_detail':
-                return array_merge($common, ['confirm']);
+                $actions = array_merge($common, ['confirm']);
+                break;
             case 'ask_layanan':
-                return array_merge($common, ['pick_layanan', 'want_instant', 'confirm', 'other_lokasi', 'delete_lokasi']);
+                $actions = array_merge($common, ['pick_layanan', 'want_instant', 'confirm', 'other_lokasi', 'delete_lokasi']);
+                break;
             case 'pick_lokasi':
-                return array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
+                $actions = array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
+                break;
             case 'delete_lokasi':
-                return array_merge($common, ['delete_lokasi', 'pick_lokasi']);
+                $actions = array_merge($common, ['delete_lokasi', 'pick_lokasi']);
+                break;
             case 'confirm_lokasi':
-                return array_merge($common, ['confirm', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
+                $actions = array_merge($common, ['confirm', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
+                break;
             case 'terms_setuju':
             case 'request_aktif':
-                return array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'delete_lokasi']);
+                $actions = array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'delete_lokasi']);
+                break;
             case 'wait_driver_jam':
-                return array_merge($common, ['noop_ack', 'want_jam']);
+                $actions = array_merge($common, ['noop_ack', 'want_jam']);
+                break;
             case 'ask_jam_ampm':
-                return array_merge($common, ['want_jam', 'confirm']);
+                $actions = array_merge($common, ['want_jam', 'confirm']);
+                break;
             case 'wait_continue_alt':
-                return array_merge($common, ['agree_alt', 'refuse_alt']);
+                $actions = array_merge($common, ['agree_alt', 'refuse_alt']);
+                break;
             case 'instant_confirm':
-                return array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi', 'delete_lokasi']);
+                $actions = array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi', 'delete_lokasi']);
+                break;
             case 'instant_pick':
-                return array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi']);
+                $actions = array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi']);
+                break;
             default:
-                return array_merge($common, ['noop_ack', 'other_lokasi', 'delete_lokasi', 'want_jam', 'want_instant', 'confirm', 'pick_layanan']);
+                $actions = array_merge($common, ['noop_ack', 'other_lokasi', 'delete_lokasi', 'want_jam', 'want_instant', 'confirm', 'pick_layanan']);
+                break;
         }
+
+        // Di luar jam: jangan biarkan AI pilih instant / ask layanan
+        if (!$this->isOperatingHours()) {
+            $actions = array_values(array_filter(
+                $actions,
+                static function ($a) {
+                    return !in_array($a, ['want_instant', 'pick_layanan'], true);
+                }
+            ));
+        }
+
+        return $actions;
     }
 
     private function kurirBuildAiContext(string $waNumber, array $session, string $msg): string
