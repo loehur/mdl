@@ -346,10 +346,10 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-header-bg", "#eef0f3");
     root.style.setProperty("--wa-input-bg", "#ffffff");
     root.style.setProperty("--wa-conversation-active", "#dde3e8");
-    root.style.setProperty("--wa-cabang-text", "#0277bd");
-    root.style.setProperty("--wa-cabang-bg", "rgba(2, 119, 189, 0.16)");
-    root.style.setProperty("--wa-cabang-hq-text", "#c2185b");
-    root.style.setProperty("--wa-cabang-hq-bg", "rgba(194, 24, 91, 0.16)");
+    root.style.setProperty("--wa-cabang-text", "#015f96");
+    root.style.setProperty("--wa-cabang-bg", "#c8e8f8");
+    root.style.setProperty("--wa-cabang-hq-text", "#ad1457");
+    root.style.setProperty("--wa-cabang-hq-bg", "#f8d0e0");
 
     // Filter Tabs
     root.style.setProperty("--wa-filter-active-bg", "#c8f0c4");
