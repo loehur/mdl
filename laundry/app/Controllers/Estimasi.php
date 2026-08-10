@@ -238,8 +238,8 @@ class Estimasi extends Controller
             }
             $waktuLabel = $this->formatEstimasiWaktuCustomer((string) $reqTgl, (float) $requestJam);
             $replyText = $idLabel !== ''
-                ? "Laundry ID {$idLabel} diperkirakan siap {$waktuLabel} ya {$sapaan} 😊"
-                : "Diperkirakan siap {$waktuLabel} ya {$sapaan} 😊";
+                ? "Baik {$sapaan}, petugas telah mengonfirmasi. Sesuai permintaan, Laundry ID {$idLabel} diperkirakan siap {$waktuLabel} ya {$sapaan} 😊"
+                : "Baik {$sapaan}, petugas telah mengonfirmasi. Sesuai permintaan, diperkirakan siap {$waktuLabel} ya {$sapaan} 😊";
         } else {
             // Tolak: petugas WAJIB isi tanggal+jam alternatif (bukan ambil dari estimasi)
             $parsed = $this->parseEstimasiTanggalJamFromPost();

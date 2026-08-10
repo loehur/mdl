@@ -3846,7 +3846,7 @@ class WAReplies
                 'request_granted' => null,
                 'summary' => $summary,
             ]);
-            $this->escalateEstimasiToPetugas($waNumber, $msg);
+            $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang);
             $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_grant_request id={$id} jam=" . $reqWaktu['jam']);
             return;
         }
@@ -3867,7 +3867,7 @@ class WAReplies
                 'request_granted' => null,
                 'summary' => $summary,
             ]);
-            $this->escalateEstimasiToPetugas($waNumber, $msg);
+            $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang);
             $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_butuh_estimasi id={$id} fase={$fase}");
             return;
         }
@@ -4050,15 +4050,15 @@ class WAReplies
             'summary' => $summary,
         ]);
 
-        $this->escalateEstimasiToPetugas($waNumber, $msg);
+        $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang);
     }
 
     /**
-     * Forward group + ack "kami tanyakan petugas" (skip ack jika human aktif).
+     * Forward group cabang + ack "kami tanyakan petugas" (skip ack jika human aktif).
      */
-    private function escalateEstimasiToPetugas(string $waNumber, string $customerMessage): void
+    private function escalateEstimasiToPetugas(string $waNumber, string $customerMessage, ?int $idCabang = null): void
     {
-        $this->forwardEstimasiToFonnteGroup($waNumber, $customerMessage);
+        $this->forwardEstimasiToFonnteGroup($waNumber, $customerMessage, $idCabang);
 
         if (!$this->isHumanAgentRecentlyActive($waNumber)) {
             $sapaan = $this->getSapaanForGreeting($waNumber);
@@ -4070,7 +4070,7 @@ class WAReplies
         }
     }
 
-    private function forwardEstimasiToFonnteGroup(string $waNumber, string $customerMessage): void
+    private function forwardEstimasiToFonnteGroup(string $waNumber, string $customerMessage, ?int $idCabang = null): void
     {
         $nama = trim($this->getContactNameForGreeting($waNumber));
         if ($nama === '') {
@@ -4089,14 +4089,19 @@ class WAReplies
             if (!class_exists('\\App\\Config\\Fonnte')) {
                 require_once __DIR__ . '/../Config/Fonnte.php';
             }
+            $groupId = $this->resolveEstimasiFonnteGroupId($idCabang);
+            if ($groupId === '') {
+                $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'forward_group skip_no_group_id cabang=' . ($idCabang ?? 0));
+                return;
+            }
             $fonnte = new \App\Helpers\CRM\FonnteService();
-            $groupId = \App\Config\Fonnte::getEstimasiGroupId();
             $res = $fonnte->sendToGroup($groupId, $groupText);
             $ok = !empty($res['success']);
             $this->logAutoreplyTrace(
                 $waNumber,
                 'ESTIMASI_SELESAI',
-                'forward_group ' . ($ok ? 'ok' : ('fail=' . ($res['error'] ?? 'unknown')))
+                'forward_group cabang=' . ($idCabang ?? 0) . ' target=' . $groupId . ' '
+                . ($ok ? 'ok' : ('fail=' . ($res['error'] ?? 'unknown')))
             );
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -4104,6 +4109,30 @@ class WAReplies
             }
             $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'forward_group exception');
         }
+    }
+
+    /**
+     * Group Fonnte per cabang (mdl_laundry.cabang.id_group_fonnte), fallback config default.
+     */
+    private function resolveEstimasiFonnteGroupId(?int $idCabang): string
+    {
+        if ($idCabang !== null && $idCabang > 0) {
+            try {
+                $rows = DB::getInstance(1)->query(
+                    'SELECT id_group_fonnte FROM cabang WHERE id_cabang = ' . (int) $idCabang . ' LIMIT 1'
+                )->result_array();
+                $fromCabang = trim((string) ($rows[0]['id_group_fonnte'] ?? ''));
+                if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
+                    return $fromCabang;
+                }
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write('resolveEstimasiFonnteGroupId: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+                }
+            }
+        }
+
+        return \App\Config\Fonnte::getEstimasiGroupId();
     }
 
     private function handleStatus($phoneIn, $waNumber, $textBody = '')

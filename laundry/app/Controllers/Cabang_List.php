@@ -22,6 +22,11 @@ class Cabang_List extends Controller
    public function insert()
    {
       $this->session_cek(1);
+      $parsed = $this->parseIdGroupFonnte($_POST['id_group_fonnte'] ?? '');
+      if (!$parsed['ok']) {
+         echo $parsed['error'];
+         return;
+      }
       $table  = 'cabang';
       $data = [
          'id_kota' => $_POST["kota"],
@@ -29,6 +34,7 @@ class Cabang_List extends Controller
          'alamat' => $_POST["alamat"],
          'kode_cabang' => $_POST["kode_cabang"],
          'phone_number' => $_POST["phone_number"],
+         'id_group_fonnte' => $parsed['value'],
          'wifi_pass' => $_POST["wifi_pass"] ?? '',
          'print_mode' => 'server',
          'rent' => $_POST["rent"] ?? 0
@@ -92,12 +98,19 @@ class Cabang_List extends Controller
          return;
       }
 
+      $parsed = $this->parseIdGroupFonnte($_POST['id_group_fonnte'] ?? '');
+      if (!$parsed['ok']) {
+         echo $parsed['error'];
+         return;
+      }
+
       $set = [
          'id_kota' => $_POST['kota'] ?? '',
          'nama' => $_POST['nama'] ?? '',
          'alamat' => $_POST['alamat'] ?? '',
          'kode_cabang' => $_POST['kode_cabang'] ?? '',
          'phone_number' => $_POST['phone_number'] ?? '',
+         'id_group_fonnte' => $parsed['value'],
          'wifi_pass' => $_POST['wifi_pass'] ?? '',
          'rent' => $_POST['rent'] ?? 0,
       ];
@@ -109,6 +122,29 @@ class Cabang_List extends Controller
       } else {
          echo $up['error'];
       }
+   }
+
+   /**
+     * Parse ID group Fonnte (…@g.us). Kosong → null (hapus). Angka saja → tambah @g.us.
+     * @return array{ok:bool,value:?string,error:?string}
+     */
+   private function parseIdGroupFonnte($raw): array
+   {
+      $v = trim((string) $raw);
+      if ($v === '') {
+         return ['ok' => true, 'value' => null, 'error' => null];
+      }
+      if (preg_match('/^\d+$/', $v)) {
+         $v .= '@g.us';
+      }
+      if (!preg_match('/^\d+@g\.us$/i', $v)) {
+         return [
+            'ok' => false,
+            'value' => null,
+            'error' => 'ID group Fonnte tidak valid (contoh: 1203630…@g.us)',
+         ];
+      }
+      return ['ok' => true, 'value' => $v, 'error' => null];
    }
 
    public function updateMaps()

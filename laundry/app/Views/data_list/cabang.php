@@ -171,6 +171,11 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       letter-spacing: 0.03em;
       vertical-align: middle;
     }
+    #cabang-root .cb-chip--fonnte {
+      border-color: #86efac;
+      background: #dcfce7;
+      color: #166534;
+    }
 
     /* Modal (op-modal pattern) */
     #cabang-root .op-modal {
@@ -378,6 +383,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
             $alamat = (string) ($a['alamat'] ?? '');
             $idKota = (string) ($a['id_kota'] ?? '');
             $phone = (string) ($a['phone_number'] ?? '');
+            $idGroupFonnte = (string) ($a['id_group_fonnte'] ?? '');
             $wifi = (string) ($a['wifi_pass'] ?? '');
             $rent = (int) ($a['rent'] ?? 0);
             $latt = $a['latt'] ?? '';
@@ -391,7 +397,12 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
                 <?php if ($isTraining) { ?><span class="cb-chip">TRAINING</span><?php } ?>
               </td>
               <td class="cb-kode"><?= htmlspecialchars($kode) ?></td>
-              <td class="cb-alamat" title="<?= htmlspecialchars($alamat) ?>"><?= htmlspecialchars($alamat) ?></td>
+              <td class="cb-alamat" title="<?= htmlspecialchars($alamat) ?>">
+                <?= htmlspecialchars($alamat) ?>
+                <?php if ($idGroupFonnte !== '') { ?>
+                  <span class="cb-chip cb-chip--fonnte" title="<?= htmlspecialchars($idGroupFonnte) ?>">FONNTE</span>
+                <?php } ?>
+              </td>
               <td class="cb-actions">
                 <div class="cb-actions__inner">
                   <button
@@ -413,6 +424,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
                     data-alamat="<?= htmlspecialchars($alamat, ENT_QUOTES) ?>"
                     data-kota="<?= htmlspecialchars($idKota, ENT_QUOTES) ?>"
                     data-phone="<?= htmlspecialchars($phone, ENT_QUOTES) ?>"
+                    data-group-fonnte="<?= htmlspecialchars($idGroupFonnte, ENT_QUOTES) ?>"
                     data-wifi="<?= htmlspecialchars($wifi, ENT_QUOTES) ?>"
                     data-rent="<?= $rent ?>"
                   >Edit</button>
@@ -475,6 +487,10 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
               <label class="cb-label" for="cabangWifi">Wifi Pass</label>
               <input type="text" class="cb-input" name="wifi_pass" id="cabangWifi">
             </div>
+          </div>
+          <div class="cb-field">
+            <label class="cb-label" for="cabangGroupFonnte">ID Group Fonnte</label>
+            <input type="text" class="cb-input" name="id_group_fonnte" id="cabangGroupFonnte" placeholder="1203630…@g.us (opsional)">
           </div>
           <div class="cb-field">
             <label class="cb-label" for="cabangRent">Rent</label>
@@ -629,6 +645,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
     document.getElementById('cabangNama').value = btn.getAttribute('data-nama') || '';
     document.getElementById('cabangAlamat').value = btn.getAttribute('data-alamat') || '';
     document.getElementById('cabangPhone').value = btn.getAttribute('data-phone') || '';
+    document.getElementById('cabangGroupFonnte').value = btn.getAttribute('data-group-fonnte') || '';
     document.getElementById('cabangWifi').value = btn.getAttribute('data-wifi') || '';
     document.getElementById('cabangRent').value = btn.getAttribute('data-rent') || '0';
     document.getElementById('cabangKota').value = btn.getAttribute('data-kota') || '';

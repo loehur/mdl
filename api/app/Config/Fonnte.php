@@ -38,7 +38,8 @@ class Fonnte
     }
 
     /**
-     * Group WhatsApp untuk eskalasi ESTIMASI_SELESAI (tanya petugas).
+     * Fallback group WhatsApp bila cabang belum punya id_group_fonnte.
+     * Prefer isi per-cabang di mdl_laundry.cabang.id_group_fonnte.
      */
     public static function getEstimasiGroupId(): string
     {
