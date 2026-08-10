@@ -769,33 +769,22 @@ trait WARepliesKurirTrait
             return;
         }
 
-        $last = $this->kurirLastDeliveryRequest($idPelanggan);
-        $preferId = $last ? (int) ($last['id_lokasi'] ?? 0) : 0;
-        $prefer = null;
-        foreach ($list as $lok) {
-            if ((int) $lok['id_lokasi'] === $preferId) {
-                $prefer = $lok;
-                break;
-            }
-        }
-        if ($prefer === null && count($list) === 1) {
-            $prefer = $list[0];
-        }
-
-        if ($prefer !== null) {
-            $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $prefer);
+        // 1 lokasi → langsung; >1 → paling sering dipakai (status selesai); imbang → tanya hanya yang imbang
+        $candidates = $this->kurirPickLokasiCandidatesByUsage($idPelanggan, $list);
+        if (count($candidates) === 1) {
+            $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $candidates[0]);
             return;
         }
 
         $lines = ["Baik {$sapaan}, pilih lokasi " . $this->kurirJenisLabel($session) . ":"];
-        foreach ($list as $i => $lok) {
+        foreach ($candidates as $i => $lok) {
             $n = $i + 1;
             $lines[] = "{$n}. *{$lok['nama']}* — {$lok['detail']}";
         }
         $lines[] = "Balas angka pilihan ya {$sapaan}.";
         $this->saveKurirSession($waNumber, [
             'step' => 'pick_lokasi',
-            'rates_json' => json_encode(['lokasi_list' => $list], JSON_UNESCAPED_UNICODE),
+            'rates_json' => json_encode(['lokasi_list' => $candidates], JSON_UNESCAPED_UNICODE),
         ]);
         $this->sendAutoreplyText($waNumber, implode("\n", $lines));
     }
@@ -813,13 +802,87 @@ trait WARepliesKurirTrait
         }
     }
 
-    private function kurirLastDeliveryRequest(int $idPelanggan): ?array
+    /**
+     * Frekuensi id_lokasi dari delivery_request status selesai.
+     * @return array<int,int> id_lokasi => count
+     */
+    private function kurirLokasiUsageCountsSelesai(int $idPelanggan): array
     {
+        if ($idPelanggan <= 0) {
+            return [];
+        }
+        try {
+            $rows = DB::getInstance(1)->query(
+                "SELECT id_lokasi, COUNT(*) AS cnt
+                 FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND delivery_status = 'selesai'
+                   AND id_lokasi IS NOT NULL
+                   AND id_lokasi > 0
+                 GROUP BY id_lokasi",
+                [$idPelanggan]
+            )->result_array();
+            $out = [];
+            foreach (is_array($rows) ? $rows : [] as $r) {
+                $id = (int) ($r['id_lokasi'] ?? 0);
+                if ($id > 0) {
+                    $out[$id] = (int) ($r['cnt'] ?? 0);
+                }
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Pilih kandidat lokasi: pemenang frekuensi sukses, atau semua yang imbang di puncak.
+     * @param list<array> $list lokasi lengkap pelanggan
+     * @return list<array>
+     */
+    private function kurirPickLokasiCandidatesByUsage(int $idPelanggan, array $list): array
+    {
+        if (count($list) <= 1) {
+            return array_values($list);
+        }
+
+        $counts = $this->kurirLokasiUsageCountsSelesai($idPelanggan);
+        $max = 0;
+        foreach ($list as $lok) {
+            $id = (int) ($lok['id_lokasi'] ?? 0);
+            $c = $counts[$id] ?? 0;
+            if ($c > $max) {
+                $max = $c;
+            }
+        }
+
+        $tied = [];
+        foreach ($list as $lok) {
+            $id = (int) ($lok['id_lokasi'] ?? 0);
+            if (($counts[$id] ?? 0) === $max) {
+                $tied[] = $lok;
+            }
+        }
+
+        return $tied !== [] ? $tied : array_values($list);
+    }
+
+    /**
+     * Request sameday terakhir yang sukses (delivery_status=selesai).
+     */
+    private function kurirLastSuccessfulSamedayRequest(int $idPelanggan): ?array
+    {
+        if ($idPelanggan <= 0) {
+            return null;
+        }
         try {
             $row = DB::getInstance(1)->query(
                 "SELECT * FROM delivery_request
-                 WHERE id_pelanggan = ? AND delivery_status <> 'batal'
-                 ORDER BY insertTime DESC LIMIT 1",
+                 WHERE id_pelanggan = ?
+                   AND delivery_status = 'selesai'
+                   AND layanan = 'sameday'
+                 ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC
+                 LIMIT 1",
                 [$idPelanggan]
             )->row();
             return $row ? (array) $row : null;
@@ -963,18 +1026,45 @@ trait WARepliesKurirTrait
         $jenis = $this->kurirJenisLabel($session);
         $nama = (string) ($lok['nama'] ?? '');
         $detail = (string) ($lok['detail'] ?? '');
-        $tarifRp = AntarTarif::formatRp((int) $calc['tarif']);
+        $tarif = (int) $calc['tarif'];
+        $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
+        $tarifRp = AntarTarif::formatRp($tarif);
 
         $this->saveKurirSession($waNumber, [
             'step' => 'confirm_lokasi',
             'layanan' => 'sameday',
-            'id_lokasi' => (int) $lok['id_lokasi'],
+            'id_lokasi' => $idLokasi,
             'lokasi_nama' => $nama,
             'lokasi_detail' => $detail,
             'latt' => $latt,
             'longt' => $longt,
-            'tarif' => (int) $calc['tarif'],
+            'tarif' => $tarif,
         ]);
+        $session = $this->getKurirSession($waNumber) ?: array_merge($session, [
+            'id_lokasi' => $idLokasi,
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+            'latt' => $latt,
+            'longt' => $longt,
+            'tarif' => $tarif,
+            'layanan' => 'sameday',
+        ]);
+
+        // Riwayat sameday sukses terakhir: lokasi + tarif sama → skip konfirmasi, langsung create
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $lastOk = $this->kurirLastSuccessfulSamedayRequest($idPelanggan);
+        if ($lastOk !== null
+            && (int) ($lastOk['id_lokasi'] ?? 0) === $idLokasi
+            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif
+        ) {
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'KURIR',
+                "skip_confirm same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
+            );
+            $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+            return;
+        }
 
         $this->sendAutoreplyText(
             $waNumber,
