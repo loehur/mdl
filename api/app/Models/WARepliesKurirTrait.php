@@ -1860,7 +1860,7 @@ trait WARepliesKurirTrait
         return null;
     }
 
-    /** Cutoff sameday: mulai pukul 16:00 tidak terima request jam untuk HARI INI. */
+    /** ≥16:00: soft-ack "petugas alternatif" untuk request jam HARI INI (tetap escalate). */
     private function kurirIsPastSamedayJamCutoff(): bool
     {
         return ((int) date('G')) >= 16;
@@ -1920,10 +1920,7 @@ trait WARepliesKurirTrait
             $tglHint = $today;
         }
 
-        if ($tglHint === $today && $this->kurirIsPastSamedayJamCutoff()) {
-            $this->kurirReplyPastCutoffScheduleTomorrow($waNumber, $sapaan, $session);
-            return;
-        }
+        $pastCutoffToday = ($tglHint === $today && $this->kurirIsPastSamedayJamCutoff());
 
         $this->saveKurirSession($waNumber, [
             'step' => 'wait_driver_jam',
@@ -1937,11 +1934,40 @@ trait WARepliesKurirTrait
             'driver_alt_tanggal' => null,
             'driver_alt_jam' => null,
         ]);
-        $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya.");
+        if ($pastCutoffToday) {
+            $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+        } else {
+            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya.");
+        }
         $this->kurirForwardJamEstimasiToGroups($waNumber, $session, $msg, $tglHint);
     }
 
-    private function kurirReplyPastCutoffScheduleTomorrow(
+    /**
+     * Soft-ack ≥16:00 (hari ini, jam permintaan ≤20): ketenangan + escalate.
+     * <17:00 = dekat jam pulang; ≥17:00 = sudah pulang.
+     */
+    private function kurirPastCutoffAlternatifAck(string $sapaan): string
+    {
+        if (((int) date('G')) >= 17) {
+            return "Maaf {$sapaan}, Abang driver sudah pulang. "
+                . "Kami coba tanyakan dulu ke petugas alternatif ya {$sapaan}.";
+        }
+
+        return "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
+            . "Kami coba tanyakan dulu ke petugas alternatif ya {$sapaan}.";
+    }
+
+    /** Jam permintaan hari ini > 20:00 → hard-cut, jadwalkan besok (tanpa escalate). */
+    private function kurirIsJamAfterNightCutoff(?float $jam): bool
+    {
+        return $jam !== null && (float) $jam > 20.0;
+    }
+
+    /**
+     * Hard-cut: tidak escalate, balas jadwalkan besok.
+     * Teks ikut jam sekarang (≥17 = sudah pulang, else dekat jam pulang).
+     */
+    private function kurirReplyHardCutScheduleTomorrow(
         string $waNumber,
         string $sapaan,
         array $session
@@ -1955,11 +1981,14 @@ trait WARepliesKurirTrait
             'estimasi_tanggal' => null,
             'estimasi_jam' => null,
         ]);
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
-            . "Kami jadwalkan {$noun} *besok* ya {$sapaan}."
-        );
+        if (((int) date('G')) >= 17) {
+            $text = "Maaf {$sapaan}, Abang driver sudah pulang. "
+                . "Kami jadwalkan {$noun} *besok* ya {$sapaan}.";
+        } else {
+            $text = "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
+                . "Kami jadwalkan {$noun} *besok* ya {$sapaan}.";
+        }
+        $this->sendAutoreplyText($waNumber, $text);
     }
 
     private function kurirForwardJamEstimasiToGroups(
@@ -2011,10 +2040,13 @@ trait WARepliesKurirTrait
         $jam = $waktu['jam'];
         $today = date('Y-m-d');
 
-        if ($tgl === $today && $this->kurirIsPastSamedayJamCutoff()) {
-            $this->kurirReplyPastCutoffScheduleTomorrow($waNumber, $sapaan, $session);
+        // Hari ini + jam permintaan > 20:00 → hard-cut jadwalkan besok (tanpa escalate)
+        if ($tgl === $today && $this->kurirIsJamAfterNightCutoff(isset($jam) ? (float) $jam : null)) {
+            $this->kurirReplyHardCutScheduleTomorrow($waNumber, $sapaan, $session);
             return;
         }
+
+        $pastCutoffToday = ($tgl === $today && $this->kurirIsPastSamedayJamCutoff());
 
         $this->saveKurirSession($waNumber, [
             'step' => 'wait_driver_jam',
@@ -2028,7 +2060,11 @@ trait WARepliesKurirTrait
             'driver_alt_tanggal' => null,
             'driver_alt_jam' => null,
         ]);
-        $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan driver dulu ya {$sapaan}.");
+        if ($pastCutoffToday) {
+            $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+        } else {
+            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan driver dulu ya {$sapaan}.");
+        }
         $this->kurirForwardJamToGroups($waNumber, $session, $msg, $tgl, (float) $jam);
     }
 
