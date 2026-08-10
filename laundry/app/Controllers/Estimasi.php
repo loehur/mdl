@@ -106,6 +106,70 @@ class Estimasi extends Controller
                 }
             }
 
+            // Pelanggan baru (#NEW#) — update nama segera
+            try {
+                $newRows = $this->db(100)->query_array(
+                    'SELECT phone, id_pelanggan, id_cabang, jenis, lokasi_nama, lokasi_detail,
+                            summary, updated_at, expires_at, butuh_update_nama
+                     FROM wa_kurir_session
+                     WHERE expires_at > NOW()
+                       AND id_cabang = ' . (int) $this->currentCabangId() . '
+                       AND butuh_update_nama = 1
+                     ORDER BY updated_at DESC
+                     LIMIT 50'
+                );
+                if (!is_array($newRows)) {
+                    $newRows = [];
+                }
+                foreach ($newRows as $row) {
+                    $phone = (string) ($row['phone'] ?? '');
+                    $idPelanggan = (int) ($row['id_pelanggan'] ?? 0);
+                    $namaDb = '';
+                    $namaAsli = '';
+                    if (preg_match('/new_nama_asli=([^|]+)/', (string) ($row['summary'] ?? ''), $mNama)) {
+                        $namaAsli = trim($mNama[1]);
+                    }
+                    if ($idPelanggan > 0) {
+                        try {
+                            $pel = $this->db(0)->get_where_row(
+                                'pelanggan',
+                                'id_pelanggan = ' . $idPelanggan
+                            );
+                            if (is_array($pel) && !empty($pel['nama_pelanggan'])) {
+                                $namaDb = trim((string) $pel['nama_pelanggan']);
+                            }
+                        } catch (\Throwable $e) {
+                            // ignore
+                        }
+                    }
+                    if ($namaDb === '') {
+                        $pelanggan = $this->resolvePelangganByPhone($phone);
+                        $namaDb = (string) ($pelanggan['nama'] ?? '');
+                    }
+                    $items[] = [
+                        'task_type' => 'pelanggan_new',
+                        'task_id' => 'pelanggan_new:' . $phone,
+                        'phone' => $phone,
+                        'phone_display' => $this->displayPhone($phone),
+                        'id_penjualan' => null,
+                        'id_pelanggan' => $idPelanggan > 0 ? $idPelanggan : null,
+                        'jenis' => (string) ($row['jenis'] ?? 'jemput'),
+                        'lokasi_nama' => $row['lokasi_nama'] ?? '',
+                        'lokasi_detail' => $row['lokasi_detail'] ?? '',
+                        'customer_message' => $namaAsli !== ''
+                            ? ('Nama dari WA: ' . $namaAsli)
+                            : '',
+                        'nama_saran' => $namaAsli !== '' ? $namaAsli : $namaDb,
+                        'nama_saat_ini' => $namaDb,
+                        'updated_at' => $row['updated_at'] ?? null,
+                        'expires_at' => $row['expires_at'] ?? null,
+                        'nama' => $namaDb !== '' ? $namaDb : ($namaAsli !== '' ? $namaAsli : 'Pelanggan baru'),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // kolom / tabel belum ada
+            }
+
             // Kurir jam grant (wa_kurir_session)
             try {
                 $kurirRows = $this->db(100)->query_array(
@@ -224,9 +288,10 @@ class Estimasi extends Controller
                 // tabel belum ada / skip
             }
 
-            // Estimasi dulu, lalu grant / kurir / ambil tutup
+            // Pelanggan baru dulu, lalu estimasi, lalu grant / kurir / ambil tutup
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
+                    if ($t === 'pelanggan_new') return -1;
                     if ($t === 'estimasi' || $t === 'kurir_estimasi') return 0;
                     if ($t === 'grant' || $t === 'kurir_grant' || $t === 'ambil_tutup') return 1;
                     return 2;
@@ -247,7 +312,8 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|grant|kurir_grant|ambil_tutup, estimasi_jam?, request_granted?, reject_reason?, send_wa?
+     * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|ambil_tutup|pelanggan_new,
+     *       estimasi_jam?, request_granted?, reject_reason?, nama_pelanggan?, send_wa?
      */
     public function update()
     {
@@ -260,14 +326,14 @@ class Estimasi extends Controller
             echo json_encode(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup'], true)) {
-            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, atau ambil_tutup']);
+        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup', 'pelanggan_new'], true)) {
+            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, ambil_tutup, atau pelanggan_new']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
 
-        if ($taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
+        if ($taskType === 'pelanggan_new' || $taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
             $session = $this->db(100)->get_where_row(
                 'wa_kurir_session',
                 "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
@@ -276,7 +342,9 @@ class Estimasi extends Controller
                 echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
                 return;
             }
-            if ($taskType === 'kurir_estimasi') {
+            if ($taskType === 'pelanggan_new') {
+                $this->updatePelangganNewTask($phone, $phoneEsc, $session);
+            } elseif ($taskType === 'kurir_estimasi') {
                 $this->updateKurirEstimasiTask($phone, $phoneEsc, $session);
             } else {
                 $this->updateKurirGrantTask($phone, $phoneEsc, $session);
@@ -355,6 +423,80 @@ class Estimasi extends Controller
         }
 
         $this->respondAfterUpdate($phone, $replyText);
+    }
+
+    /**
+     * Petugas update nama pelanggan #NEW# — tanpa WA ke customer.
+     */
+    private function updatePelangganNewTask(string $phone, string $phoneEsc, array $session): void
+    {
+        if ((int) ($session['butuh_update_nama'] ?? 0) !== 1) {
+            echo json_encode(['ok' => 0, 'msg' => 'Task update nama sudah tidak pending']);
+            return;
+        }
+
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        if ($idPelanggan <= 0) {
+            echo json_encode(['ok' => 0, 'msg' => 'id_pelanggan kosong']);
+            return;
+        }
+
+        $nama = trim((string) ($_POST['nama_pelanggan'] ?? ''));
+        $nama = trim(preg_replace('/\s+/u', ' ', $nama));
+        if ($nama === '' || mb_strlen($nama) < 2) {
+            echo json_encode(['ok' => 0, 'msg' => 'Nama pelanggan wajib diisi']);
+            return;
+        }
+        if (mb_strlen($nama) > 80) {
+            $nama = mb_substr($nama, 0, 80);
+        }
+
+        $cabangId = $this->currentCabangId();
+        $pel = $this->db(0)->get_where_row(
+            'pelanggan',
+            'id_pelanggan = ' . $idPelanggan
+            . ($cabangId > 0 ? (' AND id_cabang = ' . (int) $cabangId) : '')
+        );
+        if (!is_array($pel) || empty($pel['id_pelanggan'])) {
+            echo json_encode(['ok' => 0, 'msg' => 'Pelanggan tidak ditemukan di cabang ini']);
+            return;
+        }
+
+        $updPel = $this->db(0)->update(
+            'pelanggan',
+            ['nama_pelanggan' => $nama],
+            'id_pelanggan = ' . $idPelanggan
+        );
+        if (!empty($updPel['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => $updPel['error'] ?? 'Gagal update nama pelanggan']);
+            return;
+        }
+
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $summary .= ($summary !== '' ? ' | ' : '') . 'Petugas update nama=' . $nama;
+
+        $up = $this->db(100)->update(
+            'wa_kurir_session',
+            [
+                'butuh_update_nama' => 0,
+                'summary' => mb_substr($summary, 0, 800),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ],
+            "phone = '" . $phoneEsc . "'"
+        );
+        if (!empty($up['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update session']);
+            return;
+        }
+
+        // Sengaja tanpa WA — customer tidak diberitahu soal update nama
+        $pendingCount = $this->syncNotifTaskCount();
+        echo json_encode([
+            'ok' => 1,
+            'wa_ok' => 0,
+            'count' => $pendingCount,
+            'msg' => 'Nama pelanggan disimpan',
+        ]);
     }
 
     private function updateKurirEstimasiTask(string $phone, string $phoneEsc, array $session): void
@@ -480,7 +622,9 @@ class Estimasi extends Controller
             $altLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
             $reqLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
             $replyText = "Maaf {$sapaan}, driver tidak bisa lakukan {$noun} pada jam {$reqLabel}, "
-                . "driver baru bisa jemput/antar di jam {$altLabel}, apakah permintaan {$jenis} tetap dilanjutkan?";
+                . "driver baru bisa jemput/antar di jam {$altLabel}. "
+                . "Apakah permintaan {$jenis} tetap dilanjutkan di jam tersebut, "
+                . "atau mau pakai *instant* (Grab/Gojek)?";
         }
 
         $up = $this->db(100)->update(
@@ -741,6 +885,16 @@ class Estimasi extends Controller
                    )'
             );
             $n += (int) ($kurirRows[0]['c'] ?? 0);
+            try {
+                $newNamaRows = $this->db(100)->query_array(
+                    'SELECT COUNT(*) AS c FROM wa_kurir_session
+                     WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId . '
+                       AND butuh_update_nama = 1'
+                );
+                $n += (int) ($newNamaRows[0]['c'] ?? 0);
+            } catch (\Throwable $e) {
+                // kolom belum ada
+            }
             try {
                 $ambilRows = $this->db(100)->query_array(
                     'SELECT COUNT(*) AS c FROM wa_ambil_tutup_session
