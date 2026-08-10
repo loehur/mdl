@@ -265,6 +265,12 @@ trait WARepliesKurirTrait
         $step = (string) ($session['step'] ?? 'ask_jenis');
         $sapaan = $this->getSapaanForGreeting($waNumber);
 
+        // Batal / gak jadi / cancel — selalu prioritas di setiap step session kurir
+        if ($this->kurirLooksCancel($msg)) {
+            $this->kurirCancelAndReply($waNumber, $sapaan, $session);
+            return;
+        }
+
         if ($step === 'ask_jenis') {
             $jenis = $this->detectKurirJenis($msg);
             if (!$jenis && preg_match('/\bjemput\b/iu', $msg)) {
@@ -358,26 +364,104 @@ trait WARepliesKurirTrait
 
     private function kurirLooksRefuse(string $msg): bool
     {
+        if ($this->kurirLooksCancel($msg)) {
+            return true;
+        }
         return (bool) preg_match(
-            '/\b(tidak|tdk|ga|gak|ngga|engga|bukan|batal|cancel|jangan|nanti\s*aja)\b/iu',
+            '/\b(tidak|tdk|ga|gak|ngga|nggak|engga|enggak|bukan|jangan|nanti\s*aja|no)\b/iu',
             $msg
         );
+    }
+
+    /**
+     * Customer minta batalkan request antar/jemput (bukan sekadar "tidak" di konfirmasi lokasi).
+     * Contoh: batal, batalin, gak jadi, cancel, gak usah, udahan, …
+     */
+    private function kurirLooksCancel(string $msg): bool
+    {
+        $t = mb_strtolower(trim($msg));
+        if ($t === '') {
+            return false;
+        }
+
+        // Kata kunci tunggal / bentuk infleksi
+        if (preg_match(
+            '/\b('
+            . 'batal(in|kan|kan\s*aja|in\s*aja)?'
+            . '|di\s*batal(in|kan)?'
+            . '|cancel(l?ed|lation|ing)?'
+            . '|urung(kan)?'
+            . '|abort'
+            . '|udahan'
+            . '|cabut'
+            . ')\b/iu',
+            $t
+        )) {
+            return true;
+        }
+
+        // Frasa “tidak/gak … jadi/usah/perlu/lanjut”
+        if (preg_match(
+            '/\b('
+            . '(gak|ga|ngga|nggak|engga|enggak|ndak|ndk|tidak|tdk|tak)\s*'
+            . '(jadi|usah|perlu|jadi\s*deh|jadi\s*aja|jadi\s*dulu)'
+            . '|jangan\s*(jadi|lanjut(kan)?|dulu|diantar|dijemput)'
+            . '|gak\s*usah\s*(antar|jemput|dulu)?'
+            . '|ga\s*usah\s*(antar|jemput|dulu)?'
+            . '|sudah(i)?\s*aja'
+            . '|stop\s*(aja|dulu)?'
+            . '|mundur\s*aja'
+            . '|skip\s*(aja|dulu)?'
+            . ')\b/iu',
+            $t
+        )) {
+            return true;
+        }
+
+        return false;
     }
 
     private function kurirLooksWantJam(string $msg): bool
     {
+        if ($this->kurirLooksCancel($msg)) {
+            return false;
+        }
         if ($this->parseEstimasiRequestWaktu($msg) !== null) {
             return true;
         }
-        return (bool) preg_match('/\b(jam\s*\d{1,2}|pukul\s*\d{1,2}|jam\s*(brp|berapa)|kapan\s*(dijemput|diantar|jemput|antar))\b/iu', $msg);
+        return (bool) preg_match(
+            '/\b(jam\s*\d{1,2}|pukul\s*\d{1,2}|jam\s*(brp|berapa|bisa|bs|gak|ga|nggak|ngga)|'
+            . 'kapan\s*(dijemput|diantar|jemput|antar)|siang\s*(ini)?|sore\s*(ini)?|'
+            . 'mau\s*(jam|pukul)|minta\s*(jam|pukul))\b/iu',
+            $msg
+        );
     }
 
     private function kurirLooksWantFast(string $msg): bool
     {
+        if ($this->kurirLooksCancel($msg)) {
+            return false;
+        }
+        // "sekarang/skrg" saja terlalu ambigu (sering ikut kalimat batal/pulang)
         return (bool) preg_match(
-            '/\b(segera|sekarang|cepat|cepet|instant|instan|gojek|grab|kilat|buru|skrg|langsung\s*aja)\b/iu',
+            '/\b(segera|cepat|cepet|instant|instan|gojek|grab|kilat|buru(-?buru)?|langsung\s*aja)\b/iu',
+            $msg
+        ) || (bool) preg_match(
+            '/\b(sekarang|skrg)\b.*\b(antar|jemput|kurir|kirim|ambil)\b|\b(antar|jemput|kurir|kirim|ambil)\b.*\b(sekarang|skrg)\b/iu',
             $msg
         );
+    }
+
+    private function kurirCancelAndReply(string $waNumber, string $sapaan, array $session): void
+    {
+        $this->kurirCancelDeliveryRequest($session);
+        $id = (int) ($session['id_pelanggan'] ?? 0);
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
+            . "https://ml.nalju.com/J/kurir/{$id}"
+        );
+        $this->clearKurirSession($waNumber);
     }
 
     private function kurirLokasiCheck(string $waNumber, string $sapaan, array $session): void
@@ -730,6 +814,11 @@ trait WARepliesKurirTrait
      */
     private function kurirHandleRequestAktif(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if ($this->kurirLooksCancel($msg)) {
+            $this->kurirCancelAndReply($waNumber, $sapaan, $session);
+            return;
+        }
+
         if ($this->kurirLooksWantFast($msg)) {
             $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
             return;
@@ -737,7 +826,7 @@ trait WARepliesKurirTrait
 
         $wantJam = $this->kurirLooksWantJam($msg);
         $waktu = $this->parseEstimasiRequestWaktu($msg);
-        if ($wantJam && $waktu === null && preg_match('/\bjam\s*(brp|berapa)|kapan\b/iu', $msg)) {
+        if ($wantJam && $waktu === null) {
             $this->sendAutoreplyText($waNumber, "Tunggu ya {$sapaan}, kami tanyakan dulu ke driver.");
             $this->sendAutoreplyText(
                 $waNumber,
@@ -747,18 +836,6 @@ trait WARepliesKurirTrait
         }
         if ($wantJam && $waktu !== null) {
             $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $msg, $waktu);
-            return;
-        }
-
-        if ($this->kurirLooksRefuse($msg) || preg_match('/\b(batal|cancel|batalkan)\b/iu', $msg)) {
-            $this->kurirCancelDeliveryRequest($session);
-            $id = (int) ($session['id_pelanggan'] ?? 0);
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
-                . "https://ml.nalju.com/J/kurir/{$id}"
-            );
-            $this->clearKurirSession($waNumber);
             return;
         }
 
@@ -1197,6 +1274,11 @@ trait WARepliesKurirTrait
 
     private function kurirHandleInstantChoice(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if ($this->kurirLooksCancel($msg)) {
+            $this->kurirCancelAndReply($waNumber, $sapaan, $session);
+            return;
+        }
+
         $j = json_decode((string) ($session['rates_json'] ?? ''), true);
         $rates = $j['rates'] ?? [];
         if (empty($rates)) {

@@ -1259,12 +1259,20 @@ const sanitizeMessages = (messages) => {
           .trim();
       const msgTime = new Date(msg.rawTime || msg.time).getTime();
       const msgText = normalize(msg.text);
-      // Wider window for optimistic/server reconcile (timezone + network delay)
-      const timeWindowMs = (isOptimistic(msg) || msg.sender === "me") ? 120000 : 5000;
+      // Hanya lekatkan optimistic ↔ server (bukan dua pesan DB berbeda dengan teks sama)
+      const msgOptimistic = isOptimistic(msg);
+      // Wider window only when reconciling optimistic bubble with server copy
+      const timeWindowMs = msgOptimistic ? 120000 : 5000;
 
       for (let i = result.length - 1; i >= 0 && i >= result.length - 15; i--) {
         const cand = result[i];
         if (cand.sender !== msg.sender) continue;
+
+        const candOptimistic = isOptimistic(cand);
+        // Dua pesan nyata (bukan temp/optimistic) jangan di-merge meski teks identik
+        if (!msgOptimistic && !candOptimistic) {
+          continue;
+        }
 
         // Outgoing media: merge optimistic preview with server message
         if (isMediaMessage(msg) || isMediaMessage(cand)) {
@@ -1272,7 +1280,7 @@ const sanitizeMessages = (messages) => {
             msg.sender === "me" &&
             isMediaMessage(msg) &&
             isMediaMessage(cand) &&
-            (isOptimistic(msg) || isOptimistic(cand)) &&
+            (msgOptimistic || candOptimistic) &&
             normalize(cand.text) === msgText
           ) {
             const candTime = new Date(cand.rawTime || cand.time).getTime();
@@ -1293,9 +1301,7 @@ const sanitizeMessages = (messages) => {
           if (
             isNaN(msgTime) ||
             isNaN(candTime) ||
-            Math.abs(candTime - msgTime) < timeWindowMs ||
-            isOptimistic(msg) ||
-            isOptimistic(cand)
+            Math.abs(candTime - msgTime) < timeWindowMs
           ) {
             existing = cand;
             break;
@@ -3485,27 +3491,27 @@ const connectWebSocket = () => {
               messageUpdateTrigger.value++;
               // Don't add as new - already exists
             } else {
-              // NEW DEFENSE: Robust Fuzzy Match
-              // Search backwards for the most recent message from 'me' with same text
-              // This handles race conditions where the order might be slightly off or not the very last item
+              // NEW DEFENSE: Robust Fuzzy Match — hanya untuk bubble optimistic/temp
+              // Jangan gabungkan dua outbound nyata dengan teks sama (mis. autoreply berulang)
               let pendingMatch = null;
               const cleanIncomingText = normalizeText(messageData.text);
+              const isTempId = (id) => /^\d{13,}$/.test(String(id || ""));
+              const isOptimisticMsg = (m) =>
+                m?.status === "pending" ||
+                isTempId(m?.id) ||
+                String(m?.media_url || "").startsWith("data:");
 
               // Scan last 8 messages
               for (let i = conversation.messages.length - 1; i >= 0; i--) {
                 if (conversation.messages.length - i > 8) break;
 
                 const m = conversation.messages[i];
+                if (!isOptimisticMsg(m)) continue;
                 const cleanLocalText = normalizeText(m.text);
 
-                // Check match: Sender is me AND text matches
                 if (m.sender === "me" && cleanLocalText === cleanIncomingText) {
-                  // If it's already "read", we probably shouldn't merge (it's old)
-                  // But if it's pending, sent, or delivered, it's a candidate
-                  if (m.status !== "read") {
-                    pendingMatch = m;
-                    break;
-                  }
+                  pendingMatch = m;
+                  break;
                 }
               }
 
