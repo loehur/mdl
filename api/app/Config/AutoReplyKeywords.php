@@ -456,37 +456,52 @@ return [
       'case' => 2,
       'notify' => true,
       'patterns' => [
-         '/^\s*(je*m*pu*t|anta*r)\s*$/i',
+         '/^\s*(je*m*pu*t|anta*r|anter)\s*$/i',
          // "tolong/bantu/minta/bisa antar/jemput" (permintaan langsung). Catatan: "udh/sdh/sudah ... bisa dijemput" = STATUS (regex STATUS dicek lebih dulu + ada kata sudah/singkatannya).
          // "bisa/boleh" + jemput: permintaan layanan; pertanyaan status "X apa bisa dijemput" ada di regex STATUS (dicek lebih dulu)
-         '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
+         '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|anter|jemput)\b/i',
          // Singkatan WA: "bs jmpt baju?", "bs jemput?" (= bisa jemput); tanpa "masih" = permintaan/tanya jemput (bukan JAM_OPERASIONAL)
-         '/\b(bs|bis)\s*(jmpt|jemput|antar)\b/i',
+         '/\b(bs|bis)\s*(jmpt|jemput|antar|anter)\b/i',
          // "jam berapa bisa diantar?" = jadwal kurir antar (bukan estimasi siap diambil — itu ESTIMASI_SELESAI)
-         '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di)?antar\b/i',
+         '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di)?(antar|anter)\b/i',
          // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
-         '/\b(jam\s*)?(brp|brpa|berapa)\s*(bsk|besok|nanti)?\s*(di)?antar/i',
-         '/\b(ka*pa*n|kpn)\s*(di)?(antar|jemput)/i',
-         // Permintaan antar/jemput: "antar aja", "klo udh selesai antar aja", "kalau da kelar antar aja"
-         '/\b(antar|jemput)\s*(aja|ya)(\s|$)/i',
+         '/\b(jam\s*)?(brp|brpa|berapa)\s*(bsk|besok|nanti)?\s*(di)?(antar|anter)/i',
+         '/\b(ka*pa*n|kpn)\s*(di)?(antar|anter|jemput)/i',
+         // Permintaan antar/jemput: "antar aja", "besok anter laundry ya"
+         '/\b(antar|anter|jemput)\s*(aja|ya)(\s|$)/i',
+         '/\b(besok|bsk|hari\s*ini)\s+(di)?(antar|anter|jemput)\b/i',
+         '/\b(antar|anter|jemput)\b.{0,40}?\b(laundry|londry|loundry|londri|laondri|cucian)\b/iu',
          // "kalau udah selesai bantu antar ..." (ada kata bantu/tolong di tengah)
-         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(bantu|bntu|tolong)?\s*(antar|jemput)/i',
-         '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|jemput)/i',
-         '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|jemput)\s*(aja|ya)?/i',
+         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(bantu|bntu|tolong)?\s*(antar|anter|jemput)/i',
+         '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|anter|jemput)/i',
+         '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|anter|jemput)\s*(aja|ya)?/i',
          // "katanya mau antar", "katanya mau jemput" = relay/konfirmasi permintaan antar
-         '/\bkatanya\s+mau\s*(antar|jemput)/i',
+         '/\bkatanya\s+mau\s*(antar|anter|jemput)/i',
          // Ambil/jemput baju/laundry di kamar hotel/RS/sekolah/kost/alamat (minta kurir ke lokasi)
          '/\b(ambil|jemput)\b.{0,220}?\b(kamar|hotel|rumah\s*sakit|rs\b|sekolah|kost|apartemen|apart|gedung|alamat)\b/iu',
          '/\b(ambil|jemput)\b.{0,220}?\b(dpn|depan)\s+kamar\b/iu',
          '/\b(ambil|jemput)\b.{0,220}?\bkamar\s*\d+/iu',
          '/\b(ambil|jemput)\b.{0,220}?\b(jl\.|jalan|jl\s|rt\.|rw\.|gg\.|gang)\b/iu',
+         // "besok pagi bisa ambil kain kotor" = jemput kurir
+         '/\b(ambil|ngambil|jemput)\b.{0,80}\b(kain|baju|cucian|laundry|londry|londri|pakaian)\b.{0,40}\bkotor\b/iu',
+         '/\b(kain|baju|cucian|laundry|londry|londri|pakaian)\b.{0,30}\bkotor\b.{0,60}\b(ambil|ngambil|jemput)\b/iu',
+         '/\b(bisa|boleh|tolong|minta|mau)\s+(ambil|ngambil|jemput)\b.{0,60}\b(kain|baju|cucian|laundry).{0,30}\bkotor\b/iu',
+         // "sekalian bawakan kain yang udah siap" = antar
+         '/\b(bawak|bawakan|bawa\s*kan|bawa\s*in)\b.{0,100}\b(kain|baju|cucian|laundry|londry|londri|pakaian)\b/iu',
+         '/\b(sekalian|sekaligus)\s+(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter)\b/iu',
+         '/\b(kain|baju|cucian|laundry).{0,40}\b(yg|yang)?\s*(udah|sudah|udh)?\s*(siap|selesai|kelar)\b.{0,40}\b(bawak|bawakan|antar|anter|kirim)\b/iu',
       ],
       'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
       - Minta jemput ATAU antar (beda: jemput = ambil dari lokasi customer, antar = antar ke lokasi customer).\n
+      - Typo 'anter' / 'dianter' = sama dengan antar.\n
+      - 'besok anter laundry ya' / 'besok antar londry ya' = MINTA_JEMPUT_ANTAR (permintaan antar sameday).\n
+      - CRITICAL TRUE: 'kk besok pagi bisa ambil kain kotor' / 'ambil kain kotor' / 'ambil baju kotor' = JEMPUT (kurir ambil cucian kotor), BUKAN status, BUKAN customer ambil sendiri.\n
+      - CRITICAL TRUE: 'sekalian bawakan kain yang udah siap' / 'bawak kan kain yg siap' = ANTAR (kurir antar cucian siap).\n
+      - Jika customer minta antar SEKALIGUS jemput (atau sebaliknya, 'jemput juga' / ambil kotor + bawakan yang siap) = tetap MINTA_JEMPUT_ANTAR, jenis = antar.\n
       - Follow-up session (konfirmasi lokasi/tarif/jam/setuju/instant) tetap MINTA_JEMPUT_ANTAR.\n
       HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
-      - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar\n
+      - Kata kunci: tolong/minta/bisa/boleh/dong/kapan/berapa + jemput/antar/anter\n
       - tolong jemput, minta dijemput, bisa diantar?, boleh dijemput?, kapan diantar?\n
       - jam brp bsk diantarnya?, jam berapa besok diantar?, kapan diantarnya? = tanya jadwal pengantaran order = MINTA_JEMPUT_ANTAR\n
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
@@ -501,7 +516,8 @@ return [
       - Tanya ESTIMASI selesai / kapan siap diambil: | kapan siap? | jam berapa siap? | kira jam berapa bisa dijemput kak? | jam berapa bisa dijemput? | kapan bisa diambil? | = ESTIMASI_SELESAI, BUKAN minta kurir.\n
       - User yang akan MENGAMBIL SENDIRI: | mau jemput | saya jemput | aku ambil | awak jemput | nanti saya jemput |\n
       - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
-      - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
+      - Hanya memberitahu jadwal tanpa permintaan eksplisit: | nanti sore dijemput | jam 2 dijemput | — TAPI 'besok antar/anter laundry ya' = TRUE (permintaan).\n
+      - 'bisa diambil?' / 'udah bisa diambil?' TANPA 'kain kotor' = STATUS (bukan jemput kurir).\n
       - CRITICAL: 'masih bisa antar laundry?' / 'masih bisa antar?' = tanya AVAILABILITAS operasional = JAM_OPERASIONAL (bukan MINTA_JEMPUT_ANTAR). Kata 'masih' membedakan: tanya masih buka/bisa vs permintaan.\n
       - CRITICAL: 'kira jam berapa bisa dijemput' / 'jam berapa bisa dijemput' (tanpa lokasi kamar/hotel) = tanya kapan order SIAP diambil = ESTIMASI_SELESAI, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL: Customer mau AMBIL SENDIRI lewat/setelah jam tutup = AMBIL_LEWAT_TUTUP, BUKAN MINTA_JEMPUT_ANTAR.\n

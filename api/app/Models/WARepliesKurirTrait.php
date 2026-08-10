@@ -295,7 +295,7 @@ trait WARepliesKurirTrait
         $outsideHours = !$this->isOperatingHours();
 
         if ($session === null) {
-            $jenis = $this->detectKurirJenis($msg);
+            $jenis = $this->detectKurirJenis($msg, $session);
             $layananPref = $this->detectKurirLayanan($msg);
             // Luar jam: jangan simpan prefer instant — anggap sameday; chat grab/gosend ditolak di route
             if ($outsideHours && $layananPref === 'instant') {
@@ -384,7 +384,7 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        $jenis = $this->detectKurirJenis($msg);
+        $jenis = $this->detectKurirJenis($msg, $session);
         if ($jenis === 'antar') {
             $this->sendAutoreplyText($waNumber, $this->getNoRegisterText());
             return true;
@@ -436,7 +436,10 @@ trait WARepliesKurirTrait
 
         switch ($step) {
             case 'ask_jenis':
-                $jenis = $this->detectKurirJenis($msg);
+                $jenis = $this->detectKurirJenis($msg, $session);
+                if ($jenis === null && $this->kurirLooksAddingOtherJenis($msg)) {
+                    $jenis = 'antar';
+                }
                 if ($jenis === 'antar') {
                     $this->clearKurirSession($waNumber);
                     $this->sendAutoreplyText($waNumber, $this->getNoRegisterText());
@@ -753,18 +756,106 @@ trait WARepliesKurirTrait
         return null;
     }
 
-    private function detectKurirJenis(string $msg): ?string
+    /**
+     * Deteksi jemput/antar. Typo "anter" = antar.
+     * Implicit: "ambil kain kotor" → jemput; "bawakan kain yang siap" → antar.
+     * Jika keduanya disebut (pesan + summary session) → antar.
+     *
+     * @return 'jemput'|'antar'|null
+     */
+    private function detectKurirJenis(string $msg, ?array $session = null): ?string
     {
-        $t = mb_strtolower($msg);
-        $hasJemput = (bool) preg_match('/\b(jemput|jmpt|dijemput|penjemputan)\b/u', $t);
-        $hasAntar = (bool) preg_match('/\b(antar|diantar|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u', $t);
-        if ($hasJemput && !$hasAntar) {
+        $blob = mb_strtolower($msg);
+        if ($session !== null) {
+            $blob .= ' ' . mb_strtolower((string) ($session['summary'] ?? ''));
+            $prev = (string) ($session['jenis'] ?? '');
+            if ($prev === 'jemput' || $prev === 'antar') {
+                $blob .= ' ' . $prev;
+            }
+        }
+
+        $hasJemput = (bool) preg_match('/\b(jemput|jmpt|dijemput|penjemputan)\b/u', $blob)
+            || $this->kurirMsgLooksAmbilKotorJemput($blob);
+        $hasAntar = (bool) preg_match(
+            '/\b(antar|anter|diantar|dianter|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u',
+            $blob
+        ) || $this->kurirMsgLooksBawakanSiapAntar($blob);
+
+        // Antar sekaligus jemput (atau sebaliknya) → antar
+        if ($hasJemput && $hasAntar) {
+            return 'antar';
+        }
+        if ($hasJemput) {
             return 'jemput';
         }
-        if ($hasAntar && !$hasJemput) {
+        if ($hasAntar) {
             return 'antar';
         }
         return null;
+    }
+
+    /**
+     * "bisa ambil kain kotor" / "ambil baju kotor" = minta kurir jemput (bukan customer ambil sendiri).
+     */
+    private function kurirMsgLooksAmbilKotorJemput(string $blob): bool
+    {
+        // Customer ambil sendiri → bukan jemput kurir
+        if (preg_match('/\b(saya|aku|sy|gue|awak)\s+(ambil|ngambil|jemput)\b/u', $blob)) {
+            return false;
+        }
+        // Status "sudah/udah bisa diambil?" tanpa kain kotor
+        if (preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?ambil\b/u', $blob)
+            && !preg_match('/\bkotor\b/u', $blob)
+        ) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\b(ambil|ngambil|mengambil|jemput|jmpt)\b.{0,80}\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,40}\bkotor\b/u',
+            $blob
+        ) || (bool) preg_match(
+            '/\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,30}\bkotor\b.{0,60}\b(ambil|ngambil|jemput|jmpt|dijemput)\b/u',
+            $blob
+        ) || (bool) preg_match(
+            '/\b(bisa|boleh|tolong|minta|mau)\s+(ambil|ngambil|jemput|jmpt)\b.{0,60}\b(kain|baju|cucian|laundry|londry|londri).{0,30}\bkotor\b/u',
+            $blob
+        );
+    }
+
+    /**
+     * "sekalian bawakan kain yang udah siap" / "bawak kan kain yg siap" = minta antar.
+     */
+    private function kurirMsgLooksBawakanSiapAntar(string $blob): bool
+    {
+        return (bool) preg_match(
+            '/\b(bawak|bawakan|bawa\s*kan|bawa\s*in|bawa\s*kan|anter|antar|kirim(kan)?)\b.{0,100}\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,80}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b/u',
+            $blob
+        ) || (bool) preg_match(
+            '/\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,40}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b.{0,60}\b(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter|kirim(kan)?)\b/u',
+            $blob
+        ) || (bool) preg_match(
+            '/\b(sekalian|sekaligus|juga)\s+(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter)\b.{0,80}\b(kain|baju|cucian|laundry|siap|selesai)\b/u',
+            $blob
+        );
+    }
+
+    /** "jemput juga" / "antar sekalian" / "sekalian bawakan" — menambah jenis lain di tengah chat. */
+    private function kurirLooksAddingOtherJenis(string $msg): bool
+    {
+        $t = mb_strtolower(trim($msg));
+        if ($t === '') {
+            return false;
+        }
+        if ($this->kurirMsgLooksBawakanSiapAntar($t) || $this->kurirMsgLooksAmbilKotorJemput($t)) {
+            return true;
+        }
+        return (bool) preg_match(
+            '/\b(jemput|jmpt|antar|anter)\s*(juga|jg|jga|sekalian|sekaligus|bareng|sama)\b/iu',
+            $t
+        ) || (bool) preg_match(
+            '/\b(juga|jg|jga|sekalian|sekaligus)\s*(di)?(jemput|jmpt|antar|anter|bawak|bawakan|bawa)\b/iu',
+            $t
+        );
     }
 
     /**
@@ -878,11 +969,11 @@ trait WARepliesKurirTrait
 
         // ask_jenis: tetap deteksi jemput/antar (bisa AI jika ambigu)
         if ($step === 'ask_jenis') {
-            $jenis = $this->detectKurirJenis($msg);
-            if (!$jenis && preg_match('/\bjemput\b/iu', $msg)) {
+            $jenis = $this->detectKurirJenis($msg, $session);
+            if (!$jenis && preg_match('/\b(jemput|jmpt)\b/iu', $msg)) {
                 $jenis = 'jemput';
             }
-            if (!$jenis && preg_match('/\bantar\b/iu', $msg)) {
+            if (!$jenis && preg_match('/\b(antar|anter)\b/iu', $msg)) {
                 $jenis = 'antar';
             }
             if ($jenis) {
@@ -903,6 +994,25 @@ trait WARepliesKurirTrait
                 return true;
             }
             // Ambigu → AI
+        }
+
+        // "jemput juga" / "antar juga": gabung dengan summary → antar bila keduanya
+        if ($this->kurirLooksAddingOtherJenis($msg)) {
+            $resolved = $this->detectKurirJenis($msg, $session) ?: 'antar';
+            $this->saveKurirSession($waNumber, ['jenis' => $resolved]);
+            $session['jenis'] = $resolved;
+            $this->kurirAppendSummary($waNumber, $session, 'jenis_merge=' . $resolved);
+            if ($step === 'ask_jenis' || empty($session['id_lokasi'])) {
+                $this->saveKurirSession($waNumber, ['step' => 'lokasi_check']);
+                $session['step'] = 'lokasi_check';
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                return true;
+            }
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Baik {$sapaan}, kami catat sebagai *{$resolved}* ya."
+            );
+            return true;
         }
 
         // lokasi_check tanpa input bermakna: jalankan check (biasanya dipanggil internal)
@@ -1187,7 +1297,7 @@ trait WARepliesKurirTrait
             '/\b(segera|cepat|cepet|instant|instan|gojek|grab|gosend|go\s*send|kilat|buru(-?buru)?|langsung\s*aja)\b/iu',
             $msg
         ) || (bool) preg_match(
-            '/\b(sekarang|skrg)\b.*\b(antar|jemput|kurir|kirim|ambil)\b|\b(antar|jemput|kurir|kirim|ambil)\b.*\b(sekarang|skrg)\b/iu',
+            '/\b(sekarang|skrg)\b.*\b(antar|anter|jemput|kurir|kirim|ambil)\b|\b(antar|anter|jemput|kurir|kirim|ambil)\b.*\b(sekarang|skrg)\b/iu',
             $msg
         );
     }
@@ -3527,6 +3637,8 @@ trait WARepliesKurirTrait
             . "Jam 1-6 tanpa 'pagi' biasanya sore (jam 3=15). Tanya 'jam berapa' tanpa angka tetap want_jam. "
             . "Jika minta cepat/gojek/grab/gosend/instant/sekarang → want_instant (langsung, jangan tanya sameday lagi). "
             . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta instant. "
+            . "Typo anter/dianter = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
+            . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
             . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt; tolak/batal → refuse_alt; mau grab/instant → want_instant. "
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
@@ -3639,7 +3751,7 @@ trait WARepliesKurirTrait
                     if (in_array($slotJenis, ['antar', 'jemput'], true)) {
                         $jenis = $slotJenis;
                     } else {
-                        $jenis = $this->detectKurirJenis($msg);
+                        $jenis = $this->detectKurirJenis($msg, $session);
                     }
                     if ($jenis) {
                         $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];

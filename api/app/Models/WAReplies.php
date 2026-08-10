@@ -2682,21 +2682,15 @@ class WAReplies
     }
 
     /**
-     * Handle intent PEMBUKA - balas sapaan pembuka dengan AI sebagai customer service laundry
-     * Jika diluar jam operasional, alihkan ke handleJam_tutup
+     * Handle intent PEMBUKA - balas sapaan pembuka dengan AI sebagai customer service laundry.
+     * Di luar jam operasional tetap balas sapaan (tanpa pesan "sedang tutup").
      */
     private function handlePembuka($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->isOperatingHours()) {
-            // Di luar jam: hanya pesan tutup (cooldown JAM_TUTUP). Jangan balas sapaan.
-            $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
-            return;
-        }
-
         $textLower = strtolower(trim($textBody ?? ''));
         $textStripped = preg_replace('/[\s\x{200B}-\x{200D}\x{FEFF}]/u', '', $textLower);
         $len = mb_strlen($textStripped);
-        $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|berapa|harga|transfer|bayar/i', $textLower) && mb_strlen($textLower) > 15;
+        $hasOtherIntent = preg_match('/siap|dah|udah|bisa|jemput|antar|anter|berapa|harga|transfer|bayar/i', $textLower) && mb_strlen($textLower) > 15;
 
         $ctx = $this->getGreetingContext($waNumber);
         $contactName = $ctx['contactName'];
