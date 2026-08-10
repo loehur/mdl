@@ -110,12 +110,16 @@ class Estimasi extends Controller
             try {
                 $kurirRows = $this->db(100)->query_array(
                     'SELECT phone, id_pelanggan, id_cabang, jenis, lokasi_nama, lokasi_detail,
-                            request_text, request_tanggal, request_jam, request_granted, summary, updated_at, expires_at
+                            request_text, request_tanggal, request_jam, request_granted,
+                            butuh_estimasi, estimasi_tanggal, estimasi_jam,
+                            summary, updated_at, expires_at
                      FROM wa_kurir_session
                      WHERE expires_at > NOW()
                        AND id_cabang = ' . (int) $this->currentCabangId() . '
-                       AND request_jam IS NOT NULL
-                       AND request_granted IS NULL
+                       AND (
+                         (butuh_estimasi = 1 AND (estimasi_jam IS NULL OR estimasi_jam = \'\'))
+                         OR (request_jam IS NOT NULL AND request_granted IS NULL AND (butuh_estimasi IS NULL OR butuh_estimasi = 0))
+                       )
                      ORDER BY updated_at DESC
                      LIMIT 50'
                 );
@@ -128,6 +132,29 @@ class Estimasi extends Controller
                     $reqJam = $row['request_jam'] ?? null;
                     $reqTgl = $row['request_tanggal'] ?? null;
                     $jenis = (string) ($row['jenis'] ?? 'jemput');
+                    $butuhEst = (int) ($row['butuh_estimasi'] ?? 0) === 1
+                        && ($row['estimasi_jam'] === null || $row['estimasi_jam'] === '');
+                    if ($butuhEst) {
+                        $items[] = [
+                            'task_type' => 'kurir_estimasi',
+                            'task_id' => 'kurir_estimasi:' . $phone,
+                            'phone' => $phone,
+                            'phone_display' => $this->displayPhone($phone),
+                            'id_penjualan' => null,
+                            'jenis' => $jenis,
+                            'lokasi_nama' => $row['lokasi_nama'] ?? '',
+                            'lokasi_detail' => $row['lokasi_detail'] ?? '',
+                            'customer_message' => trim((string) ($row['request_text'] ?? '')),
+                            'request_text' => $row['request_text'] ?? '',
+                            'request_tanggal' => $reqTgl,
+                            'prefer_tanggal' => $reqTgl,
+                            'date_options' => $this->estimasiDateOptions(),
+                            'updated_at' => $row['updated_at'] ?? null,
+                            'expires_at' => $row['expires_at'] ?? null,
+                            'nama' => $pelanggan['nama'] ?? '',
+                        ];
+                        continue;
+                    }
                     $items[] = [
                         'task_type' => 'kurir_grant',
                         'task_id' => 'kurir_grant:' . $phone,
@@ -200,7 +227,7 @@ class Estimasi extends Controller
             // Estimasi dulu, lalu grant / kurir / ambil tutup
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
-                    if ($t === 'estimasi') return 0;
+                    if ($t === 'estimasi' || $t === 'kurir_estimasi') return 0;
                     if ($t === 'grant' || $t === 'kurir_grant' || $t === 'ambil_tutup') return 1;
                     return 2;
                 };
@@ -233,14 +260,14 @@ class Estimasi extends Controller
             echo json_encode(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'ambil_tutup'], true)) {
-            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, atau ambil_tutup']);
+        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup'], true)) {
+            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, atau ambil_tutup']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
 
-        if ($taskType === 'kurir_grant') {
+        if ($taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
             $session = $this->db(100)->get_where_row(
                 'wa_kurir_session',
                 "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
@@ -249,7 +276,11 @@ class Estimasi extends Controller
                 echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
                 return;
             }
-            $this->updateKurirGrantTask($phone, $phoneEsc, $session);
+            if ($taskType === 'kurir_estimasi') {
+                $this->updateKurirEstimasiTask($phone, $phoneEsc, $session);
+            } else {
+                $this->updateKurirGrantTask($phone, $phoneEsc, $session);
+            }
             return;
         }
 
@@ -316,6 +347,68 @@ class Estimasi extends Controller
                 'summary' => mb_substr($summary, 0, 500),
                 'updated_at' => date('Y-m-d H:i:s'),
             ],
+            "phone = '" . $phoneEsc . "'"
+        );
+        if (!empty($up['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update']);
+            return;
+        }
+
+        $this->respondAfterUpdate($phone, $replyText);
+    }
+
+    private function updateKurirEstimasiTask(string $phone, string $phoneEsc, array $session): void
+    {
+        if ((int) ($session['butuh_estimasi'] ?? 0) !== 1
+            || ($session['estimasi_jam'] !== null && $session['estimasi_jam'] !== '')
+        ) {
+            echo json_encode(['ok' => 0, 'msg' => 'Task kurir estimasi sudah tidak pending']);
+            return;
+        }
+
+        $parsed = $this->parseEstimasiTanggalJamFromPost();
+        if ($parsed === null) {
+            echo json_encode(['ok' => 0, 'msg' => 'Tanggal (hari ini–lusa) dan jam wajib diisi']);
+            return;
+        }
+
+        $waktuLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
+        $sapaan = 'kak';
+        $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
+        $noun = $jenis === 'antar' ? 'pengantaran' : 'penjemputan';
+        $replyText = "Baik {$sapaan}, perkiraan {$noun} *{$waktuLabel}* ya {$sapaan} 😊";
+
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $summary .= ($summary !== '' ? ' | ' : '')
+            . 'Petugas isi kurir estimasi=' . $parsed['tanggal'] . ' ' . $this->formatEstimasiJamLabel($parsed['jam']);
+
+        $set = [
+            'estimasi_tanggal' => $parsed['tanggal'],
+            'estimasi_jam' => $parsed['jam'],
+            'butuh_estimasi' => 0,
+            'step' => 'request_aktif',
+            'summary' => mb_substr($summary, 0, 500),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $existingId = (int) ($session['id_request'] ?? 0);
+        if ($existingId > 0) {
+            $jamLabel = $this->formatEstimasiJamLabel($parsed['jam']);
+            $catatan = mb_substr("Perkiraan {$noun} {$jamLabel} tanggal {$parsed['tanggal']}", 0, 150);
+            $upd = $this->db(0)->update(
+                'delivery_request',
+                ['catatan_kurir' => $catatan],
+                'id_request = ' . $existingId . " AND delivery_status = 'berjalan'"
+            );
+            if (!empty($upd['errno'])) {
+                echo json_encode(['ok' => 0, 'msg' => $upd['error'] ?? 'Gagal update delivery_request']);
+                return;
+            }
+        }
+
+        $up = $this->db(100)->update(
+            'wa_kurir_session',
+            $set,
             "phone = '" . $phoneEsc . "'"
         );
         if (!empty($up['errno'])) {
@@ -642,7 +735,10 @@ class Estimasi extends Controller
             $kurirRows = $this->db(100)->query_array(
                 'SELECT COUNT(*) AS c FROM wa_kurir_session
                  WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId . '
-                   AND request_jam IS NOT NULL AND request_granted IS NULL'
+                   AND (
+                     (butuh_estimasi = 1 AND (estimasi_jam IS NULL OR estimasi_jam = \'\'))
+                     OR (request_jam IS NOT NULL AND request_granted IS NULL AND (butuh_estimasi IS NULL OR butuh_estimasi = 0))
+                   )'
             );
             $n += (int) ($kurirRows[0]['c'] ?? 0);
             try {

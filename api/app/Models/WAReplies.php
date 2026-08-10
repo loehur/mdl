@@ -467,6 +467,9 @@ class WAReplies
      * Di luar jam operasional → handleJam_operasional (jam tutup/libur), dengan cooldown 60 menit
      * yang sama dengan JAM_TUTUP / JAM_OPERASIONAL (jangan skip, jangan bakar cooldown DEFAULT).
      *
+     * Di dalam jam: AI cek dulu — hanya balas "mohon menunggu" jika pesan = pertanyaan/permintaan.
+     * Info/status/ack/omongan biasa → abaikan (jangan bakar cooldown DEFAULT).
+     *
      * @return bool True jika ada balasan terkirim (atau cooldown DEFAULT tercatat)
      */
     public function trySendDefaultFallbackAutoreply($phoneIn, string $waNumber, ?string $textBody, string $fallbackText, int $cooldownMinutes = 1440): bool
@@ -491,6 +494,12 @@ class WAReplies
             return (bool) $sent;
         }
 
+        // Gate AI: jangan balas default ke chat yang bukan pertanyaan/permintaan
+        if (!$this->messageIsQuestionOrRequestForDefaultFallback($textBody, $waNumber)) {
+            $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'skip_not_question_or_request');
+            return false;
+        }
+
         if (!$this->shouldSendFonnteFallbackReply($waNumber, $cooldownMinutes)) {
             return false;
         }
@@ -499,6 +508,120 @@ class WAReplies
         $this->sendDefaultFallbackAutoreply($waNumber, $fallbackText);
 
         return true;
+    }
+
+    /**
+     * Gate sebelum DEFAULT "Maaf, mohon menunggu...":
+     * true = pertanyaan atau permintaan (boleh balas default);
+     * false = info/ack/status update/omongan biasa → abaikan.
+     */
+    private function messageIsQuestionOrRequestForDefaultFallback(?string $text, ?string $waNumber = null): bool
+    {
+        $msg = trim((string) ($text ?? ''));
+        if ($msg === '') {
+            return false;
+        }
+
+        $aiDecision = $this->aiDecideIsQuestionOrRequest($msg, $waNumber);
+        if ($aiDecision !== null) {
+            return $aiDecision;
+        }
+
+        // Fallback heuristik jika AI off/gagal (jangan balas default sembarangan)
+        return $this->messageLooksLikeQuestionOrRequestHeuristic($msg);
+    }
+
+    /**
+     * @return bool|null true/false dari AI; null = AI tidak tersedia / gagal parse
+     */
+    private function aiDecideIsQuestionOrRequest(string $msg, ?string $waNumber = null): ?bool
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI')) {
+                $cfg = __DIR__ . '/../Config/AI.php';
+                if (!file_exists($cfg)) {
+                    return null;
+                }
+                require_once $cfg;
+            }
+            if (!\App\Config\AI::isEnabled()) {
+                return null;
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $system = "Kamu gatekeeper WhatsApp Madinah Laundry sebelum balasan default "
+            . "\"Maaf, mohon menunggu. CS/Admin sedang melayani customer lain\".\n"
+            . "Tugas: tentukan apakah PESAN customer adalah PERTANYAAN atau PERMINTAAN yang butuh respon CS.\n"
+            . "is_question_or_request=true jika:\n"
+            . "- Bertanya (ada/tidak ada tanda ?): status, harga, jam, estimasi, cara, dll.\n"
+            . "- Meminta bantuan/aksi: minta jemput/antar, cek, kirim nota/bill, komplain, info, tolong, dll.\n"
+            . "is_question_or_request=false jika:\n"
+            . "- Hanya info/pemberitahuan (sudah otw, sudah bayar nanti, kabar lokasi, daftar item tanpa minta aksi)\n"
+            . "- Ack/penutup singkat (ok, siap, baik, makasih) tanpa permintaan baru\n"
+            . "- Omongan sosial / bukan minta layanan\n"
+            . "- Status update operasional ke petugas tanpa pertanyaan\n"
+            . "Jika ragu tapi ada nada minta bantuan → true. Jika ragu dan hanya cerita → false.\n"
+            . "Jawab HANYA JSON: {\"is_question_or_request\":true,\"reason\":\"...\"}";
+
+        $user = 'PESAN: ' . mb_substr($msg, 0, 500);
+
+        try {
+            $raw = $this->executeOpenAIRequestWithMessages(
+                [
+                    ['role' => 'system', 'content' => $system],
+                    ['role' => 'user', 'content' => $user],
+                ],
+                80,
+                $waNumber
+            );
+        } catch (\Throwable $e) {
+            if ($waNumber) {
+                $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK_AI', 'error ' . mb_substr($e->getMessage(), 0, 120));
+            }
+            return null;
+        }
+
+        $json = json_decode((string) $raw, true);
+        if (!is_array($json) && preg_match('/\{.*\}/s', (string) $raw, $m)) {
+            $json = json_decode($m[0], true);
+        }
+        if (!is_array($json) || !array_key_exists('is_question_or_request', $json)) {
+            if ($waNumber) {
+                $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK_AI', 'bad_json');
+            }
+            return null;
+        }
+
+        $yes = !empty($json['is_question_or_request']);
+        if ($waNumber) {
+            $reason = mb_substr((string) ($json['reason'] ?? ''), 0, 120);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'DEFAULT_FALLBACK_AI',
+                ($yes ? 'yes' : 'no') . ($reason !== '' ? ' ' . $reason : '')
+            );
+        }
+
+        return $yes;
+    }
+
+    /** Heuristik murah jika AI tidak bisa dipanggil. */
+    private function messageLooksLikeQuestionOrRequestHeuristic(string $msg): bool
+    {
+        if (strpos($msg, '?') !== false || strpos($msg, '？') !== false) {
+            return true;
+        }
+        // Kata tanya / permintaan umum (ID + singkatan WA)
+        if (preg_match(
+            '/\b(apa|apakah|gimana|bagaimana|berapa|brp|brpa|kapan|kpn|kenapa|mengapa|boleh|bisakah|minta|tolong|mohon|tolongin|cek|info|infokan|kabari|kirim|bantu|bantuin|mau\s+(tanya|minta|jemput|antar)|bisa\s+(minta|tolong|cek|kirim))\b/iu',
+            $msg
+        )) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -1541,37 +1664,46 @@ class WAReplies
 
         // Session ESTIMASI aktif (TTL 1 jam): follow-up ke petugas HANYA jika masih relevan;
         // pesan tidak terkait → jangan spam ack, biarkan intent lain / diam.
-        if ($this->getEstimasiSession($waNumber) !== null
-            && !$this->messageBreaksEstimasiSession($textBodyToCheck, $fullKeywordConfig)) {
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_followup→ESTIMASI_SELESAI case=4');
-            $this->currentHandler = 'ESTIMASI_SELESAI';
-            $consumed = $this->handleEstimasi_Selesai($phoneIn, $waNumber, $textBody);
-            if ($consumed !== false) {
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                $this->logAutoreplyTrace($waNumber, 'DONE', 'estimasi_session_followup_ok');
+        $estSessionEarly = $this->getEstimasiSession($waNumber);
+        if ($estSessionEarly !== null) {
+            $pendingClarifyJemput = (bool) preg_match(
+                '/pending_clarify_jemput_vs_selesai=1/',
+                (string) ($estSessionEarly['summary'] ?? '')
+            );
+            // Saat klarifikasi jemput vs selesai, jangan putus session karena regex MINTA ("jemput")
+            if ($pendingClarifyJemput
+                || !$this->messageBreaksEstimasiSession($textBodyToCheck, $fullKeywordConfig)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_followup→ESTIMASI_SELESAI case=4');
+                $this->currentHandler = 'ESTIMASI_SELESAI';
+                $consumed = $this->handleEstimasi_Selesai($phoneIn, $waNumber, $textBody);
+                if ($consumed !== false) {
+                    $conversationId = $this->getOrCreateConversationWithCase(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                    );
+                    $this->logAutoreplyTrace($waNumber, 'DONE', 'estimasi_session_followup_ok');
 
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                ];
+                    return (object) [
+                        'case' => 4,
+                        'notify' => true,
+                        'conversation_id' => $conversationId,
+                    ];
+                }
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_unrelated→continue_routing');
+                // fall through ke regex/AI intent lain
             }
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_unrelated→continue_routing');
-            // fall through ke regex/AI intent lain
         }
 
         // Session KURIR aktif: follow-up MINTA_JEMPUT_ANTAR
         if ($this->getKurirSession($waNumber) !== null) {
-            if ($this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig)) {
-                // "bisa siap hari (ini)?" dll. → jangan lanjut kurir/shareloc
-                if ($this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
-                    || $this->parseEstimasiRequestedRelativeDay($textBodyToCheck) !== null) {
-                    $this->clearKurirSession($waNumber);
-                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→estimasi_context');
-                }
-            } else {
+            $hasActiveSale = $this->pelangganHasActiveSale($phoneIn, $waNumber);
+            $estimasiCtx = $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
+                || $this->parseEstimasiRequestedRelativeDay($textBodyToCheck) !== null;
+            if ($estimasiCtx && $hasActiveSale) {
+                $this->clearKurirSession($waNumber);
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→estimasi_context has_sale');
+                // fall through ke routing ESTIMASI
+            } elseif (!$this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig, $hasActiveSale)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→MINTA_JEMPUT_ANTAR case=2');
                 $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
                 // Bypass cooldown for active session
@@ -1649,10 +1781,25 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // MINTA_JEMPUT_ANTAR: kapan/jam berapa siap / bisa dijemput-diambil = ESTIMASI_SELESAI, bukan minta kurir
+                    // STATUS: "gk bisa sore ini siap" / jam spesifik = ESTIMASI, bukan cek status sekarang
+                    if ($handler === 'STATUS'
+                        && (
+                            $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
+                            || $this->messageLooksLikeEstimasiGrantRequest($textBodyToCheck)
+                            || $this->messageLooksLikeNegatedBisaRelativeEstimasi($textBodyToCheck)
+                        )
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'STATUS→ESTIMASI_SELESAI relative/grant');
+                        $handler = 'ESTIMASI_SELESAI';
+                    }
+                    // Ambigu "bisa jemput … sore/pagi ini": ada order aktif → ESTIMASI; tidak ada → tetap MINTA kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→ESTIMASI_SELESAI');
-                        continue;
+                        if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                            $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'MINTA_JEMPUT_ANTAR→ESTIMASI_SELESAI has_sale');
+                            $handler = 'ESTIMASI_SELESAI';
+                        } else {
+                            $this->logAutoreplyTrace($waNumber, 'REGEX_KEEP', 'MINTA_JEMPUT_ANTAR keep (no active sale)');
+                        }
                     }
                     // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput (paket -D) = HARGA_PAKET_D lewat AI, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
@@ -1705,9 +1852,14 @@ class WAReplies
                         && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)) {
                         continue;
                     }
-                    // "jam berapa bisa jemput/diambil?" = ESTIMASI_SELESAI (bukan jam buka, bukan otomatis minta kurir)
+                    // "jam berapa bisa jemput/diambil?" / "bisa jemput sore ini":
+                    // ada order → biarkan ESTIMASI; tanpa order → kurir MINTA
                     if ($handler === 'JAM_OPERASIONAL' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
-                        continue;
+                        if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                            continue;
+                        }
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'JAM_OPERASIONAL→MINTA_JEMPUT_ANTAR no_sale');
+                        $handler = 'MINTA_JEMPUT_ANTAR';
                     }
                     // Ambil sendiri lewat tutup → AMBIL_LEWAT_TUTUP (bukan jam operasional / minta kurir / estimasi)
                     if (in_array($handler, ['JAM_OPERASIONAL', 'MINTA_JEMPUT_ANTAR', 'ESTIMASI_SELESAI'], true)
@@ -1730,9 +1882,9 @@ class WAReplies
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // Get case from config
-                    $caseVal = $config['case'] ?? null;
-                    $notify = $config['notify'] ?? false;
+                    // Get case from config (pakai handler final — bisa sudah di-remap MINTA→ESTIMASI)
+                    $caseVal = $fullKeywordConfig[$handler]['case'] ?? ($config['case'] ?? null);
+                    $notify = $fullKeywordConfig[$handler]['notify'] ?? ($config['notify'] ?? false);
                     $matchPattern[] = $handler;
 
                     // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR (cek sale tuntas=0, tanpa notif pending)
@@ -1933,10 +2085,16 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? false;
             }
 
-            // STATUS / MINTA / JAM → ESTIMASI_SELESAI (kapan/jam berapa siap / bisa dijemput-diambil)
+            // STATUS / MINTA / JAM → ESTIMASI_SELESAI (tanya selesai relatif / jam) jika ada order aktif
             if (in_array($aiIntent, ['STATUS', 'MINTA_JEMPUT_ANTAR', 'JAM_OPERASIONAL'], true)
-                && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_' . $aiIntent . '→ESTIMASI_SELESAI');
+                && (
+                    $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
+                    || $this->messageLooksLikeEstimasiGrantRequest($textBodyToCheck)
+                    || $this->messageLooksLikeNegatedBisaRelativeEstimasi($textBodyToCheck)
+                )
+                && $this->pelangganHasActiveSale($phoneIn, $waNumber)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_' . $aiIntent . '→ESTIMASI_SELESAI has_sale');
                 $aiIntent = 'ESTIMASI_SELESAI';
                 $aiCase = $fullKeywordConfig['ESTIMASI_SELESAI']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['ESTIMASI_SELESAI']['notify'] ?? false;
@@ -1978,7 +2136,10 @@ class WAReplies
             // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
             if ($aiIntent === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jmpt|jemput|antar)\b/i', $textBodyToCheck)
                 && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)
-                && !$this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
+                && !(
+                    $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
+                    && $this->pelangganHasActiveSale($phoneIn, $waNumber)
+                )) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_jam_operasional→MINTA_JEMPUT_ANTAR bs_jmput_tanpa_masih');
                 $aiIntent = 'MINTA_JEMPUT_ANTAR';
                 $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? null;
@@ -3531,6 +3692,10 @@ class WAReplies
         if (preg_match('/\b(kapan|kpn)\s+(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu', $t)) {
             return true;
         }
+        // "gk/ndak/gak bisa sore ini (siap)?" = tanya apakah bisa selesai di waktu itu (bukan STATUS)
+        if ($this->messageLooksLikeNegatedBisaRelativeEstimasi($t)) {
+            return true;
+        }
         // "bisa siap hari ini/besok/lusa?" tanpa jam spesifik
         if ($this->parseEstimasiRequestedRelativeDay($t) !== null) {
             return true;
@@ -3540,7 +3705,35 @@ class WAReplies
     }
 
     /**
+     * "Gk bisa sore ini siap?" / "Ndak bisa sore ini jam 6?" = tanya estimasi/grant, bukan STATUS.
+     */
+    private function messageLooksLikeNegatedBisaRelativeEstimasi(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        if (!preg_match(
+            '/\b(gk|gak|ga|ngga|nggak|ndak|ndk|tidak|tdk|tak|engga|enggak)\s*(bisa|boleh|bs|bis)\b/iu',
+            $t
+        )) {
+            return false;
+        }
+        // Waktu relatif hari / bagian hari
+        if (preg_match('/\b(pagi|siang|sore|malam)\s*ini\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(hari\s*ini|hr\s*ini|besok|bsk|lusa)\b/iu', $t)
+            && preg_match('/\b(siap|selesai|jadi|jam\s*\d{1,2})\b/iu', $t)
+        ) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Customer tanya bisa siap pada hari relatif (tanpa jam angka).
+     * pagi/siang/sore/malam ini = hari_ini.
      * @return 'hari_ini'|'besok'|'lusa'|null
      */
     private function parseEstimasiRequestedRelativeDay(?string $text): ?string
@@ -3549,8 +3742,13 @@ class WAReplies
             return null;
         }
         $t = $text;
-        // Ada jam angka spesifik → grant path, bukan relative-day
-        if ($this->parseEstimasiRequestWaktu($t) !== null) {
+        // Ada jam angka spesifik (sudah resolved) → grant path, bukan relative-day
+        $waktu = $this->parseEstimasiRequestWaktu($t);
+        if ($this->estimasiWaktuIsResolved($waktu)) {
+            return null;
+        }
+        // ask_ampm saja masih bisa relative? biasanya sudah sebut jam → bukan relative
+        if ($waktu !== null && !empty($waktu['ask_ampm'])) {
             return null;
         }
 
@@ -3560,10 +3758,18 @@ class WAReplies
             . '|\b(siap|selesai)\s*(nya)?\b/iu',
             $t
         );
+        // "gk/ndak bisa sore ini (siap)?" — konteks tanya bisa selesai di bagian hari
+        if (!$hasSiapContext && $this->messageLooksLikeNegatedBisaRelativeEstimasi($t)) {
+            $hasSiapContext = true;
+        }
         if (!$hasSiapContext) {
             return null;
         }
 
+        // pagi/siang/sore/malam ini = hari ini
+        if (preg_match('/\b(pagi|siang|sore|malam)\s*ini\b/iu', $t)) {
+            return 'hari_ini';
+        }
         if (preg_match('/\bhari\s*ini\b/iu', $t) || preg_match('/\bhr\s*ini\b/iu', $t)) {
             return 'hari_ini';
         }
@@ -3580,6 +3786,17 @@ class WAReplies
         }
 
         return null;
+    }
+
+    /**
+     * Label bagian hari untuk prompt tanya jam: "pagi ini" / "sore ini" / "hari ini".
+     */
+    private function estimasiExtractDayPartLabel(string $text): string
+    {
+        if (preg_match('/\b(pagi|siang|sore|malam)\s*ini\b/iu', $text, $m)) {
+            return mb_strtolower($m[1]) . ' ini';
+        }
+        return 'hari ini';
     }
 
     /**
@@ -3606,7 +3823,176 @@ class WAReplies
     }
 
     /**
-     * Balas bisa/maaf berdasarkan deadline vs hari yang ditanya customer.
+     * Ambigu: "bisa jemput … sore/pagi ini?" — bisa berarti minta kurir ATAU tanya selesai.
+     */
+    private function messageLooksLikeAmbiguousJemputVsSelesai(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        // Sudah jelas estimasi jam/kapan → bukan ambigu jemput-vs-selesai
+        if (preg_match('/\b(jam\s*(brp|brpa|berapa)|kapan|kpn|kira[\s\-]*kira)\b/iu', $t)) {
+            return false;
+        }
+        // Sudah jelas minta selesai/siap (bukan jemput kurir)
+        if (preg_match('/\b(siap|selesai)\b/iu', $t)
+            && !preg_match('/\b(jemput|dijemput|antar|diantar)\b/iu', $t)
+        ) {
+            return false;
+        }
+        if (!preg_match('/\b(bisa|boleh|bs|bis)\b.{0,50}\b(di\s*)?(jemput|antar)\b/iu', $t)
+            && !preg_match('/\b(di\s*)?(jemput|antar)\b.{0,40}\b(bisa|boleh|bs)\b/iu', $t)
+        ) {
+            return false;
+        }
+        // Waktu relatif hari ini (pagi/siang/sore/malam ini atau hari ini)
+        if (preg_match('/\b(pagi|siang|sore|malam)\s*ini\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(hari\s*ini|hr\s*ini)\b/iu', $t)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Klarifikasi: maksudnya laundry selesai di waktu itu, atau minta kurir?
+     */
+    private function replyEstimasiClarifyJemputVsSelesai(
+        string $waNumber,
+        string $sapaan,
+        array $item,
+        string $msg
+    ): void {
+        $id = (int) ($item['id'] ?? 0);
+        $idCabang = isset($item['id_cabang']) ? (int) $item['id_cabang'] : null;
+        if ($idCabang !== null && $idCabang <= 0) {
+            $idCabang = null;
+        }
+        $fase = (string) ($item['fase'] ?? 'antrian');
+        $partLabel = $this->estimasiExtractDayPartLabel($msg);
+
+        $text = "Maaf {$sapaan}, apakah yang dimaksud apakah laundry bisa selesai {$partLabel}?";
+        $this->sendAutoreplyText($waNumber, $text);
+        $this->saveEstimasiSession($waNumber, [
+            'id_penjualan' => $id > 0 ? $id : null,
+            'id_cabang' => $idCabang,
+            'fase_proses' => $fase,
+            'butuh_estimasi' => 0,
+            'estimasi_tanggal' => null,
+            'estimasi_jam' => null,
+            'request_text' => $msg,
+            'request_tanggal' => $this->estimasiRelativeDayToTanggal('hari_ini'),
+            'request_jam' => null,
+            'request_granted' => null,
+            'summary' => sprintf(
+                '[pesan] %s | pending_clarify_jemput_vs_selesai=1; part=%s; #%s',
+                mb_substr($msg, 0, 80),
+                $partLabel,
+                $id
+            ),
+        ]);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'ESTIMASI_SELESAI',
+            "clarify_jemput_vs_selesai part={$partLabel} id={$id}"
+        );
+    }
+
+    /**
+     * Follow-up setelah klarifikasi jemput vs selesai.
+     * @return bool|null true=done, false=handoff kurir consumed, null=bukan pending ini
+     */
+    private function estimasiHandleClarifyJemputVsSelesai(
+        string $phoneIn,
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg
+    ): ?bool {
+        if (!preg_match('/pending_clarify_jemput_vs_selesai=1/', (string) ($session['summary'] ?? ''))) {
+            return null;
+        }
+
+        $partLabel = 'hari ini';
+        if (preg_match('/part=([^|;]+)/', (string) ($session['summary'] ?? ''), $m)) {
+            $partLabel = trim($m[1]);
+        }
+        $orig = (string) ($session['request_text'] ?? $msg);
+
+        $wantKurir = $this->kurirLooksWantKurirNotSelesai($msg)
+            || preg_match('/\b(bukan|jemput|antar|kurir|share\s*loc|shareloc)\b/iu', $msg)
+            || (
+                preg_match('/\b(tidak|tdk|ga|gak|ngga|nggak|engga)\b/iu', $msg)
+                && !preg_match('/\b(selesai|siap)\b/iu', $msg)
+            );
+
+        if ($wantKurir) {
+            $this->clearEstimasiSession($waNumber);
+            $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'clarify→MINTA_JEMPUT_ANTAR');
+            $this->handleMinta_Jemput_Antar($phoneIn, $waNumber, $orig !== '' ? $orig : $msg);
+            return true;
+        }
+
+        // Konfirmasi = tanya selesai
+        if ($this->estimasiLooksAgreeClarify($msg)
+            || preg_match('/\b(selesai|iya\s*selesai|betul\s*selesai|maksud(nya)?\s*selesai)\b/iu', $msg)
+        ) {
+            $item = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
+            if ($item === null) {
+                $item = [
+                    'id' => (int) ($session['id_penjualan'] ?? 0),
+                    'id_cabang' => $session['id_cabang'] ?? null,
+                    'fase' => $session['fase_proses'] ?? 'antrian',
+                    'deadline_ts' => time(),
+                    'deadline_label' => 'hari ini',
+                ];
+            }
+            // Lanjut alur hari_ini (tanya jam), pakai part dari klarifikasi
+            $synthetic = 'bisa siap ' . $partLabel;
+            $this->replyEstimasiRelativeDayAsk($waNumber, $sapaan, $item, 'hari_ini', $synthetic);
+            return true;
+        }
+
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Maaf {$sapaan}, apakah yang dimaksud apakah laundry bisa selesai {$partLabel}? "
+            . "Balas *ya* jika tanya selesai, atau *jemput* jika minta kurir."
+        );
+        return true;
+    }
+
+    private function estimasiLooksAgreeClarify(string $msg): bool
+    {
+        $t = mb_strtolower(trim($msg));
+        if ($t === '') {
+            return false;
+        }
+        if (preg_match('/\b(tidak|tdk|bukan|ga|gak|ngga|nggak|jangan)\b/iu', $t)) {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\b(ya|iya|iyo|yoi|ok|oke|baik|betul|bener|benar|sip|setuju|benar\s*sekali)\b/iu',
+            $t
+        );
+    }
+
+    /** Jawaban jelas: maksudnya minta kurir, bukan tanya selesai. */
+    private function kurirLooksWantKurirNotSelesai(string $msg): bool
+    {
+        return (bool) preg_match(
+            '/\b(minta\s*(jemput|antar)|tolong\s*(jemput|antar)|mau\s*(dijemput|diantar|jemput|antar)|kurir)\b/iu',
+            $msg
+        );
+    }
+
+    /**
+     * Tanya siap relatif hari.
+     * - hari_ini (incl. pagi/siang/sore/malam ini): jangan cek deadline → tanya jam → grant
+     * - besok/lusa: cek deadline; jika tidak bisa → tanya jam → grant
+     * - Ambigu jemput vs selesai → klarifikasi dulu
      */
     private function replyEstimasiRelativeDayAsk(
         string $waNumber,
@@ -3615,6 +4001,14 @@ class WAReplies
         string $requestedDay,
         string $msg
     ): void {
+        // Ambigu "bisa jemput sore ini" → klarifikasi dulu (kecuali sudah synthetic "bisa siap …")
+        if ($requestedDay === 'hari_ini'
+            && $this->messageLooksLikeAmbiguousJemputVsSelesai($msg)
+        ) {
+            $this->replyEstimasiClarifyJemputVsSelesai($waNumber, $sapaan, $item, $msg);
+            return;
+        }
+
         $id = (int) $item['id'];
         $idCabang = isset($item['id_cabang']) ? (int) $item['id_cabang'] : null;
         if ($idCabang !== null && $idCabang <= 0) {
@@ -3625,44 +4019,124 @@ class WAReplies
         $deadlineLabel = $this->formatEstimasiDeadlineLabel($deadlineTs);
         $emoteSenyum = '😊';
         $emoteSalam = '🙏';
+        $requestTanggal = $this->estimasiRelativeDayToTanggal($requestedDay);
 
+        // HARI INI: langsung tanya jam, tanpa bisa/maaf dari deadline
+        if ($requestedDay === 'hari_ini') {
+            $partLabel = $this->estimasiExtractDayPartLabel($msg);
+            $text = "{$partLabel} jam berapa kira-kira {$sapaan}?";
+            $this->sendAutoreplyText($waNumber, $text);
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => $msg,
+                'request_tanggal' => $requestTanggal,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => sprintf(
+                    '[pesan] %s | tanya hari_ini; part=%s; wait_relative_jam=hari_ini; skip_deadline=1; #%s',
+                    mb_substr($msg, 0, 80),
+                    $partLabel,
+                    $id
+                ),
+            ]);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'ESTIMASI_SELESAI',
+                "relative_day ask=hari_ini skip_deadline part={$partLabel} id={$id}"
+            );
+            return;
+        }
+
+        // BESOK / LUSA: cek deadline dulu
         $bisa = $this->estimasiDeadlineMeetsRelativeDay($deadlineTs, $requestedDay);
         if ($fase === 'selesai') {
             $bisa = true;
             $deadlineLabel = 'hari ini';
         }
 
+        $dayLabel = $this->estimasiRelativeDayLabel($requestedDay);
+
         if ($bisa) {
             $text = "Bisa {$sapaan}, sesuai deadline laundry akan selesai {$deadlineLabel}, {$emoteSenyum}";
+            $this->sendAutoreplyText($waNumber, $text);
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => null,
+                'request_tanggal' => null,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => sprintf(
+                    '[pesan] %s | tanya %s; deadline=%s; jawab=bisa; #%s',
+                    mb_substr($msg, 0, 80),
+                    $requestedDay,
+                    $deadlineLabel,
+                    $id
+                ),
+            ]);
         } else {
-            $text = "Maaf {$sapaan}, sesuai deadline laundry akan selesai {$deadlineLabel}. {$emoteSalam}";
+            $text = "Maaf {$sapaan}, sesuai deadline laundry akan selesai {$deadlineLabel}. {$emoteSalam}\n"
+                . "{$dayLabel} jam berapa kira-kira {$sapaan}?";
+            $this->sendAutoreplyText($waNumber, $text);
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => $msg,
+                'request_tanggal' => $requestTanggal,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => sprintf(
+                    '[pesan] %s | tanya %s; deadline=%s; jawab=maaf; wait_relative_jam=%s; #%s',
+                    mb_substr($msg, 0, 80),
+                    $requestedDay,
+                    $deadlineLabel,
+                    $requestedDay,
+                    $id
+                ),
+            ]);
         }
-        $this->sendAutoreplyText($waNumber, $text);
-        $this->saveEstimasiSession($waNumber, [
-            'id_penjualan' => $id,
-            'id_cabang' => $idCabang,
-            'fase_proses' => $fase,
-            'butuh_estimasi' => 0,
-            'estimasi_tanggal' => null,
-            'estimasi_jam' => null,
-            'request_text' => null,
-            'request_tanggal' => null,
-            'request_jam' => null,
-            'request_granted' => null,
-            'summary' => sprintf(
-                '[pesan] %s | tanya %s; deadline=%s; jawab=%s; #%s',
-                mb_substr($msg, 0, 80),
-                $requestedDay,
-                $deadlineLabel,
-                $bisa ? 'bisa' : 'maaf',
-                $id
-            ),
-        ]);
         $this->logAutoreplyTrace(
             $waNumber,
             'ESTIMASI_SELESAI',
             "relative_day ask={$requestedDay} bisa=" . ($bisa ? '1' : '0') . " label={$deadlineLabel} id={$id}"
         );
+    }
+
+    /** @param 'hari_ini'|'besok'|'lusa' $requestedDay */
+    private function estimasiRelativeDayLabel(string $requestedDay): string
+    {
+        if ($requestedDay === 'besok') {
+            return 'besok';
+        }
+        if ($requestedDay === 'lusa') {
+            return 'lusa';
+        }
+        return 'hari ini';
+    }
+
+    /** @param 'hari_ini'|'besok'|'lusa' $requestedDay */
+    private function estimasiRelativeDayToTanggal(string $requestedDay): string
+    {
+        if ($requestedDay === 'besok') {
+            return date('Y-m-d', strtotime('+1 day'));
+        }
+        if ($requestedDay === 'lusa') {
+            return date('Y-m-d', strtotime('+2 day'));
+        }
+        return date('Y-m-d');
     }
 
     /**
@@ -4057,6 +4531,12 @@ class WAReplies
         $fase = $item['fase'];
         $msg = trim((string) ($textBody ?? ''));
 
+        // Ambigu jemput vs selesai — klarifikasi dulu (juga jika fase sudah selesai)
+        if ($this->messageLooksLikeAmbiguousJemputVsSelesai($msg)) {
+            $this->replyEstimasiClarifyJemputVsSelesai($waNumber, $sapaan, $item, $msg);
+            return;
+        }
+
         // Sudah selesai: cukup balas data (tidak butuh jam estimasi)
         if ($fase === 'selesai') {
             $text = "Laundry ID #{$id} sudah selesai. Terima kasih {$emoteSenyum}";
@@ -4088,6 +4568,25 @@ class WAReplies
         // Permintaan khusus (siap jam X) → task GRANT hanya jika jam spesifik ketemu
         $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
         if ($reqWaktu !== null && $this->messageLooksLikeEstimasiGrantRequest($msg)) {
+            if (!empty($reqWaktu['ask_ampm'])) {
+                $rawH = (int) ($reqWaktu['raw_hour'] ?? 0);
+                $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+                $this->saveEstimasiSession($waNumber, [
+                    'id_penjualan' => $id,
+                    'id_cabang' => $idCabang,
+                    'fase_proses' => $fase,
+                    'butuh_estimasi' => 0,
+                    'request_text' => $msg,
+                    'request_tanggal' => $reqWaktu['tanggal'] ?? null,
+                    'request_jam' => null,
+                    'request_granted' => null,
+                    'summary' => '[pesan] ' . $msg . " | ask_ampm hour={$rawH} #{$id}",
+                ]);
+                return;
+            }
+            if (!$this->estimasiWaktuIsResolved($reqWaktu)) {
+                return;
+            }
             $summary = '[pesan] ' . $msg . " | Grant request selesai jam; fokus #{$id} fase={$fase}";
             $this->saveEstimasiSession($waNumber, [
                 'id_penjualan' => $id,
@@ -4214,7 +4713,9 @@ class WAReplies
 
     /**
      * Ekstrak jam (+ tanggal opsional) yang DIMINTA customer.
-     * @return array{jam:float,tanggal:?string}|null
+     * Normalisasi laundry: jam 1–6 → PM (kecuali kata pagi); jam 7–9 ambigu pagi/malam.
+     *
+     * @return array{jam:?float,tanggal:?string,ask_ampm?:bool,raw_hour?:int,raw_min?:int}|null
      */
     private function parseEstimasiRequestWaktu(?string $text): ?array
     {
@@ -4222,32 +4723,32 @@ class WAReplies
             return null;
         }
         $t = $text;
+        // Normalisasi kutip aneh WA: jam“ 6 / jam"6
+        $t = str_replace(["\xE2\x80\x9C", "\xE2\x80\x9D", "\xE2\x80\x98", "\xE2\x80\x99", '"', "'"], ' ', $t);
         if (preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $t)) {
             return null;
         }
 
-        $jam = null;
+        $h = null;
+        $min = 0;
         if (preg_match('/\bjam\s*(\d{1,2})(?:[.:](\d{1,2}))?\b/iu', $t, $m)) {
             $h = (int) $m[1];
             $min = isset($m[2]) ? (int) $m[2] : 0;
-            if ($h <= 23 && $min <= 59) {
-                $jam = (float) sprintf('%d.%02d', $h, $min);
-            }
         } elseif (preg_match('/\b(\d{1,2})[.:](\d{2})\s*(wib|wit|wita)?\b/iu', $t, $m)
             && preg_match('/\b(siap|selesai|jadi|minta|bisa|tolong)\b/iu', $t)) {
             $h = (int) $m[1];
             $min = (int) $m[2];
-            if ($h <= 23 && $min <= 59) {
-                $jam = (float) sprintf('%d.%02d', $h, $min);
-            }
         }
 
-        if ($jam === null) {
+        if ($h === null || $h > 23 || $min > 59) {
             return null;
         }
 
         $tanggal = null;
-        if (preg_match('/\b(hari\s*ini|hr\s*ini)\b/iu', $t)) {
+        // pagi/siang/sore/malam ini = hari ini
+        if (preg_match('/\b(pagi|siang|sore|malam)\s*ini\b/iu', $t)
+            || preg_match('/\b(hari\s*ini|hr\s*ini)\b/iu', $t)
+        ) {
             $tanggal = date('Y-m-d');
         } elseif (preg_match('/\b(besok|bsk)\b/iu', $t)) {
             $tanggal = date('Y-m-d', strtotime('+1 day'));
@@ -4255,7 +4756,213 @@ class WAReplies
             $tanggal = date('Y-m-d', strtotime('+2 day'));
         }
 
-        return ['jam' => $jam, 'tanggal' => $tanggal];
+        $norm = $this->normalizeLaundryCustomerJam($h, $min, $t);
+        if (!empty($norm['ask_ampm'])) {
+            return [
+                'jam' => null,
+                'tanggal' => $tanggal,
+                'ask_ampm' => true,
+                'raw_hour' => $h,
+                'raw_min' => $min,
+            ];
+        }
+
+        return [
+            'jam' => (float) $norm['jam'],
+            'tanggal' => $tanggal,
+        ];
+    }
+
+    /**
+     * Normalisasi jam bicara customer (bukan format 24 jam eksplisit ≥13).
+     * - 1–6: PM (+12) kecuali ada kata "pagi"
+     * - 7–9: pagi/malam dari kata; tanpa kata → tanya jika sekarang masih sebelum jam itu, else malam
+     *
+     * @return array{jam?:float,ask_ampm?:bool}
+     */
+    private function normalizeLaundryCustomerJam(int $h, int $min, string $text): array
+    {
+        $jamFloat = static function (int $hour, int $minute): float {
+            return (float) sprintf('%d.%02d', $hour, $minute);
+        };
+
+        // Sudah 24 jam / siang-sore numerik
+        if ($h >= 13 && $h <= 23) {
+            return ['jam' => $jamFloat($h, $min)];
+        }
+        if ($h === 0 || $h === 12) {
+            return ['jam' => $jamFloat($h, $min)];
+        }
+
+        $hasPagi = (bool) preg_match('/\bpagi\b/iu', $text);
+        $hasMalam = (bool) preg_match('/\bmalam\b/iu', $text);
+        // siang/sore menguatkan PM untuk 1–6 (default sudah PM)
+
+        if ($h >= 1 && $h <= 6) {
+            if ($hasPagi) {
+                return ['jam' => $jamFloat($h, $min)];
+            }
+            return ['jam' => $jamFloat($h + 12, $min)];
+        }
+
+        if ($h >= 7 && $h <= 9) {
+            if ($hasPagi) {
+                return ['jam' => $jamFloat($h, $min)];
+            }
+            if ($hasMalam) {
+                return ['jam' => $jamFloat($h + 12, $min)];
+            }
+            $nowMinutes = ((int) date('G')) * 60 + (int) date('i');
+            $reqMinutes = $h * 60 + $min;
+            if ($nowMinutes >= $reqMinutes) {
+                // Sudah lewat jam pagi itu → maksud malam
+                return ['jam' => $jamFloat($h + 12, $min)];
+            }
+            return ['ask_ampm' => true];
+        }
+
+        // 10–11: default pagi; "malam" → +12
+        if ($h >= 10 && $h <= 11 && $hasMalam) {
+            return ['jam' => $jamFloat($h + 12, $min)];
+        }
+
+        return ['jam' => $jamFloat($h, $min)];
+    }
+
+    /** Jam sudah siap dipakai escalate (bukan pending tanya pagi/malam). */
+    private function estimasiWaktuIsResolved(?array $waktu): bool
+    {
+        return is_array($waktu)
+            && empty($waktu['ask_ampm'])
+            && isset($waktu['jam'])
+            && $waktu['jam'] !== null
+            && $waktu['jam'] !== '';
+    }
+
+    private function replyAskJamPagiMalam(string $waNumber, string $sapaan, int $rawHour): void
+    {
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Jam {$rawHour} {$sapaan} maksudnya *pagi* atau *malam*?"
+        );
+    }
+
+    /**
+     * Follow-up setelah maaf relative-day: customer menjawab jam → escalate grant.
+     *
+     * @param 'hari_ini'|'besok'|'lusa' $requestedDay
+     * @return bool true = dikonsumsi
+     */
+    private function estimasiHandleWaitRelativeJamReply(
+        string $phoneIn,
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg,
+        string $requestedDay
+    ): bool {
+        // Masih tanya relative day lagi → ulang flow deadline
+        $relDay = $this->parseEstimasiRequestedRelativeDay($msg);
+        if ($relDay !== null) {
+            return false;
+        }
+
+        $dayLabel = $this->estimasiRelativeDayLabel($requestedDay);
+        if ($requestedDay === 'hari_ini'
+            && preg_match('/part=([^|;]+)/', (string) ($session['summary'] ?? ''), $partM)
+        ) {
+            $dayLabel = trim($partM[1]);
+        }
+        $tgl = $session['request_tanggal'] ?? $this->estimasiRelativeDayToTanggal($requestedDay);
+
+        // Klarifikasi pagi/malam pending
+        if (preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $ampmM)
+            && preg_match('/\b(pagi|malam)\b/iu', $msg)
+        ) {
+            $rawH = (int) $ampmM[1];
+            $ampm = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
+            $synthetic = "jam {$rawH} {$ampm} " . ($requestedDay === 'hari_ini' ? 'hari ini' : $requestedDay);
+            $reqWaktu = $this->parseEstimasiRequestWaktu($synthetic);
+        } else {
+            $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
+            // Jawaban singkat "jam 3" / "15" / "14.30" di langkah tunggu jam
+            if ($reqWaktu === null && preg_match('/^\s*(jam\s*)?(\d{1,2})(?:[.:](\d{1,2}))?\s*$/iu', $msg, $nm)) {
+                $h = (int) $nm[2];
+                $min = isset($nm[3]) ? (int) $nm[3] : 0;
+                if ($h <= 23 && $min <= 59) {
+                    $reqWaktu = $this->parseEstimasiRequestWaktu(
+                        'jam ' . $h . ($min > 0 ? sprintf('.%02d', $min) : '')
+                        . ' ' . ($requestedDay === 'hari_ini' ? 'hari ini' : $requestedDay)
+                    );
+                }
+            }
+        }
+
+        if ($reqWaktu !== null && !empty($reqWaktu['ask_ampm'])) {
+            $rawH = (int) ($reqWaktu['raw_hour'] ?? 0);
+            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+            $sum = preg_replace('/\s*\|\s*ask_ampm hour=\d+/', '', (string) ($session['summary'] ?? ''));
+            $this->saveEstimasiSession($waNumber, [
+                'request_text' => $msg,
+                'request_tanggal' => $tgl,
+                'request_jam' => null,
+                'summary' => mb_substr(trim($sum . " | ask_ampm hour={$rawH}"), 0, 500),
+            ]);
+            return true;
+        }
+
+        if (!$this->estimasiWaktuIsResolved($reqWaktu)) {
+            $this->sendAutoreplyText(
+                $waNumber,
+                "{$dayLabel} jam berapa kira-kira {$sapaan}? (contoh: jam 14)"
+            );
+            return true;
+        }
+
+        $jam = $reqWaktu['jam'];
+        $tanggal = $reqWaktu['tanggal'] ?? $tgl;
+        $id = (int) ($session['id_penjualan'] ?? 0);
+        $idCabang = isset($session['id_cabang']) ? (int) $session['id_cabang'] : null;
+        $fase = $session['fase_proses'] ?? 'antrian';
+        $fresh = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
+        if ($fresh !== null) {
+            $id = (int) $fresh['id'];
+            $fase = $fresh['fase'];
+            if (!empty($fresh['id_cabang'])) {
+                $idCabang = (int) $fresh['id_cabang'];
+            }
+        }
+        if ($idCabang !== null && $idCabang <= 0) {
+            $idCabang = null;
+        }
+
+        $sum = (string) ($session['summary'] ?? '');
+        $sum = preg_replace('/\s*\|\s*wait_relative_jam=(hari_ini|besok|lusa)/', '', $sum);
+        $sum = preg_replace('/\s*\|\s*ask_ampm hour=\d+/', '', $sum);
+        $sum = trim($sum . ' | grant_after_relative jam=' . $jam . ' tgl=' . $tanggal);
+
+        $this->saveEstimasiSession($waNumber, [
+            'id_penjualan' => $id > 0 ? $id : null,
+            'id_cabang' => $idCabang,
+            'fase_proses' => $fase,
+            'butuh_estimasi' => 0,
+            'estimasi_tanggal' => null,
+            'estimasi_jam' => null,
+            'request_text' => $msg,
+            'request_tanggal' => $tanggal,
+            'request_jam' => $jam,
+            'request_granted' => null,
+            'summary' => mb_substr($sum, 0, 500),
+        ]);
+
+        $freshSession = $this->getEstimasiSession($waNumber) ?: $session;
+        $this->escalateEstimasiToPetugas($waNumber, $msg, $idCabang, true, $freshSession);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'ESTIMASI_SELESAI',
+            "wait_relative_jam→grant day={$requestedDay} jam={$jam} tgl={$tanggal} id={$id}"
+        );
+        return true;
     }
 
     /**
@@ -4286,6 +4993,27 @@ class WAReplies
             return true;
         }
 
+        // Klarifikasi jemput vs selesai (setelah "bisa jemput sore ini?")
+        $clarify = $this->estimasiHandleClarifyJemputVsSelesai($phoneIn, $waNumber, $sapaan, $session, $msg);
+        if ($clarify !== null) {
+            return $clarify;
+        }
+
+        // Setelah "maaf + tanya jam kira-kira": customer isi jam → grant bell
+        if (preg_match('/wait_relative_jam=(hari_ini|besok|lusa)/', (string) ($session['summary'] ?? ''), $waitM)) {
+            $handled = $this->estimasiHandleWaitRelativeJamReply(
+                $phoneIn,
+                $waNumber,
+                $sapaan,
+                $session,
+                $msg,
+                $waitM[1]
+            );
+            if ($handled) {
+                return true;
+            }
+        }
+
         // "bisa siap hari ini/besok/lusa?" → jawab dari deadline, jangan escalate
         $relDay = $this->parseEstimasiRequestedRelativeDay($msg);
         if ($relDay !== null) {
@@ -4304,7 +5032,30 @@ class WAReplies
         }
 
         $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
-        $isGrant = $reqWaktu !== null && $this->messageLooksLikeEstimasiGrantRequest($msg);
+        if ($reqWaktu !== null && !empty($reqWaktu['ask_ampm']) && $this->messageLooksLikeEstimasiGrantRequest($msg)) {
+            $rawH = (int) ($reqWaktu['raw_hour'] ?? 0);
+            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+            $this->estimasiAppendSummary($waNumber, $session, "ask_ampm hour={$rawH}");
+            return true;
+        }
+
+        // Balasan pagi/malam setelah ask_ampm
+        $fromAmpmClarify = false;
+        if (preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $ampmM)
+            && preg_match('/\b(pagi|malam)\b/iu', $msg)
+        ) {
+            $rawH = (int) $ampmM[1];
+            $ampm = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
+            $synthetic = "jam {$rawH} {$ampm}";
+            if (preg_match('/\b(besok|bsk|hari\s*ini|lusa)\b/iu', (string) ($session['request_text'] ?? ''), $dayM)) {
+                $synthetic .= ' ' . $dayM[0];
+            }
+            $reqWaktu = $this->parseEstimasiRequestWaktu($synthetic);
+            $fromAmpmClarify = true;
+        }
+
+        $isGrant = $this->estimasiWaktuIsResolved($reqWaktu)
+            && ($this->messageLooksLikeEstimasiGrantRequest($msg) || $fromAmpmClarify);
         $needsJam = $this->messageNeedsEstimasiJam($msg);
         $looksEstimasi = $this->messageLooksLikeEstimasiSelesai($msg)
             && $this->parseEstimasiRequestedRelativeDay($msg) === null;

@@ -331,8 +331,34 @@ trait WARepliesAmbilTutupTrait
         $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
         $step = $session['step'] ?? null;
 
+        if ($session !== null
+            && preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $ampmM)
+            && preg_match('/\b(pagi|malam)\b/iu', $msg)
+        ) {
+            $rawH = (int) $ampmM[1];
+            $ampm = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
+            $reqWaktu = $this->parseEstimasiRequestWaktu("jam {$rawH} {$ampm}");
+        }
+
+        if ($reqWaktu !== null && !empty($reqWaktu['ask_ampm'])) {
+            $rawH = (int) ($reqWaktu['raw_hour'] ?? 0);
+            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+            $this->saveAmbilTutupSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'step' => 'ask_jam',
+                'request_text' => $msg !== '' ? $msg : null,
+                'request_tanggal' => $reqWaktu['tanggal'] ?? null,
+                'request_jam' => null,
+                'request_granted' => null,
+                'reject_reason' => null,
+                'summary' => '[pesan] ' . mb_substr($msg, 0, 120) . " | ask_ampm hour={$rawH} #{$id}",
+            ]);
+            return true;
+        }
+
         // Belum ada jam → tanya dulu (kecuali pesan sudah berisi jam)
-        if ($reqWaktu === null && ($session === null || $step === 'ask_jam' || $step === null)) {
+        if (!$this->estimasiWaktuIsResolved($reqWaktu) && ($session === null || $step === 'ask_jam' || $step === null)) {
             $ask = "Baik {$sapaan}, laundry ID #{$id} sudah selesai. "
                 . "Kira-kira jam berapa {$sapaan} sampai di laundry? "
                 . "Agar kami cek dulu ke petugas ya 😊";
@@ -352,7 +378,7 @@ trait WARepliesAmbilTutupTrait
             return true;
         }
 
-        if ($reqWaktu === null) {
+        if (!$this->estimasiWaktuIsResolved($reqWaktu)) {
             $this->sendAutoreplyText(
                 $waNumber,
                 "Maaf {$sapaan}, boleh sebut jamnya ya? Contoh: jam 21.30 😊"

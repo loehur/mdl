@@ -235,6 +235,7 @@ return [
         \n
         FALSE (BUKAN STATUS) — pilih ESTIMASI_SELESAI:\n
         - Tanya KAPAN / JAM BERAPA siap/selesai/bisa diambil/dijemput (butuh estimasi waktu) = ESTIMASI_SELESAI, BUKAN STATUS. Contoh: | kapan siap? | jam berapa siap? | siapnya kapan? | kira jam berapa bisa dijemput kak? |\n
+        - Negasi + bisa + (pagi/siang/sore/malam) ini (+ siap / jam angka) = tanya APAKAH BISA SELESAI di waktu itu = ESTIMASI_SELESAI, BUKAN STATUS. Contoh: | Gk bisa sore ini siap kk | Ndak bisa sore ini kk jam 6 | gak bisa siap hari ini? |\n
         \n
         FALSE (BUKAN STATUS) - CRITICAL:\n
         - Belum dapat notifikasi/nota via WA setelah sudah antar laundry = follow-up BON/NOTA digital = NOTA, BUKAN STATUS.\n
@@ -265,16 +266,21 @@ return [
             // bisa siap hari ini/besok/lusa (termasuk typo "hari" tanpa "ini")
             '/\b(bisa|boleh|bs)\b.{0,30}\b(siap|selesai)\b.{0,20}\b(hari(\s*ini)?|hr(\s*ini)?|besok|bsk|lusa)\b/iu',
             '/\b(siap|selesai)\b.{0,20}\b(hari(\s*ini)?|hr(\s*ini)?|besok|bsk|lusa)\b/iu',
+            // "gk/ndak/gak bisa sore ini siap?" / "... jam 6" = tanya bisa selesai (bukan STATUS "siap kk")
+            '/\b(gk|gak|ga|ngga|nggak|ndak|ndk|tidak|tdk|tak)\s*(bisa|boleh|bs)\b.{0,60}\b(pagi|siang|sore|malam)\s*ini\b/iu',
+            '/\b(gk|gak|ga|ngga|nggak|ndak|ndk|tidak|tdk|tak)\s*(bisa|boleh|bs)\b.{0,60}\b(hari\s*ini|hr\s*ini|besok|bsk|lusa)\b/iu',
         ],
         'ai_prompt' => "User menanyakan ESTIMASI waktu selesai ATAU meminta SELESAI pada jam tertentu — BUKAN tanya apakah sudah siap sekarang, BUKAN minta kurir jemput/antar.\n
-        TRUE (ESTIMASI_SELESAI) — tiga sub-jenis (semuanya pilih ESTIMASI_SELESAI):\n
+        TRUE (ESTIMASI_SELESAI) — empat sub-jenis (semuanya pilih ESTIMASI_SELESAI):\n
         A) TANYA estimasi (jam berapa / kapan): | kapan siap? | jam berapa siap? | siapnya kapan? | kira jam berapa bisa dijemput? |\n
         B) REQUEST selesai jam spesifik: | bisa siap jam 10? | minta selesai jam 14 | boleh siap jam 16.30 besok? | siap jam 11 mau ke medan |\n
         C) TANYA bisa siap hari relatif (tanpa jam angka), termasuk typo: | bisa siap hari ini? | bisa siap besok? | bisa siap hari gak? | siap hari? |\n
+        D) Negasi + bisa + waktu relatif (makna: APAKAH BISA selesai?): | Gk bisa sore ini siap kk | Ndak bisa sore ini kk jam 6 | gak bisa siap hari ini? |\n
         Untuk (B) WAJIB ada angka jam (10 / 14.30), BUKAN 'jam berapa'.\n
         \n
         CRITICAL - bedakan dari STATUS:\n
         - 'sudah siap kak?' / 'udah siap?' / 'bisa diambil?' (tanpa kapan/jam berapa dan tanpa jam angka) = STATUS.\n
+        - 'Gk bisa sore ini siap kk' / 'Ndak bisa sore ini jam 6' = ESTIMASI_SELESAI (tanya bisa selesai di waktu itu), BUKAN STATUS meski ada kata 'siap kk'.\n
         \n
         CRITICAL - bedakan dari MINTA_JEMPUT_ANTAR:\n
         - 'kira jam berapa bisa dijemput' = ESTIMASI_SELESAI.\n
