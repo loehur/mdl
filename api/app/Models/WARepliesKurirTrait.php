@@ -149,6 +149,11 @@ trait WARepliesKurirTrait
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }
+        // Tanya estimasi siap hari ini/besok → jangan lanjut session kurir (hindari minta shareloc)
+        if ($this->messageLooksLikeEstimasiSelesai($text)
+            || $this->parseEstimasiRequestedRelativeDay($text) !== null) {
+            return true;
+        }
         $breakout = ['TAGIHAN', 'NOTA', 'STATUS', 'HARGA', 'HARGA_PAKET', 'HARGA_PAKET_D', 'PEMBUKA', 'PENUTUP', 'ESTIMASI_SELESAI'];
         foreach ($breakout as $handler) {
             foreach ($keywordConfig[$handler]['patterns'] ?? [] as $pattern) {
@@ -160,11 +165,14 @@ trait WARepliesKurirTrait
         return false;
     }
 
+    /**
+     * @return bool true = pesan sudah ditangani kurir; false = unrelated → lanjut routing intent lain
+     */
     private function handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody = '')
     {
         if (!$this->isOperatingHours()) {
             $this->handleJam_tutup($phoneIn, $waNumber, $textBody);
-            return;
+            return true;
         }
 
         $msg = trim((string) $textBody);
@@ -175,7 +183,7 @@ trait WARepliesKurirTrait
         }
         if (!$idPelanggan) {
             $this->sendKurirUnregisteredFallback($waNumber);
-            return;
+            return true;
         }
         $idPelanggan = (int) $idPelanggan;
         $idCabang = $this->resolveKurirIdCabang($idPelanggan, $session);
@@ -197,11 +205,11 @@ trait WARepliesKurirTrait
                     $waNumber,
                     "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
                 );
-                return;
+                return true;
             }
         }
 
-        $this->routeKurirStep($phoneIn, $waNumber, $msg, $session);
+        return $this->routeKurirStep($phoneIn, $waNumber, $msg, $session);
     }
 
     private function sendKurirUnregisteredFallback(string $waNumber): void
@@ -260,7 +268,10 @@ trait WARepliesKurirTrait
         return null;
     }
 
-    private function routeKurirStep(string $phoneIn, string $waNumber, string $msg, array $session): void
+    /**
+     * @return bool true = ditangani; false = AI unrelated → biarkan process() lanjut intent lain
+     */
+    private function routeKurirStep(string $phoneIn, string $waNumber, string $msg, array $session): bool
     {
         $step = (string) ($session['step'] ?? 'ask_jenis');
         $sapaan = $this->getSapaanForGreeting($waNumber);
@@ -268,7 +279,7 @@ trait WARepliesKurirTrait
         // Hard: batal selalu prioritas
         if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelAndReply($waNumber, $sapaan, $session);
-            return;
+            return true;
         }
 
         // Hard: pin/Maps coords (terutama ask_shareloc, atau customer kirim pin saat confirm/pick)
@@ -276,17 +287,17 @@ trait WARepliesKurirTrait
         if ($coords !== null && in_array($step, ['ask_shareloc', 'confirm_lokasi', 'pick_lokasi', 'lokasi_check'], true)) {
             $this->kurirHandleShareloc($waNumber, $sapaan, $session, $msg);
             $this->kurirAppendSummary($waNumber, $session, 'shareloc_coords');
-            return;
+            return true;
         }
 
         // Hard: pilih angka di pick_lokasi / instant_pick
         if ($step === 'pick_lokasi' && preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg))) {
             $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $msg);
-            return;
+            return true;
         }
         if ($step === 'instant_pick' && preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg))) {
             $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, $msg);
-            return;
+            return true;
         }
 
         // ask_jenis: tetap deteksi jemput/antar (bisa AI jika ambigu)
@@ -304,7 +315,7 @@ trait WARepliesKurirTrait
                 $session['jenis'] = $jenis;
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
                 $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
-                return;
+                return true;
             }
             // Ambigu → AI
         }
@@ -312,18 +323,25 @@ trait WARepliesKurirTrait
         // lokasi_check tanpa input bermakna: jalankan check (biasanya dipanggil internal)
         if ($step === 'lokasi_check' && trim($msg) === '') {
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
-            return;
+            return true;
         }
 
         // AI decide (summary + konteks)
         $decision = $this->kurirAiDecide($waNumber, $session, $msg);
         if ($decision !== null) {
+            if (($decision['action'] ?? '') === 'unrelated') {
+                // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
+                $this->clearKurirSession($waNumber);
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'unrelated→continue_routing');
+                return false;
+            }
             $this->kurirDispatchAiAction($waNumber, $sapaan, $session, $msg, $decision);
-            return;
+            return true;
         }
 
         // Fallback regex/route lama
         $this->kurirRouteStepRegexFallback($phoneIn, $waNumber, $msg, $session, $step, $sapaan);
+        return true;
     }
 
     private function kurirRouteStepRegexFallback(
@@ -1618,32 +1636,32 @@ trait WARepliesKurirTrait
     /** @return list<string> */
     private function kurirAllowedActionsForStep(string $step): array
     {
-        $common = ['cancel', 'clarify'];
+        $common = ['cancel', 'clarify', 'unrelated'];
         switch ($step) {
             case 'ask_jenis':
                 return array_merge($common, ['confirm']); // confirm = pilih jenis via slots later → treat as clarify if no jenis
             case 'lokasi_check':
                 return array_merge($common, ['other_lokasi', 'ask_shareloc', 'want_instant', 'want_jam']);
             case 'ask_shareloc':
-                return array_merge($common, ['ask_shareloc', 'clarify']);
+                return array_merge($common, ['ask_shareloc']);
             case 'ask_lokasi_nama':
             case 'ask_lokasi_detail':
-                return array_merge($common, ['clarify', 'confirm']);
+                return array_merge($common, ['confirm']);
             case 'pick_lokasi':
                 return array_merge($common, ['pick_lokasi', 'other_lokasi', 'ask_shareloc', 'want_instant']);
             case 'confirm_lokasi':
                 return array_merge($common, ['confirm', 'other_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
             case 'terms_setuju':
             case 'request_aktif':
-                return array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'cancel']);
+                return array_merge($common, ['want_jam', 'want_instant', 'noop_ack']);
             case 'wait_driver_jam':
-                return array_merge($common, ['noop_ack', 'cancel']);
+                return array_merge($common, ['noop_ack']);
             case 'wait_continue_alt':
-                return array_merge($common, ['agree_alt', 'refuse_alt', 'cancel']);
+                return array_merge($common, ['agree_alt', 'refuse_alt']);
             case 'instant_confirm':
                 return array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi']);
             case 'instant_pick':
-                return array_merge($common, ['pick_lokasi', 'cancel', 'other_lokasi']);
+                return array_merge($common, ['pick_lokasi', 'other_lokasi']);
             default:
                 return array_merge($common, ['noop_ack', 'other_lokasi', 'want_jam', 'want_instant', 'confirm']);
         }
@@ -1783,6 +1801,7 @@ trait WARepliesKurirTrait
 
         $system = "Kamu asisten session kurir Madinah Laundry (jemput/antar). "
             . "Baca SESSION.summary + RECENT_CHAT + PESAN_BARU. "
+            . "Tentukan apakah customer MASIH di intent kurir, typo/ambigu, atau SUDAH pindah topik. "
             . "Pilih SATU action dari ALLOWED_ACTIONS saja. "
             . "Jangan mengarang action di luar daftar. "
             . "Jika customer menolak lokasi / beda alamat / bukan itu → other_lokasi atau ask_shareloc. "
@@ -1790,12 +1809,15 @@ trait WARepliesKurirTrait
             . "Jika batal/gak jadi/cancel → cancel. "
             . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
             . "Jika minta cepat/gojek/grab/instant → want_instant. "
-            . "Jika belum jelas → clarify. "
-            . "Field reply: kalimat WhatsApp singkat ramah bahasa Indonesia (boleh kosong). "
+            . "Jika typo/kurang jelas → clarify + suggested_text (contoh: 'jemput laundry ke rumah kak'). "
+            . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
+            . "Jangan minta shareloc jika pesan jelas tentang estimasi siap/hari ini. "
+            . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
             . "Jawab HANYA JSON valid tanpa markdown.";
 
         $user = $context . "\n\nFORMAT:\n"
-            . '{"action":"...", "reply":"...", "slots":{"jam":null,"tanggal":null,"pick_index":null,"jenis":null}, '
+            . '{"action":"...", "reply":"...", "suggested_text":"...", '
+            . '"slots":{"jam":null,"tanggal":null,"pick_index":null,"jenis":null}, '
             . '"summary_note":"ringkas 1 kalimat", "reason":"singkat"}';
 
         try {
@@ -1843,12 +1865,16 @@ trait WARepliesKurirTrait
         $decision = [
             'action' => $action,
             'reply' => isset($json['reply']) ? trim((string) $json['reply']) : null,
+            'suggested_text' => isset($json['suggested_text']) ? trim((string) $json['suggested_text']) : null,
             'slots' => $slots,
             'summary_note' => isset($json['summary_note']) ? trim((string) $json['summary_note']) : null,
             'reason' => isset($json['reason']) ? trim((string) $json['reason']) : null,
         ];
         if ($decision['reply'] === '') {
             $decision['reply'] = null;
+        }
+        if ($decision['suggested_text'] === '') {
+            $decision['suggested_text'] = null;
         }
 
         $this->logAutoreplyTrace(
@@ -2035,6 +2061,18 @@ trait WARepliesKurirTrait
                 return;
 
             case 'clarify':
+                $suggested = trim((string) ($decision['suggested_text'] ?? ''));
+                if ($suggested !== '') {
+                    $this->sendClarifyConfirmation($waNumber, $suggested);
+                } else {
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        $aiReply ?: ("Maaf {$sapaan}, textnya kurang dapat saya pahami, boleh ketik ulang lebih jelas?")
+                    );
+                }
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
             default:
                 $this->sendAutoreplyText(
                     $waNumber,

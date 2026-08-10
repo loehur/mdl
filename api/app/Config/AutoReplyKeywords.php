@@ -262,11 +262,15 @@ return [
             '/\b(bisa|boleh|minta|tolong|mau|mohon)\b.{0,40}\b(siap|selesai|jadi)\b.{0,30}\bjam\s*\d{1,2}/iu',
             '/\b(siap|selesai|jadi)\b.{0,30}\bjam\s*\d{1,2}([.:]\d{1,2})?\b/iu',
             '/\bjam\s*\d{1,2}([.:]\d{1,2})?\b.{0,30}\b(siap|selesai|jadi)\b/iu',
+            // bisa siap hari ini/besok/lusa (termasuk typo "hari" tanpa "ini")
+            '/\b(bisa|boleh|bs)\b.{0,30}\b(siap|selesai)\b.{0,20}\b(hari(\s*ini)?|hr(\s*ini)?|besok|bsk|lusa)\b/iu',
+            '/\b(siap|selesai)\b.{0,20}\b(hari(\s*ini)?|hr(\s*ini)?|besok|bsk|lusa)\b/iu',
         ],
         'ai_prompt' => "User menanyakan ESTIMASI waktu selesai ATAU meminta SELESAI pada jam tertentu — BUKAN tanya apakah sudah siap sekarang, BUKAN minta kurir jemput/antar.\n
-        TRUE (ESTIMASI_SELESAI) — dua sub-jenis (keduanya pilih ESTIMASI_SELESAI):\n
+        TRUE (ESTIMASI_SELESAI) — tiga sub-jenis (semuanya pilih ESTIMASI_SELESAI):\n
         A) TANYA estimasi (jam berapa / kapan): | kapan siap? | jam berapa siap? | siapnya kapan? | kira jam berapa bisa dijemput? |\n
         B) REQUEST selesai jam spesifik: | bisa siap jam 10? | minta selesai jam 14 | boleh siap jam 16.30 besok? | siap jam 11 mau ke medan |\n
+        C) TANYA bisa siap hari relatif (tanpa jam angka), termasuk typo: | bisa siap hari ini? | bisa siap besok? | bisa siap hari gak? | siap hari? |\n
         Untuk (B) WAJIB ada angka jam (10 / 14.30), BUKAN 'jam berapa'.\n
         \n
         CRITICAL - bedakan dari STATUS:\n
@@ -274,6 +278,7 @@ return [
         \n
         CRITICAL - bedakan dari MINTA_JEMPUT_ANTAR:\n
         - 'kira jam berapa bisa dijemput' = ESTIMASI_SELESAI.\n
+        - 'bisa siap hari ini/besok/hari gak' = ESTIMASI_SELESAI, BUKAN minta shareloc/kurir.\n
         - 'tolong jemput di kamar 212' = MINTA_JEMPUT_ANTAR.\n
         \n
         CRITICAL - bedakan dari JAM_OPERASIONAL:\n

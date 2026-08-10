@@ -136,10 +136,12 @@ class Penjualan extends Controller
       $pelanggan = (int) ($_POST['f1'] ?? 0);
       $id_penerima = (int) ($_POST['f2'] ?? 0);
 
-      // Gabung ke ref lama hanya jika order terbuka terakhir hari ini
-      // punya id_pelanggan + id_user yang sama (urut insertTime).
+      // Gabung ke no_ref terbuka pelanggan+penerima yang sama hari ini.
+      // Dicari langsung per pelanggan (bukan order global terakhir),
+      // supaya order pelanggan/user lain yang menyelip tidak membuat nota baru.
       $where = $this->wCabang
-         . " AND id_pelanggan <> 0"
+         . " AND id_pelanggan = " . $pelanggan
+         . " AND id_user = " . $id_penerima
          . " AND no_ref <> ''"
          . " AND bin = 0"
          . " AND tuntas = 0"
@@ -148,11 +150,7 @@ class Penjualan extends Controller
       $cek_ref = $this->db(0)->get_where_row('sale', $where);
 
       $no_ref = (date('Y') - 2024) . date("mdHis") . rand(0, 9) . rand(0, 9);
-      if (
-         !empty($cek_ref['no_ref'])
-         && (int) $cek_ref['id_pelanggan'] === $pelanggan
-         && (int) $cek_ref['id_user'] === $id_penerima
-      ) {
+      if (!empty($cek_ref['no_ref'])) {
          $no_ref = $cek_ref['no_ref'];
       }
 

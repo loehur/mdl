@@ -140,14 +140,11 @@ class KasModel extends Controller
             $jt = $tipe == "M" ? 3 : 1;
             $wCabang = "id_cabang = " . $id_cabang;
 
-            if ($metodeInt === 2 && $status_mutasi == 2) {
-                $refEsc = $this->db(0)->escape($ref);
-                $pendingWhere = $wCabang . " AND jenis_transaksi = " . intval($jt)
-                    . " AND ref_transaksi = '" . $refEsc . "'"
-                    . " AND metode_mutasi = 2 AND status_mutasi = 2";
-                if ($this->db(0)->count_where('kas', $pendingWhere) >= 1) {
-                    return "Masih ada pembayaran yang menunggu verifikasi untuk transaksi ini. Batalkan pembayaran pending atau tunggu hingga berhasil/gagal sebelum membuat pembayaran baru.";
-                }
+            // Boleh tambah pembayaran meski ada yang masih pending (status 2),
+            // asal berhasil + pending + input baru tidak melebihi tagihan.
+            $overpayMsg = $this->cekOverpayBayar($ref, $jt, $id_cabang, $jumlah);
+            if ($overpayMsg !== null) {
+                return $overpayMsg;
             }
 
             $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metodeInt . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
@@ -192,5 +189,90 @@ class KasModel extends Controller
         }
 
         return 0;
+    }
+
+    /**
+     * Tolak jika (kas status 2+3) + jumlah baru > tagihan.
+     * @return string|null pesan error, atau null jika aman
+     */
+    private function cekOverpayBayar($ref, $jt, $id_cabang, $jumlah)
+    {
+        $ref = trim((string) $ref);
+        $jumlah = (int) $jumlah;
+        if ($ref === '' || $jumlah <= 0) {
+            return null;
+        }
+
+        $tagihan = $this->getTagihanForBayar($ref, (int) $jt, (int) $id_cabang);
+        $sudah = $this->getSudahTercatatBayar($ref, (int) $jt, (int) $id_cabang);
+        $sisa = $tagihan - $sudah;
+
+        if ($jumlah <= $sisa) {
+            return null;
+        }
+
+        return "Pembayaran ditolak: melebihi sisa tagihan. "
+            . "Tagihan Rp" . number_format($tagihan)
+            . ", sudah tercatat (berhasil + menunggu approve) Rp" . number_format($sudah)
+            . ", sisa Rp" . number_format(max(0, $sisa))
+            . ", input Rp" . number_format($jumlah) . ".";
+    }
+
+    private function getTagihanForBayar($ref, $jt, $id_cabang)
+    {
+        $db = $this->db(0);
+        $refEsc = $db->escape($ref);
+        $wCabang = "id_cabang = " . (int) $id_cabang;
+
+        if ($jt === 3) {
+            $row = $db->get_where_row('member', $wCabang . " AND bin = 0 AND id_member = '" . $refEsc . "'");
+            return (int) round((float) ($row['harga'] ?? 0));
+        }
+
+        $sales = $db->get_where('sale', $wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 0");
+        if (!is_array($sales)) {
+            $sales = [];
+        }
+
+        $subTotal = 0;
+        foreach ($sales as $s) {
+            if ((int) ($s['member'] ?? 0) !== 0) {
+                continue;
+            }
+            $qty = round((float) ($s['qty'] ?? 0), 2);
+            $minOrder = round((float) ($s['min_order'] ?? 0), 2);
+            $qtyReal = ($qty < $minOrder) ? $minOrder : $qty;
+            $total = (float) ($s['harga'] ?? 0) * $qtyReal;
+            $diskonQty = (float) ($s['diskon_qty'] ?? 0);
+            $diskonPartner = (float) ($s['diskon_partner'] ?? 0);
+            if ($diskonQty > 0) {
+                $total -= $total * ($diskonQty / 100);
+            }
+            if ($diskonPartner > 0) {
+                $total -= $total * ($diskonPartner / 100);
+            }
+            $subTotal += (int) round($total);
+        }
+
+        $surcasList = $db->get_where('surcas', $wCabang . " AND no_ref = '" . $refEsc . "'");
+        if (is_array($surcasList)) {
+            foreach ($surcasList as $sc) {
+                $subTotal += (int) ($sc['jumlah'] ?? 0);
+            }
+        }
+
+        return (int) round($subTotal);
+    }
+
+    private function getSudahTercatatBayar($ref, $jt, $id_cabang)
+    {
+        $db = $this->db(0);
+        $refEsc = $db->escape($ref);
+        $where = "id_cabang = " . (int) $id_cabang
+            . " AND jenis_transaksi = " . (int) $jt
+            . " AND ref_transaksi = '" . $refEsc . "'"
+            . " AND status_mutasi IN (2, 3)";
+
+        return (int) round($db->sum_col_where('kas', 'jumlah', $where) ?? 0);
     }
 }
