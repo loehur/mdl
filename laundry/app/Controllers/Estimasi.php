@@ -12,7 +12,8 @@ class Estimasi extends Controller
     }
 
     /**
-     * Jumlah notifikasi yang perlu ditanggapi (badge lonceng).
+     * Jumlah task notifikasi yang belum dikerjakan (badge lonceng).
+     * Menyimpan ke PHP session — badge turun hanya jika task selesai, bukan saat dibaca.
      */
     public function count()
     {
@@ -20,13 +21,10 @@ class Estimasi extends Controller
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $rows = $this->db(100)->query_array(
-                'SELECT COUNT(*) AS c FROM wa_estimasi_session WHERE ' . $this->pendingWhereSql()
-            );
-            $n = (int) ($rows[0]['c'] ?? 0);
+            $n = $this->syncNotifTaskCount();
             echo json_encode(['ok' => 1, 'count' => $n]);
         } catch (\Throwable $e) {
-            echo json_encode(['ok' => 0, 'count' => 0, 'msg' => $e->getMessage()]);
+            echo json_encode(['ok' => 0, 'count' => $this->getNotifTaskCountFromSession(), 'msg' => $e->getMessage()]);
         }
     }
 
@@ -167,12 +165,15 @@ class Estimasi extends Controller
 
         $sendWa = !isset($_POST['send_wa']) || (int) $_POST['send_wa'] === 1;
         $waResult = null;
+        $pendingCount = $this->syncNotifTaskCount();
+
         if ($sendWa) {
             $waResult = $this->helper('Notif')->send_wa($phone, $replyText, 'free');
             if (empty($waResult['status'])) {
                 echo json_encode([
                     'ok' => 1,
                     'wa_ok' => 0,
+                    'count' => $pendingCount,
                     'msg' => 'State tersimpan, tapi WA gagal: ' . ($waResult['error'] ?? 'unknown'),
                     'reply_text' => $replyText,
                 ]);
@@ -183,9 +184,33 @@ class Estimasi extends Controller
         echo json_encode([
             'ok' => 1,
             'wa_ok' => $sendWa ? 1 : 0,
+            'count' => $pendingCount,
             'msg' => $sendWa ? 'State diupdate & WA terkirim' : 'State diupdate',
             'reply_text' => $replyText,
         ]);
+    }
+
+    /**
+     * Hitung ulang task pending → simpan ke session user.
+     */
+    private function syncNotifTaskCount(): int
+    {
+        $n = 0;
+        try {
+            $rows = $this->db(100)->query_array(
+                'SELECT COUNT(*) AS c FROM wa_estimasi_session WHERE ' . $this->pendingWhereSql()
+            );
+            $n = (int) ($rows[0]['c'] ?? 0);
+        } catch (\Throwable $e) {
+            $n = $this->getNotifTaskCountFromSession();
+        }
+        $_SESSION[URL::SESSID]['notif_task_count'] = $n;
+        return $n;
+    }
+
+    private function getNotifTaskCountFromSession(): int
+    {
+        return (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
     }
 
     private function pendingWhereSql(): string

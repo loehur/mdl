@@ -1823,9 +1823,12 @@ if ($privUi === 100) {
 
                 <div class="mdl-spacer"></div>
 
+                <?php
+                $notifTaskCount = (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
+                ?>
                 <button type="button" id="btnNotifBell" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--bell" title="Notifikasi" aria-label="Notifikasi">
                     <i class="fas fa-bell"></i>
-                    <span class="mdl-bell-badge" id="notifBellBadge">0</span>
+                    <span class="mdl-bell-badge<?= $notifTaskCount > 0 ? ' is-on' : '' ?>" id="notifBellBadge"><?= $notifTaskCount > 99 ? '99+' : (int) $notifTaskCount ?></span>
                 </button>
                 <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--refresh refresh" href="#" title="Refresh data">
                     <i class="fas fa-sync"></i>
@@ -3122,6 +3125,7 @@ if ($privUi === 100) {
                     }
 
                     function loadList() {
+                        // Baca list task saja — jangan ubah badge (badge turun hanya setelah task dikerjakan)
                         bodyEl.innerHTML = '<div class="mdl-notif-empty">Memuat…</div>';
                         $.getJSON(baseUrl + 'Estimasi/list')
                             .done(function(res) {
@@ -3130,7 +3134,6 @@ if ($privUi === 100) {
                                     return;
                                 }
                                 renderItems(res.items || []);
-                                setBadge((res.items || []).length);
                             })
                             .fail(function(xhr) {
                                 bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat notifikasi (' + xhr.status + ')</div>';
@@ -3181,8 +3184,13 @@ if ($privUi === 100) {
                                     if (res.wa_ok) MdlToast.ok(res.msg || 'Terkirim');
                                     else MdlToast.warn(res.msg || 'State tersimpan');
                                 }
+                                // Task selesai → baru update badge (dari response / sync session)
+                                if (typeof res.count !== 'undefined') {
+                                    setBadge(res.count);
+                                } else {
+                                    refreshCount();
+                                }
                                 loadList();
-                                refreshCount();
                             } else {
                                 if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
                                 $btn.prop('disabled', false);
@@ -3193,8 +3201,9 @@ if ($privUi === 100) {
                         });
                     });
 
+                    // Sync badge dari server → session; cek tiap 2 menit
                     refreshCount();
-                    window.setInterval(refreshCount, 60000);
+                    window.setInterval(refreshCount, 120000);
                 })();
             </script>
 <?php require_once __DIR__ . '/pwa_register.php'; ?>
