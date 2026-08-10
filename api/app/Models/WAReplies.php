@@ -44,6 +44,9 @@ class WAReplies
     /** Idle agent manusia (menit) sebelum AI kembali boleh balas intent sosial */
     private const HUMAN_ACTIVE_IDLE_MINUTES = 60;
 
+    /** TTL session ESTIMASI_SELESAI (menit) */
+    private const ESTIMASI_SESSION_TTL_MINUTES = 60;
+
     /** @var array|null Cache AutoReplyKeywords.php untuk cek rate limit per handler */
     private $autoreplyKeywordConfig = null;
 
@@ -229,6 +232,7 @@ class WAReplies
         $h = strtoupper($handler);
         $allow = [
             'STATUS',
+            'ESTIMASI_SELESAI',
             'TAGIHAN',
             'NOTA',
             'HARGA',
@@ -1487,6 +1491,24 @@ class WAReplies
             }
         }
 
+        // Session ESTIMASI aktif (TTL 1 jam): follow-up ke petugas, kecuali keyword tegas lain (BON/TAGIHAN/NOTA/…)
+        if ($this->getEstimasiSession($waNumber) !== null
+            && !$this->messageBreaksEstimasiSession($textBodyToCheck, $fullKeywordConfig)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_followup→ESTIMASI_SELESAI case=4');
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+            );
+            $this->currentHandler = 'ESTIMASI_SELESAI';
+            $this->handleEstimasi_Selesai($phoneIn, $waNumber, $textBody);
+            $this->logAutoreplyTrace($waNumber, 'DONE', 'estimasi_session_followup_ok');
+
+            return (object) [
+                'case' => 4,
+                'notify' => true,
+                'conversation_id' => $conversationId,
+            ];
+        }
+
         // "masih/msh/msih bisa/bs terima kain?" atau "masih nerima ga klo gosok aj?" -> konfirmasi ke petugas + jam operasional (PRIORITAS)
         // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
         $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
@@ -1543,6 +1565,11 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: kapan/jam berapa siap / bisa dijemput-diambil = ESTIMASI_SELESAI, bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→ESTIMASI_SELESAI');
+                        continue;
+                    }
                     // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput (paket -D) = HARGA_PAKET_D lewat AI, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
                         continue;
@@ -1594,7 +1621,11 @@ class WAReplies
                         && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)) {
                         continue;
                     }
-                    // "jam berapa bisa jemput?" / "bs jmpt?" = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
+                    // "jam berapa bisa jemput/diambil?" = ESTIMASI_SELESAI (bukan jam buka, bukan otomatis minta kurir)
+                    if ($handler === 'JAM_OPERASIONAL' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
+                        continue;
+                    }
+                    // "bs jmpt?" tanpa estimasi = MINTA_JEMPUT_ANTAR (minta jemput), bukan JAM_OPERASIONAL
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
                         continue;
                     }
@@ -1602,6 +1633,16 @@ class WAReplies
                     $caseVal = $config['case'] ?? null;
                     $notify = $config['notify'] ?? false;
                     $matchPattern[] = $handler;
+
+                    // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR (cek sale tuntas=0, tanpa notif pending)
+                    if ($handler === 'ESTIMASI_SELESAI') {
+                        $resolved = $this->resolveEstimasiSelesaiByActiveSale($handler, $phoneIn, $waNumber);
+                        if ($resolved !== $handler) {
+                            $handler = $resolved;
+                            $caseVal = $fullKeywordConfig[$handler]['case'] ?? null;
+                            $notify = $fullKeywordConfig[$handler]['notify'] ?? false;
+                        }
+                    }
 
                     // Human agent aktif: hanya intent data/self-service (dan admin) yang boleh balas
                     if ($this->isHumanAgentRecentlyActive($waNumber)
@@ -1791,9 +1832,29 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? false;
             }
 
+            // STATUS / MINTA / JAM → ESTIMASI_SELESAI (kapan/jam berapa siap / bisa dijemput-diambil)
+            if (in_array($aiIntent, ['STATUS', 'MINTA_JEMPUT_ANTAR', 'JAM_OPERASIONAL'], true)
+                && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_' . $aiIntent . '→ESTIMASI_SELESAI');
+                $aiIntent = 'ESTIMASI_SELESAI';
+                $aiCase = $fullKeywordConfig['ESTIMASI_SELESAI']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['ESTIMASI_SELESAI']['notify'] ?? false;
+            }
+
+            // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR
+            if ($aiIntent === 'ESTIMASI_SELESAI') {
+                $resolved = $this->resolveEstimasiSelesaiByActiveSale($aiIntent, $phoneIn, $waNumber);
+                if ($resolved !== $aiIntent) {
+                    $aiIntent = $resolved;
+                    $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
+                    $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+                }
+            }
+
             // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
             if ($aiIntent === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jmpt|jemput|antar)\b/i', $textBodyToCheck)
-                && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
+                && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)
+                && !$this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_jam_operasional→MINTA_JEMPUT_ANTAR bs_jmput_tanpa_masih');
                 $aiIntent = 'MINTA_JEMPUT_ANTAR';
                 $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? null;
@@ -3332,6 +3393,478 @@ class WAReplies
         $layananStr = !empty($layananParts) ? implode(' * ', $layananParts) : 'Paket';
         $detail = "Topup Paket: " . ($kategori ?: 'Member') . ($layananStr ? " * {$layananStr}" : '') . ($durasi ? " * {$durasi}" : '') . " - {$qty}{$unit}";
         return $detail;
+    }
+
+    /**
+     * Tanya estimasi kapan order siap / bisa diambil (bukan "sudah siap?", bukan minta kurir).
+     * Contoh: kapan siap?, jam berapa siap?, kira jam berapa bisa dijemput kak?
+     */
+    private function messageLooksLikeEstimasiSelesai(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        // Sudah siap sekarang = STATUS, bukan estimasi
+        if (preg_match('/\b(sudah|udah|udh|sdh|dah|dh|sudh)\s+(siap|selesai|jadi)\b/iu', $t)
+            && !preg_match('/\b(kapan|kpn|jam|brp|berapa|kira)\b/iu', $t)) {
+            return false;
+        }
+        if (preg_match('/\b(kapan|kpn|jam\s*(brp|brpa|berapa)|brp|berapa)\b.{0,50}?\b(siap|sia+p+|selesai|jadi)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(siap|sia+p+|selesai)(nya)?\b.{0,30}?\b(kapan|kpn|jam|brp|berapa)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(kira|kira[\s\-]*kira)\b.{0,60}?\b(jam|kapan|kpn|brp|berapa)\b.{0,60}?\b(bisa|boleh)?\s*(di\s*)?(ambil|jemput|siap|selesai)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(kapan|kpn|jam\s*(brp|brpa|berapa)|brp|berapa)\b.{0,50}?\b(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di\s*)?(jemput|ambil)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(kapan|kpn)\s+(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu', $t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Ada sale aktif (tuntas=0, bin=0) untuk nomor WA ini? Mirip cek data di handleStatus (tanpa notif pending).
+     */
+    private function pelangganHasActiveSale(string $phoneIn, string $waNumber): bool
+    {
+        $db1 = DB::getInstance(1);
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $idPelanggans = array_column($pelanggan, 'id_pelanggan');
+        if (empty($idPelanggans)) {
+            return false;
+        }
+        $idsIn = implode(',', array_map('intval', $idPelanggans));
+        $sales = $db1->query(
+            "SELECT no_ref FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($idsIn) LIMIT 1"
+        )->result_array();
+
+        return !empty($sales);
+    }
+
+    /**
+     * ESTIMASI_SELESAI hanya jika ada order aktif; jika tidak → MINTA_JEMPUT_ANTAR.
+     */
+    private function resolveEstimasiSelesaiByActiveSale(string $intent, string $phoneIn, string $waNumber): string
+    {
+        if (strtoupper($intent) !== 'ESTIMASI_SELESAI') {
+            return $intent;
+        }
+        if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI keep (ada sale aktif)');
+            return 'ESTIMASI_SELESAI';
+        }
+        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR (tidak ada sale aktif)');
+        return 'MINTA_JEMPUT_ANTAR';
+    }
+
+    /**
+     * Intent ESTIMASI_SELESAI: hit pertama (fase item) atau follow-up (forward group + ack).
+     * Safety: tanpa order aktif alihkan ke MINTA_JEMPUT_ANTAR.
+     */
+    private function handleEstimasi_Selesai($phoneIn, $waNumber, $textBody = '')
+    {
+        if (!$this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→MINTA_JEMPUT_ANTAR no_active_sale');
+            $this->clearEstimasiSession($waNumber);
+            $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
+            $this->handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody);
+            return;
+        }
+
+        $session = $this->getEstimasiSession($waNumber);
+        if ($session !== null) {
+            $this->handleEstimasiSelesaiFollowUp($phoneIn, $waNumber, $textBody, $session);
+            return;
+        }
+
+        $this->handleEstimasiSelesaiFirstHit($phoneIn, $waNumber, $textBody);
+    }
+
+    /**
+     * Keyword tegas yang membatalkan follow-up session ESTIMASI (BON/BILL/TAGIHAN/NOTA/HARGA/STATUS/…).
+     */
+    private function messageBreaksEstimasiSession(string $text, array $keywordConfig): bool
+    {
+        if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
+            return true;
+        }
+
+        $breakout = [
+            'TAGIHAN',
+            'NOTA',
+            'STATUS',
+            'HARGA',
+            'HARGA_PAKET',
+            'HARGA_PAKET_D',
+            'PEMBUKA',
+            'PENUTUP',
+            'JAM_OPERASIONAL',
+            'JAM_TUTUP',
+            'JAM_BUKA',
+            'MINTA_JEMPUT_ANTAR',
+        ];
+
+        $looksEstimasi = $this->messageLooksLikeEstimasiSelesai($text);
+        foreach ($breakout as $handler) {
+            // Jangan putus session bila pesan masih tanya estimasi (hindari false match MINTA/JAM)
+            if ($looksEstimasi && in_array($handler, ['MINTA_JEMPUT_ANTAR', 'JAM_OPERASIONAL', 'JAM_TUTUP', 'JAM_BUKA', 'STATUS'], true)) {
+                continue;
+            }
+            $patterns = $keywordConfig[$handler]['patterns'] ?? [];
+            foreach ($patterns as $pattern) {
+                if (@preg_match($pattern, $text)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Ambil session ESTIMASI aktif (belum expire). Expired → hapus & return null.
+     * @return array|null
+     */
+    private function getEstimasiSession(string $waNumber): ?array
+    {
+        $phone = $this->normalizePhoneNumber($waNumber);
+        if (!$phone) {
+            return null;
+        }
+
+        $db = DB::getInstance(0);
+        try {
+            $res = $db->query(
+                'SELECT * FROM wa_estimasi_session WHERE phone = ? LIMIT 1',
+                [$phone]
+            );
+            if (!$res || $res->num_rows() === 0) {
+                return null;
+            }
+            $row = (array) $res->row();
+            $expiresAt = $row['expires_at'] ?? null;
+            if (!$expiresAt || strtotime($expiresAt) < time()) {
+                $this->clearEstimasiSession($waNumber);
+                return null;
+            }
+
+            return $row;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('getEstimasiSession: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Upsert session ESTIMASI (TTL ESTIMASI_SESSION_TTL_MINUTES).
+     */
+    private function saveEstimasiSession(string $waNumber, array $data): void
+    {
+        $phone = $this->normalizePhoneNumber($waNumber);
+        if (!$phone) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $expires = date('Y-m-d H:i:s', time() + (self::ESTIMASI_SESSION_TTL_MINUTES * 60));
+        $idPenjualan = array_key_exists('id_penjualan', $data) ? $data['id_penjualan'] : null;
+        $fase = $data['fase_proses'] ?? null;
+        $butuh = !empty($data['butuh_estimasi']) ? 1 : 0;
+        $estimasiJam = array_key_exists('estimasi_jam', $data) ? $data['estimasi_jam'] : null;
+        $requestText = array_key_exists('request_text', $data) ? $data['request_text'] : null;
+        $requestGranted = array_key_exists('request_granted', $data) ? $data['request_granted'] : null;
+        $summary = $data['summary'] ?? null;
+
+        $db = DB::getInstance(0);
+        try {
+            $db->query(
+                'INSERT INTO wa_estimasi_session
+                    (phone, id_penjualan, fase_proses, butuh_estimasi, estimasi_jam, request_text, request_granted, summary, updated_at, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    id_penjualan = VALUES(id_penjualan),
+                    fase_proses = VALUES(fase_proses),
+                    butuh_estimasi = VALUES(butuh_estimasi),
+                    estimasi_jam = VALUES(estimasi_jam),
+                    request_text = VALUES(request_text),
+                    request_granted = VALUES(request_granted),
+                    summary = VALUES(summary),
+                    updated_at = VALUES(updated_at),
+                    expires_at = VALUES(expires_at)',
+                [
+                    $phone,
+                    $idPenjualan,
+                    $fase,
+                    $butuh,
+                    $estimasiJam,
+                    $requestText,
+                    $requestGranted,
+                    $summary,
+                    $now,
+                    $expires,
+                ]
+            );
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('saveEstimasiSession: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
+    private function clearEstimasiSession(string $waNumber): void
+    {
+        $phone = $this->normalizePhoneNumber($waNumber);
+        if (!$phone) {
+            return;
+        }
+        $db = DB::getInstance(0);
+        try {
+            $db->query('DELETE FROM wa_estimasi_session WHERE phone = ?', [$phone]);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('clearEstimasiSession: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
+    /**
+     * Pilih 1 item aktif dengan deadline terdekat + fase antrian|pengerjaan|selesai.
+     * @return array{id:int,fase:string,deadline_ts:int,deadline_label:string}|null
+     */
+    private function pickEstimasiFocusItem(string $phoneIn, string $waNumber): ?array
+    {
+        $db1 = DB::getInstance(1);
+        $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $idPelanggans = array_column($pelanggan, 'id_pelanggan');
+        if (empty($idPelanggans)) {
+            return null;
+        }
+
+        $idsIn = implode(',', array_map('intval', $idPelanggans));
+        $sales = $db1->query(
+            "SELECT id_penjualan, letak, insertTime, hari, jam
+             FROM sale
+             WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND id_pelanggan IN ($idsIn)"
+        )->result_array();
+        if (empty($sales)) {
+            return null;
+        }
+
+        $idList = array_column($sales, 'id_penjualan');
+        $quotedIds = array_map(function ($id) {
+            return "'" . (int) $id . "'";
+        }, $idList);
+        $idsInNotif = implode(',', $quotedIds);
+        $existingNotifIds = !empty($idList)
+            ? array_column(
+                $db1->query("SELECT no_ref FROM notif WHERE tipe = 2 AND no_ref IN ($idsInNotif)")->result_array(),
+                'no_ref'
+            )
+            : [];
+
+        $today = date('Y-m-d');
+        $candidates = [];
+        foreach ($sales as $sale) {
+            $idPenjualan = (int) $sale['id_penjualan'];
+            $letak = trim((string) ($sale['letak'] ?? ''));
+            $hasNotif = in_array((string) $idPenjualan, array_map('strval', $existingNotifIds), true)
+                || in_array($idPenjualan, $existingNotifIds, true);
+            $hari = (int) ($sale['hari'] ?? 0);
+            $jam = (int) ($sale['jam'] ?? 0);
+            $insertTime = $sale['insertTime'] ?? date('Y-m-d H:i:s');
+            $deadlineTs = strtotime($insertTime . ' +' . $hari . ' days +' . $jam . ' hours');
+            if ($deadlineTs === false) {
+                $deadlineTs = time();
+            }
+            $deadlineDate = date('Y-m-d', $deadlineTs);
+
+            if ($hasNotif && $letak !== '') {
+                $fase = 'selesai';
+            } elseif ($deadlineDate <= $today) {
+                $fase = 'pengerjaan';
+            } else {
+                $fase = 'antrian';
+            }
+
+            $candidates[] = [
+                'id' => $idPenjualan,
+                'fase' => $fase,
+                'deadline_ts' => $deadlineTs,
+                'deadline_label' => $this->formatEstimasiDeadlineLabel($deadlineTs, $hari),
+                'unfinished' => $fase !== 'selesai' ? 1 : 0,
+            ];
+        }
+
+        usort($candidates, function ($a, $b) {
+            if ($a['unfinished'] !== $b['unfinished']) {
+                return $b['unfinished'] <=> $a['unfinished'];
+            }
+            return $a['deadline_ts'] <=> $b['deadline_ts'];
+        });
+
+        $best = $candidates[0] ?? null;
+        if ($best === null) {
+            return null;
+        }
+
+        return [
+            'id' => $best['id'],
+            'fase' => $best['fase'],
+            'deadline_ts' => $best['deadline_ts'],
+            'deadline_label' => $best['deadline_label'],
+        ];
+    }
+
+    private function formatEstimasiDeadlineLabel(int $deadlineTs, int $hari): string
+    {
+        $deadlineDate = date('Y-m-d', $deadlineTs);
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        if ($deadlineDate === $tomorrow) {
+            return 'besok';
+        }
+        if ($hari !== 0) {
+            return date('j/n/Y', $deadlineTs);
+        }
+
+        return date('j/n/Y H:i', $deadlineTs);
+    }
+
+    private function handleEstimasiSelesaiFirstHit(string $phoneIn, string $waNumber, $textBody = ''): void
+    {
+        $item = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
+        if ($item === null) {
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'first_hit_no_item→MINTA_JEMPUT_ANTAR');
+            $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
+            $this->handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody);
+            return;
+        }
+
+        $ctx = $this->getGreetingContext($waNumber);
+        $sapaan = $ctx['sapaan'] ?? 'kak';
+        $emoteSalam = '😊';
+        $emoteSenyum = '😊';
+        $id = (int) $item['id'];
+        $fase = $item['fase'];
+        $deadlineLabel = $item['deadline_label'];
+
+        if ($fase === 'antrian') {
+            $text = "Laundry ID #{$id} masih dalam antrian, sesuai deadline {$deadlineLabel} seharusnya sudah selesai ya {$sapaan} {$emoteSalam}";
+        } elseif ($fase === 'pengerjaan') {
+            $text = "Laundry ID #{$id} sedang dikerjakan, kami akan kabari ketika selesai ya {$sapaan}. Mohon ditunggu {$emoteSalam}";
+        } else {
+            $text = "Laundry ID #{$id} sudah selesai. Terima kasih {$emoteSenyum}";
+        }
+
+        $this->sendAutoreplyText($waNumber, $text);
+
+        $summary = "Customer tanya estimasi selesai; fokus #{$id} fase={$fase}; balas fase pertama";
+        $this->saveEstimasiSession($waNumber, [
+            'id_penjualan' => $id,
+            'fase_proses' => $fase,
+            'butuh_estimasi' => 0,
+            'estimasi_jam' => null,
+            'request_text' => null,
+            'request_granted' => null,
+            'summary' => $summary,
+        ]);
+        $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit id={$id} fase={$fase}");
+    }
+
+    private function handleEstimasiSelesaiFollowUp(string $phoneIn, string $waNumber, $textBody, array $session): void
+    {
+        $msg = trim((string) ($textBody ?? ''));
+        $butuhEstimasi = !empty($session['butuh_estimasi']);
+        if ($this->messageLooksLikeEstimasiSelesai($msg)
+            || preg_match('/\b(jam|kapan|kpn|berapa|brp|estimasi|kira)\b/iu', $msg)) {
+            $butuhEstimasi = true;
+        }
+
+        $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : null;
+        $fase = $session['fase_proses'] ?? null;
+        // Refresh fase dari data terkini bila masih ada item
+        $fresh = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
+        if ($fresh !== null) {
+            $idPenjualan = (int) $fresh['id'];
+            $fase = $fresh['fase'];
+        }
+
+        $summary = sprintf(
+            'Follow-up estimasi; fokus #%s fase=%s; butuh_estimasi=%s; pesan="%s"',
+            $idPenjualan ?? '-',
+            $fase ?? '-',
+            $butuhEstimasi ? '1' : '0',
+            mb_substr($msg, 0, 120)
+        );
+
+        $this->saveEstimasiSession($waNumber, [
+            'id_penjualan' => $idPenjualan,
+            'fase_proses' => $fase,
+            'butuh_estimasi' => $butuhEstimasi ? 1 : 0,
+            'estimasi_jam' => $session['estimasi_jam'] ?? null,
+            'request_text' => $msg !== '' ? $msg : ($session['request_text'] ?? null),
+            'request_granted' => array_key_exists('request_granted', $session) ? $session['request_granted'] : null,
+            'summary' => $summary,
+        ]);
+
+        $this->forwardEstimasiToFonnteGroup($waNumber, $msg);
+
+        // Ack ke customer hanya jika human CS tidak aktif (hindari noise)
+        if (!$this->isHumanAgentRecentlyActive($waNumber)) {
+            $sapaan = $this->getSapaanForGreeting($waNumber);
+            $ack = "Baik, sebentar kami tanyakan petugas dulu ya {$sapaan}";
+            $this->sendAutoreplyText($waNumber, $ack);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_ack_sent');
+        } else {
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_ack_skipped_human_active');
+        }
+    }
+
+    private function forwardEstimasiToFonnteGroup(string $waNumber, string $customerMessage): void
+    {
+        $nama = trim($this->getContactNameForGreeting($waNumber));
+        if ($nama === '') {
+            $nama = 'Pelanggan';
+        }
+        $pesan = trim($customerMessage);
+        if ($pesan === '') {
+            $pesan = '(pesan kosong)';
+        }
+        $groupText = "{$nama} menanyakan \"{$pesan}\". (AI Agent)";
+
+        try {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
+            }
+            if (!class_exists('\\App\\Config\\Fonnte')) {
+                require_once __DIR__ . '/../Config/Fonnte.php';
+            }
+            $fonnte = new \App\Helpers\CRM\FonnteService();
+            $groupId = \App\Config\Fonnte::getEstimasiGroupId();
+            $res = $fonnte->sendToGroup($groupId, $groupText);
+            $ok = !empty($res['success']);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'ESTIMASI_SELESAI',
+                'forward_group ' . ($ok ? 'ok' : ('fail=' . ($res['error'] ?? 'unknown')))
+            );
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('forwardEstimasiToFonnteGroup: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'forward_group exception');
+        }
     }
 
     private function handleStatus($phoneIn, $waNumber, $textBody = '')
@@ -5627,6 +6160,7 @@ class WAReplies
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
+            $prompt .= "PRIORITAS: Jika user bertanya KAPAN/JAM BERAPA siap/selesai/bisa diambil/dijemput (estimasi selesai, mis. 'kira jam berapa bisa dijemput kak?', 'kapan siap?') = ESTIMASI_SELESAI, BUKAN STATUS dan BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: Jika user meminta pricelist / price list / daftar harga / list harga (mis. 'boleh dibantu pricelistnya kak', 'minta pricelist') = pilih HARGA, bukan FALSE.\n";
             $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit + antar/jemput/delivery/ongkir paket (mis. paket member antar jemput, harga paket include antar) = HARGA_PAKET_D, BUKAN HARGA_PAKET dan BUKAN MINTA_JEMPUT_ANTAR.\n";
@@ -5676,6 +6210,13 @@ class WAReplies
                     $intent = 'STATUS';
                     $reason = 'remap tanya siap laundry → STATUS (ai label bukan)';
                 }
+            }
+
+            // FALSE / STATUS / MINTA padahal tanya kapan/jam berapa siap = ESTIMASI_SELESAI
+            if (in_array($intent, ['FALSE', 'STATUS', 'MINTA_JEMPUT_ANTAR', 'JAM_OPERASIONAL'], true)
+                && $this->messageLooksLikeEstimasiSelesai($textBody)) {
+                $intent = 'ESTIMASI_SELESAI';
+                $reason = 'remap kapan/jam berapa siap → ESTIMASI_SELESAI';
             }
 
             // FALSE padahal jelas tanya berat order (berapa/brp kilo atau kg) — samakan ke TAGIHAN (bukan tanya harga per kg)

@@ -572,6 +572,194 @@ if (isset($data['data_operasi'])) {
             border-color: transparent;
             color: #fff;
         }
+        .mdl-tbtn--bell {
+            position: relative;
+            border-color: transparent;
+            color: #fff;
+            background: rgba(15, 23, 42, 0.35);
+        }
+        .mdl-tbtn--bell:hover {
+            background: rgba(15, 23, 42, 0.55);
+            border-color: transparent;
+            color: #fff;
+        }
+        .mdl-bell-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 0;
+            background: #f59e0b;
+            border: 1px solid #0f172a;
+            color: #0f172a;
+            font-family: 'fontku', sans-serif;
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 16px;
+            text-align: center;
+            display: none;
+        }
+        .mdl-bell-badge.is-on {
+            display: block;
+        }
+
+        /* Offcanvas Notifikasi */
+        #offcanvasNotif {
+            --bs-offcanvas-width: min(420px, 100vw);
+            border-left: 1px solid #0f172a;
+        }
+        #offcanvasNotif .offcanvas-header {
+            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+            color: #fff;
+            border-bottom: 1px solid #0f172a;
+            padding: 0.9rem 1rem;
+        }
+        body.mode-priv-100 #offcanvasNotif .offcanvas-header {
+            background: linear-gradient(105deg, #991b1b 0%, #dc2626 100%);
+        }
+        body.mode-priv-12 #offcanvasNotif .offcanvas-header {
+            background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%);
+        }
+        #offcanvasNotif .offcanvas-title {
+            font-family: 'fontku', sans-serif;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin: 0;
+            text-shadow: 0 1px 0 rgba(0,0,0,.18);
+        }
+        #offcanvasNotif .offcanvas-body {
+            background:
+                radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.10), transparent 50%),
+                linear-gradient(180deg, #eef4ff 0%, #f8fafc 100%);
+            padding: 0.75rem;
+        }
+        .mdl-notif-card {
+            border: 1px solid #93c5fd;
+            background: linear-gradient(180deg, #eff6ff, #fff);
+            margin-bottom: 0.65rem;
+            padding: 0.75rem;
+        }
+        .mdl-notif-card__head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .mdl-notif-card__title {
+            font-family: 'fontku', sans-serif;
+            font-weight: 900;
+            font-size: 14px;
+            color: #0f172a;
+            margin: 0;
+            line-height: 1.25;
+        }
+        .mdl-notif-card__meta {
+            font-size: 11px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 8px;
+        }
+        .mdl-notif-chip {
+            display: inline-block;
+            border: 1px solid #93c5fd;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 2px 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .mdl-notif-chip--warn {
+            border-color: #fcd34d;
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .mdl-notif-chip--fase {
+            border-color: #86efac;
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .mdl-notif-req {
+            border: 1px solid #fcd34d;
+            background: #fffbeb;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 8px;
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .mdl-notif-form label {
+            display: block;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+            margin-bottom: 3px;
+        }
+        .mdl-notif-form .mdl-notif-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-bottom: 8px;
+        }
+        .mdl-notif-form input[type="time"],
+        .mdl-notif-form select {
+            height: 34px;
+            border: 1px solid #94a3b8;
+            border-radius: 0;
+            background: #fff;
+            color: #0f172a;
+            font-weight: 700;
+            padding: 0 8px;
+            min-width: 110px;
+        }
+        .mdl-notif-form input[type="time"]:focus,
+        .mdl-notif-form select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28);
+            border-color: #2563eb;
+        }
+        .mdl-notif-btn {
+            height: 34px;
+            border: 1px solid #15803d;
+            border-radius: 0;
+            background: linear-gradient(180deg, #16a34a, #15803d);
+            color: #fff;
+            font-family: 'fontku', sans-serif;
+            font-weight: 900;
+            font-size: 12px;
+            padding: 0 12px;
+            cursor: pointer;
+        }
+        .mdl-notif-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .mdl-notif-empty {
+            border: 1px dashed #94a3b8;
+            background: #fff;
+            color: #1e293b;
+            font-weight: 700;
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+        .mdl-notif-section-title {
+            font-family: 'fontku', sans-serif;
+            font-weight: 900;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+            margin: 0 0 8px;
+        }
 
         .mdl-topbar select.mdl-tctrl {
             padding: 0 28px 0 10px;
@@ -1635,6 +1823,10 @@ if ($privUi === 100) {
 
                 <div class="mdl-spacer"></div>
 
+                <button type="button" id="btnNotifBell" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--bell" title="Notifikasi" aria-label="Notifikasi">
+                    <i class="fas fa-bell"></i>
+                    <span class="mdl-bell-badge" id="notifBellBadge">0</span>
+                </button>
                 <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--refresh refresh" href="#" title="Refresh data">
                     <i class="fas fa-sync"></i>
                 </a>
@@ -1687,6 +1879,18 @@ if ($privUi === 100) {
             </div>
         </div>
         <?php } ?>
+
+        <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotif" aria-labelledby="offcanvasNotifLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="offcanvasNotifLabel">
+                    <i class="fas fa-bell me-2"></i>Notifikasi
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+            </div>
+            <div class="offcanvas-body" id="offcanvasNotifBody">
+                <div class="mdl-notif-empty">Memuat…</div>
+            </div>
+        </div>
 
         <?php if ($this->id_privilege == 100 || $this->id_privilege == 12) {
             $userSwitchList = [];
@@ -2797,6 +3001,200 @@ if ($privUi === 100) {
                         error: function(msg, opts) { return show(msg, "error", opts); },
                         info: function(msg, opts) { return show(msg, "info", opts); }
                     };
+                })();
+
+                (function initNotifBell() {
+                    var bellBtn = document.getElementById('btnNotifBell');
+                    var badge = document.getElementById('notifBellBadge');
+                    var offcanvasEl = document.getElementById('offcanvasNotif');
+                    var bodyEl = document.getElementById('offcanvasNotifBody');
+                    if (!bellBtn || !offcanvasEl || !bodyEl) {
+                        return;
+                    }
+
+                    var baseUrl = '<?= URL::BASE_URL ?>';
+                    var bsOffcanvas = (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas)
+                        ? (bootstrap.Offcanvas.getOrCreateInstance
+                            ? bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl)
+                            : new bootstrap.Offcanvas(offcanvasEl))
+                        : null;
+
+                    function escHtml(s) {
+                        return String(s == null ? '' : s)
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;');
+                    }
+
+                    function setBadge(n) {
+                        n = parseInt(n, 10) || 0;
+                        if (!badge) return;
+                        badge.textContent = n > 99 ? '99+' : String(n);
+                        if (n > 0) {
+                            badge.classList.add('is-on');
+                        } else {
+                            badge.classList.remove('is-on');
+                        }
+                    }
+
+                    function refreshCount() {
+                        $.getJSON(baseUrl + 'Estimasi/count')
+                            .done(function(res) {
+                                if (res && res.ok) {
+                                    setBadge(res.count);
+                                }
+                            })
+                            .fail(function() { /* silent */ });
+                    }
+
+                    function defaultTimeValue() {
+                        var d = new Date();
+                        d.setMinutes(d.getMinutes() + 60);
+                        var h = String(d.getHours()).padStart(2, '0');
+                        var m = String(Math.floor(d.getMinutes() / 5) * 5).padStart(2, '0');
+                        return h + ':' + m;
+                    }
+
+                    function renderItems(items) {
+                        if (!items || !items.length) {
+                            bodyEl.innerHTML = '<div class="mdl-notif-empty">Tidak ada notifikasi estimasi yang perlu ditanggapi.</div>';
+                            return;
+                        }
+
+                        var html = '<div class="mdl-notif-section-title">Estimasi selesai — update state</div>';
+                        items.forEach(function(it) {
+                            var title = escHtml(it.nama || 'Pelanggan');
+                            var phone = escHtml(it.phone_display || it.phone || '');
+                            var idSale = it.id_penjualan ? ('#' + it.id_penjualan) : '-';
+                            var fase = escHtml(it.fase_proses || '-');
+                            var chips = '';
+                            if (parseInt(it.butuh_estimasi, 10) === 1) {
+                                chips += '<span class="mdl-notif-chip mdl-notif-chip--warn">Butuh estimasi</span> ';
+                            }
+                            if (it.has_request) {
+                                chips += '<span class="mdl-notif-chip mdl-notif-chip--warn">Ada request</span> ';
+                            }
+                            chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + fase + '</span>';
+
+                            var reqBlock = '';
+                            if (it.has_request) {
+                                reqBlock = '<div class="mdl-notif-req">' + escHtml(it.request_text) + '</div>';
+                            }
+
+                            var grantSelect = '';
+                            if (it.has_request) {
+                                grantSelect =
+                                    '<div>' +
+                                    '<label>Permintaan</label>' +
+                                    '<select class="js-notif-granted" required>' +
+                                    '<option value="">— pilih —</option>' +
+                                    '<option value="1">Setujui</option>' +
+                                    '<option value="0">Tolak</option>' +
+                                    '</select>' +
+                                    '</div>';
+                            }
+
+                            html +=
+                                '<div class="mdl-notif-card" data-phone="' + escHtml(it.phone) + '">' +
+                                '<div class="mdl-notif-card__head">' +
+                                '<h6 class="mdl-notif-card__title">' + title + '</h6>' +
+                                '<div>' + chips + '</div>' +
+                                '</div>' +
+                                '<p class="mdl-notif-card__meta">' + phone + ' · Laundry ID ' + escHtml(idSale) +
+                                (it.updated_at ? (' · ' + escHtml(it.updated_at)) : '') + '</p>' +
+                                reqBlock +
+                                '<form class="mdl-notif-form js-notif-form">' +
+                                '<div class="mdl-notif-row">' +
+                                '<div>' +
+                                '<label>Estimasi jam</label>' +
+                                '<input type="time" class="js-notif-jam" value="' + defaultTimeValue() + '" required>' +
+                                '</div>' +
+                                grantSelect +
+                                '<div>' +
+                                '<button type="submit" class="mdl-notif-btn">Simpan &amp; kirim WA</button>' +
+                                '</div>' +
+                                '</div>' +
+                                '</form>' +
+                                '</div>';
+                        });
+                        bodyEl.innerHTML = html;
+                    }
+
+                    function loadList() {
+                        bodyEl.innerHTML = '<div class="mdl-notif-empty">Memuat…</div>';
+                        $.getJSON(baseUrl + 'Estimasi/list')
+                            .done(function(res) {
+                                if (!res || !res.ok) {
+                                    bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat: ' + escHtml((res && res.msg) || 'error') + '</div>';
+                                    return;
+                                }
+                                renderItems(res.items || []);
+                                setBadge((res.items || []).length);
+                            })
+                            .fail(function(xhr) {
+                                bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat notifikasi (' + xhr.status + ')</div>';
+                            });
+                    }
+
+                    bellBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        if (bsOffcanvas) {
+                            bsOffcanvas.show();
+                        } else {
+                            offcanvasEl.classList.add('show');
+                        }
+                    });
+
+                    offcanvasEl.addEventListener('show.bs.offcanvas', function() {
+                        loadList();
+                    });
+
+                    $(bodyEl).on('submit', '.js-notif-form', function(e) {
+                        e.preventDefault();
+                        var $card = $(this).closest('.mdl-notif-card');
+                        var phone = $card.data('phone');
+                        var jam = $card.find('.js-notif-jam').val();
+                        var $granted = $card.find('.js-notif-granted');
+                        var granted = $granted.length ? $granted.val() : '';
+                        var $btn = $card.find('.mdl-notif-btn');
+
+                        if ($granted.length && granted === '') {
+                            if (window.MdlToast) MdlToast.warn('Pilih Setujui / Tolak');
+                            return;
+                        }
+
+                        $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: {
+                                phone: phone,
+                                estimasi_jam: jam,
+                                request_granted: granted,
+                                send_wa: 1
+                            }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) {
+                                    if (res.wa_ok) MdlToast.ok(res.msg || 'Terkirim');
+                                    else MdlToast.warn(res.msg || 'State tersimpan');
+                                }
+                                loadList();
+                                refreshCount();
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal kirim');
+                            $btn.prop('disabled', false);
+                        });
+                    });
+
+                    refreshCount();
+                    window.setInterval(refreshCount, 60000);
                 })();
             </script>
 <?php require_once __DIR__ . '/pwa_register.php'; ?>

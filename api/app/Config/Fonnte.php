@@ -36,4 +36,12 @@ class Fonnte
     {
         return self::getConfig()['country_code'];
     }
+
+    /**
+     * Group WhatsApp untuk eskalasi ESTIMASI_SELESAI (tanya petugas).
+     */
+    public static function getEstimasiGroupId(): string
+    {
+        return '120363024779416973@g.us';
+    }
 }

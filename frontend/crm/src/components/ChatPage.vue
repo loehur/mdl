@@ -648,7 +648,10 @@ const formatReactionText = (t) => (t || "👍").replace("Reacted: ", "").replace
 const getMessagePreview = (m) => {
     if(!m) return "";
     if(m.type === 'image') return "📷 Image";
-    if(m.type === 'audio') return "🎵 Audio";
+    if(m.type === 'video') return "🎥 Video";
+    if(m.type === 'audio' || m.type === 'voice') return "🎵 Audio";
+    if(m.type === 'document') return "📄 Document";
+    if(m.type === 'sticker') return "Sticker";
     return (m.text || m.caption || "").substring(0, 60);
 };
 // Check if message is plain text (no media type)
@@ -1056,8 +1059,50 @@ onUnmounted(() => {
                                       </div>
                                   </div>
 
+                                  <!-- Video -->
+                                  <div v-else-if="msg.type === 'video'" class="relative max-w-sm">
+                                      <div v-if="shouldHideMessage(msg)" class="relative">
+                                           <video
+                                             :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                             class="max-h-80 w-full object-cover blur-md rounded-lg"
+                                             preload="metadata"
+                                           ></video>
+                                           <div class="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                                                <div class="text-center text-white p-4">
+                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                     </svg>
+                                                     <p class="text-sm font-medium">Pesan Private</p>
+                                                     <p class="text-xs mt-1">Hanya admin yang dapat melihat</p>
+                                                </div>
+                                           </div>
+                                      </div>
+                                      <video
+                                        v-else
+                                        :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                        class="max-h-80 w-full object-contain rounded-lg bg-black"
+                                        controls
+                                        playsinline
+                                        preload="metadata"
+                                      ></video>
+                                      <div v-if="msg.text || msg.time" class="mt-1 px-1">
+                                           <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-0.5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                </svg>
+                                                <span>Private</span>
+                                           </div>
+                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none text-[var(--wa-text-primary)]']" style="line-height: 1.1;">{{ msg.text }}</p>
+                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none text-[var(--wa-text-tertiary)]" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
+                                           <div class="flex justify-end items-center gap-1 text-[10px] text-[var(--wa-text-tertiary)]">
+                                              <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                              <span>{{ msg.time }}</span>
+                                           </div>
+                                      </div>
+                                  </div>
+
                                   <!-- Audio -->
-                                  <div v-else-if="msg.type === 'audio'" class="relative min-w-[200px] max-w-[280px]">
+                                  <div v-else-if="msg.type === 'audio' || msg.type === 'voice'" class="relative min-w-[200px] max-w-[280px]">
                                       <div class="flex items-center gap-3 p-2 rounded-lg bg-black/10 dark:bg-black/20">
                                           <button
                                             type="button"
@@ -1303,6 +1348,16 @@ onUnmounted(() => {
                 <p class="text-xs font-bold text-[var(--wa-accent-green)] mb-1">{{ quotedMessageToShow.fromName }}</p>
                 <div v-if="quotedMessageToShow.type === 'image' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
                     <img :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" />
+                    <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
+                </div>
+                <div v-else-if="quotedMessageToShow.type === 'video' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
+                    <video
+                      :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`"
+                      class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)] bg-black"
+                      controls
+                      playsinline
+                      preload="metadata"
+                    ></video>
                     <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
                 </div>
                 <p v-else class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>

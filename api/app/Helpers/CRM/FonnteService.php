@@ -37,7 +37,8 @@ class FonnteService
             ];
         }
 
-        $target = $this->formatPhone($phone);
+        $isGroup = $this->isGroupTarget($phone);
+        $target = $isGroup ? trim((string) $phone) : $this->formatPhone($phone);
         if (empty($target)) {
             return [
                 'success' => false,
@@ -59,7 +60,12 @@ class FonnteService
         if (!empty($options['filename'])) {
             $postFields['filename'] = (string) $options['filename'];
         }
-        if (isset($options['countryCode'])) {
+        // Group @g.us: countryCode harus kosong agar Fonnte tidak strip suffix
+        if ($isGroup) {
+            $postFields['countryCode'] = array_key_exists('countryCode', $options)
+                ? (string) $options['countryCode']
+                : '';
+        } elseif (isset($options['countryCode'])) {
             $postFields['countryCode'] = (string) $options['countryCode'];
         }
         if (isset($options['inboxid']) && is_numeric($options['inboxid'])) {
@@ -101,10 +107,38 @@ class FonnteService
     }
 
     /**
-     * Format phone for Fonnte (62xxx)
+     * Kirim ke group WhatsApp (target …@g.us).
+     */
+    public function sendToGroup($groupId, $message, array $options = [])
+    {
+        $groupId = trim((string) $groupId);
+        if (!$this->isGroupTarget($groupId)) {
+            return [
+                'success' => false,
+                'data' => null,
+                'error' => 'Invalid group id (expected …@g.us)',
+            ];
+        }
+
+        return $this->sendMessage($groupId, $message, $options);
+    }
+
+    /**
+     * Target group Fonnte (…@g.us) — jangan di-strip digit.
+     */
+    private function isGroupTarget($phone): bool
+    {
+        return (bool) preg_match('/@g\.us$/i', trim((string) $phone));
+    }
+
+    /**
+     * Format phone for Fonnte (62xxx). Group @g.us dibiarkan utuh di sendMessage.
      */
     private function formatPhone($phone)
     {
+        if ($this->isGroupTarget($phone)) {
+            return trim((string) $phone);
+        }
         $digits = preg_replace('/[^0-9]/', '', $phone);
         if (strlen($digits) < 8) {
             return '';

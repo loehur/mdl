@@ -203,8 +203,6 @@ return [
             '/\b(sudah|udah|udh|dah+|dh)\s*sia+p+\b/i',  // dh siap, udh siap, laundry saya udh siap?
             // siap+kak/kk/... = STATUS hanya jika BUKAN sekadar pesan pendek "siap kak" (= PENUTUP)
             '/(?!\A\s*\bsia+p+\s*(?:kak|kk|bang|min|mbak|pak|bu|penya|punya|ya)\s*\??\s*\z)\b(siap|sia+p+)\s*(kak|kk|bang|min|mbak|pak|bu|penya|punya)/iu',
-            // tanya kapan/jam + siap (bukan ack "siap kak" saja)
-            '/\b(kapan|kpn|jam\s*berapa|brp|berapa)\b.{0,40}?\b(siap|sia+p+|selesai|jadi)\b/iu',
             '/\b(sudah|udah|udh|dah|dh)\s*selesai/i',  // sudah selesai laundry nya kak? udh selesai kah?
             '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*)?ambil/i',  // udh bisa di ambil baju sy? sdh bisa diambil?
             '/\b(udah|sudah|udh|sdh|dah|dh)\s*bisa\s*(di\s*|d\s+)?jemput/i',  // udh/sdh bisa d jemput? (bukan minta kurir)
@@ -218,29 +216,64 @@ return [
             '/\b(sudah|udah|sudh|udh|dah|dh)\s+siap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu',
             '/\b(apakah)\b.{0,120}?\bsiap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu',
         ],
-        'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry, seperti:\n
-        Contoh kalimat tanya status (pilih intent STATUS, bukan kategori lain):\n
-        | sudah selesai? | udh selesai kah? | bisa diambil? | kapan siap? | jam berapa siap? | sudah jadi? | jam berapa selesai? |\n
-        | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | pakaian harian apa sdh bisa dijemput? | yang strika sdh bisa dijemput? | kapan bisa diambil? | siapnya kapan? | siapnya jam berapa? |\n
+        'ai_prompt' => "User menanyakan ATAU memberitahu status/progress laundry SAAT INI (sudah siap atau belum), BUKAN tanya estimasi kapan siap.\n
+        Contoh kalimat tanya STATUS (pilih STATUS):\n
+        | sudah selesai? | udh selesai kah? | bisa diambil? | sudah jadi? | sudah siap kak? | udah siap kak? |\n
+        | sudah bisa diambil? | udh bisa d jemput kak? | udh bisa di jemput? | pakaian harian apa sdh bisa dijemput? | yang strika sdh bisa dijemput? |\n
         | atas nama IVAN udah? | atas nama X sudah? | laundry [nama] udah? | punya [nama] sudah? |\n
         \n
         KONFIRMASI/PEMBERITAHUAN status (sudah siap) — bedakan dari ack penutup:\n
         | sudah siap | udh siap | dah siap | dahh siapp | siapp kak | sudah jadi | ready |\n
-        | laundry saya udh siap | loundry saya udh siap mbak | dh siap kk penya ku | siap kk penya | kak dahh siapp kak | dah siapp | sudah siap kak | udah siap kak? |\n
+        | laundry saya udh siap | loundry saya udh siap mbak | dh siap kk penya ku | siap kk penya | kak dahh siapp kak | dah siapp |\n
         (Hanya 'siap kak' / 'ok siap' / 'ok siap kak' tanpa konteks tanya status = intent PENUTUP, bukan STATUS.)\n
         \n
         PRIORITAS: 'apakah sudah/sudh/siap ... laundry/laundri/cucian saya?', 'sudh siap laundri?', 'udh siap cucian?' = tanya STATUS order (pilih STATUS).\n
         PENTING:\n
         - Pola 'yang/pakaian/laundry/... apa ... bisa dijemput/diambil?' (boleh tanpa sdh/udh) = tanya status order siap diambil = STATUS\n
-        - Jika user bertanya 'kapan' atau 'jam berapa' + (siap/selesai/jadi/bisa diambil) = STATUS\n
         - Jika user bertanya 'atas nama [nama] udah/sudah?' = STATUS (tanya status laundry atas nama tertentu)\n
-        - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'dahh siapp' / 'udah siap kak?' / 'kapan siap kak?' = STATUS (bukan sekadar 'siap kak' / 'ok siap' pendek = PENUTUP)\n
+        - Jika user memberitahu/konfirmasi 'sudah siap' / 'dah siap' / 'siapp' / 'udah siap kak?' = STATUS (bukan sekadar 'siap kak' / 'ok siap' pendek = PENUTUP)\n
+        \n
+        FALSE (BUKAN STATUS) — pilih ESTIMASI_SELESAI:\n
+        - Tanya KAPAN / JAM BERAPA siap/selesai/bisa diambil/dijemput (butuh estimasi waktu) = ESTIMASI_SELESAI, BUKAN STATUS. Contoh: | kapan siap? | jam berapa siap? | siapnya kapan? | kira jam berapa bisa dijemput kak? |\n
         \n
         FALSE (BUKAN STATUS) - CRITICAL:\n
-        - Belum dapat notifikasi/nota via WA setelah sudah antar laundry = follow-up BON/NOTA digital = NOTA, BUKAN STATUS (bukan tanya sudah selesai/siap cuci).\n
-        - 'Masih bisa siap gak?' / 'masih bisa siap?' + konteks mau bawa/antar laundry = user BELUM antar laundry, tanya AVAILABILITAS (masih terima/proses?) = JAM_OPERASIONAL. Contoh: | masih bisa siap gak kk mau bawa sprei | masih bisa siap mau antar |\n
-        - 'tutup tgl berapa?' / 'tutup tanggal brp?' = tanya tanggal libur/tutup toko = JAM_OPERASIONAL (bukan STATUS)\n
-        - atau yang menurut anda sangat yakin sebagai pertanyaan/pemberitahuan status laundry"
+        - Belum dapat notifikasi/nota via WA setelah sudah antar laundry = follow-up BON/NOTA digital = NOTA, BUKAN STATUS.\n
+        - 'Masih bisa siap gak?' / 'masih bisa siap?' + konteks mau bawa/antar laundry = JAM_OPERASIONAL.\n
+        - 'tutup tgl berapa?' / 'tutup tanggal brp?' = JAM_OPERASIONAL (bukan STATUS)\n
+        - atau yang menurut anda sangat yakin sebagai pertanyaan/pemberitahuan status laundry SAAT INI"
+    ],
+
+    'ESTIMASI_SELESAI' => [
+        // Hit pertama: case null (balas fase data). Follow-up session di process() set case 4 + notify.
+        'patterns' => [
+            // kapan / jam berapa + siap/selesai/jadi (estimasi, bukan "sudah siap?")
+            '/\b(kapan|kpn|jam\s*(brp|brpa|berapa)|brp|berapa)\b.{0,50}?\b(siap|sia+p+|selesai|jadi)\b/iu',
+            '/\b(siap|sia+p+|selesai)(nya)?\b.{0,30}?\b(kapan|kpn|jam|brp|berapa)\b/iu',
+            // kira(-kira) jam/kapan ... bisa dijemput/diambil / siap
+            '/\b(kira|kira[\s\-]*kira)\b.{0,60}?\b(jam|kapan|kpn|brp|berapa)\b.{0,60}?\b(bisa|boleh)?\s*(di\s*)?(ambil|jemput|siap|selesai)\b/iu',
+            // jam/kapan berapa bisa (di)ambil / (di)jemput — estimasi siap diambil (bukan minta kurir)
+            '/\b(kapan|kpn|jam\s*(brp|brpa|berapa)|brp|berapa)\b.{0,50}?\b(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu',
+            '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di\s*)?(jemput|ambil)\b/iu',
+            // "kapan bisa diambil?" / "kapan bisa dijemput?"
+            '/\b(kapan|kpn)\s+(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu',
+        ],
+        'ai_prompt' => "User menanyakan ESTIMASI waktu selesai / kapan laundry SIAP diambil — BUKAN tanya apakah sudah siap sekarang, BUKAN minta kurir jemput/antar.\n
+        TRUE (ESTIMASI_SELESAI):\n
+        | kapan siap? | jam berapa siap? | siapnya kapan? | siapnya jam berapa? | jam berapa selesai? | kapan selesai? |\n
+        | kapan bisa diambil? | jam berapa bisa diambil? | kira jam berapa bisa dijemput kak? | kira\" jam berapa bisa dijemput? |\n
+        | jam brp bisa dijemput? | kapan bisa dijemput? | estimasi selesai? | kira-kira jam berapa siap? |\n
+        \n
+        CRITICAL - bedakan dari STATUS:\n
+        - 'sudah siap kak?' / 'udah siap?' / 'sudah selesai?' / 'bisa diambil?' (tanpa kapan/jam berapa) = STATUS (cek status sekarang), BUKAN ESTIMASI_SELESAI.\n
+        - 'udah bisa dijemput?' / 'sdh bisa diambil?' = STATUS.\n
+        \n
+        CRITICAL - bedakan dari MINTA_JEMPUT_ANTAR:\n
+        - 'kira jam berapa bisa dijemput' / 'jam berapa bisa dijemput' (tanya kapan order SIAP diambil customer) = ESTIMASI_SELESAI, BUKAN minta kurir.\n
+        - 'tolong jemput di kamar 212' / 'minta dijemput ke hotel' = MINTA_JEMPUT_ANTAR.\n
+        - 'jam berapa besok diantar?' / 'kapan diantarnya?' (jadwal kurir antar ke alamat) = MINTA_JEMPUT_ANTAR.\n
+        \n
+        CRITICAL - bedakan dari JAM_OPERASIONAL:\n
+        - 'jam berapa buka/tutup?' = JAM_OPERASIONAL, BUKAN ESTIMASI_SELESAI."
     ],
 
     'HARGA' => [
@@ -380,8 +413,8 @@ return [
          '/\b(tolong|minta|bantu|bntu|bisa|boleh)\s*(di)?(antar|jemput)\b/i',
          // Singkatan WA: "bs jmpt baju?", "bs jemput?" (= bisa jemput); tanpa "masih" = permintaan/tanya jemput (bukan JAM_OPERASIONAL)
          '/\b(bs|bis)\s*(jmpt|jemput|antar)\b/i',
-         // "jam berapa bisa jemput?" = tanya jadwal jemput (bukan jam buka toko)
-         '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(jemput|antar)/i',
+         // "jam berapa bisa diantar?" = jadwal kurir antar (bukan estimasi siap diambil — itu ESTIMASI_SELESAI)
+         '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di)?antar\b/i',
          // "jam brp bsk diantarnya?" / "jam berapa besok diantar?" = tanya jadwal pengantaran order
          '/\b(jam\s*)?(brp|brpa|berapa)\s*(bsk|besok|nanti)?\s*(di)?antar/i',
          '/\b(ka*pa*n|kpn)\s*(di)?(antar|jemput)/i',
@@ -413,11 +446,12 @@ return [
       \n
       FALSE (BUKAN MINTA JEMPUT/ANTAR) - SANGAT PENTING:\n
       - Tanya STATUS order (sudah/sdh/udh bisa dijemput/diambil) termasuk per kategori: | pakaian harian apa sdh bisa dijemput? | yang cuci setrika udh bisa dijemput? | = STATUS, BUKAN minta kurir.\n
+      - Tanya ESTIMASI selesai / kapan siap diambil: | kapan siap? | jam berapa siap? | kira jam berapa bisa dijemput kak? | jam berapa bisa dijemput? | kapan bisa diambil? | = ESTIMASI_SELESAI, BUKAN minta kurir.\n
       - User yang akan MENGAMBIL SENDIRI: | mau jemput | saya jemput | aku ambil | awak jemput | nanti saya jemput |\n
       - Konfirmasi/Pemberitahuan: | baik nanti dijemput | ok sore diantar | iya nanti akan dijemput | siap dijemput |\n
       - Hanya memberitahu jadwal tanpa permintaan: | nanti sore dijemput | besok diantar | jam 2 dijemput |\n
       - CRITICAL: 'masih bisa antar laundry?' / 'masih bisa antar?' = tanya AVAILABILITAS operasional = JAM_OPERASIONAL (bukan MINTA_JEMPUT_ANTAR). Kata 'masih' membedakan: tanya masih buka/bisa vs permintaan.\n
-      - TRUE: 'jam berapa bisa jemput setrika?' / 'jam brp bisa jemput?' = user minta jemput kain setrikaan, tanya kapan kurir bisa jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
+      - CRITICAL: 'kira jam berapa bisa dijemput' / 'jam berapa bisa dijemput' (tanpa lokasi kamar/hotel) = tanya kapan order SIAP diambil = ESTIMASI_SELESAI, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL: 'Mau jemput' / 'saya jemput nanti' = User SENDIRI yang akan mengambil = FALSE (bedakan dari 'ambil baju di kamar X' = minta kurir)\n
       - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
       - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir paket/delivery (berapa harga paket include antar? harga member pakai antar? paket member antar jemput) = HARGA_PAKET_D, BUKAN MINTA_JEMPUT_ANTAR.\n
@@ -497,7 +531,7 @@ return [
         \n
         FALSE (BUKAN JAM_OPERASIONAL) - PENTING:\n
         - 'Jam berapa?' / 'Jam brp?' TANPA kata buka/tutup/operasional/terima sama sekali = user menanya WAKTU SAAT INI = FALSE\n
-        - 'jam berapa bisa jemput?' / 'jam brp bisa jemput setrika?' = user minta jemput = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
+        - 'jam berapa bisa jemput?' / 'kira jam berapa bisa dijemput?' = tanya estimasi kapan order siap diambil = ESTIMASI_SELESAI (bukan JAM_OPERASIONAL, bukan MINTA_JEMPUT kecuali ada lokasi kamar/hotel)\n
         - 'jam brp bsk diantarnya?' / 'jam berapa besok diantar?' / 'kapan diantarnya?' = tanya jadwal PENGANTARAN order = MINTA_JEMPUT_ANTAR (bukan JAM_OPERASIONAL)\n
         - 'bisa antar laundry?' / 'tolong antar laundry' / 'bs jmpt baju?' (TANPA 'masih') = permintaan jemput/antar = MINTA_JEMPUT_ANTAR\n
         - Contoh FALSE: 'jam berapa?', 'jam brp kak?' (tanpa buka/tutup) | 'jam berapa diantar?', 'kapan dijemput?', 'jam brp bsk diantarnya?'"
