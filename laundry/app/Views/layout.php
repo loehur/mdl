@@ -3058,11 +3058,11 @@ if ($privUi === 100) {
 
                     function renderItems(items) {
                         if (!items || !items.length) {
-                            bodyEl.innerHTML = '<div class="mdl-notif-empty">Tidak ada notifikasi estimasi yang perlu ditanggapi.</div>';
+                            bodyEl.innerHTML = '<div class="mdl-notif-empty">Belum ada notifikasi</div>';
                             return;
                         }
 
-                        var html = '<div class="mdl-notif-section-title">Estimasi selesai — update state</div>';
+                        var html = '<div class="mdl-notif-section-title">Estimasi</div>';
                         items.forEach(function(it) {
                             var title = escHtml(it.nama || 'Pelanggan');
                             var phone = escHtml(it.phone_display || it.phone || '');
