@@ -265,12 +265,31 @@ trait WARepliesKurirTrait
         $step = (string) ($session['step'] ?? 'ask_jenis');
         $sapaan = $this->getSapaanForGreeting($waNumber);
 
-        // Batal / gak jadi / cancel — selalu prioritas di setiap step session kurir
+        // Hard: batal selalu prioritas
         if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelAndReply($waNumber, $sapaan, $session);
             return;
         }
 
+        // Hard: pin/Maps coords (terutama ask_shareloc, atau customer kirim pin saat confirm/pick)
+        $coords = $this->kurirExtractCoords($msg);
+        if ($coords !== null && in_array($step, ['ask_shareloc', 'confirm_lokasi', 'pick_lokasi', 'lokasi_check'], true)) {
+            $this->kurirHandleShareloc($waNumber, $sapaan, $session, $msg);
+            $this->kurirAppendSummary($waNumber, $session, 'shareloc_coords');
+            return;
+        }
+
+        // Hard: pilih angka di pick_lokasi / instant_pick
+        if ($step === 'pick_lokasi' && preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg))) {
+            $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $msg);
+            return;
+        }
+        if ($step === 'instant_pick' && preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg))) {
+            $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, $msg);
+            return;
+        }
+
+        // ask_jenis: tetap deteksi jemput/antar (bisa AI jika ambigu)
         if ($step === 'ask_jenis') {
             $jenis = $this->detectKurirJenis($msg);
             if (!$jenis && preg_match('/\bjemput\b/iu', $msg)) {
@@ -279,14 +298,44 @@ trait WARepliesKurirTrait
             if (!$jenis && preg_match('/\bantar\b/iu', $msg)) {
                 $jenis = 'antar';
             }
-            if (!$jenis) {
-                $this->sendAutoreplyText($waNumber, "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?");
+            if ($jenis) {
+                $this->saveKurirSession($waNumber, ['jenis' => $jenis, 'step' => 'lokasi_check']);
+                $session = $this->getKurirSession($waNumber) ?: $session;
+                $session['jenis'] = $jenis;
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
                 return;
             }
-            $this->saveKurirSession($waNumber, ['jenis' => $jenis, 'step' => 'lokasi_check']);
-            $session = $this->getKurirSession($waNumber) ?: $session;
-            $session['jenis'] = $jenis;
+            // Ambigu → AI
+        }
+
+        // lokasi_check tanpa input bermakna: jalankan check (biasanya dipanggil internal)
+        if ($step === 'lokasi_check' && trim($msg) === '') {
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+            return;
+        }
+
+        // AI decide (summary + konteks)
+        $decision = $this->kurirAiDecide($waNumber, $session, $msg);
+        if ($decision !== null) {
+            $this->kurirDispatchAiAction($waNumber, $sapaan, $session, $msg, $decision);
+            return;
+        }
+
+        // Fallback regex/route lama
+        $this->kurirRouteStepRegexFallback($phoneIn, $waNumber, $msg, $session, $step, $sapaan);
+    }
+
+    private function kurirRouteStepRegexFallback(
+        string $phoneIn,
+        string $waNumber,
+        string $msg,
+        array $session,
+        string $step,
+        string $sapaan
+    ): void {
+        if ($step === 'ask_jenis') {
+            $this->sendAutoreplyText($waNumber, "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?");
             return;
         }
 
@@ -314,7 +363,7 @@ trait WARepliesKurirTrait
             case 'confirm_lokasi':
                 $this->kurirHandleConfirmLokasi($waNumber, $sapaan, $session, $msg);
                 break;
-            case 'terms_setuju': // legacy → treat as request aktif
+            case 'terms_setuju':
             case 'request_aktif':
                 $this->kurirHandleRequestAktif($waNumber, $sapaan, $session, $msg);
                 break;
@@ -353,7 +402,11 @@ trait WARepliesKurirTrait
         if ($t === '') {
             return false;
         }
-        if ($this->kurirLooksRefuse($msg) || $this->kurirLooksWantJam($msg) || $this->kurirLooksWantFast($msg)) {
+        if ($this->kurirLooksRefuse($msg)
+            || $this->kurirLooksWantOtherLokasi($msg)
+            || $this->kurirLooksWantJam($msg)
+            || $this->kurirLooksWantFast($msg)
+        ) {
             return false;
         }
         return (bool) preg_match(
@@ -369,6 +422,26 @@ trait WARepliesKurirTrait
         }
         return (bool) preg_match(
             '/\b(tidak|tdk|ga|gak|ngga|nggak|engga|enggak|bukan|jangan|nanti\s*aja|no)\b/iu',
+            $msg
+        );
+    }
+
+    /** Customer menolak lokasi yang ditawarkan / minta alamat lain. */
+    private function kurirLooksWantOtherLokasi(string $msg): bool
+    {
+        return (bool) preg_match(
+            '/\b('
+            . 'beda(\s*lokasi|\s*tempat|\s*alamat)?'
+            . '|lokasi\s*(lain|beda|baru|salah)'
+            . '|alamat\s*(lain|beda|baru|salah)'
+            . '|tempat\s*(lain|beda|baru|salah)'
+            . '|bukan\s*(itu|yang\s*itu|disitu|di\s*situ|sini|sana)?'
+            . '|salah\s*(lokasi|tempat|alamat)?'
+            . '|ganti\s*(lokasi|alamat|tempat)'
+            . '|pindah\s*(lokasi|alamat|tempat)?'
+            . '|bukan\s*rumah'
+            . '|lokasi\s*lain'
+            . ')\b/iu',
             $msg
         );
     }
@@ -726,6 +799,13 @@ trait WARepliesKurirTrait
 
     private function kurirHandlePickLokasi(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if ($this->kurirLooksWantOtherLokasi($msg)
+            || preg_match('/\b(baru|lain|share\s*loc|shareloc|maps|pin)\b/iu', $msg)
+        ) {
+            $this->kurirStartShareloc($waNumber, $sapaan, $session, $msg);
+            return;
+        }
+
         $list = [];
         $raw = $session['rates_json'] ?? '';
         if (is_string($raw) && $raw !== '') {
@@ -751,7 +831,10 @@ trait WARepliesKurirTrait
             }
         }
         if ($picked === null) {
-            $this->sendAutoreplyText($waNumber, "Pilih nomor lokasi yang tersedia ya {$sapaan}.");
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Pilih nomor lokasi yang tersedia ya {$sapaan}, atau balas *baru* untuk kirim shareloc."
+            );
             return;
         }
         $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $picked);
@@ -782,12 +865,88 @@ trait WARepliesKurirTrait
             $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;
         }
-        if ($this->kurirLooksRefuse($msg)) {
-            $this->saveKurirSession($waNumber, ['step' => 'lokasi_check', 'id_lokasi' => null]);
-            $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+        // Tolak / beda lokasi → jangan ulang prefer lokasi yang sama
+        if ($this->kurirLooksRefuse($msg) || $this->kurirLooksWantOtherLokasi($msg)) {
+            $this->kurirAskOtherLokasi($waNumber, $sapaan, $session, $msg);
             return;
         }
-        $this->sendAutoreplyText($waNumber, "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut.");
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut, atau bilang *beda lokasi* / kirim shareloc."
+        );
+    }
+
+    /**
+     * Customer menolak lokasi konfirmasi: tawarkan lokasi tersimpan lain, atau minta shareloc.
+     * (Tidak kembali ke prefer last-delivery yang sama.)
+     */
+    private function kurirAskOtherLokasi(string $waNumber, string $sapaan, array $session, string $msg): void
+    {
+        $excludeId = (int) ($session['id_lokasi'] ?? 0);
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $list = $this->kurirListLokasi($idPelanggan);
+        $filtered = [];
+        foreach ($list as $lok) {
+            if ((int) ($lok['id_lokasi'] ?? 0) !== $excludeId) {
+                $filtered[] = $lok;
+            }
+        }
+
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $note = 'tolak_lokasi id=' . $excludeId . ' "' . mb_substr(trim($msg), 0, 80) . '"';
+        $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 500);
+
+        if (empty($filtered)) {
+            $this->kurirStartShareloc($waNumber, $sapaan, $session, $msg, $summary);
+            return;
+        }
+
+        $lines = ["Baik {$sapaan}, pilih lokasi lain:"];
+        foreach ($filtered as $i => $lok) {
+            $n = $i + 1;
+            $lines[] = "{$n}. *{$lok['nama']}* — {$lok['detail']}";
+        }
+        $lines[] = "Atau balas *baru* lalu kirim *shareloc* / pin Google Maps.";
+        $this->saveKurirSession($waNumber, [
+            'step' => 'pick_lokasi',
+            'id_lokasi' => null,
+            'lokasi_nama' => null,
+            'lokasi_detail' => null,
+            'latt' => null,
+            'longt' => null,
+            'tarif' => null,
+            'rates_json' => json_encode(['lokasi_list' => $filtered], JSON_UNESCAPED_UNICODE),
+            'summary' => $summary,
+        ]);
+        $this->sendAutoreplyText($waNumber, implode("\n", $lines));
+    }
+
+    private function kurirStartShareloc(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg,
+        ?string $summary = null
+    ): void {
+        if ($summary === null) {
+            $summary = trim((string) ($session['summary'] ?? ''));
+            $note = 'minta_shareloc "' . mb_substr(trim($msg), 0, 80) . '"';
+            $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 500);
+        }
+        $this->saveKurirSession($waNumber, [
+            'step' => 'ask_shareloc',
+            'id_lokasi' => null,
+            'lokasi_nama' => null,
+            'lokasi_detail' => null,
+            'latt' => null,
+            'longt' => null,
+            'tarif' => null,
+            'summary' => $summary,
+        ]);
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya, biar kami catat titik yang dimaksud."
+        );
     }
 
     /**
@@ -1450,5 +1609,450 @@ trait WARepliesKurirTrait
         } catch (\Throwable $e) {
             return (int) (time() % 100000000);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Kurir AI: summary + chat context → action + optional reply
+    // -------------------------------------------------------------------------
+
+    /** @return list<string> */
+    private function kurirAllowedActionsForStep(string $step): array
+    {
+        $common = ['cancel', 'clarify'];
+        switch ($step) {
+            case 'ask_jenis':
+                return array_merge($common, ['confirm']); // confirm = pilih jenis via slots later → treat as clarify if no jenis
+            case 'lokasi_check':
+                return array_merge($common, ['other_lokasi', 'ask_shareloc', 'want_instant', 'want_jam']);
+            case 'ask_shareloc':
+                return array_merge($common, ['ask_shareloc', 'clarify']);
+            case 'ask_lokasi_nama':
+            case 'ask_lokasi_detail':
+                return array_merge($common, ['clarify', 'confirm']);
+            case 'pick_lokasi':
+                return array_merge($common, ['pick_lokasi', 'other_lokasi', 'ask_shareloc', 'want_instant']);
+            case 'confirm_lokasi':
+                return array_merge($common, ['confirm', 'other_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
+            case 'terms_setuju':
+            case 'request_aktif':
+                return array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'cancel']);
+            case 'wait_driver_jam':
+                return array_merge($common, ['noop_ack', 'cancel']);
+            case 'wait_continue_alt':
+                return array_merge($common, ['agree_alt', 'refuse_alt', 'cancel']);
+            case 'instant_confirm':
+                return array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi']);
+            case 'instant_pick':
+                return array_merge($common, ['pick_lokasi', 'cancel', 'other_lokasi']);
+            default:
+                return array_merge($common, ['noop_ack', 'other_lokasi', 'want_jam', 'want_instant', 'confirm']);
+        }
+    }
+
+    private function kurirBuildAiContext(string $waNumber, array $session, string $msg): string
+    {
+        $step = (string) ($session['step'] ?? '');
+        $lines = [];
+        $lines[] = 'SESSION:';
+        $lines[] = '- step: ' . $step;
+        $lines[] = '- jenis: ' . ($session['jenis'] ?? '-');
+        $lines[] = '- layanan: ' . ($session['layanan'] ?? 'sameday');
+        $lines[] = '- id_lokasi: ' . ($session['id_lokasi'] ?? '-');
+        $lines[] = '- lokasi_nama: ' . ($session['lokasi_nama'] ?? '-');
+        $lines[] = '- lokasi_detail: ' . ($session['lokasi_detail'] ?? '-');
+        $lines[] = '- tarif: ' . ($session['tarif'] ?? '-');
+        $lines[] = '- id_request: ' . ($session['id_request'] ?? '-');
+        $lines[] = '- request_jam: ' . ($session['request_jam'] ?? '-');
+        $lines[] = '- request_tanggal: ' . ($session['request_tanggal'] ?? '-');
+        $lines[] = '- driver_alt_jam: ' . ($session['driver_alt_jam'] ?? '-');
+        $lines[] = '- driver_alt_tanggal: ' . ($session['driver_alt_tanggal'] ?? '-');
+        $sumTxt = trim((string) ($session['summary'] ?? ''));
+        $lines[] = '- summary: ' . ($sumTxt !== '' ? $sumTxt : '(kosong)');
+
+        $allowed = $this->kurirAllowedActionsForStep($step);
+        $lines[] = 'ALLOWED_ACTIONS: ' . implode(', ', $allowed);
+
+        $chat = $this->kurirFetchRecentChatTurns($waNumber, 8);
+        $lines[] = 'RECENT_CHAT (lama→baru):';
+        if (empty($chat)) {
+            $lines[] = '(tidak ada riwayat)';
+        } else {
+            foreach ($chat as $t) {
+                $dir = $t['dir'] === 'out' ? 'BOT' : 'CUST';
+                $lines[] = "{$dir}: " . $t['body'];
+            }
+        }
+        $lines[] = 'PESAN_BARU_CUSTOMER: ' . mb_substr(trim($msg), 0, 400);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return list<array{dir:string,body:string,at:string}>
+     */
+    private function kurirFetchRecentChatTurns(string $waNumber, int $limit = 8): array
+    {
+        $phones = $this->waMessagesOutPhoneVariants($waNumber);
+        if (empty($phones)) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($phones), '?'));
+        $rows = [];
+        try {
+            $db = DB::getInstance(0);
+            $in = $db->query(
+                "SELECT created_at AS at, 'in' AS dir, text AS body
+                 FROM wa_messages_in
+                 WHERE phone IN ($placeholders)
+                 ORDER BY created_at DESC LIMIT 10",
+                $phones
+            );
+            if ($in) {
+                foreach ($in->result_array() as $r) {
+                    $body = trim((string) ($r['body'] ?? ''));
+                    if ($body === '') {
+                        continue;
+                    }
+                    $rows[] = [
+                        'dir' => 'in',
+                        'body' => mb_substr($body, 0, 160),
+                        'at' => (string) ($r['at'] ?? ''),
+                    ];
+                }
+            }
+            $out = $db->query(
+                "SELECT created_at AS at, 'out' AS dir, content AS body
+                 FROM wa_messages_out
+                 WHERE phone IN ($placeholders)
+                 ORDER BY created_at DESC LIMIT 10",
+                $phones
+            );
+            if ($out) {
+                foreach ($out->result_array() as $r) {
+                    $body = trim((string) ($r['body'] ?? ''));
+                    if ($body === '') {
+                        continue;
+                    }
+                    $rows[] = [
+                        'dir' => 'out',
+                        'body' => mb_substr($body, 0, 160),
+                        'at' => (string) ($r['at'] ?? ''),
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirFetchRecentChatTurns: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return [];
+        }
+
+        usort($rows, static function ($a, $b) {
+            return strcmp((string) $a['at'], (string) $b['at']);
+        });
+        if (count($rows) > $limit) {
+            $rows = array_slice($rows, -$limit);
+        }
+        return $rows;
+    }
+
+    /**
+     * @return array{action:string,reply:?string,slots:array,summary_note:?string,reason:?string}|null
+     */
+    private function kurirAiDecide(string $waNumber, array $session, string $msg): ?array
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI')) {
+                $configFile = __DIR__ . '/../Config/AI.php';
+                if (!file_exists($configFile)) {
+                    return null;
+                }
+                require_once $configFile;
+            }
+            if (!\App\Config\AI::isEnabled()) {
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'skip_disabled');
+                return null;
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $step = (string) ($session['step'] ?? '');
+        $allowed = $this->kurirAllowedActionsForStep($step);
+        $context = $this->kurirBuildAiContext($waNumber, $session, $msg);
+
+        $system = "Kamu asisten session kurir Madinah Laundry (jemput/antar). "
+            . "Baca SESSION.summary + RECENT_CHAT + PESAN_BARU. "
+            . "Pilih SATU action dari ALLOWED_ACTIONS saja. "
+            . "Jangan mengarang action di luar daftar. "
+            . "Jika customer menolak lokasi / beda alamat / bukan itu → other_lokasi atau ask_shareloc. "
+            . "Jika setuju lokasi/ongkir → confirm. "
+            . "Jika batal/gak jadi/cancel → cancel. "
+            . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
+            . "Jika minta cepat/gojek/grab/instant → want_instant. "
+            . "Jika belum jelas → clarify. "
+            . "Field reply: kalimat WhatsApp singkat ramah bahasa Indonesia (boleh kosong). "
+            . "Jawab HANYA JSON valid tanpa markdown.";
+
+        $user = $context . "\n\nFORMAT:\n"
+            . '{"action":"...", "reply":"...", "slots":{"jam":null,"tanggal":null,"pick_index":null,"jenis":null}, '
+            . '"summary_note":"ringkas 1 kalimat", "reason":"singkat"}';
+
+        try {
+            $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'request step=' . $step);
+            $raw = $this->executeOpenAIRequestWithMessages(
+                [
+                    ['role' => 'system', 'content' => $system],
+                    ['role' => 'user', 'content' => $user],
+                ],
+                220,
+                $waNumber
+            );
+        } catch (\Throwable $e) {
+            $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'error ' . mb_substr($e->getMessage(), 0, 200));
+            return null;
+        }
+
+        $json = json_decode((string) $raw, true);
+        if (!is_array($json) && preg_match('/\{.*\}/s', (string) $raw, $m)) {
+            $json = json_decode($m[0], true);
+        }
+        if (!is_array($json)) {
+            $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'bad_json ' . mb_substr((string) $raw, 0, 180));
+            return null;
+        }
+
+        $action = strtolower(trim((string) ($json['action'] ?? '')));
+        if ($action === '' || !in_array($action, $allowed, true)) {
+            // soft remap
+            if ($action === 'refuse_alt' && in_array('cancel', $allowed, true)) {
+                $action = 'cancel';
+            } elseif (in_array('clarify', $allowed, true)) {
+                $action = 'clarify';
+            } else {
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'action_not_allowed=' . ($json['action'] ?? ''));
+                return null;
+            }
+        }
+
+        $slots = $json['slots'] ?? [];
+        if (!is_array($slots)) {
+            $slots = [];
+        }
+
+        $decision = [
+            'action' => $action,
+            'reply' => isset($json['reply']) ? trim((string) $json['reply']) : null,
+            'slots' => $slots,
+            'summary_note' => isset($json['summary_note']) ? trim((string) $json['summary_note']) : null,
+            'reason' => isset($json['reason']) ? trim((string) $json['reason']) : null,
+        ];
+        if ($decision['reply'] === '') {
+            $decision['reply'] = null;
+        }
+
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'KURIR_AI',
+            'action=' . $action . ' reason=' . mb_substr((string) ($decision['reason'] ?? ''), 0, 120)
+        );
+
+        return $decision;
+    }
+
+    /**
+     * @param array{action:string,reply:?string,slots:array,summary_note:?string,reason:?string} $decision
+     */
+    private function kurirDispatchAiAction(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg,
+        array $decision
+    ): void {
+        $action = $decision['action'];
+        $aiReply = $decision['reply'];
+        $slots = $decision['slots'] ?? [];
+        $note = $decision['summary_note'] ?: ($action . ': ' . mb_substr($msg, 0, 60));
+
+        // Side-effects + reply policy
+        switch ($action) {
+            case 'cancel':
+                $this->kurirCancelAndReply($waNumber, $sapaan, $session);
+                // template wajib; abaikan AI reply
+                return;
+
+            case 'confirm':
+                $step = (string) ($session['step'] ?? '');
+                if ($step === 'ask_jenis') {
+                    $jenis = null;
+                    $slotJenis = strtolower((string) ($slots['jenis'] ?? ''));
+                    if (in_array($slotJenis, ['antar', 'jemput'], true)) {
+                        $jenis = $slotJenis;
+                    } else {
+                        $jenis = $this->detectKurirJenis($msg);
+                    }
+                    if ($jenis) {
+                        $this->saveKurirSession($waNumber, ['jenis' => $jenis, 'step' => 'lokasi_check']);
+                        $session = $this->getKurirSession($waNumber) ?: $session;
+                        $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                        $this->kurirAppendSummary($waNumber, $session, $note);
+                        return;
+                    }
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        $aiReply ?: "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?"
+                    );
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                if ($step === 'instant_confirm') {
+                    $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, 'ya');
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                if (in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail'], true)) {
+                    // Biarkan handler regex isi nama/detail dari pesan mentah
+                    if ($step === 'ask_lokasi_nama') {
+                        $this->kurirHandleLokasiNama($waNumber, $sapaan, $session, $msg);
+                    } else {
+                        $this->kurirHandleLokasiDetail($waNumber, $sapaan, $session, $msg);
+                    }
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                // confirm_lokasi → insert + template jam kerja (abaikan AI reply)
+                $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'other_lokasi':
+                // Selalu pakai list/shareloc template (agar daftar lokasi tampil)
+                $this->kurirAskOtherLokasi($waNumber, $sapaan, $session, $msg);
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'ask_shareloc':
+                if ($aiReply) {
+                    $summary = trim((string) ($session['summary'] ?? ''));
+                    $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 800);
+                    $this->saveKurirSession($waNumber, [
+                        'step' => 'ask_shareloc',
+                        'id_lokasi' => null,
+                        'lokasi_nama' => null,
+                        'lokasi_detail' => null,
+                        'latt' => null,
+                        'longt' => null,
+                        'tarif' => null,
+                        'summary' => $summary,
+                    ]);
+                    $this->sendAutoreplyText($waNumber, $aiReply);
+                } else {
+                    $this->kurirStartShareloc($waNumber, $sapaan, $session, $msg);
+                }
+                return;
+
+            case 'pick_lokasi':
+                $pickMsg = $msg;
+                if (isset($slots['pick_index']) && $slots['pick_index'] !== null && $slots['pick_index'] !== '') {
+                    $pickMsg = (string) ((int) $slots['pick_index']);
+                }
+                $step = (string) ($session['step'] ?? '');
+                if ($step === 'instant_pick') {
+                    $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, $pickMsg);
+                } else {
+                    $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $pickMsg);
+                }
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'want_jam':
+                $waktu = null;
+                if (!empty($slots['jam'])) {
+                    $jamVal = (float) $slots['jam'];
+                    $tgl = !empty($slots['tanggal']) ? (string) $slots['tanggal'] : date('Y-m-d');
+                    $waktu = ['jam' => $jamVal, 'tanggal' => $tgl];
+                }
+                if ($waktu === null) {
+                    $waktu = $this->parseEstimasiRequestWaktu($msg);
+                }
+                $step = (string) ($session['step'] ?? '');
+                // Pastikan request sudah ada jika masih di confirm
+                if ($step === 'confirm_lokasi') {
+                    if (!$this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session)) {
+                        return;
+                    }
+                    $session = $this->getKurirSession($waNumber) ?: $session;
+                }
+                if ($waktu === null) {
+                    $this->sendAutoreplyText(
+                        $waNumber,
+                        $aiReply ?: ("Jam berapa {$sapaan} ingin " . $this->kurirJenisLabel($session) . "? (contoh: jam 14)")
+                    );
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                if ($aiReply) {
+                    $this->sendAutoreplyText($waNumber, $aiReply);
+                }
+                $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $msg, $waktu);
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'want_instant':
+                $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'agree_alt':
+                $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, 'ya');
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'refuse_alt':
+                // Di wait_continue_alt = batal; di instant = kembali sameday
+                $step = (string) ($session['step'] ?? '');
+                if ($step === 'wait_continue_alt') {
+                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, 'tidak');
+                } elseif (in_array($step, ['instant_confirm', 'instant_pick'], true)) {
+                    $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, 'tidak');
+                } else {
+                    $this->kurirCancelAndReply($waNumber, $sapaan, $session);
+                    return;
+                }
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'noop_ack':
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    $aiReply ?: (
+                        "Permintaan " . $this->kurirJenisLabel($session) . " sudah kami terima {$sapaan}. "
+                        . "Kalau ada jam tertentu atau ingin batalkan, tinggal bilang saja ya."
+                    )
+                );
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'clarify':
+            default:
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    $aiReply ?: ("Mohon diperjelas ya {$sapaan}, biar kami bantu lanjutkan.")
+                );
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+        }
+    }
+
+    private function kurirAppendSummary(string $waNumber, array $session, string $note): void
+    {
+        $note = trim($note);
+        if ($note === '') {
+            return;
+        }
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 800);
+        $this->saveKurirSession($waNumber, ['summary' => $summary]);
     }
 }
