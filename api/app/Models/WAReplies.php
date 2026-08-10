@@ -3582,23 +3582,61 @@ class WAReplies
         $idPenjualan = array_key_exists('id_penjualan', $data) ? $data['id_penjualan'] : null;
         $fase = $data['fase_proses'] ?? null;
         $butuh = !empty($data['butuh_estimasi']) ? 1 : 0;
-        $estimasiJam = array_key_exists('estimasi_jam', $data) ? $data['estimasi_jam'] : null;
-        $requestText = array_key_exists('request_text', $data) ? $data['request_text'] : null;
-        $requestGranted = array_key_exists('request_granted', $data) ? $data['request_granted'] : null;
+
+        $existing = null;
+        try {
+            $ex = DB::getInstance(0)->query(
+                'SELECT estimasi_jam, estimasi_tanggal, request_text, request_tanggal, request_jam, request_granted, id_cabang
+                 FROM wa_estimasi_session WHERE phone = ? LIMIT 1',
+                [$phone]
+            );
+            if ($ex && $ex->num_rows() > 0) {
+                $existing = (array) $ex->row();
+            }
+        } catch (\Throwable $e) {
+            $existing = null;
+        }
+
+        $estimasiJam = array_key_exists('estimasi_jam', $data)
+            ? $data['estimasi_jam']
+            : ($existing['estimasi_jam'] ?? null);
+        $estimasiTanggal = array_key_exists('estimasi_tanggal', $data)
+            ? $data['estimasi_tanggal']
+            : ($existing['estimasi_tanggal'] ?? null);
+        $idCabang = array_key_exists('id_cabang', $data)
+            ? $data['id_cabang']
+            : ($existing['id_cabang'] ?? null);
+        $requestText = array_key_exists('request_text', $data)
+            ? $data['request_text']
+            : ($existing['request_text'] ?? null);
+        $requestTanggal = array_key_exists('request_tanggal', $data)
+            ? $data['request_tanggal']
+            : ($existing['request_tanggal'] ?? null);
+        $requestJam = array_key_exists('request_jam', $data)
+            ? $data['request_jam']
+            : ($existing['request_jam'] ?? null);
+        $requestGranted = array_key_exists('request_granted', $data)
+            ? $data['request_granted']
+            : ($existing['request_granted'] ?? null);
         $summary = $data['summary'] ?? null;
 
         $db = DB::getInstance(0);
         try {
             $db->query(
                 'INSERT INTO wa_estimasi_session
-                    (phone, id_penjualan, fase_proses, butuh_estimasi, estimasi_jam, request_text, request_granted, summary, updated_at, expires_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (phone, id_penjualan, id_cabang, fase_proses, butuh_estimasi, estimasi_tanggal, estimasi_jam,
+                     request_text, request_tanggal, request_jam, request_granted, summary, updated_at, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     id_penjualan = VALUES(id_penjualan),
+                    id_cabang = VALUES(id_cabang),
                     fase_proses = VALUES(fase_proses),
                     butuh_estimasi = VALUES(butuh_estimasi),
+                    estimasi_tanggal = VALUES(estimasi_tanggal),
                     estimasi_jam = VALUES(estimasi_jam),
                     request_text = VALUES(request_text),
+                    request_tanggal = VALUES(request_tanggal),
+                    request_jam = VALUES(request_jam),
                     request_granted = VALUES(request_granted),
                     summary = VALUES(summary),
                     updated_at = VALUES(updated_at),
@@ -3606,10 +3644,14 @@ class WAReplies
                 [
                     $phone,
                     $idPenjualan,
+                    $idCabang,
                     $fase,
                     $butuh,
+                    $estimasiTanggal,
                     $estimasiJam,
                     $requestText,
+                    $requestTanggal,
+                    $requestJam,
                     $requestGranted,
                     $summary,
                     $now,
@@ -3641,7 +3683,7 @@ class WAReplies
 
     /**
      * Pilih 1 item aktif dengan deadline terdekat + fase antrian|pengerjaan|selesai.
-     * @return array{id:int,fase:string,deadline_ts:int,deadline_label:string}|null
+     * @return array{id:int,id_cabang:int|null,fase:string,deadline_ts:int,deadline_label:string}|null
      */
     private function pickEstimasiFocusItem(string $phoneIn, string $waNumber): ?array
     {
@@ -3654,7 +3696,7 @@ class WAReplies
 
         $idsIn = implode(',', array_map('intval', $idPelanggans));
         $sales = $db1->query(
-            "SELECT id_penjualan, letak, insertTime, hari, jam
+            "SELECT id_penjualan, id_cabang, letak, insertTime, hari, jam
              FROM sale
              WHERE id_user_ambil = 0 AND bin = 0 AND tuntas = 0 AND id_pelanggan IN ($idsIn)"
         )->result_array();
@@ -3698,8 +3740,11 @@ class WAReplies
                 $fase = 'antrian';
             }
 
+            $idCabangSale = isset($sale['id_cabang']) ? (int) $sale['id_cabang'] : 0;
+
             $candidates[] = [
                 'id' => $idPenjualan,
+                'id_cabang' => $idCabangSale > 0 ? $idCabangSale : null,
                 'fase' => $fase,
                 'deadline_ts' => $deadlineTs,
                 'deadline_label' => $this->formatEstimasiDeadlineLabel($deadlineTs, $hari),
@@ -3721,6 +3766,7 @@ class WAReplies
 
         return [
             'id' => $best['id'],
+            'id_cabang' => $best['id_cabang'],
             'fase' => $best['fase'],
             'deadline_ts' => $best['deadline_ts'],
             'deadline_label' => $best['deadline_label'],
@@ -3753,81 +3799,274 @@ class WAReplies
 
         $ctx = $this->getGreetingContext($waNumber);
         $sapaan = $ctx['sapaan'] ?? 'kak';
-        $emoteSalam = '😊';
         $emoteSenyum = '😊';
         $id = (int) $item['id'];
+        $idCabang = isset($item['id_cabang']) ? (int) $item['id_cabang'] : null;
+        if ($idCabang !== null && $idCabang <= 0) {
+            $idCabang = null;
+        }
         $fase = $item['fase'];
-        $deadlineLabel = $item['deadline_label'];
+        $msg = trim((string) ($textBody ?? ''));
 
-        if ($fase === 'antrian') {
-            $text = "Laundry ID #{$id} masih dalam antrian, sesuai deadline {$deadlineLabel} seharusnya sudah selesai ya {$sapaan} {$emoteSalam}";
-        } elseif ($fase === 'pengerjaan') {
-            $text = "Laundry ID #{$id} sedang dikerjakan, kami akan kabari ketika selesai ya {$sapaan}. Mohon ditunggu {$emoteSalam}";
-        } else {
+        // Sudah selesai: cukup balas data (tidak butuh jam estimasi)
+        if ($fase === 'selesai') {
             $text = "Laundry ID #{$id} sudah selesai. Terima kasih {$emoteSenyum}";
+            $this->sendAutoreplyText($waNumber, $text);
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => null,
+                'request_tanggal' => null,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => "Customer tanya estimasi; #{$id} sudah selesai",
+            ]);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_selesai id={$id}");
+            return;
         }
 
-        $this->sendAutoreplyText($waNumber, $text);
+        // Permintaan khusus (siap jam X) → task GRANT hanya jika jam spesifik ketemu
+        $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
+        if ($reqWaktu !== null && $this->messageLooksLikeEstimasiGrantRequest($msg)) {
+            $summary = '[pesan] ' . $msg . " | Grant request selesai jam; fokus #{$id} fase={$fase}";
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => $msg,
+                'request_tanggal' => $reqWaktu['tanggal'],
+                'request_jam' => $reqWaktu['jam'],
+                'request_granted' => null,
+                'summary' => $summary,
+            ]);
+            $this->escalateEstimasiToPetugas($waNumber, $msg);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_grant_request id={$id} jam=" . $reqWaktu['jam']);
+            return;
+        }
 
-        $summary = "Customer tanya estimasi selesai; fokus #{$id} fase={$fase}; balas fase pertama";
+        // Tanya jam/kapan siap → task ESTIMASI (bukan grant; jangan isi request_text)
+        if ($this->messageNeedsEstimasiJam($msg)) {
+            $summary = '[pesan] ' . $msg . " | Tanya jam siap; fokus #{$id} fase={$fase}; butuh_estimasi=1";
+            $this->saveEstimasiSession($waNumber, [
+                'id_penjualan' => $id,
+                'id_cabang' => $idCabang,
+                'fase_proses' => $fase,
+                'butuh_estimasi' => 1,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'request_text' => null,
+                'request_tanggal' => null,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => $summary,
+            ]);
+            $this->escalateEstimasiToPetugas($waNumber, $msg);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_butuh_estimasi id={$id} fase={$fase}");
+            return;
+        }
+
+        // Fallback (jarang): belum tanya jam eksplisit — info fase singkat
+        $emoteSalam = '😊';
+        $deadlineLabel = $item['deadline_label'];
+        if ($fase === 'antrian') {
+            $text = "Laundry ID #{$id} masih dalam antrian, sesuai deadline {$deadlineLabel} seharusnya sudah selesai ya {$sapaan} {$emoteSalam}";
+        } else {
+            $text = "Laundry ID #{$id} sedang dikerjakan, kami akan kabari ketika selesai ya {$sapaan}. Mohon ditunggu {$emoteSalam}";
+        }
+        $this->sendAutoreplyText($waNumber, $text);
         $this->saveEstimasiSession($waNumber, [
             'id_penjualan' => $id,
+            'id_cabang' => $idCabang,
             'fase_proses' => $fase,
             'butuh_estimasi' => 0,
+            'estimasi_tanggal' => null,
             'estimasi_jam' => null,
             'request_text' => null,
+            'request_tanggal' => null,
+            'request_jam' => null,
             'request_granted' => null,
-            'summary' => $summary,
+            'summary' => "Customer tanya status fase; fokus #{$id} fase={$fase}; balas fase",
         ]);
-        $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit id={$id} fase={$fase}");
+        $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_fase id={$id} fase={$fase}");
+    }
+
+    /**
+     * Customer minta jam/waktu siap → butuh estimasi petugas (bukan sekadar info fase).
+     */
+    private function messageNeedsEstimasiJam(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        if ($this->messageLooksLikeEstimasiGrantRequest($text)) {
+            return false;
+        }
+        if ($this->messageLooksLikeEstimasiSelesai($text)) {
+            return true;
+        }
+
+        return (bool) preg_match('/\b(jam|kapan|kpn|berapa|brp|brpa|estimasi|kira)\b/iu', $text);
+    }
+
+    /**
+     * Permintaan khusus: customer minta SELESAI pada jam spesifik.
+     * Wajib ada jam angka (bukan "jam berapa"). Contoh: "bisa siap jam 10?", "minta selesai jam 14.30 besok"
+     */
+    private function messageLooksLikeEstimasiGrantRequest(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        if ($this->parseEstimasiRequestWaktu($text) === null) {
+            return false;
+        }
+        $t = $text;
+        if (preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $t)) {
+            return false;
+        }
+        // Konteks permintaan / target selesai
+        if (preg_match('/\b(bisa|boleh|minta|tolong|mau|mohon|request|pengen|ingin)\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(siap|selesai|jadi)\b.{0,40}\bjam\s*\d{1,2}/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\bjam\s*\d{1,2}([.:]\d{2})?\b.{0,40}\b(siap|selesai|jadi)\b/iu', $t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Ekstrak jam (+ tanggal opsional) yang DIMINTA customer.
+     * @return array{jam:float,tanggal:?string}|null
+     */
+    private function parseEstimasiRequestWaktu(?string $text): ?array
+    {
+        if ($text === null || trim($text) === '') {
+            return null;
+        }
+        $t = $text;
+        if (preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $t)) {
+            return null;
+        }
+
+        $jam = null;
+        if (preg_match('/\bjam\s*(\d{1,2})(?:[.:](\d{1,2}))?\b/iu', $t, $m)) {
+            $h = (int) $m[1];
+            $min = isset($m[2]) ? (int) $m[2] : 0;
+            if ($h <= 23 && $min <= 59) {
+                $jam = (float) sprintf('%d.%02d', $h, $min);
+            }
+        } elseif (preg_match('/\b(\d{1,2})[.:](\d{2})\s*(wib|wit|wita)?\b/iu', $t, $m)
+            && preg_match('/\b(siap|selesai|jadi|minta|bisa|tolong)\b/iu', $t)) {
+            $h = (int) $m[1];
+            $min = (int) $m[2];
+            if ($h <= 23 && $min <= 59) {
+                $jam = (float) sprintf('%d.%02d', $h, $min);
+            }
+        }
+
+        if ($jam === null) {
+            return null;
+        }
+
+        $tanggal = null;
+        if (preg_match('/\b(hari\s*ini|hr\s*ini)\b/iu', $t)) {
+            $tanggal = date('Y-m-d');
+        } elseif (preg_match('/\b(besok|bsk)\b/iu', $t)) {
+            $tanggal = date('Y-m-d', strtotime('+1 day'));
+        } elseif (preg_match('/\b(lusa)\b/iu', $t)) {
+            $tanggal = date('Y-m-d', strtotime('+2 day'));
+        }
+
+        return ['jam' => $jam, 'tanggal' => $tanggal];
     }
 
     private function handleEstimasiSelesaiFollowUp(string $phoneIn, string $waNumber, $textBody, array $session): void
     {
         $msg = trim((string) ($textBody ?? ''));
+        $reqWaktu = $this->parseEstimasiRequestWaktu($msg);
+        $isGrant = $reqWaktu !== null && $this->messageLooksLikeEstimasiGrantRequest($msg);
         $butuhEstimasi = !empty($session['butuh_estimasi']);
-        if ($this->messageLooksLikeEstimasiSelesai($msg)
-            || preg_match('/\b(jam|kapan|kpn|berapa|brp|estimasi|kira)\b/iu', $msg)) {
+        if ($this->messageNeedsEstimasiJam($msg)) {
             $butuhEstimasi = true;
         }
 
         $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : null;
         $fase = $session['fase_proses'] ?? null;
-        // Refresh fase dari data terkini bila masih ada item
+        $idCabang = isset($session['id_cabang']) ? (int) $session['id_cabang'] : null;
         $fresh = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
         if ($fresh !== null) {
             $idPenjualan = (int) $fresh['id'];
             $fase = $fresh['fase'];
+            if (!empty($fresh['id_cabang'])) {
+                $idCabang = (int) $fresh['id_cabang'];
+            }
+        }
+        if ($idCabang !== null && $idCabang <= 0) {
+            $idCabang = null;
+        }
+
+        $requestText = $session['request_text'] ?? null;
+        $requestTanggal = $session['request_tanggal'] ?? null;
+        $requestJam = $session['request_jam'] ?? null;
+        $requestGranted = array_key_exists('request_granted', $session) ? $session['request_granted'] : null;
+        if ($isGrant && $msg !== '' && $reqWaktu !== null) {
+            $requestText = $msg;
+            $requestTanggal = $reqWaktu['tanggal'];
+            $requestJam = $reqWaktu['jam'];
+            $requestGranted = null;
         }
 
         $summary = sprintf(
-            'Follow-up estimasi; fokus #%s fase=%s; butuh_estimasi=%s; pesan="%s"',
+            '[pesan] %s | Follow-up; fokus #%s fase=%s; butuh_estimasi=%s; grant=%s',
+            $msg !== '' ? $msg : '-',
             $idPenjualan ?? '-',
             $fase ?? '-',
             $butuhEstimasi ? '1' : '0',
-            mb_substr($msg, 0, 120)
+            $isGrant ? '1' : '0'
         );
 
         $this->saveEstimasiSession($waNumber, [
             'id_penjualan' => $idPenjualan,
+            'id_cabang' => $idCabang,
             'fase_proses' => $fase,
             'butuh_estimasi' => $butuhEstimasi ? 1 : 0,
+            'estimasi_tanggal' => $session['estimasi_tanggal'] ?? null,
             'estimasi_jam' => $session['estimasi_jam'] ?? null,
-            'request_text' => $msg !== '' ? $msg : ($session['request_text'] ?? null),
-            'request_granted' => array_key_exists('request_granted', $session) ? $session['request_granted'] : null,
+            'request_text' => $requestText,
+            'request_tanggal' => $requestTanggal,
+            'request_jam' => $requestJam,
+            'request_granted' => $requestGranted,
             'summary' => $summary,
         ]);
 
-        $this->forwardEstimasiToFonnteGroup($waNumber, $msg);
+        $this->escalateEstimasiToPetugas($waNumber, $msg);
+    }
 
-        // Ack ke customer hanya jika human CS tidak aktif (hindari noise)
+    /**
+     * Forward group + ack "kami tanyakan petugas" (skip ack jika human aktif).
+     */
+    private function escalateEstimasiToPetugas(string $waNumber, string $customerMessage): void
+    {
+        $this->forwardEstimasiToFonnteGroup($waNumber, $customerMessage);
+
         if (!$this->isHumanAgentRecentlyActive($waNumber)) {
             $sapaan = $this->getSapaanForGreeting($waNumber);
-            $ack = "Baik, sebentar kami tanyakan petugas dulu ya {$sapaan}";
+            $ack = "Sebentar ya {$sapaan} kami tanyakan petugas terlebih dahulu.";
             $this->sendAutoreplyText($waNumber, $ack);
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_ack_sent');
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'escalate_ack_sent');
         } else {
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_ack_skipped_human_active');
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'escalate_ack_skipped_human_active');
         }
     }
 

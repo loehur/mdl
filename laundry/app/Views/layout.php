@@ -500,7 +500,7 @@ if (isset($data['data_operasi'])) {
 
         .mdl-tbtn,
         .mdl-topbar select.mdl-tctrl,
-        .mode-switch {
+        .mode-live-toggle {
             box-sizing: border-box;
             height: 34px;
             border-radius: 0;
@@ -693,6 +693,35 @@ if (isset($data['data_operasi'])) {
             margin-bottom: 8px;
             white-space: pre-wrap;
             word-break: break-word;
+        }
+        .mdl-notif-req__label {
+            display: block;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #b45309;
+            margin-bottom: 4px;
+        }
+        .mdl-notif-jam-ask {
+            border: 1px solid #93c5fd;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-family: 'fontku', sans-serif;
+            font-size: 16px;
+            font-weight: 900;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+        .mdl-notif-chip--estimasi {
+            border-color: #93c5fd;
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .mdl-notif-chip--grant {
+            border-color: #fcd34d;
+            background: #fef3c7;
+            color: #b45309;
         }
         .mdl-notif-form label {
             display: block;
@@ -916,48 +945,60 @@ if (isset($data['data_operasi'])) {
             opacity: 0.95;
         }
 
-        .mode-switch {
-            display: inline-flex;
-            align-items: stretch;
-            overflow: hidden;
-            padding: 3px;
-            gap: 2px;
-            border: 1px solid #0f172a;
-            background: rgba(15, 23, 42, 0.28);
-            box-shadow: none;
-        }
-        .mode-switch .mode-btn {
+        /* Live toggle: ON = Live, OFF = Training (label Training ada di chip cabang) */
+        .mode-live-toggle {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            height: 100%;
-            min-width: 64px;
-            padding: 0 12px;
-            border: 0;
-            border-radius: 0;
-            background: transparent;
-            color: rgba(255,255,255,.88);
-            font-family: inherit;
+            gap: 8px;
+            padding: 0 10px 0 6px;
+            border: 1px solid #0f172a;
+            background: rgba(15, 23, 42, 0.35);
+            color: rgba(255, 255, 255, 0.72);
+            cursor: pointer;
+            user-select: none;
+            transition: background .15s ease, color .15s ease, border-color .15s ease;
+        }
+        .mode-live-toggle__track {
+            position: relative;
+            width: 34px;
+            height: 18px;
+            flex: 0 0 34px;
+            border: 1px solid #0f172a;
+            background: #334155;
+            transition: background .15s ease;
+        }
+        .mode-live-toggle__knob {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: 14px;
+            height: 14px;
+            background: #e2e8f0;
+            border: 1px solid #0f172a;
+            transition: left .15s ease, background .15s ease;
+        }
+        .mode-live-toggle__label {
             font-size: 12px;
             font-weight: 900;
             letter-spacing: 0.02em;
-            cursor: pointer;
-            user-select: none;
-            transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+            line-height: 1;
         }
-        .mode-switch .mode-btn:hover:not(.active-live):not(.active-training) {
+        .mode-live-toggle.is-on {
+            background: rgba(22, 163, 74, 0.28);
             color: #fff;
-            background: rgba(255,255,255,.18);
         }
-        .mode-switch .mode-btn.active-live {
+        .mode-live-toggle.is-on .mode-live-toggle__track {
             background: var(--mdl-live);
-            color: #fff;
-            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
         }
-        .mode-switch .mode-btn.active-training {
-            background: var(--mdl-train);
-            color: #111;
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+        .mode-live-toggle.is-on .mode-live-toggle__knob {
+            left: 17px;
+            background: #fff;
+        }
+        .mode-live-toggle:hover {
+            filter: brightness(1.06);
+        }
+        .mode-live-toggle:active {
+            transform: translateY(1px);
         }
 
         body.mode-training .main-header.mdl-topbar {
@@ -965,9 +1006,9 @@ if (isset($data['data_operasi'])) {
             background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 100%) !important;
             border-bottom-color: #92400e;
         }
-        body.mode-training .mode-switch {
-            border-color: #0f172a;
+        body.mode-training .mode-live-toggle {
             background: rgba(15, 23, 42, 0.28);
+            color: rgba(255, 255, 255, 0.85);
         }
         body.mode-training .main-sidebar {
             background:
@@ -1805,10 +1846,15 @@ if ($privUi === 100) {
                     <i class="fas fa-bars"></i><span>Menu</span>
                 </a>
 
-                <div class="mode-switch" id="modeSwitch" title="Ganti Mode Live / Training">
-                    <button type="button" class="mode-btn<?= !$isTrainingUi ? ' active-live' : '' ?>" data-mode="live">Live</button>
-                    <button type="button" class="mode-btn<?= $isTrainingUi ? ' active-training' : '' ?>" data-mode="training">Training</button>
-                </div>
+                <button type="button"
+                    id="modeLiveToggle"
+                    class="mode-live-toggle<?= !$isTrainingUi ? ' is-on' : '' ?>"
+                    title="<?= $isTrainingUi ? 'Mode Training — tekan untuk Live' : 'Mode Live — tekan untuk Training' ?>"
+                    aria-pressed="<?= !$isTrainingUi ? 'true' : 'false' ?>"
+                    aria-label="Toggle mode Live">
+                    <span class="mode-live-toggle__track" aria-hidden="true"><span class="mode-live-toggle__knob"></span></span>
+                    <span class="mode-live-toggle__label">Live</span>
+                </button>
 
                 <?php if (!$isTrainingUi && ($this->id_privilege == 100 or $this->id_privilege == 12)) {
                     $kodeCabangAktif = $this->dCabang['kode_cabang'] ?? $this->id_cabang;
@@ -2771,12 +2817,9 @@ if ($privUi === 100) {
                     });
                 })();
 
-                $("#modeSwitch .mode-btn").on("click", function() {
-                    var mode = $(this).data("mode");
+                $("#modeLiveToggle").on("click", function() {
                     var current = <?= $isTrainingUi ? "'training'" : "'live'" ?>;
-                    if (mode === current) {
-                        return;
-                    }
+                    var mode = current === 'live' ? 'training' : 'live';
                     $.ajax({
                         url: '<?= URL::BASE_URL ?>Training/switchMode',
                         data: { mode: mode },
@@ -3059,65 +3102,118 @@ if ($privUi === 100) {
                         return h + ':' + m;
                     }
 
+                    function dateSelectHtml(options, extraClass) {
+                        var opts = Array.isArray(options) && options.length ? options : [];
+                        if (!opts.length) {
+                            var labels = ['Hari ini', 'Besok', 'Lusa'];
+                            for (var i = 0; i <= 2; i++) {
+                                var d = new Date();
+                                d.setDate(d.getDate() + i);
+                                var y = d.getFullYear();
+                                var mo = String(d.getMonth() + 1).padStart(2, '0');
+                                var da = String(d.getDate()).padStart(2, '0');
+                                opts.push({ value: y + '-' + mo + '-' + da, label: labels[i] });
+                            }
+                        }
+                        var html = '<select class="js-notif-tgl' + (extraClass ? (' ' + extraClass) : '') + '" required>';
+                        opts.forEach(function(o, idx) {
+                            html += '<option value="' + escHtml(o.value) + '"' + (idx === 0 ? ' selected' : '') + '>'
+                                + escHtml(o.label) + '</option>';
+                        });
+                        html += '</select>';
+                        return html;
+                    }
+
                     function renderItems(items) {
                         if (!items || !items.length) {
                             bodyEl.innerHTML = '<div class="mdl-notif-empty">Belum ada notifikasi</div>';
                             return;
                         }
 
-                        var html = '<div class="mdl-notif-section-title">Estimasi</div>';
+                        var html = '';
+                        var lastSection = '';
                         items.forEach(function(it) {
+                            var taskType = it.task_type === 'grant' ? 'grant' : 'estimasi';
+                            var section = taskType === 'grant' ? 'Grant request' : 'Estimasi';
+                            if (section !== lastSection) {
+                                html += '<div class="mdl-notif-section-title">' + escHtml(section) + '</div>';
+                                lastSection = section;
+                            }
+
                             var title = escHtml(it.nama || 'Pelanggan');
                             var phone = escHtml(it.phone_display || it.phone || '');
                             var idSale = it.id_penjualan ? ('#' + it.id_penjualan) : '-';
                             var fase = escHtml(it.fase_proses || '-');
-                            var chips = '';
-                            if (parseInt(it.butuh_estimasi, 10) === 1) {
-                                chips += '<span class="mdl-notif-chip mdl-notif-chip--warn">Butuh estimasi</span> ';
-                            }
-                            if (it.has_request) {
-                                chips += '<span class="mdl-notif-chip mdl-notif-chip--warn">Ada request</span> ';
-                            }
+                            var chips = taskType === 'grant'
+                                ? '<span class="mdl-notif-chip mdl-notif-chip--grant">Grant</span> '
+                                : '<span class="mdl-notif-chip mdl-notif-chip--estimasi">Estimasi</span> ';
                             chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + fase + '</span>';
 
-                            var reqBlock = '';
-                            if (it.has_request) {
-                                reqBlock = '<div class="mdl-notif-req">' + escHtml(it.request_text) + '</div>';
+                            var pesan = (it.customer_message || it.request_text || '').trim();
+                            var bodyBlock = '';
+                            if (taskType === 'grant' && (it.request_waktu_label || it.request_jam_label)) {
+                                var reqLabel = it.request_waktu_label
+                                    ? ('Permintaan selesai ' + escHtml(it.request_waktu_label))
+                                    : ('Permintaan selesai jam ' + escHtml(it.request_jam_label));
+                                bodyBlock += '<div class="mdl-notif-jam-ask">' + reqLabel + '</div>';
+                            }
+                            if (pesan) {
+                                bodyBlock +=
+                                    '<div class="mdl-notif-req">' +
+                                    '<span class="mdl-notif-req__label">Pesan customer</span>' +
+                                    escHtml(pesan) +
+                                    '</div>';
                             }
 
-                            var grantSelect = '';
-                            if (it.has_request) {
-                                grantSelect =
+                            var dateOpts = it.date_options || [];
+                            var formFields = '';
+                            if (taskType === 'estimasi') {
+                                formFields =
                                     '<div>' +
-                                    '<label>Permintaan</label>' +
+                                    '<label>Tanggal</label>' +
+                                    dateSelectHtml(dateOpts) +
+                                    '</div>' +
+                                    '<div>' +
+                                    '<label>Jam</label>' +
+                                    '<input type="time" class="js-notif-jam" value="' + defaultTimeValue() + '" required>' +
+                                    '</div>' +
+                                    '<div>' +
+                                    '<button type="submit" class="mdl-notif-btn">Kirim estimasi</button>' +
+                                    '</div>';
+                            } else {
+                                formFields =
+                                    '<div>' +
+                                    '<label>Keputusan</label>' +
                                     '<select class="js-notif-granted" required>' +
                                     '<option value="">— pilih —</option>' +
                                     '<option value="1">Setujui</option>' +
                                     '<option value="0">Tolak</option>' +
                                     '</select>' +
+                                    '</div>' +
+                                    '<div class="js-notif-alt-jam-wrap" style="display:none">' +
+                                    '<label>Tanggal alternatif</label>' +
+                                    dateSelectHtml(dateOpts) +
+                                    '</div>' +
+                                    '<div class="js-notif-alt-jam-wrap" style="display:none">' +
+                                    '<label>Jam alternatif</label>' +
+                                    '<input type="time" class="js-notif-jam" value="' + defaultTimeValue() + '">' +
+                                    '</div>' +
+                                    '<div>' +
+                                    '<button type="submit" class="mdl-notif-btn">Kirim keputusan</button>' +
                                     '</div>';
                             }
 
                             html +=
-                                '<div class="mdl-notif-card" data-phone="' + escHtml(it.phone) + '">' +
+                                '<div class="mdl-notif-card" data-phone="' + escHtml(it.phone) + '" data-task-type="' + taskType + '">' +
                                 '<div class="mdl-notif-card__head">' +
                                 '<h6 class="mdl-notif-card__title">' + title + '</h6>' +
                                 '<div>' + chips + '</div>' +
                                 '</div>' +
                                 '<p class="mdl-notif-card__meta">' + phone + ' · Laundry ID ' + escHtml(idSale) +
                                 (it.updated_at ? (' · ' + escHtml(it.updated_at)) : '') + '</p>' +
-                                reqBlock +
+                                bodyBlock +
                                 '<form class="mdl-notif-form js-notif-form">' +
-                                '<div class="mdl-notif-row">' +
-                                '<div>' +
-                                '<label>Estimasi jam</label>' +
-                                '<input type="time" class="js-notif-jam" value="' + defaultTimeValue() + '" required>' +
-                                '</div>' +
-                                grantSelect +
-                                '<div>' +
-                                '<button type="submit" class="mdl-notif-btn">Simpan &amp; kirim WA</button>' +
-                                '</div>' +
-                                '</div>' +
+                                '<div class="mdl-notif-row">' + formFields + '</div>' +
                                 '</form>' +
                                 '</div>';
                         });
@@ -3153,38 +3249,79 @@ if ($privUi === 100) {
                         loadList();
                     });
 
+                    $(bodyEl).on('change', '.js-notif-granted', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        var $wrap = $card.find('.js-notif-alt-jam-wrap');
+                        if ($(this).val() === '0') {
+                            $wrap.show();
+                        } else {
+                            $wrap.hide();
+                        }
+                    });
+
                     $(bodyEl).on('submit', '.js-notif-form', function(e) {
                         e.preventDefault();
                         var $card = $(this).closest('.mdl-notif-card');
                         var phone = $card.data('phone');
-                        var jam = $card.find('.js-notif-jam').val();
+                        var taskType = $card.data('task-type') || 'estimasi';
                         var $granted = $card.find('.js-notif-granted');
                         var granted = $granted.length ? $granted.val() : '';
                         var $btn = $card.find('.mdl-notif-btn');
+                        var tgl = '';
+                        var jam = '';
 
-                        if ($granted.length && granted === '') {
-                            if (window.MdlToast) MdlToast.warn('Pilih Setujui / Tolak');
+                        if (taskType === 'estimasi') {
+                            tgl = $card.find('.js-notif-tgl').val() || '';
+                            jam = $card.find('.js-notif-jam').val() || '';
+                        } else if (granted === '0') {
+                            tgl = $card.find('.js-notif-alt-jam-wrap .js-notif-tgl').val()
+                                || $card.find('.js-notif-tgl').filter(':visible').val() || '';
+                            jam = $card.find('.js-notif-alt-jam-wrap .js-notif-jam').val()
+                                || $card.find('.js-notif-jam').filter(':visible').val() || '';
+                        }
+
+                        if (taskType === 'grant') {
+                            if (granted === '') {
+                                if (window.MdlToast) MdlToast.warn('Pilih Setujui / Tolak');
+                                return;
+                            }
+                            if (granted === '0' && (!tgl || !jam)) {
+                                if (window.MdlToast) MdlToast.warn('Isi tanggal & jam alternatif');
+                                return;
+                            }
+                        } else if (!tgl || !jam) {
+                            if (window.MdlToast) MdlToast.warn('Isi tanggal dan jam estimasi');
                             return;
                         }
 
                         $btn.prop('disabled', true);
+                        var payload = {
+                            phone: phone,
+                            task_type: taskType,
+                            send_wa: 1
+                        };
+                        if (taskType === 'estimasi') {
+                            payload.estimasi_tanggal = tgl;
+                            payload.estimasi_jam = jam;
+                        } else {
+                            payload.request_granted = granted;
+                            if (granted === '0') {
+                                payload.estimasi_tanggal = tgl;
+                                payload.estimasi_jam = jam;
+                            }
+                        }
+
                         $.ajax({
                             url: baseUrl + 'Estimasi/update',
                             method: 'POST',
                             dataType: 'json',
-                            data: {
-                                phone: phone,
-                                estimasi_jam: jam,
-                                request_granted: granted,
-                                send_wa: 1
-                            }
+                            data: payload
                         }).done(function(res) {
                             if (res && res.ok) {
                                 if (window.MdlToast) {
                                     if (res.wa_ok) MdlToast.ok(res.msg || 'Terkirim');
                                     else MdlToast.warn(res.msg || 'State tersimpan');
                                 }
-                                // Task selesai → baru update badge (dari response / sync session)
                                 if (typeof res.count !== 'undefined') {
                                     setBadge(res.count);
                                 } else {

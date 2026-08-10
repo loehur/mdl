@@ -244,7 +244,9 @@ return [
     ],
 
     'ESTIMASI_SELESAI' => [
-        // Hit pertama: case null (balas fase data). Follow-up session di process() set case 4 + notify.
+        // Tanya jam/kapan siap → case 4 (butuh petugas). Fase "selesai" tetap data reply di handler.
+        'case' => 4,
+        'notify' => true,
         'patterns' => [
             // kapan / jam berapa + siap/selesai/jadi (estimasi, bukan "sudah siap?")
             '/\b(kapan|kpn|jam\s*(brp|brpa|berapa)|brp|berapa)\b.{0,50}?\b(siap|sia+p+|selesai|jadi)\b/iu',
@@ -256,21 +258,23 @@ return [
             '/\b(jam\s*)?(brp|brpa|berapa)\s*bisa\s*(di\s*)?(jemput|ambil)\b/iu',
             // "kapan bisa diambil?" / "kapan bisa dijemput?"
             '/\b(kapan|kpn)\s+(bisa|boleh)\s*(di\s*)?(ambil|jemput)\b/iu',
+            // REQUEST selesai jam spesifik (bukan tanya jam berapa): "bisa siap jam 10", "minta selesai jam 14.30"
+            '/\b(bisa|boleh|minta|tolong|mau|mohon)\b.{0,40}\b(siap|selesai|jadi)\b.{0,30}\bjam\s*\d{1,2}/iu',
+            '/\b(siap|selesai|jadi)\b.{0,30}\bjam\s*\d{1,2}([.:]\d{1,2})?\b/iu',
+            '/\bjam\s*\d{1,2}([.:]\d{1,2})?\b.{0,30}\b(siap|selesai|jadi)\b/iu',
         ],
-        'ai_prompt' => "User menanyakan ESTIMASI waktu selesai / kapan laundry SIAP diambil — BUKAN tanya apakah sudah siap sekarang, BUKAN minta kurir jemput/antar.\n
-        TRUE (ESTIMASI_SELESAI):\n
-        | kapan siap? | jam berapa siap? | siapnya kapan? | siapnya jam berapa? | jam berapa selesai? | kapan selesai? |\n
-        | kapan bisa diambil? | jam berapa bisa diambil? | kira jam berapa bisa dijemput kak? | kira\" jam berapa bisa dijemput? |\n
-        | jam brp bisa dijemput? | kapan bisa dijemput? | estimasi selesai? | kira-kira jam berapa siap? |\n
+        'ai_prompt' => "User menanyakan ESTIMASI waktu selesai ATAU meminta SELESAI pada jam tertentu — BUKAN tanya apakah sudah siap sekarang, BUKAN minta kurir jemput/antar.\n
+        TRUE (ESTIMASI_SELESAI) — dua sub-jenis (keduanya pilih ESTIMASI_SELESAI):\n
+        A) TANYA estimasi (jam berapa / kapan): | kapan siap? | jam berapa siap? | siapnya kapan? | kira jam berapa bisa dijemput? |\n
+        B) REQUEST selesai jam spesifik: | bisa siap jam 10? | minta selesai jam 14 | boleh siap jam 16.30 besok? | siap jam 11 mau ke medan |\n
+        Untuk (B) WAJIB ada angka jam (10 / 14.30), BUKAN 'jam berapa'.\n
         \n
         CRITICAL - bedakan dari STATUS:\n
-        - 'sudah siap kak?' / 'udah siap?' / 'sudah selesai?' / 'bisa diambil?' (tanpa kapan/jam berapa) = STATUS (cek status sekarang), BUKAN ESTIMASI_SELESAI.\n
-        - 'udah bisa dijemput?' / 'sdh bisa diambil?' = STATUS.\n
+        - 'sudah siap kak?' / 'udah siap?' / 'bisa diambil?' (tanpa kapan/jam berapa dan tanpa jam angka) = STATUS.\n
         \n
         CRITICAL - bedakan dari MINTA_JEMPUT_ANTAR:\n
-        - 'kira jam berapa bisa dijemput' / 'jam berapa bisa dijemput' (tanya kapan order SIAP diambil customer) = ESTIMASI_SELESAI, BUKAN minta kurir.\n
-        - 'tolong jemput di kamar 212' / 'minta dijemput ke hotel' = MINTA_JEMPUT_ANTAR.\n
-        - 'jam berapa besok diantar?' / 'kapan diantarnya?' (jadwal kurir antar ke alamat) = MINTA_JEMPUT_ANTAR.\n
+        - 'kira jam berapa bisa dijemput' = ESTIMASI_SELESAI.\n
+        - 'tolong jemput di kamar 212' = MINTA_JEMPUT_ANTAR.\n
         \n
         CRITICAL - bedakan dari JAM_OPERASIONAL:\n
         - 'jam berapa buka/tutup?' = JAM_OPERASIONAL, BUKAN ESTIMASI_SELESAI."
