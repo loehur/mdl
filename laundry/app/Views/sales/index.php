@@ -889,8 +889,7 @@
     
     $('#pakaiNotaRef').text('#' + pakaiNotaRef);
     if (pakaiKaryawanSelectize) pakaiKaryawanSelectize.clear(true);
-    $('#pakaiAccessKey').val('');
-    
+
     var modalEl = document.getElementById('modalPakai');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
@@ -901,25 +900,19 @@
     var btn = $(this);
     var originalHtml = btn.html();
     var karyawan = pakaiKaryawanSelectize ? pakaiKaryawanSelectize.getValue() : $('#pakaiKaryawan').val();
-    var accessKey = String($('#pakaiAccessKey').val() || '').trim();
     if (!karyawan) {
       showSalesAlert('Pilih karyawan terlebih dahulu', 'error');
       return;
     }
-    if (!/^\d{4}$/.test(accessKey)) {
-      showSalesAlert('Access Key harus 4 digit', 'error');
-      return;
-    }
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-    
+
     $.ajax({
       url: '<?= URL::BASE_URL ?>Sales/pakai',
       type: 'POST',
       dataType: 'json',
       data: {
         ref: pakaiNotaRef,
-        id_karyawan: karyawan,
-        access_key: accessKey
+        id_karyawan: karyawan
       },
       success: function(res) {
         // Close modal
@@ -1092,8 +1085,7 @@
     $('#terimaBarangRef').text('#' + terimaBarangNotaRef);
     $('#terimaBarangSource').text(sourceCabang);
     if (terimaBarangKaryawanSelectize) terimaBarangKaryawanSelectize.clear(true);
-    $('#terimaBarangAccessKey').val('');
-    
+
     var modalEl = document.getElementById('modalTerimaBarang');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
@@ -1109,8 +1101,7 @@
     $('#terimaPakaiRef').text('#' + terimaPakaiNotaRef);
     $('#terimaPakaiSource').text(sourceCabang);
     if (terimaPakaiKaryawanSelectize) terimaPakaiKaryawanSelectize.clear(true);
-    $('#terimaPakaiAccessKey').val('');
-    
+
     var modalEl = document.getElementById('modalTerimaPakai');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
@@ -1120,26 +1111,20 @@
     var btn = $(this);
     var originalHtml = btn.html();
     var karyawan = terimaPakaiKaryawanSelectize ? terimaPakaiKaryawanSelectize.getValue() : $('#terimaPakaiKaryawan').val();
-    var accessKey = String($('#terimaPakaiAccessKey').val() || '').trim();
     if (!karyawan) {
       showSalesAlert('Pilih karyawan penerima', 'error');
       return;
     }
-    if (!/^\d{4}$/.test(accessKey)) {
-      showSalesAlert('Access Key harus 4 digit', 'error');
-      return;
-    }
-    
+
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-   
+
     $.ajax({
       url: '<?= URL::BASE_URL ?>Sales/terimaPakai',
       type: 'POST',
       dataType: 'json',
       data: {
         ref: terimaPakaiNotaRef,
-        id_karyawan: karyawan,
-        access_key: accessKey
+        id_karyawan: karyawan
       },
       success: function(res) {
         var modalEl = document.getElementById('modalTerimaPakai');
@@ -1168,26 +1153,20 @@
     var btn = $(this);
     var originalHtml = btn.html();
     var karyawan = terimaBarangKaryawanSelectize ? terimaBarangKaryawanSelectize.getValue() : $('#terimaBarangKaryawan').val();
-    var accessKey = String($('#terimaBarangAccessKey').val() || '').trim();
     if (!karyawan) {
       showSalesAlert('Pilih karyawan penerima', 'error');
       return;
     }
-    if (!/^\d{4}$/.test(accessKey)) {
-      showSalesAlert('Access Key harus 4 digit', 'error');
-      return;
-    }
-    
+
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-   
+
     $.ajax({
       url: '<?= URL::BASE_URL ?>Sales/terimaBarang',
       type: 'POST',
       dataType: 'json',
       data: {
         ref: terimaBarangNotaRef,
-        id_karyawan: karyawan,
-        access_key: accessKey
+        id_karyawan: karyawan
       },
       success: function(res) {
         var modalEl = document.getElementById('modalTerimaBarang');
@@ -1499,10 +1478,6 @@
             <?php } ?>
           </select>
         </div>
-        <div class="mb-0">
-          <label class="form-label fw-bold small mb-1" for="pakaiAccessKey">Access Key karyawan</label>
-          <input type="password" id="pakaiAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
-        </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -1644,10 +1619,6 @@
             <?php } ?>
           </select>
         </div>
-        <div class="mb-0">
-          <label class="form-label fw-bold small mb-1" for="terimaPakaiAccessKey">Access Key karyawan</label>
-          <input type="password" id="terimaPakaiAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
-        </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -1691,10 +1662,6 @@
               </optgroup>
             <?php } ?>
           </select>
-        </div>
-        <div class="mb-0">
-          <label class="form-label fw-bold small mb-1" for="terimaBarangAccessKey">Access Key karyawan</label>
-          <input type="password" id="terimaBarangAccessKey" class="form-control" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
         </div>
       </div>
       <div class="modal-footer justify-content-center py-2">
