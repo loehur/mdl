@@ -28,6 +28,12 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   'base' => $base,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
 
+<div class="j-tagihan-switch">
+  <a href="<?= $base ?>J/tagihan/<?= $id ?>" class="j-tagihan-switch__link is-active">Tagihan Berjalan</a>
+  <span class="j-tagihan-switch__sep" aria-hidden="true">|</span>
+  <a href="<?= $base ?>J/riwayat/<?= $id ?>" class="j-tagihan-switch__link">Riwayat Tagihan</a>
+</div>
+
 <div class="j-bill-bar<?= $hasUnpaid ? ' has-pay' : '' ?>">
   <div class="j-bill-stat">
     <small>Total</small>

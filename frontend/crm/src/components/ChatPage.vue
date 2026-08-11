@@ -647,12 +647,18 @@ const parseWhatsAppFormatting = (text) => {
 const formatReactionText = (t) => (t || "👍").replace("Reacted: ", "").replace("Removed reaction", "👎");
 const getMessagePreview = (m) => {
     if(!m) return "";
-    if(m.type === 'image') return "📷 Image";
-    if(m.type === 'video') return "🎥 Video";
+    if(m.type === 'image') return m.text && !/^\[[a-z_]+\]$/i.test(String(m.text).trim()) ? m.text : "📷 Image";
+    if(m.type === 'video') return m.text && !/^\[[a-z_]+\]$/i.test(String(m.text).trim()) ? m.text : "🎥 Video";
     if(m.type === 'audio' || m.type === 'voice') return "🎵 Audio";
     if(m.type === 'document') return "📄 Document";
     if(m.type === 'sticker') return "Sticker";
     return (m.text || m.caption || "").substring(0, 60);
+};
+/** Caption untuk bubble media: sembunyikan placeholder [image]/[video] */
+const mediaCaptionText = (msg) => {
+    const t = String(msg?.text || msg?.caption || msg?.media_caption || "").trim();
+    if (!t || /^\[[a-z_]+\]$/i.test(t)) return "";
+    return t;
 };
 // Check if message is plain text (no media type)
 const isPlainTextMessage = (msg) => {
@@ -1042,7 +1048,7 @@ onUnmounted(() => {
                                            </div>
                                       </div>
                                       <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
-                                      <div v-if="msg.text || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
+                                      <div v-if="mediaCaptionText(msg) || msg.time" class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white">
                                            <!-- Private indicator for image - always show if private -->
                                            <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-300 mb-0.5 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -1050,8 +1056,8 @@ onUnmounted(() => {
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
-                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none']" style="line-height: 1.1;">{{ msg.text }}</p>
-                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
+                                           <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none']" style="line-height: 1.1;">{{ mediaCaptionText(msg) }}</p>
+                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
@@ -1085,15 +1091,15 @@ onUnmounted(() => {
                                         playsinline
                                         preload="metadata"
                                       ></video>
-                                      <div v-if="msg.text || msg.time" class="mt-1 px-1">
+                                      <div v-if="mediaCaptionText(msg) || msg.time" class="mt-1 px-1">
                                            <div v-if="isPrivateMessage(msg)" class="flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-0.5">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
-                                           <p v-if="msg.text && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none text-[var(--wa-text-primary)]']" style="line-height: 1.1;">{{ msg.text }}</p>
-                                           <p v-else-if="msg.text && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none text-[var(--wa-text-tertiary)]" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
+                                           <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-0.5 leading-none text-[var(--wa-text-primary)]']" style="line-height: 1.1;">{{ mediaCaptionText(msg) }}</p>
+                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-0.5 leading-none text-[var(--wa-text-tertiary)]" style="line-height: 1.1;">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px] text-[var(--wa-text-tertiary)]">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>

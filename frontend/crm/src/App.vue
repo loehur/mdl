@@ -1204,6 +1204,34 @@ const formatPhoneTo08 = (phone) => {
   return cleaned;
 };
 
+/** Caption/text helper: ignore media placeholders like [image] / [video] */
+const isMediaPlaceholderText = (t) => {
+  const s = String(t || "").trim();
+  if (!s) return true;
+  return /^\[[a-z_]+\]$/i.test(s);
+};
+
+const resolveMessageText = (m) => {
+  const caption = m?.caption || m?.media_caption || "";
+  const raw = m?.text;
+  if (!isMediaPlaceholderText(raw)) return String(raw);
+  if (caption) return String(caption);
+  return "";
+};
+
+const mediaTypeLastMessageLabel = (type) => {
+  const labels = {
+    image: "📷 Image",
+    video: "🎥 Video",
+    audio: "🎵 Audio",
+    voice: "🎤 Voice",
+    document: "📄 Document",
+    sticker: "Sticker",
+    location: "📍 Location",
+  };
+  return labels[type] || (type ? `[${type}]` : "");
+};
+
 // --- Helper: Centralized Message Sanitizer ---
 // Aggressively cleans duplicates based on ID, WAMID, and Fuzzy Content/Time
 const sanitizeMessages = (messages) => {
@@ -1343,6 +1371,15 @@ const sanitizeMessages = (messages) => {
         existing.media_url = msg.media_url;
       }
 
+      // Prefer real caption over placeholder like [image]
+      const resolvedText = resolveMessageText(msg);
+      if (
+        resolvedText &&
+        (isMediaPlaceholderText(existing.text) || !existing.text)
+      ) {
+        existing.text = resolvedText;
+      }
+
       if (
         msg.status &&
         shouldApplyMessageStatus(existing.status, msg.status)
@@ -1391,7 +1428,7 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
         return {
           id: m.id,
           wamid: m.wamid,
-          text: m.text || m.caption,
+          text: resolveMessageText(m),
           type: m.type,
           media_id: m.media_id,
           media_url: m.media_url,
@@ -2915,16 +2952,11 @@ const handleIncomingMessage = (payload) => {
   const phone = payload.phone;
   const messageData = payload.message || payload; // if message is nested or flat
 
-  const text = messageData.text;
   const type = messageData.type || "text";
   const sender = messageData.sender || "customer";
 
-  let displayText = text;
-  if (!displayText && type !== "text") {
-    displayText = `[${type}]`;
-    if (messageData.media_caption)
-      displayText += " " + messageData.media_caption;
-  }
+  // WS payload uses `caption`; some paths use `media_caption`. Never keep `[image]` in bubble.
+  const displayText = resolveMessageText(messageData);
   const name = payload.contact_name || payload.name;
 
   // Find or create conversation
@@ -3081,7 +3113,11 @@ const handleIncomingMessage = (payload) => {
     // Re-sanitize entire conversation to be sure
     conversation.messages = sanitizeMessages(conversation.messages);
 
-    conversation.lastMessage = displayText;
+    conversation.lastMessage =
+      displayText ||
+      (sender === "me"
+        ? "You: " + (mediaTypeLastMessageLabel(type) || "Message")
+        : mediaTypeLastMessageLabel(type) || displayText || "Message");
     conversation.lastTime = formatLastTime(newMsg.rawTime);
     
     // Update local last_message_at if this is the active chat

@@ -18,6 +18,11 @@ class J extends Controller
       $this->shell($pelanggan, 'tagihan');
    }
 
+   public function riwayat($pelanggan, $ym = null)
+   {
+      $this->shell($pelanggan, 'riwayat', $ym);
+   }
+
    public function saldo($pelanggan)
    {
       $this->shell($pelanggan, 'saldo');
@@ -399,6 +404,22 @@ class J extends Controller
             $payload['saldoTunai'] = $full['saldoTunai'] ?? 0;
             $payload['customer'] = $full['customer'];
             $this->view('j/partials/tagihan', $payload);
+            break;
+
+         case 'riwayat':
+            $ym = trim((string) ($extra ?? ''));
+            if (!preg_match('/^\d{4}-\d{2}$/', $ym)) {
+               $ym = date('Y-m');
+            }
+            $parts = explode('-', $ym);
+            $tahun = (int) $parts[0];
+            $bulan = (int) $parts[1];
+            $full = $this->getTagihanFull($pelanggan, $bulan, $tahun, 1);
+            $payload['orders'] = $full['orders'];
+            $payload['customer'] = $full['customer'];
+            $payload['filter_ym'] = $ym;
+            $payload['month_options'] = $this->buildRiwayatMonthOptions($tahun, $bulan);
+            $this->view('j/partials/riwayat', $payload);
             break;
 
          case 'saldo':
@@ -812,7 +833,9 @@ class J extends Controller
    {
       $pelanggan = $this->bootShell($pelanggan);
       $this->render('j/shell', [
-         'active' => ($page === 'paketDetail' || $page === 'topup') ? 'paket' : $page,
+         'active' => ($page === 'paketDetail' || $page === 'topup')
+            ? 'paket'
+            : (($page === 'riwayat') ? 'tagihan' : $page),
          'title' => 'MDL',
          'page' => $page,
          'extra' => $extra,
@@ -1058,11 +1081,25 @@ class J extends Controller
       return $full['summary'];
    }
 
-   private function getTagihanFull($pelanggan, $bulan, $tahun)
+   private function getTagihanFull($pelanggan, $bulan, $tahun, $tuntas = 0)
    {
+      $tuntas = ((int) $tuntas === 1) ? 1 : 0;
       $filter = ['bulan' => $bulan, 'tahun' => $tahun, 'active' => ($bulan !== '' && $tahun !== '')];
 
-      if ($filter['active']) {
+      if ($tuntas === 1) {
+         $bulan = (int) ($bulan !== '' ? $bulan : date('n'));
+         $tahun = (int) ($tahun !== '' ? $tahun : date('Y'));
+         if ($bulan < 1 || $bulan > 12) {
+            $bulan = (int) date('n');
+         }
+         if ($tahun < 2021 || $tahun > ((int) date('Y') + 1)) {
+            $tahun = (int) date('Y');
+         }
+         $bulannya = $tahun . '-' . str_pad((string) $bulan, 2, '0', STR_PAD_LEFT);
+         $bulannya = $this->db(0)->escape($bulannya);
+         $where = "id_pelanggan = $pelanggan AND insertTime LIKE '$bulannya%' AND bin = 0 AND tuntas = 1 ORDER BY id_penjualan DESC";
+         $filter = ['bulan' => $bulan, 'tahun' => $tahun, 'active' => true];
+      } elseif ($filter['active']) {
          $bulannya = $tahun . '-' . str_pad($bulan, 2, '0', STR_PAD_LEFT);
          $bulannya = $this->db(0)->escape($bulannya);
          $where = "id_pelanggan = $pelanggan AND insertTime LIKE '$bulannya%' AND bin = 0 AND tuntas = 0 ORDER BY id_penjualan DESC";
@@ -1302,91 +1339,94 @@ class J extends Controller
       }
       unset($ord);
 
-      // Unpaid member packages
-      $data_member = $this->db(0)->get_where_order(
-         'member',
-         'id_cabang = ' . (int) $this->id_cabang_p . " AND bin = 0 AND id_pelanggan = $pelanggan AND lunas = 0",
-         'id_member DESC'
-      );
-      if (!is_array($data_member)) $data_member = [];
-
       $membersOut = [];
       $kasM = [];
-      if (!empty($data_member)) {
-         $memberIds = array_column($data_member, 'id_member');
-         $safeM = implode(',', array_map('intval', $memberIds));
-         $kasM = $this->db(0)->get_where('kas', 'id_cabang = ' . (int) $this->id_cabang_p . " AND jenis_transaksi = 3 AND ref_transaksi IN ($safeM)");
-         if (!is_array($kasM)) $kasM = [];
-         $bayarMap = [];
-         foreach ($kasM as $ck) {
-            if ((int) $ck['status_mutasi'] === 3) {
-               $bayarMap[$ck['ref_transaksi']] = ($bayarMap[$ck['ref_transaksi']] ?? 0) + (float) $ck['jumlah'];
+      $unpaid = [];
+      $finance_history = [];
+
+      if ($tuntas === 0) {
+         // Unpaid member packages
+         $data_member = $this->db(0)->get_where_order(
+            'member',
+            'id_cabang = ' . (int) $this->id_cabang_p . " AND bin = 0 AND id_pelanggan = $pelanggan AND lunas = 0",
+            'id_member DESC'
+         );
+         if (!is_array($data_member)) $data_member = [];
+
+         if (!empty($data_member)) {
+            $memberIds = array_column($data_member, 'id_member');
+            $safeM = implode(',', array_map('intval', $memberIds));
+            $kasM = $this->db(0)->get_where('kas', 'id_cabang = ' . (int) $this->id_cabang_p . " AND jenis_transaksi = 3 AND ref_transaksi IN ($safeM)");
+            if (!is_array($kasM)) $kasM = [];
+            $bayarMap = [];
+            foreach ($kasM as $ck) {
+               if ((int) $ck['status_mutasi'] === 3) {
+                  $bayarMap[$ck['ref_transaksi']] = ($bayarMap[$ck['ref_transaksi']] ?? 0) + (float) $ck['jumlah'];
+               }
+            }
+            foreach ($data_member as $m) {
+               $paid = $bayarMap[$m['id_member']] ?? 0;
+               if ($paid >= (float) $m['harga']) continue;
+               $info = $this->resolveHargaInfo((int) $m['id_harga']);
+               $sisa = (float) $m['harga'] - $paid;
+               $membersOut[] = [
+                  'id_member' => $m['id_member'],
+                  'id_harga' => $m['id_harga'],
+                  'label' => $info['label'],
+                  'qty' => $m['qty'],
+                  'harga' => (float) $m['harga'],
+                  'dibayar' => $paid,
+                  'sisa' => $sisa,
+                  'insertTime' => $m['insertTime'],
+               ];
+               $totalTagihan += (float) $m['harga'];
+               $totalTagihanAsli += (float) $m['harga'];
+               $totalDibayar += $paid;
             }
          }
-         foreach ($data_member as $m) {
-            $paid = $bayarMap[$m['id_member']] ?? 0;
-            if ($paid >= (float) $m['harga']) continue;
-            $info = $this->resolveHargaInfo((int) $m['id_harga']);
-            $sisa = (float) $m['harga'] - $paid;
-            $membersOut[] = [
-               'id_member' => $m['id_member'],
-               'id_harga' => $m['id_harga'],
-               'label' => $info['label'],
-               'qty' => $m['qty'],
-               'harga' => (float) $m['harga'],
-               'dibayar' => $paid,
-               'sisa' => $sisa,
-               'insertTime' => $m['insertTime'],
-            ];
-            $totalTagihan += (float) $m['harga'];
-            $totalTagihanAsli += (float) $m['harga'];
-            $totalDibayar += $paid;
-         }
-      }
 
-      // Unpaid list for bayar modal
-      $unpaid = [];
-      foreach ($orders as $ord) {
-         if ((float) $ord['sisa'] > 0) {
-            $unpaid[] = [
-               'ref' => 'T_' . $ord['no_ref'],
-               'label' => 'REF #' . $ord['no_ref'],
-               'amount' => (int) $ord['sisa'],
-            ];
+         // Unpaid list for bayar modal
+         foreach ($orders as $ord) {
+            if ((float) $ord['sisa'] > 0) {
+               $unpaid[] = [
+                  'ref' => 'T_' . $ord['no_ref'],
+                  'label' => 'REF #' . $ord['no_ref'],
+                  'amount' => (int) $ord['sisa'],
+               ];
+            }
          }
-      }
-      foreach ($membersOut as $m) {
-         if ((float) $m['sisa'] > 0) {
-            $unpaid[] = [
-               'ref' => 'M_' . $m['id_member'],
-               'label' => 'Paket M' . $m['id_harga'] . ' #' . $m['id_member'],
-               'amount' => (int) round($m['sisa']),
-            ];
+         foreach ($membersOut as $m) {
+            if ((float) $m['sisa'] > 0) {
+               $unpaid[] = [
+                  'ref' => 'M_' . $m['id_member'],
+                  'label' => 'Paket M' . $m['id_harga'] . ' #' . $m['id_member'],
+                  'amount' => (int) round($m['sisa']),
+               ];
+            }
          }
-      }
 
-      // Pending finance (status_mutasi = 2)
-      $finance_history = [];
-      $allKasPending = array_merge($kas, $kasM);
-      foreach ($allKasPending as $k) {
-         if (empty($k['ref_finance'])) continue;
-         if ((int) $k['status_mutasi'] !== 2) continue;
-         $rf = $k['ref_finance'];
-         if (!isset($finance_history[$rf])) {
-            $finance_history[$rf] = [
-               'ref_finance' => $rf,
-               'total' => 0,
-               'status' => (int) $k['status_mutasi'],
-               'note' => $k['note'] ?? '',
-               'insertTime' => $k['insertTime'],
-               'id_user' => (int) ($k['id_user'] ?? 0),
-            ];
-         }
-         $finance_history[$rf]['total'] += (int) $k['jumlah'];
-         if (($k['insertTime'] ?? '') > $finance_history[$rf]['insertTime']) {
-            $finance_history[$rf]['insertTime'] = $k['insertTime'];
-            $finance_history[$rf]['note'] = $k['note'] ?? '';
-            $finance_history[$rf]['id_user'] = (int) ($k['id_user'] ?? 0);
+         // Pending finance (status_mutasi = 2)
+         $allKasPending = array_merge($kas, $kasM);
+         foreach ($allKasPending as $k) {
+            if (empty($k['ref_finance'])) continue;
+            if ((int) $k['status_mutasi'] !== 2) continue;
+            $rf = $k['ref_finance'];
+            if (!isset($finance_history[$rf])) {
+               $finance_history[$rf] = [
+                  'ref_finance' => $rf,
+                  'total' => 0,
+                  'status' => (int) $k['status_mutasi'],
+                  'note' => $k['note'] ?? '',
+                  'insertTime' => $k['insertTime'],
+                  'id_user' => (int) ($k['id_user'] ?? 0),
+               ];
+            }
+            $finance_history[$rf]['total'] += (int) $k['jumlah'];
+            if (($k['insertTime'] ?? '') > $finance_history[$rf]['insertTime']) {
+               $finance_history[$rf]['insertTime'] = $k['insertTime'];
+               $finance_history[$rf]['note'] = $k['note'] ?? '';
+               $finance_history[$rf]['id_user'] = (int) ($k['id_user'] ?? 0);
+            }
          }
       }
 
@@ -1417,6 +1457,29 @@ class J extends Controller
             'hp' => $this->pelanggan_p['nomor_pelanggan'] ?? '',
          ],
       ];
+   }
+
+   private function buildRiwayatMonthOptions($selectedYear, $selectedMonth)
+   {
+      $months = [
+         1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+         5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+         9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+      ];
+      $out = [];
+      $cursor = strtotime(date('Y-m-01'));
+      for ($i = 0; $i < 24; $i++) {
+         $y = (int) date('Y', $cursor);
+         $m = (int) date('n', $cursor);
+         $ym = date('Y-m', $cursor);
+         $out[] = [
+            'value' => $ym,
+            'label' => ($months[$m] ?? $m) . ' ' . $y,
+            'selected' => ($y === (int) $selectedYear && $m === (int) $selectedMonth),
+         ];
+         $cursor = strtotime('-1 month', $cursor);
+      }
+      return $out;
    }
 
    private function resolveHargaInfo($id_harga)

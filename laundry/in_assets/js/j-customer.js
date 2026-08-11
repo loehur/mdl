@@ -13,6 +13,7 @@
 
   function setActiveNav(page) {
     var navKey = (page === 'paketDetail' || page === 'topup') ? 'paket' : page;
+    if (page === 'riwayat') navKey = 'tagihan';
     document.querySelectorAll('.j-nav a').forEach(function (a) {
       a.classList.toggle('active', a.getAttribute('data-nav') === navKey);
     });
@@ -26,12 +27,20 @@
       if (extra && String(extra) !== '0') url += '/' + extra;
       return url;
     }
+    if (page === 'riwayat') {
+      var rurl = base + 'J/riwayat/' + pelangganId;
+      if (extra && /^\d{4}-\d{2}$/.test(String(extra))) rurl += '/' + extra;
+      return rurl;
+    }
     return base + 'J/' + page + '/' + pelangganId;
   }
 
   function loadUrl(page, extra) {
     var url = base + 'J/load/' + page + '/' + pelangganId;
     if ((page === 'paketDetail' || page === 'topup') && extra && String(extra) !== '0') {
+      url += '/' + extra;
+    }
+    if (page === 'riwayat' && extra && /^\d{4}-\d{2}$/.test(String(extra))) {
       url += '/' + extra;
     }
     return url;
@@ -171,6 +180,10 @@
     if (mTopupFilter) return { page: 'topup', extra: mTopupFilter[2] };
     var mTopup = path.match(/\/J\/topup\/(\d+)\/?$/i);
     if (mTopup) return { page: 'topup', extra: '' };
+    var mRiwayatYm = path.match(/\/J\/riwayat\/(\d+)\/(\d{4}-\d{2})/i);
+    if (mRiwayatYm) return { page: 'riwayat', extra: mRiwayatYm[2] };
+    var mRiwayat = path.match(/\/J\/riwayat\/(\d+)\/?$/i);
+    if (mRiwayat) return { page: 'riwayat', extra: '' };
     var mPage = path.match(/\/J\/(tagihan|saldo|paket|kurir)\/(\d+)/i);
     if (mPage) return { page: mPage[1], extra: '' };
     return { page: 'home', extra: '' };
@@ -208,6 +221,20 @@
     if (mTopup && String(mTopup[1]) === String(pelangganId)) {
       e.preventDefault();
       loadPage('topup', '', true);
+      return;
+    }
+
+    var mRiwayatYm = href.match(/J\/riwayat\/(\d+)\/(\d{4}-\d{2})/i);
+    if (mRiwayatYm && String(mRiwayatYm[1]) === String(pelangganId)) {
+      e.preventDefault();
+      loadPage('riwayat', mRiwayatYm[2], true);
+      return;
+    }
+
+    var mRiwayat = href.match(/J\/riwayat\/(\d+)\/?$/i);
+    if (mRiwayat && String(mRiwayat[1]) === String(pelangganId)) {
+      e.preventDefault();
+      loadPage('riwayat', '', true);
       return;
     }
 
@@ -522,6 +549,23 @@
         document.body.appendChild(overlay);
       }
       overlay.hidden = false;
+      document.body.style.overflow = 'hidden';
+      return;
+    }
+
+    var openNotaPreview = e.target.closest('.j-nota-preview-btn');
+    if (openNotaPreview) {
+      e.preventDefault();
+      var srcId = openNotaPreview.getAttribute('data-preview-src') || '';
+      var src = srcId ? document.getElementById(srcId) : null;
+      var overlayN = document.getElementById('jInvoicePreview');
+      var slot = document.getElementById('jPreviewNotaSlot');
+      if (!src || !overlayN || !slot) return;
+      slot.innerHTML = src.innerHTML;
+      if (overlayN.parentElement !== document.body) {
+        document.body.appendChild(overlayN);
+      }
+      overlayN.hidden = false;
       document.body.style.overflow = 'hidden';
       return;
     }
@@ -2147,6 +2191,12 @@
     if (e.target && e.target.id === 'jKurirCourierMetode') {
       e.target.setAttribute('data-touched', '1');
       syncKurirPayMetode();
+    }
+    if (e.target && e.target.id === 'jRiwayatBulan') {
+      var ym = e.target.value || '';
+      if (/^\d{4}-\d{2}$/.test(ym)) {
+        loadPage('riwayat', ym, true);
+      }
     }
   });
 

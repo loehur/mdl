@@ -2187,6 +2187,73 @@ a { color: inherit; text-decoration: none; }
   font: inherit;
 }
 
+/* Switch Tagihan Berjalan | Riwayat */
+.j-tagihan-switch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+.j-tagihan-switch__link {
+  font-size: 0.78rem;
+  font-weight: 750;
+  color: var(--j-muted);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.j-tagihan-switch__link.is-active {
+  color: var(--j-ink);
+}
+.j-tagihan-switch__sep {
+  color: var(--j-line);
+  font-weight: 700;
+}
+.j-riwayat-toolbar {
+  margin: 0 0 12px;
+}
+.j-riwayat-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.j-riwayat-filter > span {
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--j-muted);
+}
+.j-riwayat-bulan {
+  max-width: 220px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 0.84rem;
+}
+.j-nota-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(11, 61, 58, 0.14);
+  background: rgba(42, 157, 143, 0.10);
+  color: var(--j-mint);
+  border-radius: 7px;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.j-nota-preview-btn:active {
+  transform: scale(0.95);
+  opacity: 0.85;
+}
+.j-nota-preview-btn i {
+  font-size: 0.62rem;
+}
+
 /* Detail nota — ikon kecil di samping REF */
 .j-nota-detail-btn {
   display: inline-flex;
