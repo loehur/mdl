@@ -91,7 +91,7 @@ trait WARepliesLokasiTrait
             $phone,
             $merge('id_pelanggan'),
             $merge('id_lokasi'),
-            (string) $merge('step', 'ask_nama'),
+            (string) $merge('step', 'ask_detail'),
             $merge('lokasi_nama'),
             $merge('lokasi_detail'),
             $merge('latt'),
@@ -451,9 +451,7 @@ trait WARepliesLokasiTrait
                 'latt' => $saved['latt'],
                 'longt' => $saved['longt'],
                 'lokasi_nama' => $saved['nama'] !== '' ? $saved['nama'] : null,
-                'step' => trim($saved['nama']) === '' || strcasecmp($saved['nama'], 'Shareloc') === 0
-                    ? 'ask_nama'
-                    : 'ask_detail',
+                'step' => 'ask_detail',
                 'summary' => '[shareloc] saved_no_ask',
             ]);
             return true;
@@ -481,42 +479,19 @@ trait WARepliesLokasiTrait
             return true;
         }
 
-        if ($nama === '' || strcasecmp($nama, 'Shareloc') === 0) {
-            $this->saveLokasiSession($waNumber, [
-                'id_pelanggan' => $idPelanggan,
-                'id_lokasi' => $idLokasi,
-                'latt' => $latt,
-                'longt' => $longt,
-                'lokasi_nama' => null,
-                'lokasi_detail' => null,
-                'step' => 'ask_nama',
-                'last_ask_at' => date('Y-m-d H:i:s'),
-            ]);
-            if ($sendPrompt) {
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Lokasi diterima {$sapaan}. Apakah ini *rumah / kos / mess / asrama / kantor / penginapan / lainnya*?"
-                );
-            }
-            return true;
-        }
-
+        // Langsung minta detail (nama diinfer dari jawaban) — skip tanya rumah/kos/...
         $this->saveLokasiSession($waNumber, [
             'id_pelanggan' => $idPelanggan,
             'id_lokasi' => $idLokasi,
             'latt' => $latt,
             'longt' => $longt,
-            'lokasi_nama' => $nama,
+            'lokasi_nama' => ($nama !== '' && strcasecmp($nama, 'Shareloc') !== 0) ? $nama : null,
             'lokasi_detail' => null,
             'step' => 'ask_detail',
             'last_ask_at' => date('Y-m-d H:i:s'),
         ]);
         if ($sendPrompt) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Lanjut melengkapi lokasi *{$nama}* ya {$sapaan}. "
-                . preg_replace('/^Baik\s+\S+\.\s*/u', '', $this->kurirAskLokasiDetailPrompt($nama, $sapaan))
-            );
+            $this->sendAutoreplyText($waNumber, $this->lokasiAskDetailPrompt($sapaan));
         }
         return true;
     }
@@ -528,11 +503,15 @@ trait WARepliesLokasiTrait
         string $msg,
         int $idPelanggan
     ): bool {
-        $step = (string) ($session['step'] ?? 'ask_nama');
+        $step = (string) ($session['step'] ?? 'ask_detail');
+        // Session lama ask_nama → perlakukan sebagai ask_detail
+        if ($step === 'ask_nama') {
+            $step = 'ask_detail';
+        }
 
         // Shareloc baru di tengah sesi
         $coords = $this->lokasiExtractCoords($msg);
-        if ($coords !== null && in_array($step, ['ask_shareloc', 'ask_nama', 'ask_detail'], true)) {
+        if ($coords !== null && in_array($step, ['ask_shareloc', 'ask_detail'], true)) {
             return $this->lokasiStartFromCoords($waNumber, $sapaan, $idPelanggan, $coords, $msg, true);
         }
 
@@ -542,15 +521,6 @@ trait WARepliesLokasiTrait
                 return false;
             }
             return $this->lokasiStartFromCoords($waNumber, $sapaan, $idPelanggan, $coords, $msg, true);
-        }
-
-        if ($step === 'ask_nama') {
-            $nama = $this->kurirParseLokasiJenis($msg);
-            if ($nama === null) {
-                // Bukan jawaban jenis lokasi → jangan ulang tanya; serahkan ke intent lain
-                return false;
-            }
-            return $this->lokasiHandleNama($waNumber, $sapaan, $session, $msg, $idPelanggan);
         }
 
         if ($step === 'ask_detail') {
@@ -565,43 +535,6 @@ trait WARepliesLokasiTrait
         return false;
     }
 
-    private function lokasiHandleNama(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        int $idPelanggan
-    ): bool {
-        $nama = $this->kurirParseLokasiJenis($msg);
-        if ($nama === null) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Pilih ya {$sapaan}: *rumah*, *kos*, *mess*, *asrama*, *kantor*, *penginapan*, atau *lainnya*?"
-            );
-            return true;
-        }
-
-        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
-        if ($idLokasi > 0) {
-            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, ['nama' => $nama]);
-        }
-
-        $detailInline = $this->kurirExtractLokasiDetailFromJenisReply($msg, $nama);
-        if ($detailInline !== null) {
-            $session['lokasi_nama'] = $nama;
-            return $this->lokasiHandleDetail($waNumber, $sapaan, $session, $detailInline, $idPelanggan);
-        }
-
-        $this->saveLokasiSession($waNumber, [
-            'lokasi_nama' => $nama,
-            'step' => 'ask_detail',
-            'id_lokasi' => $idLokasi > 0 ? $idLokasi : null,
-            'last_ask_at' => date('Y-m-d H:i:s'),
-        ]);
-        $this->sendAutoreplyText($waNumber, $this->kurirAskLokasiDetailPrompt($nama, $sapaan));
-        return true;
-    }
-
     private function lokasiHandleDetail(
         string $waNumber,
         string $sapaan,
@@ -609,28 +542,23 @@ trait WARepliesLokasiTrait
         string $msg,
         int $idPelanggan
     ): bool {
-        $nama = trim((string) ($session['lokasi_nama'] ?? ''));
-        if ($nama === '') {
-            $this->saveLokasiSession($waNumber, ['step' => 'ask_nama']);
+        $inferred = $this->lokasiInferNamaDetailFromReply($msg);
+        $nama = $inferred['nama'];
+        $detail = $inferred['detail'];
+
+        if ($detail === null || $detail === '') {
+            $this->saveLokasiSession($waNumber, [
+                'step' => 'ask_detail',
+                'last_ask_at' => date('Y-m-d H:i:s'),
+            ]);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Lokasi diterima {$sapaan}. Apakah ini *rumah / kos / mess / asrama / kantor / penginapan / lainnya*?"
+                "Detail masih kurang jelas {$sapaan}. "
+                . "Contoh: *kos Azzahra kamar 2* / *rumah pagar kuning* / *toko sebelah Indomaret*."
             );
             return true;
         }
 
-        $detail = trim($msg);
-        $detail = trim(preg_replace('/\s+/u', ' ', $detail));
-        if ($detail === '' || mb_strlen($detail) < 2
-            || preg_match('/^(kak|kk|bang|pak|bu|ya|iya|ok|oke|baik|dong|deh)\s*$/iu', $detail)
-        ) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                preg_replace('/^Baik\s+\S+\.\s*/u', '', $this->kurirAskLokasiDetailPrompt($nama, $sapaan))
-            );
-            return true;
-        }
-        $detail = mb_substr($detail, 0, 255);
         $idLokasi = (int) ($session['id_lokasi'] ?? 0);
         $latt = (float) ($session['latt'] ?? 0);
         $longt = (float) ($session['longt'] ?? 0);

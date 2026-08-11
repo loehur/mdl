@@ -583,7 +583,7 @@ trait WARepliesKurirTrait
             'id_cabang' => $idCabang,
             'jenis' => 'jemput',
             'layanan' => 'sameday',
-            'step' => 'ask_lokasi_nama',
+            'step' => 'ask_lokasi_detail',
             'id_lokasi' => $idLokasi,
             'latt' => $latt,
             'longt' => $longt,
@@ -602,7 +602,7 @@ trait WARepliesKurirTrait
 
         $this->sendAutoreplyText(
             $waNumber,
-            $this->kurirAskLokasiJenisPrompt($sapaan)
+            $this->lokasiAskDetailPrompt($sapaan)
         );
     }
 
@@ -1112,7 +1112,7 @@ trait WARepliesKurirTrait
                     'latt' => (float) ($session['latt'] ?? 0) ?: null,
                     'longt' => (float) ($session['longt'] ?? 0) ?: null,
                     'lokasi_nama' => trim((string) ($session['lokasi_nama'] ?? '')) ?: null,
-                    'step' => $step === 'ask_lokasi_detail' ? 'ask_detail' : 'ask_nama',
+                    'step' => 'ask_detail',
                     'last_ask_at' => date('Y-m-d H:i:s'),
                 ]);
                 $this->handleLokasi($phoneIn, $waNumber, $msg);
@@ -1351,10 +1351,10 @@ trait WARepliesKurirTrait
         $sessDetail = trim((string) ($session['lokasi_detail'] ?? ''));
         if (abs($sessLatt) > 0.0001 && abs($sessLongt) > 0.0001 && $sessDetail === '') {
             if ($sessNama === '') {
-                $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_nama']);
+                $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_detail']);
                 $this->sendAutoreplyText(
                     $waNumber,
-                    $this->kurirAskLokasiJenisPrompt($sapaan)
+                    $this->lokasiAskDetailPrompt($sapaan)
                 );
             } else {
                 $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_detail']);
@@ -1842,11 +1842,19 @@ trait WARepliesKurirTrait
 
     private function kurirAskLokasiJenisPrompt(string $sapaan): string
     {
-        return "Lokasi diterima {$sapaan}. Apakah ini *rumah / kos / mess / asrama / kantor / penginapan / lainnya*?";
+        // LOKASI disingkat: langsung minta detail; nama (Rumah/Kos/Toko/…) diinfer dari jawaban
+        return $this->lokasiAskDetailPrompt($sapaan);
+    }
+
+    /** Prompt tunggal setelah shareloc — tidak tanya kategori rumah/kos dulu. */
+    private function lokasiAskDetailPrompt(string $sapaan): string
+    {
+        return "Lokasi diterima {$sapaan}. Boleh jelaskan *detailnya* ya?\n"
+            . "Contoh: kos Azzahra kamar 2 / rumah pagar kuning / mess BPK / toko sebelah Indomaret";
     }
 
     /**
-     * Pertanyaan detail sesuai jenis lokasi (hasil pilihan kategori).
+     * Pertanyaan detail sesuai jenis lokasi (hasil pilihan kategori) — legacy / fallback.
      */
     private function kurirAskLokasiDetailPrompt(string $nama, string $sapaan): string
     {
@@ -1863,13 +1871,15 @@ trait WARepliesKurirTrait
                 return "Baik {$sapaan}. Sebut *nama penginapan* dan *nomor kamar*, atau titip di *lobby*?";
             case 'kantor':
                 return "Baik {$sapaan}. *Nama kantornya* apa?";
+            case 'toko':
+                return "Baik {$sapaan}. Sebut *nama toko/warung* atau *ciri-cirinya* ya?";
             default:
                 return "Baik {$sapaan}. Boleh jelaskan *detail titiknya* ya?";
         }
     }
 
     /**
-     * @return 'Rumah'|'Kos'|'Mess'|'Asrama'|'Kantor'|'Penginapan'|'Lainnya'|null
+     * @return 'Rumah'|'Kos'|'Mess'|'Asrama'|'Kantor'|'Penginapan'|'Toko'|'Lainnya'|null
      */
     private function kurirParseLokasiJenis(string $msg): ?string
     {
@@ -1898,7 +1908,36 @@ trait WARepliesKurirTrait
         if (preg_match('/\b(penginapan|hotel|apartemen|apartment|kontrakan|inn|homestay)\b/iu', $t)) {
             return 'Penginapan';
         }
+        // Toko / tempat usaha (studio, warung, swalayan, kedai, sejenisnya)
+        if (preg_match(
+            '/\b(toko|studio|warung|swalayan|kedai|minimarket|minimark|mini\s*market|supermarket|kios|outlet|counter|kafe|cafe|coffee\s*shop|restoran|rumah\s*makan|\brm\b|bakery|salon|barbershop|bengkel|apotik|apotek)\b/iu',
+            $t
+        )) {
+            return 'Toko';
+        }
         return null;
+    }
+
+    /**
+     * Infer nama + detail dari satu jawaban bebas.
+     *
+     * @return array{nama:string,detail:?string}
+     */
+    private function lokasiInferNamaDetailFromReply(string $msg): array
+    {
+        $nama = $this->kurirParseLokasiJenis($msg) ?: 'Lainnya';
+        $detail = $this->kurirExtractLokasiDetailFromJenisReply($msg, $nama);
+        if ($detail !== null) {
+            return ['nama' => $nama, 'detail' => $detail];
+        }
+        // Jawaban hanya kata jenis ("kos") atau Lainnya tanpa sisa → detail belum cukup
+        $t = trim(preg_replace('/\s+/u', ' ', preg_replace("/[\r\n]+/", ' ', $msg)));
+        if ($nama === 'Lainnya' && mb_strlen($t) >= 2
+            && !preg_match('/^(kak|kk|bang|pak|bu|ya|iya|ok|oke|baik|dong|deh|aja|aj)\s*$/iu', $t)
+        ) {
+            return ['nama' => 'Lainnya', 'detail' => mb_substr($t, 0, 255)];
+        }
+        return ['nama' => $nama, 'detail' => null];
     }
 
     /**
@@ -1933,6 +1972,9 @@ trait WARepliesKurirTrait
             case 'penginapan':
                 $strip = 'penginapan|hotel|apartemen|apartment|kontrakan|inn|homestay';
                 break;
+            case 'toko':
+                $strip = 'toko|studio|warung|swalayan|kedai|minimarket|minimark|mini\s*market|supermarket|kios|outlet|counter|kafe|cafe|coffee\s*shop|restoran|rumah\s*makan|\brm\b|bakery|salon|barbershop|bengkel|apotik|apotek';
+                break;
             case 'lainnya':
                 $strip = 'lainnya|lain|other|dll';
                 break;
@@ -1955,23 +1997,18 @@ trait WARepliesKurirTrait
 
     private function kurirHandleLokasiNama(string $waNumber, string $sapaan, array $session, string $msg): void
     {
-        $nama = $this->kurirParseLokasiJenis($msg);
-        if ($nama === null) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Pilih ya {$sapaan}: *rumah*, *kos*, *mess*, *asrama*, *kantor*, *penginapan*, atau *lainnya*?"
-            );
-            return;
-        }
+        // Legacy: sama seperti LOKASI — infer nama+detail dari satu jawaban (termasuk Toko)
+        $inferred = $this->lokasiInferNamaDetailFromReply($msg);
+        $nama = $inferred['nama'];
+        $detailInline = $inferred['detail'];
 
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $idLokasi = (int) ($session['id_lokasi'] ?? 0);
-        if ($idLokasi > 0) {
-            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, ['nama' => $nama]);
-        }
 
-        $detailInline = $this->kurirExtractLokasiDetailFromJenisReply($msg, $nama);
-        if ($detailInline !== null) {
+        if ($detailInline !== null && $detailInline !== '') {
+            if ($idLokasi > 0) {
+                $this->kurirUpdateLokasi($idLokasi, $idPelanggan, ['nama' => $nama]);
+            }
             $this->saveKurirSession($waNumber, [
                 'lokasi_nama' => $nama,
                 'id_lokasi' => $idLokasi > 0 ? $idLokasi : ($session['id_lokasi'] ?? null),
@@ -1981,14 +2018,28 @@ trait WARepliesKurirTrait
             return;
         }
 
-        $this->saveKurirSession($waNumber, [
-            'lokasi_nama' => $nama,
-            'step' => 'ask_lokasi_detail',
-            'id_lokasi' => $idLokasi > 0 ? $idLokasi : ($session['id_lokasi'] ?? null),
-        ]);
+        if ($this->kurirParseLokasiJenis($msg) !== null) {
+            // Hanya kata kategori ("toko"/"kos") tanpa detail → minta detail sesuai jenis
+            if ($idLokasi > 0) {
+                $this->kurirUpdateLokasi($idLokasi, $idPelanggan, ['nama' => $nama]);
+            }
+            $this->saveKurirSession($waNumber, [
+                'lokasi_nama' => $nama,
+                'step' => 'ask_lokasi_detail',
+                'id_lokasi' => $idLokasi > 0 ? $idLokasi : ($session['id_lokasi'] ?? null),
+            ]);
+            $this->sendAutoreplyText(
+                $waNumber,
+                $this->kurirAskLokasiDetailPrompt($nama, $sapaan)
+            );
+            return;
+        }
+
+        $this->saveKurirSession($waNumber, ['step' => 'ask_lokasi_detail']);
         $this->sendAutoreplyText(
             $waNumber,
-            $this->kurirAskLokasiDetailPrompt($nama, $sapaan)
+            "Detail masih kurang jelas {$sapaan}. "
+            . "Contoh: *kos Azzahra kamar 2* / *rumah pagar kuning* / *toko sebelah Indomaret*."
         );
     }
 
@@ -3741,9 +3792,10 @@ trait WARepliesKurirTrait
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
-            . "Di step ask_lokasi_nama: pilih rumah/kos/mess/asrama/kantor/penginapan/lainnya. "
-            . "Jika customer jawab lengkap sekaligus (kos azzahra, mess BPK, asrama haji, rumah pagar kuning, daffa hotel titip lobby) → confirm/lanjut tanpa tanya detail lagi. "
-            . "Di step ask_lokasi_detail: isi detail sesuai jenis (ciri rumah, nama kos, nama/nomor mess, nama asrama, kamar/lobby penginapan, nama kantor). "
+            . "Di step ask_lokasi_nama / ask_lokasi_detail: customer jelaskan detail dalam satu jawaban (tidak dipilihkan kategori dulu). "
+            . "Sistem infer kategori: Rumah/Kos/Mess/Asrama/Kantor/Penginapan/Toko/Lainnya. "
+            . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
+            . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
             . "Jangan minta shareloc jika pesan jelas tentang estimasi siap/hari ini. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
