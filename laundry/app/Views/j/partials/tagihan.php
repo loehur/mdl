@@ -108,7 +108,12 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         </div>
         <strong class="j-nota-date"><?= date('d M Y H:i', strtotime($ord['insertTime'])) ?></strong>
       </div>
-      <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
+      <div class="j-card-head-right">
+        <span class="j-badge <?= $badge[0] ?>"><?= $badge[1] ?></span>
+        <button type="button" class="j-nota-detail-btn" data-ref="<?= htmlspecialchars($ord['no_ref'], ENT_QUOTES, 'UTF-8') ?>" title="Detail nota">
+          <i class="fas fa-stream"></i> Detail
+        </button>
+      </div>
     </div>
 
     <?php foreach ($ord['items'] as $it) { ?>

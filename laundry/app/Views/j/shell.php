@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=52">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=54">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
@@ -416,11 +416,35 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
+<!-- Modal Detail Nota -->
+<div class="modal fade" id="jModalNotaDetail" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content j-sheet">
+      <div class="j-sheet-head">
+        <div>
+          <p class="j-sheet-kicker">Timeline</p>
+          <h5 class="j-sheet-title" id="jNotaDetailTitle">Detail Nota</h5>
+        </div>
+        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="j-sheet-body" id="jNotaDetailBody">
+        <div class="j-ndt-loading"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>
+      </div>
+      <div class="j-sheet-foot">
+        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="j-sheet-btn primary" id="jBtnDownloadNotaDetail" disabled>
+          <i class="fas fa-download"></i> Gambar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
-<script src="<?= URL::EX_ASSETS ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=26"></script>
+<script src="<?= $assets ?>js/html2canvas.min.js"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=27"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <script>
 if ('serviceWorker' in navigator) {

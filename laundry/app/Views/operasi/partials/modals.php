@@ -1725,6 +1725,8 @@
   }
   #notaDetailCapture {
     background: #fff;
+    padding: 14px 14px 16px;
+    box-sizing: border-box;
   }
 </style>
 <div class="op-modal" id="modalNotaDetail" aria-hidden="true">

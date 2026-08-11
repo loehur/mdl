@@ -561,6 +561,239 @@
     document.body.style.overflow = '';
   });
 
+  /* ===== Detail Nota Timeline ===== */
+  var jNotaDetailModal = null;
+  function getJNotaDetailModal() {
+    var el = document.getElementById('jModalNotaDetail');
+    if (!el || typeof bootstrap === 'undefined' || !bootstrap.Modal) return null;
+    if (!jNotaDetailModal) jNotaDetailModal = bootstrap.Modal.getOrCreateInstance(el);
+    return jNotaDetailModal;
+  }
+
+  function jNdtEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function jNdtMoney(n) {
+    n = parseInt(n || 0, 10);
+    if (isNaN(n)) n = 0;
+    return n.toLocaleString('id-ID');
+  }
+
+  function jNdtRowClass(type, done, inferred) {
+    var cls = [done ? 'done' : 'pending'];
+    if (inferred) cls.push('inferred');
+    if (type === 'jemput' || type === 'antar' || type === 'ambil') cls.push(type);
+    return cls.join(' ');
+  }
+
+  function renderJNotaDetail(data) {
+    var html = '<div id="jNotaDetailCapture" data-ref="' + jNdtEsc(data.no_ref || '') + '" data-nama="' + jNdtEsc(data.pelanggan || '') + '">';
+    var lunas = !!data.lunas;
+    var statusPill = lunas
+      ? '<span class="j-ndt-pill ok">LUNAS</span>'
+      : '<span class="j-ndt-pill warn">SISA ' + jNdtEsc(jNdtMoney(data.sisa)) + '</span>';
+
+    html += '<div class="j-ndt-summary">';
+    html +=
+      '<div class="j-ndt-box j-ndt-box--full">' +
+      '<span class="j-ndt-label">Nota</span>' +
+      '<div class="j-ndt-value">#' + jNdtEsc(data.no_ref) + ' ' + statusPill + '</div>' +
+      '<span class="j-ndt-meta">' + jNdtEsc(data.pelanggan || '') + '</span>' +
+      '</div>';
+    html +=
+      '<div class="j-ndt-box">' +
+      '<span class="j-ndt-label">Dibuat</span>' +
+      '<div class="j-ndt-value">' + jNdtEsc(data.created_at || '-') + '</div>' +
+      '</div>';
+    html +=
+      '<div class="j-ndt-box">' +
+      '<span class="j-ndt-label">Tagihan</span>' +
+      '<div class="j-ndt-value">Rp' + jNdtEsc(jNdtMoney(data.total)) + '</div>' +
+      '<span class="j-ndt-meta">Dibayar Rp' + jNdtEsc(jNdtMoney(data.dibayar)) + '</span>' +
+      '</div></div>';
+
+    html += '<div class="j-ndt-sec"><div class="j-ndt-sec__title">Pembayaran</div>';
+    var pays = data.payments || [];
+    if (!pays.length) {
+      html += '<div class="j-ndt-empty">Belum ada pembayaran</div>';
+    } else {
+      pays.forEach(function (p) {
+        var st = parseInt(p.status || 0, 10);
+        var cancel = st === 4;
+        var bits = [];
+        if (p.method) bits.push(p.method);
+        if (p.note) bits.push(p.note);
+        html +=
+          '<div class="j-ndt-pay"><div class="j-ndt-pay__top">' +
+          '<span class="j-ndt-pill ' + (cancel ? '' : st === 3 ? 'ok' : 'info') + '">' +
+          jNdtEsc(p.status_label || (cancel ? 'Batal' : 'Bayar')) +
+          '</span><span class="j-ndt-pay__amt' + (cancel ? ' cancel' : '') + '">Rp' +
+          jNdtEsc(jNdtMoney(p.amount)) +
+          '</span></div><div class="j-ndt-meta">' +
+          jNdtEsc(p.time || '-') +
+          (bits.length ? ' · ' + jNdtEsc(bits.join(' · ')) : '') +
+          '</div></div>';
+      });
+    }
+    html += '</div>';
+
+    var surcas = data.surcas || [];
+    if (surcas.length) {
+      html += '<div class="j-ndt-sec"><div class="j-ndt-sec__title">Surcas</div>';
+      surcas.forEach(function (sc) {
+        html +=
+          '<div class="j-ndt-pay"><div class="j-ndt-pay__top"><div class="j-ndt-value" style="font-size:0.8rem">' +
+          jNdtEsc(sc.nama || 'Surcas') +
+          '</div><div class="j-ndt-pay__amt">Rp' +
+          jNdtEsc(jNdtMoney(sc.jumlah)) +
+          '</div></div><div class="j-ndt-meta">' +
+          jNdtEsc(sc.time || '-') +
+          '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="j-ndt-sec"><div class="j-ndt-sec__title">Item &amp; Timeline</div>';
+    var items = data.items || [];
+    if (!items.length) html += '<div class="j-ndt-empty">Tidak ada item</div>';
+    items.forEach(function (it) {
+      var totalShow =
+        parseInt(it.member || 0, 10) === 1
+          ? '<span class="j-ndt-pill ok">Member</span>'
+          : 'Rp' + jNdtEsc(jNdtMoney(it.total));
+      var subBits = [];
+      if (it.durasi) subBits.push(it.durasi);
+      if (it.qty_show) subBits.push(it.qty_show);
+      if (it.letak) subBits.push('Rak ' + it.letak);
+      html +=
+        '<div class="j-ndt-item"><div class="j-ndt-item__head"><div>' +
+        '<div class="j-ndt-item__title">#' + jNdtEsc(it.id) + ' ' + jNdtEsc(it.kategori || '') + '</div>' +
+        '<span class="j-ndt-item__sub">' + jNdtEsc(subBits.join(' · ') || '-') +
+        (it.note ? ' · ' + jNdtEsc(it.note) : '') +
+        '</span></div><div class="j-ndt-pay__amt">' + totalShow + '</div></div>';
+
+      var tl = it.timeline || [];
+      if (!tl.length) {
+        html += '<div class="j-ndt-empty" style="margin:8px;border:0;background:transparent">Belum ada aktivitas</div>';
+      } else {
+        html += '<ul class="j-ndt-tl">';
+        tl.forEach(function (ev) {
+          var done = !!ev.done;
+          var inferred = !!ev.inferred;
+          var meta = [];
+          if (ev.time) meta.push(ev.time);
+          else if (!done) meta.push('belum selesai');
+          html +=
+            '<li class="j-ndt-tl__row ' + jNdtRowClass(ev.type, done, inferred) + '">' +
+            '<span class="j-ndt-tl__dot"></span>' +
+            '<span class="j-ndt-tl__label">' + jNdtEsc(ev.label || '') +
+            (inferred ? ' <span class="j-ndt-chip">otomatis</span>' : '') +
+            '</span><span class="j-ndt-tl__meta">' +
+            jNdtEsc(meta.join(' · ') || '-') +
+            '</span></li>';
+        });
+        html += '</ul>';
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function downloadJNotaDetail(btn) {
+    var page = document.getElementById('jNotaDetailCapture');
+    var body = document.getElementById('jNotaDetailBody');
+    if (!page || !body) return;
+    if (typeof html2canvas !== 'function') {
+      alert('Fitur gambar belum siap. Muat ulang halaman.');
+      return;
+    }
+    btn.disabled = true;
+    var old = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Proses';
+
+    var prevOverflow = body.style.overflow;
+    var prevMaxHeight = body.style.maxHeight;
+    body.style.overflow = 'visible';
+    body.style.maxHeight = 'none';
+
+    html2canvas(page, {
+      backgroundColor: '#ffffff',
+      scale: Math.min(2, window.devicePixelRatio || 2),
+      useCORS: true,
+      logging: false
+    })
+      .then(function (canvas) {
+        var ref = page.getAttribute('data-ref') || 'nota';
+        var nama = page.getAttribute('data-nama') || '';
+        var link = document.createElement('a');
+        link.download = 'nota-' + slugName(ref) + (nama ? '-' + slugName(nama) : '') + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      })
+      .catch(function (err) {
+        alert((err && err.message) || 'Gagal membuat gambar detail nota.');
+      })
+      .finally(function () {
+        body.style.overflow = prevOverflow;
+        body.style.maxHeight = prevMaxHeight;
+        btn.disabled = false;
+        btn.innerHTML = old;
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('.j-nota-detail-btn');
+    if (openBtn) {
+      e.preventDefault();
+      var ref = openBtn.getAttribute('data-ref') || '';
+      if (!ref) return;
+      var title = document.getElementById('jNotaDetailTitle');
+      var body = document.getElementById('jNotaDetailBody');
+      var dl = document.getElementById('jBtnDownloadNotaDetail');
+      if (title) title.textContent = 'Detail Nota #' + ref;
+      if (dl) dl.disabled = true;
+      if (body) {
+        body.innerHTML = '<div class="j-ndt-loading"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>';
+      }
+      var modal = getJNotaDetailModal();
+      if (modal) modal.show();
+
+      fetch(base + 'J/nota_detail/' + pelangganId + '?ref=' + encodeURIComponent(ref), {
+        headers: { Accept: 'application/json' }
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res || !res.ok || !res.data) {
+            if (body) {
+              body.innerHTML = '<div class="j-ndt-error">' + jNdtEsc((res && res.message) || 'Gagal memuat detail') + '</div>';
+            }
+            if (dl) dl.disabled = true;
+            return;
+          }
+          if (body) body.innerHTML = renderJNotaDetail(res.data);
+          if (dl) dl.disabled = false;
+        })
+        .catch(function () {
+          if (body) body.innerHTML = '<div class="j-ndt-error">Gagal memuat detail (network)</div>';
+          if (dl) dl.disabled = true;
+        });
+      return;
+    }
+
+    var dlBtn = e.target.closest('#jBtnDownloadNotaDetail');
+    if (dlBtn) {
+      e.preventDefault();
+      downloadJNotaDetail(dlBtn);
+    }
+  });
+
   /* ===== Kurir Sameday ===== */
   var kurirBusy = false;
   var kurirPendingJenis = '';
