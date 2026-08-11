@@ -1724,8 +1724,9 @@ class WAReplies
             } elseif ($this->getLokasiSession($waNumber) !== null
                 && $this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
             ) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_break→other_intent');
-                // Session lokasi tetap (bisa dilanjut nanti); jangan consume pesan
+                // Topik pindah (bill/status/harga/…) → lepaskan session lokasi agar tidak nyangkut tanya shareloc/detail lagi
+                $this->clearLokasiSession($waNumber);
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_cleared→other_intent');
             }
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -1767,9 +1768,15 @@ class WAReplies
                 || $this->parseEstimasiRequestedRelativeDay($textBodyToCheck) !== null;
             if ($estimasiCtx && $hasActiveSale) {
                 $this->clearKurirSession($waNumber);
+                $this->clearLokasiSession($waNumber);
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→estimasi_context has_sale');
                 // fall through ke routing ESTIMASI
-            } elseif (!$this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig, $hasActiveSale)) {
+            } elseif ($this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig, $hasActiveSale)) {
+                // Topik pindah (status/bill/harga/ingat/…) → clear agar tidak tiba-tiba tanya shareloc lagi
+                $this->clearKurirSession($waNumber);
+                $this->clearLokasiSession($waNumber);
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→other_intent');
+            } else {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→MINTA_JEMPUT_ANTAR case=2');
                 $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
                 // Bypass cooldown for active session

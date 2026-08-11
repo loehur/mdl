@@ -11,12 +11,12 @@ use App\Helpers\Laundry\AntarTarif;
  */
 trait WARepliesLokasiTrait
 {
-    /** Session lengkapi nama/detail: tahan 7 hari */
-    private const LOKASI_SESSION_TTL_MINUTES = 10080;
+    /** Session LOKASI idle max 1 jam */
+    private const LOKASI_SESSION_TTL_MINUTES = 60;
     /** Titik dianggap lokasi yang sama (km) */
     private const LOKASI_NEAR_KM = 0.08;
-    /** Jangan spam tanya lengkapi (menit) */
-    private const LOKASI_ASK_COOLDOWN_MINUTES = 1440;
+    /** Jangan spam tanya lengkapi dalam session yang sama */
+    private const LOKASI_ASK_COOLDOWN_MINUTES = 60;
 
     private function getLokasiSession(string $waNumber): ?array
     {
@@ -480,6 +480,10 @@ trait WARepliesLokasiTrait
         }
 
         // Langsung minta detail (nama diinfer dari jawaban) — skip tanya rumah/kos/...
+        $existing = $this->getLokasiSession($waNumber);
+        $alreadyWaiting = $existing !== null
+            && in_array((string) ($existing['step'] ?? ''), ['ask_detail', 'ask_shareloc', 'ask_nama'], true);
+
         $this->saveLokasiSession($waNumber, [
             'id_pelanggan' => $idPelanggan,
             'id_lokasi' => $idLokasi,
@@ -488,9 +492,12 @@ trait WARepliesLokasiTrait
             'lokasi_nama' => ($nama !== '' && strcasecmp($nama, 'Shareloc') !== 0) ? $nama : null,
             'lokasi_detail' => null,
             'step' => 'ask_detail',
-            'last_ask_at' => date('Y-m-d H:i:s'),
+            'last_ask_at' => $alreadyWaiting
+                ? ($existing['last_ask_at'] ?? date('Y-m-d H:i:s'))
+                : date('Y-m-d H:i:s'),
         ]);
-        if ($sendPrompt) {
+        // Sudah pernah ditanya → diam (jangan ulang prompt)
+        if ($sendPrompt && !$alreadyWaiting) {
             $this->sendAutoreplyText($waNumber, $this->lokasiAskDetailPrompt($sapaan));
         }
         return true;

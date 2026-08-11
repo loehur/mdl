@@ -13,6 +13,8 @@ $hasUnpaid = !empty($unpaid);
 $cabang = $data['cabang'] ?? [];
 $namaLaundry = $cabang['nama'] ?? ($cabang['nama_cabang'] ?? 'Laundry');
 $kodeCabang = $cabang['kode_cabang'] ?? '00';
+$alamatCabang = trim((string) ($cabang['alamat'] ?? ''));
+$telpCabang = trim((string) ($cabang['phone_number'] ?? ''));
 ?>
 
 <div class="j-tagihan">
@@ -305,6 +307,12 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="j-preview-page" id="jPreviewPage" data-nama="<?= htmlspecialchars($namaPelanggan) ?>">
       <div class="j-preview-head">
         <div class="j-preview-branch"><?= htmlspecialchars($namaLaundry) ?> - <?= htmlspecialchars($kodeCabang) ?></div>
+        <?php if ($alamatCabang !== '') { ?>
+          <div class="j-preview-address"><?= htmlspecialchars($alamatCabang) ?></div>
+        <?php } ?>
+        <?php if ($telpCabang !== '') { ?>
+          <div class="j-preview-address"><?= htmlspecialchars($telpCabang) ?></div>
+        <?php } ?>
         <div class="j-preview-customer"><?= htmlspecialchars($namaPelanggan) ?></div>
       </div>
 

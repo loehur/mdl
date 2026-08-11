@@ -11,8 +11,6 @@ use App\Helpers\Laundry\AntarTarif;
 trait WARepliesKurirTrait
 {
     private const KURIR_SESSION_TTL_MINUTES = 60;
-    /** Session belum lengkap nama/detail lokasi: tahan lebih lama agar bisa dilanjutkan hari berikutnya */
-    private const KURIR_INCOMPLETE_LOKASI_TTL_MINUTES = 10080; // 7 hari
 
     private function getKurirSession(string $waNumber): ?array
     {
@@ -71,15 +69,7 @@ trait WARepliesKurirTrait
 
         $now = date('Y-m-d H:i:s');
         $step = (string) $merge('step', 'ask_jenis');
-        $ttlMin = self::KURIR_SESSION_TTL_MINUTES;
-        $hasCoords = $merge('latt') !== null && $merge('latt') !== ''
-            && $merge('longt') !== null && $merge('longt') !== '';
-        $detailIncomplete = trim((string) ($merge('lokasi_detail') ?? '')) === '';
-        if (in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail', 'ask_shareloc', 'new_ask_nama', 'new_ask_shareloc'], true)
-            || ($hasCoords && $detailIncomplete && in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail'], true))) {
-            $ttlMin = self::KURIR_INCOMPLETE_LOKASI_TTL_MINUTES;
-        }
-        $expires = date('Y-m-d H:i:s', time() + ($ttlMin * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
         $vals = [
             $phone,
             $merge('id_pelanggan'),
@@ -159,11 +149,7 @@ trait WARepliesKurirTrait
         };
         $now = date('Y-m-d H:i:s');
         $step = (string) $merge('step', 'ask_jenis');
-        $ttlMin = self::KURIR_SESSION_TTL_MINUTES;
-        if (in_array($step, ['ask_lokasi_nama', 'ask_lokasi_detail', 'ask_shareloc', 'new_ask_nama', 'new_ask_shareloc'], true)) {
-            $ttlMin = self::KURIR_INCOMPLETE_LOKASI_TTL_MINUTES;
-        }
-        $expires = date('Y-m-d H:i:s', time() + ($ttlMin * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
         $vals = [
             $phone,
             $merge('id_pelanggan'),
@@ -405,8 +391,7 @@ trait WARepliesKurirTrait
         if ($session !== null && empty($session['id_pelanggan'])
             && in_array($step, ['ask_jenis', 'new_ask_nama', 'new_ask_shareloc'], true)
         ) {
-            $this->routeKurirUnregisteredStep($waNumber, $sapaan, $session, $msg);
-            return true;
+            return $this->routeKurirUnregisteredStep($waNumber, $sapaan, $session, $msg);
         }
 
         $jenis = $this->detectKurirJenis($msg, $session);
@@ -430,18 +415,21 @@ trait WARepliesKurirTrait
         return true;
     }
 
+    /**
+     * @return bool true = ditangani; false = lepaskan ke intent lain
+     */
     private function routeKurirUnregisteredStep(
         string $waNumber,
         string $sapaan,
         array $session,
         string $msg
-    ): void {
+    ): bool {
         $step = (string) ($session['step'] ?? '');
 
         if ($this->kurirLooksCancel($msg)) {
             $this->clearKurirSession($waNumber);
             $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, permintaan dibatalkan. Terima kasih.");
-            return;
+            return true;
         }
 
         switch ($step) {
@@ -453,7 +441,7 @@ trait WARepliesKurirTrait
                 if ($jenis === 'antar') {
                     $this->clearKurirSession($waNumber);
                     $this->sendAutoreplyText($waNumber, $this->getNoRegisterText());
-                    return;
+                    return true;
                 }
                 if ($jenis === 'jemput' || $jenis === null) {
                     // Ambigu unregistered → jemput
@@ -466,22 +454,27 @@ trait WARepliesKurirTrait
                         $waNumber,
                         "Baik {$sapaan}, boleh sebut *nama lengkap* Anda ya?"
                     );
-                    return;
+                    return true;
                 }
                 $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
-                return;
+                return true;
 
             case 'new_ask_nama':
                 $this->kurirHandleNewAskNama($waNumber, $sapaan, $session, $msg);
-                return;
+                return true;
 
             case 'new_ask_shareloc':
+                if ($this->kurirExtractCoords($msg) === null) {
+                    // Bukan pin → biarkan intent lain menjawab
+                    return false;
+                }
                 $this->kurirHandleNewAskShareloc($waNumber, $sapaan, $session, $msg);
-                return;
+                return true;
 
             default:
                 $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
                 $this->saveKurirSession($waNumber, ['step' => 'ask_jenis']);
+                return true;
         }
     }
 
@@ -509,6 +502,7 @@ trait WARepliesKurirTrait
 
         $summary = preg_replace('/\s*\|\s*new_nama_asli=[^|]*/', '', (string) ($session['summary'] ?? ''));
         $summary = trim($summary . ($summary !== '' ? ' | ' : '') . 'new_nama_asli=' . $nama);
+        $summary = $this->kurirMarkSharelocAsked($summary);
 
         $this->saveKurirSession($waNumber, [
             'step' => 'new_ask_shareloc',
@@ -528,10 +522,7 @@ trait WARepliesKurirTrait
     ): void {
         $coords = $this->kurirExtractCoords($msg);
         if ($coords === null) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Belum ketemu koordinatnya {$sapaan}. Kirim pin lokasi WhatsApp atau link Google Maps ya."
-            );
+            // Sudah pernah minta shareloc → diam
             return;
         }
 
@@ -937,6 +928,29 @@ trait WARepliesKurirTrait
             return true;
         }
 
+        // Menunggu shareloc tapi pesan bukan pin/maps → lepaskan ke intent lain
+        // (jangan consume & jangan tanya shareloc lagi di tengah chat harga/status/dll.)
+        if (in_array($step, ['ask_shareloc', 'new_ask_shareloc'], true)) {
+            // Minta jemput/antar baru → anggap flow lama ditinggalkan
+            if ($this->messageLooksLikeMintaJemputAntar(mb_strtolower($msg))) {
+                $this->clearKurirSession($waNumber);
+                $this->clearLokasiSession($waNumber);
+            }
+            $this->logAutoreplyTrace($waNumber, 'KURIR', 'ask_shareloc_waiting→release_other_intent');
+            return false;
+        }
+
+        // wait_lokasi: serahkan ke LOKASI; jika bukan jawaban lokasi → lepaskan (jangan lokasiCheck/shareloc)
+        if ($step === 'wait_lokasi') {
+            if ($this->getLokasiSession($waNumber) !== null) {
+                $lokOk = $this->handleLokasi($phoneIn, $waNumber, $msg);
+                return $lokOk !== false;
+            }
+            if ($this->kurirSharelocAlreadyAsked($session)) {
+                return false;
+            }
+        }
+
         // Hard: klarifikasi pagi/malam untuk jam 7–9
         if ($step === 'ask_jam_ampm') {
             $this->kurirHandleAskJamAmpm($waNumber, $sapaan, $session, $msg);
@@ -1038,6 +1052,7 @@ trait WARepliesKurirTrait
             if (($decision['action'] ?? '') === 'unrelated') {
                 // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
                 $this->clearKurirSession($waNumber);
+                $this->clearLokasiSession($waNumber);
                 $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'unrelated→continue_routing');
                 return false;
             }
@@ -1099,7 +1114,14 @@ trait WARepliesKurirTrait
         switch ($step) {
             case 'wait_lokasi':
                 if ($this->getLokasiSession($waNumber) !== null) {
-                    $this->handleLokasi($phoneIn, $waNumber, $msg);
+                    if ($this->handleLokasi($phoneIn, $waNumber, $msg) !== false) {
+                        return;
+                    }
+                    // Lokasi tidak consume (bukan detail/pin) → jangan paksa lokasiCheck/shareloc
+                    return;
+                }
+                // Tanpa session lokasi: jangan spam shareloc ulang
+                if ($this->kurirSharelocAlreadyAsked($session)) {
                     return;
                 }
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
@@ -1379,6 +1401,26 @@ trait WARepliesKurirTrait
         $this->clearKurirSession($waNumber);
     }
 
+    private function kurirSharelocAlreadyAsked(array $session): bool
+    {
+        $step = (string) ($session['step'] ?? '');
+        if (in_array($step, ['ask_shareloc', 'new_ask_shareloc'], true)) {
+            return true;
+        }
+        $sum = (string) ($session['summary'] ?? '');
+        return (bool) preg_match('/\basked_shareloc=1\b/iu', $sum);
+    }
+
+    /** Tandai sudah pernah minta shareloc (agar tidak ditanya ulang). */
+    private function kurirMarkSharelocAsked(string $summary): string
+    {
+        $summary = trim((string) $summary);
+        if (preg_match('/\basked_shareloc=1\b/iu', $summary)) {
+            return mb_substr($summary, 0, 800);
+        }
+        return mb_substr(($summary !== '' ? $summary . ' | ' : '') . 'asked_shareloc=1', 0, 800);
+    }
+
     private function kurirLokasiCheck(string $waNumber, string $sapaan, array $session): void
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
@@ -1420,7 +1462,16 @@ trait WARepliesKurirTrait
             return $n !== '' && $d !== '';
         }));
         if (empty($list)) {
-            $this->saveKurirSession($waNumber, ['step' => 'ask_shareloc']);
+            // Sudah pernah minta shareloc → diam (jangan spam)
+            if ($this->kurirSharelocAlreadyAsked($session)) {
+                $this->saveKurirSession($waNumber, ['step' => 'ask_shareloc']);
+                return;
+            }
+            $summary = $this->kurirMarkSharelocAsked((string) ($session['summary'] ?? ''));
+            $this->saveKurirSession($waNumber, [
+                'step' => 'ask_shareloc',
+                'summary' => $summary,
+            ]);
             $this->sendAutoreplyText(
                 $waNumber,
                 "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya, biar kami catat titik jemput/antar."
@@ -1781,10 +1832,7 @@ trait WARepliesKurirTrait
     {
         $coords = $this->kurirExtractCoords($msg);
         if ($coords === null) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Belum ketemu koordinatnya {$sapaan}. Kirim pin lokasi WhatsApp atau link Google Maps ya."
-            );
+            // Sudah pernah minta shareloc → diam (jangan ulang tanya)
             return;
         }
 
@@ -2620,6 +2668,18 @@ trait WARepliesKurirTrait
             $note = 'minta_shareloc "' . mb_substr(trim($msg), 0, 80) . '"';
             $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 500);
         }
+        $summary = $this->kurirMarkSharelocAsked($summary);
+        $curStep = (string) ($session['step'] ?? '');
+
+        // Sudah menunggu shareloc → diam (jangan spam)
+        if (in_array($curStep, ['ask_shareloc', 'new_ask_shareloc'], true)) {
+            $this->saveKurirSession($waNumber, [
+                'step' => 'ask_shareloc',
+                'summary' => $summary,
+            ]);
+            return;
+        }
+
         // Buang draft lokasi lama agar resume tidak nyangkut ke titik sebelumnya
         $this->kurirClearIncompleteLokasi((int) ($session['id_pelanggan'] ?? 0));
         $this->saveKurirSession($waNumber, [
@@ -3876,7 +3936,8 @@ trait WARepliesKurirTrait
             . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
             . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
-            . "Jangan minta shareloc jika pesan jelas tentang estimasi siap/hari ini. "
+            . "Di step ask_shareloc: jika sudah pernah minta shareloc, JANGAN minta lagi (action noop / diam). "
+            . "Hanya minta shareloc sekali; tunggu pin/link tanpa mengulang pertanyaan. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
             . "Jawab HANYA JSON valid tanpa markdown.";
 
@@ -4066,8 +4127,13 @@ trait WARepliesKurirTrait
                 return;
 
             case 'ask_shareloc':
+                // Sudah pernah minta shareloc → diam (jangan kirim ulang / AI reply ulang)
+                if ($this->kurirSharelocAlreadyAsked($session)) {
+                    $this->saveKurirSession($waNumber, ['step' => 'ask_shareloc']);
+                    return;
+                }
                 if ($aiReply) {
-                    $summary = trim((string) ($session['summary'] ?? ''));
+                    $summary = $this->kurirMarkSharelocAsked(trim((string) ($session['summary'] ?? '')));
                     $summary = mb_substr(($summary !== '' ? $summary . ' | ' : '') . $note, 0, 800);
                     $this->saveKurirSession($waNumber, [
                         'step' => 'ask_shareloc',

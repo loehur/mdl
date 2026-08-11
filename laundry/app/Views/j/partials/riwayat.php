@@ -7,6 +7,8 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
 $cabang = $data['cabang'] ?? [];
 $namaLaundry = $cabang['nama'] ?? ($cabang['nama_cabang'] ?? 'Laundry');
 $kodeCabang = $cabang['kode_cabang'] ?? '00';
+$alamatCabang = trim((string) ($cabang['alamat'] ?? ''));
+$telpCabang = trim((string) ($cabang['phone_number'] ?? ''));
 $namaPelanggan = strtoupper($customer['nama'] ?? $p['nama_pelanggan']);
 $filterYm = $data['filter_ym'] ?? date('Y-m');
 $monthOptions = $data['month_options'] ?? [];
@@ -215,6 +217,12 @@ $monthOptions = $data['month_options'] ?? [];
     <div class="j-preview-page" id="jPreviewPage" data-nama="<?= htmlspecialchars($namaPelanggan) ?>">
       <div class="j-preview-head">
         <div class="j-preview-branch"><?= htmlspecialchars($namaLaundry) ?> - <?= htmlspecialchars($kodeCabang) ?></div>
+        <?php if ($alamatCabang !== '') { ?>
+          <div class="j-preview-address"><?= htmlspecialchars($alamatCabang) ?></div>
+        <?php } ?>
+        <?php if ($telpCabang !== '') { ?>
+          <div class="j-preview-address"><?= htmlspecialchars($telpCabang) ?></div>
+        <?php } ?>
         <div class="j-preview-customer"><?= htmlspecialchars($namaPelanggan) ?></div>
       </div>
       <div id="jPreviewNotaSlot"></div>
