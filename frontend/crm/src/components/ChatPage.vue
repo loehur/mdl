@@ -1050,18 +1050,18 @@ onUnmounted(() => {
                                       <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
                                       <div
                                         v-if="mediaCaptionText(msg) || msg.time"
-                                        class="absolute bottom-0 inset-x-0 px-2.5 py-2 bg-[var(--wa-bg-panel)]/92 backdrop-blur-md border-t border-[var(--wa-border)]/50 text-[var(--wa-text-primary)] shadow-[0_-6px_16px_rgba(0,0,0,0.18)]"
+                                        class="absolute bottom-0 inset-x-0 px-2.5 py-2"
+                                        style="background: var(--wa-caption-overlay-bg); color: var(--wa-caption-overlay-text);"
                                       >
-                                           <!-- Private indicator for image - always show if private -->
-                                           <div v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-300 mb-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                                           <div v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold mb-1 opacity-90">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
                                            <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 whitespace-pre-wrap break-words leading-snug']">{{ mediaCaptionText(msg) }}</p>
-                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug text-[var(--wa-text-tertiary)]">🔒 Pesan ini bersifat private</p>
-                                           <div class="flex justify-end items-center gap-1 text-[10px] text-[var(--wa-text-tertiary)]">
+                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug opacity-80">🔒 Pesan ini bersifat private</p>
+                                           <div class="flex justify-end items-center gap-1 text-[10px] opacity-70">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
                                            </div>
@@ -1096,17 +1096,18 @@ onUnmounted(() => {
                                       ></video>
                                       <div
                                         v-if="mediaCaptionText(msg) || msg.time"
-                                        class="mt-1.5 px-2.5 py-2 rounded-lg bg-[var(--wa-bg-panel)]/92 backdrop-blur-md border border-[var(--wa-border)]/50 text-[var(--wa-text-primary)] shadow-sm"
+                                        class="mt-1.5 px-2.5 py-2 rounded-lg"
+                                        style="background: var(--wa-caption-overlay-bg); color: var(--wa-caption-overlay-text);"
                                       >
-                                           <div v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-300 mb-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                                           <div v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold mb-1 opacity-90">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                                 </svg>
                                                 <span>Private</span>
                                            </div>
                                            <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 whitespace-pre-wrap break-words leading-snug']">{{ mediaCaptionText(msg) }}</p>
-                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug text-[var(--wa-text-tertiary)]">🔒 Pesan ini bersifat private</p>
-                                           <div class="flex justify-end items-center gap-1 text-[10px] text-[var(--wa-text-tertiary)]">
+                                           <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug opacity-80">🔒 Pesan ini bersifat private</p>
+                                           <div class="flex justify-end items-center gap-1 text-[10px] opacity-70">
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
                                            </div>

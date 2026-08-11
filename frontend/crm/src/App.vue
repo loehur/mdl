@@ -357,6 +357,8 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-bg", "transparent");
     root.style.setProperty("--wa-filter-inactive-border", "#cfd6db");
     root.style.setProperty("--wa-filter-inactive-text", "#3b4a54");
+    root.style.setProperty("--wa-caption-overlay-bg", "rgba(255, 255, 255, 0.85)");
+    root.style.setProperty("--wa-caption-overlay-text", "#000000");
   } else {
     // Dark theme colors - Soft black/gray like WhatsApp (no blue tint)
     root.style.setProperty("--wa-bg-primary", "#0d0d0d");
@@ -403,6 +405,8 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-bg", "#1a1a1a");
     root.style.setProperty("--wa-filter-inactive-border", "#3a3a3a");
     root.style.setProperty("--wa-filter-inactive-text", "#c5c9cc");
+    root.style.setProperty("--wa-caption-overlay-bg", "rgba(0, 0, 0, 0.75)");
+    root.style.setProperty("--wa-caption-overlay-text", "#ffffff");
   }
 };
 
