@@ -1888,9 +1888,10 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body">
-    <p class="kurir-hint">
-      Tanpa penyelesai → masuk board Delivery sebagai request.
-      Isi penyelesai → langsung selesai (surcas hanya ditambah jika belum ada di ref).
+    <p class="kurir-hint" id="kurirHint">
+      Jemput wajib penyelesai (langsung selesai).
+      Antar tanpa penyelesai → request di board.
+      Jemput &amp; Antar → request jemput + request antar kembali (tanpa item/penyelesai).
     </p>
     <div class="kurir-field">
       <label class="kurir-label" for="kurirJenis">Jenis</label>
@@ -1898,6 +1899,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
         <option value="">Pilih…</option>
         <option value="jemput">Jemput</option>
         <option value="antar">Antar</option>
+        <option value="jemput_antar">Jemput &amp; Antar</option>
       </select>
     </div>
     <div class="kurir-field" id="kurirSurcasJemputWrap" hidden>
@@ -1907,15 +1909,18 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     <div class="kurir-field" id="kurirSurcasAntarWrap" hidden>
       <label class="kurir-label" for="kurirSurcasAntar">Surcas Pengantaran</label>
       <input type="number" id="kurirSurcasAntar" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+      <small id="kurirSurcasAntarHint" class="kurir-hint" style="margin:4px 0 0;display:none">
+        Wajib. Request Antar kembali akan dibuat di board (tanpa item).
+      </small>
     </div>
-    <div class="kurir-field">
-      <label class="kurir-label">Item (opsional untuk request; wajib jika selesai)</label>
+    <div class="kurir-field" id="kurirSalesWrap">
+      <label class="kurir-label" id="kurirSalesLabel">Item (opsional untuk request; wajib jika selesai)</label>
       <div class="kurir-sales" id="kurirSales">
         <div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>
       </div>
     </div>
-    <div class="kurir-field">
-      <label class="kurir-label" for="kurirKaryawan">Penyelesai (opsional)</label>
+    <div class="kurir-field" id="kurirKaryawanWrap">
+      <label class="kurir-label" for="kurirKaryawan" id="kurirKaryawanLabel">Penyelesai (opsional)</label>
       <select id="kurirKaryawan" class="tize" style="width:100%">
         <option value="">— Request saja —</option>
         <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? '') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
@@ -1960,21 +1965,65 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
 
   function syncJenisUi() {
     var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
-    document.getElementById('kurirSurcasJemputWrap').hidden = jenis !== 'jemput';
-    document.getElementById('kurirSurcasAntarWrap').hidden = jenis !== 'antar';
-    loadSales(jenis);
+    var isJemput = jenis === 'jemput';
+    var isAntar = jenis === 'antar';
+    var isCombo = jenis === 'jemput_antar';
+
+    document.getElementById('kurirSurcasJemputWrap').hidden = !(isJemput || isCombo);
+    document.getElementById('kurirSurcasAntarWrap').hidden = !(isAntar || isCombo);
+    var antarHint = document.getElementById('kurirSurcasAntarHint');
+    if (antarHint) antarHint.style.display = isCombo ? 'block' : 'none';
+
+    var salesWrap = document.getElementById('kurirSalesWrap');
+    var karyWrap = document.getElementById('kurirKaryawanWrap');
+    if (salesWrap) salesWrap.hidden = isCombo;
+    if (karyWrap) karyWrap.hidden = isCombo;
+
+    var salesLabel = document.getElementById('kurirSalesLabel');
+    var karyLabel = document.getElementById('kurirKaryawanLabel');
+    if (salesLabel) {
+      salesLabel.textContent = isJemput
+        ? 'Item (wajib)'
+        : 'Item (opsional untuk request; wajib jika selesai)';
+    }
+    if (karyLabel) {
+      karyLabel.textContent = isJemput ? 'Penyelesai (wajib)' : 'Penyelesai (opsional)';
+    }
+
+    if (isCombo) {
+      // clear selection so submit tidak kirim sisa
+      if (kurirSelectize) kurirSelectize.clear(true);
+      else {
+        var sel = document.getElementById('kurirKaryawan');
+        if (sel) sel.value = '';
+      }
+      var box = document.getElementById('kurirSales');
+      if (box) box.innerHTML = '<div class="kurir-sales-empty">Tidak dipakai untuk Jemput &amp; Antar</div>';
+    } else {
+      loadSales(isJemput || isAntar ? jenis : '');
+    }
     syncSubmitLabel();
   }
 
   function syncSubmitLabel() {
+    var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
+    var lab = document.getElementById('kurirSubmitLabel');
+    if (!lab) return;
+    if (jenis === 'jemput_antar') {
+      lab.textContent = 'Buat Request Jemput + Antar';
+      return;
+    }
+    if (jenis === 'jemput') {
+      lab.textContent = 'Selesai Jemput';
+      return;
+    }
     var hasKaryawan = false;
     if (kurirSelectize) hasKaryawan = !!kurirSelectize.getValue();
     else {
       var el = document.getElementById('kurirKaryawan');
       hasKaryawan = !!(el && el.value);
     }
-    var lab = document.getElementById('kurirSubmitLabel');
-    if (lab) lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
+    lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
   }
 
   function renderSales(orders) {
@@ -2062,7 +2111,34 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       var v = parseInt(cb.value, 10);
       if (v > 0) ids.push(v);
     });
-    if (idKaryawan > 0 && !ids.length) {
+
+    if (jenis === 'jemput') {
+      if (idKaryawan <= 0) {
+        alert('Jemput wajib pilih penyelesai');
+        return;
+      }
+      if (!ids.length) {
+        alert('Jemput wajib pilih minimal satu item');
+        return;
+      }
+      var jRaw = String(document.getElementById('kurirSurcasJemput').value || '').trim();
+      if (jRaw === '' || isNaN(parseInt(jRaw, 10)) || parseInt(jRaw, 10) < 0) {
+        alert('Isi Surcas Penjemputan (isi 0 untuk gratis)');
+        return;
+      }
+    }
+
+    if (jenis === 'jemput_antar') {
+      idKaryawan = 0;
+      ids = [];
+      var aRaw = String(document.getElementById('kurirSurcasAntar').value || '').trim();
+      if (aRaw === '' || isNaN(parseInt(aRaw, 10)) || parseInt(aRaw, 10) < 0) {
+        alert('Isi Surcas Pengantaran (isi 0 untuk gratis)');
+        return;
+      }
+    }
+
+    if (jenis === 'antar' && idKaryawan > 0 && !ids.length) {
       alert('Untuk selesai langsung, pilih minimal satu item');
       return;
     }
@@ -2072,11 +2148,11 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
     ids.forEach(function (id) { fd.append('ids[]', String(id)); });
-    if (jenis === 'jemput') {
+    if (jenis === 'jemput' || jenis === 'jemput_antar') {
       var j = document.getElementById('kurirSurcasJemput').value;
       if (j !== '') fd.append('jumlah_surcas_jemput', j);
     }
-    if (jenis === 'antar') {
+    if (jenis === 'antar' || jenis === 'jemput_antar') {
       var a = document.getElementById('kurirSurcasAntar').value;
       if (a !== '') fd.append('jumlah_surcas_antar', a);
     }
