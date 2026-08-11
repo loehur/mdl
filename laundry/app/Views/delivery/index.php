@@ -144,14 +144,14 @@ $isEmptyCustomer = empty($customerGroups);
     #dlv-root .dlv-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     #dlv-root .dlv-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: 10px 12px;
+      gap: 8px;
+      padding: 8px 10px;
       border: 1px solid #fcd34d;
       background: #fff;
     }
@@ -159,12 +159,25 @@ $isEmptyCustomer = empty($customerGroups);
     #dlv-root .dlv-item--group {
       flex-direction: column;
       align-items: stretch;
+      padding: 6px 8px;
+      gap: 4px;
     }
     #dlv-root .dlv-item__head-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 10px;
+      gap: 6px;
+    }
+    #dlv-root .dlv-item--request {
+      align-items: flex-start;
+      margin-top: 0;
+      padding: 5px 7px;
+      gap: 6px;
+      border-color: rgba(15, 23, 42, 0.08);
+    }
+    #dlv-root .dlv-item--request .dlv-btn {
+      padding: 5px 8px;
+      font-size: 0.72rem;
     }
     #dlv-root .dlv-item__text { min-width: 0; flex: 1; }
     #dlv-root .dlv-item__title {
@@ -172,7 +185,7 @@ $isEmptyCustomer = empty($customerGroups);
       font-size: 0.84rem;
       font-weight: 900;
       color: var(--dlv-ink);
-      line-height: 1.35;
+      line-height: 1.25;
     }
     #dlv-root .dlv-item__title .dlv-kode { color: var(--dlv-yellow-deep); }
     #dlv-root .dlv-item--customer .dlv-item__title .dlv-kode { color: var(--dlv-blue-deep); }
@@ -917,7 +930,6 @@ $isEmptyCustomer = empty($customerGroups);
                         $catatanKurir = trim((string) ($rq['catatan_kurir'] ?? ''));
                       ?>
                         <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
-                             style="margin-top:8px;border:1px solid rgba(15,23,42,.08)"
                              data-id-request="<?= $idReq ?>"
                              data-phone-tail="<?= $tail ?>"
                              data-source="customer"
