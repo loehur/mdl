@@ -2192,11 +2192,113 @@
       e.target.setAttribute('data-touched', '1');
       syncKurirPayMetode();
     }
-    if (e.target && e.target.id === 'jRiwayatBulan') {
-      var ym = e.target.value || '';
-      if (/^\d{4}-\d{2}$/.test(ym)) {
-        loadPage('riwayat', ym, true);
+  });
+
+  var riwayatMonthShort = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+  ];
+
+  function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  function closeRiwayatMonthPicker() {
+    var root = document.getElementById('jRiwayatMonthPicker');
+    var panel = document.getElementById('jRiwayatMonthPanel');
+    var btn = document.getElementById('jRiwayatBulanBtn');
+    if (!root || !panel || !btn) return;
+    panel.hidden = true;
+    root.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function renderRiwayatMonthGrid(year) {
+    var root = document.getElementById('jRiwayatMonthPicker');
+    var grid = document.getElementById('jRiwayatMonthGrid');
+    var yearLabel = document.getElementById('jRiwayatYearLabel');
+    var prevBtn = document.getElementById('jRiwayatYearPrev');
+    var nextBtn = document.getElementById('jRiwayatYearNext');
+    if (!root || !grid) return;
+    var minYm = root.getAttribute('data-min') || '2000-01';
+    var maxYm = root.getAttribute('data-max') || '2099-12';
+    var selectedYm = root.getAttribute('data-ym') || '';
+    var minY = parseInt(minYm.slice(0, 4), 10);
+    var maxY = parseInt(maxYm.slice(0, 4), 10);
+    if (yearLabel) yearLabel.textContent = String(year);
+    if (prevBtn) prevBtn.disabled = year <= minY;
+    if (nextBtn) nextBtn.disabled = year >= maxY;
+    var html = '';
+    for (var m = 1; m <= 12; m++) {
+      var ym = year + '-' + pad2(m);
+      var disabled = ym < minYm || ym > maxYm;
+      var selected = ym === selectedYm;
+      html += '<button type="button" class="j-month-picker__month' + (selected ? ' is-selected' : '') + '"'
+        + ' data-month="' + m + '"'
+        + (disabled ? ' disabled' : '') + '>'
+        + (riwayatMonthShort[m] || m)
+        + '</button>';
+    }
+    grid.innerHTML = html;
+    root.setAttribute('data-view-year', String(year));
+  }
+
+  function openRiwayatMonthPicker() {
+    var root = document.getElementById('jRiwayatMonthPicker');
+    var panel = document.getElementById('jRiwayatMonthPanel');
+    var btn = document.getElementById('jRiwayatBulanBtn');
+    if (!root || !panel || !btn) return;
+    var ym = root.getAttribute('data-ym') || '';
+    var year = parseInt((ym.split('-')[0] || ''), 10) || (new Date()).getFullYear();
+    renderRiwayatMonthGrid(year);
+    panel.hidden = false;
+    root.classList.add('is-open');
+    btn.setAttribute('aria-expanded', 'true');
+  }
+
+  document.addEventListener('click', function (e) {
+    var root = document.getElementById('jRiwayatMonthPicker');
+    if (!root) return;
+
+    var trigger = e.target.closest('#jRiwayatBulanBtn');
+    if (trigger && root.contains(trigger)) {
+      e.preventDefault();
+      if (root.classList.contains('is-open')) closeRiwayatMonthPicker();
+      else openRiwayatMonthPicker();
+      return;
+    }
+
+    var prev = e.target.closest('#jRiwayatYearPrev');
+    if (prev && root.contains(prev)) {
+      e.preventDefault();
+      var yPrev = parseInt(root.getAttribute('data-view-year') || '0', 10) - 1;
+      if (yPrev > 0) renderRiwayatMonthGrid(yPrev);
+      return;
+    }
+
+    var next = e.target.closest('#jRiwayatYearNext');
+    if (next && root.contains(next)) {
+      e.preventDefault();
+      var yNext = parseInt(root.getAttribute('data-view-year') || '0', 10) + 1;
+      if (yNext > 0) renderRiwayatMonthGrid(yNext);
+      return;
+    }
+
+    var monthBtn = e.target.closest('.j-month-picker__month');
+    if (monthBtn && root.contains(monthBtn) && !monthBtn.disabled) {
+      e.preventDefault();
+      var month = parseInt(monthBtn.getAttribute('data-month') || '0', 10);
+      var year = parseInt(root.getAttribute('data-view-year') || '0', 10);
+      if (month >= 1 && month <= 12 && year > 0) {
+        var ymPick = year + '-' + pad2(month);
+        closeRiwayatMonthPicker();
+        loadPage('riwayat', ymPick, true);
       }
+      return;
+    }
+
+    if (root.classList.contains('is-open') && !root.contains(e.target)) {
+      closeRiwayatMonthPicker();
     }
   });
 

@@ -2222,23 +2222,138 @@ a { color: inherit; text-decoration: none; }
 .j-riwayat-toolbar {
   margin: 0 0 12px;
 }
-.j-riwayat-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.j-riwayat-filter > span {
+.j-riwayat-filter-label {
+  display: block;
+  margin-bottom: 4px;
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--j-muted);
 }
-.j-riwayat-bulan {
-  max-width: 220px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  font-size: 0.84rem;
+.j-month-picker {
+  position: relative;
+  max-width: 260px;
+}
+.j-month-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--j-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f7fbfa 100%);
+  color: var(--j-ink);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(11, 61, 58, 0.04);
+}
+.j-month-picker__trigger:active {
+  transform: translateY(1px);
+}
+.j-month-picker__trigger > .fa-calendar-alt {
+  color: var(--j-mint);
+  font-size: 0.95rem;
+}
+.j-month-picker__label {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: -0.01em;
+}
+.j-month-picker__caret {
+  color: var(--j-muted);
+  font-size: 0.72rem;
+  transition: transform 0.15s ease;
+}
+.j-month-picker.is-open .j-month-picker__trigger {
+  border-color: rgba(42, 157, 143, 0.55);
+  box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.12);
+}
+.j-month-picker.is-open .j-month-picker__caret {
+  transform: rotate(180deg);
+}
+.j-month-picker__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: min(280px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--j-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(11, 61, 58, 0.16);
+}
+.j-month-picker__year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid var(--j-line);
+}
+.j-month-picker__year-label {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--j-ink);
+}
+.j-month-picker__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--j-line);
+  border-radius: 10px;
+  background: #f7fbfa;
+  color: var(--j-ink);
+  cursor: pointer;
+}
+.j-month-picker__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.j-month-picker__nav:not(:disabled):active {
+  background: rgba(42, 157, 143, 0.12);
+  border-color: rgba(42, 157, 143, 0.35);
+}
+.j-month-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.j-month-picker__month {
+  min-height: 40px;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--j-ink);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.j-month-picker__month:hover:not(:disabled):not(.is-selected) {
+  background: rgba(42, 157, 143, 0.08);
+}
+.j-month-picker__month.is-selected {
+  background: linear-gradient(145deg, var(--j-ink) 0%, var(--j-ink-soft) 100%);
+  color: #fff;
+  border-color: transparent;
+}
+.j-month-picker__month:disabled {
+  color: #a8b8b5;
+  cursor: default;
+  opacity: 0.55;
 }
 .j-nota-preview-btn {
   display: inline-flex;
