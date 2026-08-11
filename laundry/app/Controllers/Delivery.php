@@ -264,7 +264,8 @@ class Delivery extends Controller
     * Dari Operasi FAB Kurir.
     * - jemput: wajib penyelesai + item → langsung selesai
     * - antar: tanpa penyelesai → request; dengan penyelesai → selesai
-    * - jemput_antar: tanpa item/penyelesai → request jemput + request antar kembali (surcas antar wajib)
+    * - jemput_antar: wajib penyelesai + item jemput → selesai jemput + request antar kembali
+    *   (tanpa item/penyelesai antar; surcas antar wajib)
     */
    public function kurir_dari_operasi()
    {
@@ -330,99 +331,27 @@ class Delivery extends Controller
             ) ?? 0);
          };
 
-         // ===== Jemput & Antar: request saja (tanpa item / penyelesai) =====
-         if ($jenis === 'jemput_antar') {
-            if ($countPendingJenis('jemput') > 0) {
-               throw new Exception('Sudah ada request jemput berjalan untuk pelanggan ini');
-            }
-            if ($countPendingJenis('antar') > 0) {
-               throw new Exception('Sudah ada request antar berjalan untuk pelanggan ini');
-            }
-
-            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
-            if ($jumlahAntar < 0) {
-               throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
-            }
-            $tarifJemput = null;
-            if (isset($_POST['jumlah_surcas_jemput']) && $_POST['jumlah_surcas_jemput'] !== '') {
-               $tarifJemput = max(0, (int) $_POST['jumlah_surcas_jemput']);
-            }
-
-            $insJemput = [
-               'sumber' => 'customer',
-               'jenis' => 'jemput',
-               'layanan' => 'sameday',
-               'delivery_status' => 'berjalan',
-               'id_pelanggan' => $idPelanggan,
-               'phone_tail' => $phoneTail,
-               'id_cabang' => $idCabang,
-               'id_lokasi' => 0,
-               'lokasi_nama' => '',
-               'lokasi_detail' => '',
-               'lokasi_latt' => 0,
-               'lokasi_longt' => 0,
-               'insertTime' => $now,
-               'catatan_kurir' => 'Dari Operasi (Kurir Jemput & Antar)',
-            ];
-            if ($tarifJemput !== null) {
-               $insJemput['tarif_surcas'] = $tarifJemput;
-            }
-            $resJ = $this->db(0)->insert('delivery_request', $insJemput);
-            if (is_array($resJ) && isset($resJ['errno']) && (int) $resJ['errno'] !== 0) {
-               throw new Exception($resJ['error'] ?? 'Gagal membuat request jemput');
-            }
-            $idJemput = (int) ($resJ['insert_id'] ?? 0);
-            if ($idJemput <= 0) {
-               throw new Exception('Gagal membuat request jemput');
-            }
-
-            $seed = [
-               'id_pelanggan' => $idPelanggan,
-               'id_cabang' => $idCabang,
-               'phone_tail' => $phoneTail,
-               'id_lokasi' => 0,
-               'lokasi_nama' => '',
-               'lokasi_detail' => '',
-               'lokasi_latt' => 0,
-               'lokasi_longt' => 0,
-            ];
-            $idAntar = $this->createAntarKembaliRequest($seed, $jumlahAntar, $idJemput);
-            if ($idAntar <= 0) {
-               throw new Exception('Gagal membuat request antar kembali');
-            }
-            // Perjelas catatan untuk board
-            $this->db(0)->update(
-               'delivery_request',
-               [
-                  'catatan_kurir' => mb_substr(
-                     'Antar kembali setelah jemput Operasi (dari jemput #' . $idJemput . ')',
-                     0,
-                     150
-                  ),
-               ],
-               'id_request = ' . $idAntar
-            );
-
-            $response = [
-               'status' => 'success',
-               'message' => "Request jemput #$idJemput + antar kembali #$idAntar dibuat",
-               'data' => [
-                  'mode' => 'request_combo',
-                  'id_request_jemput' => $idJemput,
-                  'id_request_antar' => $idAntar,
-                  'phone_tail' => $phoneTail,
-               ],
-            ];
-         } elseif ($jenis === 'jemput') {
-            // ===== Jemput: wajib selesai =====
+         // ===== Jemput / Jemput & Antar: selesai jemput =====
+         if ($jenis === 'jemput' || $jenis === 'jemput_antar') {
             if ($idKaryawan <= 0) {
-               throw new Exception('Jemput wajib pilih penyelesai');
+               throw new Exception('Wajib pilih penyelesai jemput');
             }
             if (empty($ids)) {
-               throw new Exception('Pilih minimal satu item penjualan');
+               throw new Exception('Pilih minimal satu item jemput');
             }
             if ($countPendingJenis('jemput') > 0) {
                throw new Exception('Customer punya request jemput aktif di board. Selesaikan dari Delivery.');
+            }
+            if ($jenis === 'jemput_antar' && $countPendingJenis('antar') > 0) {
+               throw new Exception('Sudah ada request antar berjalan untuk pelanggan ini');
+            }
+
+            $jumlahAntar = -1;
+            if ($jenis === 'jemput_antar') {
+               $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+               if ($jumlahAntar < 0) {
+                  throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
+               }
             }
 
             $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -456,15 +385,46 @@ class Delivery extends Controller
                ? ' · Surcas jemput sudah ada (dilewati)'
                : ' · Surcas jemput ditambahkan';
 
+            $idAntar = 0;
+            if ($jenis === 'jemput_antar') {
+               $seed = [
+                  'id_pelanggan' => $idPelanggan,
+                  'id_cabang' => $idCabang,
+                  'phone_tail' => $phoneTail,
+                  'id_lokasi' => 0,
+                  'lokasi_nama' => '',
+                  'lokasi_detail' => '',
+                  'lokasi_latt' => 0,
+                  'lokasi_longt' => 0,
+               ];
+               $idAntar = $this->createAntarKembaliRequest($seed, $jumlahAntar, 0);
+               if ($idAntar <= 0) {
+                  throw new Exception('Gagal membuat request antar kembali');
+               }
+               $this->db(0)->update(
+                  'delivery_request',
+                  [
+                     'catatan_kurir' => mb_substr(
+                        'Antar kembali setelah jemput Operasi (Kurir)',
+                        0,
+                        150
+                     ),
+                  ],
+                  'id_request = ' . $idAntar
+               );
+               $msg .= " + Request Antar kembali #$idAntar";
+            }
+
             $response = [
                'status' => 'success',
                'message' => $msg,
                'data' => [
-                  'mode' => 'selesai',
+                  'mode' => $jenis === 'jemput_antar' ? 'selesai_plus_antar' : 'selesai',
                   'jenis' => 'jemput',
                   'phone_tail' => $phoneTail,
                   'count' => $inserted,
                   'surcas_jemput' => $surcasJemput,
+                  'id_request_antar' => $idAntar > 0 ? $idAntar : null,
                ],
             ];
          } elseif ($idKaryawan <= 0) {

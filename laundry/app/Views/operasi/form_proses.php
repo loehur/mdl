@@ -639,8 +639,8 @@ $modeOperasi = (int) $data['mode'];
       var el = document.getElementById('offcanvasKurir');
       if (el) {
           bootstrap.Offcanvas.getOrCreateInstance(el).toggle();
-      } else {
-          alert('Muat data Operasi pelanggan dulu');
+      } else if (window.MdlToast) {
+          MdlToast.warn('Muat data Operasi pelanggan dulu');
       }
   });
 </script>

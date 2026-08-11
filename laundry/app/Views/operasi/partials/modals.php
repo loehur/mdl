@@ -1889,9 +1889,9 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   </div>
   <div class="offcanvas-body">
     <p class="kurir-hint" id="kurirHint">
-      Jemput wajib penyelesai (langsung selesai).
+      Jemput wajib penyelesai + item (langsung selesai).
       Antar tanpa penyelesai → request di board.
-      Jemput &amp; Antar → request jemput + request antar kembali (tanpa item/penyelesai).
+      Jemput &amp; Antar → selesai jemput + request antar kembali (surcas antar wajib; tanpa item antar).
     </p>
     <div class="kurir-field">
       <label class="kurir-label" for="kurirJenis">Jenis</label>
@@ -1910,7 +1910,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       <label class="kurir-label" for="kurirSurcasAntar">Surcas Pengantaran</label>
       <input type="number" id="kurirSurcasAntar" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
       <small id="kurirSurcasAntarHint" class="kurir-hint" style="margin:4px 0 0;display:none">
-        Wajib. Request Antar kembali akan dibuat di board (tanpa item).
+        Wajib. Request Antar kembali dibuat otomatis (tanpa item antar).
       </small>
     </div>
     <div class="kurir-field" id="kurirSalesWrap">
@@ -1957,6 +1957,18 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   var submitUrl = String(root.getAttribute('data-submit-url') || '');
   var kurirSelectize = null;
 
+  function toast(msg, type) {
+    type = type || 'info';
+    if (window.MdlToast) {
+      if (type === 'error' || type === 'danger') return MdlToast.error(msg);
+      if (type === 'warn' || type === 'warning') return MdlToast.warn(msg);
+      if (type === 'ok' || type === 'success') return MdlToast.ok(msg);
+      return MdlToast.info(msg);
+    }
+    // fallback sangat jarang — tetap non-blocking
+    console.log('[toast:' + type + ']', msg);
+  }
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1976,32 +1988,23 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
 
     var salesWrap = document.getElementById('kurirSalesWrap');
     var karyWrap = document.getElementById('kurirKaryawanWrap');
-    if (salesWrap) salesWrap.hidden = isCombo;
-    if (karyWrap) karyWrap.hidden = isCombo;
+    if (salesWrap) salesWrap.hidden = false;
+    if (karyWrap) karyWrap.hidden = false;
 
     var salesLabel = document.getElementById('kurirSalesLabel');
     var karyLabel = document.getElementById('kurirKaryawanLabel');
     if (salesLabel) {
-      salesLabel.textContent = isJemput
-        ? 'Item (wajib)'
+      salesLabel.textContent = (isJemput || isCombo)
+        ? 'Item Jemput (wajib)'
         : 'Item (opsional untuk request; wajib jika selesai)';
     }
     if (karyLabel) {
-      karyLabel.textContent = isJemput ? 'Penyelesai (wajib)' : 'Penyelesai (opsional)';
+      karyLabel.textContent = (isJemput || isCombo)
+        ? 'Penyelesai Jemput (wajib)'
+        : 'Penyelesai (opsional)';
     }
 
-    if (isCombo) {
-      // clear selection so submit tidak kirim sisa
-      if (kurirSelectize) kurirSelectize.clear(true);
-      else {
-        var sel = document.getElementById('kurirKaryawan');
-        if (sel) sel.value = '';
-      }
-      var box = document.getElementById('kurirSales');
-      if (box) box.innerHTML = '<div class="kurir-sales-empty">Tidak dipakai untuk Jemput &amp; Antar</div>';
-    } else {
-      loadSales(isJemput || isAntar ? jenis : '');
-    }
+    loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
     syncSubmitLabel();
   }
 
@@ -2010,7 +2013,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     var lab = document.getElementById('kurirSubmitLabel');
     if (!lab) return;
     if (jenis === 'jemput_antar') {
-      lab.textContent = 'Buat Request Jemput + Antar';
+      lab.textContent = 'Selesai Jemput + Request Antar';
       return;
     }
     if (jenis === 'jemput') {
@@ -2099,7 +2102,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     var btn = document.getElementById('kurirSubmit');
     var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
     if (!jenis) {
-      alert('Pilih jenis jemput/antar');
+      toast('Pilih jenis jemput/antar', 'warn');
       return;
     }
     var idKaryawan = 0;
@@ -2112,34 +2115,32 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       if (v > 0) ids.push(v);
     });
 
-    if (jenis === 'jemput') {
+    if (jenis === 'jemput' || jenis === 'jemput_antar') {
       if (idKaryawan <= 0) {
-        alert('Jemput wajib pilih penyelesai');
+        toast('Wajib pilih penyelesai jemput', 'warn');
         return;
       }
       if (!ids.length) {
-        alert('Jemput wajib pilih minimal satu item');
+        toast('Wajib pilih minimal satu item jemput', 'warn');
         return;
       }
       var jRaw = String(document.getElementById('kurirSurcasJemput').value || '').trim();
       if (jRaw === '' || isNaN(parseInt(jRaw, 10)) || parseInt(jRaw, 10) < 0) {
-        alert('Isi Surcas Penjemputan (isi 0 untuk gratis)');
+        toast('Isi Surcas Penjemputan (isi 0 untuk gratis)', 'warn');
         return;
       }
     }
 
     if (jenis === 'jemput_antar') {
-      idKaryawan = 0;
-      ids = [];
       var aRaw = String(document.getElementById('kurirSurcasAntar').value || '').trim();
       if (aRaw === '' || isNaN(parseInt(aRaw, 10)) || parseInt(aRaw, 10) < 0) {
-        alert('Isi Surcas Pengantaran (isi 0 untuk gratis)');
+        toast('Isi Surcas Pengantaran (isi 0 untuk gratis)', 'warn');
         return;
       }
     }
 
     if (jenis === 'antar' && idKaryawan > 0 && !ids.length) {
-      alert('Untuk selesai langsung, pilih minimal satu item');
+      toast('Untuk selesai langsung, pilih minimal satu item', 'warn');
       return;
     }
 
@@ -2162,16 +2163,16 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || res.status !== 'success') {
-          alert((res && res.message) || 'Gagal');
+          toast((res && res.message) || 'Gagal', 'error');
           return;
         }
-        alert(res.message || 'Berhasil');
+        toast(res.message || 'Berhasil', 'ok');
         var oc = bootstrap.Offcanvas.getInstance(root);
         if (oc) oc.hide();
         if (typeof cekData === 'function') cekData();
         else if (window.cekData) window.cekData();
       })
-      .catch(function () { alert('Gagal menyimpan'); })
+      .catch(function () { toast('Gagal menyimpan', 'error'); })
       .finally(function () { btn.disabled = false; });
   });
 })();
