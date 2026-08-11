@@ -601,33 +601,8 @@ class Antrian extends Controller
 
    public function surcas()
    {
-      $jenis = $_POST['surcas'];
-      $jumlah = $_POST['jumlah'];
-      $user = $_POST['user'];
-      $id_transaksi = $_POST['no_ref'];
-
-      $setOne = "transaksi_jenis = 1 AND no_ref = " . $id_transaksi . " AND id_jenis_surcas = " . $jenis;
-      $where = $this->wCabang . " AND " . $setOne;
-      $data_main = $this->db(0)->count_where('surcas', $where);
-
-      
-      if ($data_main < 1) {
-         $data = [
-            'id_cabang' => $this->id_cabang,
-            'transaksi_jenis' => 1,
-            'id_jenis_surcas' => $jenis,
-            'jumlah' => $jumlah,
-            'id_user' => $user,
-            'no_ref' => $id_transaksi
-         ];
-             $in = $this->db(0)->insert('surcas', $data);
-             if ($in['errno'] <> 0) {
-                $this->model('Log')->write("[surcas] Insert Surcas Error: " . $in['error']);
-                echo $in['error'];
-                exit();
-             }
-      }
-      echo 0;
+      // Penambahan surcas dari Operasi dinonaktifkan; akan diganti metode lain.
+      echo 'Penambahan surcas dari Operasi sudah tidak tersedia';
    }
 
    public function updateRak($mode = 0)

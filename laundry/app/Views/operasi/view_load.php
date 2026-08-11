@@ -120,7 +120,6 @@ $labeled = false;
           <div class="mdl-nota-head__actions">
             <?= $buttonNotif_londri ?>
             <a href="#" class="mdl-nota-chip mdl-nota-chip--label mdl-nota-chip--icon" data-print-id="Label" title="Cetak Label"><i class="fas fa-tags"></i></a>
-            <a href="#" class="mdl-nota-chip mdl-nota-chip--add mdl-nota-chip--icon tambahCas" data-ref="<?= $ref ?>" data-tr="id_transaksi" data-op-target="#exampleModalSurcas" title="Tambah Surcharge"><i class="fas fa-plus"></i></a>
             <a class="mdl-nota-chip mdl-nota-chip--bill mdl-nota-chip--icon" href="<?= URL::BASE_URL . "I/" . $id_pelanggan ?>" target="_blank" title="Tagihan"><i class="fas fa-receipt"></i></a>
             <a href="#" class="mdl-nota-chip mdl-nota-chip--detail mdl-nota-chip--icon btnNotaDetail" data-ref="<?= htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') ?>" title="Detail nota"><i class="fas fa-stream"></i></a>
           </div>
@@ -1231,7 +1230,7 @@ $labeled = false;
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {
-      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan, .tambahCas', function(e) {
+      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan', function(e) {
           e.preventDefault();
           var target = $(this).attr('data-op-target');
           if (target && window.OpModal) {

@@ -962,12 +962,6 @@
     window.idtargetOperasi = $(this).attr("id");
   });
 
-  $(".tambahCas").click(function () {
-    window.noref = $(this).attr("data-ref");
-    window.idNya = $(this).attr("data-tr");
-    $("#" + window.idNya).val(window.noref);
-  });
-
   // --- Logika Modal Hapus Order ---
 
   // Fungsi untuk membuka modal
