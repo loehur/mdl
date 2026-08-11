@@ -300,13 +300,9 @@ class WhatsApp extends Controller
                 break;
         }
 
-        // Reuse assignment from existing conversation for WS targeting (tanpa query pelanggan dulu)
+        // Reuse assignment from existing conversation for WS targeting (tanpa load WAReplies dulu —
+        // load WAReplies bisa fatal jika trait belum ada; jangan blok insert/WS)
         try {
-            if (!class_exists('\\App\\Models\\WAReplies')) {
-                require_once __DIR__ . '/../../Models/WAReplies.php';
-            }
-            $repliesProbe = new \App\Models\WAReplies();
-            // Will be replaced by getOrCreate below; peek assignment via find is private — use light query
             $existingQuick = $db->query(
                 "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
                 [$waNumber]
@@ -331,7 +327,6 @@ class WhatsApp extends Controller
                     $contact_name = $existingQuick->contact_name;
                 }
             }
-            unset($repliesProbe);
         } catch (\Throwable $e) {
             // ignore — push tetap jalan
         }
@@ -583,8 +578,14 @@ class WhatsApp extends Controller
                         'cust_id' => $cust_id,
                     ]);
                 }
-            } catch (\Exception $e) {
-                \Log::write("Error in auto-reply/conversation: " . $e->getMessage() . " | " . $e->getTraceAsString(), 'wa_error', 'AutoReply');
+            } catch (\Throwable $e) {
+                \Log::write(
+                    "Error in auto-reply/conversation: " . $e->getMessage()
+                    . " | " . $e->getFile() . ':' . $e->getLine()
+                    . " | " . $e->getTraceAsString(),
+                    'wa_error',
+                    'AutoReply'
+                );
             }
         }
     }

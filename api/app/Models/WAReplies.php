@@ -4,6 +4,11 @@ namespace App\Models;
 
 use App\Core\DB;
 
+// Pastikan trait ter-load (jangan andalkan autoload saja saat require_once WAReplies.php dari webhook)
+require_once __DIR__ . '/WARepliesKurirTrait.php';
+require_once __DIR__ . '/WARepliesLokasiTrait.php';
+require_once __DIR__ . '/WARepliesAmbilTutupTrait.php';
+
 class WAReplies
 {
     use WARepliesKurirTrait;
@@ -1696,46 +1701,58 @@ class WAReplies
         }
 
         // Session LOKASI aktif: lengkapi alamat (kecuali pesan jelas minta jemput/antar)
-        if ($this->getLokasiSession($waNumber) !== null
-            && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
-        ) {
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
-            $this->currentHandler = 'LOKASI';
-            $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $textBody);
-            if ($lokasiOk !== false) {
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
-                );
-                $this->logAutoreplyTrace($waNumber, 'DONE', 'lokasi_session_followup_ok');
-                return (object) [
-                    'case' => 2,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                ];
+        try {
+            if ($this->getLokasiSession($waNumber) !== null
+                && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
+                $this->currentHandler = 'LOKASI';
+                $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $textBody);
+                if ($lokasiOk !== false) {
+                    $conversationId = $this->getOrCreateConversationWithCase(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                    );
+                    $this->logAutoreplyTrace($waNumber, 'DONE', 'lokasi_session_followup_ok');
+                    return (object) [
+                        'case' => 2,
+                        'notify' => true,
+                        'conversation_id' => $conversationId,
+                    ];
+                }
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_unrelated→continue_routing');
             }
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_unrelated→continue_routing');
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('LOKASI session followup: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
         }
 
         // Session KURIR aktif: follow-up MINTA_JEMPUT_ANTAR
         if ($this->getKurirSession($waNumber) !== null) {
             $kurirSessEarly = $this->getKurirSession($waNumber);
             // Kurir menunggu LOKASI selesai → serahkan ke lokasi bila session ada
-            if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
-                if ($this->getLokasiSession($waNumber) !== null
-                    && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
-                ) {
-                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
-                    $this->currentHandler = 'LOKASI';
-                    if ($this->handleLokasi($phoneIn, $waNumber, $textBody) !== false) {
-                        $conversationId = $this->getOrCreateConversationWithCase(
-                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
-                        );
-                        return (object) [
-                            'case' => 2,
-                            'notify' => true,
-                            'conversation_id' => $conversationId,
-                        ];
+            try {
+                if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
+                    if ($this->getLokasiSession($waNumber) !== null
+                        && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
+                        $this->currentHandler = 'LOKASI';
+                        if ($this->handleLokasi($phoneIn, $waNumber, $textBody) !== false) {
+                            $conversationId = $this->getOrCreateConversationWithCase(
+                                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                            );
+                            return (object) [
+                                'case' => 2,
+                                'notify' => true,
+                                'conversation_id' => $conversationId,
+                            ];
+                        }
                     }
+                }
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write('kurir wait_lokasi→LOKASI: ' . $e->getMessage(), 'wa_error', 'Autoreply');
                 }
             }
             $hasActiveSale = $this->pelangganHasActiveSale($phoneIn, $waNumber);

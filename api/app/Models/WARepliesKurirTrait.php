@@ -1075,7 +1075,8 @@ trait WARepliesKurirTrait
         switch ($step) {
             case 'wait_lokasi':
                 if ($this->getLokasiSession($waNumber) !== null) {
-                    return $this->handleLokasi($phoneIn, $waNumber, $msg);
+                    $this->handleLokasi($phoneIn, $waNumber, $msg);
+                    return;
                 }
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
                 break;
@@ -1098,7 +1099,8 @@ trait WARepliesKurirTrait
                     'step' => $step === 'ask_lokasi_detail' ? 'ask_detail' : 'ask_nama',
                     'last_ask_at' => date('Y-m-d H:i:s'),
                 ]);
-                return $this->handleLokasi($phoneIn, $waNumber, $msg);
+                $this->handleLokasi($phoneIn, $waNumber, $msg);
+                return;
             case 'pick_lokasi':
                 $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $msg);
                 break;
