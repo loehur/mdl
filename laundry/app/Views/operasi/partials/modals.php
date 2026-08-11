@@ -1766,3 +1766,337 @@
     </div>
   </div>
 </div>
+
+<?php
+$kurirPhoneDigits = preg_replace('/[^0-9]/', '', (string) ($no_pelanggan ?? ''));
+$kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9) : $kurirPhoneDigits;
+?>
+<style>
+  #offcanvasKurir {
+    --bs-offcanvas-width: min(520px, 100vw);
+    font-family: 'fontku', 'Segoe UI', sans-serif;
+  }
+  #offcanvasKurir,
+  #offcanvasKurir .offcanvas-header,
+  #offcanvasKurir .btn,
+  #offcanvasKurir button,
+  #offcanvasKurir input,
+  #offcanvasKurir select,
+  #offcanvasKurir .form-control,
+  #offcanvasKurir .selectize-input {
+    border-radius: 0 !important;
+  }
+  #offcanvasKurir .offcanvas-header {
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+    color: #fff;
+    border-bottom: 0;
+    padding: 1rem 1.15rem;
+  }
+  #offcanvasKurir .offcanvas-title {
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  #offcanvasKurir .offcanvas-body {
+    background: linear-gradient(180deg, #eef4ff 0%, #f8fafc 55%, #fff 100%);
+  }
+  #offcanvasKurir .kurir-field { margin-bottom: 12px; }
+  #offcanvasKurir .kurir-label {
+    display: block;
+    margin: 0 0 4px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #64748b;
+  }
+  #offcanvasKurir .kurir-hint {
+    margin: 0 0 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+  }
+  #offcanvasKurir .kurir-sales {
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
+  #offcanvasKurir .kurir-sales-empty {
+    padding: 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  #offcanvasKurir .kurir-group-head {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  #offcanvasKurir .kurir-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  #offcanvasKurir .kurir-item:hover { background: #eff6ff; }
+  #offcanvasKurir .kurir-item.is-locked { opacity: 0.55; cursor: not-allowed; }
+  #offcanvasKurir .kurir-item__meta { font-size: 0.68rem; color: #64748b; font-weight: 700; }
+  #offcanvasKurir .kurir-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+  #offcanvasKurir .kurir-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 0;
+    font-size: 0.82rem;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  #offcanvasKurir .kurir-btn--ghost { background: #e2e8f0; color: #0f172a; }
+  #offcanvasKurir .kurir-btn--go {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #fff;
+  }
+  #offcanvasKurir .kurir-btn:disabled { opacity: 0.55; cursor: wait; }
+</style>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasKurir"
+     aria-labelledby="offcanvasKurirLabel"
+     data-bs-backdrop="true" data-bs-scroll="true"
+     data-id-pelanggan="<?= (int) $id_pelanggan ?>"
+     data-phone-tail="<?= htmlspecialchars($kurirPhoneTail, ENT_QUOTES, 'UTF-8') ?>"
+     data-sales-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
+     data-submit-url="<?= URL::BASE_URL ?>Delivery/kurir_dari_operasi"
+     style="z-index: 1100;">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="offcanvasKurirLabel">
+      <i class="fas fa-motorcycle me-2"></i>Kurir Delivery
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p class="kurir-hint">
+      Tanpa penyelesai → masuk board Delivery sebagai request.
+      Isi penyelesai → langsung selesai (surcas hanya ditambah jika belum ada di ref).
+    </p>
+    <div class="kurir-field">
+      <label class="kurir-label" for="kurirJenis">Jenis</label>
+      <select id="kurirJenis" class="form-control">
+        <option value="">Pilih…</option>
+        <option value="jemput">Jemput</option>
+        <option value="antar">Antar</option>
+      </select>
+    </div>
+    <div class="kurir-field" id="kurirSurcasJemputWrap" hidden>
+      <label class="kurir-label" for="kurirSurcasJemput">Surcas Penjemputan</label>
+      <input type="number" id="kurirSurcasJemput" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+    </div>
+    <div class="kurir-field" id="kurirSurcasAntarWrap" hidden>
+      <label class="kurir-label" for="kurirSurcasAntar">Surcas Pengantaran</label>
+      <input type="number" id="kurirSurcasAntar" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+    </div>
+    <div class="kurir-field">
+      <label class="kurir-label">Item (opsional untuk request; wajib jika selesai)</label>
+      <div class="kurir-sales" id="kurirSales">
+        <div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>
+      </div>
+    </div>
+    <div class="kurir-field">
+      <label class="kurir-label" for="kurirKaryawan">Penyelesai (opsional)</label>
+      <select id="kurirKaryawan" class="tize" style="width:100%">
+        <option value="">— Request saja —</option>
+        <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? '') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+          <?php foreach ($this->user as $a) { ?>
+            <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+          <?php } ?>
+        </optgroup>
+        <?php if (!empty($this->userCabang)) { ?>
+          <optgroup label="---- Cabang Lain ----">
+            <?php foreach ($this->userCabang as $a) { ?>
+              <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+            <?php } ?>
+          </optgroup>
+        <?php } ?>
+      </select>
+    </div>
+    <div class="kurir-actions">
+      <button type="button" class="kurir-btn kurir-btn--ghost" data-bs-dismiss="offcanvas">Batal</button>
+      <button type="button" class="kurir-btn kurir-btn--go" id="kurirSubmit">
+        <i class="fas fa-paper-plane"></i> <span id="kurirSubmitLabel">Buat Request</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('offcanvasKurir');
+  if (!root) return;
+
+  var idPelanggan = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+  var phoneTail = String(root.getAttribute('data-phone-tail') || '');
+  var salesUrl = String(root.getAttribute('data-sales-url') || '');
+  var submitUrl = String(root.getAttribute('data-submit-url') || '');
+  var kurirSelectize = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function syncJenisUi() {
+    var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
+    document.getElementById('kurirSurcasJemputWrap').hidden = jenis !== 'jemput';
+    document.getElementById('kurirSurcasAntarWrap').hidden = jenis !== 'antar';
+    loadSales(jenis);
+    syncSubmitLabel();
+  }
+
+  function syncSubmitLabel() {
+    var hasKaryawan = false;
+    if (kurirSelectize) hasKaryawan = !!kurirSelectize.getValue();
+    else {
+      var el = document.getElementById('kurirKaryawan');
+      hasKaryawan = !!(el && el.value);
+    }
+    var lab = document.getElementById('kurirSubmitLabel');
+    if (lab) lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
+  }
+
+  function renderSales(orders) {
+    var box = document.getElementById('kurirSales');
+    if (!box) return;
+    if (!orders || !orders.length) {
+      box.innerHTML = '<div class="kurir-sales-empty">Tidak ada item eligible</div>';
+      return;
+    }
+    box.innerHTML = orders.map(function (ord) {
+      var items = (ord.items || []).map(function (it) {
+        var locked = !!it.belum_selesai;
+        var meta = '#' + it.id + (it.member ? ' · member' : '') + (locked ? ' · belum selesai laundry' : '');
+        if (locked) {
+          return '<label class="kurir-item is-locked"><input type="checkbox" disabled>' +
+            '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
+            '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
+        }
+        return '<label class="kurir-item"><input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '">' +
+          '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
+          '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
+      }).join('');
+      var scHint = '';
+      if (ord.surcas_penjemputan != null) scHint += ' · jemput Rp' + Number(ord.surcas_penjemputan).toLocaleString('id-ID');
+      if (ord.surcas_pengantaran != null) scHint += ' · antar Rp' + Number(ord.surcas_pengantaran).toLocaleString('id-ID');
+      return '<div class="kurir-group" data-no-ref="' + esc(ord.no_ref) + '">' +
+        '<div class="kurir-group-head">#' + esc(ord.no_ref) + esc(scHint) + '</div>' + items + '</div>';
+    }).join('');
+  }
+
+  function loadSales(jenis) {
+    var box = document.getElementById('kurirSales');
+    if (!box) return;
+    if (!jenis || !phoneTail || !salesUrl) {
+      box.innerHTML = '<div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>';
+      return;
+    }
+    box.innerHTML = '<div class="kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>';
+    fetch(salesUrl + encodeURIComponent(phoneTail) + '?jenis=' + encodeURIComponent(jenis), {
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          box.innerHTML = '<div class="kurir-sales-empty">' + esc((res && res.message) || 'Gagal memuat') + '</div>';
+          return;
+        }
+        renderSales((res.data && res.data.orders) || []);
+      })
+      .catch(function () {
+        box.innerHTML = '<div class="kurir-sales-empty">Gagal memuat item</div>';
+      });
+  }
+
+  function initSelectize() {
+    if (kurirSelectize || typeof jQuery === 'undefined' || !jQuery.fn.selectize) return;
+    var $el = jQuery('#kurirKaryawan');
+    if (!$el.length) return;
+    if ($el[0].selectize) kurirSelectize = $el[0].selectize;
+    else kurirSelectize = $el.selectize({ allowEmptyOption: true })[0].selectize;
+    kurirSelectize.on('change', syncSubmitLabel);
+  }
+
+  root.addEventListener('shown.bs.offcanvas', function () {
+    initSelectize();
+    syncSubmitLabel();
+  });
+
+  document.getElementById('kurirJenis').addEventListener('change', syncJenisUi);
+  document.getElementById('kurirKaryawan').addEventListener('change', syncSubmitLabel);
+
+  document.getElementById('kurirSubmit').addEventListener('click', function () {
+    var btn = document.getElementById('kurirSubmit');
+    var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
+    if (!jenis) {
+      alert('Pilih jenis jemput/antar');
+      return;
+    }
+    var idKaryawan = 0;
+    if (kurirSelectize) idKaryawan = parseInt(kurirSelectize.getValue() || '0', 10) || 0;
+    else idKaryawan = parseInt(document.getElementById('kurirKaryawan').value || '0', 10) || 0;
+
+    var ids = [];
+    root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+      var v = parseInt(cb.value, 10);
+      if (v > 0) ids.push(v);
+    });
+    if (idKaryawan > 0 && !ids.length) {
+      alert('Untuk selesai langsung, pilih minimal satu item');
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append('id_pelanggan', String(idPelanggan));
+    fd.append('jenis', jenis);
+    fd.append('id_karyawan', String(idKaryawan));
+    ids.forEach(function (id) { fd.append('ids[]', String(id)); });
+    if (jenis === 'jemput') {
+      var j = document.getElementById('kurirSurcasJemput').value;
+      if (j !== '') fd.append('jumlah_surcas_jemput', j);
+    }
+    if (jenis === 'antar') {
+      var a = document.getElementById('kurirSurcasAntar').value;
+      if (a !== '') fd.append('jumlah_surcas_antar', a);
+    }
+
+    btn.disabled = true;
+    fetch(submitUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          alert((res && res.message) || 'Gagal');
+          return;
+        }
+        alert(res.message || 'Berhasil');
+        var oc = bootstrap.Offcanvas.getInstance(root);
+        if (oc) oc.hide();
+        if (typeof cekData === 'function') cekData();
+        else if (window.cekData) window.cekData();
+      })
+      .catch(function () { alert('Gagal menyimpan'); })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>

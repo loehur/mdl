@@ -350,14 +350,20 @@ $modeOperasi = (int) $data['mode'];
     background: linear-gradient(135deg, #22c55e, #16a34a);
     color: #fff;
   }
+  #fabOperasiButtons .operasi-fab--kurir {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: #fff;
+  }
   #offcanvasBukaOrderOp,
-  #offcanvasPayment { z-index: 1100 !important; }
+  #offcanvasPayment,
+  #offcanvasKurir { z-index: 1100 !important; }
   .offcanvas-backdrop { z-index: 1090 !important; }
   #offcanvasBukaOrderOp,
   #offcanvasBukaOrderOp .offcanvas-header,
   #offcanvasBukaOrderOp .btn,
   #offcanvasBukaOrderOp button,
-  #offcanvasPayment {
+  #offcanvasPayment,
+  #offcanvasKurir {
     border-radius: 0 !important;
   }
   /* Operasi dialogs use .op-modal (z-index 5200) — above offcanvas */
@@ -542,6 +548,10 @@ $modeOperasi = (int) $data['mode'];
     <span>Order</span>
   </button>
   <?php if ($id_pelanggan > 0) { ?>
+  <button id="btnTriggerKurir" class="operasi-fab operasi-fab--kurir" type="button">
+    <i class="fas fa-motorcycle fa-lg"></i>
+    <span>Kurir</span>
+  </button>
   <button id="btnTriggerPayment" class="operasi-fab operasi-fab--pay" type="button">
     <i class="fas fa-wallet fa-lg"></i>
     <span>Pay</span>
@@ -622,6 +632,15 @@ $modeOperasi = (int) $data['mode'];
       if (offcanvasPaymentEl) {
           var paymentOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasPaymentEl);
           paymentOffcanvas.toggle();
+      }
+  });
+
+  $(document).on('click', '#btnTriggerKurir', function() {
+      var el = document.getElementById('offcanvasKurir');
+      if (el) {
+          bootstrap.Offcanvas.getOrCreateInstance(el).toggle();
+      } else {
+          alert('Muat data Operasi pelanggan dulu');
       }
   });
 </script>
