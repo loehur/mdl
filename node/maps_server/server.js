@@ -64,7 +64,21 @@ function requireToken(req, res, next) {
   if (bearer === AUTH_TOKEN || q === AUTH_TOKEN) {
     return next();
   }
-  return res.status(401).json({ ok: false, error: 'unauthorized' });
+  console.warn(
+    '[maps_server] 401 unauthorized',
+    req.method,
+    req.path,
+    'has_header=',
+    Boolean(bearer),
+    'has_query_token=',
+    Boolean(q)
+  );
+  return res.status(401).json({
+    ok: false,
+    error: 'unauthorized',
+    message:
+      'Token maps_server tidak cocok. Samakan MAPS_SERVER_TOKEN di laundry/api dengan node/maps_server/.env lalu restart.',
+  });
 }
 
 function withTimeout(promise, ms) {
@@ -259,7 +273,11 @@ function okPayload(inputUrl, coords, extra) {
 async function handleResolve(req, res) {
   const inputUrl = extractUrlFromRequest(req);
   if (!inputUrl) {
-    return res.status(400).json({ ok: false, error: 'url_required' });
+    return res.status(400).json({
+      ok: false,
+      error: 'url_required',
+      message: 'URL Google Maps tidak terdeteksi di request',
+    });
   }
 
   // 1) URL input sudah mengandung koordinat
@@ -335,18 +353,35 @@ app.get('/health', (_req, res) => {
     ok: true,
     status: 'running',
     service: 'maps_server',
+    auth_required: Boolean(AUTH_TOKEN),
     timestamp: new Date().toISOString(),
   });
 });
 
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
-app.post('/resolve', requireToken, async (req, res) => {
-  console.log('[maps_server] POST /resolve', JSON.stringify(req.body || {}).slice(0, 200));
+/** Log SEMUA hit /resolve sebelum auth — kalau 401 dulu, dulu tidak ada log sama sekali. */
+function logResolveHit(req, _res, next) {
+  const preview =
+    (req.body && (req.body.url || req.body.gmaps || req.body.link || req.body.text)) ||
+    (req.query && (req.query.url || req.query.gmaps || req.query.link)) ||
+    '';
+  console.log(
+    '[maps_server]',
+    req.method,
+    '/resolve',
+    'auth_required=',
+    Boolean(AUTH_TOKEN),
+    'url=',
+    String(preview).slice(0, 160)
+  );
+  next();
+}
+
+app.post('/resolve', logResolveHit, requireToken, async (req, res) => {
   return handleResolve(req, res);
 });
-app.get('/resolve', requireToken, async (req, res) => {
-  console.log('[maps_server] GET /resolve', req.query && req.query.url);
+app.get('/resolve', logResolveHit, requireToken, async (req, res) => {
   return handleResolve(req, res);
 });
 

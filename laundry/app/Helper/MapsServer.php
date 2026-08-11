@@ -92,11 +92,34 @@ class MapsServer
             ];
         }
 
+        $err = (string) ($remote['error'] ?? 'resolve_failed');
+        $msg = (string) ($remote['message'] ?? '');
+        if ($msg === '') {
+            $msg = self::defaultMessageForError($err);
+        }
+
         return [
             'ok' => false,
-            'error' => (string) ($remote['error'] ?? 'resolve_failed'),
-            'message' => (string) ($remote['message'] ?? 'Tidak bisa membaca koordinat dari URL'),
+            'error' => $err,
+            'message' => $msg,
+            'http' => isset($remote['_http']) ? (int) $remote['_http'] : null,
         ];
+    }
+
+    private static function defaultMessageForError(string $error): string
+    {
+        switch ($error) {
+            case 'unauthorized':
+                return 'Token maps_server tidak cocok (401). Samakan MAPS_SERVER_TOKEN laundry/api dengan maps_server lalu restart keduanya.';
+            case 'url_required':
+                return 'URL Google Maps tidak terdeteksi / kosong.';
+            case 'timeout':
+                return 'Timeout membaca URL Maps. Coba lagi atau paste link yang sudah terbuka penuh.';
+            case 'no_coords':
+                return 'Tidak bisa membaca koordinat dari URL';
+            default:
+                return 'Tidak bisa membaca koordinat dari URL (' . $error . ')';
+        }
     }
 
     /**
@@ -115,7 +138,7 @@ class MapsServer
      */
     private static function callMapsServer(string $urlOrText, ?int $timeoutSec = null): ?array
     {
-        $endpoint = self::envString('MAPS_SERVER_URL', self::DEFAULT_URL);
+        $endpoint = self::configString('MAPS_SERVER_URL', self::DEFAULT_URL);
         $timeout = $timeoutSec !== null ? max(1, $timeoutSec) : self::DEFAULT_TIMEOUT;
         $payload = json_encode(['url' => $urlOrText], JSON_UNESCAPED_SLASHES);
         if ($payload === false) {
@@ -123,7 +146,7 @@ class MapsServer
         }
 
         $headers = ['Content-Type: application/json'];
-        $token = self::envString('MAPS_SERVER_TOKEN', '');
+        $token = self::configString('MAPS_SERVER_TOKEN', '');
         if ($token !== '') {
             $headers[] = 'X-Maps-Token: ' . $token;
         }
@@ -140,18 +163,43 @@ class MapsServer
 
         $body = curl_exec($ch);
         $errno = curl_errno($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
         curl_close($ch);
 
         if ($errno !== 0 || $body === false) {
+            error_log('[MapsServer] curl fail errno=' . $errno . ' err=' . $cerr . ' url=' . $endpoint);
             return null;
         }
 
         $json = json_decode($body, true);
-        return is_array($json) ? $json : null;
+        if (!is_array($json)) {
+            error_log('[MapsServer] bad json http=' . $http . ' body=' . substr((string) $body, 0, 300));
+            return null;
+        }
+        $json['_http'] = $http;
+        if ($http === 401 && empty($json['error'])) {
+            $json['error'] = 'unauthorized';
+        }
+        return $json;
     }
 
-    private static function envString(string $key, string $default): string
+    /**
+     * Laundry: baca dari URL:: dulu, lalu getenv / $_ENV.
+     */
+    private static function configString(string $key, string $default): string
     {
+        if (class_exists('URL', false) && defined('URL::' . $key)) {
+            $v = constant('URL::' . $key);
+            if (is_string($v) && $v !== '') {
+                return $v;
+            }
+            // Konstanta ada tapi kosong (mis. TOKEN='') → anggap sengaja kosong, jangan fallback ke env lain
+            if ($key === 'MAPS_SERVER_TOKEN' && is_string($v)) {
+                return '';
+            }
+        }
+
         $v = getenv($key);
         if (is_string($v) && $v !== '') {
             return $v;
