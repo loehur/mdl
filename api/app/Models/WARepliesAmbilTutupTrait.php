@@ -201,6 +201,25 @@ trait WARepliesAmbilTutupTrait
         )) {
             return true;
         }
+        // "bs tunggu kak, mau ambil baju" / "bisa nunggu saya ambil"
+        if (preg_match(
+            '/\b(bs|bis|bisa|boleh)\s*(di\s*)?(tunggu|nunggu)\b.{0,100}\b(mau|akan|nanti)?\s*(ambil|ngambil|mengambil)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/\b(tunggu|nunggu)\b.{0,80}\b(mau|akan|nanti)\s*(ambil|ngambil|mengambil)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/\b(tunggu|nunggu)\b.{0,60}\b(mau|akan)\s*(ambil|ngambil)\b.{0,40}\b(baju|cucian|laundry|londri|londry|pakaian)\b/iu',
+            $t
+        )) {
+            return true;
+        }
         // "nanti jam 9 malam ambil" / "ambil jam 22" — indikasi lewat jam operasional malam
         if (preg_match(
             '/\b(ambil|jemput|ngambil)\b.{0,40}\bjam\s*(\d{1,2})(?:[.:](\d{1,2}))?\b/iu',

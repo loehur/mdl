@@ -37,6 +37,11 @@ $menu[0] = [
                 'txt' => 'Pelanggan',
             ],
             [
+                'c' => 'PelangganLokasi',
+                'title' => 'Lokasi Pelanggan',
+                'txt' => 'Lokasi Pelanggan',
+            ],
+            [
                 'c' => 'Member/tampil_rekap',
                 'title' => 'List Deposit Member',
                 'txt' => 'List Saldo Paket',

@@ -262,10 +262,11 @@ class Delivery extends Controller
 
    /**
     * Dari Operasi FAB Kurir.
-    * - jemput: wajib penyelesai + item → langsung selesai
-    * - antar: tanpa penyelesai → request; dengan penyelesai → selesai
-    * - jemput_antar: wajib penyelesai + item jemput → selesai jemput + request antar kembali
-    *   (tanpa item/penyelesai antar; surcas antar wajib)
+    * Request aktif yang sudah ada di board diikat (reuse), bukan ditolak / diganti.
+    * - jemput: selesai (+ tutup request jemput jika ada)
+    * - antar tanpa penyelesai: buat atau update request antar
+    * - antar + penyelesai: selesai (+ tutup request antar jika ada)
+    * - jemput_antar: selesai jemput + pastikan request antar (buat/ikat)
     */
    public function kurir_dari_operasi()
    {
@@ -321,16 +322,6 @@ class Delivery extends Controller
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
          $pelangganIds = [$idPelanggan];
 
-         $countPendingJenis = function (string $j) use ($idPelanggan): int {
-            return (int) ($this->db(0)->count_where(
-               'delivery_request',
-               'id_pelanggan = ' . $idPelanggan
-                  . " AND jenis = '" . $this->db(0)->escape($j) . "'"
-                  . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
-                  . " AND layanan = 'sameday'"
-            ) ?? 0);
-         };
-
          // ===== Jemput / Jemput & Antar: selesai jemput =====
          if ($jenis === 'jemput' || $jenis === 'jemput_antar') {
             if ($idKaryawan <= 0) {
@@ -338,12 +329,6 @@ class Delivery extends Controller
             }
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item jemput');
-            }
-            if ($countPendingJenis('jemput') > 0) {
-               throw new Exception('Customer punya request jemput aktif di board. Selesaikan dari Delivery.');
-            }
-            if ($jenis === 'jemput_antar' && $countPendingJenis('antar') > 0) {
-               throw new Exception('Sudah ada request antar berjalan untuk pelanggan ini');
             }
 
             $jumlahAntar = -1;
@@ -360,6 +345,9 @@ class Delivery extends Controller
             }
             $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
 
+            $reqJemput = $this->findActiveDeliveryRequest($idPelanggan, 'jemput');
+            $idReqJemput = (int) ($reqJemput['id_request'] ?? 0);
+
             $inserted = $this->insertDeliveryRiwayatBatch(
                $phoneTail,
                $pelangganIds,
@@ -368,7 +356,8 @@ class Delivery extends Controller
                $idKaryawan,
                $namaKaryawan,
                $idCabang,
-               $now
+               $now,
+               $idReqJemput
             );
 
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
@@ -377,42 +366,40 @@ class Delivery extends Controller
                $ids,
                $jumlahSurcas,
                $idKaryawan,
-               0
+               $idReqJemput
             );
 
+            if ($idReqJemput > 0) {
+               $this->closeActiveDeliveryRequest($idReqJemput, $idKaryawan, $namaKaryawan, $now);
+            }
+
             $msg = "Delivery jemput selesai ($inserted item)";
+            if ($idReqJemput > 0) {
+               $msg .= " · Request jemput #$idReqJemput ditutup";
+            }
             $msg .= !empty($surcasJemput['skipped'])
                ? ' · Surcas jemput sudah ada (dilewati)'
                : ' · Surcas jemput ditambahkan';
 
             $idAntar = 0;
+            $antarBound = false;
             if ($jenis === 'jemput_antar') {
-               $seed = [
-                  'id_pelanggan' => $idPelanggan,
-                  'id_cabang' => $idCabang,
-                  'phone_tail' => $phoneTail,
-                  'id_lokasi' => 0,
-                  'lokasi_nama' => '',
-                  'lokasi_detail' => '',
-                  'lokasi_latt' => 0,
-                  'lokasi_longt' => 0,
-               ];
-               $idAntar = $this->createAntarKembaliRequest($seed, $jumlahAntar, 0);
-               if ($idAntar <= 0) {
-                  throw new Exception('Gagal membuat request antar kembali');
-               }
-               $this->db(0)->update(
-                  'delivery_request',
-                  [
-                     'catatan_kurir' => mb_substr(
-                        'Antar kembali setelah jemput Operasi (Kurir)',
-                        0,
-                        150
-                     ),
-                  ],
-                  'id_request = ' . $idAntar
+               $antarRes = $this->ensureAntarRequestBound(
+                  $idPelanggan,
+                  $idCabang,
+                  $phoneTail,
+                  $jumlahAntar,
+                  $idReqJemput,
+                  'Antar kembali setelah jemput Operasi (Kurir)'
                );
-               $msg .= " + Request Antar kembali #$idAntar";
+               $idAntar = (int) ($antarRes['id_request'] ?? 0);
+               $antarBound = !empty($antarRes['bound']);
+               if ($idAntar <= 0) {
+                  throw new Exception('Gagal memastikan request antar kembali');
+               }
+               $msg .= $antarBound
+                  ? " · Request Antar #$idAntar diikat"
+                  : " + Request Antar kembali #$idAntar";
             }
 
             $response = [
@@ -424,93 +411,85 @@ class Delivery extends Controller
                   'phone_tail' => $phoneTail,
                   'count' => $inserted,
                   'surcas_jemput' => $surcasJemput,
+                  'id_request_jemput' => $idReqJemput > 0 ? $idReqJemput : null,
                   'id_request_antar' => $idAntar > 0 ? $idAntar : null,
+                  'antar_bound' => $antarBound,
                ],
             ];
          } elseif ($idKaryawan <= 0) {
-            // ===== Antar: request =====
-            if ($countPendingJenis('antar') > 0) {
-               throw new Exception('Sudah ada request antar berjalan untuk pelanggan ini');
-            }
-
+            // ===== Antar: request (buat atau ikat yang sudah ada) =====
             $tarifSurcas = null;
             if (isset($_POST['jumlah_surcas_antar']) && $_POST['jumlah_surcas_antar'] !== '') {
                $tarifSurcas = max(0, (int) $_POST['jumlah_surcas_antar']);
             }
 
-            $insData = [
-               'sumber' => 'customer',
-               'jenis' => 'antar',
-               'layanan' => 'sameday',
-               'delivery_status' => 'berjalan',
-               'id_pelanggan' => $idPelanggan,
-               'phone_tail' => $phoneTail,
-               'id_cabang' => $idCabang,
-               'id_lokasi' => 0,
-               'lokasi_nama' => '',
-               'lokasi_detail' => '',
-               'lokasi_latt' => 0,
-               'lokasi_longt' => 0,
-               'insertTime' => $now,
-               'catatan_kurir' => 'Dari Operasi (Kurir)',
-            ];
-            if ($tarifSurcas !== null) {
-               $insData['tarif_surcas'] = $tarifSurcas;
-            }
+            $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+            $idRequest = (int) ($reqAntar['id_request'] ?? 0);
+            $bound = false;
 
-            $ins = $this->db(0)->insert('delivery_request', $insData);
-            if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-               throw new Exception($ins['error'] ?? 'Gagal membuat request');
-            }
-            $idRequest = (int) ($ins['insert_id'] ?? 0);
-            if ($idRequest <= 0) {
-               throw new Exception('Gagal membuat request');
+            if ($idRequest > 0) {
+               $bound = true;
+               $set = [
+                  'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
+               ];
+               if ($tarifSurcas !== null) {
+                  $set['tarif_surcas'] = $tarifSurcas;
+               }
+               $upd = $this->db(0)->update('delivery_request', $set, 'id_request = ' . $idRequest);
+               if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+                  throw new Exception($upd['error'] ?? 'Gagal mengikat request antar');
+               }
+            } else {
+               $insData = [
+                  'sumber' => 'customer',
+                  'jenis' => 'antar',
+                  'layanan' => 'sameday',
+                  'delivery_status' => 'berjalan',
+                  'id_pelanggan' => $idPelanggan,
+                  'phone_tail' => $phoneTail,
+                  'id_cabang' => $idCabang,
+                  'id_lokasi' => 0,
+                  'lokasi_nama' => '',
+                  'lokasi_detail' => '',
+                  'lokasi_latt' => 0,
+                  'lokasi_longt' => 0,
+                  'insertTime' => $now,
+                  'catatan_kurir' => 'Dari Operasi (Kurir)',
+               ];
+               if ($tarifSurcas !== null) {
+                  $insData['tarif_surcas'] = $tarifSurcas;
+               }
+               $ins = $this->db(0)->insert('delivery_request', $insData);
+               if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+                  throw new Exception($ins['error'] ?? 'Gagal membuat request');
+               }
+               $idRequest = (int) ($ins['insert_id'] ?? 0);
+               if ($idRequest <= 0) {
+                  throw new Exception('Gagal membuat request');
+               }
             }
 
             if (!empty($ids)) {
-               $saleRows = $this->db(0)->get_where(
-                  'sale',
-                  'bin = 0 AND id_pelanggan = ' . $idPelanggan
-                     . ' AND id_penjualan IN (' . implode(',', $ids) . ')'
-               );
-               $saleMap = [];
-               if (is_array($saleRows)) {
-                  foreach ($saleRows as $sr) {
-                     $saleMap[(int) ($sr['id_penjualan'] ?? 0)] = $sr;
-                  }
-               }
-               foreach ($ids as $idSale) {
-                  if (!isset($saleMap[$idSale])) {
-                     continue;
-                  }
-                  $itemIns = $this->db(0)->insert('delivery_request_item', [
-                     'id_request' => $idRequest,
-                     'id_penjualan' => $idSale,
-                     'no_ref' => (string) ($saleMap[$idSale]['no_ref'] ?? ''),
-                  ]);
-                  if (is_array($itemIns) && isset($itemIns['errno']) && (int) $itemIns['errno'] !== 0) {
-                     throw new Exception($itemIns['error'] ?? 'Gagal menyimpan item request');
-                  }
-               }
+               $this->attachSaleItemsToRequest($idRequest, $idPelanggan, $ids);
             }
 
             $response = [
                'status' => 'success',
-               'message' => 'Request antar #' . $idRequest . ' masuk board Delivery',
+               'message' => $bound
+                  ? 'Request antar #' . $idRequest . ' diikat dari Operasi'
+                  : 'Request antar #' . $idRequest . ' masuk board Delivery',
                'data' => [
-                  'mode' => 'request',
+                  'mode' => $bound ? 'request_bound' : 'request',
                   'id_request' => $idRequest,
                   'jenis' => 'antar',
                   'phone_tail' => $phoneTail,
+                  'bound' => $bound,
                ],
             ];
          } else {
-            // ===== Antar: selesai langsung =====
+            // ===== Antar: selesai langsung (ikat request jika ada) =====
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item penjualan');
-            }
-            if ($countPendingJenis('antar') > 0) {
-               throw new Exception('Customer punya request antar aktif di board. Selesaikan dari Delivery.');
             }
 
             $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -518,6 +497,9 @@ class Delivery extends Controller
                throw new Exception('Karyawan tidak ditemukan');
             }
             $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+
+            $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+            $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
 
             $inserted = $this->insertDeliveryRiwayatBatch(
                $phoneTail,
@@ -527,7 +509,8 @@ class Delivery extends Controller
                $idKaryawan,
                $namaKaryawan,
                $idCabang,
-               $now
+               $now,
+               $idReqAntar
             );
 
             $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
@@ -536,10 +519,17 @@ class Delivery extends Controller
                $ids,
                $jumlahAntar,
                $idKaryawan,
-               0
+               $idReqAntar
             );
 
+            if ($idReqAntar > 0) {
+               $this->closeActiveDeliveryRequest($idReqAntar, $idKaryawan, $namaKaryawan, $now);
+            }
+
             $msg = "Delivery antar selesai ($inserted item)";
+            if ($idReqAntar > 0) {
+               $msg .= " · Request antar #$idReqAntar ditutup";
+            }
             $msg .= !empty($surcasAntar['skipped'])
                ? ' · Surcas antar sudah ada (dilewati)'
                : ' · Surcas antar ditambahkan';
@@ -553,6 +543,7 @@ class Delivery extends Controller
                   'phone_tail' => $phoneTail,
                   'count' => $inserted,
                   'surcas_antar' => $surcasAntar,
+                  'id_request_antar' => $idReqAntar > 0 ? $idReqAntar : null,
                ],
             ];
          }
@@ -2603,6 +2594,169 @@ class Delivery extends Controller
          'lokasi_latt' => isset($lokasi['latt']) ? (float) $lokasi['latt'] : 0,
          'lokasi_longt' => isset($lokasi['longt']) ? (float) $lokasi['longt'] : 0,
       ];
+   }
+
+   /**
+    * Request delivery aktif (berjalan / menunggu bayar) per pelanggan + jenis.
+    */
+   private function findActiveDeliveryRequest(int $idPelanggan, string $jenis): ?array
+   {
+      $idPelanggan = (int) $idPelanggan;
+      $jenis = strtolower(trim($jenis));
+      if ($idPelanggan <= 0 || !in_array($jenis, ['jemput', 'antar'], true)) {
+         return null;
+      }
+      $row = $this->db(0)->get_where_row(
+         'delivery_request',
+         'id_pelanggan = ' . $idPelanggan
+            . " AND jenis = '" . $this->db(0)->escape($jenis) . "'"
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+            . " AND layanan = 'sameday'"
+            . ' ORDER BY id_request DESC'
+      );
+      if (!is_array($row) || empty($row['id_request'])) {
+         return null;
+      }
+      return $row;
+   }
+
+   /**
+    * Tutup request aktif sebagai selesai (dari Operasi Kurir).
+    */
+   private function closeActiveDeliveryRequest(
+      int $idRequest,
+      int $idKaryawan,
+      string $namaKaryawan,
+      string $now
+   ): void {
+      $idRequest = (int) $idRequest;
+      if ($idRequest <= 0) {
+         return;
+      }
+      $upd = $this->db(0)->update(
+         'delivery_request',
+         [
+            'delivery_status' => 'selesai',
+            'id_karyawan' => (int) $idKaryawan,
+            'nama_karyawan' => strtoupper($namaKaryawan),
+            'selesaiTime' => $now,
+         ],
+         'id_request = ' . $idRequest . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+      );
+      if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+         throw new Exception($upd['error'] ?? 'Gagal menutup request delivery');
+      }
+   }
+
+   /**
+    * Tambah item ke delivery_request_item (skip yang sudah ada).
+    * @param int[] $ids
+    */
+   private function attachSaleItemsToRequest(int $idRequest, int $idPelanggan, array $ids): void
+   {
+      $idRequest = (int) $idRequest;
+      $idPelanggan = (int) $idPelanggan;
+      if ($idRequest <= 0 || $idPelanggan <= 0 || empty($ids)) {
+         return;
+      }
+      $safe = [];
+      foreach ($ids as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $safe[$id] = $id;
+         }
+      }
+      $safe = array_values($safe);
+      if (empty($safe)) {
+         return;
+      }
+
+      $existing = [];
+      $rowsEx = $this->db(0)->get_where('delivery_request_item', 'id_request = ' . $idRequest);
+      if (is_array($rowsEx)) {
+         foreach ($rowsEx as $ex) {
+            $sid = (int) ($ex['id_penjualan'] ?? 0);
+            if ($sid > 0) {
+               $existing[$sid] = true;
+            }
+         }
+      }
+
+      $saleRows = $this->db(0)->get_where(
+         'sale',
+         'bin = 0 AND id_pelanggan = ' . $idPelanggan
+            . ' AND id_penjualan IN (' . implode(',', $safe) . ')'
+      );
+      if (!is_array($saleRows)) {
+         return;
+      }
+      foreach ($saleRows as $sr) {
+         $idSale = (int) ($sr['id_penjualan'] ?? 0);
+         if ($idSale <= 0 || isset($existing[$idSale])) {
+            continue;
+         }
+         $itemIns = $this->db(0)->insert('delivery_request_item', [
+            'id_request' => $idRequest,
+            'id_penjualan' => $idSale,
+            'no_ref' => (string) ($sr['no_ref'] ?? ''),
+         ]);
+         if (is_array($itemIns) && isset($itemIns['errno']) && (int) $itemIns['errno'] !== 0) {
+            throw new Exception($itemIns['error'] ?? 'Gagal menyimpan item request');
+         }
+      }
+   }
+
+   /**
+    * Pastikan ada request antar: ikat yang aktif atau buat baru.
+    * @return array{id_request:int,bound:bool}
+    */
+   private function ensureAntarRequestBound(
+      int $idPelanggan,
+      int $idCabang,
+      string $phoneTail,
+      int $tarifSurcas,
+      int $fromJemputId,
+      string $catatan
+   ): array {
+      $existing = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+      if (is_array($existing) && !empty($existing['id_request'])) {
+         $idRequest = (int) $existing['id_request'];
+         $upd = $this->db(0)->update(
+            'delivery_request',
+            [
+               'tarif_surcas' => max(0, (int) $tarifSurcas),
+               'catatan_kurir' => mb_substr($catatan !== '' ? $catatan : 'Diikat dari Operasi (Kurir)', 0, 150),
+            ],
+            'id_request = ' . $idRequest
+         );
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal mengikat request antar');
+         }
+         return ['id_request' => $idRequest, 'bound' => true];
+      }
+
+      $seed = [
+         'id_pelanggan' => $idPelanggan,
+         'id_cabang' => $idCabang,
+         'phone_tail' => $phoneTail,
+         'id_lokasi' => 0,
+         'lokasi_nama' => '',
+         'lokasi_detail' => '',
+         'lokasi_latt' => 0,
+         'lokasi_longt' => 0,
+      ];
+      $idNew = $this->createAntarKembaliRequest($seed, $tarifSurcas, $fromJemputId);
+      if ($idNew <= 0) {
+         throw new Exception('Gagal membuat request antar kembali');
+      }
+      if ($catatan !== '') {
+         $this->db(0)->update(
+            'delivery_request',
+            ['catatan_kurir' => mb_substr($catatan, 0, 150)],
+            'id_request = ' . $idNew
+         );
+      }
+      return ['id_request' => $idNew, 'bound' => false];
    }
 
    /**

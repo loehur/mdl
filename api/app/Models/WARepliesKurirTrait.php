@@ -756,7 +756,7 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Deteksi jemput/antar. Typo "anter" = antar.
+     * Deteksi jemput/antar. Typo "anter"/"antr" = antar.
      * Implicit: "ambil kain kotor" → jemput; "bawakan kain yang siap" → antar.
      * Jika keduanya disebut (pesan + summary session) → antar.
      *
@@ -776,7 +776,7 @@ trait WARepliesKurirTrait
         $hasJemput = (bool) preg_match('/\b(jemput|jmpt|dijemput|penjemputan)\b/u', $blob)
             || $this->kurirMsgLooksAmbilKotorJemput($blob);
         $hasAntar = (bool) preg_match(
-            '/\b(antar|anter|diantar|dianter|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u',
+            '/\b(antar|anter|antr|diantar|dianter|diantr|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u',
             $blob
         ) || $this->kurirMsgLooksBawakanSiapAntar($blob);
 
@@ -827,13 +827,13 @@ trait WARepliesKurirTrait
     private function kurirMsgLooksBawakanSiapAntar(string $blob): bool
     {
         return (bool) preg_match(
-            '/\b(bawak|bawakan|bawa\s*kan|bawa\s*in|bawa\s*kan|anter|antar|kirim(kan)?)\b.{0,100}\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,80}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b/u',
+            '/\b(bawak|bawakan|bawa\s*kan|bawa\s*in|bawa\s*kan|anter|antar|antr|kirim(kan)?)\b.{0,100}\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,80}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b/u',
             $blob
         ) || (bool) preg_match(
-            '/\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,40}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b.{0,60}\b(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter|kirim(kan)?)\b/u',
+            '/\b(kain|baju|cucian|laundry|londry|londri|laondri|pakaian)\b.{0,40}\b(yg|yang)?\s*(udah|sudah|udh|dah|sdh)?\s*(siap|selesai|kelar)\b.{0,60}\b(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter|antr|kirim(kan)?)\b/u',
             $blob
         ) || (bool) preg_match(
-            '/\b(sekalian|sekaligus|juga)\s+(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter)\b.{0,80}\b(kain|baju|cucian|laundry|siap|selesai)\b/u',
+            '/\b(sekalian|sekaligus|juga)\s+(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter|antr)\b.{0,80}\b(kain|baju|cucian|laundry|siap|selesai)\b/u',
             $blob
         );
     }
@@ -849,10 +849,10 @@ trait WARepliesKurirTrait
             return true;
         }
         return (bool) preg_match(
-            '/\b(jemput|jmpt|antar|anter)\s*(juga|jg|jga|sekalian|sekaligus|bareng|sama)\b/iu',
+            '/\b(jemput|jmpt|antar|anter|antr)\s*(juga|jg|jga|sekalian|sekaligus|bareng|sama)\b/iu',
             $t
         ) || (bool) preg_match(
-            '/\b(juga|jg|jga|sekalian|sekaligus)\s*(di)?(jemput|jmpt|antar|anter|bawak|bawakan|bawa)\b/iu',
+            '/\b(juga|jg|jga|sekalian|sekaligus)\s*(di)?(jemput|jmpt|antar|anter|antr|bawak|bawakan|bawa)\b/iu',
             $t
         );
     }
@@ -995,7 +995,7 @@ trait WARepliesKurirTrait
             if (!$jenis && preg_match('/\b(jemput|jmpt)\b/iu', $msg)) {
                 $jenis = 'jemput';
             }
-            if (!$jenis && preg_match('/\b(antar|anter)\b/iu', $msg)) {
+            if (!$jenis && preg_match('/\b(antar|anter|antr)\b/iu', $msg)) {
                 $jenis = 'antar';
             }
             if (!$jenis) {
@@ -4122,7 +4122,7 @@ trait WARepliesKurirTrait
             . "Jam 1-6 tanpa 'pagi' biasanya sore (jam 3=15). Tanya 'jam berapa' tanpa angka tetap want_jam. "
             . "Jika minta cepat/gojek/grab/gosend/instant/sekarang → want_instant (langsung, jangan tanya sameday lagi). "
             . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta instant. "
-            . "Typo anter/dianter = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
+            . "Typo anter/antr/dianter/diantr = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
             . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt "
             . "('ya', 'oke', 'ya sudah gak pa2', 'gpp', 'gapapa' = agree_alt); "

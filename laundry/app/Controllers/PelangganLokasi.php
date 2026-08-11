@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Admin Tools: CRUD lokasi pelanggan (cabang session aktif).
+ * CRUD lokasi pelanggan (cabang session aktif) — akses kasir & admin.
  * Koordinat hanya dari URL Google Maps (parse lokal / maps_server).
  */
 class PelangganLokasi extends Controller
@@ -13,7 +13,7 @@ class PelangganLokasi extends Controller
 
     public function index()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $data_operasi = ['title' => 'Lokasi Pelanggan'];
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('pelanggan_lokasi/index', [
@@ -25,7 +25,7 @@ class PelangganLokasi extends Controller
     /** POST q → JSON list pelanggan cabang aktif */
     public function searchPelanggan()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
 
         $q = trim((string) ($_POST['q'] ?? $_GET['q'] ?? ''));
@@ -70,7 +70,7 @@ class PelangganLokasi extends Controller
     /** GET/POST id_pelanggan → list lokasi */
     public function listLokasi()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
 
         $idPelanggan = (int) ($_POST['id_pelanggan'] ?? $_GET['id_pelanggan'] ?? 0);
@@ -119,7 +119,7 @@ class PelangganLokasi extends Controller
     /** POST url → resolve coords */
     public function resolveMaps()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
         $this->loadMapsHelper();
 
@@ -144,7 +144,7 @@ class PelangganLokasi extends Controller
 
     public function insert()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
         $this->loadMapsHelper();
 
@@ -205,7 +205,7 @@ class PelangganLokasi extends Controller
 
     public function update()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
         $this->loadMapsHelper();
 
@@ -293,7 +293,7 @@ class PelangganLokasi extends Controller
 
     public function delete()
     {
-        $this->session_cek(1);
+        $this->session_cek();
         $this->jsonHeader();
 
         $idPelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
