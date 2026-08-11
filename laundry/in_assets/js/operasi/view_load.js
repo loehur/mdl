@@ -27,6 +27,7 @@
   $(document).off("click", ".tutupModalHapusBtn");
   $(document).off("click", "#btnHapusKonfirm");
   $(document).off("click", ".btnNotaDetail");
+  $(document).off("click", "#btnDownloadNotaDetail");
 
   // Cleanup orphaned modals that were moved to body in previous executions
   // This prevents Duplicate ID errors and Bootstrap confusion which causes recursive errors
@@ -1062,7 +1063,7 @@
   }
 
   function renderNotaDetail(data) {
-    var html = "";
+    var html = '<div id="notaDetailCapture" data-ref="' + ndtEsc(data.no_ref || "") + '" data-nama="' + ndtEsc(data.pelanggan || "") + '">';
     var lunas = !!data.lunas;
     var statusBadge = lunas
       ? '<span class="ndt-badge ndt-badge--ok">LUNAS</span>'
@@ -1223,9 +1224,59 @@
       }
       html += "</div>";
     });
-    html += "</div>";
+    html += "</div></div>";
 
     return html;
+  }
+
+  function ndtSlug(name) {
+    return String(name || "nota")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "nota";
+  }
+
+  function downloadNotaDetailImage(btn) {
+    var page = document.getElementById("notaDetailCapture");
+    var body = document.getElementById("notaDetailBody");
+    if (!page || !body) return;
+    if (typeof html2canvas !== "function") {
+      alert("Fitur gambar belum siap. Muat ulang halaman.");
+      return;
+    }
+
+    var $btn = $(btn);
+    var oldHtml = $btn.html();
+    $btn.prop("disabled", true).html('<i class="fas fa-spinner fa-spin"></i> Proses');
+
+    var prevOverflow = body.style.overflow;
+    var prevMaxHeight = body.style.maxHeight;
+    body.style.overflow = "visible";
+    body.style.maxHeight = "none";
+
+    html2canvas(page, {
+      backgroundColor: "#ffffff",
+      scale: Math.min(2, window.devicePixelRatio || 2),
+      useCORS: true,
+      logging: false,
+    })
+      .then(function (canvas) {
+        var ref = page.getAttribute("data-ref") || "nota";
+        var nama = page.getAttribute("data-nama") || "";
+        var link = document.createElement("a");
+        link.download = "nota-" + ndtSlug(ref) + (nama ? "-" + ndtSlug(nama) : "") + ".png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      })
+      .catch(function (err) {
+        alert((err && err.message) || "Gagal membuat gambar detail nota.");
+      })
+      .finally(function () {
+        body.style.overflow = prevOverflow;
+        body.style.maxHeight = prevMaxHeight;
+        $btn.prop("disabled", false).html(oldHtml);
+      });
   }
 
   $(document).on("click", ".btnNotaDetail", function (e) {
@@ -1235,6 +1286,7 @@
 
     $("#opNotaDetailTitle").text("Detail Nota #" + ref);
     $("#opNotaDetailSub").text("Timeline order");
+    $("#btnDownloadNotaDetail").prop("disabled", true);
     $("#notaDetailBody").html(
       '<div class="ndt-loading"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>'
     );
@@ -1248,6 +1300,7 @@
       data: { ref: ref },
       success: function (res) {
         if (!res || res.status !== "success" || !res.data) {
+          $("#btnDownloadNotaDetail").prop("disabled", true);
           $("#notaDetailBody").html(
             '<div class="ndt-error">' +
               ndtEsc((res && res.message) || "Gagal memuat detail") +
@@ -1261,13 +1314,20 @@
             (d.lunas ? " · Lunas" : " · Sisa " + ndtMoney(d.sisa))
         );
         $("#notaDetailBody").html(renderNotaDetail(d));
+        $("#btnDownloadNotaDetail").prop("disabled", false);
       },
       error: function () {
+        $("#btnDownloadNotaDetail").prop("disabled", true);
         $("#notaDetailBody").html(
           '<div class="ndt-error">Gagal memuat detail (network)</div>'
         );
       },
     });
+  });
+
+  $(document).on("click", "#btnDownloadNotaDetail", function (e) {
+    e.preventDefault();
+    downloadNotaDetailImage(this);
   });
 
   // --- Hapus satu item dari nota ---

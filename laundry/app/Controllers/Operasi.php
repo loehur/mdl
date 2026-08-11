@@ -222,7 +222,8 @@ class Operasi extends Controller
          if ($id === '' || $id === '0') {
             return '';
          }
-         return (string) ($users[$id]['nama_user'] ?? '');
+         $nama = trim((string) ($users[$id]['nama_user'] ?? ''));
+         return $nama !== '' ? strtoupper($nama) : '';
       };
 
       $mapMetode = [];
@@ -268,7 +269,7 @@ class Operasi extends Controller
       $idPelanggan = (int) ($first['id_pelanggan'] ?? 0);
       $pelangganNama = '';
       if ($idPelanggan > 0 && isset($this->pelanggan[$idPelanggan])) {
-         $pelangganNama = (string) ($this->pelanggan[$idPelanggan]['nama_pelanggan'] ?? '');
+         $pelangganNama = strtoupper(trim((string) ($this->pelanggan[$idPelanggan]['nama_pelanggan'] ?? '')));
       }
 
       $saleIds = [];

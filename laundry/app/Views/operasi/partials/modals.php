@@ -1723,6 +1723,9 @@
     border: 1px dashed #cbd5e1;
     background: #f8fafc;
   }
+  #notaDetailCapture {
+    background: #fff;
+  }
 </style>
 <div class="op-modal" id="modalNotaDetail" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
@@ -1739,6 +1742,9 @@
     </div>
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost" data-op-close>Tutup</button>
+      <button type="button" class="op-btn op-btn--blue" id="btnDownloadNotaDetail" disabled title="Download gambar">
+        <i class="fas fa-download"></i> Gambar
+      </button>
     </div>
   </div>
 </div>

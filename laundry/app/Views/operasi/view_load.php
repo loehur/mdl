@@ -1208,6 +1208,7 @@ $labeled = false;
 <!-- SCRIPT -->
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
