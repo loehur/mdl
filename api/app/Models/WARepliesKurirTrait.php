@@ -3642,7 +3642,7 @@ trait WARepliesKurirTrait
             . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt; tolak/batal → refuse_alt; mau grab/instant → want_instant. "
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
-            . "Jika typo/kurang jelas → clarify + suggested_text (contoh: 'jemput laundry ke rumah kak'). "
+            . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
             . "Di step ask_lokasi_nama: customer harus pilih rumah/kos/kantor/penginapan/lainnya. "
             . "Di step ask_lokasi_detail: isi detail sesuai jenis (no/ciri rumah, nama kos, nama+kamar/lobby penginapan, nama kantor, atau detail titik). "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
@@ -3954,24 +3954,15 @@ trait WARepliesKurirTrait
                 return;
 
             case 'clarify':
-                $suggested = trim((string) ($decision['suggested_text'] ?? ''));
-                if ($suggested !== '') {
-                    $this->sendClarifyConfirmation($waNumber, $suggested);
-                } else {
-                    $this->sendAutoreplyText(
-                        $waNumber,
-                        $aiReply ?: ("Maaf {$sapaan}, textnya kurang dapat saya pahami, boleh ketik ulang lebih jelas?")
-                    );
-                }
-                $this->kurirAppendSummary($waNumber, $session, $note);
+                // Jangan spam klarifikasi — abaikan jika AI tidak paham
+                $this->kurirAppendSummary($waNumber, $session, $note ?: ('clarify_ignored: ' . mb_substr($msg, 0, 60)));
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'clarify_ignored');
                 return;
 
             default:
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    $aiReply ?: ("Mohon diperjelas ya {$sapaan}, biar kami bantu lanjutkan.")
-                );
+                // Aksi tidak dikenal / tidak jelas → diam, jangan minta diperjelas
                 $this->kurirAppendSummary($waNumber, $session, $note);
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'unknown_action_ignored action=' . $action);
                 return;
         }
     }

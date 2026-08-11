@@ -2365,18 +2365,8 @@ class WAReplies
             );
         }
 
-        // Soft clarify HANYA typo/ambigu. Pesan jelas tapi bukan intent → tetap FALSE, biarkan human (case 4).
-        if ($messageLength >= 8 && $messageLength <= 100
-            && $this->tryAiClarifyAmbiguous($waNumber, (string) $textBody)) {
-            $conversationId = $this->getOrCreateConversationWithCase(
-                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
-            );
-            return (object) [
-                'case' => null,
-                'notify' => false,
-                'conversation_id' => $conversationId,
-            ];
-        }
+        // Soft clarify AI dimatikan — jangan spam "kurang dapat saya pahami"
+        // (pesan tanpa intent → biarkan human / fallthrough di bawah)
 
         // FALSE / tidak cocok intent: tanpa balasan bot → notify human
         $conversationId = $this->getOrCreateConversationWithCase(
@@ -5093,12 +5083,9 @@ class WAReplies
         }
 
         if ($action === 'clarify') {
-            $suggested = trim((string) ($decision['suggested_text'] ?? ''));
-            if ($suggested === '') {
-                $suggested = 'bisa siap hari ini kak?';
-            }
-            $this->sendClarifyConfirmation($waNumber, $suggested);
-            $this->estimasiAppendSummary($waNumber, $session, 'clarify: ' . mb_substr($msg, 0, 60));
+            // Jangan balas "kurang dapat saya pahami" — diam saja
+            $this->estimasiAppendSummary($waNumber, $session, 'clarify_ignored: ' . mb_substr($msg, 0, 60));
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'clarify_ignored');
             return true;
         }
 
@@ -7698,20 +7685,15 @@ class WAReplies
     }
 
     /**
-     * Konfirmasi typo/ambigu — dipakai YCloud & Fonnte (satu process()).
+     * Klarifikasi AI dimatikan (spam). Abaikan saja jika teks tidak jelas.
      */
     private function sendClarifyConfirmation(string $waNumber, string $suggested): void
     {
-        $sapaan = $this->getSapaanForGreeting($waNumber);
-        $suggested = trim(preg_replace('/\s+/u', ' ', $suggested));
-        $suggested = trim($suggested, " \t\"'“”");
-        if ($suggested === '') {
-            $suggested = 'pesan Anda';
-        }
-        $text = "Maaf {$sapaan}, textnya kurang dapat saya pahami, apakah yang dimaksudnya \"{$suggested}\"?";
-        $this->sendAutoreplyText($waNumber, $text);
-        $this->savePendingClarify($waNumber, $suggested);
-        $this->logAutoreplyTrace($waNumber, 'CLARIFY', 'asked suggested=' . mb_substr($suggested, 0, 120));
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'CLARIFY',
+            'ignored_no_reply suggested=' . mb_substr(trim($suggested), 0, 120)
+        );
     }
 
     private function savePendingClarify(string $waNumber, string $suggested): void
@@ -7817,7 +7799,7 @@ class WAReplies
         }
         if ($this->kurirLooksRefuse($textBodyToCheck) || $this->kurirLooksCancel($textBodyToCheck)) {
             $this->clearPendingClarify($waNumber);
-            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, mohon ketik ulang maksudnya ya.");
+            $this->logAutoreplyTrace($waNumber, 'CLARIFY', 'pending_refused_silent');
             return '__abort__';
         }
 
@@ -7829,98 +7811,20 @@ class WAReplies
             return null;
         }
 
-        // Masih ambigu → tanya ulang
-        $this->sendClarifyConfirmation($waNumber, $pending);
-        return '__abort__';
+        // Masih ambigu → jangan spam tanya ulang; buang pending & biarkan pesan diproses biasa / diabaikan
+        $this->clearPendingClarify($waNumber);
+        $this->logAutoreplyTrace($waNumber, 'CLARIFY', 'pending_cleared_no_reask');
+        return null;
     }
 
     /**
-     * AI menebak maksud HANYA jika typo/salah ketik/ambigu.
-     * Pesan jelas tapi bukan intent laundry → return false (biarkan human).
-     * @return bool true jika sudah kirim klarifikasi
+     * Soft clarify AI dimatikan — jangan spam "kurang dapat saya pahami".
+     * @return bool always false
      */
     private function tryAiClarifyAmbiguous(string $waNumber, string $msg): bool
     {
-        try {
-            if (!class_exists('\\App\\Config\\AI')) {
-                require_once __DIR__ . '/../Config/AI.php';
-            }
-            if (!\App\Config\AI::isEnabled()) {
-                return false;
-            }
-        } catch (\Throwable $e) {
-            return false;
-        }
-
-        $est = $this->getEstimasiSession($waNumber);
-        $kurir = $this->getKurirSession($waNumber);
-        $active = [];
-        if ($est) {
-            $active[] = 'ESTIMASI_SELESAI step/fase=' . ($est['fase_proses'] ?? '-') . ' summary=' . mb_substr((string) ($est['summary'] ?? ''), 0, 200);
-        }
-        if ($kurir) {
-            $active[] = 'KURIR step=' . ($kurir['step'] ?? '-') . ' summary=' . mb_substr((string) ($kurir['summary'] ?? ''), 0, 200);
-        }
-
-        $chat = [];
-        if (method_exists($this, 'kurirFetchRecentChatTurns')) {
-            foreach ($this->kurirFetchRecentChatTurns($waNumber, 6) as $t) {
-                $chat[] = (($t['dir'] ?? '') === 'out' ? 'BOT' : 'CUST') . ': ' . ($t['body'] ?? '');
-            }
-        }
-
-        $system = "Kamu asisten WhatsApp Madinah Laundry. "
-            . "Tugas: deteksi TYPO/salah ketik/pesan rusak yang membuat maksud laundry tidak jelas. "
-            . "is_typo=true HANYA jika ada typo/ambigu kuat DAN kamu yakin tebakan intent laundry (estimasi siap, jemput/antar, tagihan, status, dll). "
-            . "is_typo=false jika pesan SUDAH bisa dipahami — meski topiknya di luar intent / bukan laundry / butuh CS manusia. "
-            . "Jika is_typo=false → suggested_text HARUS kosong. JANGAN menebak atau membalas topik bebas. "
-            . "Jangan minta shareloc kecuali jelas minta jemput/antar. "
-            . "JSON saja: {\"is_typo\":false,\"suggested_text\":\"\",\"reason\":\"...\"}";
-
-        $user = "ACTIVE_SESSION:\n" . (empty($active) ? '(tidak ada)' : implode("\n", $active))
-            . "\nRECENT_CHAT:\n" . (empty($chat) ? '(tidak ada)' : implode("\n", $chat))
-            . "\nPESAN: " . mb_substr($msg, 0, 400);
-
-        try {
-            $raw = $this->executeOpenAIRequestWithMessages(
-                [
-                    ['role' => 'system', 'content' => $system],
-                    ['role' => 'user', 'content' => $user],
-                ],
-                160,
-                $waNumber
-            );
-        } catch (\Throwable $e) {
-            return false;
-        }
-
-        $json = json_decode((string) $raw, true);
-        if (!is_array($json) && preg_match('/\{.*\}/s', (string) $raw, $m)) {
-            $json = json_decode($m[0], true);
-        }
-        if (!is_array($json)) {
-            return false;
-        }
-
-        // Default aman: bukan typo → diam, human yang tangani
-        $isTypo = !empty($json['is_typo']);
-        if (!$isTypo) {
-            $this->logAutoreplyTrace($waNumber, 'CLARIFY', 'skip_not_typo reason=' . mb_substr((string) ($json['reason'] ?? ''), 0, 120));
-            return false;
-        }
-
-        $suggested = trim((string) ($json['suggested_text'] ?? ''));
-        if ($suggested === '' || mb_strlen($suggested) < 5) {
-            return false;
-        }
-        // Jangan klarifikasi jika suggestion hampir sama dengan pesan (bukan typo)
-        similar_text(mb_strtolower($msg), mb_strtolower($suggested), $pct);
-        if ($pct >= 92) {
-            return false;
-        }
-
-        $this->sendClarifyConfirmation($waNumber, $suggested);
-        return true;
+        $this->logAutoreplyTrace($waNumber, 'CLARIFY', 'tryAiClarify_disabled');
+        return false;
     }
 
     private function handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig = null)
