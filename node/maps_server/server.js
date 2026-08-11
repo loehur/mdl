@@ -16,6 +16,8 @@ const PORT = Number(process.env.PORT || 3020);
 const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = String(process.env.MAPS_SERVER_TOKEN || '').trim();
 const RESOLVE_TIMEOUT_MS = Number(process.env.RESOLVE_TIMEOUT_MS || 10000);
+/** Cadangan redirect: cepat, jangan makan waktu parser. */
+const REDIRECT_TIMEOUT_MS = Number(process.env.REDIRECT_TIMEOUT_MS || 5000);
 
 const FETCH_HEADERS = {
   'User-Agent':
@@ -117,12 +119,6 @@ function extractCoordsFromText(text) {
     if (c) return c;
   }
 
-  m = text.match(/(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})/);
-  if (m) {
-    const c = validCoords(Number(m[1]), Number(m[2]));
-    if (c) return c;
-  }
-
   return null;
 }
 
@@ -131,44 +127,83 @@ function coordsFromEnvelope(envelope) {
   if (!loc || loc.status !== 'present' || !loc.value) {
     return null;
   }
-  return validCoords(Number(loc.value.latitude), Number(loc.value.longitude));
+  const coords = validCoords(Number(loc.value.latitude), Number(loc.value.longitude));
+  if (!coords) return null;
+  return {
+    ...coords,
+    source: loc.value.source || 'parser',
+    accuracy: loc.value.accuracy || null,
+  };
 }
 
 /**
- * Short link / Maps URL: ikuti redirect, baca @lat,lng dari URL akhir.
- * Cadangan: scan cuplikan HTML jika URL belum memuat koordinat.
+ * Ikuti redirect short-link lewat header Location (tanpa unduh HTML Maps penuh).
+ * Banyak short link cukup sampai URL @lat,lng.
  */
 async function resolveViaRedirect(inputUrl) {
-  const res = await fetch(inputUrl, {
-    method: 'GET',
-    redirect: 'follow',
-    headers: FETCH_HEADERS,
-  });
+  let current = inputUrl;
+  let finalUrl = inputUrl;
 
-  const finalUrl = res.url || inputUrl;
-  let coords = extractCoordsFromText(finalUrl);
-  if (coords) {
-    return { coords, finalUrl, source: 'redirect_url' };
-  }
+  for (let hop = 0; hop < 10; hop++) {
+    const res = await fetch(current, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: FETCH_HEADERS,
+    });
 
-  // Beberapa short-link hanya menaruh koordinat di HTML / meta refresh
-  const html = await res.text();
-  const slice = html.slice(0, 120000);
-  coords = extractCoordsFromText(slice);
-  if (coords) {
-    return { coords, finalUrl, source: 'redirect_html' };
-  }
-
-  // Meta refresh / canonical
-  const meta = slice.match(
-    /(?:content=["']\d+;\s*url=|rel=["']canonical["']\s+href=["'])([^"'>\s]+)/i
-  );
-  if (meta && meta[1]) {
-    const metaUrl = meta[1].replace(/&amp;/g, '&');
-    coords = extractCoordsFromText(metaUrl);
-    if (coords) {
-      return { coords, finalUrl: metaUrl, source: 'redirect_meta' };
+    const locHeader = res.headers.get('location');
+    if (
+      locHeader &&
+      [301, 302, 303, 307, 308].includes(res.status)
+    ) {
+      current = new URL(locHeader, current).href;
+      finalUrl = current;
+      const fromLoc = extractCoordsFromText(current);
+      if (fromLoc) {
+        return { coords: fromLoc, finalUrl: current, source: 'redirect_url' };
+      }
+      // Buang body redirect agar socket tidak menggantung
+      try {
+        await res.arrayBuffer();
+      } catch (_) {
+        /* ignore */
+      }
+      continue;
     }
+
+    finalUrl = res.url || current;
+    let coords = extractCoordsFromText(finalUrl);
+    if (coords) {
+      try {
+        await res.arrayBuffer();
+      } catch (_) {
+        /* ignore */
+      }
+      return { coords, finalUrl, source: 'redirect_url' };
+    }
+
+    // Cadangan ringan: cuplikan HTML kecil saja (bukan full page)
+    try {
+      const html = await res.text();
+      const slice = html.slice(0, 80000);
+      coords = extractCoordsFromText(slice);
+      if (coords) {
+        return { coords, finalUrl, source: 'redirect_html' };
+      }
+      const meta = slice.match(
+        /(?:content=["']\d+;\s*url=|rel=["']canonical["']\s+href=["'])([^"'>\s]+)/i
+      );
+      if (meta && meta[1]) {
+        const metaUrl = meta[1].replace(/&amp;/g, '&');
+        coords = extractCoordsFromText(metaUrl);
+        if (coords) {
+          return { coords, finalUrl: metaUrl, source: 'redirect_meta' };
+        }
+      }
+    } catch (_) {
+      /* ignore body read errors */
+    }
+    break;
   }
 
   return { coords: null, finalUrl, source: null };
@@ -190,6 +225,7 @@ async function resolveViaParser(inputUrl) {
         (envelope && envelope.input && envelope.input.normalized) ||
         null,
       error: envelope,
+      intent: null,
     };
   }
 
@@ -200,14 +236,23 @@ async function resolveViaParser(inputUrl) {
       (envelope.resolution && envelope.resolution.resolvedUrl) ||
       (envelope.input && envelope.input.normalized) ||
       inputUrl,
-    source: coords
-      ? (envelope.location && envelope.location.value && envelope.location.value.source) || 'parser'
-      : null,
-    accuracy: coords
-      ? (envelope.location && envelope.location.value && envelope.location.value.accuracy) || null
-      : null,
     intent: envelope.intent || null,
     error: coords ? null : envelope,
+  };
+}
+
+function okPayload(inputUrl, coords, extra) {
+  return {
+    ok: true,
+    lat: coords.lat,
+    lng: coords.lng,
+    latt: coords.lat,
+    long: coords.lng,
+    source: extra.source || null,
+    accuracy: extra.accuracy || null,
+    input_url: inputUrl,
+    final_url: extra.finalUrl || inputUrl,
+    intent: extra.intent || null,
   };
 }
 
@@ -220,70 +265,58 @@ async function handleResolve(req, res) {
   // 1) URL input sudah mengandung koordinat
   const local = extractCoordsFromText(inputUrl);
   if (local) {
-    return res.json({
-      ok: true,
-      lat: local.lat,
-      lng: local.lng,
-      latt: local.lat,
-      long: local.lng,
-      source: 'url_local',
-      accuracy: null,
-      input_url: inputUrl,
-      final_url: inputUrl,
-      intent: null,
-    });
+    return res.json(okPayload(inputUrl, local, { source: 'url_local', finalUrl: inputUrl }));
   }
 
   let finalUrl = null;
   let lastError = null;
+  let lastIntent = null;
 
-  // 2) Follow redirect → parse @lat,lng (metode utama untuk short link)
-  try {
-    const viaRedirect = await withTimeout(resolveViaRedirect(inputUrl), RESOLVE_TIMEOUT_MS + 500);
-    finalUrl = viaRedirect.finalUrl || finalUrl;
-    if (viaRedirect.coords) {
-      return res.json({
-        ok: true,
-        lat: viaRedirect.coords.lat,
-        lng: viaRedirect.coords.lng,
-        latt: viaRedirect.coords.lat,
-        long: viaRedirect.coords.lng,
-        source: viaRedirect.source,
-        accuracy: null,
-        input_url: inputUrl,
-        final_url: viaRedirect.finalUrl,
-        intent: null,
-      });
-    }
-  } catch (err) {
-    lastError = err && err.message ? err.message : 'redirect_failed';
-    console.error('[maps_server] redirect resolve error:', lastError);
-  }
-
-  // 3) Fallback: google-maps-link-parser
+  // 2) Cara lama dulu (google-maps-link-parser) — yang biasanya sudah jalan
   try {
     const viaParser = await resolveViaParser(inputUrl);
     finalUrl = viaParser.finalUrl || finalUrl;
+    lastIntent = viaParser.intent || null;
     if (viaParser.coords) {
-      return res.json({
-        ok: true,
-        lat: viaParser.coords.lat,
-        lng: viaParser.coords.lng,
-        latt: viaParser.coords.lat,
-        long: viaParser.coords.lng,
-        source: viaParser.source || 'parser',
-        accuracy: viaParser.accuracy || null,
-        input_url: inputUrl,
-        final_url: viaParser.finalUrl || inputUrl,
-        intent: viaParser.intent || null,
-      });
+      return res.json(
+        okPayload(inputUrl, viaParser.coords, {
+          source: viaParser.coords.source || 'parser',
+          accuracy: viaParser.coords.accuracy || null,
+          finalUrl: viaParser.finalUrl || inputUrl,
+          intent: viaParser.intent || null,
+        })
+      );
     }
     if (viaParser.error && viaParser.error.error) {
-      lastError = viaParser.error.error.message || viaParser.error.error.code || lastError;
+      lastError =
+        viaParser.error.error.message || viaParser.error.error.code || lastError;
+    } else if (viaParser.error) {
+      lastError = 'no_coords';
     }
   } catch (err) {
     lastError = err && err.message ? err.message : 'parser_failed';
     console.error('[maps_server] parser resolve error:', lastError);
+  }
+
+  // 3) Cadangan tambahan: follow redirect + baca @lat,lng
+  try {
+    const viaRedirect = await withTimeout(
+      resolveViaRedirect(inputUrl),
+      REDIRECT_TIMEOUT_MS
+    );
+    finalUrl = viaRedirect.finalUrl || finalUrl;
+    if (viaRedirect.coords) {
+      return res.json(
+        okPayload(inputUrl, viaRedirect.coords, {
+          source: viaRedirect.source,
+          finalUrl: viaRedirect.finalUrl,
+        })
+      );
+    }
+  } catch (err) {
+    const msg = err && err.message ? err.message : 'redirect_failed';
+    if (!lastError) lastError = msg;
+    console.error('[maps_server] redirect resolve error:', msg);
   }
 
   const code = lastError === 'timeout' ? 'timeout' : 'no_coords';
@@ -293,6 +326,7 @@ async function handleResolve(req, res) {
     message: lastError || 'URL resolved but no lat/lng found',
     input_url: inputUrl,
     final_url: finalUrl,
+    intent: lastIntent,
   });
 }
 
@@ -307,11 +341,6 @@ app.get('/health', (_req, res) => {
 
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
-/**
- * POST /resolve  Body: { url | gmaps | text }
- * GET  /resolve?url=...
- * Header opsional: X-Maps-Token (wajib jika MAPS_SERVER_TOKEN di-set)
- */
 app.post('/resolve', requireToken, async (req, res) => {
   console.log('[maps_server] POST /resolve', JSON.stringify(req.body || {}).slice(0, 200));
   return handleResolve(req, res);
@@ -329,6 +358,6 @@ app.listen(PORT, HOST, () => {
   console.log(`  Auth: ${AUTH_TOKEN ? 'X-Maps-Token required' : 'open (set MAPS_SERVER_TOKEN)'}`);
   console.log('  POST /resolve  { "url": "https://maps.app.goo.gl/..." }');
   console.log('  GET  /health');
-  console.log('  Resolve: local → redirect+@lat,lng → parser fallback');
+  console.log('  Resolve: local → parser (lama) → redirect+@lat,lng (baru)');
   console.log('========================================');
 });
