@@ -509,14 +509,28 @@ class Delivery extends Controller
          }
 
          if ($jenis === 'jemput') {
-            $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? 0);
+            $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
             if ($jumlahSurcas < 0) {
-               throw new Exception('Jumlah Surcas Penjemputan tidak valid');
+               throw new Exception('Isi Surcas Penjemputan (isi 0 untuk gratis)');
             }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
                $ids,
                $jumlahSurcas,
+               $idKaryawan,
+               0
+            );
+         }
+
+         if ($jenis === 'antar') {
+            $jumlahAntarOnly = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            if ($jumlahAntarOnly < 0) {
+               throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
+            }
+            $surcasAntar = $this->upsertSurcasPengantaran(
+               $idCabang,
+               $ids,
+               $jumlahAntarOnly,
                $idKaryawan,
                0
             );
@@ -565,6 +579,16 @@ class Delivery extends Controller
          $msg = "Delivery $jenis selesai ($inserted item)";
          if ($sekalian) {
             $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+         if (is_array($surcasJemput)) {
+            $msg .= !empty($surcasJemput['updated'])
+               ? ' · Surcas jemput diupdate'
+               : ' · Surcas jemput ditambahkan';
+         }
+         if (is_array($surcasAntar)) {
+            $msg .= !empty($surcasAntar['updated'])
+               ? ' · Surcas antar diupdate'
+               : ' · Surcas antar ditambahkan';
          }
          if ($antarKembaliId > 0) {
             $msg .= " + Request Antar kembali #$antarKembaliId";
@@ -731,18 +755,35 @@ class Delivery extends Controller
          }
 
          if ($jenis === 'jemput' && $layanan !== 'instant') {
-            $jumlahSurcas = (int) ($req['tarif_surcas'] ?? 0);
-            // Early activate: tarif belum ada → izinkan driver isi manual
-            if ($jumlahSurcas <= 0) {
-               $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
+            // Selalu dari input driver (wajib); fallback tarif request bila kosong
+            $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
+            if ($jumlahSurcas < 0) {
+               $jumlahSurcas = (int) ($req['tarif_surcas'] ?? -1);
             }
             if ($jumlahSurcas < 0) {
-               throw new Exception('Isi Surcas Penjemputan (tarif belum tersedia di request)');
+               throw new Exception('Isi Surcas Penjemputan (isi 0 untuk gratis)');
             }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
                $ids,
                $jumlahSurcas,
+               $idKaryawan,
+               $idRequest
+            );
+         }
+
+         if ($jenis === 'antar' && $layanan !== 'instant') {
+            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            if ($jumlahAntar < 0) {
+               $jumlahAntar = (int) ($req['tarif_surcas'] ?? -1);
+            }
+            if ($jumlahAntar < 0) {
+               throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
+            }
+            $surcasAntar = $this->upsertSurcasPengantaran(
+               $idCabang,
+               $ids,
+               $jumlahAntar,
                $idKaryawan,
                $idRequest
             );
@@ -806,6 +847,16 @@ class Delivery extends Controller
          $msg = "Request $jenis selesai ($inserted item)";
          if ($sekalian) {
             $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
+         }
+         if (is_array($surcasJemput)) {
+            $msg .= !empty($surcasJemput['updated'])
+               ? ' · Surcas jemput diupdate'
+               : ' · Surcas jemput ditambahkan';
+         }
+         if (is_array($surcasAntar)) {
+            $msg .= !empty($surcasAntar['updated'])
+               ? ' · Surcas antar diupdate'
+               : ' · Surcas antar ditambahkan';
          }
          if ($antarKembaliId > 0) {
             $msg .= " + Request Antar kembali #$antarKembaliId";
