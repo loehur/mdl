@@ -265,9 +265,11 @@ trait WARepliesKurirTrait
         ) {
             return true;
         }
+        // Jangan include PEMBUKA/PENUTUP: "ya"/"ok"/"iya" saat konfirmasi lokasi/layanan
+        // harus tetap di session kurir, bukan dibalas sapaan/ack penutup.
         $breakout = [
             'TAGIHAN', 'NOTA', 'STATUS', 'HARGA', 'HARGA_PAKET', 'HARGA_PAKET_D',
-            'PEMBUKA', 'PENUTUP', 'REMINDER', 'KEY', 'JAM_OPERASIONAL',
+            'REMINDER', 'KEY', 'JAM_OPERASIONAL',
             'AMBIL_LEWAT_TUTUP', 'KARYAWAN', 'KAS_LAUNDRY', 'CEK_TOKEN',
             'CEK_QRIS', 'SALDO_YCLOUD', 'INFO_FONNTE', 'TARIK_TOKOPAY',
             'SLIP_GAJI', 'GAJI_CASH', 'GAJI_TF',
@@ -1879,16 +1881,13 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * @return 'Rumah'|'Kos'|'Mess'|'Asrama'|'Kantor'|'Penginapan'|'Toko'|'Lainnya'|null
+     * @return 'Rumah'|'Kos'|'Mess'|'Asrama'|'Kantor'|'Penginapan'|'Toko'|null
      */
     private function kurirParseLokasiJenis(string $msg): ?string
     {
         $t = mb_strtolower(trim($msg));
         if ($t === '') {
             return null;
-        }
-        if (preg_match('/\b(lainnya|lain|other|dll)\b/iu', $t)) {
-            return 'Lainnya';
         }
         if (preg_match('/\b(rumah|rmh)\b/iu', $t)) {
             return 'Rumah';
@@ -1919,23 +1918,53 @@ trait WARepliesKurirTrait
     }
 
     /**
+     * Alamat "jalan … nomor …" tanpa embel toko/kantor/kos/dll → dianggap Rumah.
+     * Contoh: "Jlan pinang, no 45", "Jl. Melati 12A"
+     */
+    private function lokasiLooksLikeAlamatJalanNomor(string $msg): bool
+    {
+        $t = mb_strtolower(trim(preg_replace('/\s+/u', ' ', preg_replace("/[\r\n]+/", ' ', $msg))));
+        if ($t === '') {
+            return false;
+        }
+        // Kata jalan (termasuk typo jlan / singkatan jl/jln)
+        if (!preg_match('/\b(jalan|jln|jlan|jl\.?)\b/iu', $t)) {
+            return false;
+        }
+        // Ada nomor (no/nomor/# + angka, atau angka alamat di akhir/fragmen)
+        if (preg_match('/\b(no\.?|nomor|nom\.?|#)\s*\d{1,5}[a-z]?\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/\b\d{1,5}[a-z]?\b/iu', $t)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Infer nama + detail dari satu jawaban bebas.
      *
      * @return array{nama:string,detail:?string}
      */
     private function lokasiInferNamaDetailFromReply(string $msg): array
     {
-        $nama = $this->kurirParseLokasiJenis($msg) ?: 'Lainnya';
+        $nama = $this->kurirParseLokasiJenis($msg);
+        // Tanpa kategori eksplisit: sebut jalan + nomor → Rumah; gagal deteksi → default Rumah
+        if ($nama === null && $this->lokasiLooksLikeAlamatJalanNomor($msg)) {
+            $nama = 'Rumah';
+        }
+        $nama = $nama ?: 'Rumah';
+
         $detail = $this->kurirExtractLokasiDetailFromJenisReply($msg, $nama);
         if ($detail !== null) {
             return ['nama' => $nama, 'detail' => $detail];
         }
-        // Jawaban hanya kata jenis ("kos") atau Lainnya tanpa sisa → detail belum cukup
+        // Jawaban hanya kata jenis ("kos") atau Rumah tanpa sisa strip → pakai teks utuh
         $t = trim(preg_replace('/\s+/u', ' ', preg_replace("/[\r\n]+/", ' ', $msg)));
-        if ($nama === 'Lainnya' && mb_strlen($t) >= 2
+        if ($nama === 'Rumah' && mb_strlen($t) >= 2
             && !preg_match('/^(kak|kk|bang|pak|bu|ya|iya|ok|oke|baik|dong|deh|aja|aj)\s*$/iu', $t)
         ) {
-            return ['nama' => 'Lainnya', 'detail' => mb_substr($t, 0, 255)];
+            return ['nama' => 'Rumah', 'detail' => mb_substr($t, 0, 255)];
         }
         return ['nama' => $nama, 'detail' => null];
     }
@@ -1974,9 +2003,6 @@ trait WARepliesKurirTrait
                 break;
             case 'toko':
                 $strip = 'toko|studio|warung|swalayan|kedai|minimarket|minimark|mini\s*market|supermarket|kios|outlet|counter|kafe|cafe|coffee\s*shop|restoran|rumah\s*makan|\brm\b|bakery|salon|barbershop|bengkel|apotik|apotek';
-                break;
-            case 'lainnya':
-                $strip = 'lainnya|lain|other|dll';
                 break;
             default:
                 return null;
@@ -2048,7 +2074,7 @@ trait WARepliesKurirTrait
         $detail = trim(preg_replace("/[\r\n]+/", ' ', $msg));
         $detail = trim(preg_replace('/\s+/u', ' ', $detail));
         if (mb_strlen($detail) < 2) {
-            $nama = (string) ($session['lokasi_nama'] ?? 'Lainnya');
+            $nama = (string) ($session['lokasi_nama'] ?? 'Rumah');
             $this->sendAutoreplyText(
                 $waNumber,
                 "Detail terlalu singkat {$sapaan}. " . $this->kurirAskLokasiDetailPrompt($nama, $sapaan)
@@ -2061,7 +2087,7 @@ trait WARepliesKurirTrait
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $latt = (float) ($session['latt'] ?? 0);
         $longt = (float) ($session['longt'] ?? 0);
-        $nama = (string) ($session['lokasi_nama'] ?? 'Lainnya');
+        $nama = (string) ($session['lokasi_nama'] ?? 'Rumah');
         $idLokasi = (int) ($session['id_lokasi'] ?? 0);
 
         if ($idLokasi > 0) {
@@ -3793,7 +3819,7 @@ trait WARepliesKurirTrait
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
             . "Di step ask_lokasi_nama / ask_lokasi_detail: customer jelaskan detail dalam satu jawaban (tidak dipilihkan kategori dulu). "
-            . "Sistem infer kategori: Rumah/Kos/Mess/Asrama/Kantor/Penginapan/Toko/Lainnya. "
+            . "Sistem infer kategori: Rumah/Kos/Mess/Asrama/Kantor/Penginapan/Toko (default Rumah jika tidak jelas). "
             . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
             . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
