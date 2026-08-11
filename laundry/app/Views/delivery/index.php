@@ -206,6 +206,13 @@ $isEmptyCustomer = empty($customerGroups);
       background: linear-gradient(180deg, var(--dlv-blue), var(--dlv-blue-deep));
       color: #fff;
     }
+    #dlv-root .dlv-btn--cek.dlv-btn--icon {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      gap: 0;
+      font-size: 0.85rem;
+    }
     #dlv-root .dlv-btn--submit {
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
       color: #fff;
@@ -856,8 +863,8 @@ $isEmptyCustomer = empty($customerGroups);
                         </div>
                       </div>
                       <div class="dlv-item__actions">
-                        <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
-                          <i class="fas fa-search"></i> Cek
+                        <button type="button" class="dlv-btn dlv-btn--cek dlv-btn--icon" data-dlv-cek-customer="<?= $tail ?>" title="Cek" aria-label="Cek">
+                          <i class="fas fa-search"></i>
                         </button>
                       </div>
                     </div>
