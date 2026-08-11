@@ -16,8 +16,8 @@ const PORT = Number(process.env.PORT || 3020);
 const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = String(process.env.MAPS_SERVER_TOKEN || '').trim();
 const RESOLVE_TIMEOUT_MS = Number(process.env.RESOLVE_TIMEOUT_MS || 10000);
-/** Cadangan redirect: cepat, jangan makan waktu parser. */
-const REDIRECT_TIMEOUT_MS = Number(process.env.REDIRECT_TIMEOUT_MS || 5000);
+/** Cadangan redirect setelah parser (default 10s). */
+const REDIRECT_TIMEOUT_MS = Number(process.env.REDIRECT_TIMEOUT_MS || 10000);
 
 const FETCH_HEADERS = {
   'User-Agent':

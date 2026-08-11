@@ -9,7 +9,7 @@ namespace App\Helpers\CRM;
 class MapsServer
 {
     private const DEFAULT_URL = 'http://127.0.0.1:3020/resolve';
-    private const DEFAULT_TIMEOUT = 12;
+    private const DEFAULT_TIMEOUT = 22;
 
     public static function resolveUrl(): string
     {
