@@ -17,7 +17,10 @@ $isEmptyCustomer = empty($customerGroups);
      data-selesai-request-url="<?= URL::BASE_URL ?>Delivery/selesai_request"
      data-batal-request-url="<?= URL::BASE_URL ?>Delivery/batal_request"
      data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai"
-     data-update-qty-url="<?= URL::BASE_URL ?>Delivery/update_qty">
+     data-update-qty-url="<?= URL::BASE_URL ?>Delivery/update_qty"
+     data-search-pelanggan-url="<?= URL::BASE_URL ?>Delivery/search_pelanggan"
+     data-lokasi-options-url="<?= URL::BASE_URL ?>Delivery/lokasi_options"
+     data-buat-manual-url="<?= URL::BASE_URL ?>Delivery/buat_manual">
   <style>
     #dlv-root {
       --dlv-ink: #0f172a;
@@ -741,6 +744,58 @@ $isEmptyCustomer = empty($customerGroups);
       font-weight: 800;
       text-decoration: none;
     }
+    #dlv-root .dlv-suggest {
+      list-style: none;
+      margin: 4px 0 0;
+      padding: 0;
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+      max-height: 220px;
+      overflow: auto;
+    }
+    #dlv-root .dlv-suggest[hidden] { display: none !important; }
+    #dlv-root .dlv-suggest li {
+      padding: 8px 10px;
+      cursor: pointer;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+    #dlv-root .dlv-suggest li:last-child { border-bottom: 0; }
+    #dlv-root .dlv-suggest li:hover { background: #eff6ff; }
+    #dlv-root .dlv-suggest li small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+    #dlv-root .dlv-selected-pel {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid #93c5fd;
+      background: #eff6ff;
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+    #dlv-root .dlv-selected-pel[hidden] { display: none !important; }
+    #dlv-root .dlv-btn--add-head {
+      margin-left: auto;
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,.45);
+      background: rgba(255,255,255,.2);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #dlv-root .dlv-btn--add-head:hover {
+      background: rgba(255,255,255,.32);
+    }
     body.op-modal-open { overflow: hidden; }
   </style>
 
@@ -753,6 +808,9 @@ $isEmptyCustomer = empty($customerGroups);
             <h2>Customer</h2>
             <small>Request Jemput / Antar aktif</small>
           </div>
+          <button type="button" class="dlv-btn--add-head" id="dlvTambahBtn" title="Tambah Delivery manual">
+            <i class="fas fa-plus"></i> Tambah
+          </button>
         </header>
         <div class="dlv-body">
           <?php if ($isEmptyCustomer) { ?>
@@ -980,6 +1038,48 @@ $isEmptyCustomer = empty($customerGroups);
           <?php } ?>
         </div>
       </section>
+    </div>
+  </div>
+
+  <div class="op-modal" id="dlvTambahModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvTambahTitle">
+      <div class="op-modal__head op-modal__head--blue">
+        <div>
+          <h3 id="dlvTambahTitle">Tambah Delivery</h3>
+          <small>Manual · cabang session aktif</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <label class="dlv-field-label" for="dlvTambahCari">Cari pelanggan</label>
+        <input type="text" id="dlvTambahCari" class="dlv-input" placeholder="Nama / nomor HP" autocomplete="off">
+        <ul class="dlv-suggest" id="dlvTambahSuggest" hidden></ul>
+        <div class="dlv-selected-pel" id="dlvTambahSelected" hidden></div>
+        <input type="hidden" id="dlvTambahIdPelanggan" value="">
+
+        <label class="dlv-field-label mt-2" for="dlvTambahJenis">Jenis</label>
+        <select id="dlvTambahJenis" class="dlv-input" required>
+          <option value="">— Pilih —</option>
+          <option value="jemput">Jemput</option>
+          <option value="antar">Antar</option>
+        </select>
+
+        <label class="dlv-field-label mt-2" for="dlvTambahLokasi">Lokasi (opsional)</label>
+        <select id="dlvTambahLokasi" class="dlv-input" disabled>
+          <option value="0">Tanpa lokasi — pilih pelanggan dulu</option>
+        </select>
+        <p class="dlv-hint mt-1 mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Hanya memilih lokasi yang sudah tersimpan. Tidak membuat lokasi baru.
+        </p>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+        <button type="button" class="dlv-btn dlv-btn--submit" id="dlvTambahConfirm">
+          <i class="fas fa-plus"></i> Buat Request
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1319,12 +1419,17 @@ $isEmptyCustomer = empty($customerGroups);
   var batalRequestUrl = root.getAttribute('data-batal-request-url') || '';
   var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
   var updateQtyUrl = root.getAttribute('data-update-qty-url') || '';
+  var searchPelangganUrl = root.getAttribute('data-search-pelanggan-url') || '';
+  var lokasiOptionsUrl = root.getAttribute('data-lokasi-options-url') || '';
+  var buatManualUrl = root.getAttribute('data-buat-manual-url') || '';
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
   var batalKaryawanSelectize = null;
   var editQtyKaryawanSelectize = null;
   var detailTerimaPakai = { ref: '', sourceKode: '', targetKode: '' };
   var detailEditQty = { ref: '', sourceKode: '', targetKode: '', items: [] };
+  var tambahSearchTimer = null;
+  var tambahPelanggan = { id: 0, nama: '', hp: '' };
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -1879,6 +1984,182 @@ $isEmptyCustomer = empty($customerGroups);
       })
       .catch(function () {
         box.innerHTML = '<div class="dlv-sales-empty">Gagal memuat item</div>';
+      });
+  }
+
+  function resetTambahForm() {
+    tambahPelanggan = { id: 0, nama: '', hp: '' };
+    var cari = document.getElementById('dlvTambahCari');
+    var suggest = document.getElementById('dlvTambahSuggest');
+    var selected = document.getElementById('dlvTambahSelected');
+    var idEl = document.getElementById('dlvTambahIdPelanggan');
+    var jenis = document.getElementById('dlvTambahJenis');
+    var lokasi = document.getElementById('dlvTambahLokasi');
+    if (cari) cari.value = '';
+    if (suggest) {
+      suggest.innerHTML = '';
+      suggest.hidden = true;
+    }
+    if (selected) {
+      selected.hidden = true;
+      selected.textContent = '';
+    }
+    if (idEl) idEl.value = '';
+    if (jenis) jenis.value = '';
+    if (lokasi) {
+      lokasi.disabled = true;
+      lokasi.innerHTML = '<option value="0">Tanpa lokasi — pilih pelanggan dulu</option>';
+      lokasi.value = '0';
+    }
+  }
+
+  function openTambahModal() {
+    resetTambahForm();
+    openModal('dlvTambahModal');
+    var cari = document.getElementById('dlvTambahCari');
+    if (cari) setTimeout(function () { cari.focus(); }, 50);
+  }
+
+  function selectTambahPelanggan(item) {
+    tambahPelanggan = {
+      id: parseInt(item.id_pelanggan, 10) || 0,
+      nama: item.nama_pelanggan || '',
+      hp: item.nomor_pelanggan || ''
+    };
+    var idEl = document.getElementById('dlvTambahIdPelanggan');
+    var selected = document.getElementById('dlvTambahSelected');
+    var suggest = document.getElementById('dlvTambahSuggest');
+    var cari = document.getElementById('dlvTambahCari');
+    if (idEl) idEl.value = String(tambahPelanggan.id);
+    if (selected) {
+      selected.hidden = false;
+      selected.textContent = 'Dipilih: ' + tambahPelanggan.nama + (tambahPelanggan.hp ? ' — ' + tambahPelanggan.hp : '');
+    }
+    if (suggest) {
+      suggest.innerHTML = '';
+      suggest.hidden = true;
+    }
+    if (cari) cari.value = '';
+    loadTambahLokasi(tambahPelanggan.id);
+  }
+
+  function loadTambahLokasi(idPelanggan) {
+    var lokasi = document.getElementById('dlvTambahLokasi');
+    if (!lokasi) return;
+    lokasi.disabled = true;
+    lokasi.innerHTML = '<option value="0">Memuat lokasi…</option>';
+    if (!idPelanggan || !lokasiOptionsUrl) {
+      lokasi.innerHTML = '<option value="0">Tanpa lokasi</option>';
+      lokasi.disabled = false;
+      return;
+    }
+    var url = lokasiOptionsUrl + (lokasiOptionsUrl.indexOf('?') >= 0 ? '&' : '?')
+      + 'id_pelanggan=' + encodeURIComponent(idPelanggan);
+    fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var items = (res && res.status === 'success' && res.items) ? res.items : [];
+        var html = '<option value="0">Tanpa lokasi</option>';
+        items.forEach(function (it) {
+          var label = (it.nama || 'Lokasi') + (it.detail ? ' — ' + it.detail : '');
+          html += '<option value="' + escapeHtml(String(it.id_lokasi || 0)) + '">'
+            + escapeHtml(label) + '</option>';
+        });
+        lokasi.innerHTML = html;
+        lokasi.disabled = false;
+        lokasi.value = '0';
+        if (!items.length) {
+          // tetap bisa buat tanpa lokasi
+        }
+      })
+      .catch(function () {
+        lokasi.innerHTML = '<option value="0">Tanpa lokasi</option>';
+        lokasi.disabled = false;
+        toast('Gagal memuat lokasi', 'warn');
+      });
+  }
+
+  function searchTambahPelanggan(q) {
+    var suggest = document.getElementById('dlvTambahSuggest');
+    if (!suggest || !searchPelangganUrl) return;
+    if (q.length < 2) {
+      suggest.innerHTML = '';
+      suggest.hidden = true;
+      return;
+    }
+    var url = searchPelangganUrl + (searchPelangganUrl.indexOf('?') >= 0 ? '&' : '?')
+      + 'q=' + encodeURIComponent(q);
+    fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var items = (res && res.items) ? res.items : [];
+        if (!items.length) {
+          suggest.innerHTML = '<li><small>Tidak ada hasil di cabang ini</small></li>';
+          suggest.hidden = false;
+          return;
+        }
+        suggest.innerHTML = items.map(function (it) {
+          return '<li data-id="' + escapeHtml(String(it.id_pelanggan || '')) + '"'
+            + ' data-nama="' + escapeHtml(it.nama_pelanggan || '') + '"'
+            + ' data-hp="' + escapeHtml(it.nomor_pelanggan || '') + '">'
+            + escapeHtml(it.nama_pelanggan || '-')
+            + '<small>' + escapeHtml(it.nomor_pelanggan || '') + '</small></li>';
+        }).join('');
+        suggest.hidden = false;
+      })
+      .catch(function () {
+        suggest.innerHTML = '<li><small>Gagal mencari</small></li>';
+        suggest.hidden = false;
+      });
+  }
+
+  function confirmTambahManual() {
+    var idPelanggan = parseInt((document.getElementById('dlvTambahIdPelanggan') || {}).value || '0', 10) || 0;
+    var jenis = String((document.getElementById('dlvTambahJenis') || {}).value || '').toLowerCase();
+    var idLokasi = parseInt((document.getElementById('dlvTambahLokasi') || {}).value || '0', 10) || 0;
+    if (!idPelanggan) {
+      toast('Pilih pelanggan dulu', 'warn');
+      return;
+    }
+    if (jenis !== 'jemput' && jenis !== 'antar') {
+      toast('Pilih jenis jemput atau antar', 'warn');
+      return;
+    }
+    if (!buatManualUrl) {
+      toast('URL tidak tersedia', 'error');
+      return;
+    }
+    var btn = document.getElementById('dlvTambahConfirm');
+    var fd = new FormData();
+    fd.append('id_pelanggan', String(idPelanggan));
+    fd.append('jenis', jenis);
+    fd.append('id_lokasi', String(idLokasi > 0 ? idLokasi : 0));
+    if (btn) btn.disabled = true;
+    fetch(buatManualUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal membuat request', 'error');
+          return;
+        }
+        toast(res.message || 'Request dibuat', 'success');
+        closeModal('dlvTambahModal');
+        window.location.reload();
+      })
+      .catch(function () { toast('Gagal membuat request', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
       });
   }
 
@@ -2639,6 +2920,31 @@ $isEmptyCustomer = empty($customerGroups);
       return;
     }
 
+    var tambahBtn = e.target.closest('#dlvTambahBtn');
+    if (tambahBtn && root.contains(tambahBtn)) {
+      e.preventDefault();
+      openTambahModal();
+      return;
+    }
+
+    var tambahConfirm = e.target.closest('#dlvTambahConfirm');
+    if (tambahConfirm && root.contains(tambahConfirm)) {
+      e.preventDefault();
+      confirmTambahManual();
+      return;
+    }
+
+    var suggestLi = e.target.closest('#dlvTambahSuggest li[data-id]');
+    if (suggestLi && root.contains(suggestLi)) {
+      e.preventDefault();
+      selectTambahPelanggan({
+        id_pelanggan: suggestLi.getAttribute('data-id'),
+        nama_pelanggan: suggestLi.getAttribute('data-nama'),
+        nomor_pelanggan: suggestLi.getAttribute('data-hp')
+      });
+      return;
+    }
+
     var custBtn = e.target.closest('[data-dlv-cek-customer]');
     if (custBtn && root.contains(custBtn)) {
       e.preventDefault();
@@ -2667,6 +2973,17 @@ $isEmptyCustomer = empty($customerGroups);
       return;
     }
   });
+
+  var tambahCari = document.getElementById('dlvTambahCari');
+  if (tambahCari) {
+    tambahCari.addEventListener('input', function () {
+      var q = String(tambahCari.value || '').trim();
+      clearTimeout(tambahSearchTimer);
+      tambahSearchTimer = setTimeout(function () {
+        searchTambahPelanggan(q);
+      }, 250);
+    });
+  }
 
   var jenisEl = document.getElementById('dlvSelesaiJenis');
   if (jenisEl) {

@@ -28,6 +28,239 @@ class Delivery extends Controller
    }
 
    /**
+    * Cari pelanggan cabang session aktif (untuk tambah Delivery manual).
+    */
+   public function search_pelanggan()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      header('Content-Type: application/json; charset=utf-8');
+
+      $idCabang = (int) ($this->id_cabang ?? 0);
+      if ($idCabang <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Cabang session tidak valid', 'items' => []]);
+         return;
+      }
+
+      $q = trim((string) ($_GET['q'] ?? $_POST['q'] ?? ''));
+      $where = 'id_cabang = ' . $idCabang;
+      if ($q !== '') {
+         $esc = $this->db(0)->escape($q);
+         $digits = preg_replace('/\D/', '', $q);
+         $parts = [
+            "nama_pelanggan LIKE '%{$esc}%'",
+            "nomor_pelanggan LIKE '%{$esc}%'",
+         ];
+         if ($digits !== '') {
+            $escD = $this->db(0)->escape($digits);
+            $parts[] = "nomor_pelanggan LIKE '%{$escD}%'";
+         }
+         $where .= ' AND (' . implode(' OR ', $parts) . ')';
+      }
+
+      $rows = $this->db(0)->get_where_order('pelanggan', $where, 'nama_pelanggan ASC LIMIT 30');
+      if (!is_array($rows)) {
+         $rows = [];
+      }
+
+      $items = [];
+      foreach ($rows as $r) {
+         $items[] = [
+            'id_pelanggan' => (int) ($r['id_pelanggan'] ?? 0),
+            'nama_pelanggan' => (string) ($r['nama_pelanggan'] ?? ''),
+            'nomor_pelanggan' => (string) ($r['nomor_pelanggan'] ?? ''),
+         ];
+      }
+
+      echo json_encode(['status' => 'success', 'items' => $items], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * List lokasi tersimpan pelanggan (hanya pilih, tidak create).
+    */
+   public function lokasi_options()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      header('Content-Type: application/json; charset=utf-8');
+
+      $idCabang = (int) ($this->id_cabang ?? 0);
+      $idPelanggan = (int) ($_GET['id_pelanggan'] ?? $_POST['id_pelanggan'] ?? 0);
+      if ($idCabang <= 0 || $idPelanggan <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Data tidak valid', 'items' => []]);
+         return;
+      }
+
+      $pel = $this->db(0)->get_where_row(
+         'pelanggan',
+         'id_pelanggan = ' . $idPelanggan . ' AND id_cabang = ' . $idCabang
+      );
+      if (!is_array($pel) || empty($pel['id_pelanggan'])) {
+         echo json_encode(['status' => 'error', 'message' => 'Pelanggan tidak ditemukan di cabang ini', 'items' => []]);
+         return;
+      }
+
+      $rows = $this->db(0)->get_where_order(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . $idPelanggan,
+         'id_lokasi DESC'
+      );
+      if (!is_array($rows)) {
+         $rows = [];
+      }
+
+      $items = [];
+      foreach ($rows as $r) {
+         $latt = (float) ($r['latt'] ?? 0);
+         $longt = (float) ($r['longt'] ?? 0);
+         $items[] = [
+            'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
+            'nama' => (string) ($r['nama'] ?? ''),
+            'detail' => (string) ($r['detail'] ?? ''),
+            'latt' => $latt,
+            'longt' => $longt,
+         ];
+      }
+
+      echo json_encode(['status' => 'success', 'items' => $items], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Buat delivery_request manual dari board Delivery.
+    * Lokasi opsional (hanya pilih yang sudah ada — tidak create lokasi baru).
+    */
+   public function buat_manual()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idCabang = (int) ($this->id_cabang ?? 0);
+         $idPelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
+         $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
+         $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
+
+         if ($idCabang <= 0) {
+            throw new Exception('Cabang session tidak valid');
+         }
+         if ($idPelanggan <= 0) {
+            throw new Exception('Pilih pelanggan');
+         }
+         if (!in_array($jenis, ['jemput', 'antar'], true)) {
+            throw new Exception('Pilih jenis jemput atau antar');
+         }
+
+         $pel = $this->db(0)->get_where_row(
+            'pelanggan',
+            'id_pelanggan = ' . $idPelanggan . ' AND id_cabang = ' . $idCabang
+         );
+         if (!is_array($pel) || empty($pel['id_pelanggan'])) {
+            throw new Exception('Pelanggan tidak ditemukan di cabang aktif');
+         }
+
+         $digits = preg_replace('/[^0-9]/', '', (string) ($pel['nomor_pelanggan'] ?? ''));
+         $phoneTail = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+         if (strlen($phoneTail) < 8) {
+            throw new Exception('Nomor pelanggan belum lengkap');
+         }
+
+         $pending = (int) ($this->db(0)->count_where(
+            'delivery_request',
+            'id_pelanggan = ' . $idPelanggan
+               . " AND jenis = '" . $this->db(0)->escape($jenis) . "'"
+               . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+               . " AND layanan = 'sameday'"
+         ) ?? 0);
+         if ($pending > 0) {
+            throw new Exception('Sudah ada request ' . $jenis . ' berjalan untuk pelanggan ini');
+         }
+
+         $lokasiNama = '';
+         $lokasiDetail = '';
+         $lokLatt = 0.0;
+         $lokLongt = 0.0;
+         $tarifSurcas = null;
+
+         if ($idLokasi > 0) {
+            $lok = $this->db(0)->get_where_row(
+               'pelanggan_lokasi',
+               'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . $idPelanggan
+            );
+            if (!is_array($lok) || empty($lok['id_lokasi'])) {
+               throw new Exception('Lokasi tidak valid untuk pelanggan ini');
+            }
+            $lokasiNama = (string) ($lok['nama'] ?? '');
+            $lokasiDetail = (string) ($lok['detail'] ?? '');
+            $lokLatt = (float) ($lok['latt'] ?? 0);
+            $lokLongt = (float) ($lok['longt'] ?? 0);
+
+            $cabLat = (float) ($this->dCabang['latt'] ?? 0);
+            $cabLon = (float) ($this->dCabang['long'] ?? 0);
+            if ($cabLat != 0.0 || $cabLon != 0.0) {
+               if ($lokLatt != 0.0 || $lokLongt != 0.0) {
+                  $calc = $this->helper('AntarTarif')->tarifFromCoords($cabLat, $cabLon, $lokLatt, $lokLongt);
+                  $tarifSurcas = (int) ($calc['tarif'] ?? 0);
+               }
+            }
+         }
+
+         $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
+         $insData = [
+            'sumber' => 'customer',
+            'jenis' => $jenis,
+            'layanan' => 'sameday',
+            'delivery_status' => 'berjalan',
+            'id_pelanggan' => $idPelanggan,
+            'phone_tail' => $phoneTail,
+            'id_cabang' => $idCabang,
+            'id_lokasi' => $idLokasi > 0 ? $idLokasi : 0,
+            'lokasi_nama' => $lokasiNama,
+            'lokasi_detail' => $lokasiDetail,
+            'lokasi_latt' => $lokLatt,
+            'lokasi_longt' => $lokLongt,
+            'insertTime' => $now,
+            'catatan_kurir' => 'Manual dari board Delivery',
+         ];
+         if ($tarifSurcas !== null) {
+            $insData['tarif_surcas'] = $tarifSurcas;
+         }
+
+         $ins = $this->db(0)->insert('delivery_request', $insData);
+         if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
+            throw new Exception($ins['error'] ?? 'Gagal membuat request');
+         }
+         $idRequest = (int) ($ins['insert_id'] ?? 0);
+         if ($idRequest <= 0) {
+            throw new Exception('Gagal membuat request');
+         }
+
+         $response = [
+            'status' => 'success',
+            'message' => 'Request ' . $jenis . ' #' . $idRequest . ' dibuat',
+            'data' => [
+               'id_request' => $idRequest,
+               'jenis' => $jenis,
+               'phone_tail' => $phoneTail,
+               'nama' => strtoupper((string) ($pel['nama_pelanggan'] ?? 'Customer')),
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response, JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
     * Riwayat 50 pesan terakhir conversation customer — semua user.
     * Param: 9 digit terakhir nomor WA.
     */
