@@ -296,6 +296,10 @@ trait WARepliesKurirTrait
 
         if ($session === null) {
             $jenis = $this->detectKurirJenis($msg, $session);
+            // Ambigu: ada order aktif → antar; tanpa order / baru → jemput (jangan tanya)
+            if (!$jenis) {
+                $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
+            }
             $layananPref = $this->detectKurirLayanan($msg);
             // Luar jam: jangan simpan prefer instant — anggap sameday; chat grab/gosend ditolak di route
             if ($outsideHours && $layananPref === 'instant') {
@@ -305,12 +309,13 @@ trait WARepliesKurirTrait
             if ($layananPref) {
                 $summary .= ' | prefer_layanan=' . $layananPref;
             }
+            $summary .= ' | jenis_infer=' . $jenis;
             $this->saveKurirSession($waNumber, [
                 'id_pelanggan' => $idPelanggan,
                 'id_cabang' => $idCabang,
                 'jenis' => $jenis,
                 'layanan' => $layananPref ?: 'sameday',
-                'step' => $jenis ? 'lokasi_check' : 'ask_jenis',
+                'step' => 'lokasi_check',
                 'summary' => $summary,
             ]);
             if ($layananPref === 'instant') {
@@ -324,28 +329,30 @@ trait WARepliesKurirTrait
             if ($outsideHours && $this->kurirLooksWantFast($msg)) {
                 $sapaan = $this->getSapaanForGreeting($waNumber);
                 $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                if (!$jenis) {
-                    $this->sendAutoreplyText(
-                        $waNumber,
-                        "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
-                    );
-                    return true;
-                }
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
                 return true;
             }
 
-            if (!$jenis) {
-                $sapaan = $this->getSapaanForGreeting($waNumber);
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
-                );
-                return true;
-            }
+            $sapaan = $this->getSapaanForGreeting($waNumber);
+            $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+            return true;
         }
 
         return $this->routeKurirStep($phoneIn, $waNumber, $msg, $session);
+    }
+
+    /**
+     * Jenis kurir jika pesan ambigu: ada sale aktif → antar; selain itu jemput.
+     */
+    private function kurirInferJenisWhenAmbiguous(string $phoneIn, string $waNumber): string
+    {
+        return $this->pelangganHasActiveSale($phoneIn, $waNumber) ? 'antar' : 'jemput';
+    }
+
+    /** Pertanyaan singkat hanya untuk edge case step ask_jenis yang masih macet. */
+    private function kurirAskJenisPrompt(string $sapaan): string
+    {
+        return "Maaf {$sapaan}, mau order jemput atau antar ya?";
     }
 
     private function sendKurirUnregisteredFallback(string $waNumber): void
@@ -389,33 +396,18 @@ trait WARepliesKurirTrait
             $this->sendAutoreplyText($waNumber, $this->getNoRegisterText());
             return true;
         }
-        if ($jenis === 'jemput') {
-            $this->saveKurirSession($waNumber, [
-                'id_pelanggan' => null,
-                'id_cabang' => null,
-                'jenis' => 'jemput',
-                'layanan' => 'sameday',
-                'step' => 'new_ask_nama',
-                'summary' => '[pesan] ' . mb_substr($msg, 0, 200) . ' | onboarding_new=1',
-            ]);
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik {$sapaan}, boleh sebut *nama lengkap* Anda ya?"
-            );
-            return true;
-        }
-
+        // Unregistered + ambigu / jemput → selalu jemput (belum ada order untuk diantar)
         $this->saveKurirSession($waNumber, [
             'id_pelanggan' => null,
             'id_cabang' => null,
-            'jenis' => null,
+            'jenis' => 'jemput',
             'layanan' => 'sameday',
-            'step' => 'ask_jenis',
-            'summary' => '[pesan] ' . mb_substr($msg, 0, 200) . ' | onboarding_new=1',
+            'step' => 'new_ask_nama',
+            'summary' => '[pesan] ' . mb_substr($msg, 0, 200) . ' | onboarding_new=1 | jenis_infer=jemput',
         ]);
         $this->sendAutoreplyText(
             $waNumber,
-            "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
+            "Baik {$sapaan}, boleh sebut *nama lengkap* Anda ya?"
         );
         return true;
     }
@@ -445,7 +437,8 @@ trait WARepliesKurirTrait
                     $this->sendAutoreplyText($waNumber, $this->getNoRegisterText());
                     return;
                 }
-                if ($jenis === 'jemput') {
+                if ($jenis === 'jemput' || $jenis === null) {
+                    // Ambigu unregistered → jemput
                     $this->saveKurirSession($waNumber, [
                         'jenis' => 'jemput',
                         'layanan' => 'sameday',
@@ -457,10 +450,7 @@ trait WARepliesKurirTrait
                     );
                     return;
                 }
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?"
-                );
+                $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
                 return;
 
             case 'new_ask_nama':
@@ -472,10 +462,7 @@ trait WARepliesKurirTrait
                 return;
 
             default:
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Baik {$sapaan}, mau *jemput* laundry dari lokasi Anda, atau *antar* laundry ke lokasi Anda?"
-                );
+                $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
                 $this->saveKurirSession($waNumber, ['step' => 'ask_jenis']);
         }
     }
@@ -967,7 +954,7 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        // ask_jenis: tetap deteksi jemput/antar (bisa AI jika ambigu)
+        // ask_jenis (session lama): deteksi dari pesan, atau infer dari order aktif
         if ($step === 'ask_jenis') {
             $jenis = $this->detectKurirJenis($msg, $session);
             if (!$jenis && preg_match('/\b(jemput|jmpt)\b/iu', $msg)) {
@@ -976,24 +963,24 @@ trait WARepliesKurirTrait
             if (!$jenis && preg_match('/\b(antar|anter)\b/iu', $msg)) {
                 $jenis = 'antar';
             }
-            if ($jenis) {
-                $layananPref = $this->detectKurirLayanan($msg);
-                $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];
-                $summary = trim((string) ($session['summary'] ?? ''));
-                if ($layananPref) {
-                    $set['layanan'] = $layananPref;
-                    $summary = preg_replace('/\s*\|\s*prefer_layanan=(instant|sameday)/', '', $summary);
-                    $summary = trim($summary . ($summary !== '' ? ' | ' : '') . 'prefer_layanan=' . $layananPref);
-                    $set['summary'] = mb_substr($summary, 0, 800);
-                }
-                $this->saveKurirSession($waNumber, $set);
-                $session = $this->getKurirSession($waNumber) ?: $session;
-                $session['jenis'] = $jenis;
-                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
-                $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
-                return true;
+            if (!$jenis) {
+                $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
-            // Ambigu → AI
+            $layananPref = $this->detectKurirLayanan($msg);
+            $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];
+            $summary = trim((string) ($session['summary'] ?? ''));
+            if ($layananPref) {
+                $set['layanan'] = $layananPref;
+                $summary = preg_replace('/\s*\|\s*prefer_layanan=(instant|sameday)/', '', $summary);
+                $summary = trim($summary . ($summary !== '' ? ' | ' : '') . 'prefer_layanan=' . $layananPref);
+                $set['summary'] = mb_substr($summary, 0, 800);
+            }
+            $this->saveKurirSession($waNumber, $set);
+            $session = $this->getKurirSession($waNumber) ?: $session;
+            $session['jenis'] = $jenis;
+            $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+            $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
+            return true;
         }
 
         // "jemput juga" / "antar juga": gabung dengan summary → antar bila keduanya
@@ -1048,7 +1035,7 @@ trait WARepliesKurirTrait
         string $sapaan
     ): void {
         if ($step === 'ask_jenis') {
-            $this->sendAutoreplyText($waNumber, "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?");
+            $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
             return;
         }
 
@@ -1086,6 +1073,12 @@ trait WARepliesKurirTrait
         }
 
         switch ($step) {
+            case 'wait_lokasi':
+                if ($this->getLokasiSession($waNumber) !== null) {
+                    return $this->handleLokasi($phoneIn, $waNumber, $msg);
+                }
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                break;
             case 'lokasi_check':
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
                 break;
@@ -1093,11 +1086,19 @@ trait WARepliesKurirTrait
                 $this->kurirHandleShareloc($waNumber, $sapaan, $session, $msg);
                 break;
             case 'ask_lokasi_nama':
-                $this->kurirHandleLokasiNama($waNumber, $sapaan, $session, $msg);
-                break;
             case 'ask_lokasi_detail':
-                $this->kurirHandleLokasiDetail($waNumber, $sapaan, $session, $msg);
-                break;
+                // Session lama: alihkan ke LOKASI tanpa prompt dobel, lalu proses pesan ini
+                $this->saveKurirSession($waNumber, ['step' => 'wait_lokasi']);
+                $this->saveLokasiSession($waNumber, [
+                    'id_pelanggan' => (int) ($session['id_pelanggan'] ?? 0),
+                    'id_lokasi' => (int) ($session['id_lokasi'] ?? 0) ?: null,
+                    'latt' => (float) ($session['latt'] ?? 0) ?: null,
+                    'longt' => (float) ($session['longt'] ?? 0) ?: null,
+                    'lokasi_nama' => trim((string) ($session['lokasi_nama'] ?? '')) ?: null,
+                    'step' => $step === 'ask_lokasi_detail' ? 'ask_detail' : 'ask_nama',
+                    'last_ask_at' => date('Y-m-d H:i:s'),
+                ]);
+                return $this->handleLokasi($phoneIn, $waNumber, $msg);
             case 'pick_lokasi':
                 $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $msg);
                 break;
@@ -1726,64 +1727,99 @@ trait WARepliesKurirTrait
 
         // Progressive save: langsung simpan lat/long (nama & detail masih kosong)
         if ($idLokasi > 0) {
-            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
-                'latt' => $latt,
-                'longt' => $longt,
-            ]);
+            $near = $this->lokasiFindNear($idPelanggan, $latt, $longt);
+            if ($near !== null && (int) $near['id_lokasi'] !== $idLokasi) {
+                // Koordinat hampir sama dengan lokasi lain — pakai yang existing
+                $idLokasi = (int) $near['id_lokasi'];
+            } else {
+                $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
+                    'latt' => $latt,
+                    'longt' => $longt,
+                ]);
+            }
         } else {
-            $idLokasi = $this->kurirInsertLokasi($idPelanggan, '', '', $latt, $longt);
-            if ($idLokasi <= 0) {
+            $saved = $this->lokasiUpsertCoords($idPelanggan, $latt, $longt);
+            if ($saved === null) {
                 $this->sendAutoreplyText(
                     $waNumber,
                     "Maaf {$sapaan}, gagal menyimpan titik lokasi. Coba kirim shareloc lagi ya."
                 );
                 return;
             }
+            $idLokasi = (int) $saved['id_lokasi'];
+            $incomplete = [
+                'id_lokasi' => $idLokasi,
+                'nama' => $saved['nama'],
+                'detail' => $saved['detail'],
+                'latt' => $saved['latt'],
+                'longt' => $saved['longt'],
+            ];
+            if (!$this->lokasiRowIncomplete($incomplete)) {
+                $this->saveKurirSession($waNumber, [
+                    'id_lokasi' => $idLokasi,
+                    'latt' => $saved['latt'],
+                    'longt' => $saved['longt'],
+                    'lokasi_nama' => $saved['nama'],
+                    'lokasi_detail' => $saved['detail'],
+                    'step' => 'lokasi_check',
+                ]);
+                $session = $this->getKurirSession($waNumber) ?: $session;
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                return;
+            }
+            $this->saveKurirSession($waNumber, [
+                'id_lokasi' => $idLokasi,
+                'latt' => $latt,
+                'longt' => $longt,
+            ]);
+            $session = $this->getKurirSession($waNumber) ?: array_merge($session, [
+                'id_lokasi' => $idLokasi,
+                'latt' => $latt,
+                'longt' => $longt,
+            ]);
+            $this->lokasiHandOffFromKurir($waNumber, $sapaan, $session, $incomplete);
+            return;
         }
 
         $this->saveKurirSession($waNumber, [
             'id_lokasi' => $idLokasi,
             'latt' => $latt,
             'longt' => $longt,
-            'lokasi_nama' => null,
-            'lokasi_detail' => null,
-            'step' => 'ask_lokasi_nama',
         ]);
-        $this->sendAutoreplyText($waNumber, $this->kurirAskLokasiJenisPrompt($sapaan));
+        $session = $this->getKurirSession($waNumber) ?: $session;
+        $dbRow = null;
+        try {
+            $rows = DB::getInstance(1)->query(
+                'SELECT id_lokasi, nama, detail, latt, longt FROM pelanggan_lokasi WHERE id_lokasi = ? AND id_pelanggan = ? LIMIT 1',
+                [$idLokasi, $idPelanggan]
+            )->result_array();
+            $dbRow = $rows[0] ?? null;
+        } catch (\Throwable $e) {
+            $dbRow = null;
+        }
+        $incomplete = $dbRow ?: [
+            'id_lokasi' => $idLokasi,
+            'nama' => '',
+            'detail' => '',
+            'latt' => $latt,
+            'longt' => $longt,
+        ];
+        if (!$this->lokasiRowIncomplete($incomplete)) {
+            $this->saveKurirSession($waNumber, [
+                'lokasi_nama' => $incomplete['nama'],
+                'lokasi_detail' => $incomplete['detail'],
+                'step' => 'lokasi_check',
+            ]);
+            $session = $this->getKurirSession($waNumber) ?: $session;
+            $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+            return;
+        }
+        $this->lokasiHandOffFromKurir($waNumber, $sapaan, $session, $incomplete);
     }
 
     private function kurirExtractCoords(string $msg): ?array
     {
-        // Langsung dari pasangan lat,lng (YCloud caption / Fonnte location / teks)
-        if (preg_match('/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/', $msg, $m)
-            || preg_match('/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/', $msg, $m)) {
-            $lat = (float) $m[1];
-            $lng = (float) $m[2];
-            if (abs($lat) <= 90 && abs($lng) <= 180 && !($lat == 0.0 && $lng == 0.0)) {
-                return ['lat' => $lat, 'lng' => $lng];
-            }
-        }
-        // URL sudah jelas: maps?q=lat,lng atau @lat,lng — parse lokal, tanpa maps_server
-        if (preg_match('/[?&]q=(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/i', $msg, $m)
-            || preg_match('/@(-?\d+\.?\d+),(-?\d+\.?\d+)/', $msg, $m)
-            || preg_match('/maps\/place\/(-?\d+\.?\d+),(-?\d+\.?\d+)/i', $msg, $m)) {
-            $lat = (float) $m[1];
-            $lng = (float) $m[2];
-            if (abs($lat) <= 90 && abs($lng) <= 180 && !($lat == 0.0 && $lng == 0.0)) {
-                return ['lat' => $lat, 'lng' => $lng];
-            }
-        }
-        // Short link / URL Maps tanpa koordinat eksplisit → maps_server
-        if (preg_match('/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|[^\s]*google\.[^\s]*\/maps)[^\s]*/i', $msg)) {
-            if (!class_exists('\\App\\Helpers\\CRM\\MapsServer')) {
-                require_once __DIR__ . '/../Helpers/CRM/MapsServer.php';
-            }
-            $res = \App\Helpers\CRM\MapsServer::resolve($msg);
-            if (is_array($res) && !empty($res['ok'])) {
-                return ['lat' => (float) $res['lat'], 'lng' => (float) $res['lng']];
-            }
-        }
-        return null;
+        return $this->lokasiExtractCoords($msg);
     }
 
     private function kurirAskLokasiJenisPrompt(string $sapaan): string
@@ -2032,47 +2068,16 @@ trait WARepliesKurirTrait
         array $session,
         array $incomplete
     ): void {
-        $idLokasi = (int) ($incomplete['id_lokasi'] ?? 0);
         $nama = trim((string) ($incomplete['nama'] ?? ''));
         $detail = trim((string) ($incomplete['detail'] ?? ''));
-        $latt = (float) ($incomplete['latt'] ?? 0);
-        $longt = (float) ($incomplete['longt'] ?? 0);
 
-        if ($nama !== '' && $detail !== '') {
+        if ($nama !== '' && strcasecmp($nama, 'Shareloc') !== 0 && $detail !== '') {
             $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $incomplete);
             return;
         }
 
-        if ($nama === '') {
-            $this->saveKurirSession($waNumber, [
-                'id_lokasi' => $idLokasi,
-                'latt' => $latt,
-                'longt' => $longt,
-                'lokasi_nama' => null,
-                'lokasi_detail' => null,
-                'step' => 'ask_lokasi_nama',
-            ]);
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Lokasi sebelumnya sudah tersimpan {$sapaan}. "
-                . "Apakah ini *rumah / kos / mess / asrama / kantor / penginapan / lainnya*?"
-            );
-            return;
-        }
-
-        $this->saveKurirSession($waNumber, [
-            'id_lokasi' => $idLokasi,
-            'latt' => $latt,
-            'longt' => $longt,
-            'lokasi_nama' => $nama,
-            'lokasi_detail' => null,
-            'step' => 'ask_lokasi_detail',
-        ]);
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Lanjut melengkapi lokasi *{$nama}* ya {$sapaan}. "
-            . preg_replace('/^Baik\s+\S+\.\s*/u', '', $this->kurirAskLokasiDetailPrompt($nama, $sapaan))
-        );
+        // Serahkan lengkapi nama/detail ke intent LOKASI (state terpisah)
+        $this->lokasiHandOffFromKurir($waNumber, $sapaan, $session, $incomplete);
     }
 
     private function kurirInsertLokasi(int $idPelanggan, string $nama, string $detail, float $latt, float $longt): int
@@ -3856,7 +3861,7 @@ trait WARepliesKurirTrait
                     }
                     $this->sendAutoreplyText(
                         $waNumber,
-                        $aiReply ?: "Mohon pilih ya {$sapaan}: *jemput* atau *antar*?"
+                        $aiReply ?: $this->kurirAskJenisPrompt($sapaan)
                     );
                     $this->kurirAppendSummary($waNumber, $session, $note);
                     return;

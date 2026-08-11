@@ -7,6 +7,7 @@ use App\Core\DB;
 class WAReplies
 {
     use WARepliesKurirTrait;
+    use WARepliesLokasiTrait;
     use WARepliesAmbilTutupTrait;
 
     private $waService = null;
@@ -156,7 +157,7 @@ class WAReplies
         if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
             return 60;
         }
-        if ($h === 'MINTA_JEMPUT_ANTAR') {
+        if ($h === 'MINTA_JEMPUT_ANTAR' || $h === 'LOKASI') {
             // Multi-turn session aktif: jangan blok 24 jam
             return 1;
         }
@@ -1694,8 +1695,49 @@ class WAReplies
             }
         }
 
+        // Session LOKASI aktif: lengkapi alamat (kecuali pesan jelas minta jemput/antar)
+        if ($this->getLokasiSession($waNumber) !== null
+            && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+        ) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
+            $this->currentHandler = 'LOKASI';
+            $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $textBody);
+            if ($lokasiOk !== false) {
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                );
+                $this->logAutoreplyTrace($waNumber, 'DONE', 'lokasi_session_followup_ok');
+                return (object) [
+                    'case' => 2,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                ];
+            }
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_unrelated→continue_routing');
+        }
+
         // Session KURIR aktif: follow-up MINTA_JEMPUT_ANTAR
         if ($this->getKurirSession($waNumber) !== null) {
+            $kurirSessEarly = $this->getKurirSession($waNumber);
+            // Kurir menunggu LOKASI selesai → serahkan ke lokasi bila session ada
+            if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
+                if ($this->getLokasiSession($waNumber) !== null
+                    && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+                ) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
+                    $this->currentHandler = 'LOKASI';
+                    if ($this->handleLokasi($phoneIn, $waNumber, $textBody) !== false) {
+                        $conversationId = $this->getOrCreateConversationWithCase(
+                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                        );
+                        return (object) [
+                            'case' => 2,
+                            'notify' => true,
+                            'conversation_id' => $conversationId,
+                        ];
+                    }
+                }
+            }
             $hasActiveSale = $this->pelangganHasActiveSale($phoneIn, $waNumber);
             $estimasiCtx = $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
                 || $this->parseEstimasiRequestedRelativeDay($textBodyToCheck) !== null;
@@ -1776,6 +1818,11 @@ class WAReplies
                     // MINTA_JEMPUT_ANTAR: "saya/aku ambil ..." = user ambil sendiri (bukan minta kurir ke kamar)
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
                         continue;
+                    }
+                    // LOKASI tapi jelas minta jemput/antar → MINTA_JEMPUT_ANTAR
+                    if ($handler === 'LOKASI' && $this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'LOKASI→MINTA_JEMPUT_ANTAR');
+                        $handler = 'MINTA_JEMPUT_ANTAR';
                     }
                     // MINTA_JEMPUT_ANTAR: udh/sdh/sudah + bisa dijemput/diambil = tanya STATUS order, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
@@ -2246,6 +2293,13 @@ class WAReplies
                     'conversation_id' => $conversationId,
                     'no_handler' => true,
                 ];
+            }
+            // LOKASI AI tapi jelas minta jemput/antar
+            if ($aiIntent === 'LOKASI' && $this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)) {
+                $this->logAutoreplyTrace($waNumber, 'AI_REMAP', 'LOKASI→MINTA_JEMPUT_ANTAR');
+                $aiIntent = 'MINTA_JEMPUT_ANTAR';
+                $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? 2;
+                $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? true;
             }
 
             // PENUTUP: AI salah — daftar/instruksi item laundry panjang bukan closing
@@ -7872,6 +7926,7 @@ class WAReplies
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
+            $prompt .= "PRIORITAS: Shareloc/pin Maps atau menjelaskan alamat TANPA minta kurir = LOKASI, BUKAN MINTA_JEMPUT_ANTAR. Minta jemput/antar = MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Jika user bertanya KAPAN/JAM BERAPA siap/selesai/bisa diambil/dijemput (estimasi selesai, mis. 'kira jam berapa bisa dijemput kak?', 'kapan siap?') = ESTIMASI_SELESAI, BUKAN STATUS dan BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
             $prompt .= "PRIORITAS: Jika user meminta pricelist / price list / daftar harga / list harga (mis. 'boleh dibantu pricelistnya kak', 'minta pricelist') = pilih HARGA, bukan FALSE.\n";

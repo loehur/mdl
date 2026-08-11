@@ -531,6 +531,28 @@ return [
       - Contoh FALSE: 'Saya jemput nanti' (user akan ambil sendiri)"
    ],
 
+   // LOKASI: simpan/lengkapi alamat — SETELAH MINTA agar jemput+alamat tidak kena LOKASI dulu
+   'LOKASI' => [
+      'case' => 2,
+      'notify' => true,
+      'patterns' => [
+         '/📍|shared\s*location|share\s*loc|shareloc/iu',
+         '/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|[^\s]*google\.[^\s]*\/maps)/i',
+         '/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/',
+         '/\b(ini\s+)?(alamat|lokasi)\s*(saya|aku|sy|ku)?\b/iu',
+         '/\b(rumah|rmh|kos|kost|mess|asrama|kantor|penginapan)\b.{0,60}\b(pagar|kuning|kamar|lobby|nomor|no\.?)\b/iu',
+      ],
+      'ai_prompt' => "User mengirim PIN/SHARELOC/link Google Maps, ATAU menjelaskan alamat/titik lokasi TANPA meminta kurir jemput/antar.\n
+      TRUE (LOKASI):\n
+      - Shareloc / pin WhatsApp / link maps.app.goo.gl / koordinat lat,lng.\n
+      - Menjelaskan alamat: rumah pagar kuning, kos Azzahra kamar 2, mess BPK, ini alamatnya…\n
+      - Melengkapi jenis lokasi (rumah/kos/mess/…) atau detail alamat.\n
+      FALSE:\n
+      - Minta jemput/antar/kurir/ongkir antar = MINTA_JEMPUT_ANTAR.\n
+      - Tanya status/estimasi order = STATUS / ESTIMASI_SELESAI.\n
+      - Hanya sapaan tanpa alamat = PEMBUKA.",
+   ],
+
     'JAM_OPERASIONAL' => [
         'patterns' => [
             '/(ka*pa*n|ma*si*h|masi|msih)\s*\b(bu*ka*|tu*tu*p)/i',
