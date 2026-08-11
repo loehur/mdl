@@ -328,6 +328,9 @@ trait WARepliesKurirTrait
                 $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
             }
             $session = $this->getKurirSession($waNumber) ?: [];
+            // Early activate: board Delivery langsung dapat Jemput/Antar (lokasi boleh menyusul)
+            $this->kurirEarlyActivateRequest($waNumber, $session);
+            $session = $this->getKurirSession($waNumber) ?: $session;
 
             // Chat langsung minta grab/gosend di luar jam → tolak sekali, lanjut sameday
             if ($outsideHours && $this->kurirLooksWantFast($msg)) {
@@ -1010,6 +1013,8 @@ trait WARepliesKurirTrait
             $this->saveKurirSession($waNumber, $set);
             $session = $this->getKurirSession($waNumber) ?: $session;
             $session['jenis'] = $jenis;
+            $this->kurirEarlyActivateRequest($waNumber, $session);
+            $session = $this->getKurirSession($waNumber) ?: $session;
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
             return true;
@@ -1021,6 +1026,8 @@ trait WARepliesKurirTrait
             $this->saveKurirSession($waNumber, ['jenis' => $resolved]);
             $session['jenis'] = $resolved;
             $this->kurirAppendSummary($waNumber, $session, 'jenis_merge=' . $resolved);
+            $this->kurirEarlyActivateRequest($waNumber, $session);
+            $session = $this->getKurirSession($waNumber) ?: $session;
             if ($step === 'ask_jenis' || empty($session['id_lokasi'])) {
                 $this->saveKurirSession($waNumber, ['step' => 'lokasi_check']);
                 $session['step'] = 'lokasi_check';
@@ -3248,6 +3255,124 @@ trait WARepliesKurirTrait
     }
 
     /**
+     * Early activate: buat/reuse delivery_request segera setelah jenis ketahuan.
+     * Lokasi/tarif boleh kosong — driver tetap bisa selesaikan; chat bisa melengkapi nanti.
+     *
+     * @return int id_request (0 jika gagal)
+     */
+    private function kurirEarlyActivateRequest(string $waNumber, array $session): int
+    {
+        $existingId = (int) ($session['id_request'] ?? 0);
+        if ($existingId > 0) {
+            $jenis = $this->kurirJenisLabel($session);
+            $this->kurirSyncEarlyRequestJenis($existingId, $jenis);
+            return $existingId;
+        }
+
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idCabang = (int) ($session['id_cabang'] ?? 0);
+        $jenis = $this->kurirJenisLabel($session);
+        if ($idPelanggan <= 0 || $idCabang <= 0) {
+            return 0;
+        }
+
+        $phoneTail = $this->kurirPhoneTail($idPelanggan, $waNumber);
+        if (strlen($phoneTail) < 8) {
+            return 0;
+        }
+
+        $db = DB::getInstance(1);
+        try {
+            // Reuse request berjalan jenis sama (hindari dobel di board)
+            $row = $db->query(
+                "SELECT id_request, id_lokasi FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND jenis = ?
+                   AND delivery_status IN ('berjalan','menunggu_pembayaran')
+                   AND layanan = 'sameday'
+                 ORDER BY
+                   CASE WHEN COALESCE(id_lokasi, 0) = 0 THEN 0 ELSE 1 END,
+                   id_request DESC
+                 LIMIT 1",
+                [$idPelanggan, $jenis]
+            )->row();
+            $reuseId = (int) ($row->id_request ?? 0);
+            if ($reuseId > 0) {
+                $this->saveKurirSession($waNumber, ['id_request' => $reuseId]);
+                $this->kurirAppendSummary($waNumber, $session, 'early_reuse=' . $reuseId . '/' . $jenis);
+                return $reuseId;
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $insData = [
+                'sumber' => 'customer',
+                'jenis' => $jenis,
+                'layanan' => 'sameday',
+                'delivery_status' => 'berjalan',
+                'id_pelanggan' => $idPelanggan,
+                'phone_tail' => $phoneTail,
+                'id_cabang' => $idCabang,
+                'id_lokasi' => 0,
+                'lokasi_nama' => '',
+                'lokasi_detail' => '',
+                'lokasi_latt' => 0,
+                'lokasi_longt' => 0,
+                'insertTime' => $now,
+                'catatan_kurir' => 'Early activate chat (lokasi menyusul)',
+            ];
+            $idRequest = $db->insert('delivery_request', $insData);
+            $idRequest = $idRequest ? (int) $idRequest : 0;
+            if ($idRequest <= 0) {
+                throw new \RuntimeException('early_insert_id empty');
+            }
+
+            // Antar: tautkan item eligible bila ada (opsional — driver tetap bisa pilih saat selesai)
+            if ($jenis === 'antar') {
+                $eligibleIds = $this->kurirEligibleSaleIds($idPelanggan, false);
+                foreach ($eligibleIds as $idSale) {
+                    $sale = $db->query(
+                        'SELECT no_ref FROM sale WHERE id_penjualan = ? LIMIT 1',
+                        [$idSale]
+                    )->row();
+                    $db->insert('delivery_request_item', [
+                        'id_request' => $idRequest,
+                        'id_penjualan' => $idSale,
+                        'no_ref' => (string) ($sale->no_ref ?? ''),
+                    ]);
+                }
+            }
+
+            $this->saveKurirSession($waNumber, ['id_request' => $idRequest]);
+            $this->kurirAppendSummary($waNumber, $session, 'early_activate=' . $idRequest . '/' . $jenis);
+            return $idRequest;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirEarlyActivateRequest: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return 0;
+        }
+    }
+
+    private function kurirSyncEarlyRequestJenis(int $idRequest, string $jenis): void
+    {
+        if ($idRequest <= 0 || !in_array($jenis, ['antar', 'jemput'], true)) {
+            return;
+        }
+        try {
+            $db = DB::getInstance(1);
+            $row = $db->query(
+                'SELECT jenis FROM delivery_request WHERE id_request = ? LIMIT 1',
+                [$idRequest]
+            )->row();
+            if ($row && strtolower((string) ($row->jenis ?? '')) !== $jenis) {
+                $db->update('delivery_request', ['jenis' => $jenis], ['id_request' => $idRequest]);
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+    }
+
+    /**
      * @param array|null $jamMeta ['tanggal'=>,'jam'=>] for catatan
      */
     private function kurirInsertSamedayRequest(string $waNumber, array $session, ?array $jamMeta): bool
@@ -3256,7 +3381,19 @@ trait WARepliesKurirTrait
         $idCabang = (int) ($session['id_cabang'] ?? 0);
         $idLokasi = (int) ($session['id_lokasi'] ?? 0);
         $jenis = $this->kurirJenisLabel($session);
-        if ($idPelanggan <= 0 || $idCabang <= 0 || $idLokasi <= 0) {
+        $existingId = (int) ($session['id_request'] ?? 0);
+
+        // Early request sudah ada: lengkapi lokasi/tarif (lokasi wajib untuk update final dari chat)
+        if ($existingId > 0) {
+            if ($idPelanggan <= 0 || $idCabang <= 0) {
+                $this->sendAutoreplyText($waNumber, 'Maaf, data cabang belum lengkap. Silakan ulangi permintaan.');
+                return false;
+            }
+            if ($idLokasi <= 0) {
+                $this->sendAutoreplyText($waNumber, 'Maaf, data lokasi belum lengkap. Silakan ulangi permintaan.');
+                return false;
+            }
+        } elseif ($idPelanggan <= 0 || $idCabang <= 0 || $idLokasi <= 0) {
             $this->sendAutoreplyText($waNumber, 'Maaf, data lokasi/cabang belum lengkap. Silakan ulangi permintaan.');
             return false;
         }
@@ -3270,7 +3407,8 @@ trait WARepliesKurirTrait
         $eligibleIds = [];
         if ($jenis === 'antar') {
             $eligibleIds = $this->kurirEligibleSaleIds($idPelanggan, false);
-            if (empty($eligibleIds)) {
+            // Early request: boleh kosong (driver pilih item saat selesai). Insert baru tetap butuh item.
+            if (empty($eligibleIds) && $existingId <= 0) {
                 $this->sendAutoreplyText(
                     $waNumber,
                     'Maaf, belum ada item laundry yang bisa diantar saat ini. '
@@ -3290,7 +3428,7 @@ trait WARepliesKurirTrait
         }
 
         $tarif = (int) ($session['tarif'] ?? 0);
-        if ($tarif <= 0) {
+        if ($tarif <= 0 && $idLokasi > 0) {
             $cab = $this->kurirCabangCoords($idCabang);
             $calc = AntarTarif::tarifFromCoords(
                 $cab['latt'],
@@ -3304,16 +3442,36 @@ trait WARepliesKurirTrait
         $now = date('Y-m-d H:i:s');
         $db = DB::getInstance(1);
         try {
-            // Sudah ada request dari konfirmasi lokasi — update catatan saja
-            $existingId = (int) ($session['id_request'] ?? 0);
             if ($existingId > 0) {
+                $set = [
+                    'jenis' => $jenis,
+                    'id_cabang' => $idCabang,
+                    'id_lokasi' => $idLokasi,
+                    'lokasi_nama' => (string) ($session['lokasi_nama'] ?? ''),
+                    'lokasi_detail' => (string) ($session['lokasi_detail'] ?? ''),
+                    'lokasi_latt' => (float) ($session['latt'] ?? 0),
+                    'lokasi_longt' => (float) ($session['longt'] ?? 0),
+                    'tarif_surcas' => $tarif,
+                ];
                 if ($catatan !== '') {
-                    $db->update(
-                        'delivery_request',
-                        ['catatan_kurir' => mb_substr($catatan, 0, 150)],
-                        ['id_request' => $existingId]
-                    );
+                    $set['catatan_kurir'] = mb_substr($catatan, 0, 150);
+                } else {
+                    // Hapus catatan early-activate saja jika lokasi sudah lengkap
+                    $prev = $db->query(
+                        'SELECT catatan_kurir FROM delivery_request WHERE id_request = ? LIMIT 1',
+                        [$existingId]
+                    )->row();
+                    $prevCatatan = trim((string) ($prev->catatan_kurir ?? ''));
+                    if (stripos($prevCatatan, 'Early activate') === 0) {
+                        $set['catatan_kurir'] = '';
+                    }
                 }
+                $db->update('delivery_request', $set, ['id_request' => $existingId]);
+
+                if ($jenis === 'antar' && !empty($eligibleIds)) {
+                    $this->kurirEnsureRequestItems($db, $existingId, $eligibleIds);
+                }
+
                 $this->saveKurirSession($waNumber, ['id_request' => $existingId, 'step' => 'request_aktif']);
                 return true;
             }
@@ -3363,6 +3521,48 @@ trait WARepliesKurirTrait
             }
             $this->sendAutoreplyText($waNumber, 'Maaf, gagal membuat permintaan. Coba lagi atau pakai link portal.');
             return false;
+        }
+    }
+
+    /**
+     * Pastikan item antar ter-link ke request (skip yang sudah ada).
+     * @param object $db
+     * @param int[] $eligibleIds
+     */
+    private function kurirEnsureRequestItems($db, int $idRequest, array $eligibleIds): void
+    {
+        if ($idRequest <= 0 || empty($eligibleIds)) {
+            return;
+        }
+        try {
+            $existing = $db->query(
+                'SELECT id_penjualan FROM delivery_request_item WHERE id_request = ?',
+                [$idRequest]
+            )->result_array();
+            $have = [];
+            foreach (is_array($existing) ? $existing : [] as $r) {
+                $sid = (int) ($r['id_penjualan'] ?? 0);
+                if ($sid > 0) {
+                    $have[$sid] = true;
+                }
+            }
+            foreach ($eligibleIds as $idSale) {
+                $idSale = (int) $idSale;
+                if ($idSale <= 0 || isset($have[$idSale])) {
+                    continue;
+                }
+                $sale = $db->query(
+                    'SELECT no_ref FROM sale WHERE id_penjualan = ? LIMIT 1',
+                    [$idSale]
+                )->row();
+                $db->insert('delivery_request_item', [
+                    'id_request' => $idRequest,
+                    'id_penjualan' => $idSale,
+                    'no_ref' => (string) ($sale->no_ref ?? ''),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // ignore
         }
     }
 

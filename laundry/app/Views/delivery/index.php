@@ -751,7 +751,7 @@ $isEmptyCustomer = empty($customerGroups);
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-user"></i></span>
           <div>
             <h2>Customer</h2>
-            <small>Pickup / Delivery terbuka</small>
+            <small>Request Jemput / Antar aktif</small>
           </div>
         </header>
         <div class="dlv-body">
@@ -759,7 +759,7 @@ $isEmptyCustomer = empty($customerGroups);
             <div class="dlv-empty">
               <i class="fas fa-motorcycle" aria-hidden="true"></i>
               <strong>Belum ada order delivery</strong>
-              <span>Request CRM (case kuning) dan request Sameday dari portal customer tampil di sini.</span>
+              <span>Request chat (YCloud/Fonnte) dan portal customer tampil di sini setelah jenis Jemput/Antar aktif.</span>
             </div>
           <?php } else { ?>
             <div class="dlv-group dlv-group--merged">
@@ -769,50 +769,27 @@ $isEmptyCustomer = empty($customerGroups);
                   $tail = htmlspecialchars((string) ($grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
                   $nama = htmlspecialchars(strtoupper((string) ($grp['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
                   $kode = htmlspecialchars((string) ($grp['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
-                  $hasCrm = !empty($grp['crm']);
                   $reqs = is_array($grp['requests'] ?? null) ? $grp['requests'] : [];
                   $reqCount = count($reqs);
-                  $cu = $hasCrm ? $grp['crm'] : null;
-                  $dateRaw = $hasCrm ? ($cu['last_message_at'] ?? '') : '';
-                  $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
+                  if ($reqCount <= 0) {
+                    continue;
+                  }
                 ?>
                   <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-source="merged">
                     <div class="dlv-item__text" style="width:100%">
                       <p class="dlv-item__title">
                         <?= $nama ?>
                         <span class="dlv-kode">· <?= $kode ?></span>
-                        <?php if ($hasCrm) { ?>
-                          <span class="dlv-jenis-pill" style="background:#e0e7ff;color:#3730a3">CRM</span>
-                        <?php } ?>
-                        <?php if ($reqCount > 0) { ?>
-                          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534">Portal <?= $reqCount ?></span>
-                        <?php } ?>
+                        <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= (int) $reqCount ?> request</span>
                       </p>
                       <div class="dlv-item__meta">
                         <?= $tail ?>
-                        <?php if ($hasCrm) { ?>
-                          · CRM <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
-                        <?php } ?>
-                        <?php if ($hasCrm && $reqCount > 0) { ?>
-                          · Case CRM tetap open sampai semua lokasi portal selesai
-                        <?php } ?>
                       </div>
-
-                      <?php if ($hasCrm) { ?>
-                        <div class="dlv-item__actions" style="margin-top:8px;justify-content:flex-start">
-                          <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
-                            <i class="fas fa-search"></i> Cek
-                          </button>
-                          <?php if ($reqCount <= 0) { ?>
-                            <button type="button" class="dlv-btn dlv-btn--selesai" data-dlv-selesai="<?= $tail ?>"
-                                    data-nama="<?= $nama ?>">
-                              <i class="fas fa-check"></i> Selesai CRM
-                            </button>
-                          <?php } else { ?>
-                            <span class="dlv-item__meta" style="opacity:.8">Selesai via request portal di bawah</span>
-                          <?php } ?>
-                        </div>
-                      <?php } ?>
+                      <div class="dlv-item__actions" style="margin-top:8px;justify-content:flex-start">
+                        <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek-customer="<?= $tail ?>">
+                          <i class="fas fa-search"></i> Cek
+                        </button>
+                      </div>
 
                       <?php foreach ($reqs as $rq) {
                         $jenis = strtolower((string) ($rq['jenis'] ?? ''));
@@ -833,6 +810,7 @@ $isEmptyCustomer = empty($customerGroups);
                         if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
                           $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
                         }
+                        $hasLokasi = ($lokNama !== '' || $lokDetail !== '' || $mapsHref !== '');
                         $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
                           ? (int) $rq['tarif_surcas']
                           : '';
@@ -863,13 +841,16 @@ $isEmptyCustomer = empty($customerGroups);
                               <?php if ($isInstant) { ?>
                                 <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
                               <?php } ?>
+                              <?php if (!$hasLokasi && !$isInstant) { ?>
+                                <span class="dlv-jenis-pill" style="background:#fef3c7;color:#92400e">Lokasi menyusul</span>
+                              <?php } ?>
                               <span class="dlv-kode">#<?= $idReq ?></span>
                             </p>
                             <div class="dlv-item__meta">
                               <?= htmlspecialchars($dateLblR, ENT_QUOTES, 'UTF-8') ?>
                               <?php if ($isInstant && $ongkir > 0) { ?>
                                 · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
-                              <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && !$isInstant) { ?>
+                              <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && (int) $tarifSurcas > 0 && !$isInstant) { ?>
                                 · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
                               <?php } ?>
                             </div>
@@ -883,12 +864,17 @@ $isEmptyCustomer = empty($customerGroups);
                                 <?php if ($trackUrl !== '') { ?> · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a><?php } ?>
                               </div>
                             <?php } ?>
-                            <?php if ($lokNama !== '' || $lokDetail !== '') { ?>
+                            <?php if ($hasLokasi) { ?>
                               <div class="dlv-item__meta dlv-item__lokasi">
                                 <i class="fas fa-map-marker-alt"></i>
                                 <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
                                 <?php if ($lokDetail !== '') { ?> · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?><?php } ?>
                                 <?php if ($mapsHref !== '') { ?> · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a><?php } ?>
+                              </div>
+                            <?php } elseif (!$isInstant) { ?>
+                              <div class="dlv-item__meta dlv-item__lokasi">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Lokasi belum lengkap — driver tetap bisa selesaikan
                               </div>
                             <?php } ?>
                             <?php if ($catatanKurir !== '') { ?>
@@ -1022,7 +1008,7 @@ $isEmptyCustomer = empty($customerGroups);
       <div class="op-modal__head op-modal__head--blue">
         <div>
           <h3 id="dlvSelesaiTitle">Selesai Delivery</h3>
-          <small id="dlvSelesaiSub">Pilih jenis, karyawan + Access Key, dan item</small>
+          <small id="dlvSelesaiSub">Pilih jenis, karyawan, dan item</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
@@ -1067,18 +1053,10 @@ $isEmptyCustomer = empty($customerGroups);
               </optgroup>
             <?php } ?>
           </select>
-          <label class="dlv-field-label mt-2" for="dlvSelesaiKey">Access Key karyawan</label>
-          <input type="password" id="dlvSelesaiKey" name="access_key" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
-          <p class="dlv-hint mt-1 mb-0">
-            <i class="fas fa-info-circle me-1"></i>
-            Access Key harus milik karyawan yang dipilih.
-          </p>
           <label class="dlv-field-label mt-2">Item penjualan</label>
           <div class="dlv-sales-box" id="dlvSelesaiSales">
             <div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>
           </div>
-
-          <p class="dlv-hint mt-2 mb-0" id="dlvSurcasSplitRow" hidden></p>
 
           <div id="dlvSurcasJemputRow" hidden>
             <label class="dlv-field-label mt-2" for="dlvSurcasJemputJumlah">Surcas Penjemputan</label>
@@ -1136,7 +1114,7 @@ $isEmptyCustomer = empty($customerGroups);
       <div class="op-modal__head op-modal__head--red">
         <div>
           <h3 id="dlvConfirmTitle">Batalkan Delivery</h3>
-          <small>Wajib karyawan, Access Key, dan catatan</small>
+          <small>Wajib karyawan dan catatan</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
@@ -1162,14 +1140,11 @@ $isEmptyCustomer = empty($customerGroups);
           <?php } ?>
         </select>
 
-        <label class="dlv-field-label mt-2" for="dlvBatalKey">Access Key karyawan</label>
-        <input type="password" id="dlvBatalKey" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
-
         <label class="dlv-field-label mt-2" for="dlvBatalCatatan">Catatan</label>
         <textarea id="dlvBatalCatatan" class="dlv-input" rows="3" placeholder="Alasan pembatalan" required></textarea>
         <p class="dlv-hint mt-2 mb-0">
           <i class="fas fa-info-circle me-1"></i>
-          Access Key harus milik karyawan yang dipilih. Pembatalan dicatat di log.
+          Pembatalan dicatat di log.
         </p>
       </div>
       <div class="op-modal__foot">
@@ -1261,12 +1236,9 @@ $isEmptyCustomer = empty($customerGroups);
           <?php } ?>
         </select>
 
-        <label class="dlv-field-label mt-2" for="dlvEditQtyKey">Access Key karyawan</label>
-        <input type="password" id="dlvEditQtyKey" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
-
         <p class="dlv-hint mt-2 mb-0">
           <i class="fas fa-info-circle me-1"></i>
-          Hanya Admin / Kurir. Satu Access Key untuk update semua qty sekaligus.
+          Hanya Admin / Kurir yang boleh mengedit qty.
         </p>
       </div>
       <div class="op-modal__foot">
@@ -1315,12 +1287,9 @@ $isEmptyCustomer = empty($customerGroups);
           <?php } ?>
         </select>
 
-        <label class="dlv-field-label mt-2" for="dlvTerimaPakaiKey">Access Key karyawan</label>
-        <input type="password" id="dlvTerimaPakaiKey" class="dlv-input" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit">
-
         <p class="dlv-hint mt-2 mb-0">
           <i class="fas fa-info-circle me-1"></i>
-          Access Key harus milik karyawan yang dipilih. Barang diterima lalu status Pakai (type=3).
+          Barang diterima lalu status Pakai (type=3).
         </p>
       </div>
       <div class="op-modal__foot">
@@ -1492,11 +1461,18 @@ $isEmptyCustomer = empty($customerGroups);
     return ((document.getElementById('dlvSelesaiJenis') || {}).value || '').toLowerCase();
   }
 
+  function hasRequestTarif() {
+    var fixed = parseInt(
+      (document.getElementById('dlvSurcasJemputJumlah') || {}).getAttribute('data-tarif-fixed') || '0',
+      10
+    ) || 0;
+    return fixed > 0;
+  }
+
   function resetSelesaiForm() {
     var jenis = document.getElementById('dlvSelesaiJenis');
     var phone = document.getElementById('dlvSelesaiPhone');
     var box = document.getElementById('dlvSelesaiSales');
-    var keyEl = document.getElementById('dlvSelesaiKey');
     var modeEl = document.getElementById('dlvSelesaiMode');
     var reqEl = document.getElementById('dlvSelesaiRequestId');
     var layananEl = document.getElementById('dlvSelesaiLayanan');
@@ -1520,7 +1496,6 @@ $isEmptyCustomer = empty($customerGroups);
     }
     setJenisLocked('');
     if (phone) phone.value = '';
-    if (keyEl) keyEl.value = '';
     if (modeEl) modeEl.value = 'crm';
     if (reqEl) reqEl.value = '';
     if (layananEl) layananEl.value = 'sameday';
@@ -1554,55 +1529,13 @@ $isEmptyCustomer = empty($customerGroups);
       antarKembaliCheckReset.checked = false;
       antarKembaliCheckReset.disabled = false;
     }
-    var splitRow = document.getElementById('dlvSurcasSplitRow');
-    if (splitRow) splitRow.hidden = true;
     window._dlvSurcasByRef = {};
-    window._dlvSurcasJenis1ByRef = {};
     if (karyawanSelectize) {
       karyawanSelectize.clear(true);
     } else {
       var sel = document.getElementById('dlvSelesaiKaryawan');
       if (sel) sel.value = '';
     }
-  }
-
-  function getSelectedSurcasJenis1() {
-    var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
-    var prefills = window._dlvSurcasJenis1ByRef || {};
-    for (var i = 0; i < checks.length; i++) {
-      var group = checks[i].closest('.dlv-sales-group');
-      var ref = group ? (group.getAttribute('data-no-ref') || '') : '';
-      if (ref && prefills[ref] != null && prefills[ref] > 0) {
-        return Number(prefills[ref]);
-      }
-    }
-    return null;
-  }
-
-  function syncSurcasSplitUi() {
-    var row = document.getElementById('dlvSurcasSplitRow');
-    if (!row) return;
-    var jenis = getSelesaiJenis();
-    var mode = (document.getElementById('dlvSelesaiMode') || {}).value || 'crm';
-    var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-    var jenis1 = getSelectedSurcasJenis1();
-
-    if (layanan === 'instant' || jenis1 == null) {
-      row.hidden = true;
-      return;
-    }
-    row.hidden = false;
-    var halfPengantaran = Math.floor(jenis1 / 2);
-    var halfPenjemputan = jenis1 - halfPengantaran;
-    var msg = '<i class="fas fa-scissors me-1"></i>Ref punya <strong>Surcas gabungan</strong> Rp' +
-      Number(jenis1).toLocaleString('id-ID') +
-      ' → otomatis: Pengantaran Rp' + Number(halfPengantaran).toLocaleString('id-ID') +
-      ' + Penjemputan Rp' + Number(halfPenjemputan).toLocaleString('id-ID') +
-      '. Input manual diabaikan.';
-    if (jenis === 'jemput') {
-      msg += ' Request <strong>Antar kembali</strong> otomatis dibuat.';
-    }
-    row.innerHTML = msg;
   }
 
   function syncAntarKembaliUi() {
@@ -1615,22 +1548,6 @@ $isEmptyCustomer = empty($customerGroups);
     if (!block) return;
 
     var show = jenis === 'jemput' && layanan !== 'instant';
-    var jenis1 = getSelectedSurcasJenis1();
-    if (jenis1 != null && show) {
-      block.hidden = false;
-      if (check) {
-        check.checked = true;
-        check.disabled = true;
-      }
-      if (surcasRow) surcasRow.hidden = true;
-      if (surcasInput) {
-        surcasInput.value = '';
-        surcasInput.required = false;
-        surcasInput.readOnly = true;
-      }
-      syncSurcasSplitUi();
-      return;
-    }
     if (check) check.disabled = false;
     if (!show) {
       block.hidden = true;
@@ -1674,16 +1591,6 @@ $isEmptyCustomer = empty($customerGroups);
     var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
     if (!row || !input) return;
 
-    var jenis1 = getSelectedSurcasJenis1();
-    if (jenis1 != null && layanan !== 'instant') {
-      row.hidden = true;
-      input.required = false;
-      syncSurcasSplitUi();
-      syncAntarKembaliUi();
-      return;
-    }
-    syncSurcasSplitUi();
-
     if (jenis !== 'jemput' || layanan === 'instant') {
       row.hidden = true;
       input.required = false;
@@ -1694,11 +1601,23 @@ $isEmptyCustomer = empty($customerGroups);
 
     if (mode === 'request') {
       var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
-      input.value = fixed > 0 ? String(fixed) : '';
-      input.readOnly = true;
-      input.required = false;
-      if (hint) {
-        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Tarif dari request customer (jarak). Tidak bisa diubah.';
+      if (fixed > 0) {
+        input.value = String(fixed);
+        input.readOnly = true;
+        input.required = false;
+        if (hint) {
+          hint.innerHTML = '<i class="fas fa-lock me-1"></i>Tarif dari request customer (jarak). Tidak bisa diubah.';
+        }
+      } else {
+        // Early activate: tarif belum ada — driver isi manual
+        input.readOnly = false;
+        input.required = true;
+        if (!input.dataset.userEdited && (input.value === '' || input.value == null)) {
+          input.value = '';
+        }
+        if (hint) {
+          hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Tarif belum ada di request. Isi Surcas Penjemputan (0 = gratis).';
+        }
       }
       syncAntarKembaliUi();
       return;
@@ -1740,10 +1659,9 @@ $isEmptyCustomer = empty($customerGroups);
     var wrap = document.getElementById('dlvSekalianWrap');
     var sales = document.getElementById('dlvSekalianSales');
     var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
-    var jenis1Auto = getSelectedSurcasJenis1() != null;
     if (!row || !label) return;
-    // Antar kembali / surcas gabungan = antar nanti; jangan campur dengan sekalian antar sekarang
-    if (!jenis || layanan === 'instant' || (jenis === 'jemput' && (antarKembaliOn || jenis1Auto))) {
+    // Antar kembali = antar nanti; jangan campur dengan sekalian antar sekarang
+    if (!jenis || layanan === 'instant' || (jenis === 'jemput' && antarKembaliOn)) {
       row.hidden = true;
       if (check) check.checked = false;
       if (wrap) wrap.hidden = true;
@@ -1831,20 +1749,16 @@ $isEmptyCustomer = empty($customerGroups);
     });
     if (name === 'ids[]') {
       window._dlvSurcasByRef = {};
-      window._dlvSurcasJenis1ByRef = {};
     }
     if (!orders || !orders.length) {
       box.innerHTML = '<div class="dlv-sales-empty">Tidak ada item eligible</div>';
-      if (name === 'ids[]') syncSurcasSplitUi();
+      if (name === 'ids[]') syncSurcasJemputUi();
       return;
     }
     var html = orders.map(function (ord) {
       var ref = ord.no_ref || '-';
       if (name === 'ids[]' && ord.surcas_penjemputan != null && ord.surcas_penjemputan !== '') {
         window._dlvSurcasByRef[String(ref)] = Number(ord.surcas_penjemputan);
-      }
-      if (name === 'ids[]' && ord.surcas_jenis_1 != null && ord.surcas_jenis_1 !== '') {
-        window._dlvSurcasJenis1ByRef[String(ref)] = Number(ord.surcas_jenis_1);
       }
       var items = (ord.items || []).map(function (it) {
         var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
@@ -2049,15 +1963,12 @@ $isEmptyCustomer = empty($customerGroups);
       '<div class="dlv-empty">' +
         '<i class="fas fa-motorcycle" aria-hidden="true"></i>' +
         '<strong>Belum ada order delivery</strong>' +
-        '<span>Request CRM (case kuning) dan request Sameday dari portal customer tampil di sini.</span>' +
+        '<span>Request chat (YCloud/Fonnte) dan portal customer tampil di sini setelah jenis Jemput/Antar aktif.</span>' +
       '</div>';
   }
 
   function removeCustomerItem(phoneTail) {
     var item = root.querySelector('.dlv-item--group[data-phone-tail="' + phoneTail + '"]');
-    if (!item) {
-      item = root.querySelector('.dlv-item--customer[data-source="crm"][data-phone-tail="' + phoneTail + '"]');
-    }
     if (!item) {
       item = root.querySelector('.dlv-item--customer[data-phone-tail="' + phoneTail + '"]:not([data-id-request])');
     }
@@ -2090,42 +2001,18 @@ $isEmptyCustomer = empty($customerGroups);
 
     if (groupCard) {
       var left = groupCard.querySelectorAll('.dlv-item--request');
-      var portalBadge = null;
+      var countBadge = null;
       var pills = groupCard.querySelectorAll('.dlv-jenis-pill');
       for (var i = 0; i < pills.length; i++) {
-        if ((pills[i].textContent || '').indexOf('Portal') === 0) {
-          portalBadge = pills[i];
+        if (/\d+\s*request/i.test(pills[i].textContent || '')) {
+          countBadge = pills[i];
           break;
         }
       }
-      if (portalBadge) {
-        if (!left.length) portalBadge.remove();
-        else portalBadge.textContent = 'Portal ' + left.length;
-      }
-
       if (!left.length) {
-        if (!groupCard.querySelector('[data-dlv-cek-customer]')) {
-          // Portal-only: kartu kosong
-          groupCard.remove();
-        } else if (!groupCard.querySelector('[data-dlv-selesai]')) {
-          // CRM masih open, request portal habis → unlock Selesai CRM
-          var actions = groupCard.querySelector('.dlv-item__actions');
-          if (actions) {
-            var hint = actions.querySelector('.dlv-item__meta');
-            if (hint) hint.remove();
-            if (!actions.querySelector('[data-dlv-selesai]')) {
-              var btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'dlv-btn dlv-btn--selesai';
-              btn.setAttribute('data-dlv-selesai', phoneTail);
-              var namaEl = groupCard.querySelector('.dlv-item__title');
-              var namaTxt = namaEl ? (namaEl.childNodes[0] || {}).textContent || 'Customer' : 'Customer';
-              btn.setAttribute('data-nama', String(namaTxt).trim());
-              btn.innerHTML = '<i class="fas fa-check"></i> Selesai CRM';
-              actions.appendChild(btn);
-            }
-          }
-        }
+        groupCard.remove();
+      } else if (countBadge) {
+        countBadge.textContent = left.length + ' request';
       }
     }
 
@@ -2147,7 +2034,6 @@ $isEmptyCustomer = empty($customerGroups);
       var sel = document.getElementById('dlvSelesaiKaryawan');
       idKaryawan = sel ? sel.value : '';
     }
-    var accessKey = String((document.getElementById('dlvSelesaiKey') || {}).value || '').trim();
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
     var sekalianOn = !!(document.getElementById('dlvSekalianCheck') || {}).checked;
     var checksSekalian = root.querySelectorAll('#dlvSekalianSales input[name="ids_sekalian[]"]:checked');
@@ -2156,7 +2042,6 @@ $isEmptyCustomer = empty($customerGroups);
     if (mode === 'request' && !idRequest) { toast('Request tidak valid', 'error'); return; }
     if (!jenis) { toast('Pilih jenis jemput/antar', 'warn'); return; }
     if (!idKaryawan) { toast('Pilih karyawan yang menyelesaikan', 'warn'); return; }
-    if (!/^\d{4}$/.test(accessKey)) { toast('Access Key harus 4 digit', 'warn'); return; }
     if (!checks.length) { toast('Pilih minimal satu item', 'warn'); return; }
     if (sekalianOn && !checksSekalian.length) {
       toast('Sekalian aktif: pilih minimal satu item lawan jenis', 'warn');
@@ -2174,7 +2059,7 @@ $isEmptyCustomer = empty($customerGroups);
         return;
       }
     }
-    if (jenis === 'jemput' && mode === 'crm' && getSelectedSurcasJenis1() == null) {
+    if (jenis === 'jemput' && (mode === 'crm' || (mode === 'request' && !hasRequestTarif()))) {
       var surcasRaw = String((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '').trim();
       var jumlahSc = parseInt(surcasRaw, 10);
       if (surcasRaw === '' || isNaN(jumlahSc) || jumlahSc < 0) {
@@ -2183,8 +2068,7 @@ $isEmptyCustomer = empty($customerGroups);
       }
     }
     var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
-    var jenis1Amt = getSelectedSurcasJenis1();
-    if (antarKembaliOn && jenis1Amt == null) {
+    if (antarKembaliOn) {
       if (jenis !== 'jemput') {
         toast('Request Antar kembali hanya untuk selesai Jemput', 'warn');
         return;
@@ -2201,15 +2085,9 @@ $isEmptyCustomer = empty($customerGroups);
       }
     }
 
-    if (jenis === 'jemput' && jenis1Amt != null && sekalianOn) {
-      toast('Ref punya Surcas gabungan: Request Antar kembali otomatis. Tidak bisa Sekalian Antar.', 'warn');
-      return;
-    }
-
     var fd = new FormData();
     fd.append('jenis', jenis);
     fd.append('id_karyawan', idKaryawan);
-    fd.append('access_key', accessKey);
     Array.prototype.forEach.call(checks, function (cb) {
       fd.append('ids[]', cb.value);
     });
@@ -2219,20 +2097,18 @@ $isEmptyCustomer = empty($customerGroups);
         fd.append('ids_sekalian[]', cb.value);
       });
     }
-    if (jenis === 'jemput' && mode === 'crm' && getSelectedSurcasJenis1() == null) {
+    if (jenis === 'jemput' && (mode === 'crm' || (mode === 'request' && !hasRequestTarif()))) {
       fd.append(
         'jumlah_surcas_jemput',
         String(parseInt((document.getElementById('dlvSurcasJemputJumlah') || {}).value || '0', 10) || 0)
       );
     }
-    if (antarKembaliOn || (jenis === 'jemput' && getSelectedSurcasJenis1() != null)) {
+    if (antarKembaliOn) {
       fd.append('antar_kembali', '1');
-      if (getSelectedSurcasJenis1() == null) {
-        fd.append(
-          'jumlah_surcas_antar',
-          String(parseInt((document.getElementById('dlvSurcasAntarJumlah') || {}).value || '0', 10) || 0)
-        );
-      }
+      fd.append(
+        'jumlah_surcas_antar',
+        String(parseInt((document.getElementById('dlvSurcasAntarJumlah') || {}).value || '0', 10) || 0)
+      );
     }
 
     var endpoint = selesaiUrl;
@@ -2293,8 +2169,6 @@ $isEmptyCustomer = empty($customerGroups);
       var sel = document.getElementById('dlvBatalKaryawan');
       if (sel) sel.value = '';
     }
-    var keyEl = document.getElementById('dlvBatalKey');
-    if (keyEl) keyEl.value = '';
     var catatanEl = document.getElementById('dlvBatalCatatan');
     if (catatanEl) catatanEl.value = '';
     var msg = document.getElementById('dlvConfirmMsg');
@@ -2329,15 +2203,10 @@ $isEmptyCustomer = empty($customerGroups);
       var sel = document.getElementById('dlvBatalKaryawan');
       if (sel) idKaryawan = sel.value;
     }
-    var accessKey = String((document.getElementById('dlvBatalKey') || {}).value || '').trim();
     var catatan = String((document.getElementById('dlvBatalCatatan') || {}).value || '').trim();
 
     if (!idKaryawan) {
       toast('Pilih karyawan yang membatalkan', 'warn');
-      return;
-    }
-    if (!/^\d{4}$/.test(accessKey)) {
-      toast('Access Key harus 4 digit', 'warn');
       return;
     }
     if (!catatan) {
@@ -2349,7 +2218,6 @@ $isEmptyCustomer = empty($customerGroups);
     var yesBtn = document.getElementById('dlvConfirmYes');
     var fd = new FormData();
     fd.append('id_karyawan', idKaryawan);
-    fd.append('access_key', accessKey);
     fd.append('catatan', catatan);
     var endpoint = batalUrl;
     if (mode === 'request') {
@@ -2519,8 +2387,6 @@ $isEmptyCustomer = empty($customerGroups);
     if (editQtyKaryawanSelectize) {
       editQtyKaryawanSelectize.clear(true);
     }
-    var keyEl = document.getElementById('dlvEditQtyKey');
-    if (keyEl) keyEl.value = '';
     var refEl = document.getElementById('dlvEditQtyRef');
     if (refEl) refEl.value = detailEditQty.ref;
     var sub = document.getElementById('dlvEditQtySub');
@@ -2545,13 +2411,8 @@ $isEmptyCustomer = empty($customerGroups);
       var sel = document.getElementById('dlvEditQtyKaryawan');
       if (sel) idKaryawan = sel.value;
     }
-    var accessKey = String((document.getElementById('dlvEditQtyKey') || {}).value || '').trim();
     if (!idKaryawan) {
       toast('Pilih karyawan yang mengedit', 'warn');
-      return;
-    }
-    if (!/^\d{4}$/.test(accessKey)) {
-      toast('Access Key harus 4 digit', 'warn');
       return;
     }
 
@@ -2582,7 +2443,6 @@ $isEmptyCustomer = empty($customerGroups);
     var fd = new FormData();
     fd.append('ref', ref);
     fd.append('id_karyawan', idKaryawan);
-    fd.append('access_key', accessKey);
     fd.append('items', JSON.stringify(items));
     if (btn) btn.disabled = true;
     fetch(updateQtyUrl, {
@@ -2616,8 +2476,6 @@ $isEmptyCustomer = empty($customerGroups);
     if (terimaPakaiKaryawanSelectize) {
       terimaPakaiKaryawanSelectize.clear(true);
     }
-    var keyEl = document.getElementById('dlvTerimaPakaiKey');
-    if (keyEl) keyEl.value = '';
 
     var refEl = document.getElementById('dlvTerimaPakaiRef');
     var srcEl = document.getElementById('dlvTerimaPakaiSource');
@@ -2643,13 +2501,8 @@ $isEmptyCustomer = empty($customerGroups);
       var sel = document.getElementById('dlvTerimaPakaiKaryawan');
       if (sel) idKaryawan = sel.value;
     }
-    var accessKey = String((document.getElementById('dlvTerimaPakaiKey') || {}).value || '').trim();
     if (!idKaryawan) {
       toast('Pilih karyawan penerima', 'warn');
-      return;
-    }
-    if (!/^\d{4}$/.test(accessKey)) {
-      toast('Access Key harus 4 digit', 'warn');
       return;
     }
 
@@ -2658,7 +2511,6 @@ $isEmptyCustomer = empty($customerGroups);
     var fd = new FormData();
     fd.append('ref', ref);
     fd.append('id_karyawan', idKaryawan);
-    fd.append('access_key', accessKey);
     if (btn) btn.disabled = true;
     if (footBtn) footBtn.disabled = true;
 
