@@ -1700,10 +1700,11 @@ class WAReplies
             }
         }
 
-        // Session LOKASI aktif: lengkapi alamat (kecuali pesan jelas minta jemput/antar)
+        // Session LOKASI aktif: lengkapi alamat (kecuali intent jelas lain / jemput-antar)
         try {
             if ($this->getLokasiSession($waNumber) !== null
                 && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+                && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
             ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
                 $this->currentHandler = 'LOKASI';
@@ -1720,6 +1721,11 @@ class WAReplies
                     ];
                 }
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_unrelated→continue_routing');
+            } elseif ($this->getLokasiSession($waNumber) !== null
+                && $this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_break→other_intent');
+                // Session lokasi tetap (bisa dilanjut nanti); jangan consume pesan
             }
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -1735,6 +1741,7 @@ class WAReplies
                 if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
                     if ($this->getLokasiSession($waNumber) !== null
                         && !$this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)
+                        && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
                         $this->currentHandler = 'LOKASI';
@@ -1980,16 +1987,17 @@ class WAReplies
                     unset($keywordConfig[$handler]);
                     
                     // Rate limit: cek saja; catat log setelah handler sukses dijalankan
+                    // Case CRM (simbol kuning case 2, dll.) tetap dibentuk meski autoreply di-skip
                     if (!$this->handlerSkipsAutoreplyRateLimit($handler)
                         && $this->isInAutoreplyCooldown($waNumber, $handler)) {
                         $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_rate_limit handler=' . $handler);
                         $conversationId = $this->getOrCreateConversationWithCase(
-                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $caseVal
                         );
                         
                         return (object) [
-                            'case' => null,
-                            'notify' => false,
+                            'case' => $caseVal,
+                            'notify' => (bool) ($notify || ($caseVal !== null && (int) $caseVal !== 0)),
                             'conversation_id' => $conversationId
                         ];
                     }
@@ -2242,9 +2250,9 @@ class WAReplies
             if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
                 && $this->isInAutoreplyCooldown($waNumber, $aiIntent)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_rate_limit intent=' . $aiIntent);
-                // Rate limited - create conversation but don't send auto-reply
+                // Rate limited - tetap tulis case ke CRM (jangan null), skip auto-reply saja
                 $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $aiCase
                 );
                 
                 return (object) [
@@ -8325,6 +8333,61 @@ class WAReplies
      * Get or create conversation with case management.
      * Public so webhook can open CSW + push WS before slow intent/AI.
      */
+    /**
+     * Append/open case di conv_case tanpa mengubah last_message (untuk Fonnte skipPersist).
+     */
+    private function appendOpenConvCase($db, $conv, int $case): void
+    {
+        if ($case === 0 || empty($conv->wa_number)) {
+            return;
+        }
+        $caseList = [];
+        if (!empty($conv->conv_case)) {
+            $decoded = json_decode($conv->conv_case, true);
+            if (is_array($decoded)) {
+                $caseList = isset($decoded[0]) ? $decoded : (!empty($decoded) ? [$decoded] : []);
+            } elseif (is_numeric($conv->conv_case)) {
+                $caseList[] = ['case' => (int) $conv->conv_case, 'status' => 'unknown'];
+            }
+        }
+        $hasOtherOpenCases = false;
+        foreach ($caseList as $c) {
+            if (isset($c['case']) && (int) $c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
+                $hasOtherOpenCases = true;
+                break;
+            }
+        }
+        if ($case === 4 && $hasOtherOpenCases) {
+            return;
+        }
+        $caseExists = false;
+        foreach ($caseList as &$existingCase) {
+            if (isset($existingCase['case']) && (int) $existingCase['case'] === $case) {
+                $existingCase['status'] = 'open';
+                unset($existingCase['timestamp'], $existingCase['resolved_at'], $existingCase['resolved_by']);
+                $caseExists = true;
+                break;
+            }
+        }
+        unset($existingCase);
+        if (!$caseExists) {
+            $caseList[] = ['case' => $case, 'status' => 'open'];
+        }
+        if ($case !== 4) {
+            foreach ($caseList as &$c) {
+                if (isset($c['case']) && (int) $c['case'] === 4) {
+                    $c['status'] = 'closed';
+                    unset($c['timestamp'], $c['resolved_at'], $c['resolved_by']);
+                }
+            }
+            unset($c);
+        }
+        $db->update('wa_conversations', [
+            'conv_case' => json_encode($caseList),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], ['wa_number' => $conv->wa_number]);
+    }
+
     public function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
         if ($contactName !== null) {
@@ -8333,7 +8396,18 @@ class WAReplies
         if ($this->skipConversationPersist) {
             $conv = $this->findExistingWaConversationRow($db, $waNumber);
             if ($conv) {
-                return (int) ($conv->id ?? 0);
+                $convId = (int) ($conv->id ?? 0);
+                // Fonnte: jangan rewrite last_message/status, tapi case CRM (simbol kuning) tetap boleh
+                if ($convId > 0 && $case !== null && (int) $case !== 0) {
+                    try {
+                        $this->appendOpenConvCase($db, $conv, (int) $case);
+                    } catch (\Throwable $e) {
+                        if (class_exists('\Log')) {
+                            \Log::write('skipPersist appendOpenConvCase: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+                        }
+                    }
+                }
+                return $convId;
             }
 
             return 0;

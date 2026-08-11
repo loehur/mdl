@@ -252,6 +252,10 @@ trait WARepliesKurirTrait
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }
+        // Reminder / ingat — keyword jelas, jangan tahan di session kurir/lokasi
+        if (preg_match('/^\s*(reminder|remind|ingatkan|ingat|pengingat)\s*$/iu', $text)) {
+            return true;
+        }
         // Tanya estimasi siap → break kurir hanya jika ada order aktif
         if ($hasActiveSaleForEstimasi
             && (
@@ -261,7 +265,13 @@ trait WARepliesKurirTrait
         ) {
             return true;
         }
-        $breakout = ['TAGIHAN', 'NOTA', 'STATUS', 'HARGA', 'HARGA_PAKET', 'HARGA_PAKET_D', 'PEMBUKA', 'PENUTUP'];
+        $breakout = [
+            'TAGIHAN', 'NOTA', 'STATUS', 'HARGA', 'HARGA_PAKET', 'HARGA_PAKET_D',
+            'PEMBUKA', 'PENUTUP', 'REMINDER', 'KEY', 'JAM_OPERASIONAL',
+            'AMBIL_LEWAT_TUTUP', 'KARYAWAN', 'KAS_LAUNDRY', 'CEK_TOKEN',
+            'CEK_QRIS', 'SALDO_YCLOUD', 'INFO_FONNTE', 'TARIK_TOKOPAY',
+            'SLIP_GAJI', 'GAJI_CASH', 'GAJI_TF',
+        ];
         if ($hasActiveSaleForEstimasi) {
             $breakout[] = 'ESTIMASI_SELESAI';
         }
@@ -273,6 +283,12 @@ trait WARepliesKurirTrait
             }
         }
         return false;
+    }
+
+    /** Intent jelas lain → lepaskan follow-up session LOKASI (sama daftar breakout kurir). */
+    private function messageBreaksLokasiSession(string $text, array $keywordConfig): bool
+    {
+        return $this->messageBreaksKurirSession($text, $keywordConfig, true);
     }
 
     /**

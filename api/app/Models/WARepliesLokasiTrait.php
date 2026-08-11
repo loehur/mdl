@@ -538,20 +538,26 @@ trait WARepliesLokasiTrait
 
         if ($step === 'ask_shareloc') {
             if ($coords === null) {
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Kirim *shareloc* / pin WhatsApp atau link Google Maps ya {$sapaan}."
-                );
-                return true;
+                // Bukan pin/maps — jangan spam "kirim shareloc"; biarkan intent lain (ingat, bon, dll.)
+                return false;
             }
             return $this->lokasiStartFromCoords($waNumber, $sapaan, $idPelanggan, $coords, $msg, true);
         }
 
         if ($step === 'ask_nama') {
+            $nama = $this->kurirParseLokasiJenis($msg);
+            if ($nama === null) {
+                // Bukan jawaban jenis lokasi → jangan ulang tanya; serahkan ke intent lain
+                return false;
+            }
             return $this->lokasiHandleNama($waNumber, $sapaan, $session, $msg, $idPelanggan);
         }
 
         if ($step === 'ask_detail') {
+            // Jawaban detail biasanya teks bebas; jika mirip keyword singkat intent lain → lepas
+            if (preg_match('/^\s*(reminder|remind|ingatkan|ingat|pengingat|bon|bill|cek|status|key)\s*$/iu', $msg)) {
+                return false;
+            }
             return $this->lokasiHandleDetail($waNumber, $sapaan, $session, $msg, $idPelanggan);
         }
 
