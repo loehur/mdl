@@ -189,6 +189,346 @@ class Operasi extends Controller
       ]);
    }
 
+   /**
+    * Detail timeline nota (proses & tuntas).
+    * GET/POST Operasi/nota_detail — param: ref (no_ref)
+    */
+   public function nota_detail()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $ref = trim((string) ($_POST['ref'] ?? $_GET['ref'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Ref nota wajib diisi']);
+         return;
+      }
+
+      $refEsc = $this->db(0)->escape($ref);
+      $sales = $this->db(0)->get_where(
+         'sale',
+         $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0 ORDER BY id_penjualan ASC"
+      );
+      if (!is_array($sales) || empty($sales)) {
+         echo json_encode(['status' => 'error', 'message' => 'Nota tidak ditemukan']);
+         return;
+      }
+
+      $users = $this->db(0)->get('user', 'id_user');
+      if (!is_array($users)) {
+         $users = [];
+      }
+      $userName = function ($id) use ($users) {
+         $id = (string) $id;
+         if ($id === '' || $id === '0') {
+            return '';
+         }
+         return (string) ($users[$id]['nama_user'] ?? '');
+      };
+
+      $mapMetode = [];
+      foreach ((array) ($this->dMetodeMutasi ?? []) as $mm) {
+         $mapMetode[(int) ($mm['id_metode_mutasi'] ?? 0)] = (string) ($mm['metode_mutasi'] ?? '');
+      }
+      $mapStatus = [];
+      foreach ((array) ($this->dStatusMutasi ?? []) as $st) {
+         $mapStatus[(int) ($st['id_status_mutasi'] ?? 0)] = (string) ($st['status_mutasi'] ?? '');
+      }
+      $mapLayanan = [];
+      foreach ((array) ($this->dLayanan ?? []) as $ly) {
+         $mapLayanan[(int) ($ly['id_layanan'] ?? 0)] = [
+            'nama' => (string) ($ly['layanan'] ?? ''),
+            'kode' => (string) ($ly['kode'] ?? ''),
+         ];
+      }
+      $mapKategori = [];
+      foreach ((array) ($this->itemGroup ?? []) as $g) {
+         $mapKategori[(int) ($g['id_item_group'] ?? 0)] = (string) ($g['item_kategori'] ?? '');
+      }
+      $mapDurasi = [];
+      foreach ((array) ($this->dDurasi ?? []) as $d) {
+         $mapDurasi[(int) ($d['id_durasi'] ?? 0)] = strtoupper((string) ($d['durasi'] ?? ''));
+      }
+      $mapSatuan = [];
+      foreach ((array) ($this->dPenjualan ?? []) as $l) {
+         $sat = '';
+         foreach ((array) ($this->dSatuan ?? []) as $sa) {
+            if (($sa['id_satuan'] ?? null) == ($l['id_satuan'] ?? null)) {
+               $sat = (string) ($sa['nama_satuan'] ?? '');
+               break;
+            }
+         }
+         $mapSatuan[(int) ($l['id_penjualan_jenis'] ?? 0)] = $sat;
+      }
+      $mapSurcas = [];
+      foreach ((array) ($this->surcas ?? []) as $sc) {
+         $mapSurcas[(int) ($sc['id_surcas_jenis'] ?? 0)] = (string) ($sc['surcas_jenis'] ?? '');
+      }
+
+      $first = $sales[0];
+      $idPelanggan = (int) ($first['id_pelanggan'] ?? 0);
+      $pelangganNama = '';
+      if ($idPelanggan > 0 && isset($this->pelanggan[$idPelanggan])) {
+         $pelangganNama = (string) ($this->pelanggan[$idPelanggan]['nama_pelanggan'] ?? '');
+      }
+
+      $saleIds = [];
+      foreach ($sales as $s) {
+         $sid = $this->normalizeSaleId($s['id_penjualan'] ?? '');
+         if ($sid !== '') {
+            $saleIds[$sid] = $sid;
+         }
+      }
+      $idsIn = "'" . implode("','", array_map(function ($id) {
+         return $this->db(0)->escape($id);
+      }, array_values($saleIds))) . "'";
+
+      $operasiRows = $this->db(0)->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($idsIn)");
+      if (!is_array($operasiRows)) {
+         $operasiRows = [];
+      }
+      $operasiMap = [];
+      foreach ($operasiRows as $o) {
+         $sid = $this->normalizeSaleId($o['id_penjualan'] ?? '');
+         $jenis = (string) ($o['jenis_operasi'] ?? '');
+         if ($sid === '' || $jenis === '') {
+            continue;
+         }
+         $operasiMap[$sid][$jenis] = $o;
+      }
+
+      $deliveryRows = $this->db(0)->get_where('delivery_riwayat', "id_penjualan IN ($idsIn)");
+      if (!is_array($deliveryRows)) {
+         $deliveryRows = [];
+      }
+      $deliveryMap = [];
+      foreach ($deliveryRows as $dr) {
+         $sid = $this->normalizeSaleId($dr['id_penjualan'] ?? '');
+         $jenis = strtolower((string) ($dr['jenis'] ?? ''));
+         if ($sid === '' || !in_array($jenis, ['jemput', 'antar'], true)) {
+            continue;
+         }
+         // Ambil riwayat terbaru per jenis
+         if (!isset($deliveryMap[$sid][$jenis])
+            || strcmp((string) ($dr['insertTime'] ?? ''), (string) ($deliveryMap[$sid][$jenis]['insertTime'] ?? '')) > 0
+         ) {
+            $deliveryMap[$sid][$jenis] = $dr;
+         }
+      }
+
+      $kasRows = $this->db(0)->get_where(
+         'kas',
+         $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '$refEsc' ORDER BY insertTime ASC, id_kas ASC"
+      );
+      if (!is_array($kasRows)) {
+         $kasRows = [];
+      }
+
+      $surcasRows = $this->db(0)->get_where(
+         'surcas',
+         $this->wCabang . " AND no_ref = '$refEsc' ORDER BY insertTime ASC, id_surcas ASC"
+      );
+      if (!is_array($surcasRows)) {
+         $surcasRows = [];
+      }
+
+      $fmt = function ($time) {
+         $time = trim((string) $time);
+         if ($time === '' || $time === '0000-00-00 00:00:00') {
+            return '';
+         }
+         $ts = strtotime($time);
+         return $ts ? date('d/m/Y H:i', $ts) : $time;
+      };
+
+      $subTotal = 0;
+      $items = [];
+      foreach ($sales as $s) {
+         $sid = $this->normalizeSaleId($s['id_penjualan'] ?? '');
+         $itemTotal = $this->calcSaleItemTotal($s);
+         $subTotal += $itemTotal;
+
+         $qty = round((float) ($s['qty'] ?? 0), 2);
+         $min = round((float) ($s['min_order'] ?? 0), 2);
+         $satuan = $mapSatuan[(int) ($s['id_penjualan_jenis'] ?? 0)] ?? '';
+         $qtyShow = rtrim(rtrim(number_format($qty, 2, ',', '.'), '0'), ',') . $satuan;
+         if ($qty < $min && $min > 0) {
+            $qtyShow .= ' (Min.' . rtrim(rtrim(number_format($min, 2, ',', '.'), '0'), ',') . ')';
+         }
+
+         $timeline = [];
+         $jemput = $deliveryMap[$sid]['jemput'] ?? null;
+         if ($jemput) {
+            $timeline[] = [
+               'type' => 'jemput',
+               'label' => 'Jemput',
+               'time' => $fmt($jemput['insertTime'] ?? ''),
+               'time_raw' => (string) ($jemput['insertTime'] ?? ''),
+               'user' => strtoupper(trim((string) ($jemput['nama_karyawan'] ?? ''))) ?: $userName($jemput['id_karyawan'] ?? $jemput['id_user'] ?? ''),
+               'inferred' => false,
+               'done' => true,
+            ];
+         }
+
+         $listLayanan = [];
+         $rawList = $s['list_layanan'] ?? '';
+         if (is_string($rawList) && $rawList !== '') {
+            $un = @unserialize($rawList);
+            if (is_array($un)) {
+               $listLayanan = $un;
+            }
+         }
+
+         $endLayananId = !empty($listLayanan) ? (string) end($listLayanan) : '';
+         $endOp = ($endLayananId !== '' && isset($operasiMap[$sid][$endLayananId]))
+            ? $operasiMap[$sid][$endLayananId]
+            : null;
+         $endDone = is_array($endOp);
+         $endTime = $endDone ? (string) ($endOp['insertTime'] ?? '') : '';
+
+         foreach ($listLayanan as $layananId) {
+            $layananId = (string) $layananId;
+            $meta = $mapLayanan[(int) $layananId] ?? ['nama' => 'Layanan', 'kode' => ''];
+            $label = trim(($meta['kode'] !== '' ? $meta['kode'] . ' · ' : '') . $meta['nama']);
+            if (isset($operasiMap[$sid][$layananId])) {
+               $op = $operasiMap[$sid][$layananId];
+               $timeline[] = [
+                  'type' => 'layanan',
+                  'label' => $label !== '' ? $label : 'Layanan',
+                  'time' => $fmt($op['insertTime'] ?? ''),
+                  'time_raw' => (string) ($op['insertTime'] ?? ''),
+                  'user' => $userName($op['id_user_operasi'] ?? ''),
+                  'inferred' => false,
+                  'done' => true,
+               ];
+            } elseif ($endDone) {
+               $timeline[] = [
+                  'type' => 'layanan',
+                  'label' => $label !== '' ? $label : 'Layanan',
+                  'time' => $fmt($endTime),
+                  'time_raw' => $endTime,
+                  'user' => '',
+                  'inferred' => true,
+                  'done' => true,
+               ];
+            } else {
+               $timeline[] = [
+                  'type' => 'layanan',
+                  'label' => $label !== '' ? $label : 'Layanan',
+                  'time' => '',
+                  'time_raw' => '',
+                  'user' => '',
+                  'inferred' => false,
+                  'done' => false,
+               ];
+            }
+         }
+
+         $antar = $deliveryMap[$sid]['antar'] ?? null;
+         if ($antar) {
+            $timeline[] = [
+               'type' => 'antar',
+               'label' => 'Antar',
+               'time' => $fmt($antar['insertTime'] ?? ''),
+               'time_raw' => (string) ($antar['insertTime'] ?? ''),
+               'user' => strtoupper(trim((string) ($antar['nama_karyawan'] ?? ''))) ?: $userName($antar['id_karyawan'] ?? $antar['id_user'] ?? ''),
+               'inferred' => false,
+               'done' => true,
+            ];
+         }
+
+         $idAmbil = (int) ($s['id_user_ambil'] ?? 0);
+         $tglAmbil = (string) ($s['tgl_ambil'] ?? '');
+         if ($idAmbil > 0 || ($tglAmbil !== '' && $tglAmbil !== '0000-00-00 00:00:00')) {
+            $timeline[] = [
+               'type' => 'ambil',
+               'label' => 'Ambil',
+               'time' => $fmt($tglAmbil),
+               'time_raw' => $tglAmbil,
+               'user' => $userName($idAmbil),
+               'inferred' => false,
+               'done' => true,
+            ];
+         }
+
+         $items[] = [
+            'id' => $sid,
+            'kategori' => $mapKategori[(int) ($s['id_item_group'] ?? 0)] ?? '',
+            'durasi' => $mapDurasi[(int) ($s['id_durasi'] ?? 0)] ?? '',
+            'qty_show' => $qtyShow,
+            'total' => $itemTotal,
+            'member' => (int) ($s['member'] ?? 0),
+            'note' => trim((string) ($s['note'] ?? '')),
+            'letak' => strtoupper(trim((string) ($s['letak'] ?? ''))),
+            'tuntas' => (int) ($s['tuntas'] ?? 0),
+            'timeline' => $timeline,
+         ];
+      }
+
+      $surcasOut = [];
+      foreach ($surcasRows as $sca) {
+         $jumlah = (int) ($sca['jumlah'] ?? 0);
+         $subTotal += $jumlah;
+         $surcasOut[] = [
+            'id' => (int) ($sca['id_surcas'] ?? 0),
+            'nama' => $mapSurcas[(int) ($sca['id_jenis_surcas'] ?? 0)] ?? 'Surcas',
+            'jumlah' => $jumlah,
+            'time' => $fmt($sca['insertTime'] ?? ''),
+            'user' => $userName($sca['id_user'] ?? ''),
+         ];
+      }
+
+      $payments = [];
+      $totalBayar = 0;
+      $dibayar = 0;
+      foreach ($kasRows as $ka) {
+         $st = (int) ($ka['status_mutasi'] ?? 0);
+         $jumlah = (int) ($ka['jumlah'] ?? 0);
+         if ($st === 3) {
+            $totalBayar += $jumlah;
+         }
+         if ($st !== 4) {
+            $dibayar += $jumlah;
+         }
+         $metodeId = (int) ($ka['metode_mutasi'] ?? 0);
+         $metode = $mapMetode[$metodeId] ?? '';
+         $note = trim((string) ($ka['note'] ?? ''));
+         $payments[] = [
+            'id_kas' => (int) ($ka['id_kas'] ?? 0),
+            'time' => $fmt($ka['insertTime'] ?? ''),
+            'user' => $userName($ka['id_user'] ?? ''),
+            'method' => $metode,
+            'note' => $note,
+            'amount' => $jumlah,
+            'status' => $st,
+            'status_label' => $mapStatus[$st] ?? '',
+         ];
+      }
+
+      $subTotal = (int) round($subTotal);
+      $sisa = $subTotal - $dibayar;
+      $sisaFinal = $subTotal - $totalBayar;
+      $lunas = $sisaFinal < 1;
+
+      echo json_encode([
+         'status' => 'success',
+         'data' => [
+            'no_ref' => $ref,
+            'pelanggan' => $pelangganNama,
+            'id_pelanggan' => $idPelanggan,
+            'created_at' => $fmt($first['insertTime'] ?? ''),
+            'created_by' => $userName($first['id_user'] ?? ''),
+            'total' => $subTotal,
+            'dibayar' => $dibayar,
+            'total_bayar' => $totalBayar,
+            'sisa' => max(0, $sisa),
+            'lunas' => $lunas,
+            'payments' => $payments,
+            'surcas' => $surcasOut,
+            'items' => $items,
+         ],
+      ]);
+   }
+
    public function payment_gateway_order($ref_finance)
    {
       $this->payment_gateway_logic($ref_finance, false);

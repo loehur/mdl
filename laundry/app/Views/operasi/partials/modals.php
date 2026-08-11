@@ -1460,3 +1460,266 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Detail Nota Timeline -->
+<style>
+  #modalNotaDetail .op-modal__panel {
+    width: min(560px, 100%);
+  }
+  #modalNotaDetail .op-modal__body {
+    background:
+      radial-gradient(90% 50% at 0% 0%, rgba(37,99,235,.10), transparent 55%),
+      radial-gradient(80% 40% at 100% 0%, rgba(22,163,74,.08), transparent 50%),
+      linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  }
+  .ndt-loading {
+    text-align: center;
+    padding: 28px 12px;
+    color: #1e293b;
+    font-weight: 800;
+  }
+  .ndt-loading i { color: #2563eb; margin-right: 6px; }
+  .ndt-error {
+    border: 1px solid #fca5a5;
+    background: #fef2f2;
+    color: #b91c1c;
+    padding: 10px 12px;
+    font-weight: 800;
+  }
+  .ndt-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .ndt-summary__box {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 8px 10px;
+  }
+  .ndt-summary__box--full { grid-column: 1 / -1; }
+  .ndt-summary__label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1e293b;
+    margin-bottom: 2px;
+  }
+  .ndt-summary__value {
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: #0f172a;
+    line-height: 1.3;
+  }
+  .ndt-summary__meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.78rem;
+    font-weight: 750;
+    color: #334155;
+  }
+  .ndt-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+  }
+  .ndt-badge--ok {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #15803d;
+  }
+  .ndt-badge--warn {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #b45309;
+  }
+  .ndt-badge--info {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+  .ndt-section {
+    margin-top: 12px;
+  }
+  .ndt-section__title {
+    margin: 0 0 8px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #1e293b;
+  }
+  .ndt-pay {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    margin-bottom: 6px;
+    padding: 8px 10px;
+  }
+  .ndt-pay__top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .ndt-pay__amount {
+    font-weight: 900;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+  .ndt-pay__amount.is-cancel {
+    color: #94a3b8;
+    text-decoration: line-through;
+  }
+  .ndt-pay__meta {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    font-weight: 750;
+    color: #334155;
+  }
+  .ndt-item {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    margin-bottom: 10px;
+  }
+  .ndt-item__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+  }
+  .ndt-item__title {
+    font-weight: 900;
+    color: #0f172a;
+    font-size: 0.9rem;
+  }
+  .ndt-item__sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.76rem;
+    font-weight: 750;
+    color: #334155;
+  }
+  .ndt-item__total {
+    font-weight: 900;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+  .ndt-tl {
+    list-style: none;
+    margin: 0;
+    padding: 10px 10px 10px 14px;
+  }
+  .ndt-tl__row {
+    position: relative;
+    padding: 0 0 12px 22px;
+  }
+  .ndt-tl__row:last-child { padding-bottom: 0; }
+  .ndt-tl__row:last-child::before { display: none; }
+  .ndt-tl__row::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 14px;
+    bottom: 0;
+    width: 2px;
+    background: #cbd5e1;
+  }
+  .ndt-tl__dot {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #94a3b8;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .ndt-tl__row.is-done .ndt-tl__dot {
+    border-color: #16a34a;
+    background: #16a34a;
+  }
+  .ndt-tl__row.is-pending .ndt-tl__dot {
+    border-color: #94a3b8;
+    background: #f8fafc;
+  }
+  .ndt-tl__row.is-jemput .ndt-tl__dot {
+    border-color: #d97706;
+    background: #f59e0b;
+  }
+  .ndt-tl__row.is-antar .ndt-tl__dot {
+    border-color: #1d4ed8;
+    background: #2563eb;
+  }
+  .ndt-tl__row.is-ambil .ndt-tl__dot {
+    border-color: #15803d;
+    background: #16a34a;
+  }
+  .ndt-tl__row.is-inferred .ndt-tl__dot {
+    border-color: #86efac;
+    background: #f0fdf4;
+  }
+  .ndt-tl__label {
+    font-weight: 900;
+    color: #0f172a;
+    font-size: 0.84rem;
+  }
+  .ndt-tl__meta {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.76rem;
+    font-weight: 750;
+    color: #334155;
+  }
+  .ndt-tl__chip {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 5px;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-size: 0.66rem;
+    font-weight: 900;
+  }
+  .ndt-tl__chip--inferred {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #15803d;
+  }
+  .ndt-empty {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    font-weight: 750;
+    color: #64748b;
+    border: 1px dashed #cbd5e1;
+    background: #f8fafc;
+  }
+</style>
+<div class="op-modal" id="modalNotaDetail" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="opNotaDetailTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opNotaDetailTitle">Detail Nota</h3>
+        <small id="opNotaDetailSub">Timeline order</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body" id="notaDetailBody">
+      <div class="ndt-loading"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Tutup</button>
+    </div>
+  </div>
+</div>

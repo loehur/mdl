@@ -289,6 +289,19 @@ if (isset($data['data_operasi'])) {
             color: #78350f;
             background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
         }
+        /* Detail timeline ? theme blue soft */
+        .content-wrapper .mdl-nota-chip--detail {
+            color: #1e3a8a;
+            background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+            border-color: #93c5fd;
+        }
+        .content-wrapper .mdl-nota-chip--detail i {
+            color: #2563eb;
+        }
+        .content-wrapper .mdl-nota-chip--detail:hover {
+            color: #1e3a8a;
+            background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
+        }
         .content-wrapper .mdl-nota-card > .table {
             margin-bottom: 0 !important;
         }

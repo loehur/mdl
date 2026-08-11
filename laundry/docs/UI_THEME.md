@@ -211,6 +211,14 @@ Aturan:
 
 Referensi: Tiket `#tiket-root` `.tk-badge` / `.tk-chip` di `tiket/view_load.php`.
 
+### Timeline detail (Operasi)
+
+Modal detail nota (`#modalNotaDetail`, kelas `.ndt-*`):
+- Soft badge status (Lunas / Sisa), bukan tombol solid.
+- Dot timeline berwarna per jenis: jemput kuning, antar biru, ambil/layanan hijau; pending abu.
+- Radius `0`, border `1px`, teks tajam weight ≥ 750.
+- Implementasi: `Operasi/nota_detail` + `operasi/partials/modals.php`.
+
 ### Input / Selectize
 
 #### Aturan wajib — SATU BORDER SAJA

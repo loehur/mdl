@@ -26,6 +26,7 @@
   $(document).off("click", "a.hapusRef");
   $(document).off("click", ".tutupModalHapusBtn");
   $(document).off("click", "#btnHapusKonfirm");
+  $(document).off("click", ".btnNotaDetail");
 
   // Cleanup orphaned modals that were moved to body in previous executions
   // This prevents Duplicate ID errors and Bootstrap confusion which causes recursive errors
@@ -33,6 +34,7 @@
   $("body > #modalQR").remove();
   $("body > #modalHapusItemNota").remove();
   $("body > #modalHapusOrderInline").remove();
+  $("body > #modalNotaDetail").remove();
 
 
   // Custom Operasi modal helper (MDL theme — no Bootstrap Modal)
@@ -1031,6 +1033,242 @@
     });
   });
   // --- Akhir Logika Modal Hapus Order ---
+
+  // --- Detail Nota Timeline ---
+  function ndtEsc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function ndtMoney(n) {
+    n = parseInt(n || 0, 10);
+    if (isNaN(n)) n = 0;
+    return n.toLocaleString("id-ID");
+  }
+
+  function ndtTypeClass(type, done, inferred) {
+    var cls = [];
+    if (done) cls.push("is-done");
+    else cls.push("is-pending");
+    if (inferred) cls.push("is-inferred");
+    if (type === "jemput") cls.push("is-jemput");
+    if (type === "antar") cls.push("is-antar");
+    if (type === "ambil") cls.push("is-ambil");
+    return cls.join(" ");
+  }
+
+  function renderNotaDetail(data) {
+    var html = "";
+    var lunas = !!data.lunas;
+    var statusBadge = lunas
+      ? '<span class="ndt-badge ndt-badge--ok">LUNAS</span>'
+      : '<span class="ndt-badge ndt-badge--warn">SISA ' + ndtEsc(ndtMoney(data.sisa)) + "</span>";
+
+    html += '<div class="ndt-summary">';
+    html +=
+      '<div class="ndt-summary__box ndt-summary__box--full">' +
+      '<span class="ndt-summary__label">Nota</span>' +
+      '<div class="ndt-summary__value">#' +
+      ndtEsc(data.no_ref) +
+      " " +
+      statusBadge +
+      "</div>" +
+      '<span class="ndt-summary__meta">' +
+      ndtEsc(data.pelanggan || "") +
+      "</span>" +
+      "</div>";
+
+    html +=
+      '<div class="ndt-summary__box">' +
+      '<span class="ndt-summary__label">Dibuat</span>' +
+      '<div class="ndt-summary__value">' +
+      ndtEsc(data.created_at || "-") +
+      "</div>" +
+      '<span class="ndt-summary__meta">' +
+      ndtEsc(data.created_by || "-") +
+      "</span>" +
+      "</div>";
+
+    html +=
+      '<div class="ndt-summary__box">' +
+      '<span class="ndt-summary__label">Tagihan</span>' +
+      '<div class="ndt-summary__value">' +
+      ndtEsc(ndtMoney(data.total)) +
+      "</div>" +
+      '<span class="ndt-summary__meta">Dibayar ' +
+      ndtEsc(ndtMoney(data.dibayar)) +
+      "</span>" +
+      "</div>";
+    html += "</div>";
+
+    html += '<div class="ndt-section"><div class="ndt-section__title">Pembayaran</div>';
+    var pays = data.payments || [];
+    if (!pays.length) {
+      html += '<div class="ndt-empty">Belum ada pembayaran</div>';
+    } else {
+      pays.forEach(function (p) {
+        var st = parseInt(p.status || 0, 10);
+        var cancel = st === 4;
+        var methodBits = [];
+        if (p.method) methodBits.push(p.method);
+        if (p.note) methodBits.push(p.note);
+        var methodShow = methodBits.join(" · ") || "-";
+        html +=
+          '<div class="ndt-pay">' +
+          '<div class="ndt-pay__top">' +
+          "<div><span class=\"ndt-badge " +
+          (cancel ? "" : st === 3 ? "ndt-badge--ok" : "ndt-badge--info") +
+          '">' +
+          ndtEsc(p.status_label || (cancel ? "Batal" : "Bayar")) +
+          "</span></div>" +
+          '<div class="ndt-pay__amount' +
+          (cancel ? " is-cancel" : "") +
+          '">' +
+          ndtEsc(ndtMoney(p.amount)) +
+          "</div>" +
+          "</div>" +
+          '<div class="ndt-pay__meta">' +
+          ndtEsc(p.time || "-") +
+          " · " +
+          ndtEsc(p.user || "-") +
+          " · " +
+          ndtEsc(methodShow) +
+          "</div>" +
+          "</div>";
+      });
+    }
+    html += "</div>";
+
+    var surcas = data.surcas || [];
+    if (surcas.length) {
+      html += '<div class="ndt-section"><div class="ndt-section__title">Surcas</div>';
+      surcas.forEach(function (sc) {
+        html +=
+          '<div class="ndt-pay">' +
+          '<div class="ndt-pay__top"><div class="ndt-summary__value" style="font-size:0.84rem">' +
+          ndtEsc(sc.nama || "Surcas") +
+          '</div><div class="ndt-pay__amount">' +
+          ndtEsc(ndtMoney(sc.jumlah)) +
+          "</div></div>" +
+          '<div class="ndt-pay__meta">' +
+          ndtEsc(sc.time || "-") +
+          " · " +
+          ndtEsc(sc.user || "-") +
+          "</div></div>";
+      });
+      html += "</div>";
+    }
+
+    html += '<div class="ndt-section"><div class="ndt-section__title">Item &amp; Timeline</div>';
+    var items = data.items || [];
+    if (!items.length) {
+      html += '<div class="ndt-empty">Tidak ada item</div>';
+    }
+    items.forEach(function (it) {
+      var totalShow =
+        parseInt(it.member || 0, 10) === 1
+          ? '<span class="ndt-badge ndt-badge--ok">Member</span>'
+          : ndtEsc(ndtMoney(it.total));
+      var subBits = [];
+      if (it.durasi) subBits.push(it.durasi);
+      if (it.qty_show) subBits.push(it.qty_show);
+      if (it.letak) subBits.push("Rak " + it.letak);
+      html +=
+        '<div class="ndt-item">' +
+        '<div class="ndt-item__head">' +
+        "<div><div class=\"ndt-item__title\">#" +
+        ndtEsc(it.id) +
+        " " +
+        ndtEsc(it.kategori || "") +
+        '</div><span class="ndt-item__sub">' +
+        ndtEsc(subBits.join(" · ") || "-") +
+        (it.note ? " · " + ndtEsc(it.note) : "") +
+        "</span></div>" +
+        '<div class="ndt-item__total">' +
+        totalShow +
+        "</div></div>";
+
+      var tl = it.timeline || [];
+      if (!tl.length) {
+        html += '<div class="ndt-empty" style="margin:8px;border:0;background:transparent">Belum ada aktivitas</div>';
+      } else {
+        html += '<ul class="ndt-tl">';
+        tl.forEach(function (ev) {
+          var inferred = !!ev.inferred;
+          var done = !!ev.done;
+          var meta = [];
+          if (ev.time) meta.push(ev.time);
+          if (ev.user) meta.push(ev.user);
+          else if (done && inferred) meta.push("tanpa nama");
+          else if (!done) meta.push("belum selesai");
+          html +=
+            '<li class="ndt-tl__row ' +
+            ndtTypeClass(ev.type, done, inferred) +
+            '">' +
+            '<span class="ndt-tl__dot"></span>' +
+            '<span class="ndt-tl__label">' +
+            ndtEsc(ev.label || "") +
+            (inferred
+              ? ' <span class="ndt-tl__chip ndt-tl__chip--inferred">isi otomatis</span>'
+              : "") +
+            '</span><span class="ndt-tl__meta">' +
+            ndtEsc(meta.join(" · ") || "-") +
+            "</span></li>";
+        });
+        html += "</ul>";
+      }
+      html += "</div>";
+    });
+    html += "</div>";
+
+    return html;
+  }
+
+  $(document).on("click", ".btnNotaDetail", function (e) {
+    e.preventDefault();
+    var ref = $(this).attr("data-ref") || "";
+    if (!ref) return;
+
+    $("#opNotaDetailTitle").text("Detail Nota #" + ref);
+    $("#opNotaDetailSub").text("Timeline order");
+    $("#notaDetailBody").html(
+      '<div class="ndt-loading"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>'
+    );
+    if (window.OpModal) window.OpModal.open("modalNotaDetail");
+    else $("#modalNotaDetail").addClass("is-open").attr("aria-hidden", "false");
+
+    $.ajax({
+      url: BASE_URL + "Operasi/nota_detail",
+      type: "GET",
+      dataType: "json",
+      data: { ref: ref },
+      success: function (res) {
+        if (!res || res.status !== "success" || !res.data) {
+          $("#notaDetailBody").html(
+            '<div class="ndt-error">' +
+              ndtEsc((res && res.message) || "Gagal memuat detail") +
+              "</div>"
+          );
+          return;
+        }
+        var d = res.data;
+        $("#opNotaDetailSub").text(
+          (d.pelanggan || "Customer") +
+            (d.lunas ? " · Lunas" : " · Sisa " + ndtMoney(d.sisa))
+        );
+        $("#notaDetailBody").html(renderNotaDetail(d));
+      },
+      error: function () {
+        $("#notaDetailBody").html(
+          '<div class="ndt-error">Gagal memuat detail (network)</div>'
+        );
+      },
+    });
+  });
 
   // --- Hapus satu item dari nota ---
   function tutupModalHapusItem() {
