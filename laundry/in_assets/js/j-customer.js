@@ -691,12 +691,13 @@
           else if (!done) meta.push('belum selesai');
           html +=
             '<li class="j-ndt-tl__row ' + jNdtRowClass(ev.type, done, inferred) + '">' +
-            '<span class="j-ndt-tl__dot"></span>' +
+            '<span class="j-ndt-tl__dot" aria-hidden="true"></span>' +
+            '<span class="j-ndt-tl__content">' +
             '<span class="j-ndt-tl__label">' + jNdtEsc(ev.label || '') +
             (inferred ? ' <span class="j-ndt-chip">otomatis</span>' : '') +
             '</span><span class="j-ndt-tl__meta">' +
             jNdtEsc(meta.join(' · ') || '-') +
-            '</span></li>';
+            '</span></span></li>';
         });
         html += '</ul>';
       }

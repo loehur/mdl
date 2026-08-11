@@ -1632,11 +1632,14 @@
   .ndt-tl {
     list-style: none;
     margin: 0;
-    padding: 6px 7px 6px 10px;
+    padding: 5px 6px 4px 8px;
   }
   .ndt-tl__row {
     position: relative;
-    padding: 0 0 6px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 0 0 3px 0;
     min-height: 0;
   }
   .ndt-tl__row:last-child { padding-bottom: 0; }
@@ -1646,19 +1649,26 @@
     position: absolute;
     left: 4px;
     top: 11px;
-    bottom: 0;
+    bottom: -1px;
     width: 2px;
     background: #cbd5e1;
   }
   .ndt-tl__dot {
-    position: absolute;
-    left: 0;
-    top: 2px;
+    position: relative;
+    left: auto;
+    top: auto;
+    flex: 0 0 10px;
     width: 10px;
     height: 10px;
+    margin-top: 0.2em;
     border: 2px solid #94a3b8;
     background: #fff;
     box-sizing: border-box;
+  }
+  .ndt-tl__content {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.15;
   }
   .ndt-tl__row.is-done .ndt-tl__dot {
     border-color: #16a34a;
@@ -1685,18 +1695,19 @@
     background: #f0fdf4;
   }
   .ndt-tl__label {
+    display: block;
     font-weight: 900;
     color: #0f172a;
-    font-size: 0.76rem;
-    line-height: 1.2;
+    font-size: 0.74rem;
+    line-height: 1.15;
   }
   .ndt-tl__meta {
     display: block;
     margin-top: 0;
-    font-size: 0.68rem;
+    font-size: 0.64rem;
     font-weight: 750;
     color: #334155;
-    line-height: 1.2;
+    line-height: 1.15;
   }
   .ndt-tl__chip {
     display: inline-block;
@@ -1705,9 +1716,9 @@
     border: 1px solid #cbd5e1;
     background: #f1f5f9;
     color: #0f172a;
-    font-size: 0.58rem;
+    font-size: 0.56rem;
     font-weight: 900;
-    line-height: 1.3;
+    line-height: 1.2;
     vertical-align: middle;
   }
   .ndt-tl__chip--inferred {

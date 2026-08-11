@@ -1210,7 +1210,8 @@
             '<li class="ndt-tl__row ' +
             ndtTypeClass(ev.type, done, inferred) +
             '">' +
-            '<span class="ndt-tl__dot"></span>' +
+            '<span class="ndt-tl__dot" aria-hidden="true"></span>' +
+            '<span class="ndt-tl__content">' +
             '<span class="ndt-tl__label">' +
             ndtEsc(ev.label || "") +
             (inferred
@@ -1218,7 +1219,7 @@
               : "") +
             '</span><span class="ndt-tl__meta">' +
             ndtEsc(meta.join(" · ") || "-") +
-            "</span></li>";
+            "</span></span></li>";
         });
         html += "</ul>";
       }
