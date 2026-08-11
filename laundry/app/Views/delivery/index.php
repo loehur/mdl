@@ -206,12 +206,27 @@ $isEmptyCustomer = empty($customerGroups);
       background: linear-gradient(180deg, var(--dlv-blue), var(--dlv-blue-deep));
       color: #fff;
     }
-    #dlv-root .dlv-btn--cek.dlv-btn--icon {
-      width: 32px;
-      height: 32px;
+    #dlv-root .dlv-link-cek {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 0;
-      gap: 0;
-      font-size: 0.85rem;
+      border: 0;
+      background: transparent;
+      color: var(--dlv-blue-deep);
+      font-size: 0.72rem;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    #dlv-root .dlv-link-cek:hover {
+      color: var(--dlv-blue);
+      text-decoration: underline;
+    }
+    #dlv-root .dlv-link-cek i {
+      font-size: 0.78rem;
     }
     #dlv-root .dlv-btn--submit {
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
@@ -863,8 +878,8 @@ $isEmptyCustomer = empty($customerGroups);
                         </div>
                       </div>
                       <div class="dlv-item__actions">
-                        <button type="button" class="dlv-btn dlv-btn--cek dlv-btn--icon" data-dlv-cek-customer="<?= $tail ?>" title="Cek" aria-label="Cek">
-                          <i class="fas fa-search"></i>
+                        <button type="button" class="dlv-link-cek" data-dlv-cek-customer="<?= $tail ?>" title="Chat" aria-label="Chat">
+                          <i class="fas fa-comments"></i> Chat
                         </button>
                       </div>
                     </div>
