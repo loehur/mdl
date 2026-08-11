@@ -276,17 +276,17 @@ $modeOperasi = (int) $data['mode'];
   /* Soft badge jemput/antar dari delivery_riwayat */
   #load.operasi-load .mdl-dlv-badge {
     display: inline-block;
-    margin-left: 4px;
-    padding: 0 5px;
+    margin-left: 3px;
+    padding: 0 3px;
     border: 1px solid #cbd5e1;
     border-radius: 0;
     background: #f1f5f9;
     color: #0f172a;
-    font-size: 0.68rem;
+    font-size: 0.55rem;
     font-weight: 900;
-    letter-spacing: 0.02em;
-    vertical-align: middle;
-    line-height: 1.35;
+    letter-spacing: 0.01em;
+    vertical-align: 1px;
+    line-height: 1.2;
   }
   #load.operasi-load .mdl-dlv-badge--j {
     background: #fffbeb;
