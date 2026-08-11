@@ -1657,8 +1657,11 @@ trait WARepliesKurirTrait
         $longt = (float) ($lok['longt'] ?? 0);
         $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
         $jenis = $this->kurirJenisLabel($session);
-        $nama = (string) ($lok['nama'] ?? '');
-        $detail = (string) ($lok['detail'] ?? '');
+        $nama = trim((string) ($lok['nama'] ?? ''));
+        $detail = trim((string) ($lok['detail'] ?? ''));
+        if ($nama === '' || strcasecmp($nama, 'Shareloc') === 0 || strcasecmp($nama, 'Lainnya') === 0) {
+            $nama = 'Rumah';
+        }
         $tarif = (int) $calc['tarif'];
         $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
         $tarifRp = AntarTarif::formatRp($tarif);
@@ -1699,10 +1702,11 @@ trait WARepliesKurirTrait
             return;
         }
 
+        $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
         $this->sendAutoreplyText(
             $waNumber,
-            "Konfirmasi {$jenis} ke *{$nama}* ({$detail}) ya {$sapaan}?\n"
-            . "Ongkir sameday {$tarifRp}. Balas *ya* untuk lanjut."
+            "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}?\n"
+            . "Ongkir {$tarifRp}. Balas ya untuk lanjut."
         );
     }
 
