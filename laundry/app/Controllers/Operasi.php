@@ -75,10 +75,41 @@ class Operasi extends Controller
 
       // Batch queries for sale-related data
       $operasi = $notifSelesai = $kas = $notifBon = $surcas = [];
+      $delivery_badge = [];
       if (!empty($sale_ids)) {
          $ids_in = "'" . implode("','", $sale_ids) . "'";
          $operasi = $this->db(0)->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($ids_in)");
          $notifSelesai = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 2 AND no_ref IN ($ids_in)");
+
+         // Badge J/A/JA dari riwayat delivery (jemput / antar)
+         $deliveryFlags = [];
+         $deliveryRows = $this->db(0)->get_where(
+            'delivery_riwayat',
+            $this->wCabang . " AND id_penjualan IN ($ids_in)"
+         );
+         foreach ((array) $deliveryRows as $dr) {
+            $sid = (string) ($dr['id_penjualan'] ?? '');
+            $jenis = strtolower((string) ($dr['jenis'] ?? ''));
+            if ($sid === '') {
+               continue;
+            }
+            if ($jenis === 'jemput') {
+               $deliveryFlags[$sid]['j'] = true;
+            } elseif ($jenis === 'antar') {
+               $deliveryFlags[$sid]['a'] = true;
+            }
+         }
+         foreach ($deliveryFlags as $sid => $flag) {
+            $hasJ = !empty($flag['j']);
+            $hasA = !empty($flag['a']);
+            if ($hasJ && $hasA) {
+               $delivery_badge[$sid] = 'JA';
+            } elseif ($hasJ) {
+               $delivery_badge[$sid] = 'J';
+            } elseif ($hasA) {
+               $delivery_badge[$sid] = 'A';
+            }
+         }
       }
       if (!empty($sale_refs)) {
          $refs_in = "'" . implode("','", $sale_refs) . "'";
@@ -153,6 +184,7 @@ class Operasi extends Controller
          'notif_member' => $notif_member, 'formData' => [], 'idOperan' => '', 'surcas' => $surcas,
          'data_member' => $data_member, 'kas_member' => $kas_member, 'saldoTunai' => $topup - $topup_out - $usage,
          'users' => $this->db(0)->get('user', 'id_user'), 'finance_history' => $finance_history,
+         'delivery_badge' => $delivery_badge,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
       ]);
    }

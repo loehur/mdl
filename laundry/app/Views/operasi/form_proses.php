@@ -273,6 +273,36 @@ $modeOperasi = (int) $data['mode'];
     grid-template-columns: 1fr;
     gap: 8px !important;
   }
+  /* Soft badge jemput/antar dari delivery_riwayat */
+  #load.operasi-load .mdl-dlv-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 5px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+    line-height: 1.35;
+  }
+  #load.operasi-load .mdl-dlv-badge--j {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #b45309;
+  }
+  #load.operasi-load .mdl-dlv-badge--a {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+  #load.operasi-load .mdl-dlv-badge--ja {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #15803d;
+  }
   .operasi-filter {
     width: 100%;
     max-width: 100%;

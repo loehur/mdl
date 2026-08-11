@@ -463,7 +463,14 @@ $labeled = false;
               </td>
 
               <td class='pb-0'>
-                <small><?= $id ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
+                <small><?= $id ?><?php
+                  $dlvBadge = $data['delivery_badge'][$id] ?? ($data['delivery_badge'][(string) $id] ?? '');
+                  if ($dlvBadge !== '') {
+                    $dlvTitle = $dlvBadge === 'JA' ? 'Jemput & Antar' : ($dlvBadge === 'J' ? 'Jemput' : 'Antar');
+                    $dlvClass = $dlvBadge === 'JA' ? 'mdl-dlv-badge--ja' : ($dlvBadge === 'J' ? 'mdl-dlv-badge--j' : 'mdl-dlv-badge--a');
+                    echo " <span class='mdl-dlv-badge " . $dlvClass . "' title='" . htmlspecialchars($dlvTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($dlvBadge, ENT_QUOTES, 'UTF-8') . "</span>";
+                  }
+                ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <b><?= $show_qty ?></b> <?= $tampilDiskon ?><br><?= $itemList ?>
               </td>
               <td nowrap><?= $list_layanan . $buttonAmbil . $buttonUbahLayanan ?></td>
