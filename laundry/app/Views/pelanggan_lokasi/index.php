@@ -110,6 +110,29 @@ $base = htmlspecialchars(URL::BASE_URL, ENT_QUOTES, 'UTF-8');
       background: #e2e8f0;
       color: var(--pl-ink);
     }
+    #pl-lokasi-root .pl-btn:disabled {
+      opacity: 0.7;
+      cursor: wait;
+      pointer-events: none;
+    }
+    #pl-lokasi-root .pl-btn.is-loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #pl-lokasi-root .pl-btn.is-loading::before {
+      content: '';
+      width: 14px;
+      height: 14px;
+      border: 2px solid #94a3b8;
+      border-top-color: var(--pl-blue-deep);
+      border-radius: 50%;
+      animation: pl-spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pl-spin {
+      to { transform: rotate(360deg); }
+    }
     #pl-lokasi-root .pl-btn-danger {
       background: #fff;
       border-color: #fecaca;
@@ -427,7 +450,14 @@ $base = htmlspecialchars(URL::BASE_URL, ENT_QUOTES, 'UTF-8');
       setMsg('Isi URL Google Maps dulu', false);
       return;
     }
-    setMsg('Mengambil koordinat…', true);
+    var btn = $('plBtnResolve');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    btn.setAttribute('data-label', btn.textContent);
+    btn.textContent = 'Mengambil koordinat…';
+    $('plGmaps').disabled = true;
+    setMsg('Mengambil koordinat dari Google Maps…', true);
     coordsReady = false;
     post('PelangganLokasi/resolveMaps', { url: url })
       .then(function (res) {
@@ -440,7 +470,13 @@ $base = htmlspecialchars(URL::BASE_URL, ENT_QUOTES, 'UTF-8');
         coordsReady = true;
         setMsg('Koordinat berhasil diambil' + (res.source ? ' (' + res.source + ')' : ''), true);
       })
-      .catch(function () { setMsg('Gagal menghubungi server', false); });
+      .catch(function () { setMsg('Gagal menghubungi server', false); })
+      .finally(function () {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        btn.textContent = btn.getAttribute('data-label') || 'Ambil koordinat';
+        $('plGmaps').disabled = false;
+      });
   });
 
   $('plBtnSave').addEventListener('click', function () {
