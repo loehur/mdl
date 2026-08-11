@@ -763,6 +763,12 @@
   $("form.ajax_json").on("submit", function (e) {
     e.preventDefault();
 
+    // Cegah double-submit saat request masih jalan (bukan debounce timer)
+    var $btn = $("#btnBayarBill");
+    if ($btn.data("paying") === 1 || $btn.prop("disabled")) {
+      return;
+    }
+
     var karyawanBill = $("#karyawanBill").val();
     var metodeBill = $("#metodeBill").val();
     var noteBill = $("#noteBill").val();
@@ -801,8 +807,9 @@
       data: postData,
       type: $(this).attr("method"),
       beforeSend: function () {
+        $btn.data("paying", 1);
         $(".loaderDiv").fadeIn("fast");
-        $("#btnBayarBill").prop("disabled", true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+        $btn.prop("disabled", true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
       },
       success: function (res) {
         if (res == 0) {
@@ -850,7 +857,8 @@
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");
-        $("#btnBayarBill").prop("disabled", false).html('<i class="fas fa-wallet"></i> Bayar');
+        $btn.data("paying", 0);
+        $btn.prop("disabled", false).html('<i class="fas fa-wallet"></i> Bayar');
       },
     });
   });

@@ -138,7 +138,6 @@ class KasModel extends Controller
             }
 
             $jt = $tipe == "M" ? 3 : 1;
-            $wCabang = "id_cabang = " . $id_cabang;
 
             // Boleh tambah pembayaran meski ada yang masih pending (status 2),
             // asal berhasil + pending + input baru tidak melebihi tagihan.
@@ -147,40 +146,35 @@ class KasModel extends Controller
                 return $overpayMsg;
             }
 
-            $setOne = "ref_transaksi = '" . $ref . "' AND metode_mutasi = " . $metodeInt . " AND jenis_mutasi = " . $jenis_mutasi . " AND status_mutasi = " . $status_mutasi . " AND jumlah = " . $jumlah;
-            $where = $wCabang . " AND " . $setOne;
-            $data_main = $this->db(0)->count_where('kas', $where);
-
+            // Boleh bayar dengan jumlah yang sama berulang (tidak skip duplicate jumlah).
             $id_kas = (date('Y') - 2020) . substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
-            if ($data_main < 1) {
-                $data = [
-                    'id_kas' => $id_kas,
-                    'id_cabang' => $id_cabang,
-                    'jenis_mutasi' => $jenis_mutasi,
-                    'jenis_transaksi' => $jt,
-                    'ref_transaksi' => $ref,
-                    'metode_mutasi' => $metodeInt,
-                    'note' => $note,
-                    'status_mutasi' => $status_mutasi,
-                    'jumlah' => $jumlah,
-                    'id_user' => $id_user,
-                    'id_client' => $kasIdClient,
-                    'ref_finance' => $ref_f,
-                    'insertTime' => $GLOBALS['now']
-                ];
-                $do = $this->db(0)->insert('kas', $data);
-                if ($do['errno'] == 0) {
-                    if ($use_bayar) {
-                        $dibayar -= $jumlah;
-                    }
-                    $total_dibayar += $jumlah;
-                } else {
-                    $this->model('Log')->write("[KasModel::bayarMulti] Insert Kas Error: " . $do['error']);
-                    if ($total_dibayar > 0) {
-                        break;
-                    }
-                    return $do['error'];
+            $data = [
+                'id_kas' => $id_kas,
+                'id_cabang' => $id_cabang,
+                'jenis_mutasi' => $jenis_mutasi,
+                'jenis_transaksi' => $jt,
+                'ref_transaksi' => $ref,
+                'metode_mutasi' => $metodeInt,
+                'note' => $note,
+                'status_mutasi' => $status_mutasi,
+                'jumlah' => $jumlah,
+                'id_user' => $id_user,
+                'id_client' => $kasIdClient,
+                'ref_finance' => $ref_f,
+                'insertTime' => $GLOBALS['now']
+            ];
+            $do = $this->db(0)->insert('kas', $data);
+            if ($do['errno'] == 0) {
+                if ($use_bayar) {
+                    $dibayar -= $jumlah;
                 }
+                $total_dibayar += $jumlah;
+            } else {
+                $this->model('Log')->write("[KasModel::bayarMulti] Insert Kas Error: " . $do['error']);
+                if ($total_dibayar > 0) {
+                    break;
+                }
+                return $do['error'];
             }
         }
 
