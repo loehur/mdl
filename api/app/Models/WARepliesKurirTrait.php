@@ -1029,6 +1029,12 @@ trait WARepliesKurirTrait
         // AI decide (summary + konteks)
         $decision = $this->kurirAiDecide($waNumber, $session, $msg);
         if ($decision !== null) {
+            // Override AI salah: "ya sudah gak pa2" / gpp ≠ batal
+            $act = (string) ($decision['action'] ?? '');
+            if ($this->kurirLooksNoProblemAck($msg) && in_array($act, ['cancel', 'refuse_alt'], true)) {
+                $decision['action'] = ($step === 'wait_continue_alt') ? 'agree_alt' : 'confirm';
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'override_no_problem_ack→' . $decision['action']);
+            }
             if (($decision['action'] ?? '') === 'unrelated') {
                 // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
                 $this->clearKurirSession($waNumber);
@@ -1173,7 +1179,12 @@ trait WARepliesKurirTrait
         if ($t === '') {
             return false;
         }
-        if ($this->kurirLooksRefuse($msg)
+        // "ya sudah gak pa2" / gpp / gapapa = setuju lanjut, BUKAN tolak
+        if ($this->kurirLooksNoProblemAck($msg)) {
+            return true;
+        }
+        if ($this->kurirLooksCancel($msg)
+            || $this->kurirLooksRefuse($msg)
             || $this->kurirLooksWantOtherLokasi($msg)
             || $this->kurirLooksWantDeleteLokasi($msg)
             || $this->kurirLooksWantJam($msg)
@@ -1187,15 +1198,58 @@ trait WARepliesKurirTrait
         );
     }
 
+    /**
+     * Ack "tidak apa-apa / gpp / ya sudah" = terima opsi yang ditawarkan (lanjut), bukan batal.
+     */
+    private function kurirLooksNoProblemAck(string $msg): bool
+    {
+        $t = mb_strtolower(trim($msg));
+        if ($t === '') {
+            return false;
+        }
+        // Kalau jelas batal ("gak jadi") → bukan no-problem
+        if ($this->kurirLooksCancel($msg)) {
+            return false;
+        }
+        // gpp / gapapa / gakapa
+        if (preg_match('/\b(gpp|gapapa|gaapa|gakapa|gapapa2)\b/iu', $t)) {
+            return true;
+        }
+        // gak pa2 / gak apa2 / gak apa-apa / ga pa2 / tidak apa-apa
+        if (preg_match(
+            '/\b(gak|ga|gk|ngga|nggak|engga|enggak|tidak|tdk)\s*(apa[-\s]?apa|apa2|pa2|pa\s*2|pp)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        // ya sudah / yaudah / oke sudah (penerimaan resign, tanpa "jadi")
+        if (preg_match('/\b(ya\s*sudah|yaudah|ya\s*udah|yasudah|oke\s*sudah|ok\s*sudah)\b/iu', $t)) {
+            return true;
+        }
+        return false;
+    }
+
     private function kurirLooksRefuse(string $msg): bool
     {
+        if ($this->kurirLooksNoProblemAck($msg)) {
+            return false;
+        }
         if ($this->kurirLooksCancel($msg)) {
             return true;
         }
-        return (bool) preg_match(
-            '/\b(tidak|tdk|ga|gak|ngga|nggak|engga|enggak|bukan|jangan|nanti\s*aja|no)\b/iu',
-            $msg
-        );
+        $t = mb_strtolower(trim($msg));
+        // Tolak singkat murni: "tidak" / "gak" / "ga kak" — bukan "gak" di dalam "gak pa2"
+        if (preg_match(
+            '/^\s*(tidak|tdk|ga|gak|gk|ngga|nggak|engga|enggak|bukan|jangan|no)'
+            . '(\s+(deh|lah|dong|aja|kak|kk|bang|pak|bu|mbak|min))?\s*[.!]?\s*$/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match('/\b(nanti\s*aja|jangan\s*(jadi|lanjut(kan)?))\b/iu', $t)) {
+            return true;
+        }
+        return false;
     }
 
     /** Customer menolak lokasi yang ditawarkan / minta alamat lain (bukan hapus/ubah). */
@@ -1245,8 +1299,8 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Customer minta batalkan request antar/jemput (bukan sekadar "tidak" di konfirmasi lokasi).
-     * Contoh: batal, batalin, gak jadi, cancel, gak usah, udahan, …
+     * Customer minta batalkan request antar/jemput.
+     * Hanya frasa eksplisit: cancel / batal / gak jadi / gk jd / gak usah — bukan "gak pa2".
      */
     private function kurirLooksCancel(string $msg): bool
     {
@@ -1255,37 +1309,27 @@ trait WARepliesKurirTrait
             return false;
         }
 
-        // Kata kunci tunggal / bentuk infleksi
         if (preg_match(
             '/\b('
-            . 'batal(in|kan|kan\s*aja|in\s*aja)?'
+            . 'batal(in|kan)?'
             . '|di\s*batal(in|kan)?'
-            . '|cancel(l?ed|lation|ing)?'
-            . '|urung(kan)?'
-            . '|abort'
-            . '|udahan'
-            . '|cabut'
+            . '|cancel(l?ed)?'
             . ')\b/iu',
             $t
         )) {
             return true;
         }
 
-        // Frasa “tidak/gak … jadi/usah/perlu/lanjut”
+        // gak jadi / gk jd / ga jadi / nggak jadi
         if (preg_match(
-            '/\b('
-            . '(gak|ga|ngga|nggak|engga|enggak|ndak|ndk|tidak|tdk|tak)\s*'
-            . '(jadi|usah|perlu|jadi\s*deh|jadi\s*aja|jadi\s*dulu)'
-            . '|jangan\s*(jadi|lanjut(kan)?|dulu|diantar|dijemput)'
-            . '|gak\s*usah\s*(antar|jemput|dulu)?'
-            . '|ga\s*usah\s*(antar|jemput|dulu)?'
-            . '|sudah(i)?\s*aja'
-            . '|stop\s*(aja|dulu)?'
-            . '|mundur\s*aja'
-            . '|skip\s*(aja|dulu)?'
-            . ')\b/iu',
+            '/\b(gak|ga|gk|ngga|nggak|engga|enggak|tidak|tdk)\s*(jadi|jd)\b/iu',
             $t
         )) {
+            return true;
+        }
+
+        // gak usah (jelas tidak mau lanjut)
+        if (preg_match('/\b(gak|ga|gk|ngga|nggak|engga|enggak)\s*usah\b/iu', $t)) {
             return true;
         }
 
@@ -3041,7 +3085,7 @@ trait WARepliesKurirTrait
             return;
         }
 
-        if ($this->kurirLooksAgree($msg)) {
+        if ($this->kurirLooksAgree($msg) || $this->kurirLooksNoProblemAck($msg)) {
             $alt = [
                 'tanggal' => $session['driver_alt_tanggal'] ?? date('Y-m-d'),
                 'jam' => $session['driver_alt_jam'] ?? null,
@@ -3063,7 +3107,8 @@ trait WARepliesKurirTrait
             ]);
             return;
         }
-        if ($this->kurirLooksRefuse($msg)) {
+        // Batal hanya frasa eksplisit (batal/cancel/gak jadi) — bukan "gak pa2" / "tidak" ambigu
+        if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelDeliveryRequest($session);
             $id = (int) ($session['id_pelanggan'] ?? 0);
             $this->sendAutoreplyText(
@@ -3811,14 +3856,18 @@ trait WARepliesKurirTrait
             . "Jika customer minta ubah alamat / ganti alamat / hapus lokasi → delete_lokasi (bukan edit; selalu hapus). "
             . "Di step delete_lokasi: customer pilih nomor lokasi yang dihapus → delete_lokasi + slots.pick_index. "
             . "Jika setuju lokasi/ongkir → confirm. "
-            . "Jika batal/gak jadi/cancel → cancel. "
+            . "Jika batal/gak jadi/gk jd/cancel/gak usah → cancel. "
+            . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (agree/confirm/agree_alt), BUKAN cancel. "
             . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
             . "Jam 1-6 tanpa 'pagi' biasanya sore (jam 3=15). Tanya 'jam berapa' tanpa angka tetap want_jam. "
             . "Jika minta cepat/gojek/grab/gosend/instant/sekarang → want_instant (langsung, jangan tanya sameday lagi). "
             . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta instant. "
             . "Typo anter/dianter = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
-            . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt; tolak/batal → refuse_alt; mau grab/instant → want_instant. "
+            . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt "
+            . "('ya', 'oke', 'ya sudah gak pa2', 'gpp', 'gapapa' = agree_alt); "
+            . "tolak/batal hanya jika jelas ('batal', 'cancel', 'gak jadi', 'gk jd') → refuse_alt/cancel; "
+            . "mau grab/instant → want_instant. "
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
@@ -4110,7 +4159,7 @@ trait WARepliesKurirTrait
                 return;
 
             case 'refuse_alt':
-                // Di wait_continue_alt = batal; di instant = kembali sameday
+                // wait_continue_alt: 'tidak' ambigu → re-prompt (batal hanya via cancel/batal/gak jadi)
                 $step = (string) ($session['step'] ?? '');
                 if ($step === 'wait_continue_alt') {
                     $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, 'tidak');
