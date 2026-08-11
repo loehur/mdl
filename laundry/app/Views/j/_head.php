@@ -37,9 +37,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
         <span><?= strtoupper(htmlspecialchars($p['nama_pelanggan'])) ?></span>
       </div>
-      <a class="j-classic-link" href="<?= $base ?>I/<?= $id ?>?classic=1" title="Mode klasik">
-        <i class="fas fa-exchange-alt"></i>
-      </a>
     </div>
   </header>
   <main class="j-main">

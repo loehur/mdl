@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=51">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=52">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
@@ -44,9 +44,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <strong>MDL - <?= htmlspecialchars($kodeCabang) ?></strong>
         <span><?= strtoupper(htmlspecialchars($p['nama_pelanggan'])) ?></span>
       </div>
-      <a class="j-classic-link" href="<?= $base ?>I/<?= $id ?>?classic=1" title="Mode klasik">
-        <i class="fas fa-exchange-alt"></i>
-      </a>
     </div>
   </header>
 
