@@ -2442,7 +2442,20 @@ class WAReplies
             ];
         }
 
-        $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_no_valid_intent (detail in lines above: AI_SKIP / AI_REJECT / AI_ERROR)');
+        // Case 4 HANYA jika intent FALSE + ask true (pertanyaan/permintaan). Selain itu null.
+        $intentFalse = is_array($aiResult)
+            && strtoupper((string) ($aiResult['intent'] ?? '')) === 'FALSE';
+        $ask = $intentFalse && !empty($aiResult['ask']);
+        $caseVal = $ask ? 4 : null;
+
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'EXIT',
+            $intentFalse
+                ? ('ai_false ask=' . ($ask ? '1' : '0') . ' case=' . ($caseVal === null ? 'null' : (string) $caseVal))
+                : 'ai_no_valid_intent (AI_SKIP / AI_REJECT / AI_ERROR) case=null'
+        );
+
         // AI FALSE / tanpa intent — human aktif: diam (jangan case 4 / DEFAULT)
         if ($this->isHumanAgentRecentlyActive($waNumber)) {
             return $this->silentExitHumanActive(
@@ -2454,14 +2467,13 @@ class WAReplies
         // Soft clarify AI dimatikan — jangan spam "kurang dapat saya pahami"
         // (pesan tanpa intent → biarkan human / fallthrough di bawah)
 
-        // FALSE / tidak cocok intent: tanpa balasan bot → notify human
         $conversationId = $this->getOrCreateConversationWithCase(
-            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $caseVal
         );
-        
+
         return (object) [
-            'case' => 4,
-            'notify' => true,
+            'case' => $caseVal,
+            'notify' => (bool) $ask,
             'conversation_id' => $conversationId,
             'no_handler' => true
         ];
@@ -7956,6 +7968,9 @@ class WAReplies
 
             $prompt .= "- FALSE: Tidak termasuk kategori di atas\n";
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
+            $prompt .= "Field \"ask\" (boolean, wajib): true jika pesan adalah PERTANYAAN atau PERMINTAAN yang butuh respon CS; false jika hanya info/pemberitahuan/ack/omongan biasa tanpa minta aksi.\n";
+            $prompt .= "ask=true: bertanya (ada/tidak ada tanda ?), minta bantuan/cek/info/kabari/tolong/komplain.\n";
+            $prompt .= "ask=false: info saja (otw, daftar item tanpa minta aksi), ack singkat (ok/siap/baik), cerita sosial.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
             $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
             $prompt .= "PRIORITAS: Shareloc/pin Maps atau menjelaskan alamat TANPA minta kurir = LOKASI, BUKAN MINTA_JEMPUT_ANTAR. Minta jemput/antar = MINTA_JEMPUT_ANTAR.\n";
@@ -7975,8 +7990,8 @@ class WAReplies
             $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = FALSE, BUKAN NOTA. Contoh FALSE: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
-            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
-            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE.";
+            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
+            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false.";
 
             $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI primary (Groq fallback if key set)');
             $response = $this->callOpenAI($prompt, $waNumber);
@@ -7999,6 +8014,17 @@ class WAReplies
 
             $intent = $json['intent'] ?? 'FALSE';
             $reason = $json['reason'] ?? '';
+            $ask = false;
+            if (array_key_exists('ask', $json)) {
+                $rawAsk = $json['ask'];
+                if (is_bool($rawAsk)) {
+                    $ask = $rawAsk;
+                } elseif (is_numeric($rawAsk)) {
+                    $ask = ((int) $rawAsk) === 1;
+                } else {
+                    $ask = in_array(strtolower(trim((string) $rawAsk)), ['true', '1', 'yes'], true);
+                }
+            }
 
             $intent = trim(strtoupper($intent));
 
@@ -8112,18 +8138,28 @@ class WAReplies
                 }
             }
 
-            // Log: text | intent | reason
+            // Log: text | intent | ask | reason
             if (class_exists('\Log')) {
-                \Log::write("{$textBody} | {$intent} | {$reason}", 'wa', 'intent');
+                \Log::write("{$textBody} | {$intent} | ask=" . ($ask ? '1' : '0') . " | {$reason}", 'wa', 'intent');
             }
 
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
-                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=' . $intent . ' reason=' . $reason);
+                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=' . $intent . ' ask=' . ($ask ? '1' : '0') . ' reason=' . $reason);
                 // Return intent (case will be taken from config in process())
                 // Ensure returning ARRAY as expected by process()
                 return [
                     'intent' => $intent,
+                    'ask' => $ask,
+                    'reason' => $reason
+                ];
+            }
+
+            if ($intent === 'FALSE') {
+                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=FALSE ask=' . ($ask ? '1' : '0') . ' reason=' . $reason);
+                return [
+                    'intent' => 'FALSE',
+                    'ask' => $ask,
                     'reason' => $reason
                 ];
             }
