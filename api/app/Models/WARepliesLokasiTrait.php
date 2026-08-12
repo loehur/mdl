@@ -635,7 +635,6 @@ trait WARepliesLokasiTrait
             'step' => 'lokasi_check',
         ]);
         $session = $this->getKurirSession($waNumber) ?: $kurir;
-        $this->sendAutoreplyText($waNumber, "Lokasi sudah lengkap {$sapaan}. Lanjut proses *{$jenis}* ya.");
         $this->kurirLokasiCheck($waNumber, $sapaan, $session);
         return true;
     }

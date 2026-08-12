@@ -513,7 +513,7 @@ trait WARepliesKurirTrait
         ]);
         $this->sendAutoreplyText(
             $waNumber,
-            "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya."
+            $this->kurirAskSharelocPrompt($sapaan, $session)
         );
     }
 
@@ -1206,6 +1206,17 @@ trait WARepliesKurirTrait
         return (($session['jenis'] ?? '') === 'antar') ? 'pengantaran' : 'penjemputan';
     }
 
+    /**
+     * Minta shareloc + info SLA 1×24 jam (noun mengikuti jenis jemput/antar).
+     */
+    private function kurirAskSharelocPrompt(string $sapaan, array $session): string
+    {
+        $noun = ucfirst($this->kurirJenisNoun($session));
+
+        return "Baik {$sapaan}, {$noun} akan diproses dalam 1×24 jam sesuai antrian delivery ya {$sapaan}. "
+            . "Kirimkan *shareloc* untuk melanjutkan.";
+    }
+
     private function kurirLooksAgree(string $msg): bool
     {
         $t = mb_strtolower(trim($msg));
@@ -1499,7 +1510,7 @@ trait WARepliesKurirTrait
             ]);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya, biar kami catat titik jemput/antar."
+                $this->kurirAskSharelocPrompt($sapaan, $session)
             );
             return;
         }
@@ -1825,8 +1836,7 @@ trait WARepliesKurirTrait
         $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
         $this->sendAutoreplyText(
             $waNumber,
-            "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}?\n"
-            . "Ongkir {$tarifRp}. Balas ya untuk lanjut."
+            "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}? Ongkir {$tarifRp}. Balas ya untuk lanjut."
         );
     }
 
@@ -1972,8 +1982,8 @@ trait WARepliesKurirTrait
     /** Prompt tunggal setelah shareloc — tidak tanya kategori rumah/kos dulu. */
     private function lokasiAskDetailPrompt(string $sapaan): string
     {
-        return "Lokasi diterima {$sapaan}. Boleh jelaskan *detailnya* ya?\n"
-            . "Contoh: kos Azzahra kamar 2 / rumah pagar kuning / mess BPK / toko sebelah Indomaret";
+        return "Lokasi diterima {$sapaan}. Boleh jelaskan detailnya ya?\n"
+            . "Contoh: kos zahra / rumah kuning / mess TNI / toko abadi";
     }
 
     /**
@@ -2719,7 +2729,7 @@ trait WARepliesKurirTrait
         ]);
         $this->sendAutoreplyText(
             $waNumber,
-            "Baik {$sapaan}, kirimkan *shareloc* / pin lokasi WhatsApp atau link Google Maps ya, biar kami catat titik yang dimaksud."
+            $this->kurirAskSharelocPrompt($sapaan, $session)
         );
     }
 
@@ -2755,7 +2765,8 @@ trait WARepliesKurirTrait
             return false;
         }
         $noun = $this->kurirJenisNoun($session);
-        $text = "Baik {$sapaan}, {$noun} sudah masuk antrian delivery ya {$sapaan}, mohon ditunggu 😊";
+        $aksi = (($session['jenis'] ?? '') === 'antar') ? 'di antar' : 'di jemput';
+        $text = "Baik {$sapaan}, {$noun} sudah masuk antrian, laundry akan {$aksi} dalam 1 x 24 jam. mohon ditunggu 😊";
         $this->saveKurirSession($waNumber, ['step' => 'request_aktif']);
         $this->sendAutoreplyText($waNumber, $text);
         return true;
