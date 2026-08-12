@@ -38,12 +38,29 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
       $bsStatus = trim((string) ($pr['biteship_status'] ?? ''));
       $courier = trim((string) ($pr['courier_name'] ?? ''));
       $catatanKurir = trim((string) ($pr['catatan_kurir'] ?? ''));
+      $itemsSelesai = (int) ($pr['items_selesai_count'] ?? 0);
       $isPay = $status === 'menunggu_pembayaran';
       $badgeClass = $isPay ? 'warn' : 'ok';
       $badgeText = $isPay ? 'Bayar' : 'Berjalan';
-      $meta = $isPay
-        ? ('Menunggu pembayaran' . ($ongkir > 0 ? ' · Rp' . number_format($ongkir, 0, ',', '.') : ''))
-        : ('Menunggu driver' . ($bsStatus !== '' ? ' · ' . $bsStatus : '') . ($courier !== '' ? ' · ' . $courier : ''));
+      if ($isPay) {
+        $meta = 'Menunggu pembayaran' . ($ongkir > 0 ? ' · Rp' . number_format($ongkir, 0, ',', '.') : '');
+      } elseif ($jenis === 'antar') {
+        $meta = $itemsSelesai > 0 ? 'Dalam antrian delivery' : 'Menunggu laundry selesai';
+        if ($bsStatus !== '') {
+          $meta .= ' · ' . $bsStatus;
+        }
+        if ($courier !== '') {
+          $meta .= ' · ' . $courier;
+        }
+      } else {
+        $meta = 'Menunggu driver';
+        if ($bsStatus !== '') {
+          $meta .= ' · ' . $bsStatus;
+        }
+        if ($courier !== '') {
+          $meta .= ' · ' . $courier;
+        }
+      }
     ?>
       <div class="j-kurir-pending-item" data-id-request="<?= $idReq ?>">
         <div class="j-kurir-pending-item__ico" aria-hidden="true">
@@ -86,7 +103,10 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
             </div>
           <?php } ?>
         </div>
-        <span class="j-badge <?= $badgeClass ?>"><?= htmlspecialchars($badgeText, ENT_QUOTES, 'UTF-8') ?></span>
+        <span class="j-badge j-badge--stack <?= $badgeClass ?>">
+          <span><?= htmlspecialchars($labelJenis, ENT_QUOTES, 'UTF-8') ?></span>
+          <span><?= htmlspecialchars($badgeText, ENT_QUOTES, 'UTF-8') ?></span>
+        </span>
       </div>
     <?php } ?>
   </div>

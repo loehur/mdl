@@ -2821,11 +2821,45 @@ class J extends Controller
       if (!is_array($rows)) {
          return [];
       }
+
+      // Antar: cek apakah sudah ada item selesai laundry (notif tipe=2)
+      $antarIds = [];
+      foreach ($rows as $r) {
+         $idReq = (int) ($r['id_request'] ?? 0);
+         $jenis = strtolower((string) ($r['jenis'] ?? ''));
+         if ($idReq > 0 && $jenis === 'antar') {
+            $antarIds[] = $idReq;
+         }
+      }
+      $selesaiMap = [];
+      if (!empty($antarIds)) {
+         $idList = implode(',', array_map('intval', $antarIds));
+         $selesaiRows = $this->db(0)->query_array(
+            "SELECT dri.id_request, COUNT(*) AS selesai_count
+             FROM delivery_request_item dri
+             INNER JOIN notif n
+               ON n.tipe = 2
+              AND n.no_ref = CAST(dri.id_penjualan AS CHAR)
+             WHERE dri.id_request IN ($idList)
+             GROUP BY dri.id_request"
+         );
+         if (is_array($selesaiRows)) {
+            foreach ($selesaiRows as $sr) {
+               $rid = (int) ($sr['id_request'] ?? 0);
+               if ($rid > 0) {
+                  $selesaiMap[$rid] = (int) ($sr['selesai_count'] ?? 0);
+               }
+            }
+         }
+      }
+
       $out = [];
       foreach ($rows as $r) {
+         $idReq = (int) ($r['id_request'] ?? 0);
+         $jenis = (string) ($r['jenis'] ?? '');
          $out[] = [
-            'id_request' => (int) ($r['id_request'] ?? 0),
-            'jenis' => (string) ($r['jenis'] ?? ''),
+            'id_request' => $idReq,
+            'jenis' => $jenis,
             'layanan' => (string) ($r['layanan'] ?? 'sameday'),
             'delivery_status' => (string) ($r['delivery_status'] ?? ''),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
@@ -2838,6 +2872,9 @@ class J extends Controller
             'tracking_url' => (string) ($r['tracking_url'] ?? ''),
             'payment_ref_finance' => (string) ($r['payment_ref_finance'] ?? ''),
             'driver_name' => (string) ($r['driver_name'] ?? ''),
+            'items_selesai_count' => strtolower($jenis) === 'antar'
+               ? (int) ($selesaiMap[$idReq] ?? 0)
+               : 0,
          ];
       }
       return $out;
