@@ -2121,6 +2121,49 @@ class Delivery extends Controller
       }
 
       $cabangMap = $this->buildCabangMap();
+      $requestIds = [];
+      foreach ($rows as $row) {
+         $idRequest = (int) ($row['id_request'] ?? 0);
+         if ($idRequest > 0) {
+            $requestIds[$idRequest] = $idRequest;
+         }
+      }
+
+      $itemsByRequest = [];
+      if (!empty($requestIds)) {
+         $reqIn = implode(',', array_map('intval', array_values($requestIds)));
+         $allItems = $this->db(0)->get_where(
+            'delivery_request_item',
+            'id_request IN (' . $reqIn . ')'
+         );
+         if (is_array($allItems)) {
+            foreach ($allItems as $it) {
+               $rid = (int) ($it['id_request'] ?? 0);
+               $sid = (int) ($it['id_penjualan'] ?? 0);
+               if ($rid > 0 && $sid > 0) {
+                  $itemsByRequest[$rid][] = $sid;
+               }
+            }
+         }
+      }
+
+      $surcasBoundSet = [];
+      if (!empty($requestIds)) {
+         $reqIn = implode(',', array_map('intval', array_values($requestIds)));
+         $scRows = $this->db(0)->query_array(
+            'SELECT DISTINCT id_delivery_request FROM surcas
+             WHERE id_delivery_request IN (' . $reqIn . ')'
+         );
+         if (is_array($scRows)) {
+            foreach ($scRows as $sc) {
+               $rid = (int) ($sc['id_delivery_request'] ?? 0);
+               if ($rid > 0) {
+                  $surcasBoundSet[$rid] = true;
+               }
+            }
+         }
+      }
+
       $out = [];
       foreach ($rows as $row) {
          $idRequest = (int) ($row['id_request'] ?? 0);
@@ -2137,24 +2180,7 @@ class Delivery extends Controller
          $nomorRaw = trim((string) ($row['nomor_pelanggan'] ?? ''));
          $phoneDisplay = $this->formatPhoneDisplay($nomorRaw !== '' ? $nomorRaw : $phoneTail);
 
-         $prefillIds = [];
-         $items = $this->db(0)->get_where(
-            'delivery_request_item',
-            'id_request = ' . $idRequest
-         );
-         if (is_array($items)) {
-            foreach ($items as $it) {
-               $sid = (int) ($it['id_penjualan'] ?? 0);
-               if ($sid > 0) {
-                  $prefillIds[] = $sid;
-               }
-            }
-         }
-
-         $surcasBound = (int) ($this->db(0)->count_where(
-            'surcas',
-            'id_delivery_request = ' . $idRequest
-         ) ?? 0) > 0;
+         $prefillIds = $itemsByRequest[$idRequest] ?? [];
 
          $out[] = [
             'id_request' => $idRequest,
@@ -2167,7 +2193,7 @@ class Delivery extends Controller
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
             'insertTime' => $row['insertTime'] ?? '',
             'prefill_ids' => $prefillIds,
-            'surcas_bound' => $surcasBound,
+            'surcas_bound' => !empty($surcasBoundSet[$idRequest]),
             'lokasi_nama' => (string) ($row['lokasi_nama'] ?? ''),
             'lokasi_detail' => (string) ($row['lokasi_detail'] ?? ''),
             'catatan_kurir' => (string) ($row['catatan_kurir'] ?? ''),
@@ -2197,30 +2223,17 @@ class Delivery extends Controller
          return [];
       }
 
-      // Kumpulkan item eligible per request (pakai exceptRequestId masing-masing).
-      // Item terikat request berjalan tidak masuk fetch global exceptRequestId=0,
-      // sehingga batch selesaiSet harus dari ID eligible per-request.
-      $eligibleByRequest = [];
+      $eligibleByRequest = $this->batchEligibleSaleIdsByRequest($requests);
       $allAntarIdsForSelesai = [];
       foreach ($requests as $rq) {
-         $idReq = (int) ($rq['id_request'] ?? 0);
-         $idPelanggan = (int) ($rq['id_pelanggan'] ?? 0);
-         $jenis = strtolower((string) ($rq['jenis'] ?? ''));
-         $ids = [];
-         if ($idPelanggan > 0 && in_array($jenis, ['jemput', 'antar'], true)) {
-            foreach ($this->fetchEligibleSaleRows([$idPelanggan], $jenis, $idReq) as $row) {
-               $sid = (int) ($row['id_penjualan'] ?? 0);
-               if ($sid > 0) {
-                  $ids[] = $sid;
-                  if ($jenis === 'antar') {
-                     $allAntarIdsForSelesai[$sid] = $sid;
-                  }
-               }
-            }
+         if (strtolower((string) ($rq['jenis'] ?? '')) !== 'antar') {
+            continue;
          }
-         $eligibleByRequest[$idReq] = $ids;
+         $idReq = (int) ($rq['id_request'] ?? 0);
+         foreach ($eligibleByRequest[$idReq] ?? [] as $sid) {
+            $allAntarIdsForSelesai[$sid] = $sid;
+         }
       }
-
       $selesaiSet = $this->saleIdsWithLaundrySelesai(array_values($allAntarIdsForSelesai));
 
       foreach ($requests as &$rq) {
@@ -2254,7 +2267,7 @@ class Delivery extends Controller
          } elseif ($siapCount <= 0 && $belumCount > 0) {
             $blockHint = 'Laundry belum selesai';
          } elseif ($siapCount <= 0) {
-            $blockHint = $jenis === 'antar' ? 'Belum ada item siap' : 'Belum ada item siap';
+            $blockHint = 'Belum ada item siap';
          }
 
          if ($jenis === 'antar' && !$isInstant) {
@@ -2272,6 +2285,134 @@ class Delivery extends Controller
       unset($rq);
 
       return $requests;
+   }
+
+   /**
+    * Batch: eligible id_penjualan per request (ganti N× fetchEligibleSaleRows).
+    * @return array<int,int[]>
+    */
+   private function batchEligibleSaleIdsByRequest(array $requests): array
+   {
+      $requestMeta = [];
+      $pelangganIds = [];
+      foreach ($requests as $rq) {
+         $idReq = (int) ($rq['id_request'] ?? 0);
+         if ($idReq <= 0) {
+            continue;
+         }
+         $idPel = (int) ($rq['id_pelanggan'] ?? 0);
+         $jenis = strtolower((string) ($rq['jenis'] ?? ''));
+         $requestMeta[$idReq] = ['id_pelanggan' => $idPel, 'jenis' => $jenis];
+         if ($idPel > 0) {
+            $pelangganIds[$idPel] = $idPel;
+         }
+      }
+
+      $result = [];
+      foreach (array_keys($requestMeta) as $idReq) {
+         $result[$idReq] = [];
+      }
+      if (empty($pelangganIds)) {
+         return $result;
+      }
+
+      $idsIn = implode(',', array_map('intval', array_values($pelangganIds)));
+      $sales = $this->db(0)->query_array(
+         "SELECT s.id_penjualan, s.id_pelanggan
+          FROM sale s
+          WHERE s.bin = 0
+            AND s.id_pelanggan IN ($idsIn)
+            AND (
+              s.tuntas = 0
+              OR (s.tuntas = 1 AND s.tuntasTime IS NOT NULL AND s.tuntasTime >= (NOW() - INTERVAL 2 DAY))
+            )
+          ORDER BY s.insertTime DESC, s.id_penjualan DESC
+          LIMIT 5000"
+      );
+      if (!is_array($sales)) {
+         $sales = [];
+      }
+
+      $saleIds = [];
+      $salesByPelanggan = [];
+      foreach ($sales as $s) {
+         $sid = (int) ($s['id_penjualan'] ?? 0);
+         $pid = (int) ($s['id_pelanggan'] ?? 0);
+         if ($sid <= 0 || $pid <= 0) {
+            continue;
+         }
+         $saleIds[$sid] = $sid;
+         $salesByPelanggan[$pid][] = $sid;
+      }
+
+      $riwayatMap = [];
+      if (!empty($saleIds)) {
+         $saleIn = implode(',', array_map('intval', array_values($saleIds)));
+         $riwayatRows = $this->db(0)->query_array(
+            "SELECT id_penjualan, jenis FROM delivery_riwayat
+             WHERE id_penjualan IN ($saleIn)"
+         );
+         if (is_array($riwayatRows)) {
+            foreach ($riwayatRows as $r) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
+               $j = strtolower((string) ($r['jenis'] ?? ''));
+               if ($sid > 0 && $j !== '') {
+                  $riwayatMap[$sid][$j] = true;
+               }
+            }
+         }
+      }
+
+      $bindingMap = [];
+      if (!empty($saleIds)) {
+         $saleIn = implode(',', array_map('intval', array_values($saleIds)));
+         $bindRows = $this->db(0)->query_array(
+            "SELECT dri.id_penjualan, dri.id_request, drq.jenis
+             FROM delivery_request_item dri
+             INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+             WHERE dri.id_penjualan IN ($saleIn)
+               AND drq.delivery_status = 'berjalan'"
+         );
+         if (is_array($bindRows)) {
+            foreach ($bindRows as $r) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
+               if ($sid <= 0) {
+                  continue;
+               }
+               $bindingMap[$sid][] = [
+                  'id_request' => (int) ($r['id_request'] ?? 0),
+                  'jenis' => strtolower((string) ($r['jenis'] ?? '')),
+               ];
+            }
+         }
+      }
+
+      foreach ($requestMeta as $idReq => $meta) {
+         $idPel = (int) ($meta['id_pelanggan'] ?? 0);
+         $jenis = (string) ($meta['jenis'] ?? '');
+         if ($idPel <= 0 || !in_array($jenis, ['jemput', 'antar'], true)) {
+            continue;
+         }
+         $eligible = [];
+         foreach ($salesByPelanggan[$idPel] ?? [] as $sid) {
+            if (!empty($riwayatMap[$sid][$jenis])) {
+               continue;
+            }
+            $blocked = false;
+            foreach ($bindingMap[$sid] ?? [] as $bind) {
+               if (($bind['jenis'] ?? '') === $jenis && (int) ($bind['id_request'] ?? 0) !== $idReq) {
+                  $blocked = true;
+                  break;
+               }
+            }
+            if (!$blocked) {
+               $eligible[] = $sid;
+            }
+         }
+         $result[$idReq] = $eligible;
+      }
+
+      return $result;
    }
 
    /**
