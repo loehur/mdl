@@ -478,9 +478,7 @@ return [
          '/\b(antar|anter|antr|jemput)\s*(aja|ya|gak|ga|gk)?(\s|$)/i',
          '/\b(besok|bsk|hari\s*ini)\s+(di)?(antar|anter|antr|jemput)\b/i',
          '/\b(antar|anter|antr|jemput)\b.{0,40}?\b(laundry|londry|loundry|londri|laondri|cucian|baju)\b/iu',
-         // "kalau udah selesai bantu antar ..." (ada kata bantu/tolong di tengah)
-         '/(klo|kalau)\s*(da|udh|udah|sudah)?\s*(kelar|selesai)\s*(bantu|bntu|tolong)?\s*(antar|anter|antr|jemput)/i',
-         '/(klo|kalau)\s*(udh|udah|sudah)?\s*selesai\s*(antar|anter|antr|jemput)/i',
+         // CATATAN: "kalau/klo ... antar/jemput" = hipotetis/tanya opsi, BUKAN MINTA (di-skip di WAReplies)
          '/\b(selesai|kelar|udh|udah|sudah)\s+(antar|anter|antr|jemput)\s*(aja|ya)?/i',
          // "katanya mau antar", "katanya mau jemput" = relay/konfirmasi permintaan antar
          '/\bkatanya\s+mau\s*(antar|anter|antr|jemput)/i',
@@ -533,6 +531,8 @@ return [
       - CRITICAL: Instruksi 'ambil/jemput' + lokasi (kamar/hotel/RS/sekolah/alamat) = MINTA_JEMPUT_ANTAR walaupun TANPA kata tolong/minta/bisa — itu permintaan kurir ke alamat.\n
       - CRITICAL - FALSE: Pertanyaan HARGA PAKET/MEMBER/DEPOSIT + antar/jemput/ongkir paket/delivery (berapa harga paket include antar? harga member pakai antar? paket member antar jemput) = HARGA_PAKET_D, BUKAN MINTA_JEMPUT_ANTAR.\n
       - CRITICAL - FALSE: Tanya ongkos/ongkir + durasi hari (1/2/3 hari, sehari) ATAU + regular/ekspres/kilat = HARGA (tarif layanan), BUKAN MINTA_JEMPUT_ANTAR.\n
+      - CRITICAL - FALSE: Kalimat hipotetis/kondisional 'kalau/klo/kalo' lalu antar/jemput = BUKAN minta kurir. Contoh: | Kalau express di antar sekarang | kalau jemput brp? | klo diantar ekspres |\n
+      - CRITICAL - FALSE: Customer yang antar/jemput SENDIRI = BUKAN minta kurir. Contoh: | kami antar | kami jemput | saya antar | aku jemput | kami aja yang antar | saya yang antar | aku aja jemput |\n
       - Contoh FALSE: 'Mau jemput,jgn tutup dlu' (user akan ambil sendiri, bukan minta kurir)\n
       - Contoh FALSE: 'Baikla nnti sore dijemput ya kak' (ini konfirmasi)\n
       - Contoh FALSE: 'Ok dijemput ya' (ini konfirmasi)\n

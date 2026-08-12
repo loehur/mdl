@@ -1178,6 +1178,52 @@ class WAReplies
     }
 
     /**
+     * Hipotetis/kondisional: "kalau/klo/kalo" lalu antar/jemput — BUKAN permintaan kurir.
+     * Contoh: "Kalau express di antar sekarang", "klo jemput brp?"
+     */
+    private function messageLooksLikeKalauAntarJemputBukanMinta(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\b(kalau|kalo|klo|klu|klau)\b.{0,120}?\b(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu',
+            $text
+        );
+    }
+
+    /**
+     * Customer yang antar/jemput SENDIRI — BUKAN minta kurir.
+     * Contoh: "kami antar", "kami aja yang antar", "saya yang antar", "aku jemput", "saya ambil".
+     */
+    private function messageLooksLikeCustomerSelfAntarAtauJemput(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $subj = '(kami|kita|aku|saya|sy|gue|awak)';
+        // "saya/aku/kami ambil" (ambil sendiri)
+        if (preg_match('/\b' . $subj . '\s+ambil\b/iu', $text)) {
+            return true;
+        }
+        // "kami antar" / "saya jemput" (langsung — bukan minta kurir)
+        if (preg_match('/\b' . $subj . '\s+(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu', $text)) {
+            return true;
+        }
+        // "kami aja yang antar" / "kami aja antar"
+        if (preg_match('/\b' . $subj . '\s+(aja|saja)\s+(yang\s+)?(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu', $text)) {
+            return true;
+        }
+        // "saya yang antar" / "aku yang jemput"
+        if (preg_match('/\b' . $subj . '\s+yang\s+(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu', $text)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Sticker WhatsApp (label webhook "🎨 Sticker", opsional URL media) — PENUTUP lainnya.
      */
     private function messageLooksLikeStickerPenutup(?string $text): bool
@@ -1923,8 +1969,9 @@ class WAReplies
                     if ($handler === 'PEMBUKA' && $this->messageIsWalaikumsalamReply($textBodyToCheck)) {
                         continue;
                     }
-                    // MINTA_JEMPUT_ANTAR: "saya/aku ambil ..." = user ambil sendiri (bukan minta kurir ke kamar)
-                    if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
+                    // MINTA_JEMPUT_ANTAR: "saya/aku ambil" / "kami aja yang antar" = customer sendiri, bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→customer_self_antar_jemput');
                         continue;
                     }
                     // LOKASI tapi jelas minta jemput/antar → MINTA_JEMPUT_ANTAR
@@ -1962,6 +2009,11 @@ class WAReplies
                     }
                     // HARGA_PAKET regex: paket + antar/jemput = HARGA_PAKET_D (dicek lebih dulu di config)
                     if ($handler === 'HARGA_PAKET' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
+                        continue;
+                    }
+                    // MINTA_JEMPUT_ANTAR: "kalau/klo ... antar/jemput" = hipotetis, bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→kalau_hypothetical');
                         continue;
                     }
                     // MINTA_JEMPUT_ANTAR: ongkos + durasi hari / tipe layanan = HARGA (regex HARGA dicek lebih dulu; ini cadangan)
@@ -2011,6 +2063,9 @@ class WAReplies
                     // ada order → biarkan ESTIMASI; tanpa order → kurir MINTA
                     if ($handler === 'JAM_OPERASIONAL' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
                         if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                            continue;
+                        }
+                        if ($this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
                             continue;
                         }
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'JAM_OPERASIONAL→MINTA_JEMPUT_ANTAR no_sale');
@@ -2225,6 +2280,46 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
             }
 
+            // AI salah: "kalau/klo ... antar/jemput" = hipotetis (bukan minta kurir) → biarkan CS (FALSE + ask)
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_kalau_hypothetical');
+                if ($this->isHumanAgentRecentlyActive($waNumber)) {
+                    return $this->silentExitHumanActive(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                        'ai_reject_minta_kalau_hypothetical'
+                    );
+                }
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
+            // AI salah: "kami aja yang antar" / "saya yang jemput" = customer sendiri → biarkan CS
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_customer_self_antar_jemput');
+                if ($this->isHumanAgentRecentlyActive($waNumber)) {
+                    return $this->silentExitHumanActive(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                        'ai_reject_minta_customer_self'
+                    );
+                }
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+
             // AI salah: ongkos + durasi (hari) / jenis layanan = HARGA, bukan minta kurir
             if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→HARGA ongkos_durasi_tier');
@@ -2290,8 +2385,10 @@ class WAReplies
             }
 
             // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
+            // Kecuali "kalau/klo ... jemput/antar" (hipotetis)
             if ($aiIntent === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jmpt|jemput|antar)\b/i', $textBodyToCheck)
                 && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)
+                && !$this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)
                 && !(
                     $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
                     && $this->pelangganHasActiveSale($phoneIn, $waNumber)
@@ -2390,19 +2487,6 @@ class WAReplies
                 ];
             }
 
-            // MINTA_JEMPUT_ANTAR: AI salah — "saya/aku ambil" = ambil sendiri, bukan minta kurir
-            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(saya|aku|sy|gue)\s+ambil\b/i', $textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_jemput_saya_ambil');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
             // LOKASI AI tapi jelas minta jemput/antar
             if ($aiIntent === 'LOKASI' && $this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)) {
                 $this->logAutoreplyTrace($waNumber, 'AI_REMAP', 'LOKASI→MINTA_JEMPUT_ANTAR');
@@ -8075,6 +8159,8 @@ class WAReplies
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
+            $prompt .= "PRIORITAS: Kalimat hipotetis 'kalau/klo/kalo' lalu antar/jemput (mis. 'Kalau express di antar sekarang', 'klo jemput brp') = FALSE, BUKAN MINTA_JEMPUT_ANTAR.\n";
+            $prompt .= "PRIORITAS: Customer yang antar/jemput SENDIRI (mis. 'kami antar', 'kami jemput', 'kami aja yang antar', 'saya yang antar', 'aku aja jemput') = FALSE, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = FALSE, BUKAN NOTA. Contoh FALSE: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
@@ -8195,6 +8281,18 @@ class WAReplies
                 && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBody)) {
                 $intent = 'HARGA';
                 $reason = 'remap ongkos + durasi/tier layanan → HARGA';
+            }
+
+            // MINTA padahal "kalau/klo ... antar/jemput" = hipotetis, bukan minta kurir
+            if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBody)) {
+                $intent = 'FALSE';
+                $reason = 'remap kalau+antar/jemput → FALSE (hipotetis, bukan minta kurir)';
+            }
+
+            // MINTA padahal customer sendiri yang antar/jemput ("kami aja yang antar")
+            if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBody)) {
+                $intent = 'FALSE';
+                $reason = 'remap customer self antar/jemput → FALSE (bukan minta kurir)';
             }
 
             $textBodyForPaketCheck = mb_strtolower(preg_replace('/[*_~`]/', '', (string) $textBody), 'UTF-8');
