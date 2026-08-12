@@ -2058,8 +2058,9 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
         var meta = '#' + it.id + (it.member ? ' · member' : '')
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
+        // Operasi antar: default tercentang supaya langsung bisa isi surcas
         return '<label class="kurir-item">' +
-          '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
+          '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '" checked' +
           (belum && !delivered ? ' data-belum-selesai="1"' : '') +
           (delivered ? ' data-sudah-delivered="1"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
@@ -2080,12 +2081,19 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   function loadSales(jenis) {
     var box = document.getElementById('kurirSales');
     if (!box) return;
-    if (!jenis || !phoneTail || !salesUrl) {
+    if (!jenis || !salesUrl) {
       box.innerHTML = '<div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>';
       return;
     }
+    if (!phoneTail && !idPelanggan) {
+      box.innerHTML = '<div class="kurir-sales-empty">Pelanggan tidak valid</div>';
+      return;
+    }
     box.innerHTML = '<div class="kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>';
-    fetch(salesUrl + encodeURIComponent(phoneTail) + '?jenis=' + encodeURIComponent(jenis) + '&operasi=1', {
+    var q = '?jenis=' + encodeURIComponent(jenis) + '&operasi=1';
+    if (idPelanggan > 0) q += '&id_pelanggan=' + encodeURIComponent(String(idPelanggan));
+    var pathTail = phoneTail || ('p' + idPelanggan);
+    fetch(salesUrl + encodeURIComponent(pathTail) + q, {
       credentials: 'same-origin'
     })
       .then(function (r) { return r.json(); })

@@ -947,8 +947,11 @@ class Delivery extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
 
+      $fromOperasi = (int) ($_GET['operasi'] ?? 0) === 1;
+      $idPelangganGet = (int) ($_GET['id_pelanggan'] ?? 0);
+
       $phoneTail = preg_replace('/[^0-9]/', '', (string) $phoneTail);
-      if (strlen($phoneTail) < 8) {
+      if (strlen($phoneTail) < 8 && !($fromOperasi && $idPelangganGet > 0)) {
          echo json_encode(['status' => 'error', 'message' => 'Nomor tidak valid']);
          return;
       }
@@ -961,10 +964,14 @@ class Delivery extends Controller
          return;
       }
       $exceptRequestId = (int) ($_GET['id_request'] ?? 0);
-      $fromOperasi = (int) ($_GET['operasi'] ?? 0) === 1;
       $includeDeliveredMissingSurcas = $fromOperasi && $jenis === 'antar';
 
-      $pelangganIds = $this->pelangganIdsByPhoneTail($phoneTail);
+      $pelangganIds = [];
+      if ($fromOperasi && $idPelangganGet > 0) {
+         $pelangganIds = [$idPelangganGet];
+      } else {
+         $pelangganIds = $this->pelangganIdsByPhoneTail($phoneTail);
+      }
       if (empty($pelangganIds)) {
          echo json_encode([
             'status' => 'success',
@@ -2455,40 +2462,17 @@ class Delivery extends Controller
                 $exceptClause
             )";
 
-      // Operasi antar: boleh item yang sudah delivered tapi ref belum punya surcas pengantaran.
+      // Operasi antar: semua item nota aktif yang belum punya surcas pengantaran
+      // (termasuk sudah delivered / terikat request — supaya bisa backfill surcas).
       if ($includeDeliveredMissingSurcas && $jenis === 'antar') {
          $this->helper('AntarTarif');
          $jenisSurcas = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
          $eligibilityClause = "
-            AND (
-              (
-                NOT EXISTS (
-                  SELECT 1 FROM delivery_riwayat dr
-                  WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM delivery_request_item dri
-                  INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
-                  WHERE dri.id_penjualan = s.id_penjualan
-                    AND drq.jenis = '$jenisEsc'
-                    AND drq.delivery_status = 'berjalan'
-                    $exceptClause
-                )
-              )
-              OR (
-                EXISTS (
-                  SELECT 1 FROM delivery_riwayat dr
-                  WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
-                )
-                AND NOT EXISTS (
-                  SELECT 1 FROM surcas sc
-                  WHERE sc.transaksi_jenis = 1
-                    AND sc.id_jenis_surcas = $jenisSurcas
-                    AND sc.no_ref = s.no_ref
-                    AND sc.id_cabang = s.id_cabang
-                )
-              )
+            AND NOT EXISTS (
+              SELECT 1 FROM surcas sc
+              WHERE sc.transaksi_jenis = 1
+                AND sc.id_jenis_surcas = $jenisSurcas
+                AND CAST(sc.no_ref AS CHAR) = CAST(s.no_ref AS CHAR)
             )";
       }
 
