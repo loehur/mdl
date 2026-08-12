@@ -139,7 +139,7 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
         <small>Gojek/Grab · biasanya &lt; 2 jam · bayar QRIS/Saldo</small>
       </div>
     </div>
-    <p class="j-kurir-kapasitas">Pastikan laundry yg dijemput/diantar sesuai kapasitas driver.</p>
+    <p class="j-kurir-kapasitas">Pastikan berat laundry yang ingin di-antar/jemput &lt;10kg sesuai kapasitas kurir instant.</p>
 
     <?php if (!$instantOpen && $instantMsg !== '') { ?>
     <p class="j-kurir-card__lead" style="color:#b42318;margin-top:8px">

@@ -1474,6 +1474,10 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: -0.01em;
 }
 
+.j-kurir-card .j-kurir-kapasitas {
+  margin: 2px 0 14px;
+}
+
 .j-field-label {
   display: block;
   margin: 10px 0 6px;

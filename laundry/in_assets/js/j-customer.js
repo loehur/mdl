@@ -1119,8 +1119,7 @@
   function openKurirCourierModal() {
     var kap = document.getElementById('jKurirCourierKapasitas');
     if (kap) {
-      var verb = kurirPendingJenis === 'antar' ? 'diantar' : 'dijemput';
-      kap.textContent = 'Pastikan laundry yg ' + verb + ' sesuai kapasitas driver.';
+      kap.textContent = 'Pastikan berat laundry yang ingin di-antar/jemput <10kg sesuai kapasitas kurir instant.';
     }
     var lokBox = document.getElementById('jKurirCourierLokasi');
     if (lokBox) lokBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
