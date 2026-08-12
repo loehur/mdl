@@ -102,13 +102,6 @@ const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
 const CHAT_POLL_IDLE_MS = 5 * 60 * 1000; // Keep polling while chat open; pause only after long idle
 
-const normalizePollTimestamp = (value) => {
-  if (!value) return 0;
-  const raw = String(value).trim();
-  // MySQL "YYYY-MM-DD HH:mm:ss" → parseable; keep numeric epoch as-is
-  const parsed = new Date(raw.includes(" ") && !raw.includes("T") ? raw.replace(" ", "T") : raw).getTime();
-  return Number.isFinite(parsed) ? parsed : 0;
-};
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'touchmove'];
@@ -2036,10 +2029,6 @@ const startChatPolling = (phone) => {
         }
       }
 
-      const serverTs = normalizePollTimestamp(serverLastMessageAt);
-      const localTs = normalizePollTimestamp(localLastMessageAt.value);
-      const lastMessageChanged = serverTs > 0 && serverTs !== localTs;
-
       // Always merge recent messages while chat is open.
       // Relying only on last_message_at string equality missed updates (format drift / stale local).
       await syncActiveChatMessages(chat);
@@ -2048,8 +2037,6 @@ const startChatPolling = (phone) => {
         localLastMessageAt.value = serverLastMessageAt;
       } else if (chat.lastMessageTime) {
         localLastMessageAt.value = chat.lastMessageTime;
-      } else if (lastMessageChanged && serverLastMessageAt) {
-        localLastMessageAt.value = serverLastMessageAt;
       }
     } catch (error) {
       console.error("Failed to poll/sync active chat:", error);
