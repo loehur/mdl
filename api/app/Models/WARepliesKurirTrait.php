@@ -3267,10 +3267,28 @@ trait WARepliesKurirTrait
         string $tgl,
         float $jam
     ): void {
-        $nama = trim($this->getContactNameForGreeting($waNumber)) ?: 'Pelanggan';
+        $nama = trim($this->getContactNameForGreeting($waNumber));
+        if ($nama === '') {
+            $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+            if ($idPelanggan > 0) {
+                try {
+                    $row = DB::getInstance(1)->query(
+                        'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                        [$idPelanggan]
+                    )->row();
+                    $nama = trim((string) ($row->nama_pelanggan ?? ''));
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+        if ($nama === '') {
+            $nama = 'PELANGGAN';
+        }
+        $nama = mb_strtoupper($nama, 'UTF-8');
         $jenis = $this->kurirJenisLabel($session);
         $jamLabel = $this->formatKurirJamLabel($jam);
-        $groupText = "{$nama} minta {$jenis} jam {$jamLabel} ({$tgl}). \"{$msg}\". (AI Agent)";
+        $groupText = "{$nama} minta {$jenis} jam {$jamLabel} ({$tgl}).";
 
         try {
             if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
@@ -3279,17 +3297,13 @@ trait WARepliesKurirTrait
             if (!class_exists('\\App\\Config\\Fonnte')) {
                 require_once __DIR__ . '/../Config/Fonnte.php';
             }
-            $fonnte = new \App\Helpers\CRM\FonnteService();
             $driverG = \App\Config\Fonnte::getDriverGroupId();
-            $fonnte->sendToGroup($driverG, $groupText);
-
-            $cabangG = $this->resolveEstimasiFonnteGroupId(
-                isset($session['id_cabang']) ? (int) $session['id_cabang'] : null
-            );
-            if ($cabangG !== '' && $cabangG !== $driverG) {
-                $fonnte->sendToGroup($cabangG, $groupText);
+            if ($driverG === '') {
+                return;
             }
-            $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'forward_jam_groups ok');
+            $fonnte = new \App\Helpers\CRM\FonnteService();
+            $fonnte->sendToGroup($driverG, $groupText);
+            $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'forward_jam_delivery_group ok');
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write('kurirForwardJamToGroups: ' . $e->getMessage(), 'wa_error', 'Autoreply');
@@ -3656,6 +3670,7 @@ trait WARepliesKurirTrait
                 }
 
                 $this->saveKurirSession($waNumber, ['id_request' => $existingId, 'step' => 'request_aktif']);
+                $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $jenis);
                 return true;
             }
 
@@ -3708,6 +3723,7 @@ trait WARepliesKurirTrait
                 }
             }
             $this->saveKurirSession($waNumber, ['id_request' => $idRequest, 'step' => 'request_aktif']);
+            $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $jenis);
             return true;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -3715,6 +3731,70 @@ trait WARepliesKurirTrait
             }
             $this->sendAutoreplyText($waNumber, 'Maaf, gagal membuat permintaan. Coba lagi atau pakai link portal.');
             return false;
+        }
+    }
+
+    /**
+     * Notif singkat ke group delivery Fonnte saat request antar/jemput berhasil.
+     * Contoh:
+     * ANDI #TG
+     * *Antar*
+     */
+    private function kurirNotifyDeliveryGroupRequestCreated(
+        string $waNumber,
+        int $idPelanggan,
+        int $idCabang,
+        string $jenis
+    ): void {
+        try {
+            $nama = '';
+            if ($idPelanggan > 0) {
+                $row = DB::getInstance(1)->query(
+                    'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                    [$idPelanggan]
+                )->row();
+                $nama = trim((string) ($row->nama_pelanggan ?? ''));
+            }
+            if ($nama === '') {
+                $nama = trim($this->getContactNameForGreeting($waNumber));
+            }
+            if ($nama === '') {
+                $nama = 'PELANGGAN';
+            }
+            $nama = mb_strtoupper($nama, 'UTF-8');
+
+            $kode = '';
+            if ($idCabang > 0) {
+                $cab = DB::getInstance(1)->query(
+                    'SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1',
+                    [$idCabang]
+                )->row();
+                $kode = trim((string) ($cab->kode_cabang ?? ''));
+            }
+            if ($kode === '') {
+                $kode = (string) ($idCabang > 0 ? $idCabang : '-');
+            }
+
+            $jenisLabel = ($jenis === 'antar') ? 'Antar' : 'Jemput';
+            $text = "{$nama} - {$kode}\n*{$jenisLabel}*";
+
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
+            }
+            if (!class_exists('\\App\\Config\\Fonnte')) {
+                require_once __DIR__ . '/../Config/Fonnte.php';
+            }
+            $driverG = \App\Config\Fonnte::getDriverGroupId();
+            if ($driverG === '') {
+                return;
+            }
+            $fonnte = new \App\Helpers\CRM\FonnteService();
+            $fonnte->sendToGroup($driverG, $text);
+            $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'notify_delivery_group ok jenis=' . $jenis);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirNotifyDeliveryGroupRequestCreated: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
         }
     }
 
