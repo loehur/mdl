@@ -596,6 +596,19 @@ if (isset($data['data_operasi'])) {
             border-color: transparent;
             color: #fff;
         }
+        @keyframes mdl-bell-blink {
+            0%, 100% {
+                opacity: 1;
+                color: #fff;
+            }
+            50% {
+                opacity: 0.25;
+                color: #fbbf24;
+            }
+        }
+        .mdl-tbtn--bell.has-notif i {
+            animation: mdl-bell-blink 0.9s ease-in-out infinite;
+        }
         .mdl-bell-badge {
             position: absolute;
             top: -5px;
@@ -2138,7 +2151,7 @@ if ($privUi === 100) {
                 <?php
                 $notifTaskCount = (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
                 ?>
-                <button type="button" id="btnNotifBell" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--bell" title="Notifikasi" aria-label="Notifikasi">
+                <button type="button" id="btnNotifBell" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--bell<?= $notifTaskCount > 0 ? ' has-notif' : '' ?>" title="Notifikasi" aria-label="Notifikasi">
                     <i class="fas fa-bell"></i>
                     <span class="mdl-bell-badge<?= $notifTaskCount > 0 ? ' is-on' : '' ?>" id="notifBellBadge"><?= $notifTaskCount > 99 ? '99+' : (int) $notifTaskCount ?></span>
                 </button>
@@ -3385,8 +3398,10 @@ if ($privUi === 100) {
                         badge.textContent = n > 99 ? '99+' : String(n);
                         if (n > 0) {
                             badge.classList.add('is-on');
+                            bellBtn.classList.add('has-notif');
                         } else {
                             badge.classList.remove('is-on');
+                            bellBtn.classList.remove('has-notif');
                         }
                     }
 
