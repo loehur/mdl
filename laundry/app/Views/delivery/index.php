@@ -835,6 +835,10 @@ $isEmptyCustomer = empty($customerGroups);
       font-family: inherit;
       color: var(--dlv-ink);
     }
+    #dlv-root .dlv-lokasi-pick button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
     #dlv-root .dlv-lokasi-pick button:hover {
       background: #eff6ff;
       border-color: var(--dlv-blue);
@@ -2264,12 +2268,24 @@ $isEmptyCustomer = empty($customerGroups);
     openModal('dlvShareLokasiModal');
   }
 
+  var shareLokasiInFlight = false;
+
   function postShareLokasi(idRequest, target, btn) {
     if (!shareLokasiUrl) {
       toast('URL share lokasi tidak tersedia', 'error');
       return;
     }
-    if (btn) btn.disabled = true;
+    if (shareLokasiInFlight) return;
+    shareLokasiInFlight = true;
+    var modal = document.getElementById('dlvShareLokasiModal');
+    var allBtns = modal
+      ? modal.querySelectorAll('[data-share-target], [data-op-close], .op-modal__close')
+      : [];
+    var prevHtml = btn ? btn.innerHTML : '';
+    Array.prototype.forEach.call(allBtns, function (b) { b.disabled = true; });
+    if (btn) {
+      btn.innerHTML = '<strong><i class="fas fa-spinner fa-spin"></i> Mengirim…</strong>';
+    }
     var fd = new FormData();
     fd.append('id_request', String(idRequest));
     fd.append('target', String(target));
@@ -2290,7 +2306,9 @@ $isEmptyCustomer = empty($customerGroups);
       })
       .catch(function () { toast('Gagal share lokasi', 'error'); })
       .finally(function () {
-        if (btn) btn.disabled = false;
+        shareLokasiInFlight = false;
+        Array.prototype.forEach.call(allBtns, function (b) { b.disabled = false; });
+        if (btn) btn.innerHTML = prevHtml;
       });
   }
 

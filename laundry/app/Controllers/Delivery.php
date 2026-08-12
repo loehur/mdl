@@ -355,7 +355,8 @@ class Delivery extends Controller
                : 'ID Group Delivery belum tersedia');
          }
 
-         $send = $this->sendFonnteGroupMessage($groupId, $message);
+         $this->helper('FonnteService');
+         $send = FonnteService::sendToGroup($groupId, $message);
          if (empty($send['success'])) {
             throw new Exception($send['error'] ?? 'Gagal kirim ke group');
          }
@@ -2345,68 +2346,16 @@ class Delivery extends Controller
     */
    private function resolveShareFonnteGroupId(string $target, int $idCabang): string
    {
-      $this->ensureFonnteClassesLoaded();
+      $this->helper('FonnteService');
       if ($target === 'delivery') {
-         if (class_exists('\\App\\Config\\Fonnte')) {
-            return (string) \App\Config\Fonnte::getDriverGroupId();
-         }
-         return '6281268098300-1625376610@g.us';
+         return FonnteService::driverGroupId();
       }
 
+      $cabangRow = null;
       if ($idCabang > 0) {
-         $row = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
-         $fromCabang = trim((string) ($row['id_group_fonnte'] ?? ''));
-         if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
-            return $fromCabang;
-         }
+         $cabangRow = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
       }
-      if (class_exists('\\App\\Config\\Fonnte')) {
-         return (string) \App\Config\Fonnte::getEstimasiGroupId();
-      }
-      return '120363024779416973@g.us';
-   }
-
-   /**
-    * @return array{success:bool,error:?string}
-    */
-   private function sendFonnteGroupMessage(string $groupId, string $message): array
-   {
-      $this->ensureFonnteClassesLoaded();
-      if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-         return ['success' => false, 'error' => 'FonnteService tidak tersedia'];
-      }
-      try {
-         $fonnte = new \App\Helpers\CRM\FonnteService();
-         $res = $fonnte->sendToGroup($groupId, $message);
-         return [
-            'success' => !empty($res['success']),
-            'error' => $res['error'] ?? null,
-         ];
-      } catch (\Throwable $e) {
-         return ['success' => false, 'error' => $e->getMessage()];
-      }
-   }
-
-   private function ensureFonnteClassesLoaded(): void
-   {
-      static $done = false;
-      if ($done) {
-         return;
-      }
-      $apiApp = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'app';
-      $env = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Env.php';
-      if (is_file($env)) {
-         require_once $env;
-      }
-      $cfg = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Fonnte.php';
-      $svc = $apiApp . DIRECTORY_SEPARATOR . 'Helpers' . DIRECTORY_SEPARATOR . 'CRM' . DIRECTORY_SEPARATOR . 'FonnteService.php';
-      if (is_file($cfg)) {
-         require_once $cfg;
-      }
-      if (is_file($svc)) {
-         require_once $svc;
-      }
-      $done = true;
+      return FonnteService::cabangGroupId(is_array($cabangRow) ? $cabangRow : null);
    }
 
    /**

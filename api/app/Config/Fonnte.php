@@ -14,7 +14,7 @@ class Fonnte
     {
         if (self::$config === null) {
             self::$config = [
-                'token' => defined('\Env::FONNTE_TOKEN') ? \Env::FONNTE_TOKEN : '',
+                'token' => defined('Env::FONNTE_TOKEN') ? (string) constant('Env::FONNTE_TOKEN') : '',
                 'base_url' => 'https://api.fonnte.com',
                 'country_code' => '62', // Default Indonesia
             ];
@@ -24,7 +24,14 @@ class Fonnte
 
     public static function getToken()
     {
-        return self::getConfig()['token'];
+        $token = (string) (self::getConfig()['token'] ?? '');
+        if ($token === '' && defined('Env::FONNTE_TOKEN')) {
+            $token = trim((string) constant('Env::FONNTE_TOKEN'));
+            if (self::$config !== null) {
+                self::$config['token'] = $token;
+            }
+        }
+        return $token;
     }
 
     public static function getBaseUrl()
