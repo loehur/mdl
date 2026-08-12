@@ -128,6 +128,260 @@ class Delivery extends Controller
    }
 
    /**
+    * Tarik lokasi pelanggan ke delivery_request yang lokasinya masih kosong.
+    * POST: id_request, id_lokasi (opsional).
+    * Tanpa id_lokasi: 1 lokasi → apply; >1 → need_choose + list; 0 → error.
+    */
+   public function tarik_lokasi_request()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idRequest = (int) ($_POST['id_request'] ?? 0);
+         $idLokasiPick = (int) ($_POST['id_lokasi'] ?? 0);
+         if ($idRequest <= 0) {
+            throw new Exception('Request tidak valid');
+         }
+
+         $req = $this->db(0)->get_where_row(
+            'delivery_request',
+            'id_request = ' . $idRequest . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+         );
+         if (!is_array($req) || empty($req['id_request'])) {
+            throw new Exception('Request tidak ditemukan atau sudah selesai');
+         }
+
+         $lokNama = trim((string) ($req['lokasi_nama'] ?? ''));
+         $lokDetail = trim((string) ($req['lokasi_detail'] ?? ''));
+         $lokLatt = (float) ($req['lokasi_latt'] ?? 0);
+         $lokLongt = (float) ($req['lokasi_longt'] ?? 0);
+         $hasLokasi = ($lokNama !== '' || $lokDetail !== '' || $lokLatt != 0.0 || $lokLongt != 0.0);
+         if ($hasLokasi) {
+            throw new Exception('Lokasi request sudah terisi');
+         }
+
+         $idPelanggan = (int) ($req['id_pelanggan'] ?? 0);
+         if ($idPelanggan <= 0) {
+            throw new Exception('Pelanggan request tidak valid');
+         }
+
+         $rows = $this->db(0)->get_where_order(
+            'pelanggan_lokasi',
+            'id_pelanggan = ' . $idPelanggan,
+            'id_lokasi DESC'
+         );
+         if (!is_array($rows)) {
+            $rows = [];
+         }
+
+         $items = [];
+         foreach ($rows as $r) {
+            $idLok = (int) ($r['id_lokasi'] ?? 0);
+            if ($idLok <= 0) {
+               continue;
+            }
+            $latt = (float) ($r['latt'] ?? 0);
+            $longt = (float) ($r['longt'] ?? 0);
+            $items[] = [
+               'id_lokasi' => $idLok,
+               'nama' => (string) ($r['nama'] ?? ''),
+               'detail' => (string) ($r['detail'] ?? ''),
+               'latt' => $latt,
+               'longt' => $longt,
+               'maps_url' => ($latt != 0.0 || $longt != 0.0)
+                  ? ('https://www.google.com/maps?q=' . $latt . ',' . $longt)
+                  : '',
+            ];
+         }
+
+         if (empty($items)) {
+            throw new Exception('Pelanggan belum punya lokasi tersimpan');
+         }
+
+         $apply = null;
+         if ($idLokasiPick > 0) {
+            foreach ($items as $it) {
+               if ((int) $it['id_lokasi'] === $idLokasiPick) {
+                  $apply = $it;
+                  break;
+               }
+            }
+            if ($apply === null) {
+               throw new Exception('Lokasi tidak valid untuk pelanggan ini');
+            }
+         } elseif (count($items) === 1) {
+            $apply = $items[0];
+         } else {
+            $response = [
+               'status' => 'success',
+               'need_choose' => true,
+               'message' => 'Pilih lokasi',
+               'data' => [
+                  'id_request' => $idRequest,
+                  'id_pelanggan' => $idPelanggan,
+                  'items' => $items,
+               ],
+            ];
+            ob_end_clean();
+            if (!headers_sent()) {
+               header('Content-Type: application/json; charset=utf-8');
+            }
+            echo json_encode($response, JSON_UNESCAPED_UNICODE);
+            return;
+         }
+
+         $set = [
+            'id_lokasi' => (int) $apply['id_lokasi'],
+            'lokasi_nama' => (string) ($apply['nama'] ?? ''),
+            'lokasi_detail' => (string) ($apply['detail'] ?? ''),
+            'lokasi_latt' => (float) ($apply['latt'] ?? 0),
+            'lokasi_longt' => (float) ($apply['longt'] ?? 0),
+         ];
+         $upd = $this->db(0)->update(
+            'delivery_request',
+            $set,
+            'id_request = ' . $idRequest . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+         );
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal update lokasi');
+         }
+
+         $response = [
+            'status' => 'success',
+            'need_choose' => false,
+            'message' => 'Lokasi diupdate',
+            'data' => [
+               'id_request' => $idRequest,
+               'id_lokasi' => $set['id_lokasi'],
+               'lokasi_nama' => $set['lokasi_nama'],
+               'lokasi_detail' => $set['lokasi_detail'],
+               'lokasi_latt' => $set['lokasi_latt'],
+               'lokasi_longt' => $set['lokasi_longt'],
+               'maps_url' => ($set['lokasi_latt'] != 0.0 || $set['lokasi_longt'] != 0.0)
+                  ? ('https://www.google.com/maps?q=' . $set['lokasi_latt'] . ',' . $set['lokasi_longt'])
+                  : '',
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response, JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Share lokasi request (Maps) ke group Fonnte.
+    * POST: id_request, target=cabang|delivery
+    */
+   public function share_lokasi_request()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idRequest = (int) ($_POST['id_request'] ?? 0);
+         $target = strtolower(trim((string) ($_POST['target'] ?? '')));
+         if ($idRequest <= 0) {
+            throw new Exception('Request tidak valid');
+         }
+         if (!in_array($target, ['cabang', 'delivery'], true)) {
+            throw new Exception('Pilih tujuan: Group Cabang atau Group Delivery');
+         }
+
+         $req = $this->db(0)->get_where_row(
+            'delivery_request',
+            'id_request = ' . $idRequest . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
+         );
+         if (!is_array($req) || empty($req['id_request'])) {
+            throw new Exception('Request tidak ditemukan atau sudah selesai');
+         }
+
+         $lokNama = trim((string) ($req['lokasi_nama'] ?? ''));
+         $lokDetail = trim((string) ($req['lokasi_detail'] ?? ''));
+         $lokLatt = (float) ($req['lokasi_latt'] ?? 0);
+         $lokLongt = (float) ($req['lokasi_longt'] ?? 0);
+         if ($lokLatt == 0.0 && $lokLongt == 0.0) {
+            throw new Exception('Koordinat Maps belum ada di request');
+         }
+         $mapsUrl = 'https://www.google.com/maps?q=' . $lokLatt . ',' . $lokLongt;
+
+         $jenis = strtolower((string) ($req['jenis'] ?? ''));
+         $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : strtoupper($jenis));
+         $idPelanggan = (int) ($req['id_pelanggan'] ?? 0);
+         $idCabangReq = (int) ($req['id_cabang'] ?? 0);
+
+         $namaPel = 'Customer';
+         if ($idPelanggan > 0) {
+            $pel = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
+            if (is_array($pel) && !empty($pel['nama_pelanggan'])) {
+               $namaPel = strtoupper(trim((string) $pel['nama_pelanggan']));
+            }
+         }
+
+         $kodeCabang = '';
+         if ($idCabangReq > 0) {
+            $cab = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabangReq);
+            if (is_array($cab)) {
+               $kodeCabang = (string) ($cab['kode_cabang'] ?? '');
+            }
+         }
+
+         $lines = [];
+         $lines[] = '*' . $jenisLbl . ' #' . $idRequest . '*' . ($kodeCabang !== '' ? ' · ' . $kodeCabang : '');
+         $lines[] = $namaPel;
+         if ($lokNama !== '') {
+            $lines[] = 'Lokasi: ' . $lokNama . ($lokDetail !== '' ? ' · ' . $lokDetail : '');
+         } elseif ($lokDetail !== '') {
+            $lines[] = 'Lokasi: ' . $lokDetail;
+         }
+         $lines[] = 'Maps: ' . $mapsUrl;
+         $message = implode("\n", $lines);
+
+         $groupId = $this->resolveShareFonnteGroupId($target, $idCabangReq);
+         if ($groupId === '') {
+            throw new Exception($target === 'cabang'
+               ? 'ID Group Cabang belum diset'
+               : 'ID Group Delivery belum tersedia');
+         }
+
+         $send = $this->sendFonnteGroupMessage($groupId, $message);
+         if (empty($send['success'])) {
+            throw new Exception($send['error'] ?? 'Gagal kirim ke group');
+         }
+
+         $label = $target === 'cabang' ? 'Group Cabang' : 'Group Delivery';
+         $response = [
+            'status' => 'success',
+            'message' => 'Lokasi dikirim ke ' . $label,
+            'data' => [
+               'id_request' => $idRequest,
+               'target' => $target,
+               'maps_url' => $mapsUrl,
+            ],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response, JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
     * Buat delivery_request manual dari board Delivery.
     * Lokasi opsional (hanya pilih yang sudah ada — tidak create lokasi baru).
     */
@@ -1886,6 +2140,7 @@ class Delivery extends Controller
             'nama' => strtoupper($nama !== '' ? $nama : 'Customer'),
             'phone_tail' => $phoneTail,
             'phone_display' => $phoneDisplay,
+            'id_pelanggan' => (int) ($row['id_pelanggan'] ?? 0),
             'jenis' => $jenis,
             'layanan' => (string) ($row['layanan'] ?? 'sameday'),
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
@@ -2083,6 +2338,75 @@ class Delivery extends Controller
          $digits = '0' . $digits;
       }
       return $digits;
+   }
+
+   /**
+    * Resolve group Fonnte untuk share lokasi: cabang | delivery.
+    */
+   private function resolveShareFonnteGroupId(string $target, int $idCabang): string
+   {
+      $this->ensureFonnteClassesLoaded();
+      if ($target === 'delivery') {
+         if (class_exists('\\App\\Config\\Fonnte')) {
+            return (string) \App\Config\Fonnte::getDriverGroupId();
+         }
+         return '6281268098300-1625376610@g.us';
+      }
+
+      if ($idCabang > 0) {
+         $row = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
+         $fromCabang = trim((string) ($row['id_group_fonnte'] ?? ''));
+         if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
+            return $fromCabang;
+         }
+      }
+      if (class_exists('\\App\\Config\\Fonnte')) {
+         return (string) \App\Config\Fonnte::getEstimasiGroupId();
+      }
+      return '120363024779416973@g.us';
+   }
+
+   /**
+    * @return array{success:bool,error:?string}
+    */
+   private function sendFonnteGroupMessage(string $groupId, string $message): array
+   {
+      $this->ensureFonnteClassesLoaded();
+      if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+         return ['success' => false, 'error' => 'FonnteService tidak tersedia'];
+      }
+      try {
+         $fonnte = new \App\Helpers\CRM\FonnteService();
+         $res = $fonnte->sendToGroup($groupId, $message);
+         return [
+            'success' => !empty($res['success']),
+            'error' => $res['error'] ?? null,
+         ];
+      } catch (\Throwable $e) {
+         return ['success' => false, 'error' => $e->getMessage()];
+      }
+   }
+
+   private function ensureFonnteClassesLoaded(): void
+   {
+      static $done = false;
+      if ($done) {
+         return;
+      }
+      $apiApp = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'app';
+      $env = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Env.php';
+      if (is_file($env)) {
+         require_once $env;
+      }
+      $cfg = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Fonnte.php';
+      $svc = $apiApp . DIRECTORY_SEPARATOR . 'Helpers' . DIRECTORY_SEPARATOR . 'CRM' . DIRECTORY_SEPARATOR . 'FonnteService.php';
+      if (is_file($cfg)) {
+         require_once $cfg;
+      }
+      if (is_file($svc)) {
+         require_once $svc;
+      }
+      $done = true;
    }
 
    /**

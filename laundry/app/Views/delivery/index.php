@@ -20,6 +20,8 @@ $isEmptyCustomer = empty($customerGroups);
      data-update-qty-url="<?= URL::BASE_URL ?>Delivery/update_qty"
      data-search-pelanggan-url="<?= URL::BASE_URL ?>Delivery/search_pelanggan"
      data-lokasi-options-url="<?= URL::BASE_URL ?>Delivery/lokasi_options"
+     data-tarik-lokasi-url="<?= URL::BASE_URL ?>Delivery/tarik_lokasi_request"
+     data-share-lokasi-url="<?= URL::BASE_URL ?>Delivery/share_lokasi_request"
      data-buat-manual-url="<?= URL::BASE_URL ?>Delivery/buat_manual">
   <style>
     #dlv-root {
@@ -789,6 +791,66 @@ $isEmptyCustomer = empty($customerGroups);
       font-weight: 800;
       text-decoration: none;
     }
+    #dlv-root .dlv-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      margin-left: 4px;
+      padding: 0;
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+      color: var(--dlv-blue-deep);
+      cursor: pointer;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    #dlv-root .dlv-icon-btn:hover {
+      background: #eff6ff;
+      border-color: var(--dlv-blue);
+    }
+    #dlv-root .dlv-icon-btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    #dlv-root .dlv-icon-btn i {
+      font-size: 0.72rem;
+    }
+    #dlv-root .dlv-lokasi-pick {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #dlv-root .dlv-lokasi-pick button {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--dlv-ink);
+    }
+    #dlv-root .dlv-lokasi-pick button:hover {
+      background: #eff6ff;
+      border-color: var(--dlv-blue);
+    }
+    #dlv-root .dlv-lokasi-pick strong {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+    #dlv-root .dlv-lokasi-pick small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      color: #64748b;
+      font-weight: 600;
+    }
     #dlv-root .dlv-suggest {
       list-style: none;
       margin: 4px 0 0;
@@ -930,9 +992,11 @@ $isEmptyCustomer = empty($customerGroups);
                         $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
                         $catatanKurir = trim((string) ($rq['catatan_kurir'] ?? ''));
                         $surcasBound = !empty($rq['surcas_bound']);
+                        $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
                       ?>
                         <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
                              data-id-request="<?= $idReq ?>"
+                             data-id-pelanggan="<?= $idPelangganRq ?>"
                              data-phone-tail="<?= $tail ?>"
                              data-source="customer"
                              data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
@@ -978,11 +1042,30 @@ $isEmptyCustomer = empty($customerGroups);
                                 <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
                                 <?php if ($lokDetail !== '') { ?> · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?><?php } ?>
                                 <?php if ($mapsHref !== '') { ?> · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a><?php } ?>
+                                <?php if ($mapsHref !== '') { ?>
+                                  <button type="button"
+                                          class="dlv-icon-btn"
+                                          data-dlv-share-lokasi="<?= $idReq ?>"
+                                          title="Share Maps"
+                                          aria-label="Share Maps">
+                                    <i class="fas fa-share-alt"></i>
+                                  </button>
+                                <?php } ?>
                               </div>
                             <?php } elseif (!$isInstant) { ?>
                               <div class="dlv-item__meta dlv-item__lokasi">
                                 <i class="fas fa-map-marker-alt"></i>
-                                Lokasi belum lengkap — driver tetap bisa selesaikan
+                                Lokasi belum lengkap
+                                <?php if ($idPelangganRq > 0) { ?>
+                                  <button type="button"
+                                          class="dlv-icon-btn"
+                                          data-dlv-tarik-lokasi="<?= $idReq ?>"
+                                          data-id-pelanggan="<?= $idPelangganRq ?>"
+                                          title="Tarik lokasi pelanggan"
+                                          aria-label="Tarik lokasi">
+                                    <i class="fas fa-sync-alt"></i>
+                                  </button>
+                                <?php } ?>
                               </div>
                             <?php } ?>
                             <?php if ($catatanKurir !== '') { ?>
@@ -1315,6 +1398,59 @@ $isEmptyCustomer = empty($customerGroups);
     </div>
   </div>
 
+  <div class="op-modal" id="dlvLokasiPickModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvLokasiPickTitle">
+      <div class="op-modal__head">
+        <div>
+          <h3 id="dlvLokasiPickTitle">Pilih Lokasi</h3>
+          <small id="dlvLokasiPickSub">Request #—</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <input type="hidden" id="dlvLokasiPickRequestId" value="">
+        <ul class="dlv-lokasi-pick" id="dlvLokasiPickList"></ul>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="op-modal" id="dlvShareLokasiModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvShareLokasiTitle">
+      <div class="op-modal__head">
+        <div>
+          <h3 id="dlvShareLokasiTitle">Share Maps</h3>
+          <small id="dlvShareLokasiSub">Request #—</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <input type="hidden" id="dlvShareLokasiRequestId" value="">
+        <ul class="dlv-lokasi-pick">
+          <li>
+            <button type="button" data-share-target="cabang">
+              <strong>Group Cabang</strong>
+              <small>Kirim ke group WhatsApp cabang request</small>
+            </button>
+          </li>
+          <li>
+            <button type="button" data-share-target="delivery">
+              <strong>Group Delivery</strong>
+              <small>Kirim ke group driver / delivery</small>
+            </button>
+          </li>
+        </ul>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Batal</button>
+      </div>
+    </div>
+  </div>
+
   <div class="op-modal" id="dlvDetailModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
     <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dlvDetailTitle">
@@ -1480,6 +1616,8 @@ $isEmptyCustomer = empty($customerGroups);
   var updateQtyUrl = root.getAttribute('data-update-qty-url') || '';
   var searchPelangganUrl = root.getAttribute('data-search-pelanggan-url') || '';
   var lokasiOptionsUrl = root.getAttribute('data-lokasi-options-url') || '';
+  var tarikLokasiUrl = root.getAttribute('data-tarik-lokasi-url') || '';
+  var shareLokasiUrl = root.getAttribute('data-share-lokasi-url') || '';
   var buatManualUrl = root.getAttribute('data-buat-manual-url') || '';
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
@@ -2095,6 +2233,131 @@ $isEmptyCustomer = empty($customerGroups);
       .catch(function () {
         box.innerHTML = '<div class="dlv-sales-empty">Gagal memuat item</div>';
       });
+  }
+
+  function applyLokasiToRequestCard(idRequest, data) {
+    var card = root.querySelector('.dlv-item--request[data-id-request="' + idRequest + '"]');
+    if (!card || !data) return;
+    var nama = String(data.lokasi_nama || '').trim();
+    var detail = String(data.lokasi_detail || '').trim();
+    var maps = String(data.maps_url || '').trim();
+    var html = '<i class="fas fa-map-marker-alt"></i> ' + escapeHtml(nama !== '' ? nama : 'Lokasi');
+    if (detail !== '') html += ' · ' + escapeHtml(detail);
+    if (maps !== '') {
+      html += ' · <a href="' + escapeHtml(maps) + '" target="_blank" rel="noopener">Maps</a>';
+      html += ' <button type="button" class="dlv-icon-btn" data-dlv-share-lokasi="' + escapeHtml(idRequest) + '"' +
+        ' title="Share Maps" aria-label="Share Maps"><i class="fas fa-share-alt"></i></button>';
+    }
+    var lokEl = card.querySelector('.dlv-item__lokasi');
+    if (lokEl) lokEl.innerHTML = html;
+    var pills = card.querySelectorAll('.dlv-jenis-pill');
+    Array.prototype.forEach.call(pills, function (p) {
+      if (String(p.textContent || '').indexOf('Lokasi menyusul') >= 0) p.remove();
+    });
+  }
+
+  function openShareLokasiModal(idRequest) {
+    var idEl = document.getElementById('dlvShareLokasiRequestId');
+    var sub = document.getElementById('dlvShareLokasiSub');
+    if (idEl) idEl.value = String(idRequest);
+    if (sub) sub.textContent = 'Request #' + idRequest;
+    openModal('dlvShareLokasiModal');
+  }
+
+  function postShareLokasi(idRequest, target, btn) {
+    if (!shareLokasiUrl) {
+      toast('URL share lokasi tidak tersedia', 'error');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    var fd = new FormData();
+    fd.append('id_request', String(idRequest));
+    fd.append('target', String(target));
+    fetch(shareLokasiUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal share lokasi', 'error');
+          return;
+        }
+        closeModal('dlvShareLokasiModal');
+        toast(res.message || 'Lokasi dikirim', 'success');
+      })
+      .catch(function () { toast('Gagal share lokasi', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function openLokasiPickModal(idRequest, items) {
+    var sub = document.getElementById('dlvLokasiPickSub');
+    var idEl = document.getElementById('dlvLokasiPickRequestId');
+    var list = document.getElementById('dlvLokasiPickList');
+    if (idEl) idEl.value = String(idRequest);
+    if (sub) sub.textContent = 'Request #' + idRequest;
+    if (list) {
+      list.innerHTML = (items || []).map(function (it) {
+        var nama = escapeHtml(it.nama || 'Lokasi');
+        var detail = escapeHtml(it.detail || '');
+        var maps = it.maps_url
+          ? ' · <a href="' + escapeHtml(it.maps_url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Maps</a>'
+          : '';
+        return '<li><button type="button" data-pick-lokasi="' + escapeHtml(it.id_lokasi) + '">' +
+          '<strong>' + nama + '</strong>' +
+          (detail || maps ? '<small>' + detail + maps + '</small>' : '') +
+          '</button></li>';
+      }).join('');
+    }
+    openModal('dlvLokasiPickModal');
+  }
+
+  function postTarikLokasi(idRequest, idLokasi, btn) {
+    if (!tarikLokasiUrl) {
+      toast('URL tarik lokasi tidak tersedia', 'error');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    var fd = new FormData();
+    fd.append('id_request', String(idRequest));
+    if (idLokasi > 0) fd.append('id_lokasi', String(idLokasi));
+    fetch(tarikLokasiUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Gagal tarik lokasi', 'error');
+          return;
+        }
+        if (res.need_choose) {
+          openLokasiPickModal(idRequest, (res.data && res.data.items) || []);
+          return;
+        }
+        applyLokasiToRequestCard(idRequest, res.data || {});
+        closeModal('dlvLokasiPickModal');
+        toast(res.message || 'Lokasi diupdate', 'success');
+      })
+      .catch(function () { toast('Gagal tarik lokasi', 'error'); })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function tarikLokasiRequest(btn) {
+    var idRequest = parseInt(btn.getAttribute('data-dlv-tarik-lokasi') || '0', 10) || 0;
+    if (idRequest <= 0) {
+      toast('Request tidak valid', 'error');
+      return;
+    }
+    postTarikLokasi(idRequest, 0, btn);
   }
 
   function resetTambahForm() {
@@ -3085,6 +3348,51 @@ $isEmptyCustomer = empty($customerGroups);
     if (selesaiBtn && root.contains(selesaiBtn)) {
       e.preventDefault();
       openSelesai(selesaiBtn);
+      return;
+    }
+
+    var tarikLokasiBtn = e.target.closest('[data-dlv-tarik-lokasi]');
+    if (tarikLokasiBtn && root.contains(tarikLokasiBtn)) {
+      e.preventDefault();
+      tarikLokasiRequest(tarikLokasiBtn);
+      return;
+    }
+
+    var shareLokasiBtn = e.target.closest('[data-dlv-share-lokasi]');
+    if (shareLokasiBtn && root.contains(shareLokasiBtn)) {
+      e.preventDefault();
+      var idShare = parseInt(shareLokasiBtn.getAttribute('data-dlv-share-lokasi') || '0', 10) || 0;
+      if (idShare <= 0) {
+        toast('Request tidak valid', 'error');
+        return;
+      }
+      openShareLokasiModal(idShare);
+      return;
+    }
+
+    var shareTargetBtn = e.target.closest('[data-share-target]');
+    if (shareTargetBtn && root.contains(shareTargetBtn)) {
+      e.preventDefault();
+      var idReqShare = parseInt((document.getElementById('dlvShareLokasiRequestId') || {}).value || '0', 10) || 0;
+      var target = String(shareTargetBtn.getAttribute('data-share-target') || '');
+      if (idReqShare <= 0 || (target !== 'cabang' && target !== 'delivery')) {
+        toast('Pilihan share tidak valid', 'error');
+        return;
+      }
+      postShareLokasi(idReqShare, target, shareTargetBtn);
+      return;
+    }
+
+    var pickLokasiBtn = e.target.closest('[data-pick-lokasi]');
+    if (pickLokasiBtn && root.contains(pickLokasiBtn)) {
+      e.preventDefault();
+      var idReqPick = parseInt((document.getElementById('dlvLokasiPickRequestId') || {}).value || '0', 10) || 0;
+      var idLok = parseInt(pickLokasiBtn.getAttribute('data-pick-lokasi') || '0', 10) || 0;
+      if (idReqPick <= 0 || idLok <= 0) {
+        toast('Pilihan lokasi tidak valid', 'error');
+        return;
+      }
+      postTarikLokasi(idReqPick, idLok, pickLokasiBtn);
       return;
     }
 
