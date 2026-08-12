@@ -288,13 +288,19 @@ class Estimasi extends Controller
                 // tabel belum ada / skip
             }
 
-            // Pelanggan baru dulu, lalu estimasi, lalu grant / kurir / ambil tutup
+            // Permintaan pelanggan (CRM case 3 open) — order aktif di cabang ini
+            foreach ($this->getOpenPermintaanTasks() as $permItem) {
+                $items[] = $permItem;
+            }
+
+            // Pelanggan baru dulu, lalu permintaan, estimasi, lalu grant / kurir / ambil tutup
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
                     if ($t === 'pelanggan_new') return -1;
-                    if ($t === 'estimasi' || $t === 'kurir_estimasi') return 0;
-                    if ($t === 'grant' || $t === 'kurir_grant' || $t === 'ambil_tutup') return 1;
-                    return 2;
+                    if ($t === 'permintaan') return 0;
+                    if ($t === 'estimasi' || $t === 'kurir_estimasi') return 1;
+                    if ($t === 'grant' || $t === 'kurir_grant' || $t === 'ambil_tutup') return 2;
+                    return 3;
                 };
                 $wa = $rank($a['task_type'] ?? '');
                 $wb = $rank($b['task_type'] ?? '');
@@ -312,7 +318,7 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|ambil_tutup|pelanggan_new,
+     * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|ambil_tutup|pelanggan_new|permintaan,
      *       estimasi_jam?, request_granted?, reject_reason?, nama_pelanggan?, send_wa?
      */
     public function update()
@@ -326,12 +332,17 @@ class Estimasi extends Controller
             echo json_encode(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup', 'pelanggan_new'], true)) {
-            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, ambil_tutup, atau pelanggan_new']);
+        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup', 'pelanggan_new', 'permintaan'], true)) {
+            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, ambil_tutup, pelanggan_new, atau permintaan']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
+
+        if ($taskType === 'permintaan') {
+            $this->closePermintaanCase($phone);
+            return;
+        }
 
         if ($taskType === 'pelanggan_new' || $taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
             $session = $this->db(100)->get_where_row(
@@ -906,6 +917,11 @@ class Estimasi extends Controller
             } catch (\Throwable $e) {
                 // tabel belum ada
             }
+            try {
+                $n += count($this->getOpenPermintaanTasks());
+            } catch (\Throwable $e) {
+                // skip
+            }
         } catch (\Throwable $e) {
             $n = $this->getNotifTaskCountFromSession();
         }
@@ -1162,5 +1178,220 @@ class Estimasi extends Controller
             return null;
         }
         return $this->formatEstimasiJamLabel((float) $jam);
+    }
+
+    /**
+     * CRM case 3 (PERMINTAAN) open — pelanggan yang masih punya order aktif di cabang ini.
+     * @return list<array<string,mixed>>
+     */
+    private function getOpenPermintaanTasks(): array
+    {
+        $cabangId = $this->currentCabangId();
+        if ($cabangId <= 0) {
+            return [];
+        }
+
+        $openWaRaw = $this->db(100)->get_where(
+            'wa_conversations',
+            "conv_case LIKE '%\"status\":\"open\"%'"
+        );
+        if (!is_array($openWaRaw) || empty($openWaRaw)) {
+            return [];
+        }
+
+        $openWaMap = [];
+        foreach ($openWaRaw as $row) {
+            $cases = json_decode($row['conv_case'] ?? '[]', true);
+            if (!is_array($cases)) {
+                continue;
+            }
+            $hasOpenCase3 = false;
+            foreach ($cases as $c) {
+                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? '') === 'open') {
+                    $hasOpenCase3 = true;
+                    break;
+                }
+            }
+            if (!$hasOpenCase3) {
+                continue;
+            }
+            $cleanPhone = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
+            if ($cleanPhone === '') {
+                continue;
+            }
+            $openWaMap[$cleanPhone] = $row;
+        }
+        if (empty($openWaMap)) {
+            return [];
+        }
+
+        $saleRows = $this->db(0)->query_array(
+            'SELECT DISTINCT id_pelanggan FROM sale
+             WHERE id_cabang = ' . (int) $cabangId . '
+               AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0'
+        );
+        if (!is_array($saleRows) || empty($saleRows)) {
+            return [];
+        }
+
+        $items = [];
+        $seenPhones = [];
+        foreach ($saleRows as $saleRow) {
+            $idPelanggan = (int) ($saleRow['id_pelanggan'] ?? 0);
+            if ($idPelanggan <= 0) {
+                continue;
+            }
+            $p = null;
+            if (isset($this->pelanggan[$idPelanggan]) && is_array($this->pelanggan[$idPelanggan])) {
+                $p = $this->pelanggan[$idPelanggan];
+            } else {
+                try {
+                    $p = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
+                } catch (\Throwable $e) {
+                    $p = null;
+                }
+            }
+            if (!is_array($p)) {
+                continue;
+            }
+
+            $hp = preg_replace('/[^0-9]/', '', (string) ($p['nomor_pelanggan'] ?? ''));
+            if ($hp === '') {
+                continue;
+            }
+
+            $found = $openWaMap[$hp]
+                ?? (substr($hp, 0, 2) === '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
+                ?? (substr($hp, 0, 3) === '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
+            if (!$found) {
+                continue;
+            }
+
+            $waPhone = preg_replace('/[^0-9]/', '', (string) ($found['wa_number'] ?? $hp));
+            $phoneKey = strlen($waPhone) >= 10 ? substr($waPhone, -10) : $waPhone;
+            if (isset($seenPhones[$phoneKey])) {
+                continue;
+            }
+            $seenPhones[$phoneKey] = true;
+
+            $nama = trim((string) ($p['nama_pelanggan'] ?? ''));
+            if ($nama === '' && !empty($found['contact_name'])) {
+                $nama = trim((string) $found['contact_name']);
+            }
+
+            $items[] = [
+                'task_type' => 'permintaan',
+                'task_id' => 'permintaan:' . $waPhone,
+                'phone' => $waPhone !== '' ? $waPhone : $hp,
+                'phone_display' => $this->displayPhone($waPhone !== '' ? $waPhone : $hp),
+                'id_penjualan' => null,
+                'id_pelanggan' => $idPelanggan,
+                'customer_message' => trim((string) ($found['last_message'] ?? '')),
+                'updated_at' => $found['updated_at'] ?? ($found['last_message_at'] ?? null),
+                'expires_at' => null,
+                'nama' => $nama !== '' ? $nama : 'Pelanggan',
+            ];
+        }
+
+        return $items;
+    }
+
+    private function closePermintaanCase(string $phone): void
+    {
+        $hpClean = preg_replace('/[^0-9]/', '', $phone);
+        $matchDigits = substr($hpClean, -10);
+        if ($matchDigits === '') {
+            echo json_encode(['ok' => 0, 'msg' => 'Nomor tidak valid']);
+            return;
+        }
+
+        $where = "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '"
+            . $this->db(100)->escape($matchDigits) . "'";
+        $row = $this->db(100)->get_where_row('wa_conversations', $where);
+        if (!is_array($row) || empty($row['id'])) {
+            echo json_encode(['ok' => 0, 'msg' => 'Conversation tidak ditemukan']);
+            return;
+        }
+
+        $cases = json_decode($row['conv_case'] ?? '[]', true);
+        $updated = false;
+        if (is_array($cases)) {
+            foreach ($cases as &$c) {
+                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? '') === 'open') {
+                    $c['status'] = 'closed';
+                    unset($c['timestamp']);
+                    $updated = true;
+                }
+            }
+            unset($c);
+        }
+
+        if (!$updated) {
+            $pendingCount = $this->syncNotifTaskCount();
+            echo json_encode(['ok' => 1, 'count' => $pendingCount, 'msg' => 'Tidak ada case permintaan open', 'wa_ok' => 0]);
+            return;
+        }
+
+        $res = $this->db(100)->update(
+            'wa_conversations',
+            ['conv_case' => json_encode(array_values($cases))],
+            'id = ' . (int) $row['id']
+        );
+        if (!empty($res['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => 'Gagal update case']);
+            return;
+        }
+
+        $this->pushToWebSocket([
+            'type' => 'case_resolved',
+            'phone' => $row['wa_number'],
+            'case' => 3,
+            'target_id' => '0',
+            'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system',
+        ]);
+
+        $pendingCount = $this->syncNotifTaskCount();
+        echo json_encode([
+            'ok' => 1,
+            'wa_ok' => 0,
+            'count' => $pendingCount,
+            'msg' => 'Permintaan ditandai selesai',
+        ]);
+    }
+
+    /** Riwayat chat WA (JSON) — data via Helper\WaChatHistory, render via window.MdlWaChat. */
+    public function chat_history()
+    {
+        $this->session_cek();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $hp = (string) ($_POST['hp'] ?? $_POST['phone'] ?? $_GET['phone'] ?? '');
+        $limit = (int) ($_POST['limit'] ?? $_GET['limit'] ?? 30);
+        try {
+            $helper = $this->helper('WaChatHistory');
+            $messages = $helper->fetchMessages($this->db(100), $hp, $limit > 0 ? $limit : 30);
+            echo json_encode(['ok' => 1, 'messages' => $messages]);
+        } catch (\Throwable $e) {
+            echo json_encode(['ok' => 0, 'messages' => [], 'msg' => $e->getMessage()]);
+        }
+    }
+
+    private function pushToWebSocket(array $data)
+    {
+        $url = 'http://127.0.0.1:3003/incoming';
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        return $result;
     }
 }

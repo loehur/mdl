@@ -736,6 +736,253 @@ if (isset($data['data_operasi'])) {
             background: #fef3c7;
             color: #b45309;
         }
+        .mdl-notif-chip--permintaan {
+            border-color: #fca5a5;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+        .mdl-notif-card--permintaan {
+            border-color: #fca5a5;
+            background: linear-gradient(180deg, #fef2f2, #fff);
+        }
+        .mdl-notif-btn--ghost {
+            border: 1px solid #94a3b8;
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        .mdl-notif-btn--blue {
+            border: 1px solid #1d4ed8;
+            background: linear-gradient(180deg, #2563eb, #1d4ed8);
+            color: #fff;
+        }
+        .mdl-notif-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .mdl-chat-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 5300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .mdl-chat-modal.is-open { display: flex; }
+        .mdl-chat-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.58);
+            backdrop-filter: blur(3px);
+            cursor: pointer;
+        }
+        .mdl-chat-modal__panel {
+            position: relative;
+            z-index: 1;
+            width: min(440px, 100%);
+            max-height: min(90vh, 720px);
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            border-radius: 0;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+            overflow: hidden;
+        }
+        .mdl-chat-modal__panel--sm {
+            width: min(360px, 100%);
+            max-height: none;
+        }
+        .mdl-chat-modal__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            color: #fff;
+            background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
+            flex-shrink: 0;
+        }
+        .mdl-chat-modal__head h3 {
+            margin: 0;
+            font-family: 'fontku', 'Segoe UI', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            text-shadow: 0 1px 0 rgba(0,0,0,.18);
+        }
+        .mdl-chat-modal__head small {
+            display: block;
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0.9;
+        }
+        .mdl-chat-modal__close {
+            width: 34px;
+            height: 34px;
+            border: 1px solid rgba(255,255,255,.45);
+            background: rgba(255,255,255,.16);
+            color: #fff;
+            border-radius: 0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .mdl-chat-modal__close:hover { background: rgba(255,255,255,.28); }
+        .mdl-chat-modal__body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            min-height: 180px;
+            background:
+                radial-gradient(90% 60% at 0% 0%, rgba(220,38,38,.08), transparent 50%),
+                linear-gradient(180deg, #fef2f2 0%, #f8fafc 100%);
+        }
+        .mdl-chat-modal__body--confirm {
+            text-align: center;
+            padding: 20px 16px;
+            background: linear-gradient(180deg, #f0fdf4, #fff);
+            min-height: 0;
+        }
+        .mdl-chat-modal__foot {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-top: 1px solid #cbd5e1;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        .mdl-chat-modal__foot .mdl-notif-btn {
+            flex: 1;
+            height: 40px;
+            font-size: 13px;
+        }
+        .mdl-chat-empty {
+            border: 1px dashed #94a3b8;
+            background: #fff;
+            color: #1e293b;
+            font-weight: 700;
+            text-align: center;
+            padding: 1.5rem 1rem;
+            font-size: 13px;
+        }
+        .mdl-chat-empty small {
+            font-weight: 600;
+            color: #64748b;
+        }
+        /* Shared WA chat bubbles (Delivery + Notifikasi permintaan) */
+        .mdl-wa-chat {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mdl-wa-chat__bubble {
+            max-width: 88%;
+            min-width: 140px;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 0;
+            background: #fff;
+            color: #0f172a;
+        }
+        .mdl-wa-chat__bubble--me {
+            align-self: flex-end;
+            border-color: #86efac;
+            background: linear-gradient(180deg, #f0fdf4, #fff);
+        }
+        .mdl-wa-chat__bubble--customer {
+            align-self: flex-start;
+            border-color: #93c5fd;
+            background: #fff;
+        }
+        .mdl-wa-chat__meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 4px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: #1e293b;
+        }
+        .mdl-wa-chat__text {
+            font-size: 13px;
+            font-weight: 700;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.4;
+            color: #0f172a;
+        }
+        .mdl-wa-chat__text strong { font-weight: 900; }
+        .mdl-wa-chat__text em { font-style: italic; }
+        .mdl-wa-chat__text del { text-decoration: line-through; opacity: 0.85; }
+        .mdl-wa-chat__text code {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            padding: 0 3px;
+            background: rgba(15, 23, 42, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+        .mdl-wa-chat__text a {
+            color: #1d4ed8;
+            font-weight: 700;
+            text-decoration: underline;
+            word-break: break-all;
+        }
+        .mdl-wa-chat__img {
+            display: block;
+            max-width: 100%;
+            max-height: 280px;
+            width: auto;
+            height: auto;
+            object-fit: cover;
+            border: 1px solid #cbd5e1;
+            border-radius: 0;
+            cursor: zoom-in;
+            background: #f1f5f9;
+        }
+        .mdl-wa-chat__img + .mdl-wa-chat__text {
+            margin-top: 6px;
+        }
+        .mdl-wa-chat__empty {
+            border: 1px dashed #94a3b8;
+            background: #fff;
+            color: #1e293b;
+            font-weight: 700;
+            text-align: center;
+            padding: 1.5rem 1rem;
+            font-size: 13px;
+        }
+        .mdl-chat-confirm-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #86efac;
+            background: #dcfce7;
+            color: #15803d;
+            font-size: 22px;
+        }
+        .mdl-chat-confirm-title {
+            font-family: 'fontku', sans-serif;
+            font-weight: 900;
+            font-size: 15px;
+            color: #0f172a;
+            margin: 0 0 6px;
+        }
+        .mdl-chat-confirm-text {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
         .mdl-notif-form label {
             display: block;
             font-size: 10px;
@@ -1960,6 +2207,45 @@ if ($privUi === 100) {
             </div>
         </div>
 
+        <div class="mdl-chat-modal" id="mdlChatHistoryModal" aria-hidden="true">
+            <div class="mdl-chat-modal__backdrop" data-chat-close></div>
+            <div class="mdl-chat-modal__panel" role="dialog" aria-modal="true" aria-labelledby="mdlChatHistoryTitle">
+                <div class="mdl-chat-modal__head">
+                    <div>
+                        <h3 id="mdlChatHistoryTitle">Riwayat Chat</h3>
+                        <small id="mdlChatHistoryPhone"></small>
+                    </div>
+                    <button type="button" class="mdl-chat-modal__close" data-chat-close aria-label="Tutup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mdl-chat-modal__body" id="mdlChatHistoryBody">
+                    <div class="mdl-chat-empty">Memuat…</div>
+                </div>
+                <div class="mdl-chat-modal__foot">
+                    <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-chat-close>Tutup</button>
+                    <button type="button" class="mdl-notif-btn" id="mdlChatCloseCaseBtn">
+                        <i class="fas fa-check"></i> Sudah terpenuhi
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mdl-chat-modal" id="mdlChatConfirmModal" aria-hidden="true">
+            <div class="mdl-chat-modal__backdrop" data-chat-confirm-close></div>
+            <div class="mdl-chat-modal__panel mdl-chat-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="mdlChatConfirmTitle">
+                <div class="mdl-chat-modal__body mdl-chat-modal__body--confirm">
+                    <div class="mdl-chat-confirm-icon"><i class="fas fa-check"></i></div>
+                    <h3 class="mdl-chat-confirm-title" id="mdlChatConfirmTitle">Konfirmasi</h3>
+                    <p class="mdl-chat-confirm-text">Yakin permintaan sudah terpenuhi? Status case akan diubah menjadi closed.</p>
+                </div>
+                <div class="mdl-chat-modal__foot">
+                    <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-chat-confirm-close>Batal</button>
+                    <button type="button" class="mdl-notif-btn" id="mdlChatConfirmOk">Ya, selesai</button>
+                </div>
+            </div>
+        </div>
+
         <?php if ($this->id_privilege == 100 || $this->id_privilege == 12) {
             $userSwitchList = [];
             $currentUserId = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
@@ -2314,6 +2600,7 @@ if ($privUi === 100) {
         <span data-bs-dismiss="modal"></span>
         <div class="content-wrapper px-2 pt-2" style="min-width: 0; max-width: 100vw;">
             <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
+            <script src="<?= URL::IN_ASSETS ?>js/mdl-wa-chat.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/adminLTE-3.1.0/js/adminlte.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 
@@ -3160,16 +3447,19 @@ if ($privUi === 100) {
                         items.forEach(function(it) {
                             var taskType = (it.task_type === 'grant' || it.task_type === 'kurir_grant'
                                 || it.task_type === 'kurir_estimasi' || it.task_type === 'ambil_tutup'
-                                || it.task_type === 'estimasi' || it.task_type === 'pelanggan_new')
+                                || it.task_type === 'estimasi' || it.task_type === 'pelanggan_new'
+                                || it.task_type === 'permintaan')
                                 ? it.task_type
                                 : 'estimasi';
                             var section = (taskType === 'pelanggan_new')
                                 ? 'Pelanggan baru'
-                                : ((taskType === 'kurir_grant' || taskType === 'kurir_estimasi')
-                                ? 'Kurir jam'
-                                : (taskType === 'ambil_tutup'
-                                    ? 'Ambil lewat tutup'
-                                    : (taskType === 'grant' ? 'Grant request' : 'Estimasi')));
+                                : (taskType === 'permintaan'
+                                    ? 'Permintaan Pelanggan'
+                                    : ((taskType === 'kurir_grant' || taskType === 'kurir_estimasi')
+                                    ? 'Kurir jam'
+                                    : (taskType === 'ambil_tutup'
+                                        ? 'Ambil lewat tutup'
+                                        : (taskType === 'grant' ? 'Grant request' : 'Estimasi'))));
                             if (section !== lastSection) {
                                 html += '<div class="mdl-notif-section-title">' + escHtml(section) + '</div>';
                                 lastSection = section;
@@ -3182,6 +3472,8 @@ if ($privUi === 100) {
                             var chips = '';
                             if (taskType === 'pelanggan_new') {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--warn">Update nama</span> ';
+                            } else if (taskType === 'permintaan') {
+                                chips = '<span class="mdl-notif-chip mdl-notif-chip--permintaan">Permintaan</span> ';
                             } else if (taskType === 'grant' || taskType === 'kurir_grant' || taskType === 'ambil_tutup') {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--grant">' +
                                     (taskType === 'kurir_grant' ? 'Kurir' : (taskType === 'ambil_tutup' ? 'Ambil tutup' : 'Grant')) +
@@ -3195,7 +3487,7 @@ if ($privUi === 100) {
                                 if (it.jenis) {
                                     chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + escHtml(it.jenis) + '</span>';
                                 }
-                            } else if (taskType !== 'ambil_tutup') {
+                            } else if (taskType !== 'ambil_tutup' && taskType !== 'permintaan') {
                                 chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + fase + '</span>';
                             }
 
@@ -3207,6 +3499,8 @@ if ($privUi === 100) {
                                     bodyBlock += '<div class="mdl-notif-req"><span class="mdl-notif-req__label">Nama sementara</span>'
                                         + escHtml(it.nama_saat_ini) + '</div>';
                                 }
+                            } else if (taskType === 'permintaan') {
+                                bodyBlock += '<div class="mdl-notif-jam-ask">Ada permintaan khusus dari pelanggan</div>';
                             } else if ((taskType === 'grant' || taskType === 'kurir_grant' || taskType === 'ambil_tutup')
                                 && (it.request_waktu_label || it.request_jam_label)) {
                                 var reqLabel = it.request_waktu_label
@@ -3237,7 +3531,7 @@ if ($privUi === 100) {
                             if (pesan && taskType !== 'pelanggan_new') {
                                 bodyBlock +=
                                     '<div class="mdl-notif-req">' +
-                                    '<span class="mdl-notif-req__label">Pesan customer</span>' +
+                                    '<span class="mdl-notif-req__label">' + (taskType === 'permintaan' ? 'Pesan terakhir' : 'Pesan customer') + '</span>' +
                                     escHtml(pesan) +
                                     '</div>';
                             } else if (pesan && taskType === 'pelanggan_new') {
@@ -3250,7 +3544,17 @@ if ($privUi === 100) {
 
                             var dateOpts = it.date_options || [];
                             var formFields = '';
-                            if (taskType === 'pelanggan_new') {
+                            var cardExtra = '';
+                            if (taskType === 'permintaan') {
+                                formFields = '';
+                                cardExtra =
+                                    '<div class="mdl-notif-actions">' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
+                                    '<i class="fas fa-comments"></i> Lihat chat</button>' +
+                                    '<button type="button" class="mdl-notif-btn js-notif-close-permintaan">' +
+                                    '<i class="fas fa-check"></i> Sudah terpenuhi</button>' +
+                                    '</div>';
+                            } else if (taskType === 'pelanggan_new') {
                                 var saranNama = escHtml(it.nama_saran || it.nama || '');
                                 formFields =
                                     '<div style="flex:1;min-width:160px">' +
@@ -3314,21 +3618,25 @@ if ($privUi === 100) {
                                     '</div>';
                             }
 
+                            var metaExtra = '';
+                            if (taskType === 'pelanggan_new' || taskType === 'permintaan') {
+                                metaExtra = it.id_pelanggan ? (' · ID pelanggan #' + escHtml(String(it.id_pelanggan))) : '';
+                            } else {
+                                metaExtra = ' · Laundry ID ' + escHtml(idSale);
+                            }
+
                             html +=
-                                '<div class="mdl-notif-card" data-phone="' + escHtml(it.phone) + '" data-task-type="' + taskType + '">' +
+                                '<div class="mdl-notif-card' + (taskType === 'permintaan' ? ' mdl-notif-card--permintaan' : '') + '" data-phone="' + escHtml(it.phone) + '" data-task-type="' + taskType + '" data-nama="' + title + '">' +
                                 '<div class="mdl-notif-card__head">' +
                                 '<h6 class="mdl-notif-card__title">' + title + '</h6>' +
                                 '<div>' + chips + '</div>' +
                                 '</div>' +
-                                '<p class="mdl-notif-card__meta">' + phone +
-                                (taskType === 'pelanggan_new'
-                                    ? (it.id_pelanggan ? (' · ID pelanggan #' + escHtml(String(it.id_pelanggan))) : '')
-                                    : (' · Laundry ID ' + escHtml(idSale))) +
+                                '<p class="mdl-notif-card__meta">' + phone + metaExtra +
                                 (it.updated_at ? (' · ' + escHtml(it.updated_at)) : '') + '</p>' +
                                 bodyBlock +
-                                '<form class="mdl-notif-form js-notif-form">' +
-                                '<div class="mdl-notif-row">' + formFields + '</div>' +
-                                '</form>' +
+                                (taskType === 'permintaan'
+                                    ? cardExtra
+                                    : ('<form class="mdl-notif-form js-notif-form"><div class="mdl-notif-row">' + formFields + '</div></form>')) +
                                 '</div>';
                         });
                         bodyEl.innerHTML = html;
@@ -3493,6 +3801,188 @@ if ($privUi === 100) {
                     // Sync badge dari server → session; cek tiap 2 menit
                     refreshCount();
                     window.setInterval(refreshCount, 120000);
+
+                    $(bodyEl).on('click', '.js-notif-open-chat', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        if (window.MdlChatHistory) {
+                            MdlChatHistory.open($card.data('phone'), $card.data('nama') || $(this).data('nama'), {
+                                showCloseCase: true,
+                                onClosed: function() { loadList(); refreshCount(); }
+                            });
+                        }
+                    });
+
+                    $(bodyEl).on('click', '.js-notif-close-permintaan', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        if (window.MdlChatHistory) {
+                            MdlChatHistory.confirmClosePermintaan($card.data('phone'), {
+                                onClosed: function() { loadList(); refreshCount(); }
+                            });
+                        }
+                    });
+                })();
+
+                (function initMdlChatHistory() {
+                    var baseUrl = '<?= URL::BASE_URL ?>';
+                    var chatModal = document.getElementById('mdlChatHistoryModal');
+                    var chatBody = document.getElementById('mdlChatHistoryBody');
+                    var chatTitle = document.getElementById('mdlChatHistoryTitle');
+                    var chatPhoneEl = document.getElementById('mdlChatHistoryPhone');
+                    var confirmModal = document.getElementById('mdlChatConfirmModal');
+                    var closeCaseBtn = document.getElementById('mdlChatCloseCaseBtn');
+                    var confirmOk = document.getElementById('mdlChatConfirmOk');
+                    if (!chatModal || !chatBody) return;
+
+                    var currentPhone = '';
+                    var onClosedCb = null;
+
+                    function escHtml(s) {
+                        return String(s == null ? '' : s)
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;');
+                    }
+
+                    function setCloseCaseVisible(show) {
+                        if (!closeCaseBtn) return;
+                        closeCaseBtn.style.display = show ? '' : 'none';
+                    }
+
+                    function open(phone, nama, opts) {
+                        opts = opts || {};
+                        currentPhone = phone || '';
+                        onClosedCb = typeof opts.onClosed === 'function' ? opts.onClosed : null;
+                        var showClose = !!opts.showCloseCase;
+                        setCloseCaseVisible(showClose);
+
+                        if (chatTitle) chatTitle.textContent = String(nama || 'Pelanggan').toUpperCase();
+                        if (chatPhoneEl) chatPhoneEl.textContent = currentPhone;
+                        chatBody.innerHTML = '<div class="mdl-wa-chat__empty">Memuat…</div>';
+                        chatModal.classList.add('is-open');
+                        chatModal.setAttribute('aria-hidden', 'false');
+
+                        if (!currentPhone) {
+                            chatBody.innerHTML = '<div class="mdl-wa-chat__empty">Nomor pelanggan tidak tersedia</div>';
+                            return;
+                        }
+
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/chat_history',
+                            type: 'POST',
+                            dataType: 'json',
+                            data: { hp: currentPhone, phone: currentPhone, limit: 50 }
+                        }).done(function(res) {
+                            if (!res || !res.ok) {
+                                chatBody.innerHTML = '<div class="mdl-wa-chat__empty">' +
+                                    escHtml((res && res.msg) || 'Gagal memuat chat') + '</div>';
+                                return;
+                            }
+                            if (window.MdlWaChat && typeof MdlWaChat.render === 'function') {
+                                chatBody.innerHTML = MdlWaChat.render(res.messages || [], {
+                                    emptyText: 'Tidak ada riwayat chat'
+                                });
+                            } else {
+                                chatBody.innerHTML = '<div class="mdl-wa-chat__empty">Renderer chat tidak tersedia</div>';
+                            }
+                            setTimeout(function() {
+                                chatBody.scrollTop = chatBody.scrollHeight;
+                            }, 50);
+                        }).fail(function() {
+                            chatBody.innerHTML = '<div class="mdl-wa-chat__empty">Gagal memuat chat</div>';
+                        });
+                    }
+
+                    function close() {
+                        chatModal.classList.remove('is-open');
+                        chatModal.setAttribute('aria-hidden', 'true');
+                    }
+
+                    function openConfirm() {
+                        if (!confirmModal) return;
+                        if (confirmOk) {
+                            confirmOk.disabled = false;
+                            confirmOk.innerHTML = 'Ya, selesai';
+                        }
+                        confirmModal.classList.add('is-open');
+                        confirmModal.setAttribute('aria-hidden', 'false');
+                    }
+
+                    function closeConfirm() {
+                        if (!confirmModal) return;
+                        confirmModal.classList.remove('is-open');
+                        confirmModal.setAttribute('aria-hidden', 'true');
+                    }
+
+                    function submitClosePermintaan(phone, $btn) {
+                        if (!phone) return;
+                        if ($btn) $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: { phone: phone, task_type: 'permintaan', send_wa: 0 }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan selesai');
+                                if (typeof res.count !== 'undefined') {
+                                    var badge = document.getElementById('notifBellBadge');
+                                    if (badge) {
+                                        var n = parseInt(res.count, 10) || 0;
+                                        badge.textContent = n > 99 ? '99+' : String(n);
+                                        if (n > 0) badge.classList.add('is-on');
+                                        else badge.classList.remove('is-on');
+                                    }
+                                }
+                                closeConfirm();
+                                close();
+                                if (onClosedCb) onClosedCb(res);
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                if ($btn) $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal menutup permintaan');
+                            if ($btn) $btn.prop('disabled', false);
+                        });
+                    }
+
+                    function confirmClosePermintaan(phone, opts) {
+                        opts = opts || {};
+                        currentPhone = phone || '';
+                        onClosedCb = typeof opts.onClosed === 'function' ? opts.onClosed : null;
+                        if (!currentPhone) {
+                            if (window.MdlToast) MdlToast.warn('Nomor tidak tersedia');
+                            return;
+                        }
+                        openConfirm();
+                    }
+
+                    $(chatModal).on('click', '[data-chat-close]', function() {
+                        close();
+                    });
+                    if (closeCaseBtn) {
+                        closeCaseBtn.addEventListener('click', function() {
+                            if (!currentPhone) return;
+                            openConfirm();
+                        });
+                    }
+                    if (confirmModal) {
+                        $(confirmModal).on('click', '[data-chat-confirm-close]', function() {
+                            closeConfirm();
+                        });
+                    }
+                    if (confirmOk) {
+                        confirmOk.addEventListener('click', function() {
+                            submitClosePermintaan(currentPhone, $(confirmOk));
+                        });
+                    }
+
+                    window.MdlChatHistory = {
+                        open: open,
+                        close: close,
+                        confirmClosePermintaan: confirmClosePermintaan
+                    };
                 })();
             </script>
 <?php require_once __DIR__ . '/pwa_register.php'; ?>

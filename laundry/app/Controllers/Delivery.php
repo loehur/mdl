@@ -881,53 +881,11 @@ class Delivery extends Controller
          $conv = $convRows[0];
       }
 
-      $messages = $this->db(100)->query_array(
-         "SELECT * FROM (
-            SELECT * FROM (
-               (SELECT
-                   id,
-                   text,
-                   type,
-                   'customer' AS sender,
-                   created_at AS time,
-                   status,
-                   media_id,
-                   media_url
-                FROM wa_messages_in
-                WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
-               UNION ALL
-               (SELECT
-                   id,
-                   COALESCE(content, '') AS text,
-                   type,
-                   'me' AS sender,
-                   created_at AS time,
-                   status,
-                   NULL AS media_id,
-                   media_url
-                FROM wa_messages_out
-                WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
-                  AND COALESCE(`private`, 0) = 0)
-            ) AS combined_msgs
-            ORDER BY time DESC
-            LIMIT 50
-         ) AS latest_msgs
-         ORDER BY time ASC"
-      );
-      if (!is_array($messages)) {
+      $messages = [];
+      try {
+         $messages = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $phoneTail, 30);
+      } catch (\Throwable $e) {
          $messages = [];
-      }
-
-      $list = [];
-      foreach ($messages as $m) {
-         $list[] = [
-            'sender' => $m['sender'] ?? 'customer',
-            'text' => (string) ($m['text'] ?? ''),
-            'type' => $m['type'] ?? 'text',
-            'time' => $m['time'] ?? '',
-            'media_url' => !empty($m['media_url']) ? (string) $m['media_url'] : null,
-            'media_id' => !empty($m['media_id']) ? (string) $m['media_id'] : null,
-         ];
       }
 
       $digits = preg_replace('/[^0-9]/', '', (string) ($conv['wa_number'] ?? ''));
@@ -939,7 +897,7 @@ class Delivery extends Controller
             'phone_tail' => strlen($digits) >= 9 ? substr($digits, -9) : $digits,
             'phone_display' => $phoneDisplay,
             'kode_cabang' => strtoupper((string) ($conv['kode_cabang'] ?? '00')),
-            'messages' => $list,
+            'messages' => $messages,
          ],
       ]);
    }

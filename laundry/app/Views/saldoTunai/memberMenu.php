@@ -10,17 +10,6 @@
           <?php } ?>
         </select>
       </div>
-      <div class="col-auto pe-0">
-        <a class="hrfop" href="<?= URL::BASE_URL ?>Operasi/i/0/<?= $id_pelanggan ?>/0"><span class="btn btn-sm btn-outline-secondary form-control form-control-sm">OP</span></a>
-      </div>
-      <div class="col-auto pe-0">
-        <a class="hrfsp" href="<?= URL::BASE_URL ?>Member/tambah_paket/<?= $id_pelanggan ?>"><span class="btn btn-sm btn-outline-secondary form-control form-control-sm">SP</span></a>
-      </div>
-      <div class="col-auto pe-2">
-        <button id="cekR" class="btn btn-sm btn-secondary form-control form-control-sm">
-          SD
-        </button>
-      </div>
     </div>
   </div>
 </div>
@@ -50,27 +39,26 @@
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 
 <script>
+  function loadSaldoTunaiData(pelanggan) {
+    if (pelanggan == null || pelanggan == 0 || pelanggan === '') {
+      return;
+    }
+    $('div#saldoRekap').load('<?= URL::BASE_URL ?>SaldoTunai/tampil_rekap/0/' + pelanggan);
+    $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + pelanggan);
+  }
+
   $(document).ready(function() {
     $('select.pelanggan').select2({
       theme: "classic"
     });
 
-    var pelanggan = <?= $id_pelanggan ?>;
+    var pelanggan = <?= (int) $id_pelanggan ?>;
     if (pelanggan > 0) {
-      $('div#saldoRekap').load('<?= URL::BASE_URL ?>SaldoTunai/tampil_rekap/0/' + pelanggan);
-      $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + pelanggan);
+      loadSaldoTunaiData(pelanggan);
     }
   });
 
-  $("button#cekR").click(function() {
-    var pelanggan = $("select[name=p]").val();
-    $('.hrfop').attr('href', '<?= URL::BASE_URL ?>Operasi/i/0/' + pelanggan + '/0')
-    $('.hrfsp').attr('href', '<?= URL::BASE_URL ?>Member/tambah_paket/' + pelanggan)
-    $('div#saldoRekap').load('<?= URL::BASE_URL ?>SaldoTunai/tampil_rekap/0/' + pelanggan);
-    $('div#riwayat').load('<?= URL::BASE_URL ?>SaldoTunai/tampilkan/' + pelanggan);
-  })
-
   $("select[name=p]").change(function() {
-    $("button#cekR").click();
+    loadSaldoTunaiData($(this).val());
   });
 </script>

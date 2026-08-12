@@ -688,76 +688,6 @@ $isEmptyCustomer = empty($customerGroups);
       border-bottom: 0;
       background: #fffbeb;
     }
-    #dlv-root .dlv-chat {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #dlv-root .dlv-chat__bubble {
-      max-width: 88%;
-      padding: 8px 10px;
-      border: 1px solid #cbd5e1;
-      background: #fff;
-    }
-    #dlv-root .dlv-chat__bubble--me {
-      align-self: flex-end;
-      border-color: #93c5fd;
-      background: #eff6ff;
-    }
-    #dlv-root .dlv-chat__bubble--customer {
-      align-self: flex-start;
-      border-color: #e2e8f0;
-      background: #fff;
-    }
-    #dlv-root .dlv-chat__meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 4px;
-      font-size: 0.68rem;
-      font-weight: 800;
-      color: var(--dlv-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-    #dlv-root .dlv-chat__text {
-      font-size: 0.84rem;
-      font-weight: 400;
-      color: var(--dlv-ink);
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.45;
-    }
-    #dlv-root .dlv-chat__text strong { font-weight: 700; }
-    #dlv-root .dlv-chat__text em { font-style: italic; }
-    #dlv-root .dlv-chat__text del { text-decoration: line-through; opacity: 0.85; }
-    #dlv-root .dlv-chat__text code {
-      font-family: Consolas, 'Courier New', monospace;
-      font-size: 0.8rem;
-      padding: 0 3px;
-      background: rgba(15, 23, 42, 0.06);
-      border: 1px solid #e2e8f0;
-    }
-    #dlv-root .dlv-chat__text a {
-      color: var(--dlv-blue-deep);
-      font-weight: 600;
-      text-decoration: underline;
-      word-break: break-all;
-    }
-    #dlv-root .dlv-chat__img {
-      display: block;
-      max-width: 100%;
-      max-height: 280px;
-      width: auto;
-      height: auto;
-      object-fit: cover;
-      border: 1px solid #cbd5e1;
-      cursor: zoom-in;
-      background: #f1f5f9;
-    }
-    #dlv-root .dlv-chat__img + .dlv-chat__text {
-      margin-top: 6px;
-    }
     #dlv-root .dlv-detail-loading,
     #dlv-root .dlv-detail-error {
       padding: 24px 12px;
@@ -3065,59 +2995,11 @@ $isEmptyCustomer = empty($customerGroups);
       '</table>';
   }
 
-  var MEDIA_PROXY = 'https://api.nalju.com/CRM/Chat/media?id=';
-
-  function mediaSrc(m) {
-    if (m && m.media_url) return String(m.media_url);
-    if (m && m.media_id) return MEDIA_PROXY + encodeURIComponent(String(m.media_id));
-    return '';
-  }
-
-  /** WhatsApp formatting: *bold* _italic_ ~strike~ ```mono``` + links (sama pola CRM) */
-  function parseWhatsAppFormatting(text) {
-    if (!text) return '';
-    var f = String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\s+\|\s+\|\s+/g, '\n')
-      .replace(/```([^`]+)```/g, '<code>$1</code>')
-      .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
-      .replace(/_([^_]+)_/g, '<em>$1</em>')
-      .replace(/~([^~]+)~/g, '<del>$1</del>')
-      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-    return f;
-  }
-
   function renderChat(data) {
-    var msgs = data.messages || [];
-    if (!msgs.length) {
-      return '<div class="dlv-detail-loading">Belum ada pesan</div>';
+    if (window.MdlWaChat && typeof MdlWaChat.render === 'function') {
+      return MdlWaChat.render(data, { emptyText: 'Belum ada pesan' });
     }
-    var html = msgs.map(function (m) {
-      var isMe = m.sender === 'me';
-      var who = isMe ? 'Laundry' : 'Customer';
-      var cls = isMe ? 'dlv-chat__bubble--me' : 'dlv-chat__bubble--customer';
-      var caption = (m.text && String(m.text).trim()) ? String(m.text) : '';
-      var src = mediaSrc(m);
-      var body = '';
-      if (m.type === 'image' && src) {
-        body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Gambar" loading="lazy"' +
-          ' onclick="window.open(this.src,\'_blank\')">' +
-          (caption ? '<div class="dlv-chat__text">' + parseWhatsAppFormatting(caption) + '</div>' : '');
-      } else if (m.type === 'sticker' && src) {
-        body = '<img class="dlv-chat__img" src="' + escapeHtml(src) + '" alt="Sticker" loading="lazy">';
-      } else {
-        body = '<div class="dlv-chat__text">' +
-          parseWhatsAppFormatting(caption || ('[' + (m.type || 'pesan') + ']')) +
-          '</div>';
-      }
-      return '<div class="dlv-chat__bubble ' + cls + '">' +
-        '<div class="dlv-chat__meta"><span>' + who + '</span><span>' + escapeHtml(fmtTime(m.time)) + '</span></div>' +
-        body +
-      '</div>';
-    }).join('');
-    return '<div class="dlv-chat">' + html + '</div>';
+    return '<div class="mdl-wa-chat__empty">Renderer chat tidak tersedia</div>';
   }
 
   function setTerimaPakaiBtn(data) {

@@ -11,17 +11,6 @@
           <?php } ?>
         </select>
       </div>
-      <div class="col-auto pe-0">
-        <a class="hrfop" href="<?= URL::BASE_URL ?>Operasi/i/0/<?= $id_pelanggan ?>/0"><span class="btn btn-sm btn-outline-secondary form-control form-control-sm">OP</span></a>
-      </div>
-      <div class="col-auto pe-0">
-        <button id="cekR" class="btn btn-sm btn-secondary form-control form-control-sm">
-          SP
-        </button>
-      </div>
-      <div class="col-auto">
-        <a class="hrfsd" href="<?= URL::BASE_URL ?>SaldoTunai/tambah/<?= $id_pelanggan ?>"><span class="btn btn-sm btn-outline-secondary form-control form-control-sm">SD</span></a>
-      </div>
     </div>
   </div>
 </div>
@@ -30,29 +19,24 @@
 
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
+  function loadMemberData(pelanggan) {
+    if (pelanggan == null || pelanggan == 0 || pelanggan === '') {
+      return;
+    }
+    $('div#saldoRekap').load('<?= URL::BASE_URL ?>Member/rekapTunggal/' + pelanggan);
+    $('div#riwayat').load('<?= URL::BASE_URL ?>Member/tampilkan/' + pelanggan);
+  }
+
   $(document).ready(function() {
     $('select.pelanggan').selectize();
 
     var pelanggan = <?= (int)$id_pelanggan ?>;
     if (pelanggan > 0) {
-      $('div#saldoRekap').load('<?= URL::BASE_URL ?>Member/rekapTunggal/' + pelanggan);
-      $('div#riwayat').load('<?= URL::BASE_URL ?>Member/tampilkan/' + pelanggan);
+      loadMemberData(pelanggan);
     }
   });
 
-  $("button#cekR").click(function() {
-    var pelanggan = $("select[name=p]").val();
-    if (pelanggan == null || pelanggan == 0) {
-      return;
-    }
-    $('.hrfop').attr('href', '<?= URL::BASE_URL ?>Operasi/i/0/' + pelanggan + '/0')
-    $('.hrfsd').attr('href', '<?= URL::BASE_URL ?>SaldoTunai/tambah/' + pelanggan)
-
-    $('div#saldoRekap').load('<?= URL::BASE_URL ?>Member/rekapTunggal/' + pelanggan);
-    $('div#riwayat').load('<?= URL::BASE_URL ?>Member/tampilkan/' + pelanggan);
-  })
-
   $("select[name=p]").change(function() {
-    $("button#cekR").click();
+    loadMemberData($(this).val());
   });
 </script>

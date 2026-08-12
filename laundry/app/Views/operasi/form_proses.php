@@ -5,6 +5,12 @@ if ($data['id_pelanggan'] > 0) {
   $id_pelanggan = 0;
 }
 $modeOperasi = (int) $data['mode'];
+$chatHp = '';
+$chatNama = '';
+if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($this->pelanggan[$id_pelanggan])) {
+  $chatHp = (string) ($this->pelanggan[$id_pelanggan]['nomor_pelanggan'] ?? '');
+  $chatNama = strtoupper((string) ($this->pelanggan[$id_pelanggan]['nama_pelanggan'] ?? ''));
+}
 ?>
 
 <style>
@@ -39,71 +45,42 @@ $modeOperasi = (int) $data['mode'];
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    width: auto;
+    max-width: min(420px, 100%);
   }
   .operasi-field {
     flex: 1 1 auto;
     min-width: 140px;
+    max-width: min(380px, 100%);
   }
-  .operasi-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex: 0 0 auto;
-    height: 36px;
-  }
-  .operasi-btn {
+  .operasi-chat-btn {
     box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    margin: 0;
+    border: 1px solid #93c5fd;
+    border-radius: 0;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+    color: #1d4ed8;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 36px;
-    min-height: 36px;
-    max-height: 36px;
-    min-width: 42px;
-    padding: 0 12px;
-    margin: 0;
-    border-radius: 0;
-    border: 1px solid #d5dde6;
-    background: #f8fafc;
-    color: #334155;
-    font-family: 'fontku', sans-serif;
-    font-size: 13px;
-    font-weight: 800;
-    line-height: 1;
-    text-decoration: none;
     cursor: pointer;
-    white-space: nowrap;
-    transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+    font-size: 15px;
   }
-  .operasi-btn:hover {
-    background: #fff;
-    border-color: #94a3b8;
-    color: #0f172a;
-    text-decoration: none;
-  }
-  .operasi-btn--op {
-    background: #475569;
-    border-color: #475569;
+  .operasi-chat-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    border-color: #1d4ed8;
     color: #fff;
   }
-  .operasi-btn--op:hover {
-    background: #334155;
-    border-color: #334155;
-    color: #fff;
+  .operasi-chat-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
-  .operasi-btn--sp {
-    border-color: #93c5fd;
-    background: #eff6ff;
-    color: #1d4ed8;
-  }
-  .operasi-btn--sd {
-    border-color: #86efac;
-    background: #f0fdf4;
-    color: #15803d;
-  }
-
-  /* Selectize height align — sama persis 36px dengan tombol; satu border saja */
+  /* Selectize height align — sama persis 36px; satu border saja */
   .operasi-filter .id_pelanggan.form-control,
   .operasi-filter select.tize,
   .operasi-filter select.selectized {
@@ -378,15 +355,23 @@ $modeOperasi = (int) $data['mode'];
           <select name="pelanggan" data-id="<?= $id_pelanggan ?>" class="id_pelanggan tize" required>
             <option value="" selected disabled>...</option>
             <?php foreach ($this->pelanggan as $a) { ?>
-              <option value="<?= $a['id_pelanggan'] ?>" data-nama="<?= htmlspecialchars(strtoupper($a['nama_pelanggan']), ENT_QUOTES, 'UTF-8') ?>" <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
+              <option value="<?= $a['id_pelanggan'] ?>"
+                data-nama="<?= htmlspecialchars(strtoupper($a['nama_pelanggan']), ENT_QUOTES, 'UTF-8') ?>"
+                data-hp="<?= htmlspecialchars((string) ($a['nomor_pelanggan'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                <?= $a['id_pelanggan'] == $id_pelanggan ? 'selected' : '' ?>><?= (strlen($a['nama_pelanggan']) > 10 ? strtoupper(substr($a['nama_pelanggan'], 0, 10)) . '...' : strtoupper($a['nama_pelanggan'])) ?> | <?= $a['nomor_pelanggan'] ?></option>
             <?php } ?>
           </select>
         </div>
-        <div class="operasi-actions">
-          <span onclick="cekData()" class="operasi-btn operasi-btn--op" title="Reload operasi">OP</span>
-          <a class="hrfsp operasi-btn operasi-btn--sp" href="<?= URL::BASE_URL ?>Member/tambah_paket/<?= $id_pelanggan ?>" title="Saldo Paket">SP</a>
-          <a class="hrfsd operasi-btn operasi-btn--sd" href="<?= URL::BASE_URL ?>SaldoTunai/tambah/<?= $id_pelanggan ?>" title="Saldo Deposit">SD</a>
-        </div>
+        <button type="button"
+          class="operasi-chat-btn"
+          id="btnOperasiChat"
+          title="Riwayat Chat"
+          aria-label="Riwayat Chat"
+          data-hp="<?= htmlspecialchars($chatHp, ENT_QUOTES, 'UTF-8') ?>"
+          data-nama="<?= htmlspecialchars($chatNama, ENT_QUOTES, 'UTF-8') ?>"
+          <?= ($id_pelanggan > 0 && $chatHp !== '') ? '' : 'disabled' ?>>
+          <i class="fas fa-comments"></i>
+        </button>
       </div>
     </div>
 
@@ -443,6 +428,22 @@ $modeOperasi = (int) $data['mode'];
 
   $(document).ready(function() {
     $('select.tize').selectize();
+
+    $('#btnOperasiChat').on('click', function() {
+      var $btn = $(this);
+      if ($btn.prop('disabled')) return;
+      var hp = String($btn.attr('data-hp') || '').trim();
+      var nama = String($btn.attr('data-nama') || 'Pelanggan').trim();
+      if (!hp) {
+        if (window.MdlToast) MdlToast.warn('Nomor pelanggan tidak tersedia');
+        return;
+      }
+      if (window.MdlChatHistory && typeof MdlChatHistory.open === 'function') {
+        MdlChatHistory.open(hp, nama, { showCloseCase: false });
+      } else if (window.MdlToast) {
+        MdlToast.error('Modal chat belum siap');
+      }
+    });
 
     <?php if ($modeOperasi == 1) { ?>
     var currentYear = <?= isset($data['currentYear']) ? $data['currentYear'] : date('Y') ?>;
@@ -503,9 +504,6 @@ $modeOperasi = (int) $data['mode'];
   })
 
   function loadDataOnly(id, year) {
-    $('.hrfsp').attr('href', '<?= URL::BASE_URL ?>Member/tambah_paket/' + id);
-    $('.hrfsd').attr('href', '<?= URL::BASE_URL ?>SaldoTunai/tambah/' + id);
-
     $("div#load").html(`
       <div class="d-flex justify-content-center align-items-center py-5">
         <div class="text-center">

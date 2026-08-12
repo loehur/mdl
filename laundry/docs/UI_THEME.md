@@ -9,7 +9,8 @@ Referensi implementasi yang sudah sesuai tema:
 - Modal Operasi → `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `window.OpModal`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
 - Toast → `laundry/app/Views/layout.php` (`.mdl-toast` + `window.MdlToast`)
-- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`)
+- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`); termasuk section **Permintaan Pelanggan** (CRM case 3) + modal chat `#mdlChatHistoryModal`
+- Riwayat chat WA (shared) → Helper `WaChatHistory` + JS `in_assets/js/mdl-wa-chat.js` (`window.MdlWaChat`) + CSS `.mdl-wa-chat` di `layout.php` (Delivery + Notifikasi permintaan)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`

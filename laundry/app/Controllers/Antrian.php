@@ -116,56 +116,11 @@ class Antrian extends Controller
       
       // Extract id_penjualan from data_main2 (no duplicate query)
       $numbers = [];
-      $visibleCustomerIds = [];
       foreach ($data_main2 as $refBlock) {
          foreach ($refBlock as $row) {
             if (isset($row['id_penjualan'])) $numbers[] = $row['id_penjualan'];
-            if (isset($row['id_pelanggan'])) $visibleCustomerIds[$row['id_pelanggan']] = true;
          }
       }
-
-      // --- Fetch Open WA Conversations (optimized: only visible customers) ---
-      $customersWithOpenCases = [];
-      try {
-         if (!empty($visibleCustomerIds)) {
-            $openWaRaw = $this->db(100)->get_where('wa_conversations', "conv_case LIKE '%\"status\":\"open\"%'");
-            $openWaMap = [];
-            if (is_array($openWaRaw)) {
-               foreach ($openWaRaw as $row) {
-                  $cases = json_decode($row['conv_case'] ?? '[]', true);
-                  if (is_array($cases)) {
-                     foreach ($cases as $c) {
-                        if (isset($c['case']) && $c['case'] == 3 && ($c['status'] ?? '') === 'open') {
-                           $cleanPhone = preg_replace('/[^0-9]/', '', $row['wa_number']);
-                           $openWaMap[$cleanPhone] = $row;
-                           break;
-                        }
-                     }
-                  }
-               }
-            }
-
-            // OPTIMIZED: Only loop visible customers, not all pelanggan
-            if (!empty($openWaMap)) {
-               foreach ($visibleCustomerIds as $id_pelanggan => $v) {
-                  $p = $this->pelanggan[$id_pelanggan] ?? null;
-                  if (!$p) continue;
-                  
-                  $hp = preg_replace('/[^0-9]/', '', $p['nomor_pelanggan'] ?? '');
-                  if (empty($hp)) continue;
-                  
-                  // Match with phone variations
-                  $found = $openWaMap[$hp] 
-                     ?? (substr($hp, 0, 2) == '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
-                     ?? (substr($hp, 0, 3) == '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
-
-                  if ($found) {
-                     $customersWithOpenCases[] = ['pelanggan' => $p, 'wa' => $found];
-                  }
-               }
-            }
-         }
-      } catch (\Exception $e) {}
 
       $operasi = [];
       $kas = [];
@@ -193,101 +148,21 @@ class Antrian extends Controller
          'surcas' => $surcas,
          'data_notif' => $notif,
          'karyawan' => $this->userAll,
-         'customersWithOpenCases' => $customersWithOpenCases
       ]);
    }
 
+   /** @deprecated Gunakan Estimasi/chat_history — tetap ada sebagai alias JSON. */
    public function chat_history()
    {
-      $hp = $_POST['hp'];
-      
-      // Normalize HP for querying
-      $hpClean = preg_replace('/[^0-9]/', '', $hp);
-      $matchDigits = substr($hpClean, -10);
-
-      // Normalize HP for querying
-      $hpClean = preg_replace('/[^0-9]/', '', $hp);
-      $matchDigits = substr($hpClean, -10);
-
-      // Fetch Incoming
-      $whereIn = "RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits' ORDER BY created_at DESC LIMIT 20";
-      $msgsIn = $this->db(100)->get_where('wa_messages_in', $whereIn);
-      if (!is_array($msgsIn)) $msgsIn = [];
-
-      // Fetch Outgoing
-      $whereOut = "RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = '$matchDigits' ORDER BY created_at DESC LIMIT 20";
-      $msgsOut = $this->db(100)->get_where('wa_messages_out', $whereOut);
-      if (!is_array($msgsOut)) $msgsOut = [];
-
-      // Combine
-      $messages = [];
-      
-      foreach ($msgsIn as $m) {
-          $messages[] = [
-              'text' => $m['text'] ?? '',
-              'sender' => 'customer',
-              'time' => $m['created_at'],
-              'status' => $m['status']
-          ];
+      $this->session_cek();
+      header('Content-Type: application/json; charset=utf-8');
+      $hp = (string) ($_POST['hp'] ?? $_POST['phone'] ?? '');
+      try {
+         $messages = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $hp, 30);
+         echo json_encode(['ok' => 1, 'messages' => $messages]);
+      } catch (\Throwable $e) {
+         echo json_encode(['ok' => 0, 'messages' => [], 'msg' => $e->getMessage()]);
       }
-
-      foreach ($msgsOut as $m) {
-          $messages[] = [
-              'text' => $m['content'] ?? '', // Note: outgoing uses 'content'
-              'sender' => 'me',
-              'time' => $m['created_at'],
-              'status' => $m['status']
-          ];
-      }
-
-      // Sort by time ASC
-      usort($messages, function($a, $b) {
-          return strtotime($a['time']) - strtotime($b['time']);
-      });
-
-      // Take last 20
-      if (count($messages) > 20) {
-          $messages = array_slice($messages, -20);
-      }
-      
-      // Format as HTML for the modal body
-      $html = "";
-      if(!empty($messages)) {
-        foreach($messages as $msg) {
-            $align = ($msg['sender'] == 'me') ? 'text-end' : 'text-start';
-            
-            if ($msg['sender'] == 'me') {
-                $bg = 'bg-primary text-white';
-                $nameClass = 'text-white fw-bold';
-                $timeClass = 'text-white-50';
-            } else {
-                $bg = 'bg-white';
-                $nameClass = 'text-secondary fw-bold';
-                $timeClass = 'text-muted';
-            }
-            
-            $senderName = ($msg['sender'] == 'me') ? 'Me' : 'Customer';
-            $time = date('d/m H:i', strtotime($msg['time']));
-            
-            $content = htmlspecialchars($msg['text'] ?? '');
-            
-            // WA Formatting: Bold, Italic, Strikethrough, Monospace
-            $content = preg_replace('/```([^`]+)```/', '<code>$1</code>', $content);
-            $content = preg_replace('/\*([^\*]+)\*/', '<b>$1</b>', $content);
-            $content = preg_replace('/_([^_]+)_/', '<i>$1</i>', $content);
-            $content = preg_replace('/~([^~]+)~/', '<strike>$1</strike>', $content);
-            
-            $html .= "<div class='d-flex flex-column mb-3 ".$align."'>";
-            $html .= "<div class='p-2 rounded shadow-sm border ".$bg."' style='display:inline-block; max-width:85%; min-width: 200px; align-self:".(($msg['sender'] == 'me') ? 'flex-end' : 'flex-start')."'>";
-            $html .= "<div class='d-flex justify-content-between mb-1'><small class='".$nameClass."'>".$senderName."</small><small class='".$timeClass."' style='font-size: 0.7rem;'>".$time."</small></div>";
-            $html .= "<span style='white-space: pre-wrap;'>".$content."</span>";
-            $html .= "</div></div>";
-        }
-      } else {
-          $html = "<div class='text-center text-muted'>Tidak ada riwayat chat <br><small>Hanya menampilkan 20 pesan terakhir</small></div>";
-      }
-
-      echo $html;
    }
 
    public function close_case_request()

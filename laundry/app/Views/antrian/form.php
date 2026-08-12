@@ -24,6 +24,7 @@
     position: relative;
     flex: 1 1 200px;
     min-width: 170px;
+    max-width: min(380px, 100%);
   }
   .antrian-search i {
     position: absolute;
