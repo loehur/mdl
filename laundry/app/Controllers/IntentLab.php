@@ -42,6 +42,10 @@ class IntentLab extends Controller
 
         $text = trim((string) ($data['text'] ?? ''));
         if ($text === '') {
+            // fallback form-urlencoded / multipart
+            $text = trim((string) ($_POST['text'] ?? ''));
+        }
+        if ($text === '') {
             echo json_encode(['ok' => 0, 'message' => 'Teks kosong'], JSON_UNESCAPED_UNICODE);
             return;
         }
