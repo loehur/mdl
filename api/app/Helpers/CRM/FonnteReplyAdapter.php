@@ -10,14 +10,28 @@ class FonnteReplyAdapter
 {
     private $fonnte;
     private $inboxid;
+    /** @var FonnteMessageStore|null */
+    private $messageStore;
+    private $handler = null;
 
-    public function __construct($inboxid = null)
+    public function __construct($inboxid = null, $messageStore = null)
     {
         if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
             require_once __DIR__ . '/FonnteService.php';
         }
         $this->fonnte = new FonnteService();
         $this->inboxid = $inboxid;
+        $this->messageStore = $messageStore;
+    }
+
+    public function setMessageStore(FonnteMessageStore $store): void
+    {
+        $this->messageStore = $store;
+    }
+
+    public function setHandler(?string $handler): void
+    {
+        $this->handler = $handler !== null && $handler !== '' ? $handler : null;
     }
 
     /**
@@ -31,13 +45,50 @@ class FonnteReplyAdapter
             $options['inboxid'] = (int) $this->inboxid;
         }
         $res = $this->fonnte->sendMessage($to, $message, $options);
+
+        $fonnteId = $res['data']['id'][0] ?? ('fonnte_' . time());
+        $waNumber = $this->normalizePhoneForStore($to);
+
+        if ($this->messageStore !== null) {
+            $this->messageStore->saveOutgoing($waNumber, (string) $message, [
+                'fonnte_message_id' => is_scalar($fonnteId) ? (string) $fonnteId : null,
+                'reply_inboxid' => $this->inboxid ? (int) $this->inboxid : null,
+                'source' => 'autoreply',
+                'handler' => $this->handler,
+                'status' => !empty($res['success']) ? 'sent' : 'failed',
+                'error_text' => !empty($res['success']) ? null : ($res['error'] ?? 'send failed'),
+            ]);
+        }
+
         return [
             'success' => $res['success'] ?? false,
             'data' => [
-                'id' => $res['data']['id'][0] ?? 'fonnte_' . time(),
+                'id' => $fonnteId,
                 'wamid' => null,
             ],
             'error' => $res['error'] ?? null,
         ];
+    }
+
+    private function normalizePhoneForStore($phone): string
+    {
+        if ($phone === null || $phone === '') {
+            return '';
+        }
+        $s = trim((string) $phone);
+        if (strpos($s, '@g.us') !== false) {
+            return $s;
+        }
+        $clean = preg_replace('/[^0-9]/', '', $s);
+        if (strlen($clean) < 8) {
+            return $s;
+        }
+        if (substr($clean, 0, 1) === '0') {
+            $clean = '62' . substr($clean, 1);
+        } elseif (substr($clean, 0, 2) !== '62') {
+            $clean = '62' . $clean;
+        }
+
+        return '+' . $clean;
     }
 }

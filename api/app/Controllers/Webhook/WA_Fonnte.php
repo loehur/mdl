@@ -7,7 +7,7 @@ use App\Core\Controller;
 /**
  * Fonnte WhatsApp Webhook Handler
  * Alur intent & balasan sama seperti Webhook\WhatsApp (WAReplies::process), tetapi:
- * - Tidak menulis wa_messages_in
+ * - Riwayat chat disimpan ke wa_fonnte_messages_in/out (terpisah dari yCloud)
  * - Tidak mengubah / membuat wa_conversations (setSkipConversationPersist)
  * - Balasan keluar via FonnteReplyAdapter (Fonnte API), termasuk inboxid bila ada
  * - wa_fonnte_csw tetap di-update untuk CSW Fonnte
@@ -81,8 +81,13 @@ class WA_Fonnte extends Controller
             return;
         }
 
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+        $customerCtx = $this->resolveFonnteCustomerContext($phone0, $waNumber, $name);
+
         if ($isMediaWithoutCaption) {
             $this->recordFonnteIncoming($waNumber, $timestamp);
+            $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
 
             return;
@@ -97,21 +102,17 @@ class WA_Fonnte extends Controller
             }
         }
 
-        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
-        $phone0 = '0' . substr($cleanPhone, 2);
         $phonePlus = '+' . $cleanPhone;
         $phoneNoPrefix = substr($cleanPhone, 2);
         $phones = ["'$cleanPhone'", "'$phone0'", "'$phonePlus'", "'$phoneNoPrefix'"];
         $phoneIn = implode(',', $phones);
 
-        try {
-            $wh = new WhatsApp();
-            $user_data = $wh->getUserData($phone0);
-            $assigned_user_id = $user_data ? ($user_data->assigned_user_id ?? null) : null;
-            $code = $user_data ? ($user_data->code ?? null) : null;
-            $cust_id = $user_data ? ($user_data->cust_id ?? null) : null;
-            $contact_name = $user_data ? ($user_data->customer_name ?? $name) : ($name ?? null);
+        $assigned_user_id = $customerCtx['assigned_user_id'] ?? null;
+        $code = $customerCtx['code'] ?? null;
+        $cust_id = $customerCtx['cust_id'] ?? null;
+        $contact_name = $customerCtx['contact_name'] ?? $name;
 
+        try {
             $lastMessageSummary = $messageText;
             $isPrivateForLastMessage = false;
             try {
@@ -129,14 +130,22 @@ class WA_Fonnte extends Controller
             if (! class_exists('\\App\\Helpers\\FonnteReplyAdapter')) {
                 require_once __DIR__ . '/../../Helpers/CRM/FonnteReplyAdapter.php';
             }
+            if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+            }
+
+            $messageStore = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
+            $messageStore->setCustomerContext($customerCtx);
+
+            // CSW Fonnte harus ter-commit dulu; baru simpan chat + handle intent.
+            $this->recordFonnteIncoming($waNumber, $timestamp);
+            $this->saveFonnteIncomingMessage($waNumber, $data, $messageText, $messageStore, $customerCtx);
 
             $replies = new \App\Models\WAReplies();
-            $replies->setCustomSender(new \App\Helpers\CRM\FonnteReplyAdapter($inboxid));
+            $fonnteAdapter = new \App\Helpers\CRM\FonnteReplyAdapter($inboxid, $messageStore);
+            $replies->setCustomSender($fonnteAdapter);
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
-
-            // CSW Fonnte harus ter-commit dulu; baru handle intent (hindari race baca last_in_at vs balasan).
-            $this->recordFonnteIncoming($waNumber, $timestamp);
 
             $processResult = $replies->process(
                 $phoneIn,
@@ -164,6 +173,126 @@ class WA_Fonnte extends Controller
         }
 
         echo json_encode(['status' => 'ok', 'reply' => $replyText]);
+    }
+
+    /**
+     * Simpan pesan masuk ke wa_fonnte_messages_in (+ ringkasan conversation).
+     *
+     * @param \App\Helpers\CRM\FonnteMessageStore|null $store
+     * @param array{contact_name?:string,assigned_user_id?:int|string|null,code?:string|null,cust_id?:int|string|null} $customerCtx
+     */
+    private function saveFonnteIncomingMessage(string $waNumber, array $data, string $messageText, $store = null, array $customerCtx = []): void
+    {
+        try {
+            if ($store === null) {
+                if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+                }
+                $store = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
+            }
+            $store->saveIncoming($waNumber, $data, $messageText, $customerCtx);
+        } catch (\Throwable $e) {
+            \Log::write('WA_Fonnte: save incoming message failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
+        }
+    }
+
+    /**
+     * Resolve cabang/pelanggan — sama logika yCloud (getUserData + fallback conversation).
+     *
+     * @return array{contact_name:?string,assigned_user_id:?int,code:?string,cust_id:?int}
+     */
+    private function resolveFonnteCustomerContext(string $phone0, string $waNumber, $fonnteName = null): array
+    {
+        $ctx = [
+            'contact_name' => $fonnteName !== null && $fonnteName !== '' ? (string) $fonnteName : null,
+            'assigned_user_id' => null,
+            'code' => null,
+            'cust_id' => null,
+        ];
+
+        try {
+            $wh = new WhatsApp();
+            $userData = $wh->getUserData($phone0);
+            if ($userData) {
+                if (!empty($userData->customer_name)) {
+                    $ctx['contact_name'] = $userData->customer_name;
+                }
+                if (!empty($userData->assigned_user_id)) {
+                    $ctx['assigned_user_id'] = (int) $userData->assigned_user_id;
+                }
+                if (!empty($userData->code)) {
+                    $ctx['code'] = (string) $userData->code;
+                }
+                if (!empty($userData->cust_id)) {
+                    $ctx['cust_id'] = (int) $userData->cust_id;
+                }
+            }
+        } catch (\Throwable $e) {
+            // lanjut fallback conversation
+        }
+
+        if ($ctx['assigned_user_id'] === null) {
+            $ctx = $this->mergeAssignmentFromExistingConversations($waNumber, $ctx);
+        }
+
+        return $ctx;
+    }
+
+    /**
+     * @param array{contact_name:?string,assigned_user_id:?int,code:?string,cust_id:?int} $ctx
+     * @return array{contact_name:?string,assigned_user_id:?int,code:?string,cust_id:?int}
+     */
+    private function mergeAssignmentFromExistingConversations(string $waNumber, array $ctx): array
+    {
+        $db = $this->db(0);
+        $variants = $this->phoneVariantsForLookup($waNumber);
+
+        foreach (['wa_fonnte_conversations', 'wa_conversations'] as $table) {
+            foreach ($variants as $phone) {
+                $row = $db->query(
+                    "SELECT contact_name, assigned_user_id, code, cust_id
+                     FROM {$table}
+                     WHERE " . ($table === 'wa_conversations' ? 'wa_number' : 'phone') . " = ?
+                     LIMIT 1",
+                    [$phone]
+                )->row();
+                if (!$row) {
+                    continue;
+                }
+                if (empty($ctx['contact_name']) && !empty($row->contact_name)) {
+                    $ctx['contact_name'] = $row->contact_name;
+                }
+                if ($ctx['assigned_user_id'] === null && !empty($row->assigned_user_id)) {
+                    $ctx['assigned_user_id'] = (int) $row->assigned_user_id;
+                }
+                if (empty($ctx['code']) && !empty($row->code)) {
+                    $ctx['code'] = (string) $row->code;
+                }
+                if ($ctx['cust_id'] === null && !empty($row->cust_id)) {
+                    $ctx['cust_id'] = (int) $row->cust_id;
+                }
+                if ($ctx['assigned_user_id'] !== null) {
+                    return $ctx;
+                }
+            }
+        }
+
+        return $ctx;
+    }
+
+    /** @return string[] */
+    private function phoneVariantsForLookup(string $waNumber): array
+    {
+        $clean = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($clean, 2);
+
+        return array_values(array_unique(array_filter([
+            $waNumber,
+            '+' . $clean,
+            $clean,
+            $phone0,
+            substr($clean, 2),
+        ])));
     }
 
     /**
