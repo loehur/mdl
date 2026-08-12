@@ -47,6 +47,20 @@ class WAReplies
     /** Provider untuk wa_auto_reply_log: A = yCloud, B = Fonnte (kecuali handler DEFAULT — cooldown menyatu, lihat shouldHandleDefaultUnified) */
     private $autoReplyProvider = 'A';
 
+    /**
+     * Intent Lab: klasifikasi saja — tanpa kirim WA, tanpa tulis session/cooldown/case CRM.
+     */
+    private $intentLabMode = false;
+
+    /** @var list<string> */
+    private $intentLabTraces = [];
+
+    /** @var string|null Intent final saat lab (bisa beda dari currentHandler di exit tanpa handler) */
+    private $intentLabIntent = null;
+
+    /** @var string|null regex|ai|short|amount|false|exit|… */
+    private $intentLabSource = null;
+
     /** Cache per process(): null = belum dicek, bool = hasil isHumanAgentRecentlyActive */
     private $humanActiveCache = null;
 
@@ -79,6 +93,98 @@ class WAReplies
     }
 
     /**
+     * Dry-run klasifikasi intent (Intent Lab). Hanya teks — tanpa phone/session customer.
+     *
+     * @return array{ok:bool,text:string,intent:?string,source:?string,case:mixed,notify:bool,no_handler:bool,ask:?bool,trace:list<string>}
+     */
+    public function classifyIntentLab(string $textBody): array
+    {
+        $textBody = trim($textBody);
+        $this->intentLabMode = true;
+        $this->intentLabTraces = [];
+        $this->intentLabIntent = null;
+        $this->intentLabSource = null;
+        $this->currentHandler = null;
+        $this->humanActiveCache = false;
+        $this->setSkipConversationPersist(true);
+
+        $waNumber = '6289990000001';
+        $phoneIn = "'6289990000001','089990000001','+6289990000001','89990000001'";
+        $result = null;
+
+        try {
+            $result = $this->process(
+                $phoneIn,
+                $textBody,
+                $waNumber,
+                'Intent Lab',
+                null,
+                null,
+                'i- lab',
+                null
+            );
+        } catch (\Throwable $e) {
+            $this->intentLabMode = false;
+            return [
+                'ok' => false,
+                'text' => $textBody,
+                'intent' => null,
+                'source' => 'error',
+                'case' => null,
+                'notify' => false,
+                'no_handler' => true,
+                'ask' => null,
+                'trace' => array_merge($this->intentLabTraces, ['ERROR: ' . $e->getMessage()]),
+                'message' => $e->getMessage(),
+            ];
+        }
+
+        $this->intentLabMode = false;
+
+        $intent = $this->intentLabIntent ?? $this->currentHandler;
+        if ($intent === null || $intent === '') {
+            if (!empty($result->no_handler)) {
+                $intent = 'FALSE';
+            } elseif ($this->intentLabSource === 'short' || $this->intentLabSource === 'amount') {
+                $intent = 'NONE';
+            } else {
+                $intent = 'FALSE';
+            }
+        }
+
+        $ask = null;
+        if (isset($result->ask)) {
+            $ask = (bool) $result->ask;
+        } elseif (!empty($result->no_handler) && (int) ($result->case ?? 0) === 4) {
+            $ask = true;
+        }
+
+        return [
+            'ok' => true,
+            'text' => $textBody,
+            'intent' => $intent,
+            'source' => $this->intentLabSource,
+            'case' => $result->case ?? null,
+            'notify' => (bool) ($result->notify ?? false),
+            'no_handler' => !empty($result->no_handler),
+            'ask' => $ask,
+            'trace' => $this->intentLabTraces,
+        ];
+    }
+
+    private function intentLabMark(string $intent, string $source): void
+    {
+        if (!$this->intentLabMode) {
+            return;
+        }
+        $this->intentLabIntent = $intent !== '' ? $intent : null;
+        $this->intentLabSource = $source;
+        if ($intent !== '') {
+            $this->currentHandler = $intent;
+        }
+    }
+
+    /**
      * Get WhatsApp Service instance (lazy loading)
      * Bila setCustomSender() dipanggil, return adapter tersebut
      */
@@ -104,6 +210,9 @@ class WAReplies
      */
     private function sendAutoreplyText($waNumber, $text)
     {
+        if ($this->intentLabMode) {
+            return ['success' => true, 'data' => null, 'error' => null];
+        }
         if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
             require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
         }
@@ -133,14 +242,26 @@ class WAReplies
      */
     private function logAutoreplyTrace(?string $waNumber, string $stage, string $detail = ''): void
     {
-        if (!class_exists('\Log')) {
-            return;
-        }
-        $wa = $waNumber ?? '-';
         $detail = str_replace(["\r", "\n"], ' ', (string) $detail);
         if (mb_strlen($detail) > 480) {
             $detail = mb_substr($detail, 0, 480) . '…';
         }
+        if ($this->intentLabMode) {
+            $line = $stage . ($detail !== '' ? (' | ' . $detail) : '');
+            $this->intentLabTraces[] = $line;
+            if (stripos($stage, 'REGEX_MATCH') === 0) {
+                $this->intentLabSource = $this->intentLabSource ?: 'regex';
+            } elseif (stripos($stage, 'AI_PATH') === 0 || stripos($stage, 'HANDLER_RUN') === 0 && stripos($detail, 'ai ') !== false) {
+                $this->intentLabSource = $this->intentLabSource ?: 'ai';
+            } elseif (stripos($stage, 'ai_') === 0 || stripos($stage, 'AI_') === 0 || stripos($stage, 'ai_override') !== false || stripos($stage, 'AI_REMAP') === 0) {
+                $this->intentLabSource = 'ai';
+            }
+            return;
+        }
+        if (!class_exists('\Log')) {
+            return;
+        }
+        $wa = $waNumber ?? '-';
         \Log::write("{$stage} | {$wa} | {$detail}", 'wa', 'autoreply');
     }
 
@@ -184,6 +305,10 @@ class WAReplies
      */
     private function isHumanAgentRecentlyActive(string $waNumber, ?int $idleMinutes = null): bool
     {
+        if ($this->intentLabMode) {
+            $this->humanActiveCache = false;
+            return false;
+        }
         if ($this->humanActiveCache !== null) {
             return $this->humanActiveCache;
         }
@@ -310,6 +435,9 @@ class WAReplies
      */
     private function isInAutoreplyCooldown($waNumber, $handler, $cooldownMinutes = null): bool
     {
+        if ($this->intentLabMode) {
+            return false;
+        }
         $cooldownMinutes = $cooldownMinutes ?? $this->getAutoreplyCooldownMinutes($handler);
         $db = DB::getInstance(0);
 
@@ -1724,7 +1852,7 @@ class WAReplies
         $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'db_ok');
 
         // Partner (wa_conversations.partner = 1): channel mitra — tanpa deteksi intent & tanpa autoreply (yCloud + Fonnte)
-        if ($this->isWaPartnerChannel($db, $waNumber)) {
+        if (!$this->intentLabMode && $this->isWaPartnerChannel($db, $waNumber)) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'partner_skip_intent_autoreply');
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -1740,6 +1868,7 @@ class WAReplies
         // Nominal-only (contoh: "175.000 kak") -> jangan dianggap intent apa pun.
         if ($this->messageLooksLikeAmountOnly($textBodyToCheck)) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'amount_only_no_intent');
+            $this->intentLabMark('NONE', 'amount');
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -1871,12 +2000,12 @@ class WAReplies
                 $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $textBody);
                 if ($lokasiOk !== false) {
                     $conversationId = $this->getOrCreateConversationWithCase(
-                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                     );
                     $this->logAutoreplyTrace($waNumber, 'DONE', 'lokasi_session_followup_ok');
                     return (object) [
-                        'case' => 2,
-                        'notify' => true,
+                        'case' => null,
+                        'notify' => false,
                         'conversation_id' => $conversationId,
                     ];
                 }
@@ -1908,11 +2037,11 @@ class WAReplies
                         $this->currentHandler = 'LOKASI';
                         if ($this->handleLokasi($phoneIn, $waNumber, $textBody) !== false) {
                             $conversationId = $this->getOrCreateConversationWithCase(
-                                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                             );
                             return (object) [
-                                'case' => 2,
-                                'notify' => true,
+                                'case' => null,
+                                'notify' => false,
                                 'conversation_id' => $conversationId,
                             ];
                         }
@@ -2201,6 +2330,15 @@ class WAReplies
 
                     if (method_exists($this, $methodName)) {
                         $this->currentHandler = $handler;
+                        $this->intentLabMark($handler, 'regex');
+                        if ($this->intentLabMode) {
+                            $this->logAutoreplyTrace($waNumber, 'DONE', 'lab_regex_ok handler=' . $handler);
+                            return (object) [
+                                'case' => $caseVal,
+                                'notify' => $notify,
+                                'conversation_id' => $conversationId
+                            ];
+                        }
                         // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                         if ($handler === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
                             $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_penutup_ambiguous_no_reply');
@@ -2228,6 +2366,7 @@ class WAReplies
                     }
                     // Handler match tapi method tidak ada: create conversation, return, biarkan CS / DEFAULT fallback
                     $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_no_php_method handler=' . $handler);
+                    $this->intentLabMark($handler, 'regex');
                     return (object) [
                         'case' => $caseVal,
                         'notify' => $notify,
@@ -2241,6 +2380,7 @@ class WAReplies
         // Short message (likely not a real query) - still create conversation!
         if ($messageLength >= 0 && $messageLength <= 7) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'short_message_no_regex len=' . $messageLength . ' (no AI)');
+            $this->intentLabMark('NONE', 'short');
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
             );
@@ -2622,6 +2762,15 @@ class WAReplies
             $methodExists = method_exists($this, $methodName);
             if ($methodExists) {
                 $this->currentHandler = $aiIntent;
+                $this->intentLabMark($aiIntent, 'ai');
+                if ($this->intentLabMode) {
+                    $this->logAutoreplyTrace($waNumber, 'DONE', 'lab_ai_ok intent=' . $aiIntent);
+                    return (object) [
+                        'case' => $aiCase,
+                        'notify' => $aiNotify,
+                        'conversation_id' => $conversationId
+                    ];
+                }
                 // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                 if ($aiIntent === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
                     $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_penutup_ambiguous_no_reply');
@@ -2643,6 +2792,7 @@ class WAReplies
                 $this->logAutoreplyTrace($waNumber, 'DONE', 'ai_ok intent=' . $aiIntent);
             } else {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_no_php_method intent=' . $aiIntent);
+                $this->intentLabMark($aiIntent, 'ai');
             }
 
             return (object) [
@@ -2666,6 +2816,7 @@ class WAReplies
                 ? ('ai_false ask=' . ($ask ? '1' : '0') . ' case=' . ($caseVal === null ? 'null' : (string) $caseVal))
                 : 'ai_no_valid_intent (AI_SKIP / AI_REJECT / AI_ERROR) case=null'
         );
+        $this->intentLabMark('FALSE', $intentFalse ? 'ai_false' : 'ai_none');
 
         // AI FALSE / tanpa intent — human aktif: diam (jangan case 4 / DEFAULT)
         if ($this->isHumanAgentRecentlyActive($waNumber)) {
@@ -2689,6 +2840,7 @@ class WAReplies
             'notify' => (bool) $ask,
             'conversation_id' => $conversationId,
             'no_handler' => (bool) $ask,
+            'ask' => (bool) $ask,
         ];
     }
 
@@ -8717,6 +8869,9 @@ class WAReplies
 
     public function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
+        if ($this->intentLabMode) {
+            return 0;
+        }
         if ($contactName !== null) {
             $contactName = trim((string) $contactName);
         }

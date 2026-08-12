@@ -114,6 +114,11 @@ $menu[1] = [
                 'c' => '@ImportPelanggan',
                 'title' => 'Import Pelanggan',
                 'txt' => 'Import Pelanggan'
+            ],
+            [
+                'c' => '@IntentLab',
+                'title' => 'Intent Lab',
+                'txt' => 'Intent Lab'
             ]
         ]
     ],

@@ -540,9 +540,10 @@ return [
    ],
 
    // LOKASI: simpan/lengkapi alamat — SETELAH MINTA agar jemput+alamat tidak kena LOKASI dulu
+   // case null: shareloc/alamat saja bukan pickup/delivery (case 2 kuning hanya MINTA_JEMPUT_ANTAR)
    'LOKASI' => [
-      'case' => 2,
-      'notify' => true,
+      'case' => null,
+      'notify' => false,
       'patterns' => [
          '/📍|shared\s*location|share\s*loc|shareloc/iu',
          '/https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|[^\s]*google\.[^\s]*\/maps)/i',

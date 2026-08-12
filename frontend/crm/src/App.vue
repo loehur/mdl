@@ -1809,10 +1809,6 @@ const reopenConversation = async () => {
 
 const resolveCase = async (caseId) => {
   if (!activeConversation.value) return;
-  if (parseInt(caseId) === 2) {
-    console.warn("Case Pickup/Delivery hanya dituntaskan via laundry Delivery");
-    return;
-  }
   try {
     const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
       method: "POST",

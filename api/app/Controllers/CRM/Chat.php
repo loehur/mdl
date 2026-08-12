@@ -801,10 +801,6 @@ class Chat extends Controller
             }
 
             $targetCase = (int)$caseVal;
-            // Case 2 (Pickup/Delivery) dituntaskan via laundry Delivery Order, bukan CRM
-            if ($targetCase === 2) {
-                $this->error('Case Pickup/Delivery hanya bisa dituntaskan melalui Delivery Order laundry', 403);
-            }
             
             $db = $this->db(0);
             
