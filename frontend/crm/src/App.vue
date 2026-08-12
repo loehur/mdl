@@ -5235,7 +5235,6 @@ const handleLinkClick = (e) => {
       :connection-error="connectionError"
       :show-mobile-chat="showMobileChat"
       :total-unread-count="totalUnreadCount"
-      :total-open-cases-count="totalOpenCasesCount"
       @select-chat="selectChat"
       @logout="logout"
       @load-more-conversations="loadMoreConversations"

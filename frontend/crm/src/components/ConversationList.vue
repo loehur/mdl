@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import twemoji from 'twemoji';
+import { getCaseColor, getCaseLabel } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversations: { type: Array, default: () => [] },
@@ -17,8 +18,9 @@ const props = defineProps({
   connectionError: { type: String, default: "" },
   showMobileChat: { type: Boolean, default: false },
   totalUnreadCount: { type: Number, default: 0 },
-  totalOpenCasesCount: { type: Number, default: 0 },
 });
+
+const CASE_FILTER_IDS = [1, 2, 3, 4];
 
 const emit = defineEmits([
   "select-chat",
@@ -35,14 +37,26 @@ const conversationFilter = ref("all");
 const conversationListContainer = ref(null);
 
 // Methods
-const getCaseColor = (caseId) => {
-  switch (parseInt(caseId)) {
-    case 1: return "bg-blue-500";
-    case 2: return "bg-yellow-500";
-    case 3: return "bg-red-500";
-    case 4: return "bg-purple-500";
-    default: return "bg-gray-500";
+const openCaseCounts = computed(() => {
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const chat of props.conversations) {
+    if (!chat.cases) continue;
+    const openCaseIds = new Set();
+    for (const cse of chat.cases) {
+      if (cse.case > 0 && (cse.status || "open") !== "closed") {
+        openCaseIds.add(parseInt(cse.case));
+      }
+    }
+    for (const caseId of openCaseIds) {
+      if (counts[caseId] !== undefined) counts[caseId]++;
+    }
   }
+  return counts;
+});
+
+const toggleCaseFilter = (caseId) => {
+  const filterKey = `case-${caseId}`;
+  updateFilter(conversationFilter.value === filterKey ? "all" : filterKey);
 };
 
 const selectChat = (id) => {
@@ -198,13 +212,13 @@ const parseEmoji = (text) => {
 
     <!-- Filter Tabs -->
     <div class="px-4 py-3 bg-[var(--wa-bg-panel)]">
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2 items-center">
         <!-- All Tab -->
         <button
           @click="updateFilter('all')"
           class="px-3 py-1.5 text-sm font-medium rounded-full transition-all border"
           :class="conversationFilter === 'all' ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
-        >Semua</button>
+        >All</button>
 
         <!-- Unread Tab -->
         <button
@@ -212,19 +226,26 @@ const parseEmoji = (text) => {
           class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
           :class="conversationFilter === 'unread' ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
         >
-          <span>Belum dibaca</span>
+          <span>Unread</span>
           <span v-if="totalUnreadCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'unread' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-[var(--wa-accent-green)] text-black'">{{ totalUnreadCount }}</span>
         </button>
 
-        <!-- Cases Tab -->
+        <!-- Case count badges (per case type) -->
         <button
-          @click="updateFilter('cases')"
-          class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center gap-1.5 border"
-          :class="conversationFilter === 'cases' ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
-        >
-          <span>Cases</span>
-          <span v-if="totalOpenCasesCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'cases' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-[var(--wa-accent-green)] text-black'">{{ totalOpenCasesCount }}</span>
-        </button>
+          v-for="caseId in CASE_FILTER_IDS"
+          :key="'case-filter-' + caseId"
+          v-show="openCaseCounts[caseId] > 0"
+          @click="toggleCaseFilter(caseId)"
+          :title="getCaseLabel(caseId)"
+          class="min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center transition-all"
+          :class="[
+            getCaseColor(caseId),
+            caseId === 2 ? 'text-black' : 'text-white',
+            conversationFilter === 'case-' + caseId
+              ? 'ring-2 ring-white/70 ring-offset-1 ring-offset-[var(--wa-bg-panel)]'
+              : 'opacity-90 hover:opacity-100'
+          ]"
+        >{{ openCaseCounts[caseId] }}</button>
       </div>
     </div>
 

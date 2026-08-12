@@ -155,6 +155,19 @@ export const filteredConversations = computed(() => {
                     (cs) => cs.case > 0 && (cs.status || "open") !== "closed"
                 )
         );
+    } else if (conversationFilter.value.startsWith("case-")) {
+        const caseId = parseInt(conversationFilter.value.replace("case-", ""), 10);
+        if (caseId > 0) {
+            list = list.filter(
+                (c) =>
+                    c.cases &&
+                    c.cases.some(
+                        (cs) =>
+                            parseInt(cs.case) === caseId &&
+                            (cs.status || "open") !== "closed"
+                    )
+            );
+        }
     }
 
     return list;
@@ -285,12 +298,12 @@ export const getAvatarColor = (seed) => {
 
 export const getCaseColor = (caseId) => {
     switch (parseInt(caseId)) {
-        case 1: return "bg-green-500";
+        case 1: return "bg-blue-500";
         case 2: return "bg-yellow-500";
         case 3: return "bg-red-500";
         case 4: return "bg-purple-500";
         case 0: return "bg-slate-500";
-        default: return "hidden";
+        default: return "bg-gray-500";
     }
 };
 
