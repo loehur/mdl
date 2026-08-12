@@ -117,6 +117,57 @@ $isEmptyCustomer = empty($customerGroups);
       max-height: min(70vh, 640px);
       overflow: auto;
     }
+    #dlv-root .dlv-panel.is-collapsed .dlv-body {
+      display: none;
+    }
+    #dlv-root .dlv-panel.is-collapsed {
+      height: auto;
+    }
+    #dlv-root .dlv-panel.is-collapsed .dlv-body {
+      min-height: 0;
+      max-height: none;
+    }
+    #dlv-root .dlv-head {
+      cursor: pointer;
+      user-select: none;
+    }
+    #dlv-root .dlv-head__grow {
+      flex: 1;
+      min-width: 0;
+    }
+    #dlv-root .dlv-collapse-btn {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid rgba(255,255,255,.45);
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #dlv-root .dlv-collapse-btn:hover {
+      background: rgba(255,255,255,.32);
+    }
+    #dlv-root .dlv-collapse-btn i {
+      font-size: 0.78rem;
+      transition: transform .15s ease;
+    }
+    #dlv-root .dlv-panel.is-collapsed .dlv-collapse-btn i {
+      transform: rotate(-90deg);
+    }
+    #dlv-root .dlv-head-count {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border: 1px solid rgba(255,255,255,.4);
+      background: rgba(255,255,255,.2);
+      font-size: 0.68rem;
+      font-weight: 900;
+      vertical-align: middle;
+    }
     #dlv-root .dlv-empty {
       display: flex;
       flex-direction: column;
@@ -891,7 +942,7 @@ $isEmptyCustomer = empty($customerGroups);
     }
     #dlv-root .dlv-selected-pel[hidden] { display: none !important; }
     #dlv-root .dlv-btn--add-head {
-      margin-left: auto;
+      margin-left: 0;
       flex-shrink: 0;
       padding: 6px 10px;
       border: 1px solid rgba(255,255,255,.45);
@@ -912,18 +963,21 @@ $isEmptyCustomer = empty($customerGroups);
 
   <div class="row g-2">
     <div class="col-12 col-md-6">
-      <section class="dlv-panel dlv-panel--customer" aria-label="Delivery Customer">
-        <header class="dlv-head">
+      <section class="dlv-panel dlv-panel--customer" data-dlv-panel="customer" aria-label="Delivery Customer">
+        <header class="dlv-head" data-dlv-collapse-toggle role="button" tabindex="0" aria-expanded="true" aria-controls="dlvBodyCustomer">
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-user"></i></span>
-          <div>
-            <h2>Customer</h2>
+          <div class="dlv-head__grow">
+            <h2>Customer <span class="dlv-head-count"><?= (int) count($customerGroups) ?></span></h2>
             <small>Request Jemput / Antar aktif</small>
           </div>
           <button type="button" class="dlv-btn--add-head" id="dlvTambahBtn" title="Tambah Delivery manual">
             <i class="fas fa-plus"></i> Tambah
           </button>
+          <button type="button" class="dlv-collapse-btn" data-dlv-collapse-btn title="Ciutkan / buka" aria-label="Ciutkan panel">
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+          </button>
         </header>
-        <div class="dlv-body">
+        <div class="dlv-body" id="dlvBodyCustomer">
           <?php if ($isEmptyCustomer) { ?>
             <div class="dlv-empty">
               <i class="fas fa-motorcycle" aria-hidden="true"></i>
@@ -1124,15 +1178,18 @@ $isEmptyCustomer = empty($customerGroups);
     </div>
 
     <div class="col-12 col-md-6">
-      <section class="dlv-panel dlv-panel--cabang" aria-label="Delivery Cabang">
-        <header class="dlv-head">
+      <section class="dlv-panel dlv-panel--cabang" data-dlv-panel="cabang" aria-label="Delivery Cabang">
+        <header class="dlv-head" data-dlv-collapse-toggle role="button" tabindex="0" aria-expanded="true" aria-controls="dlvBodyCabang">
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-store"></i></span>
-          <div>
-            <h2>Cabang</h2>
+          <div class="dlv-head__grow">
+            <h2>Cabang <span class="dlv-head-count"><?= (int) count($transfers) ?></span></h2>
             <small>Transfer barang belum diterima</small>
           </div>
+          <button type="button" class="dlv-collapse-btn" data-dlv-collapse-btn title="Ciutkan / buka" aria-label="Ciutkan panel">
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+          </button>
         </header>
-        <div class="dlv-body">
+        <div class="dlv-body" id="dlvBodyCabang">
           <?php if ($isEmptyCabang) { ?>
             <div class="dlv-empty">
               <i class="fas fa-truck" aria-hidden="true"></i>
@@ -1631,6 +1688,7 @@ $isEmptyCustomer = empty($customerGroups);
   var detailEditQty = { ref: '', sourceKode: '', targetKode: '', items: [] };
   var tambahSearchTimer = null;
   var tambahPelanggan = { id: 0, nama: '', hp: '' };
+  var PANEL_COLLAPSE_KEY = 'dlv_panel_collapse_v1';
 
   function toast(msg, type) {
     if (window.MdlToast) {
@@ -1641,6 +1699,49 @@ $isEmptyCustomer = empty($customerGroups);
       return;
     }
     alert(msg);
+  }
+
+  function readPanelCollapseState() {
+    try {
+      var raw = sessionStorage.getItem(PANEL_COLLAPSE_KEY);
+      if (!raw) return {};
+      var o = JSON.parse(raw);
+      return o && typeof o === 'object' ? o : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function writePanelCollapseState(state) {
+    try {
+      sessionStorage.setItem(PANEL_COLLAPSE_KEY, JSON.stringify(state || {}));
+    } catch (err) { /* ignore */ }
+  }
+
+  function setPanelCollapsed(panel, collapsed) {
+    if (!panel) return;
+    var key = panel.getAttribute('data-dlv-panel') || '';
+    panel.classList.toggle('is-collapsed', !!collapsed);
+    var head = panel.querySelector('[data-dlv-collapse-toggle]');
+    if (head) head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    if (key) {
+      var st = readPanelCollapseState();
+      st[key] = !!collapsed;
+      writePanelCollapseState(st);
+    }
+  }
+
+  function togglePanelCollapse(panel) {
+    if (!panel) return;
+    setPanelCollapsed(panel, !panel.classList.contains('is-collapsed'));
+  }
+
+  function initPanelCollapse() {
+    var st = readPanelCollapseState();
+    root.querySelectorAll('.dlv-panel[data-dlv-panel]').forEach(function (panel) {
+      var key = panel.getAttribute('data-dlv-panel') || '';
+      if (key && st[key]) setPanelCollapsed(panel, true);
+    });
   }
 
   function syncLock() {
@@ -3333,7 +3434,17 @@ $isEmptyCustomer = empty($customerGroups);
     var tambahBtn = e.target.closest('#dlvTambahBtn');
     if (tambahBtn && root.contains(tambahBtn)) {
       e.preventDefault();
+      e.stopPropagation();
       openTambahModal();
+      return;
+    }
+
+    var collapseToggle = e.target.closest('[data-dlv-collapse-toggle]');
+    if (collapseToggle && root.contains(collapseToggle)) {
+      // Tombol aksi di header (Tambah) sudah di-handle di atas
+      if (e.target.closest('#dlvTambahBtn')) return;
+      e.preventDefault();
+      togglePanelCollapse(collapseToggle.closest('.dlv-panel'));
       return;
     }
 
@@ -3529,11 +3640,21 @@ $isEmptyCustomer = empty($customerGroups);
   if (editQtyConfirmBtn) editQtyConfirmBtn.addEventListener('click', confirmEditQty);
 
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      var t = e.target.closest('[data-dlv-collapse-toggle]');
+      if (t && root.contains(t) && e.target === t) {
+        e.preventDefault();
+        togglePanelCollapse(t.closest('.dlv-panel'));
+        return;
+      }
+    }
     if (e.key !== 'Escape') return;
     var open = root.querySelectorAll('.op-modal.is-open');
     if (!open.length) return;
     closeModal(open[open.length - 1]);
   });
+
+  initPanelCollapse();
 
   if (window.jQuery) {
     jQuery(function () { ensureKaryawanSelectize(); });
