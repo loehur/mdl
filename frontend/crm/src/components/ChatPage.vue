@@ -66,10 +66,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  isChatPolling: {
-    type: Boolean,
-    default: false,
-  },
 });
 
 // Computed font size class based on prop
@@ -982,12 +978,6 @@ onUnmounted(() => {
                          </div>
                     </div>
                </div>
-               <div class="absolute bottom-0 inset-x-0 h-[3px] bg-[var(--wa-border)] overflow-hidden pointer-events-none" aria-hidden="true">
-                 <div
-                   v-if="isChatPolling"
-                   class="chat-poll-bar h-full w-1/3 bg-[var(--wa-accent-green)]"
-                 />
-               </div>
           </header>
 
          <!-- Messages -->
@@ -1491,18 +1481,3 @@ onUnmounted(() => {
     </div>
     </main>
 </template>
-
-<style scoped>
-@keyframes chat-poll-indeterminate {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(300%);
-  }
-}
-
-.chat-poll-bar {
-  animation: chat-poll-indeterminate 0.85s ease-in-out infinite;
-}
-</style>

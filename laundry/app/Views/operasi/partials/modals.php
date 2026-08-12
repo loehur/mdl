@@ -1892,6 +1892,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       Operasi selalu menulis surcas ke nota (wajib pilih item).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
       Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
+      Item sudah Delivered tanpa surcas antar tetap bisa dipilih (isi surcas saja).
     </p>
     <div class="kurir-field">
       <label class="kurir-label" for="kurirJenis">Jenis</label>
@@ -2025,6 +2026,15 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       lab.textContent = 'Selesai Jemput';
       return;
     }
+    var checked = root.querySelectorAll('input[name="kurir_ids"]:checked');
+    var allDelivered = checked.length > 0;
+    checked.forEach(function (cb) {
+      if (cb.getAttribute('data-sudah-delivered') !== '1') allDelivered = false;
+    });
+    if (allDelivered) {
+      lab.textContent = 'Tambah Surcas Antar';
+      return;
+    }
     var hasKaryawan = false;
     if (kurirSelectize) hasKaryawan = !!kurirSelectize.getValue();
     else {
@@ -2044,10 +2054,14 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     box.innerHTML = orders.map(function (ord) {
       var items = (ord.items || []).map(function (it) {
         var belum = !!it.belum_selesai;
-        var meta = '#' + it.id + (it.member ? ' · member' : '') + (belum ? ' · belum selesai laundry' : '');
+        var delivered = !!it.sudah_delivered;
+        var meta = '#' + it.id + (it.member ? ' · member' : '')
+          + (delivered ? ' · sudah delivered · isi surcas saja' : '')
+          + (belum && !delivered ? ' · belum selesai laundry' : '');
         return '<label class="kurir-item">' +
           '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
-          (belum ? ' data-belum-selesai="1"' : '') + '>' +
+          (belum && !delivered ? ' data-belum-selesai="1"' : '') +
+          (delivered ? ' data-sudah-delivered="1"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
           '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
       }).join('');
@@ -2057,6 +2071,10 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       return '<div class="kurir-group" data-no-ref="' + esc(ord.no_ref) + '">' +
         '<div class="kurir-group-head">#' + esc(ord.no_ref) + esc(scHint) + '</div>' + items + '</div>';
     }).join('');
+    box.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
+      cb.addEventListener('change', syncSubmitLabel);
+    });
+    syncSubmitLabel();
   }
 
   function loadSales(jenis) {
@@ -2067,7 +2085,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       return;
     }
     box.innerHTML = '<div class="kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>';
-    fetch(salesUrl + encodeURIComponent(phoneTail) + '?jenis=' + encodeURIComponent(jenis), {
+    fetch(salesUrl + encodeURIComponent(phoneTail) + '?jenis=' + encodeURIComponent(jenis) + '&operasi=1', {
       credentials: 'same-origin'
     })
       .then(function (r) { return r.json(); })

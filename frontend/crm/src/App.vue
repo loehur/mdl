@@ -100,25 +100,14 @@ const currentPollingInterval = ref(30000); // Start with 30s
 const chatPollingInterval = ref(null);
 const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
-const isChatPolling = ref(false); // true while active-chat poll bar visible
-const chatPollBarHideTimer = ref(null);
-const CHAT_POLL_BAR_MIN_MS = 900; // API lokal terlalu cepat — bar perlu durasi minimum
+const CHAT_POLL_IDLE_MS = 5 * 60 * 1000; // Keep polling while chat open; pause only after long idle
 
-const showChatPollBar = () => {
-  if (chatPollBarHideTimer.value) {
-    clearTimeout(chatPollBarHideTimer.value);
-    chatPollBarHideTimer.value = null;
-  }
-  isChatPolling.value = true;
-};
-
-const hideChatPollBar = (startedAt) => {
-  const remaining = Math.max(0, CHAT_POLL_BAR_MIN_MS - (Date.now() - startedAt));
-  if (chatPollBarHideTimer.value) clearTimeout(chatPollBarHideTimer.value);
-  chatPollBarHideTimer.value = setTimeout(() => {
-    isChatPolling.value = false;
-    chatPollBarHideTimer.value = null;
-  }, remaining);
+const normalizePollTimestamp = (value) => {
+  if (!value) return 0;
+  const raw = String(value).trim();
+  // MySQL "YYYY-MM-DD HH:mm:ss" → parseable; keep numeric epoch as-is
+  const parsed = new Date(raw.includes(" ") && !raw.includes("T") ? raw.replace(" ", "T") : raw).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 // Activity events to track
@@ -1947,115 +1936,129 @@ const selectChat = async (id, isRefresh = false) => {
   startChatPolling(chat.wa_number);
 };
 
-// Start polling to check last_message_at every 5 seconds
+// Sync latest messages into an open chat (used by polling + manual refresh)
+const syncActiveChatMessages = async (chat, { forceScroll = false } = {}) => {
+  if (!chat?.wa_number) return false;
+
+  const beforeIds = new Set((chat.messages || []).map((m) => String(m.id)));
+  const msgResult = await fetchMessages(chat.wa_number, 0, 30);
+  if (!msgResult.messages.length) return false;
+
+  const combined = [...(chat.messages || []), ...msgResult.messages];
+  chat.messages = sanitizeMessages(combined);
+  // Keep pagination cursor based on newest page size, not total local length
+  if (typeof chat.messageOffset !== "number" || chat.messageOffset < msgResult.messages.length) {
+    chat.messageOffset = msgResult.messages.length;
+  }
+  chat.hasMoreMessages = msgResult.has_more || chat.hasMoreMessages;
+
+  // Upgrade outgoing ticks from server snapshot
+  for (const serverMsg of msgResult.messages) {
+    if (serverMsg.sender !== "me") continue;
+    const local = chat.messages.find(
+      (m) =>
+        m.id == serverMsg.id ||
+        (m.wamid && serverMsg.wamid && m.wamid == serverMsg.wamid)
+    );
+    if (local && shouldApplyMessageStatus(local.status, serverMsg.status)) {
+      local.status = normalizeMessageStatus(serverMsg.status);
+      if (serverMsg.wamid && !local.wamid) local.wamid = serverMsg.wamid;
+    }
+  }
+
+  const newest = chat.messages[chat.messages.length - 1];
+  if (newest) {
+    const previewText =
+      newest.text ||
+      mediaTypeLastMessageLabel(newest.type) ||
+      "Message";
+    chat.lastMessage =
+      newest.sender === "me" ? `You: ${previewText}` : previewText;
+    chat.lastTime = formatLastTime(newest.rawTime);
+    if (newest.rawTime) chat.lastMessageTime = newest.rawTime;
+  }
+
+  messageUpdateTrigger.value++;
+
+  let added = false;
+  for (const msg of chat.messages) {
+    if (!beforeIds.has(String(msg.id))) {
+      added = true;
+      break;
+    }
+  }
+  if (added || forceScroll) {
+    scrollToBottom(forceScroll ? { force: true } : undefined);
+  }
+  return added;
+};
+
+// Poll open chat for new messages every 5 seconds
 const startChatPolling = (phone) => {
-  // Stop any existing polling
   stopChatPolling();
-  
-  // Store phone being polled
   chatPollingPhone.value = phone;
-  
-  // Get initial last_message_at from conversation
+
   const chat = conversations.value.find((c) => c.wa_number === phone);
-  if (chat && chat.lastMessageTime) {
+  if (chat?.lastMessageTime) {
     localLastMessageAt.value = chat.lastMessageTime;
   }
-  
-  // Poll every 5 seconds
-  chatPollingInterval.value = setInterval(async () => {
+
+  const pollOnce = async () => {
     if (!activeChatId.value || !phone) {
       stopChatPolling();
       return;
     }
-    
-    // Check if idle for more than 25 seconds
+
     const idleTime = Date.now() - lastActivityTime.value;
-    const IDLE_THRESHOLD = 25000; // 25 seconds
-    
-    if (idleTime > IDLE_THRESHOLD) {
-      console.log('⏸️ Chat polling paused - user idle for', Math.round(idleTime / 1000), 'seconds');
+    if (idleTime > CHAT_POLL_IDLE_MS) {
+      console.log(
+        "⏸️ Chat polling paused - user idle for",
+        Math.round(idleTime / 1000),
+        "seconds"
+      );
       stopChatPolling();
       return;
     }
 
-    const pollStartedAt = Date.now();
-    showChatPollBar();
-    try {
-      const response = await fetch(`${API_BASE}/CRM/Chat/getLastMessageAt?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`);
-      if (response.ok) {
-        const result = await response.json();
-        const serverLastMessageAt = result.data?.last_message_at;
-        const chat = conversations.value.find((c) => c.wa_number === phone);
-        if (!chat) return;
+    const chat = conversations.value.find((c) => c.wa_number === phone);
+    if (!chat || chat.id !== activeChatId.value) return;
 
-        // Keep CSW composer in sync even if WS only patched messages
+    try {
+      let serverLastMessageAt = null;
+      const metaRes = await fetch(
+        `${API_BASE}/CRM/Chat/getLastMessageAt?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`
+      );
+      if (metaRes.ok) {
+        const result = await metaRes.json();
+        serverLastMessageAt = result.data?.last_message_at ?? null;
         if (result.data?.status) {
           chat.status = result.data.status;
         }
+      }
 
-        const lastMessageChanged =
-          serverLastMessageAt && serverLastMessageAt !== localLastMessageAt.value;
+      const serverTs = normalizePollTimestamp(serverLastMessageAt);
+      const localTs = normalizePollTimestamp(localLastMessageAt.value);
+      const lastMessageChanged = serverTs > 0 && serverTs !== localTs;
 
-        // Status ticks (sent→delivered→read) do NOT change last_message_at.
-        // Still sync when any outgoing bubble is not yet fully read.
-        const needsStatusSync = (chat.messages || []).some(
-          (m) =>
-            m.sender === "me" &&
-            ["pending", "accepted", "sent", "delivered"].includes(
-              normalizeMessageStatus(m.status)
-            )
-        );
+      // Always merge recent messages while chat is open.
+      // Relying only on last_message_at string equality missed updates (format drift / stale local).
+      await syncActiveChatMessages(chat);
 
-        if (lastMessageChanged || needsStatusSync) {
-          if (lastMessageChanged) {
-            localLastMessageAt.value = serverLastMessageAt;
-          }
-
-          try {
-            const msgResult = await fetchMessages(chat.wa_number, 0, 20);
-            if (msgResult.messages.length > 0) {
-              if (lastMessageChanged) {
-                const combined = [...chat.messages, ...msgResult.messages];
-                chat.messages = sanitizeMessages(combined);
-                chat.hasMoreMessages = msgResult.has_more;
-                chat.messageOffset = chat.messages.length;
-                scrollToBottom(); // soft: jangan ganggu user yang baca history
-              } else {
-                // Status-only sync: upgrade ticks without reshuffling UI
-                let changed = false;
-                for (const serverMsg of msgResult.messages) {
-                  if (serverMsg.sender !== "me") continue;
-                  const local = chat.messages.find(
-                    (m) =>
-                      m.id == serverMsg.id ||
-                      (m.wamid && serverMsg.wamid && m.wamid == serverMsg.wamid)
-                  );
-                  if (
-                    local &&
-                    shouldApplyMessageStatus(local.status, serverMsg.status)
-                  ) {
-                    local.status = normalizeMessageStatus(serverMsg.status);
-                    if (serverMsg.wamid && !local.wamid) local.wamid = serverMsg.wamid;
-                    changed = true;
-                  }
-                }
-                if (changed) {
-                  chat.messages = [...chat.messages];
-                  messageUpdateTrigger.value++;
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Failed to fetch/sync messages:', error);
-          }
-        }
+      if (serverLastMessageAt) {
+        localLastMessageAt.value = serverLastMessageAt;
+      } else if (chat.lastMessageTime) {
+        localLastMessageAt.value = chat.lastMessageTime;
+      } else if (lastMessageChanged && serverLastMessageAt) {
+        localLastMessageAt.value = serverLastMessageAt;
       }
     } catch (error) {
-      console.error('Failed to check last_message_at:', error);
-    } finally {
-      hideChatPollBar(pollStartedAt);
+      console.error("Failed to poll/sync active chat:", error);
     }
-  }, 5000); // Poll every 5 seconds
+  };
+
+  // Immediate sync when opening chat, then every 5s
+  pollOnce();
+  chatPollingInterval.value = setInterval(pollOnce, 5000);
 };
 
 // Stop chat polling (keeps chatPollingPhone so we can restart when user becomes active again)
@@ -2065,11 +2068,6 @@ const stopChatPolling = () => {
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
-  if (chatPollBarHideTimer.value) {
-    clearTimeout(chatPollBarHideTimer.value);
-    chatPollBarHideTimer.value = null;
-  }
-  isChatPolling.value = false;
   // Don't clear chatPollingPhone - needed for restart when user becomes active after idle
 };
 
@@ -2078,8 +2076,12 @@ const refreshActiveChat = async () => {
 
   isRefreshingChat.value = true;
   try {
-    // Only fetch status of current conversation (not all conversations)
-    // This prevents chat from going blank if it's from search results
+    const conversation = conversations.value.find(
+      (c) => c.id === activeChatId.value
+    );
+    if (!conversation) return;
+
+    // Refresh CSW/status metadata
     const userIdParam = authId.value ? `user_id=${authId.value}` : "";
     const query = userIdParam
       ? `?${userIdParam}&conversation_id=${activeChatId.value}&_t=${Date.now()}`
@@ -2095,25 +2097,22 @@ const refreshActiveChat = async () => {
 
       if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
         const updatedConv = conversationsData[0];
-        
-        // Update only the status in current conversation
-        const conversation = conversations.value.find(
-          (c) => c.id === activeChatId.value
-        );
-        
-        if (conversation) {
-          conversation.status = updatedConv.status;
-          console.log('✅ CSW status updated:', updatedConv.status);
-          
-          // If CSW is now open, input will show automatically (v-if handles it)
-          if (updatedConv.status !== 'closed') {
-            console.log('✅ CSW is open, input available');
-          }
+        conversation.status = updatedConv.status;
+        if (updatedConv.last_message_time) {
+          conversation.lastMessageTime = updatedConv.last_message_time;
+          conversation.lastTime = formatLastTime(updatedConv.last_message_time);
+          localLastMessageAt.value = updatedConv.last_message_time;
+        }
+        if (updatedConv.last_message) {
+          conversation.lastMessage = updatedConv.last_message;
         }
       }
     }
+
+    // Also reload latest messages (manual refresh must actually sync chat)
+    await syncActiveChatMessages(conversation, { forceScroll: true });
   } catch (error) {
-    console.error("Failed to refresh chat status", error);
+    console.error("Failed to refresh chat", error);
   } finally {
     setTimeout(() => {
       isRefreshingChat.value = false;
@@ -2253,10 +2252,9 @@ watch(lastActivityTime, () => {
   // If chat is open and polling was stopped due to idle, restart it
   if (activeChatId.value && chatPollingPhone.value && !chatPollingInterval.value) {
     const idleTime = Date.now() - lastActivityTime.value;
-    const IDLE_THRESHOLD = 25000; // 25 seconds
-    
-    // Only restart if user is not idle (idle time < 25 seconds)
-    if (idleTime < IDLE_THRESHOLD) {
+
+    // Only restart if user is not idle
+    if (idleTime < CHAT_POLL_IDLE_MS) {
       console.log('▶️ Restarting chat polling - user active again');
       startChatPolling(chatPollingPhone.value);
     }
@@ -5260,7 +5258,6 @@ const handleLinkClick = (e) => {
       :is-loading-messages="isLoadingMessages"
       :is-loading-more-messages="isLoadingMoreMessages"
       :is-connected="isConnected"
-      :is-chat-polling="isChatPolling"
       :font-size="fontSize"
       @back-to-menu="backToMenu"
       @load-more-messages="loadMoreMessages"
