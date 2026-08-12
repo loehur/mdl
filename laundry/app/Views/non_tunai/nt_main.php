@@ -157,6 +157,17 @@ if (count($data['cek']) == 0) { ?>
 <script>
   var tolakData = { id: '', target: '', btn: null };
 
+  function ntToast(msg, type) {
+    msg = String(msg || '').trim();
+    if (!msg) return;
+    if (window.MdlToast) {
+      if (type === 'ok' || type === 'success') return MdlToast.ok(msg);
+      if (type === 'error' || type === 'danger') return MdlToast.error(msg);
+      if (type === 'warn' || type === 'warning') return MdlToast.warn(msg);
+      return MdlToast.info(msg);
+    }
+  }
+
   // Modal di dalam #load (kolom sempit) membuat fixed terikat ke induk → tampil mepet kiri.
   // Pindahkan ke body agar lebar/posisi benar dan terpusat.
   $('body > #modalInvoicePelanggan').remove();
@@ -204,10 +215,11 @@ if (count($data['cek']) == 0) { ?>
       type: "POST",
       success: function(response) {
         if (String(response).trim() !== '0') {
-          alert(String(response || 'Gagal menolak transaksi').trim());
+          ntToast(response || 'Gagal menolak transaksi', 'warn');
           btn.prop('disabled', false).html('<i class="fas fa-times"></i>');
           return;
         }
+        ntToast('Transaksi ditolak', 'ok');
         btn.closest('.list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {
@@ -216,6 +228,7 @@ if (count($data['cek']) == 0) { ?>
         });
       },
       error: function() {
+        ntToast('Gagal menolak transaksi', 'error');
         btn.prop('disabled', false).html('<i class="fas fa-times"></i>');
       }
     });
@@ -233,10 +246,11 @@ if (count($data['cek']) == 0) { ?>
       type: "POST",
       success: function(response) {
         if (String(response).trim() !== '0') {
-          alert(String(response || 'Gagal konfirmasi transaksi').trim());
+          ntToast(response || 'Gagal konfirmasi transaksi', 'warn');
           btn.prop('disabled', false).html('<i class="fas fa-check"></i>');
           return;
         }
+        ntToast('Transaksi dikonfirmasi', 'ok');
         btn.closest('.list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {
@@ -245,6 +259,7 @@ if (count($data['cek']) == 0) { ?>
         });
       },
       error: function() {
+        ntToast('Gagal konfirmasi transaksi', 'error');
         btn.prop('disabled', false).html('<i class="fas fa-check"></i>');
       }
     });

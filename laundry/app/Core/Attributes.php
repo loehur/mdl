@@ -934,8 +934,9 @@ trait Attributes
 
    /**
     * Hapus kas secara aman (global laundry).
-    * QRIS lunas / masih pending / status gateway tidak jelas → jangan hapus.
-    * QRIS expired atau belum pernah generate QR → boleh hapus.
+    * QRIS: selalu cek TokoPay dulu jika sudah digenerate.
+    * Belum generate → boleh hapus. Pending/paid/unknown → jangan hapus
+    * (QR bisa masih dibayar dari foto). Expired/gagal → boleh hapus.
     *
     * @return array{
     *   ok:bool,action:string,deleted:int,kept_paid:int,kept_pending:int,
@@ -1077,15 +1078,9 @@ trait Attributes
       }
 
       $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
-      $qrString = trim((string) ($kas['payment_qr_string'] ?? ''));
-      if ($trxId === '' && $qrString === '') {
-         return ['action' => 'delete', 'msg' => ''];
-      }
+      // Belum hit TokoPay: aman dihapus tanpa cek gateway.
       if ($trxId === '') {
-         return [
-            'action' => 'keep_unknown',
-            'msg' => 'QRIS sudah digenerate, tidak dapat dihapus tanpa konfirmasi gateway',
-         ];
+         return ['action' => 'delete', 'msg' => ''];
       }
 
       $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
@@ -1102,14 +1097,16 @@ trait Attributes
             'msg' => 'QRIS sudah terbayar di gateway, tapi gagal update status. Tidak dihapus.',
          ];
       }
-      if ($bucket === 'expired') {
-         return ['action' => 'delete', 'msg' => ''];
-      }
+      // Masih aktif di gateway: jangan hapus (QR bisa dibayar dari foto).
       if ($bucket === 'pending') {
          return [
             'action' => 'keep_pending',
-            'msg' => 'QRIS masih aktif di gateway. Tidak dapat dihapus sampai expired atau terbayar.',
+            'msg' => 'QRIS masih aktif di gateway. Tidak dapat dihapus sampai expired/gagal.',
          ];
+      }
+      // Expired/gagal/none → benar-benar tidak bisa dibayar lagi, boleh hapus.
+      if ($bucket === 'expired' || $bucket === 'none') {
+         return ['action' => 'delete', 'msg' => ''];
       }
 
       return [
@@ -1119,7 +1116,10 @@ trait Attributes
    }
 
    /**
-    * Cegah terima/tolak NonTunai yang menabrak status QRIS di gateway.
+    * Guard terima/tolak NonTunai vs status QRIS di gateway.
+    * Belum generate → bebas. Sudah generate: cek TokoPay dulu.
+    * Pending → jangan ubah (QR masih bisa dibayar). Expired → boleh.
+    * Paid → sync / blokir tolak.
     * @return array{ok:bool,msg:string,paid:bool}
     */
    protected function guardQrisStatusChange($kas, $newStatus, $is_public = false)
@@ -1135,10 +1135,8 @@ trait Attributes
 
       $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
       $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
+      // Belum panggil TokoPay: bebas ubah/terima/tolak.
       if ($trxId === '') {
-         if ($newStatus === 3) {
-            return ['ok' => false, 'msg' => 'QRIS belum digenerate, tidak bisa dikonfirmasi lunas', 'paid' => false];
-         }
          return ['ok' => true, 'msg' => '', 'paid' => false];
       }
 
@@ -1150,14 +1148,13 @@ trait Attributes
          }
          return ['ok' => false, 'msg' => 'QRIS sudah terbayar di gateway, tidak dapat ditolak', 'paid' => true];
       }
-      if ($bucket === 'expired') {
-         if ($newStatus === 4) {
-            return ['ok' => true, 'msg' => '', 'paid' => false];
-         }
-         return ['ok' => false, 'msg' => 'QRIS sudah expired/gagal, tidak bisa dikonfirmasi lunas', 'paid' => false];
-      }
+      // QR masih hidup: jangan terima/tolak manual (bisa dibayar dari foto).
       if ($bucket === 'pending') {
-         return ['ok' => false, 'msg' => 'QRIS masih pending di gateway. Cek status atau tunggu webhook.', 'paid' => false];
+         return ['ok' => false, 'msg' => 'QRIS masih aktif di gateway. Tunggu expired/gagal atau webhook.', 'paid' => false];
+      }
+      // Expired/gagal → boleh ubah (terima/tolak).
+      if ($bucket === 'expired' || $bucket === 'none') {
+         return ['ok' => true, 'msg' => '', 'paid' => false];
       }
 
       return ['ok' => false, 'msg' => 'Status QRIS tidak dapat dipastikan. Coba lagi.', 'paid' => false];
