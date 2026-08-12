@@ -1,96 +1,31 @@
 <?php
 
 /**
- * Bridge ke App\Helpers\CRM\FonnteService (api/) agar laundry bisa pakai service yang sama.
- * PHP 8.0+
+ * Fonnte helper laundry → https://api.nalju.com/Laundry/Fonnte
+ * Token Fonnte hanya di server API (Env::FONNTE_TOKEN).
  *
  * Usage:
  *   $this->helper('FonnteService');
- *   $fonnte = FonnteService::instance();
- *   $fonnte->sendToGroup($groupId, $message);
+ *   FonnteService::sendToGroup($groupId, $message);
  *   FonnteService::driverGroupId();
- *   FonnteService::cabangGroupId($idCabang, $dbRowOrNull);
+ *   FonnteService::cabangGroupId($cabangRow);
  */
 class FonnteService
 {
-    /** @var \App\Helpers\CRM\FonnteService|null */
-    private static $instance = null;
+    private static $apiUrl = 'https://api.nalju.com/Laundry/Fonnte';
 
-    /** @var bool */
-    private static $booted = false;
-
-    /** @var string|null */
-    private static $bootError = null;
-
-    /**
-     * Load Env + App\Config\Fonnte + App\Helpers\CRM\FonnteService dari folder api.
-     * @throws Exception
-     */
-    public static function boot(): void
-    {
-        if (self::$booted) {
-            if (self::$bootError !== null) {
-                throw new Exception(self::$bootError);
-            }
-            return;
-        }
-        self::$booted = true;
-
-        $apiApp = self::resolveApiAppPath();
-        if ($apiApp === '') {
-            self::$bootError = 'Path api/app tidak ditemukan (cek struktur folder mdl/api)';
-            throw new Exception(self::$bootError);
-        }
-
-        $envFile = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Env.php';
-        $cfgFile = $apiApp . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Fonnte.php';
-        $svcFile = $apiApp . DIRECTORY_SEPARATOR . 'Helpers' . DIRECTORY_SEPARATOR . 'CRM' . DIRECTORY_SEPARATOR . 'FonnteService.php';
-
-        if (!is_file($cfgFile) || !is_file($svcFile)) {
-            self::$bootError = 'File Fonnte config/service tidak lengkap di api/app';
-            throw new Exception(self::$bootError);
-        }
-
-        if (is_file($envFile) && !class_exists('Env', false)) {
-            require_once $envFile;
-        }
-
-        if (!class_exists('\\App\\Config\\Fonnte', false)) {
-            require_once $cfgFile;
-        }
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService', false)) {
-            require_once $svcFile;
-        }
-
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService', false)) {
-            self::$bootError = 'Gagal memuat App\\Helpers\\CRM\\FonnteService';
-            throw new Exception(self::$bootError);
-        }
-    }
-
-    /**
-     * @return \App\Helpers\CRM\FonnteService
-     * @throws Exception
-     */
-    public static function instance()
-    {
-        self::boot();
-        if (self::$instance === null) {
-            self::$instance = new \App\Helpers\CRM\FonnteService();
-        }
-        return self::$instance;
-    }
+    /** Fallback sama App\Config\Fonnte (bukan secret). */
+    private static $driverGroupId = '6281268098300-1625376610@g.us';
+    private static $estimasiGroupId = '120363024779416973@g.us';
 
     public static function driverGroupId(): string
     {
-        self::boot();
-        return (string) \App\Config\Fonnte::getDriverGroupId();
+        return self::$driverGroupId;
     }
 
     public static function estimasiGroupId(): string
     {
-        self::boot();
-        return (string) \App\Config\Fonnte::getEstimasiGroupId();
+        return self::$estimasiGroupId;
     }
 
     /**
@@ -113,9 +48,41 @@ class FonnteService
      */
     public static function sendToGroup(string $groupId, string $message, array $options = []): array
     {
-        $svc = self::instance();
-        $res = $svc->sendToGroup($groupId, $message, $options);
-        return is_array($res) ? $res : ['success' => false, 'data' => null, 'error' => 'Invalid response'];
+        $groupId = trim($groupId);
+        if ($groupId === '' || !preg_match('/@g\.us$/i', $groupId)) {
+            return ['success' => false, 'data' => null, 'error' => 'ID group tidak valid'];
+        }
+        if (trim($message) === '') {
+            return ['success' => false, 'data' => null, 'error' => 'Pesan kosong'];
+        }
+
+        $payload = array_merge($options, [
+            'group_id' => $groupId,
+            'message' => $message,
+        ]);
+
+        $res = self::callApi('/sendGroup', $payload);
+        if (!is_array($res)) {
+            return ['success' => false, 'data' => null, 'error' => 'Respons API tidak valid'];
+        }
+
+        $ok = !empty($res['success']) || !empty($res['ok']);
+        $err = null;
+        if (!$ok) {
+            $err = trim((string) ($res['error'] ?? $res['message'] ?? 'Gagal kirim Fonnte'));
+            if ($err === '' || strcasecmp($err, 'PHP Error') === 0) {
+                $detail = trim((string) ($res['error'] ?? ''));
+                if ($detail !== '') {
+                    $err = $detail;
+                }
+            }
+        }
+
+        return [
+            'success' => $ok,
+            'data' => $res['data'] ?? null,
+            'error' => $ok ? null : $err,
+        ];
     }
 
     /**
@@ -123,25 +90,77 @@ class FonnteService
      */
     public static function sendMessage(string $phone, string $message, array $options = []): array
     {
-        $svc = self::instance();
-        $res = $svc->sendMessage($phone, $message, $options);
-        return is_array($res) ? $res : ['success' => false, 'data' => null, 'error' => 'Invalid response'];
+        return [
+            'success' => false,
+            'data' => null,
+            'error' => 'sendMessage lewat laundry belum tersedia — gunakan sendToGroup atau API WhatsApp',
+        ];
     }
 
-    private static function resolveApiAppPath(): string
+    private static function resolveCronSecret(): string
     {
-        // Helper di laundry/app/Helper → ../../../api/app = mdl/api/app
-        $candidates = [
-            __DIR__ . '/../../../api/app',
-            dirname(__DIR__, 3) . '/api/app',
-            dirname(__DIR__, 2) . '/../api/app',
-        ];
-        foreach ($candidates as $path) {
-            $real = realpath($path);
-            if ($real !== false && is_dir($real) && is_file($real . '/Helpers/CRM/FonnteService.php')) {
-                return $real;
+        if (class_exists('URL') && defined('URL::API_CRON_SECRET')) {
+            $s = trim((string) URL::API_CRON_SECRET);
+            if ($s !== '' && $s !== 'change-me-cron-secret') {
+                return $s;
+            }
+        }
+        foreach (['API_CRON_SECRET', 'CRON_SECRET'] as $envKey) {
+            $s = trim((string) (getenv($envKey) ?: ''));
+            if ($s !== '') {
+                return $s;
             }
         }
         return '';
+    }
+
+    private static function callApi(string $path, array $data = []): array
+    {
+        $secret = self::resolveCronSecret();
+        $url = rtrim(self::$apiUrl, '/') . $path;
+        if ($secret !== '') {
+            $url .= (strpos($url, '?') === false ? '?' : '&') . 'secret=' . rawurlencode($secret);
+        }
+
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ];
+        if ($secret !== '') {
+            $headers[] = 'X-Cron-Secret: ' . $secret;
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+        $raw = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($raw === false || $curlErr !== '') {
+            return ['ok' => false, 'success' => false, 'message' => 'Connection Error: ' . $curlErr];
+        }
+
+        $decoded = json_decode((string) $raw, true);
+        if (!is_array($decoded)) {
+            return [
+                'ok' => false,
+                'success' => false,
+                'message' => 'Invalid JSON (HTTP ' . $httpCode . ')',
+                'raw' => substr((string) $raw, 0, 200),
+            ];
+        }
+        return $decoded;
     }
 }
