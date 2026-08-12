@@ -3465,7 +3465,11 @@ if ($privUi === 100) {
                                 lastSection = section;
                             }
 
-                            var title = escHtml(it.nama || 'Pelanggan');
+                            var title = escHtml(
+                                taskType === 'permintaan'
+                                    ? String(it.nama || 'Pelanggan').toUpperCase()
+                                    : (it.nama || 'Pelanggan')
+                            );
                             var phone = escHtml(it.phone_display || it.phone || '');
                             var idSale = it.id_penjualan ? ('#' + it.id_penjualan) : '-';
                             var fase = escHtml(it.fase_proses || '-');
@@ -3499,8 +3503,6 @@ if ($privUi === 100) {
                                     bodyBlock += '<div class="mdl-notif-req"><span class="mdl-notif-req__label">Nama sementara</span>'
                                         + escHtml(it.nama_saat_ini) + '</div>';
                                 }
-                            } else if (taskType === 'permintaan') {
-                                bodyBlock += '<div class="mdl-notif-jam-ask">Ada permintaan khusus dari pelanggan</div>';
                             } else if ((taskType === 'grant' || taskType === 'kurir_grant' || taskType === 'ambil_tutup')
                                 && (it.request_waktu_label || it.request_jam_label)) {
                                 var reqLabel = it.request_waktu_label
@@ -3528,10 +3530,10 @@ if ($privUi === 100) {
                                 }
                                 bodyBlock += '<div class="mdl-notif-jam-ask">' + askLabel + '</div>';
                             }
-                            if (pesan && taskType !== 'pelanggan_new') {
+                            if (pesan && taskType !== 'pelanggan_new' && taskType !== 'permintaan') {
                                 bodyBlock +=
                                     '<div class="mdl-notif-req">' +
-                                    '<span class="mdl-notif-req__label">' + (taskType === 'permintaan' ? 'Pesan terakhir' : 'Pesan customer') + '</span>' +
+                                    '<span class="mdl-notif-req__label">Pesan customer</span>' +
                                     escHtml(pesan) +
                                     '</div>';
                             } else if (pesan && taskType === 'pelanggan_new') {

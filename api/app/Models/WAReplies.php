@@ -1558,16 +1558,42 @@ class WAReplies
     }
 
     /**
+     * pagi/siang/sore/malam + kak/bang/… di tengah kalimat — abaikan jika rujukan waktu order
+     * (mis. "tadi pagi kak", "kemarin sore kak"), bukan sapaan waktu.
+     */
+    private function messageHasTimeOfDaySalutationWithHonorific(string $textLower): bool
+    {
+        if (!preg_match_all('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/iu', $textLower, $matches, PREG_OFFSET_CAPTURE)) {
+            return false;
+        }
+        foreach ($matches[0] as $match) {
+            $before = mb_substr($textLower, 0, $match[1]);
+            if (!preg_match('/\b(tadi|td|tdi|kemarin|kmrn|semalam|smlm)\s+$/iu', $before)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Cek apakah pesan mengandung sapaan (assalamualaikum, pagi, halo, dll) di awal.
      * Untuk menentukan apakah perlu intro sapaan di balasan.
      */
     private function hasGreetingInMessage($textBody)
     {
         $t = strtolower(trim($textBody ?? ''));
-        if ($t === '') return false;
-        return preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $t)
-            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $t)
-            || preg_match('/\b(assalam+u|asalam+u|salam)\s*(kak|bang|pak|bu|adek)/i', $t);
+        if ($t === '') {
+            return false;
+        }
+        if (preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $t)) {
+            return true;
+        }
+        if (preg_match('/\b(assalam+u|asalam+u|salam)\s*(kak|bang|pak|bu|adek)/i', $t)) {
+            return true;
+        }
+
+        return $this->messageHasTimeOfDaySalutationWithHonorific($t);
     }
 
     /**
@@ -1620,10 +1646,7 @@ class WAReplies
         if (mb_strlen($textLower) < 10) {
             return false;
         }
-        // Assalamualaikum (assalam/assalamu, termasuk typo assalammualaikum) atau sapaan lain di awal
-        $hasGreeting = preg_match('/^(assalam+u[a-z]*|asalam+u[a-z]*|salam|halo|hai|pagi|siang|sore|malam)\b/i', $textLower)
-            || preg_match('/\b(pagi|siang|sore|malam)\s*(kak|bang|pak|bu|adek)/i', $textLower)
-            || preg_match('/\b(assalam+u|asalam+u|salam)\s*(kak|bang|pak|bu|adek)/i', $textLower);
+        $hasGreeting = $this->hasGreetingInMessage($textBody);
         $hasOtherIntent = preg_match('/siap|sudah|dah|udah|udh|bisa|jemput|antar|berapa|brp|harga|transfer|bayar|cek|status|laundry|tagihan|kirim|nota|bon|struk|tutup|buka|jam/i', $textLower);
         if (!$hasGreeting || !$hasOtherIntent) {
             return false;

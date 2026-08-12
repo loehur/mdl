@@ -3,7 +3,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -531,6 +531,22 @@ const sendMessage = async () => {
       bumpMessageStatus(newMsg, "error");
     }
   }
+};
+
+const handleMessageKeydown = (e) => {
+  if (e.key !== "Enter") return;
+
+  if (isNativeApp()) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (props.isConnected) sendMessage();
+    }
+    return;
+  }
+
+  if (e.shiftKey) return;
+  e.preventDefault();
+  if (props.isConnected) sendMessage();
 };
 
 // ... Image Handling ...
@@ -1363,7 +1379,7 @@ onUnmounted(() => {
                   </div>
                   <!-- Text Input -->
                   <div class="flex-1 flex items-end bg-[var(--wa-input-bg)] rounded-3xl border border-[var(--wa-border)] overflow-hidden" :class="{ 'opacity-50': !isConnected }">
-                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown.ctrl.enter.prevent="isConnected && sendMessage()" :placeholder="isConnected ? 'Ketik pesan...' : 'Menghubungkan...'" :disabled="!isConnected" class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)] disabled:cursor-not-allowed" rows="1"></textarea>
+                       <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown="handleMessageKeydown" :placeholder="isConnected ? 'Ketik pesan...' : 'Menghubungkan...'" :disabled="!isConnected" class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)] disabled:cursor-not-allowed" rows="1"></textarea>
                   </div>
                   <!-- Send Button -->
                   <button @click="sendMessage" :disabled="!isConnected" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
