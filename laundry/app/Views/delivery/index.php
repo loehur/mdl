@@ -1173,6 +1173,7 @@ $isEmptyCustomer = empty($customerGroups);
           <input type="hidden" id="dlvSelesaiPhone" name="phone_tail" value="">
           <input type="hidden" id="dlvSelesaiPrefill" value="">
           <input type="hidden" id="dlvSelesaiJenisLocked" value="">
+          <input type="hidden" id="dlvSelesaiSurcasBound" value="0">
           <div id="dlvSelesaiJenisFreeWrap">
             <label class="dlv-field-label" for="dlvSelesaiJenis">Jenis</label>
             <select id="dlvSelesaiJenis" name="jenis" class="dlv-input" required>
@@ -1216,7 +1217,7 @@ $isEmptyCustomer = empty($customerGroups);
             <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasJemputHint">
               <i class="fas fa-info-circle me-1"></i>
-              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, tidak diubah.
+              Wajib diisi. Isi nominal, atau 0 untuk gratis.
             </p>
           </div>
 
@@ -1225,7 +1226,7 @@ $isEmptyCustomer = empty($customerGroups);
             <input type="number" id="dlvSurcasAntarJumlah" name="jumlah_surcas_antar" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasAntarHint">
               <i class="fas fa-info-circle me-1"></i>
-              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, tidak diubah.
+              Wajib diisi. Isi nominal, atau 0 untuk gratis.
             </p>
           </div>
 
@@ -1644,6 +1645,8 @@ $isEmptyCustomer = empty($customerGroups);
     var antarKembaliCheck = document.getElementById('dlvAntarKembaliCheck');
     var surcasAntarRow = document.getElementById('dlvSurcasAntarRow');
     var surcasAntarJumlah = document.getElementById('dlvSurcasAntarJumlah');
+    var surcasBoundEl = document.getElementById('dlvSelesaiSurcasBound');
+    if (surcasBoundEl) surcasBoundEl.value = '0';
     if (jenis) {
       jenis.value = '';
       jenis.disabled = false;
@@ -1667,6 +1670,8 @@ $isEmptyCustomer = empty($customerGroups);
       surcasJumlah.readOnly = false;
       surcasJumlah.required = false;
       surcasJumlah.removeAttribute('data-tarif-fixed');
+      delete surcasJumlah.dataset.surcasLocked;
+      delete surcasJumlah.dataset.userEdited;
     }
     if (surcasHint) {
       surcasHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Isi nominal, atau 0 untuk gratis.';
@@ -1679,6 +1684,7 @@ $isEmptyCustomer = empty($customerGroups);
       surcasAntarJumlah.required = false;
       surcasAntarJumlah.readOnly = false;
       delete surcasAntarJumlah.dataset.userEdited;
+      delete surcasAntarJumlah.dataset.surcasLocked;
     }
     var antarHint = document.getElementById('dlvSurcasAntarHint');
     if (antarHint) {
@@ -1715,6 +1721,21 @@ $isEmptyCustomer = empty($customerGroups);
     block.hidden = false;
   }
 
+  function isSelesaiSurcasBound() {
+    return (document.getElementById('dlvSelesaiSurcasBound') || {}).value === '1';
+  }
+
+  function lockHideSurcasRow(row, input, existingVal) {
+    if (row) row.hidden = true;
+    if (!input) return;
+    input.required = false;
+    input.readOnly = true;
+    input.dataset.surcasLocked = '1';
+    if (existingVal != null && !isNaN(Number(existingVal)) && Number(existingVal) >= 0) {
+      input.value = String(existingVal);
+    }
+  }
+
   function syncSurcasAntarUi() {
     var row = document.getElementById('dlvSurcasAntarRow');
     var input = document.getElementById('dlvSurcasAntarJumlah');
@@ -1734,8 +1755,6 @@ $isEmptyCustomer = empty($customerGroups);
       return;
     }
 
-    row.hidden = false;
-
     var existing = null;
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
     var map = (window._dlvSurcasByRef && window._dlvSurcasByRef.antar) || {};
@@ -1748,18 +1767,12 @@ $isEmptyCustomer = empty($customerGroups);
       }
     }
 
-    if (existing != null && !isNaN(existing) && existing >= 0) {
-      input.value = String(existing);
-      input.readOnly = true;
-      input.required = false;
-      input.dataset.surcasLocked = '1';
-      if (hint) {
-        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Surcas Pengantaran sudah ada di ref (Rp' +
-          Number(existing).toLocaleString('id-ID') + '). Tidak diubah.';
-      }
+    if ((jenis === 'antar' && isSelesaiSurcasBound()) || (existing != null && !isNaN(existing) && existing >= 0)) {
+      lockHideSurcasRow(row, input, existing);
       return;
     }
 
+    row.hidden = false;
     input.readOnly = false;
     input.required = true;
     delete input.dataset.surcasLocked;
@@ -1802,8 +1815,6 @@ $isEmptyCustomer = empty($customerGroups);
       syncSurcasAntarUi();
       return;
     }
-    row.hidden = false;
-
     var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
     var prefills = (window._dlvSurcasByRef && window._dlvSurcasByRef.jemput) || {};
@@ -1817,19 +1828,14 @@ $isEmptyCustomer = empty($customerGroups);
       }
     }
 
-    if (found != null && !isNaN(found) && found >= 0) {
-      input.value = String(found);
-      input.readOnly = true;
-      input.required = false;
-      input.dataset.surcasLocked = '1';
-      if (hint) {
-        hint.innerHTML = '<i class="fas fa-lock me-1"></i>Surcas Penjemputan sudah ada di ref (Rp' +
-          Number(found).toLocaleString('id-ID') + '). Tidak diubah.';
-      }
+    if (isSelesaiSurcasBound() || (found != null && !isNaN(found) && found >= 0)) {
+      lockHideSurcasRow(row, input, found);
       syncAntarKembaliUi();
       syncSurcasAntarUi();
       return;
     }
+
+    row.hidden = false;
 
     input.readOnly = false;
     input.required = true;
@@ -2294,6 +2300,8 @@ $isEmptyCustomer = empty($customerGroups);
     ensureKaryawanSelectize();
     resetSelesaiForm();
     document.getElementById('dlvSelesaiMode').value = 'request';
+    var surcasBoundEl = document.getElementById('dlvSelesaiSurcasBound');
+    if (surcasBoundEl) surcasBoundEl.value = surcasBound ? '1' : '0';
     document.getElementById('dlvSelesaiRequestId').value = idReq;
     document.getElementById('dlvSelesaiPhone').value = phone;
     document.getElementById('dlvSelesaiPrefill').value = prefill;
