@@ -619,12 +619,12 @@ class Estimasi extends Controller
             $set['driver_alt_tanggal'] = $parsed['tanggal'];
             $set['driver_alt_jam'] = $parsed['jam'];
             $set['step'] = 'wait_continue_alt';
-            $altLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
-            $reqLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
-            $replyText = "Maaf {$sapaan}, driver tidak bisa lakukan {$noun} pada jam {$reqLabel}, "
-                . "driver baru bisa jemput/antar di jam {$altLabel}. "
-                . "Apakah permintaan {$jenis} tetap dilanjutkan di jam tersebut, "
-                . "atau mau pakai *instant* (Grab/Gojek)?";
+            $reqLabel = $this->formatEstimasiJamLabelFromDb($requestJam) ?: '';
+            $altJamLabel = $this->formatEstimasiJamLabel((float) $parsed['jam']);
+            $hariReq = $this->labelHariIniAtauBesok($session['request_tanggal'] ?? null);
+            $hariAlt = $this->labelHariIniAtauBesok($parsed['tanggal']);
+            $replyText = "Maaf {$sapaan}, driver {$hariReq} belum bisa lakukan {$noun} pada jam {$reqLabel}, "
+                . "driver baru bisa jemput/antar {$hariAlt} perkiraan jam {$altJamLabel}.";
         }
 
         $up = $this->db(100)->update(
@@ -991,6 +991,24 @@ class Estimasi extends Controller
         $today = date('Y-m-d');
         $max = date('Y-m-d', strtotime('+2 day'));
         return $ymd >= $today && $ymd <= $max;
+    }
+
+    /** "hari ini" / "besok" dari tanggal Y-m-d (selain itu: tanggal j/n). */
+    private function labelHariIniAtauBesok(?string $tanggal): string
+    {
+        $ymd = substr(trim((string) $tanggal), 0, 10);
+        $today = date('Y-m-d');
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        if ($ymd === '' || $ymd === $today) {
+            return 'hari ini';
+        }
+        if ($ymd === $tomorrow) {
+            return 'besok';
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) {
+            return 'tanggal ' . date('j/n', strtotime($ymd));
+        }
+        return 'hari ini';
     }
 
     /**

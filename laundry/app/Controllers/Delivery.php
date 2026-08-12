@@ -262,11 +262,11 @@ class Delivery extends Controller
 
    /**
     * Dari Operasi FAB Kurir.
-    * Request aktif yang sudah ada di board diikat (reuse), bukan ditolak / diganti.
-    * - jemput: selesai (+ tutup request jemput jika ada)
-    * - antar tanpa penyelesai: buat atau update request antar
-    * - antar + penyelesai: selesai (+ tutup request antar jika ada)
-    * - jemput_antar: selesai jemput + pastikan request antar (buat/ikat)
+    * Surcas selalu ditulis ke nota (wajib pilih item). Request lama di board diikat (reuse).
+    * - jemput: selesai + surcas jemput (+ tutup request jemput jika ada)
+    * - antar tanpa penyelesai: request antar + surcas antar ke nota
+    * - antar + penyelesai: selesai + surcas antar (+ tutup request antar jika ada)
+    * - jemput_antar: selesai jemput + kedua surcas ke nota + request antar di board
     */
    public function kurir_dari_operasi()
    {
@@ -383,6 +383,7 @@ class Delivery extends Controller
 
             $idAntar = 0;
             $antarBound = false;
+            $surcasAntar = null;
             if ($jenis === 'jemput_antar') {
                $antarRes = $this->ensureAntarRequestBound(
                   $idPelanggan,
@@ -397,9 +398,20 @@ class Delivery extends Controller
                if ($idAntar <= 0) {
                   throw new Exception('Gagal memastikan request antar kembali');
                }
+               $this->attachSaleItemsToRequest($idAntar, $idPelanggan, $ids);
+               $surcasAntar = $this->upsertSurcasPengantaran(
+                  $idCabang,
+                  $ids,
+                  $jumlahAntar,
+                  $idKaryawan,
+                  $idAntar
+               );
                $msg .= $antarBound
                   ? " · Request Antar #$idAntar diikat"
                   : " + Request Antar kembali #$idAntar";
+               $msg .= !empty($surcasAntar['skipped'])
+                  ? ' · Surcas antar sudah ada (dilewati)'
+                  : ' · Surcas antar ditambahkan ke nota';
             }
 
             $response = [
@@ -411,16 +423,20 @@ class Delivery extends Controller
                   'phone_tail' => $phoneTail,
                   'count' => $inserted,
                   'surcas_jemput' => $surcasJemput,
+                  'surcas_antar' => $surcasAntar,
                   'id_request_jemput' => $idReqJemput > 0 ? $idReqJemput : null,
                   'id_request_antar' => $idAntar > 0 ? $idAntar : null,
                   'antar_bound' => $antarBound,
                ],
             ];
          } elseif ($idKaryawan <= 0) {
-            // ===== Antar: request (buat atau ikat yang sudah ada) =====
-            $tarifSurcas = null;
-            if (isset($_POST['jumlah_surcas_antar']) && $_POST['jumlah_surcas_antar'] !== '') {
-               $tarifSurcas = max(0, (int) $_POST['jumlah_surcas_antar']);
+            // ===== Antar: request (buat atau ikat) + surcas ke nota =====
+            if (empty($ids)) {
+               throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
+            }
+            $tarifSurcas = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            if ($tarifSurcas < 0) {
+               throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
             }
 
             $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
@@ -429,18 +445,19 @@ class Delivery extends Controller
 
             if ($idRequest > 0) {
                $bound = true;
-               $set = [
-                  'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
-               ];
-               if ($tarifSurcas !== null) {
-                  $set['tarif_surcas'] = $tarifSurcas;
-               }
-               $upd = $this->db(0)->update('delivery_request', $set, 'id_request = ' . $idRequest);
+               $upd = $this->db(0)->update(
+                  'delivery_request',
+                  [
+                     'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
+                     'tarif_surcas' => $tarifSurcas,
+                  ],
+                  'id_request = ' . $idRequest
+               );
                if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
                   throw new Exception($upd['error'] ?? 'Gagal mengikat request antar');
                }
             } else {
-               $insData = [
+               $ins = $this->db(0)->insert('delivery_request', [
                   'sumber' => 'customer',
                   'jenis' => 'antar',
                   'layanan' => 'sameday',
@@ -455,11 +472,8 @@ class Delivery extends Controller
                   'lokasi_longt' => 0,
                   'insertTime' => $now,
                   'catatan_kurir' => 'Dari Operasi (Kurir)',
-               ];
-               if ($tarifSurcas !== null) {
-                  $insData['tarif_surcas'] = $tarifSurcas;
-               }
-               $ins = $this->db(0)->insert('delivery_request', $insData);
+                  'tarif_surcas' => $tarifSurcas,
+               ]);
                if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
                   throw new Exception($ins['error'] ?? 'Gagal membuat request');
                }
@@ -469,27 +483,44 @@ class Delivery extends Controller
                }
             }
 
-            if (!empty($ids)) {
-               $this->attachSaleItemsToRequest($idRequest, $idPelanggan, $ids);
-            }
+            $this->attachSaleItemsToRequest($idRequest, $idPelanggan, $ids);
+
+            $idUserSurcas = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+            $surcasAntar = $this->upsertSurcasPengantaran(
+               $idCabang,
+               $ids,
+               $tarifSurcas,
+               $idUserSurcas,
+               $idRequest
+            );
+
+            $msg = $bound
+               ? 'Request antar #' . $idRequest . ' diikat dari Operasi'
+               : 'Request antar #' . $idRequest . ' masuk board Delivery';
+            $msg .= !empty($surcasAntar['skipped'])
+               ? ' · Surcas antar sudah ada (dilewati)'
+               : ' · Surcas antar ditambahkan ke nota';
 
             $response = [
                'status' => 'success',
-               'message' => $bound
-                  ? 'Request antar #' . $idRequest . ' diikat dari Operasi'
-                  : 'Request antar #' . $idRequest . ' masuk board Delivery',
+               'message' => $msg,
                'data' => [
                   'mode' => $bound ? 'request_bound' : 'request',
                   'id_request' => $idRequest,
                   'jenis' => 'antar',
                   'phone_tail' => $phoneTail,
                   'bound' => $bound,
+                  'surcas_antar' => $surcasAntar,
                ],
             ];
          } else {
             // ===== Antar: selesai langsung (ikat request jika ada) =====
             if (empty($ids)) {
-               throw new Exception('Pilih minimal satu item penjualan');
+               throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
+            }
+            $jumlahAntarSelesai = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            if ($jumlahAntarSelesai < 0) {
+               throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
             }
 
             $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -513,11 +544,10 @@ class Delivery extends Controller
                $idReqAntar
             );
 
-            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
             $surcasAntar = $this->upsertSurcasPengantaran(
                $idCabang,
                $ids,
-               $jumlahAntar,
+               $jumlahAntarSelesai,
                $idKaryawan,
                $idReqAntar
             );
@@ -532,7 +562,7 @@ class Delivery extends Controller
             }
             $msg .= !empty($surcasAntar['skipped'])
                ? ' · Surcas antar sudah ada (dilewati)'
-               : ' · Surcas antar ditambahkan';
+               : ' · Surcas antar ditambahkan ke nota';
 
             $response = [
                'status' => 'success',

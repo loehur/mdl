@@ -389,6 +389,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       </div>
       <div class="j-sheet-body">
         <p class="j-sheet-desc" style="margin-top:0">Ongkir sesuai tarif Gojek/Grab. Bayar dulu sebelum order jalan.</p>
+        <p class="j-kurir-kapasitas" id="jKurirCourierKapasitas">Pastikan laundry yg dijemput sesuai kapasitas driver.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirCourierLokasi"></div>
         <div class="j-kurir-sales" id="jKurirCourierBox">
           <div class="j-kurir-sales-empty">Memuat kurir…</div>

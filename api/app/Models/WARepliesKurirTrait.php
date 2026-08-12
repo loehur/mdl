@@ -1056,6 +1056,14 @@ trait WARepliesKurirTrait
                 $decision['action'] = ($step === 'wait_continue_alt') ? 'agree_alt' : 'confirm';
                 $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'override_no_problem_ack→' . $decision['action']);
             }
+            // wait_continue_alt: hanya batal eksplisit; selain itu lanjut jam alternatif (jangan unrelated/instant)
+            if ($step === 'wait_continue_alt') {
+                if ($this->kurirLooksCancel($msg)) {
+                    $decision['action'] = 'cancel';
+                } else {
+                    $decision['action'] = 'agree_alt';
+                }
+            }
             if (($decision['action'] ?? '') === 'unrelated') {
                 // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
                 $this->clearKurirSession($waNumber);
@@ -1090,14 +1098,10 @@ trait WARepliesKurirTrait
             return;
         }
 
-        if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'request_aktif', 'lokasi_check', 'pick_lokasi', 'ask_layanan', 'wait_continue_alt'], true)) {
+        if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'request_aktif', 'lokasi_check', 'pick_lokasi', 'ask_layanan'], true)) {
             if (!$this->isOperatingHours()) {
                 $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
                 if ($step === 'request_aktif') {
-                    return;
-                }
-                if ($step === 'wait_continue_alt') {
-                    $this->sendAutoreplyText($waNumber, $this->kurirContinueAltReprompt($sapaan, $session));
                     return;
                 }
                 if (!empty($session['id_lokasi']) && in_array($step, ['confirm_lokasi', 'ask_layanan'], true)) {
@@ -1359,6 +1363,20 @@ trait WARepliesKurirTrait
 
         // gak usah (jelas tidak mau lanjut)
         if (preg_match('/\b(gak|ga|gk|ngga|nggak|engga|enggak)\s*usah\b/iu', $t)) {
+            return true;
+        }
+
+        // Customer jemput/antar/ambil sendiri (bukan minta kurir)
+        if (preg_match(
+            '/\b(saya|aku|sy|gue|kami|awak)\s+(akan\s+)?(jemput|antar|antr|anter|ambil|ngambil)\s*(sendiri|sndiri|aja|aj)\b/iu',
+            $t
+        )) {
+            return true;
+        }
+        if (preg_match(
+            '/\b(jemput|antar|antr|anter|ambil|ngambil)\s+sendiri(\s+(aja|aj|deh|lah))?\b/iu',
+            $t
+        )) {
             return true;
         }
 
@@ -2737,9 +2755,7 @@ trait WARepliesKurirTrait
             return false;
         }
         $noun = $this->kurirJenisNoun($session);
-        $text = "Baik {$sapaan}, permintaan diterima, jam kerja driver pukul 08.00 - 17.00, "
-            . "waktu {$noun} tergantung pada posisi dan rute driver. "
-            . "Pastikan selalu ada orang (satpam/saudara/teman) di lokasi. Terima kasih 😊";
+        $text = "Baik {$sapaan}, {$noun} sudah masuk antrian delivery ya {$sapaan}, mohon ditunggu 😊";
         $this->saveKurirSession($waNumber, ['step' => 'request_aktif']);
         $this->sendAutoreplyText($waNumber, $text);
         return true;
@@ -3141,40 +3157,7 @@ trait WARepliesKurirTrait
 
     private function kurirHandleContinueAlt(string $waNumber, string $sapaan, array $session, string $msg): void
     {
-        // Driver tolak jam → customer boleh pilih instant (grab/gosend/sekarang)
-        if ($this->kurirLooksWantFast($msg) || $this->detectKurirLayanan($msg) === 'instant') {
-            if (!$this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                $this->sendAutoreplyText($waNumber, $this->kurirContinueAltReprompt($sapaan, $session));
-                return;
-            }
-            $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
-            return;
-        }
-
-        if ($this->kurirLooksAgree($msg) || $this->kurirLooksNoProblemAck($msg)) {
-            $alt = [
-                'tanggal' => $session['driver_alt_tanggal'] ?? date('Y-m-d'),
-                'jam' => $session['driver_alt_jam'] ?? null,
-            ];
-            // Request biasanya sudah ada — update catatan saja
-            if (!empty($session['id_request'])) {
-                $this->kurirUpdateRequestCatatanJam($session, $alt);
-            } else {
-                $this->kurirInsertSamedayRequest($waNumber, $session, $alt);
-            }
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
-                . " kami lanjutkan sesuai jam alternatif driver. Terima kasih 😊"
-            );
-            $this->saveKurirSession($waNumber, [
-                'step' => 'request_aktif',
-                'request_granted' => 1,
-            ]);
-            return;
-        }
-        // Batal hanya frasa eksplisit (batal/cancel/gak jadi) — bukan "gak pa2" / "tidak" ambigu
+        // Batal hanya frasa jelas (batal/cancel/gak jadi/jemput sendiri) — selain itu = lanjut jam alternatif
         if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelDeliveryRequest($session);
             $id = (int) ($session['id_pelanggan'] ?? 0);
@@ -3186,7 +3169,25 @@ trait WARepliesKurirTrait
             $this->clearKurirSession($waNumber);
             return;
         }
-        $this->sendAutoreplyText($waNumber, $this->kurirContinueAltReprompt($sapaan, $session));
+
+        $alt = [
+            'tanggal' => $session['driver_alt_tanggal'] ?? date('Y-m-d'),
+            'jam' => $session['driver_alt_jam'] ?? null,
+        ];
+        if (!empty($session['id_request'])) {
+            $this->kurirUpdateRequestCatatanJam($session, $alt);
+        } else {
+            $this->kurirInsertSamedayRequest($waNumber, $session, $alt);
+        }
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Baik {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
+            . " kami lanjutkan sesuai jam alternatif driver. Terima kasih 😊"
+        );
+        $this->saveKurirSession($waNumber, [
+            'step' => 'request_aktif',
+            'request_granted' => 1,
+        ]);
     }
 
     private function kurirContinueAltReprompt(string $sapaan, array $session): string
@@ -3201,11 +3202,7 @@ trait WARepliesKurirTrait
                 $altPart .= " ({$altTgl})";
             }
         }
-        $text = "Apakah permintaan {$jenis} tetap dilanjutkan{$altPart} {$sapaan}?";
-        if ($this->isOperatingHours()) {
-            $text .= " Atau mau pakai *instant* (Grab/Gojek)?";
-        }
-        return $text;
+        return "Apakah permintaan {$jenis} tetap dilanjutkan{$altPart} {$sapaan}?";
     }
 
     private function kurirCancelDeliveryRequest(array $session): void
@@ -3703,13 +3700,15 @@ trait WARepliesKurirTrait
             'ongkir' => isset($rates[0]['price']) ? (int) $rates[0]['price'] : null,
         ]);
 
+        $kapasitas = $this->kurirInstantKapasitasNote($session);
         if (count($rates) === 1) {
             $r = $rates[0];
             $rp = AntarTarif::formatRp((int) ($r['price'] ?? 0));
             $name = $r['courier_name'] ?? ($r['courier_company'] . ' ' . $r['courier_type']);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Ada opsi Instant *{$name}* {$rp}. Lanjut pesan {$jenis} Instant {$sapaan}?"
+                "Ada opsi Instant *{$name}* {$rp}. Lanjut pesan {$jenis} Instant {$sapaan}?\n"
+                . $kapasitas
             );
             return;
         }
@@ -3721,7 +3720,15 @@ trait WARepliesKurirTrait
             $name = $r['courier_name'] ?? ($r['courier_company'] . ' ' . $r['courier_type']);
             $lines[] = "{$n}. {$name} — {$rp}";
         }
+        $lines[] = $kapasitas;
         $this->sendAutoreplyText($waNumber, implode("\n", $lines));
+    }
+
+    private function kurirInstantKapasitasNote(array $session): string
+    {
+        $jenis = $this->kurirJenisLabel($session);
+        $verb = ($jenis === 'antar') ? 'diantar' : 'dijemput';
+        return "Pastikan laundry yg {$verb} sesuai kapasitas driver ya 😊";
     }
 
     private function kurirHandleInstantChoice(string $waNumber, string $sapaan, array $session, string $msg): void
@@ -3764,7 +3771,11 @@ trait WARepliesKurirTrait
             ]);
             $rp = AntarTarif::formatRp((int) ($r['price'] ?? 0));
             $name = $r['courier_name'] ?? 'kurir';
-            $this->sendAutoreplyText($waNumber, "Lanjut pesan *{$name}* {$rp} {$sapaan}?");
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Lanjut pesan *{$name}* {$rp} {$sapaan}?\n"
+                . $this->kurirInstantKapasitasNote($session)
+            );
             return;
         }
 
@@ -3949,7 +3960,7 @@ trait WARepliesKurirTrait
                 $actions = array_merge($common, ['want_jam', 'confirm']);
                 break;
             case 'wait_continue_alt':
-                $actions = array_merge($common, ['agree_alt', 'refuse_alt', 'want_instant']);
+                $actions = array_merge($common, ['agree_alt', 'refuse_alt']);
                 break;
             case 'instant_confirm':
                 $actions = array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi', 'delete_lokasi']);
@@ -4124,10 +4135,9 @@ trait WARepliesKurirTrait
             . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta instant. "
             . "Typo anter/antr/dianter/diantr = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
-            . "Di step wait_continue_alt: setuju jam alternatif driver → agree_alt "
-            . "('ya', 'oke', 'ya sudah gak pa2', 'gpp', 'gapapa' = agree_alt); "
-            . "tolak/batal hanya jika jelas ('batal', 'cancel', 'gak jadi', 'gk jd') → refuse_alt/cancel; "
-            . "mau grab/instant → want_instant. "
+            . "Di step wait_continue_alt: JANGAN tawarkan instant/grab/gojek. "
+            . "Batal HANYA jika jelas: batal / cancel / gak jadi / gk jd / gak usah / saya jemput sendiri / antar sendiri. "
+            . "Selain itu (ya, oke, gpp, gapapa, ok, atau jawaban bebas) → agree_alt (lanjut jam alternatif driver). "
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
@@ -4415,20 +4425,25 @@ trait WARepliesKurirTrait
                 return;
 
             case 'want_instant':
+                $step = (string) ($session['step'] ?? '');
+                if ($step === 'wait_continue_alt') {
+                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
                 $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 
             case 'agree_alt':
-                $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, 'ya');
+                $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg !== '' ? $msg : 'ya');
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 
             case 'refuse_alt':
-                // wait_continue_alt: 'tidak' ambigu → re-prompt (batal hanya via cancel/batal/gak jadi)
                 $step = (string) ($session['step'] ?? '');
                 if ($step === 'wait_continue_alt') {
-                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, 'tidak');
+                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
                 } elseif (in_array($step, ['instant_confirm', 'instant_pick'], true)) {
                     $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, 'tidak');
                 } else {

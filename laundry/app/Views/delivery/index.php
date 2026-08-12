@@ -1213,7 +1213,7 @@ $isEmptyCustomer = empty($customerGroups);
             <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasJemputHint">
               <i class="fas fa-info-circle me-1"></i>
-              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, nilai akan diupdate.
+              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, tidak diubah.
             </p>
           </div>
 
@@ -1222,7 +1222,7 @@ $isEmptyCustomer = empty($customerGroups);
             <input type="number" id="dlvSurcasAntarJumlah" name="jumlah_surcas_antar" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasAntarHint">
               <i class="fas fa-info-circle me-1"></i>
-              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, nilai akan diupdate.
+              Wajib diisi. Isi nominal, atau 0 untuk gratis. Jika ref sudah punya surcas, tidak diubah.
             </p>
           </div>
 
