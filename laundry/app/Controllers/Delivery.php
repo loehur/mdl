@@ -2197,29 +2197,37 @@ class Delivery extends Controller
          return [];
       }
 
-      $pelangganIds = [];
+      // Kumpulkan item eligible per request (pakai exceptRequestId masing-masing).
+      // Item terikat request berjalan tidak masuk fetch global exceptRequestId=0,
+      // sehingga batch selesaiSet harus dari ID eligible per-request.
+      $eligibleByRequest = [];
+      $allAntarIdsForSelesai = [];
       foreach ($requests as $rq) {
-         $pid = (int) ($rq['id_pelanggan'] ?? 0);
-         if ($pid > 0) {
-            $pelangganIds[$pid] = $pid;
+         $idReq = (int) ($rq['id_request'] ?? 0);
+         $idPelanggan = (int) ($rq['id_pelanggan'] ?? 0);
+         $jenis = strtolower((string) ($rq['jenis'] ?? ''));
+         $ids = [];
+         if ($idPelanggan > 0 && in_array($jenis, ['jemput', 'antar'], true)) {
+            foreach ($this->fetchEligibleSaleRows([$idPelanggan], $jenis, $idReq) as $row) {
+               $sid = (int) ($row['id_penjualan'] ?? 0);
+               if ($sid > 0) {
+                  $ids[] = $sid;
+                  if ($jenis === 'antar') {
+                     $allAntarIdsForSelesai[$sid] = $sid;
+                  }
+               }
+            }
          }
+         $eligibleByRequest[$idReq] = $ids;
       }
-      $pelangganIds = array_values($pelangganIds);
 
-      $allAntarEligibleIds = [];
-      if (!empty($pelangganIds)) {
-         foreach ($this->fetchEligibleSaleRows($pelangganIds, 'antar', 0) as $row) {
-            $allAntarEligibleIds[(int) $row['id_penjualan']] = true;
-         }
-      }
-      $selesaiSet = $this->saleIdsWithLaundrySelesai(array_keys($allAntarEligibleIds));
+      $selesaiSet = $this->saleIdsWithLaundrySelesai(array_values($allAntarIdsForSelesai));
 
       foreach ($requests as &$rq) {
          $jenis = strtolower((string) ($rq['jenis'] ?? ''));
          $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
          $isInstant = $layanan === 'instant';
          $idReq = (int) ($rq['id_request'] ?? 0);
-         $idPelanggan = (int) ($rq['id_pelanggan'] ?? 0);
 
          $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
          $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
@@ -2229,17 +2237,11 @@ class Delivery extends Controller
 
          $siapCount = 0;
          $belumCount = 0;
-         if ($idPelanggan > 0 && in_array($jenis, ['jemput', 'antar'], true)) {
-            foreach ($this->fetchEligibleSaleRows([$idPelanggan], $jenis, $idReq) as $row) {
-               $sid = (int) ($row['id_penjualan'] ?? 0);
-               if ($sid <= 0) {
-                  continue;
-               }
-               if ($jenis === 'antar' && !isset($selesaiSet[$sid])) {
-                  $belumCount++;
-               } else {
-                  $siapCount++;
-               }
+         foreach ($eligibleByRequest[$idReq] ?? [] as $sid) {
+            if ($jenis === 'antar' && !isset($selesaiSet[$sid])) {
+               $belumCount++;
+            } else {
+               $siapCount++;
             }
          }
 
@@ -2249,8 +2251,10 @@ class Delivery extends Controller
             $blockHint = 'Instant · track only';
          } elseif ($jenis === 'antar' && !$isInstant && !$hasLokasi) {
             $blockHint = 'Lokasi belum lengkap';
+         } elseif ($siapCount <= 0 && $belumCount > 0) {
+            $blockHint = 'Laundry belum selesai';
          } elseif ($siapCount <= 0) {
-            $blockHint = $jenis === 'antar' ? 'Laundry belum selesai' : 'Belum ada item siap';
+            $blockHint = $jenis === 'antar' ? 'Belum ada item siap' : 'Belum ada item siap';
          }
 
          if ($jenis === 'antar' && !$isInstant) {
