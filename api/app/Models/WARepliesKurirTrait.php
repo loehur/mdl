@@ -1515,8 +1515,13 @@ trait WARepliesKurirTrait
             return;
         }
 
-        // 1 lokasi → langsung; >1 → paling sering dipakai (status selesai); imbang → tanya hanya yang imbang
-        $candidates = $this->kurirPickLokasiCandidatesByUsage($idPelanggan, $list);
+        // 1 lokasi lengkap → langsung; >1 → tanya max 2 lokasi terakhir pernah sukses dipakai
+        if (count($list) === 1) {
+            $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $list[0]);
+            return;
+        }
+
+        $candidates = $this->kurirPickRecentSuccessfulLokasiCandidates($idPelanggan, $list, 2);
         if (count($candidates) === 1) {
             $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $candidates[0]);
             return;
@@ -1549,68 +1554,201 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Frekuensi id_lokasi dari delivery_request status selesai.
-     * @return array<int,int> id_lokasi => count
+     * id_lokasi unik dari delivery selesai, urut recency (terbaru dulu).
+     * @return int[]
      */
-    private function kurirLokasiUsageCountsSelesai(int $idPelanggan): array
+    private function kurirRecentSuccessfulLokasiIds(int $idPelanggan, int $limit = 2): array
     {
-        if ($idPelanggan <= 0) {
+        if ($idPelanggan <= 0 || $limit <= 0) {
             return [];
         }
         try {
             $rows = DB::getInstance(1)->query(
-                "SELECT id_lokasi, COUNT(*) AS cnt
+                "SELECT id_lokasi
                  FROM delivery_request
                  WHERE id_pelanggan = ?
                    AND delivery_status = 'selesai'
-                   AND id_lokasi IS NOT NULL
-                   AND id_lokasi > 0
-                 GROUP BY id_lokasi",
+                   AND id_lokasi IS NOT NULL AND id_lokasi > 0
+                 ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC",
                 [$idPelanggan]
             )->result_array();
-            $out = [];
+            $ids = [];
             foreach (is_array($rows) ? $rows : [] as $r) {
                 $id = (int) ($r['id_lokasi'] ?? 0);
-                if ($id > 0) {
-                    $out[$id] = (int) ($r['cnt'] ?? 0);
+                if ($id > 0 && !isset($ids[$id])) {
+                    $ids[$id] = $id;
+                }
+                if (count($ids) >= $limit) {
+                    break;
                 }
             }
-            return $out;
+
+            return array_values($ids);
         } catch (\Throwable $e) {
             return [];
         }
     }
 
     /**
-     * Pilih kandidat lokasi: pemenang frekuensi sukses, atau semua yang imbang di puncak.
-     * @param list<array> $list lokasi lengkap pelanggan
+     * Kandidat lokasi untuk pick_lokasi: max 2 lokasi terakhir pernah dipakai sukses.
+     * Jika belum pernah sukses → fallback 2 lokasi tersimpan terakhir (id_lokasi DESC).
+     * @param list<array> $list lokasi lengkap pelanggan (nama+detail)
      * @return list<array>
      */
-    private function kurirPickLokasiCandidatesByUsage(int $idPelanggan, array $list): array
+    private function kurirPickRecentSuccessfulLokasiCandidates(int $idPelanggan, array $list, int $limit = 2): array
     {
-        if (count($list) <= 1) {
-            return array_values($list);
+        if ($list === []) {
+            return [];
         }
 
-        $counts = $this->kurirLokasiUsageCountsSelesai($idPelanggan);
-        $max = 0;
+        $byId = [];
         foreach ($list as $lok) {
             $id = (int) ($lok['id_lokasi'] ?? 0);
-            $c = $counts[$id] ?? 0;
-            if ($c > $max) {
-                $max = $c;
+            if ($id > 0) {
+                $byId[$id] = $lok;
             }
         }
 
-        $tied = [];
+        $recentIds = $this->kurirRecentSuccessfulLokasiIds($idPelanggan, $limit);
+        $candidates = [];
+        foreach ($recentIds as $id) {
+            if (isset($byId[$id])) {
+                $candidates[] = $byId[$id];
+            }
+        }
+        if ($candidates !== []) {
+            return $candidates;
+        }
+
+        usort($list, static function ($a, $b) {
+            return (int) ($b['id_lokasi'] ?? 0) <=> (int) ($a['id_lokasi'] ?? 0);
+        });
+
+        return array_slice(array_values($list), 0, $limit);
+    }
+
+    /**
+     * Request delivery selesai terakhir (semua layanan) yang punya id_lokasi.
+     */
+    private function kurirLastSuccessfulDeliveryRequest(int $idPelanggan): ?array
+    {
+        if ($idPelanggan <= 0) {
+            return null;
+        }
+        try {
+            $row = DB::getInstance(1)->query(
+                "SELECT * FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND delivery_status = 'selesai'
+                   AND id_lokasi IS NOT NULL AND id_lokasi > 0
+                 ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC
+                 LIMIT 1",
+                [$idPelanggan]
+            )->row();
+
+            return $row ? (array) $row : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Prefill lokasi early request: 1 lokasi langsung; >1 ambil dari delivery selesai terakhir.
+     * @return array|null baris pelanggan_lokasi
+     */
+    private function kurirPickDefaultLokasiForEarlyRequest(int $idPelanggan): ?array
+    {
+        $list = $this->kurirListLokasi($idPelanggan);
+        if ($list === []) {
+            return null;
+        }
+        if (count($list) === 1) {
+            return $list[0];
+        }
+
+        $lastOk = $this->kurirLastSuccessfulDeliveryRequest($idPelanggan);
+        if ($lastOk === null) {
+            return null;
+        }
+        $targetId = (int) ($lastOk['id_lokasi'] ?? 0);
+        if ($targetId <= 0) {
+            return null;
+        }
         foreach ($list as $lok) {
-            $id = (int) ($lok['id_lokasi'] ?? 0);
-            if (($counts[$id] ?? 0) === $max) {
-                $tied[] = $lok;
+            if ((int) ($lok['id_lokasi'] ?? 0) === $targetId) {
+                return $lok;
             }
         }
 
-        return $tied !== [] ? $tied : array_values($list);
+        return null;
+    }
+
+    /** @return array{id_lokasi:int,lokasi_nama:string,lokasi_detail:string,lokasi_latt:float,lokasi_longt:float} */
+    private function kurirLokasiFieldsForDeliveryRequest(array $lok): array
+    {
+        return [
+            'id_lokasi' => (int) ($lok['id_lokasi'] ?? 0),
+            'lokasi_nama' => (string) ($lok['nama'] ?? ''),
+            'lokasi_detail' => (string) ($lok['detail'] ?? ''),
+            'lokasi_latt' => (float) ($lok['latt'] ?? 0),
+            'lokasi_longt' => (float) ($lok['longt'] ?? 0),
+        ];
+    }
+
+    /** @return array<string,mixed> patch untuk wa_kurir_session */
+    private function kurirSessionPatchFromLokasi(array $lok, int $idCabang): array
+    {
+        $patch = [
+            'id_lokasi' => (int) ($lok['id_lokasi'] ?? 0),
+            'lokasi_nama' => (string) ($lok['nama'] ?? ''),
+            'lokasi_detail' => (string) ($lok['detail'] ?? ''),
+            'latt' => (float) ($lok['latt'] ?? 0),
+            'longt' => (float) ($lok['longt'] ?? 0),
+        ];
+        $latt = $patch['latt'];
+        $longt = $patch['longt'];
+        if ($idCabang > 0 && abs($latt) > 0.0001 && abs($longt) > 0.0001) {
+            $cab = $this->kurirCabangCoords($idCabang);
+            $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
+            $patch['tarif'] = (int) $calc['tarif'];
+        }
+
+        return $patch;
+    }
+
+    private function kurirEarlyApplyLokasiToRequestAndSession(
+        string $waNumber,
+        int $idRequest,
+        int $idCabang,
+        array $lok
+    ): void {
+        $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
+        if ($idRequest <= 0 || $idLokasi <= 0) {
+            return;
+        }
+        try {
+            $db = DB::getInstance(1);
+            $set = $this->kurirLokasiFieldsForDeliveryRequest($lok);
+            $latt = $set['lokasi_latt'];
+            $longt = $set['lokasi_longt'];
+            if ($idCabang > 0 && abs($latt) > 0.0001 && abs($longt) > 0.0001) {
+                $cab = $this->kurirCabangCoords($idCabang);
+                $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
+                $set['tarif_surcas'] = (int) $calc['tarif'];
+            }
+            $db->update('delivery_request', $set, ['id_request' => $idRequest]);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirEarlyApplyLokasi: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+
+        $this->saveKurirSession($waNumber, $this->kurirSessionPatchFromLokasi($lok, $idCabang));
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'KURIR',
+            'early_lokasi_prefill id_request=' . $idRequest . ' id_lokasi=' . $idLokasi
+        );
     }
 
     /**
@@ -3271,15 +3409,19 @@ trait WARepliesKurirTrait
     private function kurirEarlyActivateRequest(string $waNumber, array $session): int
     {
         $existingId = (int) ($session['id_request'] ?? 0);
-        if ($existingId > 0) {
-            $jenis = $this->kurirJenisLabel($session);
-            $this->kurirSyncEarlyRequestJenis($existingId, $jenis);
-            return $existingId;
-        }
-
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $idCabang = (int) ($session['id_cabang'] ?? 0);
         $jenis = $this->kurirJenisLabel($session);
+        $defaultLok = $this->kurirPickDefaultLokasiForEarlyRequest($idPelanggan);
+
+        if ($existingId > 0) {
+            $this->kurirSyncEarlyRequestJenis($existingId, $jenis);
+            if ($defaultLok !== null && (int) ($session['id_lokasi'] ?? 0) <= 0) {
+                $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $existingId, $idCabang, $defaultLok);
+            }
+            return $existingId;
+        }
+
         if ($idPelanggan <= 0 || $idCabang <= 0) {
             return 0;
         }
@@ -3307,6 +3449,9 @@ trait WARepliesKurirTrait
             $reuseId = (int) ($row->id_request ?? 0);
             if ($reuseId > 0) {
                 $this->saveKurirSession($waNumber, ['id_request' => $reuseId]);
+                if ($defaultLok !== null && (int) ($row->id_lokasi ?? 0) <= 0) {
+                    $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $reuseId, $idCabang, $defaultLok);
+                }
                 $this->kurirAppendSummary($waNumber, $session, 'early_reuse=' . $reuseId . '/' . $jenis);
                 return $reuseId;
             }
@@ -3328,6 +3473,17 @@ trait WARepliesKurirTrait
                 'insertTime' => $now,
                 'catatan_kurir' => 'Early activate chat (lokasi menyusul)',
             ];
+            if ($defaultLok !== null) {
+                $insData = array_merge($insData, $this->kurirLokasiFieldsForDeliveryRequest($defaultLok));
+                $insData['catatan_kurir'] = 'Early activate chat';
+                $latt = (float) ($defaultLok['latt'] ?? 0);
+                $longt = (float) ($defaultLok['longt'] ?? 0);
+                if (abs($latt) > 0.0001 && abs($longt) > 0.0001) {
+                    $cab = $this->kurirCabangCoords($idCabang);
+                    $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
+                    $insData['tarif_surcas'] = (int) $calc['tarif'];
+                }
+            }
             $idRequest = $db->insert('delivery_request', $insData);
             $idRequest = $idRequest ? (int) $idRequest : 0;
             if ($idRequest <= 0) {
@@ -3351,6 +3507,9 @@ trait WARepliesKurirTrait
             }
 
             $this->saveKurirSession($waNumber, ['id_request' => $idRequest]);
+            if ($defaultLok !== null) {
+                $this->saveKurirSession($waNumber, $this->kurirSessionPatchFromLokasi($defaultLok, $idCabang));
+            }
             $this->kurirAppendSummary($waNumber, $session, 'early_activate=' . $idRequest . '/' . $jenis);
             return $idRequest;
         } catch (\Throwable $e) {

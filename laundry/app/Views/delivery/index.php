@@ -2,6 +2,8 @@
 $transfers = $data['transfers'] ?? [];
 $customers = $data['customers'] ?? [];
 $customerRequests = $data['customerRequests'] ?? [];
+$customerRequestsSiap = $data['customerRequestsSiap'] ?? [];
+$customerRequestsBelum = $data['customerRequestsBelum'] ?? [];
 $customerGroups = $data['customerGroups'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
 $isEmptyCabang = empty($transfers);
@@ -750,6 +752,49 @@ $isEmptyCustomer = empty($customerGroups);
     }
     #dlv-root .dlv-group__title i { color: var(--dlv-yellow-deep); }
     #dlv-root .dlv-group--req .dlv-group__title i { color: var(--dlv-blue); }
+    #dlv-root .dlv-board-section {
+      margin-bottom: 12px;
+      border: 1px solid var(--dlv-line);
+      background: #fff;
+    }
+    #dlv-root .dlv-board-section:last-child { margin-bottom: 0; }
+    #dlv-root .dlv-board-section__title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0;
+      padding: 8px 10px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--dlv-line);
+    }
+    #dlv-root .dlv-board-section--siap .dlv-board-section__title {
+      color: #166534;
+      background: #f0fdf4;
+      border-bottom-color: #bbf7d0;
+    }
+    #dlv-root .dlv-board-section--belum .dlv-board-section__title {
+      color: #9a3412;
+      background: #fff7ed;
+      border-bottom-color: #fed7aa;
+    }
+    #dlv-root .dlv-board-section__count {
+      font-size: 0.68rem;
+      font-weight: 900;
+      padding: 1px 6px;
+      border: 1px solid currentColor;
+      opacity: 0.85;
+    }
+    #dlv-root .dlv-item--request-siap {
+      border-left: 3px solid #22c55e;
+    }
+    #dlv-root .dlv-item--request-belum {
+      border-left: 3px solid #fdba74;
+      opacity: 0.92;
+    }
     #dlv-root .dlv-jenis-pill {
       display: inline-flex;
       align-items: center;
@@ -951,193 +996,32 @@ $isEmptyCustomer = empty($customerGroups);
               <span>Request chat (YCloud/Fonnte) dan portal customer tampil di sini setelah jenis Jemput/Antar aktif.</span>
             </div>
           <?php } else { ?>
-            <div class="dlv-group dlv-group--merged">
-              <h3 class="dlv-group__title"><i class="fas fa-users"></i> Customer</h3>
-              <div class="dlv-list">
-                <?php foreach ($customerGroups as $grp) {
-                  $tail = htmlspecialchars((string) ($grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
-                  $phoneShow = htmlspecialchars((string) ($grp['phone_display'] ?? $grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
-                  $nama = htmlspecialchars(strtoupper((string) ($grp['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
-                  $kode = htmlspecialchars((string) ($grp['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
-                  $reqs = is_array($grp['requests'] ?? null) ? $grp['requests'] : [];
-                  $reqCount = count($reqs);
-                  if ($reqCount <= 0) {
-                    continue;
-                  }
-                ?>
-                  <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-phone-display="<?= $phoneShow ?>" data-source="merged">
-                    <div class="dlv-item__head-row">
-                      <div class="dlv-item__text">
-                        <p class="dlv-item__title">
-                          <?= $nama ?>
-                          <span class="dlv-kode">· <?= $kode ?></span>
-                          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= (int) $reqCount ?> request</span>
-                        </p>
-                        <div class="dlv-item__meta">
-                          <?= $phoneShow ?>
-                        </div>
-                      </div>
-                      <div class="dlv-item__actions">
-                        <button type="button" class="dlv-link-cek" data-dlv-cek-customer="<?= $tail ?>" data-phone-display="<?= $phoneShow ?>" title="Chat" aria-label="Chat">
-                          <i class="fas fa-comments"></i> Chat
-                        </button>
-                      </div>
-                    </div>
-
-                      <?php foreach ($reqs as $rq) {
-                        $jenis = strtolower((string) ($rq['jenis'] ?? ''));
-                        $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
-                        $jenisOk = ($jenis === 'antar' || $jenis === 'jemput');
-                        $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : '');
-                        $idReq = (int) ($rq['id_request'] ?? 0);
-                        $prefill = implode(',', array_map('intval', $rq['prefill_ids'] ?? []));
-                        $dateRawR = $rq['insertTime'] ?? '';
-                        $dateLblR = $dateRawR !== '' ? date('d/m/y H:i', strtotime($dateRawR)) : '-';
-                        $pillClass = $jenis === 'antar' ? 'dlv-jenis-pill--antar' : ($jenis === 'jemput' ? 'dlv-jenis-pill--jemput' : '');
-                        $jenisIcon = $jenis === 'jemput' ? 'fa-hand-holding' : 'fa-truck';
-                        $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
-                        $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
-                        $lokLatt = $rq['lokasi_latt'] ?? null;
-                        $lokLongt = $rq['lokasi_longt'] ?? null;
-                        $mapsHref = '';
-                        if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
-                          $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
-                        }
-                        $hasLokasi = ($lokNama !== '' || $lokDetail !== '' || $mapsHref !== '');
-                        $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
-                          ? (int) $rq['tarif_surcas']
-                          : '';
-                        $isInstant = $layanan === 'instant';
-                        $canSelesai = !$isInstant || $jenis === 'jemput';
-                        $courierName = trim((string) ($rq['courier_name'] ?? ''));
-                        $bsStatus = trim((string) ($rq['biteship_status'] ?? ''));
-                        $trackUrl = trim((string) ($rq['tracking_url'] ?? ''));
-                        $driverName = trim((string) ($rq['driver_name'] ?? ''));
-                        $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
-                        $catatanKurir = trim((string) ($rq['catatan_kurir'] ?? ''));
-                        $surcasBound = !empty($rq['surcas_bound']);
-                        $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
-                      ?>
-                        <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
-                             data-id-request="<?= $idReq ?>"
-                             data-id-pelanggan="<?= $idPelangganRq ?>"
-                             data-phone-tail="<?= $tail ?>"
-                             data-source="customer"
-                             data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
-                             data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-                             data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>">
-                          <div class="dlv-item__text">
-                            <p class="dlv-item__title">
-                              <?php if ($jenisOk) { ?>
-                                <span class="dlv-jenis-pill <?= $pillClass ?>">
-                                  <i class="fas <?= $jenisIcon ?>" aria-hidden="true"></i>
-                                  <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
-                                </span>
-                              <?php } ?>
-                              <?php if ($isInstant) { ?>
-                                <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
-                              <?php } ?>
-                              <?php if (!$hasLokasi && !$isInstant) { ?>
-                                <span class="dlv-jenis-pill" style="background:#fef3c7;color:#92400e">Lokasi menyusul</span>
-                              <?php } ?>
-                              <span class="dlv-kode">#<?= $idReq ?></span>
-                            </p>
-                            <div class="dlv-item__meta">
-                              <?= htmlspecialchars($dateLblR, ENT_QUOTES, 'UTF-8') ?>
-                              <?php if ($isInstant && $ongkir > 0) { ?>
-                                · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
-                              <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && (int) $tarifSurcas > 0 && !$isInstant) { ?>
-                                · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
-                              <?php } ?>
-                            </div>
-                            <?php if ($isInstant && ($courierName !== '' || $bsStatus !== '' || $driverName !== '')) { ?>
-                              <div class="dlv-item__meta">
-                                <?php if ($courierName !== '') { ?>
-                                  <i class="fas fa-motorcycle"></i> <?= htmlspecialchars($courierName, ENT_QUOTES, 'UTF-8') ?>
-                                <?php } ?>
-                                <?php if ($bsStatus !== '') { ?> · <?= htmlspecialchars($bsStatus, ENT_QUOTES, 'UTF-8') ?><?php } ?>
-                                <?php if ($driverName !== '') { ?> · Driver <?= htmlspecialchars($driverName, ENT_QUOTES, 'UTF-8') ?><?php } ?>
-                                <?php if ($trackUrl !== '') { ?> · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a><?php } ?>
-                              </div>
-                            <?php } ?>
-                            <?php if ($hasLokasi) { ?>
-                              <div class="dlv-item__meta dlv-item__lokasi">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <?= htmlspecialchars($lokNama !== '' ? $lokNama : 'Lokasi', ENT_QUOTES, 'UTF-8') ?>
-                                <?php if ($lokDetail !== '') { ?> · <?= htmlspecialchars($lokDetail, ENT_QUOTES, 'UTF-8') ?><?php } ?>
-                                <?php if ($mapsHref !== '') { ?> · <a href="<?= htmlspecialchars($mapsHref, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Maps</a><?php } ?>
-                                <?php if ($mapsHref !== '') { ?>
-                                  <button type="button"
-                                          class="dlv-icon-btn"
-                                          data-dlv-share-lokasi="<?= $idReq ?>"
-                                          title="Share Maps"
-                                          aria-label="Share Maps">
-                                    <i class="fas fa-share-alt"></i>
-                                  </button>
-                                <?php } ?>
-                              </div>
-                            <?php } elseif (!$isInstant) { ?>
-                              <div class="dlv-item__meta dlv-item__lokasi">
-                                <i class="fas fa-map-marker-alt"></i>
-                                Lokasi belum lengkap
-                                <?php if ($idPelangganRq > 0) { ?>
-                                  <button type="button"
-                                          class="dlv-icon-btn"
-                                          data-dlv-tarik-lokasi="<?= $idReq ?>"
-                                          data-id-pelanggan="<?= $idPelangganRq ?>"
-                                          title="Tarik lokasi pelanggan"
-                                          aria-label="Tarik lokasi">
-                                    <i class="fas fa-sync-alt"></i>
-                                  </button>
-                                <?php } ?>
-                              </div>
-                            <?php } ?>
-                            <?php if ($catatanKurir !== '') { ?>
-                              <div class="dlv-item__meta">
-                                <i class="fas fa-sticky-note"></i>
-                                Catatan: <?= htmlspecialchars($catatanKurir, ENT_QUOTES, 'UTF-8') ?>
-                              </div>
-                            <?php } ?>
-                          </div>
-                          <div class="dlv-item__actions">
-                            <?php if ($canSelesai && $jenisOk) { ?>
-                              <button type="button"
-                                      class="dlv-btn dlv-btn--selesai"
-                                      data-dlv-selesai-request="<?= $idReq ?>"
-                                      data-phone-tail="<?= $tail ?>"
-                                      data-phone-display="<?= $phoneShow ?>"
-                                      data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-                                      data-nama="<?= $nama ?>">
-                                <i class="fas fa-check"></i> Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
-                              </button>
-                            <?php } elseif ($canSelesai) { ?>
-                              <button type="button"
-                                      class="dlv-btn dlv-btn--selesai"
-                                      data-dlv-selesai-request="<?= $idReq ?>"
-                                      data-phone-tail="<?= $tail ?>"
-                                      data-phone-display="<?= $phoneShow ?>"
-                                      data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-                                      data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-                                      data-nama="<?= $nama ?>">
-                                <i class="fas fa-check"></i> Selesai
-                              </button>
-                            <?php } else { ?>
-                              <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
-                            <?php } ?>
-                          </div>
-                        </div>
-                      <?php } ?>
-                  </div>
-                <?php } ?>
+            <?php if (!empty($customerRequestsSiap)) { ?>
+              <div class="dlv-board-section dlv-board-section--siap">
+                <h3 class="dlv-board-section__title">
+                  <span><i class="fas fa-check-circle"></i> Siap diselesaikan</span>
+                  <span class="dlv-board-section__count"><?= (int) count($customerRequestsSiap) ?></span>
+                </h3>
+                <div class="dlv-list">
+                  <?php foreach ($customerRequestsSiap as $rq) {
+                    include __DIR__ . '/partials/customer_request_entry.php';
+                  } ?>
+                </div>
               </div>
-            </div>
+            <?php } ?>
+            <?php if (!empty($customerRequestsBelum)) { ?>
+              <div class="dlv-board-section dlv-board-section--belum">
+                <h3 class="dlv-board-section__title">
+                  <span><i class="fas fa-hourglass-half"></i> Belum bisa diselesaikan</span>
+                  <span class="dlv-board-section__count"><?= (int) count($customerRequestsBelum) ?></span>
+                </h3>
+                <div class="dlv-list">
+                  <?php foreach ($customerRequestsBelum as $rq) {
+                    include __DIR__ . '/partials/customer_request_entry.php';
+                  } ?>
+                </div>
+              </div>
+            <?php } ?>
           <?php } ?>
         </div>
       </section>
@@ -2815,6 +2699,10 @@ $isEmptyCustomer = empty($customerGroups);
 
     if (list && !list.querySelector('.dlv-item--customer') && group) {
       group.remove();
+    }
+    var boardSection = list ? list.closest('.dlv-board-section') : null;
+    if (list && !list.querySelector('.dlv-item--customer') && boardSection) {
+      boardSection.remove();
     }
     refreshCustomerEmptyState(body);
   }

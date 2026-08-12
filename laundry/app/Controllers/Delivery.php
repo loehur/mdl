@@ -14,6 +14,15 @@ class Delivery extends Controller
       $transfers = $this->getPendingCabangTransfers();
       $customerRequests = $this->getPendingCustomerRequests();
       $customerGroups = $this->buildCustomerDeliveryGroups($customerRequests);
+      $customerRequestsSiap = [];
+      $customerRequestsBelum = [];
+      foreach ($customerRequests as $rq) {
+         if (!empty($rq['siap_selesai'])) {
+            $customerRequestsSiap[] = $rq;
+         } else {
+            $customerRequestsBelum[] = $rq;
+         }
+      }
       $canCekDetail = $this->canCekDetail();
 
       $this->view('layout', ['data_operasi' => $data_operasi]);
@@ -22,6 +31,8 @@ class Delivery extends Controller
          'transfers' => $transfers,
          'customers' => [],
          'customerRequests' => $customerRequests,
+         'customerRequestsSiap' => $customerRequestsSiap,
+         'customerRequestsBelum' => $customerRequestsBelum,
          'customerGroups' => $customerGroups,
          'canCekDetail' => $canCekDetail,
       ]);
@@ -2174,7 +2185,89 @@ class Delivery extends Controller
             'waybill_id' => (string) ($row['waybill_id'] ?? ''),
          ];
       }
-      return $out;
+      return $this->enrichCustomerRequestsReadiness($out);
+   }
+
+   /**
+    * Hitung kesiapan selesai per delivery_request (lokasi + item siap).
+    */
+   private function enrichCustomerRequestsReadiness(array $requests): array
+   {
+      if (empty($requests)) {
+         return [];
+      }
+
+      $pelangganIds = [];
+      foreach ($requests as $rq) {
+         $pid = (int) ($rq['id_pelanggan'] ?? 0);
+         if ($pid > 0) {
+            $pelangganIds[$pid] = $pid;
+         }
+      }
+      $pelangganIds = array_values($pelangganIds);
+
+      $allAntarEligibleIds = [];
+      if (!empty($pelangganIds)) {
+         foreach ($this->fetchEligibleSaleRows($pelangganIds, 'antar', 0) as $row) {
+            $allAntarEligibleIds[(int) $row['id_penjualan']] = true;
+         }
+      }
+      $selesaiSet = $this->saleIdsWithLaundrySelesai(array_keys($allAntarEligibleIds));
+
+      foreach ($requests as &$rq) {
+         $jenis = strtolower((string) ($rq['jenis'] ?? ''));
+         $layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
+         $isInstant = $layanan === 'instant';
+         $idReq = (int) ($rq['id_request'] ?? 0);
+         $idPelanggan = (int) ($rq['id_pelanggan'] ?? 0);
+
+         $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
+         $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
+         $lokLatt = (float) ($rq['lokasi_latt'] ?? 0);
+         $lokLongt = (float) ($rq['lokasi_longt'] ?? 0);
+         $hasLokasi = ($lokNama !== '' || $lokDetail !== '' || ($lokLatt != 0.0 && $lokLongt != 0.0));
+
+         $siapCount = 0;
+         $belumCount = 0;
+         if ($idPelanggan > 0 && in_array($jenis, ['jemput', 'antar'], true)) {
+            foreach ($this->fetchEligibleSaleRows([$idPelanggan], $jenis, $idReq) as $row) {
+               $sid = (int) ($row['id_penjualan'] ?? 0);
+               if ($sid <= 0) {
+                  continue;
+               }
+               if ($jenis === 'antar' && !isset($selesaiSet[$sid])) {
+                  $belumCount++;
+               } else {
+                  $siapCount++;
+               }
+            }
+         }
+
+         $siapSelesai = false;
+         $blockHint = '';
+         if ($isInstant && $jenis === 'antar') {
+            $blockHint = 'Instant · track only';
+         } elseif ($jenis === 'antar' && !$isInstant && !$hasLokasi) {
+            $blockHint = 'Lokasi belum lengkap';
+         } elseif ($siapCount <= 0) {
+            $blockHint = $jenis === 'antar' ? 'Laundry belum selesai' : 'Belum ada item siap';
+         }
+
+         if ($jenis === 'antar' && !$isInstant) {
+            $siapSelesai = $hasLokasi && $siapCount > 0;
+         } elseif ($jenis === 'jemput') {
+            $siapSelesai = $siapCount > 0;
+         }
+
+         $rq['has_lokasi'] = $hasLokasi;
+         $rq['siap_item_count'] = $siapCount;
+         $rq['belum_item_count'] = $belumCount;
+         $rq['siap_selesai'] = $siapSelesai;
+         $rq['block_hint'] = $blockHint;
+      }
+      unset($rq);
+
+      return $requests;
    }
 
    /**
