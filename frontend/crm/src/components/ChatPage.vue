@@ -1179,11 +1179,6 @@ onUnmounted(() => {
                                       >
                                            <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                            <span>{{ msg.time }}</span>
-                                           <span v-if="msg.sender === 'me'" class="text-[var(--wa-bubble-out-meta)]">
-                                                <span v-if="msg.status === 'read'><svg class="w-4 h-3 inline" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="#53bdeb"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="#53bdeb"/></svg></span>
-                                                <span v-else-if="msg.status === 'delivered'"><svg class="w-4 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="currentColor"/></svg></span>
-                                                <span v-else><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor" transform="translate(-1,0)"/></svg></span>
-                                           </span>
                                       </div>
                                   </div>
 
