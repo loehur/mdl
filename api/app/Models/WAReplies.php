@@ -947,16 +947,75 @@ class WAReplies
     }
 
     /**
-     * Penutup singkat tetap (tanpa AI): hanya Baik / Oke / Ok + sapaan.
+     * Emote senyum soft (tanpa gigi): 😊 🙂 ☺️ 😌
+     */
+    private function getPenutupSoftSmileEmojis(): array
+    {
+        return ['😊', '🙂', '☺️', '😌'];
+    }
+
+    private function pickPenutupSoftSmile(): string
+    {
+        $emojis = $this->getPenutupSoftSmileEmojis();
+
+        return $emojis[array_rand($emojis)];
+    }
+
+    /**
+     * Gabungkan template kalimat + emote soft (satu kalimat × banyak emote).
+     *
+     * @param string[] $templates Kalimat tanpa emote; boleh berisi {sapaan}
+     */
+    private function expandPenutupRepliesWithSoftSmiles(array $templates, string $sapaan): array
+    {
+        $out = [];
+        foreach ($templates as $tpl) {
+            $base = str_replace('{sapaan}', $sapaan, $tpl);
+            foreach ($this->getPenutupSoftSmileEmojis() as $emoji) {
+                $out[] = $base . ' ' . $emoji;
+            }
+        }
+
+        return $out;
+    }
+
+    private function pickRandomFromList(array $replies): string
+    {
+        return $replies[array_rand($replies)];
+    }
+
+    /**
+     * PENUTUP subtype: ucapan terima kasih.
+     */
+    private function pickPenutupThanksReply(string $sapaan): string
+    {
+        return $this->pickRandomFromList($this->expandPenutupRepliesWithSoftSmiles([
+            'Sama-sama {sapaan}',
+            'Iya {sapaan}, sama-sama',
+        ], $sapaan));
+    }
+
+    /**
+     * PENUTUP subtype: info sudah bayar / lunas / bukti transfer.
+     */
+    private function pickPenutupPaymentReply(string $sapaan): string
+    {
+        return $this->pickRandomFromList($this->expandPenutupRepliesWithSoftSmiles([
+            'Baik {sapaan}, terima kasih',
+            'Terima kasih {sapaan}',
+        ], $sapaan));
+    }
+
+    /**
+     * Penutup singkat tetap (tanpa AI): Baik / Oke / Ok + sapaan + emote soft.
      */
     private function getRandomSiapReply($sapaan)
     {
-        $replies = [
-            "Baik {$sapaan}",
-            "Oke {$sapaan}",
-            "Ok {$sapaan}",
-        ];
-        return $replies[array_rand($replies)];
+        return $this->pickRandomFromList($this->expandPenutupRepliesWithSoftSmiles([
+            'Baik {sapaan}',
+            'Oke {sapaan}',
+            'Ok {sapaan}',
+        ], $sapaan));
     }
 
     /**
@@ -973,15 +1032,17 @@ class WAReplies
     }
 
     /**
-     * Ack PENUTUP tanpa mengulang ok/oke — hanya Baik + sapaan (selaras template singkat).
+     * Ack PENUTUP tanpa mengulang ok/oke — hanya Baik + sapaan + emote soft.
      */
     private function getRandomPenutupAckNoOk(string $sapaan)
     {
-        return "Baik {$sapaan}";
+        return $this->pickRandomFromList($this->expandPenutupRepliesWithSoftSmiles([
+            'Baik {sapaan}',
+        ], $sapaan));
     }
 
     /**
-     * Pilih balasan ack: hindari mengulang ok/oke jika user baru saja menulis ok/oke.
+     * Pilih balasan ack (lainnya): hindari mengulang ok/oke jika user baru saja menulis ok/oke.
      */
     private function pickPenutupAckReply(string $sapaan, string $textBody): string
     {
@@ -2896,8 +2957,9 @@ class WAReplies
     }
 
     /**
-     * Handle intent PENUTUP — balasan tetap singkat (tanpa LLM): Baik/Oke/Ok + sapaan, atau Siap/Baik jika hindari ulang "ok".
-     * Termasuk konfirmasi pembayaran/transfer. Di luar jam operasional → tidak balas.
+     * Handle intent PENUTUP — 3 subtype, masing-masing list random + emote senyum soft:
+     * (1) terima kasih (2) sudah bayar/lunas (3) ack/lainnya.
+     * Di luar jam operasional → tidak balas.
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
@@ -2909,39 +2971,42 @@ class WAReplies
         $textLower = trim(strtolower($textBody ?? ''));
         $textTrimmed = trim($textBody ?? '');
 
-        // Regex quick path: reaction (Reacted: 👍) atau emoji saja (👍 ❤️ 😊) -> balas emoji ramah saja
+        // Reaction / emoji saja → emote soft random
         if (preg_match('/^reacted\s*:?\s*.+$/i', $textTrimmed)) {
-            $this->sendAutoreplyText($waNumber, '😊');
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
             return;
         }
         if (mb_strlen($textTrimmed) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $textTrimmed) && $textTrimmed !== '') {
-            $this->sendAutoreplyText($waNumber, '😊');
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
             return;
         }
 
         $ctx = $this->getGreetingContext($waNumber);
         $sapaan = $ctx['sapaan'];
 
-        // Terimakasih/makasih — sama template penutup singkat (tanpa kalimat tambahan / tanpa AI).
-        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|makasi|makaci|makaseh|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
-            || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|makasi|makaci|makaseh|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
+        // (2) Sudah bayar/lunas — prioritas di atas thanks (pesan campur sering ada makasih)
+        if ($this->messageLooksLikePaymentConfirmationPenutup($textBody)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=payment');
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupPaymentReply($sapaan));
             return;
         }
 
-        // Regex quick path: gpp/gak apa-apa (acknowledgment singkat) -> balas emoji ramah saja
+        // (1) Ucapan terima kasih
+        if ($this->messageLooksLikeThanksPenutup($textBody)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=thanks');
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupThanksReply($sapaan));
+            return;
+        }
+
+        // (3) Lainnya: gpp → emote soft saja
         if (preg_match('/^(gpp|gak\s*apa\s*apa|ga\s*apa\s*apa)(\s+(kak|bang|pak|bu))?\s*[.\s]*$/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, '😊');
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_emoji');
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
             return;
         }
 
-        // Regex quick path: ok/baik/siap (acknowledgment), termasuk "ok kak", "oke min" — tanpa jemput/antar
-        $ackShort = '/^(ok|oke|baik|sip|siap)(\s+deh)?(\s+(kak|kk|bang|pak|bu|mbak|mas|om|min|dek|nte))?\s*[.!?]*$/iu';
-        if (preg_match($ackShort, $textLower) && !preg_match('/jemput|antar|ambil/i', $textLower)) {
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
-            return;
-        }
-
+        // (3) Lainnya: ok/baik/siap / fallback ack
+        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_ack');
         $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
     }
 
