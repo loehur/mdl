@@ -11,9 +11,42 @@ class Delivery extends Controller
    public function index()
    {
       $data_operasi = ['title' => 'Delivery Order'];
+      $canCekDetail = $this->canCekDetail();
+
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('delivery/index', [
+         'data_operasi' => $data_operasi,
+         'deferBoard' => true,
+         'canCekDetail' => $canCekDetail,
+      ]);
+   }
+
+   /**
+    * Muat isi board Delivery (customer + cabang) — dipanggil async setelah shell tampil.
+    */
+   public function board_data()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      try {
+         echo json_encode([
+            'status' => 'success',
+            'data' => $this->buildBoardPayload(),
+         ], JSON_UNESCAPED_UNICODE);
+      } catch (\Throwable $e) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+         ], JSON_UNESCAPED_UNICODE);
+      }
+   }
+
+   /**
+    * @return array{html_customer:string,html_cabang:string,count_customer:int,count_cabang:int}
+    */
+   private function buildBoardPayload(): array
+   {
       $transfers = $this->getPendingCabangTransfers();
       $customerRequests = $this->getPendingCustomerRequests();
-      $customerGroups = $this->buildCustomerDeliveryGroups($customerRequests);
       $customerRequestsSiap = [];
       $customerRequestsBelum = [];
       foreach ($customerRequests as $rq) {
@@ -23,19 +56,28 @@ class Delivery extends Controller
             $customerRequestsBelum[] = $rq;
          }
       }
-      $canCekDetail = $this->canCekDetail();
 
-      $this->view('layout', ['data_operasi' => $data_operasi]);
-      $this->view('delivery/index', [
-         'data_operasi' => $data_operasi,
-         'transfers' => $transfers,
-         'customers' => [],
-         'customerRequests' => $customerRequests,
-         'customerRequestsSiap' => $customerRequestsSiap,
-         'customerRequestsBelum' => $customerRequestsBelum,
-         'customerGroups' => $customerGroups,
-         'canCekDetail' => $canCekDetail,
-      ]);
+      return [
+         'html_customer' => $this->renderViewPartial('delivery/partials/board_customer_body', [
+            'customerRequestsSiap' => $customerRequestsSiap,
+            'customerRequestsBelum' => $customerRequestsBelum,
+         ]),
+         'html_cabang' => $this->renderViewPartial('delivery/partials/board_cabang_body', [
+            'transfers' => $transfers,
+         ]),
+         'count_customer' => count($customerRequests),
+         'count_cabang' => count($transfers),
+      ];
+   }
+
+   private function renderViewPartial(string $viewFile, array $data = []): string
+   {
+      foreach ($data as $key => $value) {
+         $$key = $value;
+      }
+      ob_start();
+      require 'app/Views/' . $viewFile . '.php';
+      return (string) ob_get_clean();
    }
 
    /**

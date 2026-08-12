@@ -1,16 +1,9 @@
 <?php
-$transfers = $data['transfers'] ?? [];
-$customers = $data['customers'] ?? [];
-$customerRequests = $data['customerRequests'] ?? [];
-$customerRequestsSiap = $data['customerRequestsSiap'] ?? [];
-$customerRequestsBelum = $data['customerRequestsBelum'] ?? [];
-$customerGroups = $data['customerGroups'] ?? [];
 $canCekDetail = !empty($data['canCekDetail']);
-$isEmptyCabang = empty($transfers);
-$isEmptyCustomer = empty($customerGroups);
 ?>
 <div id="dlv-root" class="px-1 mt-2"
      data-can-cek="<?= $canCekDetail ? '1' : '0' ?>"
+     data-board-url="<?= URL::BASE_URL ?>Delivery/board_data"
      data-detail-url="<?= URL::BASE_URL ?>Delivery/detail/"
      data-customer-detail-url="<?= URL::BASE_URL ?>Delivery/customer_detail/"
      data-sales-options-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
@@ -795,6 +788,33 @@ $isEmptyCustomer = empty($customerGroups);
       border-left: 3px solid #fdba74;
       opacity: 0.92;
     }
+    #dlv-root .dlv-body--loading {
+      min-height: 120px;
+    }
+    #dlv-root .dlv-skeleton {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    #dlv-root .dlv-skeleton__row {
+      border: 1px solid #e2e8f0;
+      background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 45%, #f1f5f9 90%);
+      background-size: 200% 100%;
+      animation: dlv-shimmer 1.1s ease-in-out infinite;
+      min-height: 72px;
+    }
+    #dlv-root .dlv-skeleton__row--short {
+      min-height: 56px;
+      opacity: 0.85;
+    }
+    @keyframes dlv-shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+    #dlv-root .dlv-head-count.is-loading {
+      opacity: 0.45;
+    }
     #dlv-root .dlv-jenis-pill {
       display: inline-flex;
       align-items: center;
@@ -978,7 +998,7 @@ $isEmptyCustomer = empty($customerGroups);
         <header class="dlv-head" data-dlv-collapse-toggle role="button" tabindex="0" aria-expanded="true" aria-controls="dlvBodyCustomer">
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-user"></i></span>
           <div class="dlv-head__grow">
-            <h2>Customer <span class="dlv-head-count"><?= (int) count($customerGroups) ?></span></h2>
+            <h2>Customer <span class="dlv-head-count is-loading" id="dlvCountCustomer">…</span></h2>
             <small>Request Jemput / Antar aktif</small>
           </div>
           <button type="button" class="dlv-btn--add-head" id="dlvTambahBtn" title="Tambah Delivery manual">
@@ -988,41 +1008,12 @@ $isEmptyCustomer = empty($customerGroups);
             <i class="fas fa-chevron-down" aria-hidden="true"></i>
           </button>
         </header>
-        <div class="dlv-body" id="dlvBodyCustomer">
-          <?php if ($isEmptyCustomer) { ?>
-            <div class="dlv-empty">
-              <i class="fas fa-motorcycle" aria-hidden="true"></i>
-              <strong>Belum ada order delivery</strong>
-              <span>Request chat (YCloud/Fonnte) dan portal customer tampil di sini setelah jenis Jemput/Antar aktif.</span>
-            </div>
-          <?php } else { ?>
-            <?php if (!empty($customerRequestsSiap)) { ?>
-              <div class="dlv-board-section dlv-board-section--siap">
-                <h3 class="dlv-board-section__title">
-                  <span><i class="fas fa-check-circle"></i> Siap diselesaikan</span>
-                  <span class="dlv-board-section__count"><?= (int) count($customerRequestsSiap) ?></span>
-                </h3>
-                <div class="dlv-list">
-                  <?php foreach ($customerRequestsSiap as $rq) {
-                    include __DIR__ . '/partials/customer_request_entry.php';
-                  } ?>
-                </div>
-              </div>
-            <?php } ?>
-            <?php if (!empty($customerRequestsBelum)) { ?>
-              <div class="dlv-board-section dlv-board-section--belum">
-                <h3 class="dlv-board-section__title">
-                  <span><i class="fas fa-hourglass-half"></i> Belum bisa diselesaikan</span>
-                  <span class="dlv-board-section__count"><?= (int) count($customerRequestsBelum) ?></span>
-                </h3>
-                <div class="dlv-list">
-                  <?php foreach ($customerRequestsBelum as $rq) {
-                    include __DIR__ . '/partials/customer_request_entry.php';
-                  } ?>
-                </div>
-              </div>
-            <?php } ?>
-          <?php } ?>
+        <div class="dlv-body dlv-body--loading" id="dlvBodyCustomer">
+          <div class="dlv-skeleton" aria-hidden="true">
+            <div class="dlv-skeleton__row"></div>
+            <div class="dlv-skeleton__row dlv-skeleton__row--short"></div>
+            <div class="dlv-skeleton__row"></div>
+          </div>
         </div>
       </section>
     </div>
@@ -1032,57 +1023,18 @@ $isEmptyCustomer = empty($customerGroups);
         <header class="dlv-head" data-dlv-collapse-toggle role="button" tabindex="0" aria-expanded="true" aria-controls="dlvBodyCabang">
           <span class="dlv-icon" aria-hidden="true"><i class="fas fa-store"></i></span>
           <div class="dlv-head__grow">
-            <h2>Cabang <span class="dlv-head-count"><?= (int) count($transfers) ?></span></h2>
+            <h2>Cabang <span class="dlv-head-count is-loading" id="dlvCountCabang">…</span></h2>
             <small>Transfer barang belum diterima</small>
           </div>
           <button type="button" class="dlv-collapse-btn" data-dlv-collapse-btn title="Ciutkan / buka" aria-label="Ciutkan panel">
             <i class="fas fa-chevron-down" aria-hidden="true"></i>
           </button>
         </header>
-        <div class="dlv-body" id="dlvBodyCabang">
-          <?php if ($isEmptyCabang) { ?>
-            <div class="dlv-empty">
-              <i class="fas fa-truck" aria-hidden="true"></i>
-              <strong>Belum ada order delivery</strong>
-              <span>Transfer barang antar cabang yang belum diterima akan tampil di sini.</span>
-            </div>
-          <?php } else { ?>
-            <div class="dlv-list">
-              <?php foreach ($transfers as $tr) {
-                $ref = htmlspecialchars((string) ($tr['ref'] ?? ''), ENT_QUOTES, 'UTF-8');
-                $src = htmlspecialchars((string) ($tr['source_kode'] ?? '-'), ENT_QUOTES, 'UTF-8');
-                $tgt = htmlspecialchars((string) ($tr['target_kode'] ?? '-'), ENT_QUOTES, 'UTF-8');
-                $sourceId = (int) ($tr['source_id'] ?? 0);
-                $targetId = (int) ($tr['target_id'] ?? 0);
-                $dateRaw = $tr['date'] ?? '';
-                $dateLbl = $dateRaw !== '' ? date('d/m/y H:i', strtotime($dateRaw)) : '-';
-                $count = (int) ($tr['item_count'] ?? 0);
-              ?>
-                <div class="dlv-item"
-                     data-ref="<?= $ref ?>"
-                     data-source-id="<?= $sourceId ?>"
-                     data-target-id="<?= $targetId ?>"
-                     data-source-kode="<?= $src ?>"
-                     data-target-kode="<?= $tgt ?>">
-                  <div class="dlv-item__text">
-                    <p class="dlv-item__title">
-                      Delivery <span class="dlv-kode dlv-kode-source"><?= $src ?></span>
-                      → <span class="dlv-kode"><?= $tgt ?></span>
-                    </p>
-                    <div class="dlv-item__meta">
-                      #<?= $ref ?> · <?= htmlspecialchars($dateLbl, ENT_QUOTES, 'UTF-8') ?>
-                      · <?= $count ?> item
-                    </div>
-                  </div>
-                  <div class="dlv-item__actions">
-                    <button type="button" class="dlv-btn dlv-btn--cek" data-dlv-cek="<?= $ref ?>">
-                      <i class="fas fa-search"></i> Cek
-                    </button>
-                  </div>
-                </div>
-              <?php } ?>
-            </div>
-          <?php } ?>
+        <div class="dlv-body dlv-body--loading" id="dlvBodyCabang">
+          <div class="dlv-skeleton" aria-hidden="true">
+            <div class="dlv-skeleton__row dlv-skeleton__row--short"></div>
+            <div class="dlv-skeleton__row dlv-skeleton__row--short"></div>
+          </div>
         </div>
       </section>
     </div>
@@ -1530,6 +1482,8 @@ $isEmptyCustomer = empty($customerGroups);
   var tarikLokasiUrl = root.getAttribute('data-tarik-lokasi-url') || '';
   var shareLokasiUrl = root.getAttribute('data-share-lokasi-url') || '';
   var buatManualUrl = root.getAttribute('data-buat-manual-url') || '';
+  var boardUrl = root.getAttribute('data-board-url') || '';
+  var boardLoading = false;
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
   var batalKaryawanSelectize = null;
@@ -1641,6 +1595,91 @@ $isEmptyCustomer = empty($customerGroups);
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function setHeadCount(el, n) {
+    if (!el) return;
+    el.textContent = String(n);
+    el.classList.remove('is-loading');
+  }
+
+  function loadBoard(showSkeleton) {
+    if (!boardUrl || boardLoading) return Promise.resolve();
+    boardLoading = true;
+    var custBody = document.getElementById('dlvBodyCustomer');
+    var cabBody = document.getElementById('dlvBodyCabang');
+    var custCountEl = document.getElementById('dlvCountCustomer');
+    var cabCountEl = document.getElementById('dlvCountCabang');
+
+    if (showSkeleton) {
+      if (custBody) {
+        custBody.classList.add('dlv-body--loading');
+        custBody.innerHTML =
+          '<div class="dlv-skeleton" aria-hidden="true">' +
+          '<div class="dlv-skeleton__row"></div>' +
+          '<div class="dlv-skeleton__row dlv-skeleton__row--short"></div>' +
+          '<div class="dlv-skeleton__row"></div></div>';
+      }
+      if (cabBody) {
+        cabBody.classList.add('dlv-body--loading');
+        cabBody.innerHTML =
+          '<div class="dlv-skeleton" aria-hidden="true">' +
+          '<div class="dlv-skeleton__row dlv-skeleton__row--short"></div>' +
+          '<div class="dlv-skeleton__row dlv-skeleton__row--short"></div></div>';
+      }
+      if (custCountEl) {
+        custCountEl.textContent = '…';
+        custCountEl.classList.add('is-loading');
+      }
+      if (cabCountEl) {
+        cabCountEl.textContent = '…';
+        cabCountEl.classList.add('is-loading');
+      }
+    }
+
+    return fetch(boardUrl, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          throw new Error((res && res.message) || 'Gagal memuat board');
+        }
+        var d = res.data || {};
+        if (custBody) {
+          custBody.innerHTML = d.html_customer || '';
+          custBody.classList.remove('dlv-body--loading');
+        }
+        if (cabBody) {
+          cabBody.innerHTML = d.html_cabang || '';
+          cabBody.classList.remove('dlv-body--loading');
+        }
+        setHeadCount(custCountEl, d.count_customer != null ? d.count_customer : 0);
+        setHeadCount(cabCountEl, d.count_cabang != null ? d.count_cabang : 0);
+      })
+      .catch(function (err) {
+        var msg = escapeHtml(err && err.message ? err.message : 'Gagal memuat');
+        if (custBody) {
+          custBody.innerHTML = '<div class="dlv-empty"><strong>Gagal memuat</strong><span>' + msg + '</span></div>';
+          custBody.classList.remove('dlv-body--loading');
+        }
+        if (cabBody) {
+          cabBody.innerHTML = '<div class="dlv-empty"><strong>Gagal memuat</strong><span>' + msg + '</span></div>';
+          cabBody.classList.remove('dlv-body--loading');
+        }
+        if (custCountEl) {
+          custCountEl.textContent = '!';
+          custCountEl.classList.remove('is-loading');
+        }
+        if (cabCountEl) {
+          cabCountEl.textContent = '!';
+          cabCountEl.classList.remove('is-loading');
+        }
+      })
+      .finally(function () {
+        boardLoading = false;
+      });
   }
 
   function ensureKaryawanSelectize() {
@@ -2546,7 +2585,7 @@ $isEmptyCustomer = empty($customerGroups);
         }
         toast(res.message || 'Request dibuat', 'success');
         closeModal('dlvTambahModal');
-        window.location.reload();
+        loadBoard(true);
       })
       .catch(function () { toast('Gagal membuat request', 'error'); })
       .finally(function () {
@@ -2830,8 +2869,7 @@ $isEmptyCustomer = empty($customerGroups);
         toast(res.message || 'Delivery selesai', 'success');
         closeModal('dlvSelesaiModal');
         if (res.data && res.data.antar_kembali_id) {
-          // Request Antar baru dibuat — refresh board
-          window.location.reload();
+          loadBoard(true);
           return;
         }
         if (mode === 'request') removeRequestItem(idRequest, { crmClosed: !!(res.data && res.data.crm_closed) });
@@ -3510,6 +3548,7 @@ $isEmptyCustomer = empty($customerGroups);
   });
 
   initPanelCollapse();
+  loadBoard(false);
 
   if (window.jQuery) {
     jQuery(function () { ensureKaryawanSelectize(); });
