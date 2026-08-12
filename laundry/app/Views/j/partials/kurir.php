@@ -103,10 +103,10 @@ $instantCloseLabel = (string) ($instantWindow['close_label'] ?? '21.00');
             </div>
           <?php } ?>
         </div>
-        <span class="j-badge j-badge--stack <?= $badgeClass ?>">
-          <span><?= htmlspecialchars($labelJenis, ENT_QUOTES, 'UTF-8') ?></span>
-          <span><?= htmlspecialchars($badgeText, ENT_QUOTES, 'UTF-8') ?></span>
-        </span>
+        <div class="j-kurir-pending-item__status">
+          <span class="j-badge muted"><?= htmlspecialchars($labelJenis, ENT_QUOTES, 'UTF-8') ?></span>
+          <span class="j-badge <?= $badgeClass ?>"><?= htmlspecialchars($badgeText, ENT_QUOTES, 'UTF-8') ?></span>
+        </div>
       </div>
     <?php } ?>
   </div>
