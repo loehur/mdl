@@ -40,6 +40,10 @@ class FonnteReplyAdapter
      */
     public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null)
     {
+        if (!class_exists(SapaanStatsHelper::class)) {
+            require_once __DIR__ . '/SapaanStatsHelper.php';
+        }
+
         $options = [];
         if ($this->inboxid) {
             $options['inboxid'] = (int) $this->inboxid;
@@ -49,11 +53,18 @@ class FonnteReplyAdapter
         $fonnteId = $res['data']['id'][0] ?? ('fonnte_' . time());
         $waNumber = $this->normalizePhoneForStore($to);
 
+        // Default AR = autoreply/bot; human harus kirim sender_code eksplisit (bukan AR).
+        $code = ($senderCode !== null && trim((string) $senderCode) !== '')
+            ? trim((string) $senderCode)
+            : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+        $isHuman = SapaanStatsHelper::isHumanSenderCode($code);
+
         if ($this->messageStore !== null) {
             $this->messageStore->saveOutgoing($waNumber, (string) $message, [
                 'fonnte_message_id' => is_scalar($fonnteId) ? (string) $fonnteId : null,
                 'reply_inboxid' => $this->inboxid ? (int) $this->inboxid : null,
-                'source' => 'autoreply',
+                'source' => $isHuman ? 'human' : 'autoreply',
+                'sender_code' => $code,
                 'handler' => $this->handler,
                 'status' => !empty($res['success']) ? 'sent' : 'failed',
                 'error_text' => !empty($res['success']) ? null : ($res['error'] ?? 'send failed'),

@@ -1022,22 +1022,37 @@ class WhatsAppService
             
             // Upsert by external_id to reconcile retries/timeouts
             $msgId = null;
+            $isNewOutboundInsert = true;
             if (!empty($externalId)) {
                 $existingRow = $db->get_where('wa_messages_out', ['external_id' => $externalId])->row();
                 if ($existingRow) {
                     $msgId = (int)($existingRow->id ?? 0);
                     $db->update('wa_messages_out', $messageData, ['external_id' => $externalId]);
+                    $isNewOutboundInsert = false;
                 }
             }
 
             if (!$msgId) {
                 $msgId = $db->insert('wa_messages_out', $messageData);
+                $isNewOutboundInsert = (bool) $msgId;
             }
             
             if (!$msgId) {
                 $dbError = $db->conn()->error ?? 'Unknown';
                 \Log::write("INSERT FAILED wa_messages_out | Phone: $waNumber | DB Error: $dbError | Data: " . json_encode($messageData), 'wa_error', 'SaveOutbound');
             } else {
+                if ($isNewOutboundInsert && is_string($content) && $content !== '') {
+                    try {
+                        if (!class_exists(\App\Helpers\CRM\SapaanStatsHelper::class)) {
+                            require_once __DIR__ . '/SapaanStatsHelper.php';
+                        }
+                        \App\Helpers\CRM\SapaanStatsHelper::recordStatsIfHuman($db, $waNumber, $content, $senderCode);
+                    } catch (\Throwable $sapaanEx) {
+                        if (class_exists('\Log')) {
+                            \Log::write('SapaanStats saveOutbound: ' . $sapaanEx->getMessage(), 'wa_error', 'SaveOutbound');
+                        }
+                    }
+                }
                 // ====== WEBSOCKET PUSH (CENTRALIZED) ======
                 // Push to WebSocket for real-time UI update
                 // This is the SINGLE SOURCE for all outbound messages (autoreply + manual)

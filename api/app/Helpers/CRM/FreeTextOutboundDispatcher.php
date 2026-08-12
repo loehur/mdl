@@ -108,7 +108,8 @@ class FreeTextOutboundDispatcher
                             true,
                             $hoursElapsed,
                             $fonnteHoursElapsed,
-                            $fonnteLastIn
+                            $fonnteLastIn,
+                            $senderCode
                         ),
                         $options,
                         $isFonnteCswOpen,
@@ -158,7 +159,8 @@ class FreeTextOutboundDispatcher
                     false,
                     $hoursElapsed,
                     $fonnteHoursElapsed,
-                    $fonnteLastIn
+                    $fonnteLastIn,
+                    $senderCode
                 ),
                 $options,
                 $isFonnteCswOpen,
@@ -313,7 +315,8 @@ class FreeTextOutboundDispatcher
         bool $isWithinCswYcloud,
         float $hoursElapsedYcloud,
         float $hoursElapsedFonnte,
-        ?string $fonnteLastIn
+        ?string $fonnteLastIn,
+        ?string $senderCode = null
     ): array {
         $fonnte = new FonnteService();
         $fonnteResult = $fonnte->sendMessage($phone, $messageText);
@@ -321,6 +324,36 @@ class FreeTextOutboundDispatcher
             $note = $isWithinCswYcloud
                 ? 'Sent via Fonnte after yCloud API rejected CSW'
                 : 'Sent via Fonnte (yCloud CSW closed; Fonnte CSW open)';
+
+            // Simpan outbound Fonnte + sapaan (human jika sender_code bukan AR)
+            try {
+                if (!class_exists(FonnteMessageStore::class)) {
+                    require_once __DIR__ . '/FonnteMessageStore.php';
+                }
+                if (!class_exists(SapaanStatsHelper::class)) {
+                    require_once __DIR__ . '/SapaanStatsHelper.php';
+                }
+                $db = \App\Core\DB::getInstance(0);
+                $store = new FonnteMessageStore($db);
+                $fonnteId = $fonnteResult['data']['id'][0] ?? ($fonnteResult['data']['requestid'] ?? null);
+                $code = ($senderCode !== null && trim((string) $senderCode) !== '')
+                    ? trim((string) $senderCode)
+                    : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+                $phoneNorm = preg_replace('/[^0-9]/', '', $phone);
+                if (strpos($phoneNorm, '0') === 0) {
+                    $phoneNorm = '62' . substr($phoneNorm, 1);
+                } elseif (strpos($phoneNorm, '62') !== 0) {
+                    $phoneNorm = '62' . $phoneNorm;
+                }
+                $store->saveOutgoing('+' . $phoneNorm, $messageText, [
+                    'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+                    'source' => SapaanStatsHelper::isHumanSenderCode($code) ? 'human' : 'autoreply',
+                    'sender_code' => $code,
+                    'status' => 'sent',
+                ]);
+            } catch (\Throwable $e) {
+                \Log::write('FreeTextOutboundDispatcher Fonnte saveOutgoing: ' . $e->getMessage(), 'whatsapp', 'api');
+            }
 
             return [
                 'ok' => true,

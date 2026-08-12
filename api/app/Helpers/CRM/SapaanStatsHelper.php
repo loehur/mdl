@@ -4,9 +4,13 @@ namespace App\Helpers\CRM;
 
 /**
  * Deteksi sapaan pada pesan teks keluar agent & catat ke tabel sapaan_stats.
+ * Hanya outbound human (sender_code terisi & bukan AR) yang dihitung.
  */
 class SapaanStatsHelper
 {
+    /** Kode pengirim untuk autoreply / bot (yCloud & Fonnte). */
+    public const SENDER_CODE_AUTOREPLY = 'AR';
+
     /**
      * @return list<string> daftar keyword (canonical) yang muncul sebagai token utuh di pesan
      */
@@ -30,6 +34,38 @@ class SapaanStatsHelper
         }
 
         return array_keys($found);
+    }
+
+    /**
+     * Human = sender_code terisi dan bukan kode autoreply.
+     */
+    public static function isHumanSenderCode(?string $senderCode): bool
+    {
+        $c = trim((string) $senderCode);
+        if ($c === '') {
+            return false;
+        }
+        $u = strtoupper($c);
+
+        return !in_array($u, [self::SENDER_CODE_AUTOREPLY, '-AI', 'AI'], true);
+    }
+
+    public static function isAutoreplySenderCode(?string $senderCode): bool
+    {
+        return !self::isHumanSenderCode($senderCode);
+    }
+
+    /**
+     * Catat sapaan hanya untuk outbound human.
+     *
+     * @param object $db \App\Core\DB (CRM / wa: biasanya DB index 0)
+     */
+    public static function recordStatsIfHuman($db, string $waNumber, string $message, ?string $senderCode): void
+    {
+        if (!self::isHumanSenderCode($senderCode)) {
+            return;
+        }
+        self::recordStats($db, $waNumber, $message);
     }
 
     /**
@@ -136,7 +172,7 @@ class SapaanStatsHelper
      */
     private static function keywordsSortedByLength(): array
     {
-        $path = __DIR__ . '/../Config/SapaanStatsKeywords.php';
+        $path = __DIR__ . '/../../Config/SapaanStatsKeywords.php';
         if (!is_file($path)) {
             return [];
         }
@@ -154,12 +190,14 @@ class SapaanStatsHelper
     }
 
     /**
-     * Token utuh: tidak mengecek substring di tengah kata (mis. "bu" di "buat" tidak dihitung).
+     * Token sapaan utuh saja (bukan substring kata).
+     * "butuh" ≠ "bu"; "bu," / "bu!" / "bu." boleh; "Halo bu" / "bu Ani" boleh.
      */
     private static function messageContainsToken(string $lowerMessage, string $keyword): bool
     {
         $kw = preg_quote($keyword, '/');
 
+        // Batas kiri/kanan: bukan huruf/angka Unicode (spasi, simbol, awal/akhir string OK).
         return (bool) preg_match('/(?<![\p{L}\p{N}])' . $kw . '(?![\p{L}\p{N}])/u', $lowerMessage);
     }
 }

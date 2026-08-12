@@ -104,7 +104,15 @@ class WAReplies
      */
     private function sendAutoreplyText($waNumber, $text)
     {
-        $res = $this->getWaService()->sendFreeText($waNumber, $text);
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
+        }
+        $res = $this->getWaService()->sendFreeText(
+            $waNumber,
+            $text,
+            null,
+            \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY
+        );
         if ($res['success']) {
             // Jangan push WS di sini untuk yCloud: WhatsAppService::saveOutboundMessage
             // sudah broadcast agent_message_sent (id = DB). Push kedua pakai id provider
@@ -171,8 +179,8 @@ class WAReplies
     }
 
     /**
-     * Ada outbound agent manusia (sender_code terisi) dalam HUMAN_ACTIVE_IDLE_MINUTES terakhir?
-     * Autoreply biasanya sender_code NULL — tidak dihitung.
+     * Ada outbound agent manusia (sender_code terisi & bukan AR) dalam HUMAN_ACTIVE_IDLE_MINUTES terakhir?
+     * Autoreply (NULL / AR) tidak dihitung.
      */
     private function isHumanAgentRecentlyActive(string $waNumber, ?int $idleMinutes = null): bool
     {
@@ -188,13 +196,19 @@ class WAReplies
             return false;
         }
 
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
+        }
+        $ar = \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+
         $placeholders = implode(',', array_fill(0, count($phones), '?'));
         $sql = "SELECT created_at FROM wa_messages_out
                 WHERE phone IN ($placeholders)
                   AND sender_code IS NOT NULL AND TRIM(sender_code) <> ''
+                  AND UPPER(TRIM(sender_code)) NOT IN (?, 'AI', '-AI')
                   AND created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
                 ORDER BY created_at DESC LIMIT 1";
-        $params = array_merge(array_values($phones), [$idleMinutes]);
+        $params = array_merge(array_values($phones), [$ar, $idleMinutes]);
 
         try {
             $result = $db->query($sql, $params);

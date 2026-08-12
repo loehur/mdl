@@ -373,32 +373,12 @@ class Chat extends Controller
                 'updated_at' => date('Y-m-d H:i:s')
             ], ['wa_number' => $phone]);
 
-            try {
-                if (!class_exists(\App\Helpers\CRM\SapaanStatsHelper::class)) {
-                    require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
-                }
-                // sapaan_stats di DB index 0 (sama wa_conversations / CRM)
-                \App\Helpers\CRM\SapaanStatsHelper::recordStats($db, $phone, $message);
-            } catch (\Throwable $e) {
-                if (!class_exists('Log', false)) {
-                    require_once __DIR__ . '/../../Helpers/Log.php';
-                }
-                if (class_exists('Log', false)) {
-                    \Log::write(
-                        'SapaanStats reply (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
-                        'cms_error',
-                        'Chat'
-                    );
-                } else {
-                    error_log('SapaanStats reply (outer): ' . $e->getMessage());
-                }
-            }
-
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
             
             // WS broadcast already done inside WhatsAppService::saveOutboundMessage.
             // Do NOT broadcast again here — causes duplicate bubbles for the sender.
+            // Sapaan stats: dicatat di WhatsAppService::saveOutboundMessage (human only).
             
             $this->success($data, 'Reply sent');
         } else {
@@ -1086,25 +1066,7 @@ class Chat extends Controller
                     'updated_at' => date('Y-m-d H:i:s')
                 ], ['wa_number' => $waNumber]);
 
-                try {
-                    if (!class_exists(\App\Helpers\CRM\SapaanStatsHelper::class)) {
-                        require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
-                    }
-                    \App\Helpers\CRM\SapaanStatsHelper::recordStats($db, $waNumber, (string) $caption);
-                } catch (\Throwable $e) {
-                    if (!class_exists('Log', false)) {
-                        require_once __DIR__ . '/../../Helpers/Log.php';
-                    }
-                    if (class_exists('Log', false)) {
-                        \Log::write(
-                            'SapaanStats sendImage (outer): ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(),
-                            'cms_error',
-                            'Chat'
-                        );
-                    } else {
-                        error_log('SapaanStats sendImage (outer): ' . $e->getMessage());
-                    }
-                }
+                // Sapaan stats: dicatat di WhatsAppService::saveOutboundMessage (human only).
                 
                 // WS already broadcast by WhatsAppService::saveOutboundMessage — skip duplicate push
                 

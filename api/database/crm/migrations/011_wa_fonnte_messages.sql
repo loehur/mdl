@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS wa_fonnte_messages_out (
   fonnte_message_id VARCHAR(64) NULL DEFAULT NULL,
   reply_inboxid BIGINT UNSIGNED NULL DEFAULT NULL,
   source VARCHAR(32) NOT NULL DEFAULT 'autoreply',
+  sender_code VARCHAR(32) NULL DEFAULT NULL,
   handler VARCHAR(64) NULL DEFAULT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'sent',
   error_text VARCHAR(255) NULL DEFAULT NULL,
@@ -57,5 +58,6 @@ CREATE TABLE IF NOT EXISTS wa_fonnte_messages_out (
   PRIMARY KEY (id),
   KEY idx_fonnte_out_phone_time (phone, created_at),
   KEY idx_fonnte_out_fonnte_id (fonnte_message_id),
+  KEY idx_fonnte_out_sender_code (sender_code),
   KEY idx_fonnte_out_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

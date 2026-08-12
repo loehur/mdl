@@ -97,7 +97,8 @@ class FonnteMessageStore
     }
 
     /**
-     * Simpan pesan keluar (autoreply / fallback via Fonnte API).
+     * Simpan pesan keluar (autoreply / human via Fonnte API).
+     * Jika fonnte_message_id sudah ada → update baris itu (tanpa insert baru).
      *
      * @return int|null
      */
@@ -107,19 +108,61 @@ class FonnteMessageStore
             return null;
         }
 
+        if (!class_exists(SapaanStatsHelper::class)) {
+            require_once __DIR__ . '/SapaanStatsHelper.php';
+        }
+
+        $fonnteId = !empty($meta['fonnte_message_id']) ? mb_substr((string) $meta['fonnte_message_id'], 0, 64) : null;
+        $senderCode = array_key_exists('sender_code', $meta)
+            ? (trim((string) $meta['sender_code']) !== '' ? mb_substr(trim((string) $meta['sender_code']), 0, 32) : null)
+            : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+        $source = (string) ($meta['source'] ?? (
+            SapaanStatsHelper::isHumanSenderCode($senderCode) ? 'human' : 'autoreply'
+        ));
+
         $row = [
             'phone' => $waNumber,
             'type' => (string) ($meta['type'] ?? 'text'),
             'text' => $text,
             'media_url' => !empty($meta['media_url']) ? mb_substr((string) $meta['media_url'], 0, 512) : null,
-            'fonnte_message_id' => !empty($meta['fonnte_message_id']) ? mb_substr((string) $meta['fonnte_message_id'], 0, 64) : null,
+            'fonnte_message_id' => $fonnteId,
             'reply_inboxid' => !empty($meta['reply_inboxid']) ? (int) $meta['reply_inboxid'] : null,
-            'source' => (string) ($meta['source'] ?? 'autoreply'),
+            'source' => $source,
+            'sender_code' => $senderCode,
             'handler' => !empty($meta['handler']) ? mb_substr((string) $meta['handler'], 0, 64) : null,
             'status' => (string) ($meta['status'] ?? 'sent'),
             'error_text' => !empty($meta['error_text']) ? mb_substr((string) $meta['error_text'], 0, 255) : null,
             'created_at' => date('Y-m-d H:i:s'),
         ];
+
+        // Match by fonnte_message_id: update existing, jangan insert duplikat
+        if ($fonnteId !== null && $fonnteId !== '') {
+            $existing = $this->db->get_where('wa_fonnte_messages_out', [
+                'fonnte_message_id' => $fonnteId,
+            ], 1)->row();
+            if ($existing) {
+                $update = [
+                    'phone' => $waNumber,
+                    'type' => $row['type'],
+                    'text' => $text,
+                    'media_url' => $row['media_url'],
+                    'reply_inboxid' => $row['reply_inboxid'],
+                    'source' => $source,
+                    'sender_code' => $senderCode,
+                    'handler' => $row['handler'],
+                    'status' => $row['status'],
+                    'error_text' => $row['error_text'],
+                ];
+                $ok = $this->db->update('wa_fonnte_messages_out', $update, ['id' => (int) $existing->id]);
+                if (!$ok && class_exists('\Log')) {
+                    $err = $this->db->conn()->error ?? 'unknown';
+                    \Log::write('FonnteMessageStore: update by fonnte_message_id failed: ' . $err, 'webhook', 'Fonnte');
+                }
+                $this->touchConversationOutbound($waNumber, $text, date('Y-m-d H:i:s'));
+
+                return (int) ($existing->id ?? 0) ?: null;
+            }
+        }
 
         $msgId = $this->db->insert('wa_fonnte_messages_out', $row);
         if (!$msgId) {
@@ -132,8 +175,71 @@ class FonnteMessageStore
         }
 
         $this->touchConversationOutbound($waNumber, $text, $row['created_at']);
+        // Sapaan hanya saat insert baru (update by fonnte_message_id tidak dihitung ulang)
+        if (in_array($row['status'], ['sent', 'delivered', 'read'], true)) {
+            SapaanStatsHelper::recordStatsIfHuman($this->db, $waNumber, $text, $senderCode);
+        }
 
         return (int) $msgId;
+    }
+
+    /**
+     * Update outbound by fonnte_message_id (webhook status). Tidak insert baru.
+     * Mengisi sender_code=AR bila masih kosong (pesan API/autoreply).
+     *
+     * @param array{status?:string,state?:string,sender_code?:string} $fields
+     */
+    public function updateOutgoingByFonnteMessageId(string $fonnteMessageId, array $fields = []): bool
+    {
+        $fonnteMessageId = trim($fonnteMessageId);
+        if ($fonnteMessageId === '') {
+            return false;
+        }
+
+        $existing = $this->db->get_where('wa_fonnte_messages_out', [
+            'fonnte_message_id' => mb_substr($fonnteMessageId, 0, 64),
+        ], 1)->row();
+        if (!$existing) {
+            return false;
+        }
+
+        if (!class_exists(SapaanStatsHelper::class)) {
+            require_once __DIR__ . '/SapaanStatsHelper.php';
+        }
+
+        $update = [];
+        if (isset($fields['status']) && $fields['status'] !== '') {
+            $update['status'] = mb_substr((string) $fields['status'], 0, 32);
+        }
+        if (isset($fields['error_text'])) {
+            $update['error_text'] = $fields['error_text'] !== null && $fields['error_text'] !== ''
+                ? mb_substr((string) $fields['error_text'], 0, 255)
+                : null;
+        }
+
+        $currentCode = trim((string) ($existing->sender_code ?? ''));
+        if ($currentCode === '') {
+            $update['sender_code'] = isset($fields['sender_code']) && trim((string) $fields['sender_code']) !== ''
+                ? mb_substr(trim((string) $fields['sender_code']), 0, 32)
+                : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+            if (($existing->source ?? '') === 'autoreply' || ($existing->source ?? '') === '') {
+                $update['source'] = 'autoreply';
+            }
+        } elseif (isset($fields['sender_code']) && trim((string) $fields['sender_code']) !== '') {
+            $update['sender_code'] = mb_substr(trim((string) $fields['sender_code']), 0, 32);
+        }
+
+        if ($update === []) {
+            return true;
+        }
+
+        $ok = $this->db->update('wa_fonnte_messages_out', $update, ['id' => (int) $existing->id]);
+        if (!$ok && class_exists('\Log')) {
+            $err = $this->db->conn()->error ?? 'unknown';
+            \Log::write('FonnteMessageStore: updateOutgoingByFonnteMessageId failed: ' . $err, 'webhook', 'Fonnte');
+        }
+
+        return (bool) $ok;
     }
 
     private function touchConversationInbound(string $phone, ?string $contactName, string $messageText, string $type, string $createdAt): void
