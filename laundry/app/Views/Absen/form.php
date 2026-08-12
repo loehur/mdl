@@ -643,7 +643,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
       <div class="absen-modal__body">
         <div class="absen-modal__warn">
           <i class="fas fa-exclamation-triangle"></i>
-          Data absen akan dihapus permanen. Tindakan ini tidak dapat dibatalkan. Wajib Access Key karyawan yang absen; hanya hari ini/kemarin dalam bulan ini.
+          Data absen akan dihapus permanen. Tindakan ini tidak dapat dibatalkan. Wajib Access Key karyawan yang absen<?php if ((int) ($this->id_privilege ?? 0) === 100) { ?> atau Access Key Admin yang sedang login<?php } ?>; hanya hari ini/kemarin dalam bulan ini.
         </div>
         <div class="absen-summary">
           <div><span>ID</span><strong id="hapus_absen_id">-</strong></div>
@@ -652,9 +652,9 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
           <div><span>Tanggal / Jam</span><strong id="hapus_absen_waktu">-</strong></div>
         </div>
         <div class="absen-field" style="margin-top:12px;">
-          <label class="absen-label" for="hapusAbsenAccessKey">Access Key karyawan yang absen</label>
+          <label class="absen-label" for="hapusAbsenAccessKey"><?= ((int) ($this->id_privilege ?? 0) === 100) ? 'Access Key karyawan / Admin' : 'Access Key karyawan yang absen' ?></label>
           <input type="password" class="absen-input" name="access_key" id="hapusAbsenAccessKey" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" required>
-          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik <span id="hapusAbsenKeyHint" style="color:#dc2626;font-weight:600;"></span>.</small>
+          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Harus milik <span id="hapusAbsenKeyHint" style="color:#dc2626;font-weight:600;"></span><?php if ((int) ($this->id_privilege ?? 0) === 100) { ?> atau Access Key Admin Anda<?php } ?>.</small>
         </div>
       </div>
       <div class="absen-modal__foot">
@@ -815,7 +815,7 @@ $kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
     if (!hapusAbsenId) return;
     var accessKey = String($('#hapusAbsenAccessKey').val() || '').trim();
     if (!/^\d{4}$/.test(accessKey)) {
-      showInfo('Access Key karyawan yang absen wajib 4 digit', false);
+      showInfo(<?= ((int) ($this->id_privilege ?? 0) === 100) ? "'Access Key wajib 4 digit'" : "'Access Key karyawan yang absen wajib 4 digit'" ?>, false);
       return;
     }
     var $btn = $(this);

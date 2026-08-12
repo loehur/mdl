@@ -60,8 +60,20 @@ class Absen extends Controller
       }
 
       $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
-      if (!$this->helper('User')->by_id_access_key($idKaryawan, $accessKey)) {
-         echo json_encode(['code' => 0, 'msg' => 'GAGAL - ACCESS KEY TIDAK COCOK DENGAN KARYAWAN YANG ABSEN']);
+      $okKaryawan = (bool) $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+      $okAdmin = false;
+      // Admin yang sedang login boleh hapus dengan access_key miliknya sendiri
+      if (!$okKaryawan && (int) ($this->id_privilege ?? 0) === 100) {
+         $idAdmin = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+         if ($idAdmin > 0) {
+            $okAdmin = (bool) $this->helper('User')->by_id_access_key($idAdmin, $accessKey);
+         }
+      }
+      if (!$okKaryawan && !$okAdmin) {
+         $msg = ((int) ($this->id_privilege ?? 0) === 100)
+            ? 'GAGAL - ACCESS KEY TIDAK COCOK (KARYAWAN YANG ABSEN ATAU ADMIN YANG LOGIN)'
+            : 'GAGAL - ACCESS KEY TIDAK COCOK DENGAN KARYAWAN YANG ABSEN';
+         echo json_encode(['code' => 0, 'msg' => $msg]);
          exit;
       }
 
