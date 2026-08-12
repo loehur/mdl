@@ -501,6 +501,7 @@ class WhatsApp extends Controller
                     $cust_id
                 );
 
+                // DEFAULT fallback: no_handler dari process() = intent FALSE + ask true (atau jalur CS lain tanpa handler)
                 if (!empty($autoReplyResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
                     $replies->trySendDefaultFallbackAutoreply(
                         $phoneIn,

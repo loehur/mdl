@@ -1096,7 +1096,7 @@ class WAReplies
 
     /**
      * Ucapan terima kasih (termasuk typo umum) — cukup untuk PENUTUP.
-     * Contoh: terima kasih, makasih, trima ksih, trima kasih byk, thanks.
+     * Contoh: terima kasih, makasih, makasi, makaci, makaseh, trima ksih, thanks.
      */
     private function messageLooksLikeThanksPenutup(?string $text): bool
     {
@@ -1106,7 +1106,7 @@ class WAReplies
 
         return (bool) preg_match(
             '/\b('
-            . 'ma*ka*(s|c)(i|e)*h|'                 // makasih, mkasih, ...
+            . 'ma*ka*(s|c)(i|e)+h?|'               // makasih, makasi, makaci, makaseh, ...
             . 'te*ri*ma*ka*si*h|'                   // terimakasih (satu kata)
             . '(trima|terima)\s+(kasih|ksih|ksh)|' // trima ksih / terima kasih
             . 'trimakasih|trmksh|trm\s*ksh|'
@@ -2471,11 +2471,13 @@ class WAReplies
             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $caseVal
         );
 
+        // no_handler true HANYA jika FALSE + ask → webhook boleh DEFAULT fallback ("CS menunggu")
+        // FALSE + ask false / AI error → diam (tanpa case 4, tanpa DEFAULT)
         return (object) [
             'case' => $caseVal,
             'notify' => (bool) $ask,
             'conversation_id' => $conversationId,
-            'no_handler' => true
+            'no_handler' => (bool) $ask,
         ];
     }
 
@@ -2921,8 +2923,8 @@ class WAReplies
         $sapaan = $ctx['sapaan'];
 
         // Terimakasih/makasih — sama template penutup singkat (tanpa kalimat tambahan / tanpa AI).
-        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
-            || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
+        if (preg_match('/^(terima\s*kasih|terimakasih|makasih|makasi|makaci|makaseh|mksh|thanks|thx|tq)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)
+            || preg_match('/^(ok|oke)\s*[,.]?\s*(makasih|makasi|makaci|makaseh|terimakasih|thanks|thx)(\s+(kak|bang|pak|bu))?\s*[.!]?$/i', $textLower)) {
             $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
             return;
         }

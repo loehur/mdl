@@ -165,8 +165,8 @@ return [
          // Trailing ellipsis/emoji/punctuation OK: "Lunas ya kak...🙏"
          '/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
          '/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu',
-         // Ucapan terima kasih (termasuk typo: trima ksih, trima kasih)
-         '/\bma*ka*(s|c)(i|e)*h\b/i',
+         // Ucapan terima kasih (termasuk typo: trima ksih, makasi, makaci, makaseh)
+         '/\bma*ka*(s|c)(i|e)+h?\b/i',
          '/\bte*ri*ma*ka*si*h\b/i',
          '/\b(trima|terima)\s+(kasih|ksih|ksh)\b/i',
          '/\btrimakasih\b/i',
@@ -174,12 +174,12 @@ return [
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty)\b/i',
          // Oke + ditunggu kabar + terima kasih = penutup (bukan minta "kabari ya")
-         '/\bok(?:e+)?\b.{0,100}?\b(di\s*)?tungg[uo]\b.{0,40}?\b(kbr|kabar)\b.{0,60}?\b(trima|terima|makasih|thanks|thx)/iu',
+         '/\bok(?:e+)?\b.{0,100}?\b(di\s*)?tungg[uo]\b.{0,40}?\b(kbr|kabar)\b.{0,60}?\b(trima|terima|makasih|makasi|makaci|makaseh|thanks|thx)/iu',
          // WhatsApp reactions
          '/^reacted\s+[^\s]+$/i',
       ],
       'ai_prompt' => "User memberikan PENUTUP — HANYA 3 jenis berikut (selain itu = FALSE):\n
-      (1) Ucapan terima kasih (termasuk typo): | terima kasih | makasih | thanks | thx | tq | trima ksih | trima kasih byk |\n
+      (1) Ucapan terima kasih (termasuk typo): | terima kasih | makasih | makasi | makaci | makaseh | thanks | thx | tq | trima ksih | trima kasih byk |\n
       (1b) Ack + tunggu kabar PASIF + terima kasih = PENUTUP: | Oke kk, di tunggu kbr ny dn trima ksih byk | oke kak ditunggu kabarnya dan terima kasih banyak |\n
       (2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening |\n
       (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | oke | baik | sip | siap | ok kak | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.\n
@@ -195,7 +195,7 @@ return [
       - Info proses (belum diambil, sudah diantar suami) = FALSE.\n
       - Komplain, permintaan, daftar item laundry, pertanyaan = FALSE.\n
       - Contoh FALSE: | Ok kk,aku otw ya kk | baik nanti jemput | siap diantar sore | kabari ya kak | nanti saya jemput |"
-   ],
+    ],
 
     'STATUS' => [
         'patterns' => [

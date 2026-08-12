@@ -148,7 +148,7 @@ class WA_Fonnte extends Controller
                 $lastMessage,
                 $cust_id
             );
-            // Fallback default hanya jika intent tidak punya handler (atau unknown/no-intent), max sekali per nomor per DEFAULT_FALLBACK_COOLDOWN_MINUTES.
+            // DEFAULT fallback: no_handler dari process() = intent FALSE + ask true (atau jalur CS lain tanpa handler).
             // Pesan pendek (≤20 karakter) tidak dibalas fallback CS agar tidak mengganggu salam/stiker singkat.
             if (!empty($processResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
                 $replies->trySendDefaultFallbackAutoreply(
