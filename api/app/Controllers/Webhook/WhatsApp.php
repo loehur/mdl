@@ -188,6 +188,9 @@ class WhatsApp extends Controller
         } elseif ($messageType === 'reaction') {
             $reactionEmoji = $msg['reaction']['emoji'] ?? null;
             $messageText = $reactionEmoji ? "Reacted $reactionEmoji" : "Removed reaction";
+        } elseif ($messageType === 'sticker') {
+            // Sticker tanpa caption → label agar intent PENUTUP (lainnya) bisa match
+            $messageText = '🎨 Sticker';
         } elseif ($messageType === 'location') {
             $locName = $msg['location']['name'] ?? null;
             $locAddr = $msg['location']['address'] ?? null;

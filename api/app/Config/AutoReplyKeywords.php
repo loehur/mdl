@@ -147,13 +147,13 @@ return [
    'PENUTUP' => [
       'patterns' => [
          // === HANYA 3 kategori: (1) terima kasih (2) sudah bayar/lunas (3) ack singkat murni ===
-         // Ack singkat murni — SELURUH pesan hanya ok/baik/sip/siap(+sapaan). JANGAN match "Ok kk, aku otw"
-         '/^\s*\bok(?:e+)?\s+sia+p+\s*(kak|kk|bang|min|mbak|pak|bu|ya)?\s*\??\s*$/iu',
-         '/^\s*\bok(?:e+)?\s*(kak|kk|bang|min|mbak|pak|bu)?\s*[.!?]*\s*$/iu',
+         // Ack singkat murni — SELURUH pesan hanya ok/okk/okkk/oke/baik/sip/siap(+sapaan). JANGAN match "Ok kk, aku otw"
+         '/^\s*\bokk*(?:e+)?\s+sia+p+\s*(kak|kk|bang|min|mbak|pak|bu|ya)?\s*\??\s*$/iu',
+         '/^\s*\bokk*(?:e+)?\s*(kak|kk|bang|min|mbak|pak|bu)?\s*[.!?]*\s*$/iu',
          '/^\s*\bsia+p+\s*(kak|kk|bang|min|mbak|pak|bu|penya|punya|ya)?\s*\??\s*$/iu',
-         '/^\s*\b(ok(?:e+|ey)?|baik+|sip+)(\s+(deh|lah|dong|ya))*(?:\s+(kak|kk|bang|min|mbak|pak|bu|mas|om|dek|nte|penya|punya))*\s*[.!?]*\s*$/iu',
+         '/^\s*\b(okk*(?:e+|ey)?|baik+|sip+)(\s+(deh|lah|dong|ya))*(?:\s+(kak|kk|bang|min|mbak|pak|bu|mas|om|dek|nte|penya|punya))*\s*[.!?]*\s*$/iu',
          '/^\s*\b(iya+|ya+)(\s+(deh|lah|dong))*(?:\s+(kak|kk|bang|min|mbak|pak|bu|buk))*\s*[.!?]*\s*$/iu',
-         '/^\s*\b(ok(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
+         '/^\s*\b(okk*(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
          '/^\s*(gpp|gak\s*apa\s*apa|ga\s*apa\s*apa)(?:\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[.!?]*\s*$/iu',
          // Konfirmasi pembayaran/transfer/lunas — boleh ada konteks (bukan hanya ack singkat)
          '/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)\s*(ke\s*)?(rekening|rek)?/i',
@@ -174,16 +174,17 @@ return [
          '/\btha*nks\b/i',
          '/\b(thx|tq|ty)\b/i',
          // Oke + ditunggu kabar + terima kasih = penutup (bukan minta "kabari ya")
-         '/\bok(?:e+)?\b.{0,100}?\b(di\s*)?tungg[uo]\b.{0,40}?\b(kbr|kabar)\b.{0,60}?\b(trima|terima|makasih|makasi|makaci|makaseh|thanks|thx)/iu',
-         // WhatsApp reactions
+         '/\bokk*(?:e+)?\b.{0,100}?\b(di\s*)?tungg[uo]\b.{0,40}?\b(kbr|kabar)\b.{0,60}?\b(trima|terima|makasih|makasi|makaci|makaseh|thanks|thx)/iu',
+         // WhatsApp reactions + sticker
          '/^reacted\s+[^\s]+$/i',
+         '/^\s*(🎨\s*)?sticker(\s+https?:\/\/\S+)?\s*$/iu',
       ],
       'ai_prompt' => "User memberikan PENUTUP — HANYA 3 jenis berikut (selain itu = FALSE):\n
       (1) Ucapan terima kasih (termasuk typo): | terima kasih | makasih | makasi | makaci | makaseh | thanks | thx | tq | trima ksih | trima kasih byk |\n
       (1b) Ack + tunggu kabar PASIF + terima kasih = PENUTUP: | Oke kk, di tunggu kbr ny dn trima ksih byk | oke kak ditunggu kabarnya dan terima kasih banyak |\n
       (2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening |\n
-      (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | oke | baik | sip | siap | ok kak | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.\n
-      - EMOJI/REACTION SAJA: | ❤️ | 👍 | Reacted 👍 | = boleh PENUTUP.\n
+      (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | okk | okkk | oke | baik | sip | siap | ok kak | okkk kk | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.\n
+      - EMOJI/REACTION/STICKER SAJA: | ❤️ | 👍 | Reacted 👍 | 🎨 Sticker | Sticker | = boleh PENUTUP (jenis lainnya).\n
       \n
       FALSE (BUKAN PENUTUP) - CRITICAL:\n
       - CRITICAL: 'Ok'/'Baik'/'Siap' + isi lain (otw, jemput, antar, mau, nanti, jadwal, info order) TANPA terima kasih = FALSE. Contoh: | Ok kk,aku otw ya kk | baik nanti dijemput | siap besok diantar | = BUKAN PENUTUP.\n

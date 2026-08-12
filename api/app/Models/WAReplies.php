@@ -1028,7 +1028,7 @@ class WAReplies
             return false;
         }
 
-        return (bool) preg_match('/\b(ok|oke|okey|okee)\b/i', $t);
+        return (bool) preg_match('/\bokk*(?:e+|ey)?\b/i', $t);
     }
 
     /**
@@ -1178,6 +1178,18 @@ class WAReplies
     }
 
     /**
+     * Sticker WhatsApp (label webhook "🎨 Sticker", opsional URL media) — PENUTUP lainnya.
+     */
+    private function messageLooksLikeStickerPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/^\s*(🎨\s*)?sticker(\s+https?:\/\/\S+)?\s*$/iu', trim($text));
+    }
+
+    /**
      * PENUTUP ketat — hanya salah satu dari:
      * (1) ucapan terima kasih, (2) info sudah bayar/lunas/pelunasan, (3) ack murni (ok/baik/sip/siap/sejenis) tanpa isi lain.
      * Contoh BUKAN penutup: "Ok kk,aku otw ya kk"
@@ -1207,10 +1219,14 @@ class WAReplies
         if (mb_strlen($t) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $t)) {
             return true;
         }
+        // Sticker (label webhook: "🎨 Sticker", opsional URL media)
+        if ($this->messageLooksLikeStickerPenutup($t)) {
+            return true;
+        }
 
-        // (3) Ack singkat murni — seluruh pesan hanya token ack (+ sapaan opsional)
+        // (3) Ack singkat murni — seluruh pesan hanya token ack (+ sapaan opsional); ok/okk/okkk/oke ok
         if (preg_match(
-            '/^\s*\b(ok(?:e+|ey)?|baik+|sip+|sia+p+|gpp|gak\s*apa\s*apa|ga\s*apa\s*apa|iya+|ya+)'
+            '/^\s*\b(okk*(?:e+|ey)?|baik+|sip+|sia+p+|gpp|gak\s*apa\s*apa|ga\s*apa\s*apa|iya+|ya+)'
             . '(\s+(deh|lah|dong|ya))*'
             . '(?:\s+(kak|kk|bang|min|mbak|pak|bu|buk|mas|om|dek|nte|penya|punya))*'
             . '\s*[.!?]*\s*$/iu',
@@ -1219,7 +1235,7 @@ class WAReplies
             return true;
         }
         if (preg_match(
-            '/^\s*\b(ok(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
+            '/^\s*\b(okk*(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
             $t
         )) {
             return true;
@@ -2971,12 +2987,17 @@ class WAReplies
         $textLower = trim(strtolower($textBody ?? ''));
         $textTrimmed = trim($textBody ?? '');
 
-        // Reaction / emoji saja → emote soft random
+        // Reaction / emoji / sticker → emote soft random (PENUTUP lainnya)
         if (preg_match('/^reacted\s*:?\s*.+$/i', $textTrimmed)) {
             $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
             return;
         }
         if (mb_strlen($textTrimmed) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $textTrimmed) && $textTrimmed !== '') {
+            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
+            return;
+        }
+        if ($this->messageLooksLikeStickerPenutup($textBody)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_sticker');
             $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
             return;
         }
@@ -8050,7 +8071,7 @@ class WAReplies
             $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' (minta CS update, tanpa terima kasih penutup) = FALSE (BUKAN PEMBUKA, BUKAN PENUTUP).\n";
             $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
             $prompt .= "PRIORITAS: 'oke/ok' + ditunggu kabar/kbr + terima kasih/trima ksih (mis. 'Oke kk, di tunggu kbr ny dn trima ksih byk') = PENUTUP.\n";
-            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih (termasuk typo trima ksih), (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain. Contoh BUKAN PENUTUP: 'Ok kk,aku otw ya kk', 'baik nanti dijemput'.\n";
+            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih (termasuk typo trima ksih), (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain, ATAU emoji/reaction/sticker saja. Contoh BUKAN PENUTUP: 'Ok kk,aku otw ya kk', 'baik nanti dijemput'.\n";
             $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
             $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";

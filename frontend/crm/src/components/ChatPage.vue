@@ -651,7 +651,7 @@ const getMessagePreview = (m) => {
     if(m.type === 'video') return m.text && !/^\[[a-z_]+\]$/i.test(String(m.text).trim()) ? m.text : "🎥 Video";
     if(m.type === 'audio' || m.type === 'voice') return "🎵 Audio";
     if(m.type === 'document') return "📄 Document";
-    if(m.type === 'sticker') return "Sticker";
+    if(m.type === 'sticker') return "🏷️ Sticker";
     return (m.text || m.caption || "").substring(0, 60);
 };
 /** Caption untuk bubble media: sembunyikan placeholder [image]/[video] */
@@ -1148,6 +1148,45 @@ onUnmounted(() => {
                                       </div>
                                   </div>
 
+                                  <!-- Sticker -->
+                                  <div v-else-if="msg.type === 'sticker'" class="relative">
+                                      <div v-if="shouldHideMessage(msg)" class="relative">
+                                           <img
+                                             :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                             class="w-36 h-36 object-contain blur-md"
+                                             alt="Sticker"
+                                           />
+                                           <div class="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                                                <div class="text-center text-white p-3">
+                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                     </svg>
+                                                     <p class="text-xs font-medium">Pesan Private</p>
+                                                </div>
+                                           </div>
+                                      </div>
+                                      <img
+                                        v-else-if="msg.media_url || msg.media_id"
+                                        :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                        @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)"
+                                        class="w-36 h-36 object-contain cursor-pointer"
+                                        alt="Sticker"
+                                      />
+                                      <div v-else class="px-2.5 py-1 text-sm text-[var(--wa-text-tertiary)] italic">Sticker</div>
+                                      <div
+                                        v-if="msg.time || msg.sender_code"
+                                        class="flex justify-end items-center gap-1 text-[10px] mt-0.5 px-1 text-[var(--wa-text-tertiary)]"
+                                      >
+                                           <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                           <span>{{ msg.time }}</span>
+                                           <span v-if="msg.sender === 'me'" class="text-[var(--wa-bubble-out-meta)]">
+                                                <span v-if="msg.status === 'read'><svg class="w-4 h-3 inline" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="#53bdeb"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="#53bdeb"/></svg></span>
+                                                <span v-else-if="msg.status === 'delivered'"><svg class="w-4 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="currentColor"/></svg></span>
+                                                <span v-else><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor" transform="translate(-1,0)"/></svg></span>
+                                           </span>
+                                      </div>
+                                  </div>
+
                                   <!-- Location -->
                                   <div v-else-if="msg.type === 'location'" class="relative max-w-sm" :class="{ 'cursor-pointer': msg.media_url }" @click="msg.media_url && openLocation(msg.media_url)">
                                       <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-1" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
@@ -1372,6 +1411,13 @@ onUnmounted(() => {
                       preload="metadata"
                     ></video>
                     <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
+                </div>
+                <div v-else-if="quotedMessageToShow.type === 'sticker' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
+                    <img
+                      :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`"
+                      class="w-36 h-36 object-contain"
+                      alt="Sticker"
+                    />
                 </div>
                 <p v-else class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
             </div>

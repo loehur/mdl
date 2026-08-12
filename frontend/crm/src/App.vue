@@ -1230,7 +1230,7 @@ const mediaTypeLastMessageLabel = (type) => {
     audio: "🎵 Audio",
     voice: "🎤 Voice",
     document: "📄 Document",
-    sticker: "Sticker",
+    sticker: "🏷️ Sticker",
     location: "📍 Location",
   };
   return labels[type] || (type ? `[${type}]` : "");
