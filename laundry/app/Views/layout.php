@@ -498,6 +498,19 @@ if (isset($data['data_operasi'])) {
             background-image: linear-gradient(105deg, #0e7490 0%, #0891b2 100%) !important;
             border-bottom-color: #155e75;
         }
+        @keyframes mdl-topbar-notif-blink {
+            0%, 100% {
+                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+                filter: none;
+            }
+            50% {
+                box-shadow: inset 0 0 0 999px rgba(245, 158, 11, 0.55), 0 4px 18px rgba(180, 83, 9, 0.45);
+                filter: brightness(1.12) saturate(1.25);
+            }
+        }
+        .main-header.mdl-topbar.has-notif {
+            animation: mdl-topbar-notif-blink 0.9s ease-in-out infinite;
+        }
         .mdl-topbar-row {
             display: flex;
             align-items: center;
@@ -615,8 +628,8 @@ if (isset($data['data_operasi'])) {
             right: -5px;
             min-width: 18px;
             height: 18px;
-            padding: 0 5px;
-            border-radius: 0;
+            padding: 0 4px;
+            border-radius: 999px;
             background: #f59e0b;
             border: 1px solid #0f172a;
             color: #0f172a;
@@ -626,6 +639,7 @@ if (isset($data['data_operasi'])) {
             line-height: 16px;
             text-align: center;
             display: none;
+            box-sizing: border-box;
         }
         .mdl-bell-badge.is-on {
             display: block;
@@ -2119,7 +2133,10 @@ if ($privUi === 100) {
         <div class="loader"></div>
     </div>
     <div class="wrapper">
-        <nav class="main-header navbar navbar-expand mdl-topbar sticky-top">
+        <?php
+        $notifTaskCount = (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
+        ?>
+        <nav class="main-header navbar navbar-expand mdl-topbar sticky-top<?= $notifTaskCount > 0 ? ' has-notif' : '' ?>">
             <div class="mdl-topbar-row">
                 <a href="#" id="menu_utama" class="mdl-tbtn mdl-tbtn--menu" role="button" title="Tutup / buka menu">
                     <i class="fas fa-bars"></i><span>Menu</span>
@@ -2148,9 +2165,6 @@ if ($privUi === 100) {
 
                 <div class="mdl-spacer"></div>
 
-                <?php
-                $notifTaskCount = (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
-                ?>
                 <button type="button" id="btnNotifBell" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--bell<?= $notifTaskCount > 0 ? ' has-notif' : '' ?>" title="Notifikasi" aria-label="Notifikasi">
                     <i class="fas fa-bell"></i>
                     <span class="mdl-bell-badge<?= $notifTaskCount > 0 ? ' is-on' : '' ?>" id="notifBellBadge"><?= $notifTaskCount > 99 ? '99+' : (int) $notifTaskCount ?></span>
@@ -3371,6 +3385,7 @@ if ($privUi === 100) {
                 (function initNotifBell() {
                     var bellBtn = document.getElementById('btnNotifBell');
                     var badge = document.getElementById('notifBellBadge');
+                    var topbar = document.querySelector('.main-header.mdl-topbar');
                     var offcanvasEl = document.getElementById('offcanvasNotif');
                     var bodyEl = document.getElementById('offcanvasNotifBody');
                     if (!bellBtn || !offcanvasEl || !bodyEl) {
@@ -3399,9 +3414,11 @@ if ($privUi === 100) {
                         if (n > 0) {
                             badge.classList.add('is-on');
                             bellBtn.classList.add('has-notif');
+                            if (topbar) topbar.classList.add('has-notif');
                         } else {
                             badge.classList.remove('is-on');
                             bellBtn.classList.remove('has-notif');
+                            if (topbar) topbar.classList.remove('has-notif');
                         }
                     }
 
