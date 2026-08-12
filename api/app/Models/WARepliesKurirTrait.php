@@ -235,6 +235,10 @@ trait WARepliesKurirTrait
         array $keywordConfig,
         bool $hasActiveSaleForEstimasi = true
     ): bool {
+        // Pertanyaan ongkir/ongkos saja → lepas session kurir, bukan follow-up minta antar/jemput
+        if ($this->messageLooksLikeOngkirOngkosInquiryOnly($text)) {
+            return true;
+        }
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }

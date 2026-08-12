@@ -2043,6 +2043,11 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
                         continue;
                     }
+                    // MINTA_JEMPUT_ANTAR: pertanyaan ongkir/ongkos saja = bukan minta kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→ongkir_inquiry_only');
+                        continue;
+                    }
                     // MINTA_JEMPUT_ANTAR: "masih bisa/bs jemput" = tanya availabilitas layanan = JAM_OPERASIONAL (regex MINTA lewat sub-bisa jemput)
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
                         continue;
@@ -2349,6 +2354,14 @@ class WAReplies
                 $aiIntent = 'HARGA';
                 $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
+            }
+
+            // AI salah: pertanyaan ongkir/ongkos antar-jemput saja = FALSE (CS), bukan minta kurir
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→FALSE ongkir_inquiry_only');
+                $aiIntent = 'FALSE';
+                $aiCase = 4;
+                $aiNotify = false;
             }
 
             // AI salah: minta satu pakaian/item diambil/dulukan dulu dari cucian/order = PERMINTAAN, bukan minta kurir jemput/antar
@@ -3298,6 +3311,48 @@ class WAReplies
         $hasTier = (bool) preg_match('/\b(regular|reguler|ekspres|ekspress|express|kilat)\b/iu', $t);
 
         return $hasDurasi || $hasTier;
+    }
+
+    /**
+     * Pertanyaan ongkir/ongkos antar-jemput saja — belum minta kurir (→ FALSE/CS, bukan MINTA_JEMPUT_ANTAR).
+     * Contoh: "udah sm ongkir ni kak?", "brp ongkirnya?", "berapa ongkos antar?"
+     *
+     * @param string $text asli atau lowercase
+     */
+    private function messageLooksLikeOngkirOngkosInquiryOnly($text): bool
+    {
+        $t = mb_strtolower(trim((string) $text));
+        if ($t === '') {
+            return false;
+        }
+        if (!preg_match('/\b(ongkos|ongkir|ong\s*kos|ong\s*kir|ong\s*n)\b/iu', $t)) {
+            return false;
+        }
+        // Ongkos + durasi/tier layanan → HARGA, bukan inquiry kurir biasa
+        if ($this->messageIsHargaOngkosByDurasiAtauLayanan($t)) {
+            return false;
+        }
+        $hasOngkirQuestionCue = (bool) preg_match(
+            '/\?|？|\b(brp|brpa|brapa|berapa|biaya|tarif|harga)\b|\b(udah|udh|sudah|sdh|dah|dh)\s+(sm|sama|include|termasuk)\b|\b(sm|sama|include|termasuk)\s+(ongkos|ongkir|ong\s*kos|ong\s*kir)\b|\b(ongkos|ongkir|ong\s*kos|ong\s*kir|ong\s*n)\s*(nya|brp|brpa|berapa)\b/iu',
+            $t
+        );
+        if (!$hasOngkirQuestionCue) {
+            return false;
+        }
+        // Permintaan kurir kuat tanpa fokus tanya ongkir → tetap minta kurir
+        if (preg_match('/\b(tolong|minta|bantu)\s*(di)?(jemput|antar|anter)\b/iu', $t)
+            && !preg_match('/\b(brp|brpa|brapa|berapa)\s+(ongkos|ongkir|ong\s*kos|ong\s*kir|ong\s*n)\b/iu', $t)
+            && !preg_match('/\?\s*$/u', trim($t))
+        ) {
+            return false;
+        }
+        if (preg_match('/\b(besok|bsk|hari\s*ini)\s+(di)?(jemput|antar|anter)\b/iu', $t)
+            && !preg_match('/\b(brp|brpa|brapa|berapa|udah|udh|sudah|sdh|sm|sama)\b.*\b(ongkos|ongkir|ong\s*kos|ong\s*kir|ong\s*n)\b/iu', $t)
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -8316,6 +8371,12 @@ class WAReplies
             if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBody)) {
                 $intent = 'FALSE';
                 $reason = 'remap customer self antar/jemput → FALSE (bukan minta kurir)';
+            }
+
+            // MINTA padahal hanya tanya ongkir/ongkos antar-jemput (belum minta kurir)
+            if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBody)) {
+                $intent = 'FALSE';
+                $reason = 'remap pertanyaan ongkir/ongkos → FALSE (bukan minta kurir)';
             }
 
             $textBodyForPaketCheck = mb_strtolower(preg_replace('/[*_~`]/', '', (string) $textBody), 'UTF-8');

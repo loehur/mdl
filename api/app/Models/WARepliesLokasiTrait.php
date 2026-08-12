@@ -163,6 +163,10 @@ trait WARepliesLokasiTrait
     /** Pesan jelas minta jemput/antar (prioritas di atas LOKASI). */
     private function messageLooksLikeMintaJemputAntar(string $text, array $keywordConfig = []): bool
     {
+        // Pertanyaan ongkir/ongkos saja — bukan minta kurir
+        if ($this->messageLooksLikeOngkirOngkosInquiryOnly($text)) {
+            return false;
+        }
         // "kalau/klo ... antar/jemput" = hipotetis, bukan permintaan kurir
         if ($this->messageLooksLikeKalauAntarJemputBukanMinta($text)) {
             return false;

@@ -496,7 +496,7 @@ return [
          '/\b(sekalian|sekaligus)\s+(bawak|bawakan|bawa\s*kan|bawa\s*in|antar|anter|antr)\b/iu',
          '/\b(kain|baju|cucian|laundry).{0,40}\b(yg|yang)?\s*(udah|sudah|udh)?\s*(siap|selesai|kelar)\b.{0,40}\b(bawak|bawakan|antar|anter|antr|kirim)\b/iu',
       ],
-      'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR, ATAU menanyakan ONGKIR.\n
+      'ai_prompt' => "User MEMINTA KURIR/LAUNDRY untuk datang JEMPUT atau ANTAR (bukan sekadar menanyakan ongkir/ongkos).\n
       TRUE (MINTA JEMPUT/ANTAR) - HARUS ADA kata permintaan atau pertanyaan atau instruksi jemput ke lokasi:\n
       - Minta jemput ATAU antar (beda: jemput = ambil dari lokasi customer, antar = antar ke lokasi customer).\n
       - Typo/singkatan 'anter' / 'antr' / 'dianter' / 'diantr' = sama dengan antar.\n
@@ -513,7 +513,7 @@ return [
       - bisa jemput kak?, nanti bisa jemput kak?, jemput dong, antar ya dong\n
       - Singkatan: bs jmpt baju?, bs jemput?, bs antr gak baju? = sama dengan bisa jemput/antar = MINTA_JEMPUT_ANTAR\n
       - katanya mau antar, katanya mau jemput = relay/konfirmasi permintaan antar = MINTA_JEMPUT_ANTAR\n
-      - brp ongkirnya?, berapa ongkosnya?, brp ong nya kak?, biaya antar? — HANYA jika TANPA durasi (1/2/3 hari, sehari) DAN TANPA jenis layanan (regular/ekspres/kilat). Jika ada '1 hari'/'sehari'/durasi + ongkos ATAU regular/ekspres/kilat + ongkos = itu tanya TARIF di harga = HARGA, BUKAN MINTA_JEMPUT_ANTAR.\n
+      - CRITICAL - FALSE: SEMUA pertanyaan ongkir/ongkos antar-jemput = FALSE (CS), BUKAN MINTA_JEMPUT_ANTAR. Contoh: | brp ongkirnya? | berapa ongkosnya? | brp ong nya kak? | biaya antar? | udah sm ongkir ni kak? | sudah sama ongkir? | udah termasuk ongkir? | ongkir brp? | — kecuali ada durasi hari atau regular/ekspres/kilat (itu HARGA).\n
       - CRITICAL: Instruksi ambil/jemput baju/laundry/kain/bedcover/sprei dari LOKASI (kamar hotel/kost, depan kamar, rumah sakit, sekolah, alamat/jalan) = MINTA_JEMPUT_ANTAR. Contoh: | kk ambil baju kotor sama bedcover di depan kamar 212 | ambil laundry di hotel | jemput di kamar 305 | ambil di RS |\n
       - CRITICAL - FALSE: Minta SATU jenis pakaian/item (baju dinas, seragam, dll.) diambil/dulukan DULU dari order/cucian yang sudah di laundry — prioritas item, BUKAN minta kurir jemput-antar = PERMINTAAN.\n
       \n
