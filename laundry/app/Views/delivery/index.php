@@ -473,6 +473,42 @@ $isEmptyCustomer = empty($customerGroups);
       font-weight: 800;
       color: var(--dlv-muted);
     }
+    #dlv-root .dlv-sales-section {
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-sales-section:last-child { border-bottom: 0; }
+    #dlv-root .dlv-sales-section__title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #dlv-root .dlv-sales-section--siap .dlv-sales-section__title {
+      color: #166534;
+      background: #f0fdf4;
+      border-bottom-color: #bbf7d0;
+    }
+    #dlv-root .dlv-sales-section--belum .dlv-sales-section__title {
+      color: #9a3412;
+      background: #fff7ed;
+      border-bottom-color: #fed7aa;
+    }
+    #dlv-root .dlv-sales-section__count {
+      font-size: 0.68rem;
+      font-weight: 900;
+      padding: 1px 6px;
+      border: 1px solid currentColor;
+      opacity: 0.85;
+    }
+    #dlv-root .dlv-sales-section--belum .dlv-sales-group__head {
+      background: #fffbeb;
+    }
     #dlv-root .selectize-control { width: 100%; }
     #dlv-root .selectize-input,
     #dlv-root .selectize-dropdown {
@@ -2138,7 +2174,56 @@ $isEmptyCustomer = empty($customerGroups);
       if (name === 'ids[]') syncSurcasJemputUi();
       return;
     }
-    var html = orders.map(function (ord) {
+
+    function isBelum(it) {
+      return !!(it.belum_selesai === true || it.belum_selesai === 1 || it.belum_selesai === '1');
+    }
+
+    function renderItem(it, belum) {
+      var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
+      var member = Number(it.member) === 1 ? ' · Member' : '';
+      var checked = !belum && pref[String(it.id)] ? ' checked' : '';
+      if (belum) {
+        return '<label class="dlv-sales-item is-locked" data-belum-selesai="1">' +
+          '<input type="checkbox" disabled tabindex="-1">' +
+          '<span class="dlv-sales-item__text">' +
+            escapeHtml(it.kategori || '-') +
+            (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
+            ' · ' + escapeHtml(it.qty_show || '') +
+            '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member +
+              ' · <span class="dlv-jenis-pill" style="margin-left:4px;border-color:#fca5a5;background:#fef2f2;color:#b91c1c">Belum selesai</span>' +
+            '</div>' +
+          '</span>' +
+        '</label>';
+      }
+      return '<label class="dlv-sales-item">' +
+        '<input type="checkbox" name="' + name + '" value="' + escapeHtml(String(it.id)) + '"' + checked + '>' +
+        '<span class="dlv-sales-item__text">' +
+          escapeHtml(it.kategori || '-') +
+          (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
+          ' · ' + escapeHtml(it.qty_show || '') +
+          '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member + '</div>' +
+        '</span>' +
+      '</label>';
+    }
+
+    function renderGroups(list, forBelum) {
+      return list.map(function (ord) {
+        var ref = ord.no_ref || '-';
+        var items = (ord.items || []).filter(function (it) {
+          return forBelum ? isBelum(it) : !isBelum(it);
+        });
+        if (!items.length) return '';
+        return '<div class="dlv-sales-group" data-no-ref="' + escapeHtml(String(ref)) + '">' +
+          '<div class="dlv-sales-group__head">#' + escapeHtml(String(ref)) +
+            (ord.insertTime ? ' · ' + escapeHtml(fmtTime(ord.insertTime)) : '') +
+          '</div>' + items.map(function (it) { return renderItem(it, forBelum); }).join('') +
+        '</div>';
+      }).join('');
+    }
+
+    // Surcas map dari semua order (termasuk yang item-nya belum siap)
+    orders.forEach(function (ord) {
       var ref = ord.no_ref || '-';
       if (name === 'ids[]') {
         if (ord.surcas_penjemputan != null && ord.surcas_penjemputan !== '') {
@@ -2148,40 +2233,40 @@ $isEmptyCustomer = empty($customerGroups);
           window._dlvSurcasByRef.antar[String(ref)] = Number(ord.surcas_pengantaran);
         }
       }
-      var items = (ord.items || []).map(function (it) {
-        var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
-        var member = Number(it.member) === 1 ? ' · Member' : '';
-        var belum = !!(it.belum_selesai === true || it.belum_selesai === 1 || it.belum_selesai === '1');
-        var checked = !belum && pref[String(it.id)] ? ' checked' : '';
-        if (belum) {
-          return '<label class="dlv-sales-item is-locked" data-belum-selesai="1">' +
-            '<input type="checkbox" disabled tabindex="-1">' +
-            '<span class="dlv-sales-item__text">' +
-              escapeHtml(it.kategori || '-') +
-              (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
-              ' · ' + escapeHtml(it.qty_show || '') +
-              '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member +
-                ' · <span class="dlv-jenis-pill" style="margin-left:4px;border-color:#fca5a5;background:#fef2f2;color:#b91c1c">Belum selesai</span>' +
-              '</div>' +
-            '</span>' +
-          '</label>';
-        }
-        return '<label class="dlv-sales-item">' +
-          '<input type="checkbox" name="' + name + '" value="' + escapeHtml(String(it.id)) + '"' + checked + '>' +
-          '<span class="dlv-sales-item__text">' +
-            escapeHtml(it.kategori || '-') +
-            (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
-            ' · ' + escapeHtml(it.qty_show || '') +
-            '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member + '</div>' +
-          '</span>' +
-        '</label>';
-      }).join('');
-      return '<div class="dlv-sales-group" data-no-ref="' + escapeHtml(String(ref)) + '">' +
-        '<div class="dlv-sales-group__head">#' + escapeHtml(String(ref)) +
-          (ord.insertTime ? ' · ' + escapeHtml(fmtTime(ord.insertTime)) : '') +
-        '</div>' + items +
+    });
+
+    var siapCount = 0;
+    var belumCount = 0;
+    orders.forEach(function (ord) {
+      (ord.items || []).forEach(function (it) {
+        if (isBelum(it)) belumCount++;
+        else siapCount++;
+      });
+    });
+
+    var html = '';
+    if (belumCount > 0) {
+      // Antar: pisah jelas — siap di atas, belum di bawah
+      if (siapCount > 0) {
+        html += '<div class="dlv-sales-section dlv-sales-section--siap">' +
+          '<div class="dlv-sales-section__title"><span>Siap diselesaikan</span>' +
+          '<span class="dlv-sales-section__count">' + siapCount + '</span></div>' +
+          renderGroups(orders, false) +
+        '</div>';
+      }
+      html += '<div class="dlv-sales-section dlv-sales-section--belum">' +
+        '<div class="dlv-sales-section__title"><span>Belum bisa · laundry belum selesai</span>' +
+        '<span class="dlv-sales-section__count">' + belumCount + '</span></div>' +
+        renderGroups(orders, true) +
       '</div>';
-    }).join('');
+    } else {
+      // Semua siap (jemput / antar tanpa pending) — daftar biasa tanpa section
+      html = renderGroups(orders, false);
+    }
+    if (!html) {
+      html = '<div class="dlv-sales-empty">Tidak ada item eligible</div>';
+    }
+
     box.innerHTML = html;
     box.querySelectorAll('input[name="' + name + '"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
