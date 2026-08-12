@@ -676,11 +676,13 @@ class Delivery extends Controller
       }
 
       $digits = preg_replace('/[^0-9]/', '', (string) ($conv['wa_number'] ?? ''));
+      $phoneDisplay = $this->formatPhoneDisplay((string) ($conv['wa_number'] ?? $digits));
       echo json_encode([
          'status' => 'success',
          'data' => [
             'nama' => strtoupper(trim((string) ($conv['contact_name'] ?? '')) !== '' ? trim($conv['contact_name']) : 'Customer'),
-            'phone_tail' => substr($digits, -9),
+            'phone_tail' => strlen($digits) >= 9 ? substr($digits, -9) : $digits,
+            'phone_display' => $phoneDisplay,
             'kode_cabang' => strtoupper((string) ($conv['kode_cabang'] ?? '00')),
             'messages' => $list,
          ],
@@ -1832,7 +1834,7 @@ class Delivery extends Controller
    private function getPendingCustomerRequests(): array
    {
       $rows = $this->db(0)->query_array(
-         "SELECT r.*, p.nama_pelanggan
+         "SELECT r.*, p.nama_pelanggan, p.nomor_pelanggan
           FROM delivery_request r
           LEFT JOIN pelanggan p ON p.id_pelanggan = r.id_pelanggan
           WHERE r.delivery_status = 'berjalan'
@@ -1857,6 +1859,8 @@ class Delivery extends Controller
          if (strlen($phoneTail) >= 9) {
             $phoneTail = substr($phoneTail, -9);
          }
+         $nomorRaw = trim((string) ($row['nomor_pelanggan'] ?? ''));
+         $phoneDisplay = $this->formatPhoneDisplay($nomorRaw !== '' ? $nomorRaw : $phoneTail);
 
          $prefillIds = [];
          $items = $this->db(0)->get_where(
@@ -1881,6 +1885,7 @@ class Delivery extends Controller
             'id_request' => $idRequest,
             'nama' => strtoupper($nama !== '' ? $nama : 'Customer'),
             'phone_tail' => $phoneTail,
+            'phone_display' => $phoneDisplay,
             'jenis' => $jenis,
             'layanan' => (string) ($row['layanan'] ?? 'sameday'),
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
@@ -2061,6 +2066,23 @@ class Delivery extends Controller
       }
       $item['unit_nama'] = $unitNama;
       return $item;
+   }
+
+   /**
+    * Nomor HP untuk tampilan (08…). 9 digit / 62… dilengkapi, tanpa mengubah data match.
+    */
+   private function formatPhoneDisplay(string $raw): string
+   {
+      $digits = preg_replace('/[^0-9]/', '', $raw);
+      if ($digits === '') {
+         return trim($raw);
+      }
+      if (strpos($digits, '62') === 0 && strlen($digits) >= 10) {
+         $digits = '0' . substr($digits, 2);
+      } elseif ($digits[0] !== '0') {
+         $digits = '0' . $digits;
+      }
+      return $digits;
    }
 
    /**
@@ -2276,6 +2298,7 @@ class Delivery extends Controller
          if (!isset($groups[$tail])) {
             $groups[$tail] = [
                'phone_tail' => $tail,
+               'phone_display' => (string) ($rq['phone_display'] ?? $tail),
                'nama' => (string) ($rq['nama'] ?? 'Customer'),
                'kode_cabang' => (string) ($rq['kode_cabang'] ?? '00'),
                'crm' => null,
@@ -2286,6 +2309,10 @@ class Delivery extends Controller
          $groups[$tail]['requests'][] = $rq;
          $groups[$tail]['nama'] = (string) ($rq['nama'] ?? $groups[$tail]['nama']);
          $groups[$tail]['kode_cabang'] = (string) ($rq['kode_cabang'] ?? $groups[$tail]['kode_cabang']);
+         $disp = trim((string) ($rq['phone_display'] ?? ''));
+         if ($disp !== '') {
+            $groups[$tail]['phone_display'] = $disp;
+         }
          $t = (string) ($rq['insertTime'] ?? '');
          if ($t !== '' && $t > ($groups[$tail]['sort_time'] ?? '')) {
             $groups[$tail]['sort_time'] = $t;

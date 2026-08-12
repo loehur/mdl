@@ -870,6 +870,7 @@ $isEmptyCustomer = empty($customerGroups);
               <div class="dlv-list">
                 <?php foreach ($customerGroups as $grp) {
                   $tail = htmlspecialchars((string) ($grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
+                  $phoneShow = htmlspecialchars((string) ($grp['phone_display'] ?? $grp['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
                   $nama = htmlspecialchars(strtoupper((string) ($grp['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
                   $kode = htmlspecialchars((string) ($grp['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
                   $reqs = is_array($grp['requests'] ?? null) ? $grp['requests'] : [];
@@ -878,7 +879,7 @@ $isEmptyCustomer = empty($customerGroups);
                     continue;
                   }
                 ?>
-                  <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-source="merged">
+                  <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-phone-display="<?= $phoneShow ?>" data-source="merged">
                     <div class="dlv-item__head-row">
                       <div class="dlv-item__text">
                         <p class="dlv-item__title">
@@ -887,11 +888,11 @@ $isEmptyCustomer = empty($customerGroups);
                           <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= (int) $reqCount ?> request</span>
                         </p>
                         <div class="dlv-item__meta">
-                          <?= $tail ?>
+                          <?= $phoneShow ?>
                         </div>
                       </div>
                       <div class="dlv-item__actions">
-                        <button type="button" class="dlv-link-cek" data-dlv-cek-customer="<?= $tail ?>" title="Chat" aria-label="Chat">
+                        <button type="button" class="dlv-link-cek" data-dlv-cek-customer="<?= $tail ?>" data-phone-display="<?= $phoneShow ?>" title="Chat" aria-label="Chat">
                           <i class="fas fa-comments"></i> Chat
                         </button>
                       </div>
@@ -997,6 +998,7 @@ $isEmptyCustomer = empty($customerGroups);
                                       class="dlv-btn dlv-btn--selesai"
                                       data-dlv-selesai-request="<?= $idReq ?>"
                                       data-phone-tail="<?= $tail ?>"
+                                      data-phone-display="<?= $phoneShow ?>"
                                       data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
                                       data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
                                       data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
@@ -1010,6 +1012,7 @@ $isEmptyCustomer = empty($customerGroups);
                                       class="dlv-btn dlv-btn--selesai"
                                       data-dlv-selesai-request="<?= $idReq ?>"
                                       data-phone-tail="<?= $tail ?>"
+                                      data-phone-display="<?= $phoneShow ?>"
                                       data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
                                       data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
                                       data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
@@ -2281,6 +2284,7 @@ $isEmptyCustomer = empty($customerGroups);
   function openSelesaiRequest(btn) {
     var idReq = btn.getAttribute('data-dlv-selesai-request') || '';
     var phone = btn.getAttribute('data-phone-tail') || '';
+    var phoneShow = btn.getAttribute('data-phone-display') || phone;
     var jenis = (btn.getAttribute('data-jenis') || '').toLowerCase();
     var layanan = (btn.getAttribute('data-layanan') || 'sameday').toLowerCase();
     var prefill = btn.getAttribute('data-prefill') || '';
@@ -2303,7 +2307,7 @@ $isEmptyCustomer = empty($customerGroups);
     var sub = document.getElementById('dlvSelesaiSub');
     if (sub) {
       var jenisLbl = jenis === 'antar' ? 'Antar' : (jenis === 'jemput' ? 'Jemput' : jenis);
-      sub.textContent = nama + ' · ' + phone + ' · ' + jenisLbl + ' · Request #' + idReq
+      sub.textContent = nama + ' · ' + phoneShow + ' · ' + jenisLbl + ' · Request #' + idReq
         + (layanan === 'instant' ? ' · Instant' : '');
     }
     var title = document.getElementById('dlvSelesaiTitle');
@@ -2995,8 +2999,9 @@ $isEmptyCustomer = empty($customerGroups);
     var sub = document.getElementById('dlvCustomerSub');
     if (!body) return;
 
+    var phoneShow = (btn && btn.getAttribute('data-phone-display')) || phoneTail;
     body.innerHTML = '<div class="dlv-detail-loading"><i class="fas fa-spinner fa-spin me-1"></i>Memuat…</div>';
-    if (sub) sub.textContent = phoneTail;
+    if (sub) sub.textContent = phoneShow;
     openModal('dlvCustomerModal');
     if (btn) btn.disabled = true;
 
@@ -3012,7 +3017,7 @@ $isEmptyCustomer = empty($customerGroups);
         }
         var d = res.data;
         if (sub) {
-          sub.textContent = (d.nama || 'Customer') + ' · ' + (d.phone_tail || phoneTail) + ' · ' + (d.kode_cabang || '');
+          sub.textContent = (d.nama || 'Customer') + ' · ' + (d.phone_display || d.phone_tail || phoneTail) + ' · ' + (d.kode_cabang || '');
         }
         body.innerHTML = renderChat(d);
         body.scrollTop = body.scrollHeight;
