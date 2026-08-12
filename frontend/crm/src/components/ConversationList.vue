@@ -237,15 +237,19 @@ const parseEmoji = (text) => {
           v-show="openCaseCounts[caseId] > 0"
           @click="toggleCaseFilter(caseId)"
           :title="getCaseLabel(caseId)"
-          class="min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center transition-all"
-          :class="[
-            getCaseColor(caseId),
-            caseId === 2 ? 'text-black' : 'text-white',
-            conversationFilter === 'case-' + caseId
-              ? 'ring-2 ring-white/70 ring-offset-1 ring-offset-[var(--wa-bg-panel)]'
-              : 'opacity-90 hover:opacity-100'
-          ]"
-        >{{ openCaseCounts[caseId] }}</button>
+          class="px-3 py-1.5 text-sm font-medium rounded-full transition-all flex items-center border"
+          :class="conversationFilter === 'case-' + caseId
+            ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent'
+            : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
+        >
+          <span
+            class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center"
+            :class="[
+              getCaseColor(caseId),
+              caseId === 2 ? 'text-black' : 'text-white',
+            ]"
+          >{{ openCaseCounts[caseId] }}</span>
+        </button>
       </div>
     </div>
 

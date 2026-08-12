@@ -3480,6 +3480,18 @@ trait WARepliesKurirTrait
                     $this->kurirEnsureRequestItems($db, $existingId, $eligibleIds);
                 }
 
+                if ($jenis === 'antar' && $tarif > 0 && !empty($eligibleIds)) {
+                    $this->kurirTryAttachSurcasPengantaran(
+                        $db,
+                        $waNumber,
+                        $idPelanggan,
+                        $idCabang,
+                        $eligibleIds,
+                        $tarif,
+                        $existingId
+                    );
+                }
+
                 $this->saveKurirSession($waNumber, ['id_request' => $existingId, 'step' => 'request_aktif']);
                 return true;
             }
@@ -3520,6 +3532,17 @@ trait WARepliesKurirTrait
                         'no_ref' => (string) ($sale->no_ref ?? ''),
                     ]);
                 }
+                if ($tarif > 0 && !empty($eligibleIds)) {
+                    $this->kurirTryAttachSurcasPengantaran(
+                        $db,
+                        $waNumber,
+                        $idPelanggan,
+                        $idCabang,
+                        $eligibleIds,
+                        $tarif,
+                        $idRequest
+                    );
+                }
             }
             $this->saveKurirSession($waNumber, ['id_request' => $idRequest, 'step' => 'request_aktif']);
             return true;
@@ -3528,6 +3551,139 @@ trait WARepliesKurirTrait
                 \Log::write('kurirInsertSamedayRequest: ' . $e->getMessage(), 'wa_error', 'Autoreply');
             }
             $this->sendAutoreplyText($waNumber, 'Maaf, gagal membuat permintaan. Coba lagi atau pakai link portal.');
+            return false;
+        }
+    }
+
+    /**
+     * Antar sameday sukses: tambah surcas pengantaran ke satu no_ref belum tuntas (paling lama).
+     * @param object $db
+     * @param int[] $eligibleIds
+     */
+    private function kurirTryAttachSurcasPengantaran(
+        $db,
+        string $waNumber,
+        int $idPelanggan,
+        int $idCabang,
+        array $eligibleIds,
+        int $tarif,
+        int $idDeliveryRequest
+    ): void {
+        $noRef = $this->kurirPickOldestBelumTuntasRef($idPelanggan, $eligibleIds);
+        if ($noRef === null || $noRef === '') {
+            $this->logAutoreplyTrace($waNumber, 'KURIR_SURCAS', 'skip no eligible ref');
+            return;
+        }
+
+        $result = $this->kurirInsertSurcasPengantaran($db, $idCabang, $noRef, $tarif, $idDeliveryRequest);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'KURIR_SURCAS',
+            'ref=' . $noRef . ' jumlah=' . $tarif . ' id_request=' . $idDeliveryRequest . ' result=' . (string) $result
+        );
+    }
+
+    /**
+     * Satu no_ref belum tuntas (paling lama) dari item eligible — mirror J.php pickBelumTuntasRef + id_user_ambil=0.
+     * @param int[] $eligibleIds
+     */
+    private function kurirPickOldestBelumTuntasRef(int $idPelanggan, array $eligibleIds): ?string
+    {
+        if ($idPelanggan <= 0 || empty($eligibleIds)) {
+            return null;
+        }
+        $safeIds = [];
+        foreach ($eligibleIds as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+                $safeIds[$id] = $id;
+            }
+        }
+        if (empty($safeIds)) {
+            return null;
+        }
+        $idsIn = implode(',', array_values($safeIds));
+
+        try {
+            $rows = DB::getInstance(1)->query(
+                "SELECT no_ref, MIN(id_penjualan) AS min_id
+                 FROM sale
+                 WHERE id_pelanggan = ?
+                   AND bin = 0
+                   AND tuntas = 0
+                   AND id_user_ambil = 0
+                   AND id_penjualan IN ($idsIn)
+                   AND no_ref IS NOT NULL
+                   AND TRIM(no_ref) <> ''
+                 GROUP BY no_ref
+                 ORDER BY min_id ASC
+                 LIMIT 1",
+                [$idPelanggan]
+            )->result_array();
+            if (empty($rows)) {
+                return null;
+            }
+            $noRef = trim((string) ($rows[0]['no_ref'] ?? ''));
+
+            return $noRef !== '' ? $noRef : null;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirPickOldestBelumTuntasRef: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * Insert surcas Pengantaran ke no_ref — skip jika sudah ada.
+     * @param object $db
+     * @return true|'exists'|false
+     */
+    private function kurirInsertSurcasPengantaran($db, int $idCabang, string $noRef, int $jumlah, int $idDeliveryRequest = 0)
+    {
+        $noRef = trim($noRef);
+        $jumlah = (int) $jumlah;
+        $idDeliveryRequest = (int) $idDeliveryRequest;
+        if ($noRef === '' || $jumlah <= 0 || $idCabang <= 0) {
+            return false;
+        }
+
+        $jenis = AntarTarif::SURCAS_JENIS_PENGANTARAN;
+        try {
+            $existing = $db->query(
+                'SELECT id_surcas FROM surcas
+                 WHERE id_cabang = ?
+                   AND transaksi_jenis = 1
+                   AND id_jenis_surcas = ?
+                   AND no_ref = ?
+                 LIMIT 1',
+                [$idCabang, $jenis, $noRef]
+            )->row();
+            if ($existing && !empty($existing->id_surcas)) {
+                return 'exists';
+            }
+
+            $row = [
+                'id_cabang' => $idCabang,
+                'transaksi_jenis' => 1,
+                'id_jenis_surcas' => $jenis,
+                'jumlah' => $jumlah,
+                'id_user' => 0,
+                'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
+                'dari_delivery' => 1,
+            ];
+            if ($idDeliveryRequest > 0) {
+                $row['id_delivery_request'] = $idDeliveryRequest;
+            }
+            $ok = $db->insert('surcas', $row);
+
+            return $ok !== false ? true : false;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirInsertSurcasPengantaran: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+
             return false;
         }
     }

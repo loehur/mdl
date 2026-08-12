@@ -11,6 +11,10 @@ class AntarTarif
     /** @deprecated pakai config min_tarif */
     public const MIN_TARIF = AntarTarifHelper::DEFAULT_MIN_TARIF;
 
+    public const SURCAS_JENIS_GABUNGAN = 1;
+    public const SURCAS_JENIS_PENGANTARAN = 2;
+    public const SURCAS_JENIS_PENJEMPUTAN = 3;
+
     public static function distanceKm($lat1, $lon1, $lat2, $lon2): float
     {
         return AntarTarifHelper::distanceKm($lat1, $lon1, $lat2, $lon2);
