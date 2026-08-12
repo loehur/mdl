@@ -2043,14 +2043,11 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     }
     box.innerHTML = orders.map(function (ord) {
       var items = (ord.items || []).map(function (it) {
-        var locked = !!it.belum_selesai;
-        var meta = '#' + it.id + (it.member ? ' · member' : '') + (locked ? ' · belum selesai laundry' : '');
-        if (locked) {
-          return '<label class="kurir-item is-locked"><input type="checkbox" disabled>' +
-            '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
-            '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
-        }
-        return '<label class="kurir-item"><input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '">' +
+        var belum = !!it.belum_selesai;
+        var meta = '#' + it.id + (it.member ? ' · member' : '') + (belum ? ' · belum selesai laundry' : '');
+        return '<label class="kurir-item">' +
+          '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
+          (belum ? ' data-belum-selesai="1"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
           '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
       }).join('');
@@ -2145,6 +2142,16 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       if (aAntar === '' || isNaN(parseInt(aAntar, 10)) || parseInt(aAntar, 10) < 0) {
         toast('Isi Surcas Pengantaran (isi 0 untuk gratis)', 'warn');
         return;
+      }
+      if (idKaryawan > 0) {
+        var adaBelum = false;
+        root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+          if (cb.getAttribute('data-belum-selesai') === '1') adaBelum = true;
+        });
+        if (adaBelum) {
+          toast('Item belum selesai laundry. Kosongkan penyelesai untuk buat request, atau pilih item yang sudah selesai.', 'warn');
+          return;
+        }
       }
     }
 
