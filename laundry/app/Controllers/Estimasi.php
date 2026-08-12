@@ -1181,7 +1181,7 @@ class Estimasi extends Controller
     }
 
     /**
-     * CRM case 3 (PERMINTAAN) open — pelanggan yang masih punya order aktif di cabang ini.
+     * CRM case 3 (PERMINTAAN) open — pelanggan cabang ini (match code / cust_id / nomor WA).
      * @return list<array<string,mixed>>
      */
     private function getOpenPermintaanTasks(): array
@@ -1191,109 +1191,163 @@ class Estimasi extends Controller
             return [];
         }
 
-        $openWaRaw = $this->db(100)->get_where(
-            'wa_conversations',
-            "conv_case LIKE '%\"status\":\"open\"%'"
+        $kodeCabang = strtoupper(trim((string) ($this->dCabang['kode_cabang'] ?? '')));
+
+        $openWaRaw = $this->db(100)->query_array(
+            "SELECT id, wa_number, contact_name, code, cust_id, conv_case, last_message, updated_at, last_message_at
+             FROM wa_conversations
+             WHERE conv_case IS NOT NULL
+               AND conv_case <> ''
+               AND conv_case <> '0'
+               AND conv_case <> '[]'
+             ORDER BY COALESCE(updated_at, last_message_at) DESC
+             LIMIT 300"
         );
         if (!is_array($openWaRaw) || empty($openWaRaw)) {
             return [];
         }
 
-        $openWaMap = [];
-        foreach ($openWaRaw as $row) {
-            $cases = json_decode($row['conv_case'] ?? '[]', true);
-            if (!is_array($cases)) {
-                continue;
-            }
-            $hasOpenCase3 = false;
-            foreach ($cases as $c) {
-                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? '') === 'open') {
-                    $hasOpenCase3 = true;
-                    break;
-                }
-            }
-            if (!$hasOpenCase3) {
-                continue;
-            }
-            $cleanPhone = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
-            if ($cleanPhone === '') {
-                continue;
-            }
-            $openWaMap[$cleanPhone] = $row;
-        }
-        if (empty($openWaMap)) {
-            return [];
-        }
-
-        $saleRows = $this->db(0)->query_array(
-            'SELECT DISTINCT id_pelanggan FROM sale
-             WHERE id_cabang = ' . (int) $cabangId . '
-               AND id_pelanggan <> 0 AND bin = 0 AND tuntas = 0'
-        );
-        if (!is_array($saleRows) || empty($saleRows)) {
-            return [];
-        }
-
         $items = [];
         $seenPhones = [];
-        foreach ($saleRows as $saleRow) {
-            $idPelanggan = (int) ($saleRow['id_pelanggan'] ?? 0);
-            if ($idPelanggan <= 0) {
-                continue;
-            }
-            $p = null;
-            if (isset($this->pelanggan[$idPelanggan]) && is_array($this->pelanggan[$idPelanggan])) {
-                $p = $this->pelanggan[$idPelanggan];
-            } else {
-                try {
-                    $p = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
-                } catch (\Throwable $e) {
-                    $p = null;
-                }
-            }
-            if (!is_array($p)) {
+        foreach ($openWaRaw as $row) {
+            if (!$this->conversationHasOpenCase3($row['conv_case'] ?? '')) {
                 continue;
             }
 
-            $hp = preg_replace('/[^0-9]/', '', (string) ($p['nomor_pelanggan'] ?? ''));
-            if ($hp === '') {
+            $waPhone = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
+            if ($waPhone === '') {
                 continue;
             }
 
-            $found = $openWaMap[$hp]
-                ?? (substr($hp, 0, 2) === '08' ? ($openWaMap['62' . substr($hp, 1)] ?? null) : null)
-                ?? (substr($hp, 0, 3) === '628' ? ($openWaMap['0' . substr($hp, 2)] ?? null) : null);
-            if (!$found) {
-                continue;
-            }
-
-            $waPhone = preg_replace('/[^0-9]/', '', (string) ($found['wa_number'] ?? $hp));
-            $phoneKey = strlen($waPhone) >= 10 ? substr($waPhone, -10) : $waPhone;
+            $phoneKey = strlen($waPhone) >= 9 ? substr($waPhone, -9) : $waPhone;
             if (isset($seenPhones[$phoneKey])) {
                 continue;
             }
+
+            if (!$this->permintaanBelongsToCabang($row, $cabangId, $kodeCabang, $waPhone)) {
+                continue;
+            }
+
             $seenPhones[$phoneKey] = true;
 
-            $nama = trim((string) ($p['nama_pelanggan'] ?? ''));
-            if ($nama === '' && !empty($found['contact_name'])) {
-                $nama = trim((string) $found['contact_name']);
+            $pel = $this->resolvePelangganInCabangByPhone($waPhone, $cabangId);
+            if (!$pel && !empty($row['cust_id'])) {
+                try {
+                    $pelRow = $this->db(0)->get_where_row(
+                        'pelanggan',
+                        'id_pelanggan = ' . (int) $row['cust_id'] . ' AND id_cabang = ' . (int) $cabangId
+                    );
+                    if (is_array($pelRow) && !empty($pelRow['id_pelanggan'])) {
+                        $pel = $pelRow;
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+
+            $nama = trim((string) ($pel['nama_pelanggan'] ?? ''));
+            if ($nama === '' && !empty($row['contact_name'])) {
+                $nama = trim((string) $row['contact_name']);
             }
 
             $items[] = [
                 'task_type' => 'permintaan',
                 'task_id' => 'permintaan:' . $waPhone,
-                'phone' => $waPhone !== '' ? $waPhone : $hp,
-                'phone_display' => $this->displayPhone($waPhone !== '' ? $waPhone : $hp),
+                'phone' => $waPhone,
+                'phone_display' => $this->displayPhone($waPhone),
                 'id_penjualan' => null,
-                'id_pelanggan' => $idPelanggan,
-                'customer_message' => trim((string) ($found['last_message'] ?? '')),
-                'updated_at' => $found['updated_at'] ?? ($found['last_message_at'] ?? null),
+                'id_pelanggan' => isset($pel['id_pelanggan']) ? (int) $pel['id_pelanggan'] : null,
+                'customer_message' => trim((string) ($row['last_message'] ?? '')),
+                'updated_at' => $row['updated_at'] ?? ($row['last_message_at'] ?? null),
                 'expires_at' => null,
                 'nama' => $nama !== '' ? $nama : 'Pelanggan',
             ];
         }
 
         return $items;
+    }
+
+    private function conversationHasOpenCase3($convCase): bool
+    {
+        if ($convCase === null || $convCase === '' || $convCase === '0' || $convCase === '[]') {
+            return false;
+        }
+
+        $raw = is_string($convCase) ? $convCase : json_encode($convCase);
+        if (is_numeric(trim($raw)) && (int) trim($raw) === 3) {
+            return true;
+        }
+
+        $cases = json_decode($raw, true);
+        if (!is_array($cases)) {
+            return false;
+        }
+        if (isset($cases['case'])) {
+            $cases = [$cases];
+        }
+
+        foreach ($cases as $c) {
+            if (!is_array($c)) {
+                continue;
+            }
+            if ((int) ($c['case'] ?? 0) === 3 && ($c['status'] ?? 'open') !== 'closed') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function permintaanBelongsToCabang(array $row, int $cabangId, string $kodeCabang, string $waPhone): bool
+    {
+        $code = strtoupper(trim((string) ($row['code'] ?? '')));
+        if ($kodeCabang !== '' && $code !== '' && $code !== '00' && $code === $kodeCabang) {
+            return true;
+        }
+
+        $custId = (int) ($row['cust_id'] ?? 0);
+        if ($custId > 0) {
+            try {
+                $pel = $this->db(0)->get_where_row(
+                    'pelanggan',
+                    'id_pelanggan = ' . $custId . ' AND id_cabang = ' . (int) $cabangId
+                );
+                if (is_array($pel) && !empty($pel['id_pelanggan'])) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        return $this->resolvePelangganInCabangByPhone($waPhone, $cabangId) !== null;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function resolvePelangganInCabangByPhone(string $waPhone, int $cabangId): ?array
+    {
+        $tail9 = strlen($waPhone) >= 9 ? substr($waPhone, -9) : '';
+        if ($tail9 === '') {
+            return null;
+        }
+
+        try {
+            $rows = $this->db(0)->query_array(
+                "SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan FROM pelanggan
+                 WHERE id_cabang = " . (int) $cabangId . "
+                   AND RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan, '+', ''), '-', ''), ' ', ''), 9) = '"
+                . $this->db(0)->escape($tail9) . "'
+                 ORDER BY id_pelanggan ASC
+                 LIMIT 1"
+            );
+            if (!empty($rows[0]['id_pelanggan'])) {
+                return $rows[0];
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return null;
     }
 
     private function closePermintaanCase(string $phone): void
@@ -1317,7 +1371,7 @@ class Estimasi extends Controller
         $updated = false;
         if (is_array($cases)) {
             foreach ($cases as &$c) {
-                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? '') === 'open') {
+                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? 'open') !== 'closed') {
                     $c['status'] = 'closed';
                     unset($c['timestamp']);
                     $updated = true;
