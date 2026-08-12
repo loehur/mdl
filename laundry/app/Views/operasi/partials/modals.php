@@ -1871,6 +1871,31 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     color: #fff;
   }
   #offcanvasKurir .kurir-btn:disabled { opacity: 0.55; cursor: wait; }
+  #offcanvasKurir .kurir-surcas-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+  }
+  #offcanvasKurir .kurir-surcas-input-row .form-control {
+    flex: 1;
+    min-width: 0;
+  }
+  #offcanvasKurir .kurir-surcas-tarif-btn {
+    flex-shrink: 0;
+    width: 40px;
+    padding: 0;
+    border: 1px solid #94a3b8;
+    border-radius: 0;
+    background: #f8fafc;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  #offcanvasKurir .kurir-surcas-tarif-btn:hover:not(:disabled) {
+    background: #eff6ff;
+    border-color: #2563eb;
+  }
+  #offcanvasKurir .kurir-surcas-tarif-btn:disabled { opacity: 0.55; cursor: wait; }
 </style>
 
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasKurir"
@@ -1879,6 +1904,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
      data-id-pelanggan="<?= (int) $id_pelanggan ?>"
      data-phone-tail="<?= htmlspecialchars($kurirPhoneTail, ENT_QUOTES, 'UTF-8') ?>"
      data-sales-url="<?= URL::BASE_URL ?>Delivery/sales_options/"
+     data-tarif-url="<?= URL::BASE_URL ?>Delivery/tarif_surcas"
      data-submit-url="<?= URL::BASE_URL ?>Delivery/kurir_dari_operasi"
      style="z-index: 1100;">
   <div class="offcanvas-header">
@@ -1905,11 +1931,21 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     </div>
     <div class="kurir-field" id="kurirSurcasJemputWrap" hidden>
       <label class="kurir-label" for="kurirSurcasJemput">Surcas Penjemputan</label>
-      <input type="number" id="kurirSurcasJemput" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+      <div class="kurir-surcas-input-row">
+        <input type="number" id="kurirSurcasJemput" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+        <button type="button" class="kurir-surcas-tarif-btn" data-surcas-target="kurirSurcasJemput" title="Isi dari rumus ongkir" aria-label="Isi surcas dari rumus ongkir">
+          <i class="fas fa-route" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
     <div class="kurir-field" id="kurirSurcasAntarWrap" hidden>
       <label class="kurir-label" for="kurirSurcasAntar">Surcas Pengantaran</label>
-      <input type="number" id="kurirSurcasAntar" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+      <div class="kurir-surcas-input-row">
+        <input type="number" id="kurirSurcasAntar" class="form-control" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+        <button type="button" class="kurir-surcas-tarif-btn" data-surcas-target="kurirSurcasAntar" title="Isi dari rumus ongkir" aria-label="Isi surcas dari rumus ongkir">
+          <i class="fas fa-route" aria-hidden="true"></i>
+        </button>
+      </div>
       <small id="kurirSurcasAntarHint" class="kurir-hint" style="margin:4px 0 0;display:none">
         Wajib. Langsung ke nota.
       </small>
@@ -1955,8 +1991,10 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   var idPelanggan = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
   var phoneTail = String(root.getAttribute('data-phone-tail') || '');
   var salesUrl = String(root.getAttribute('data-sales-url') || '');
+  var tarifUrl = String(root.getAttribute('data-tarif-url') || '');
   var submitUrl = String(root.getAttribute('data-submit-url') || '');
   var kurirSelectize = null;
+  var tarifLoading = false;
 
   function toast(msg, type) {
     type = type || 'info';
@@ -1974,6 +2012,43 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  function fillSurcasFromTarif(inputId, btn) {
+    if (tarifLoading) return;
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var idPel = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+    if (!tarifUrl || idPel <= 0) {
+      toast('Pelanggan tidak valid', 'warn');
+      return;
+    }
+    tarifLoading = true;
+    if (btn) btn.disabled = true;
+    fetch(tarifUrl + '?id_pelanggan=' + encodeURIComponent(String(idPel)), {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Lokasi pelanggan belum ada', 'warn');
+          return;
+        }
+        var tarif = parseInt((res.data && res.data.tarif) || 0, 10) || 0;
+        input.value = String(tarif);
+        var km = res.data && res.data.km;
+        var lok = res.data && res.data.lokasi_nama;
+        var msg = 'Surcas diisi Rp' + tarif.toLocaleString('id-ID');
+        if (km != null && km !== '') msg += ' · ' + km + ' km';
+        if (lok) msg += ' · ' + lok;
+        toast(msg, 'ok');
+      })
+      .catch(function () { toast('Gagal hitung tarif', 'error'); })
+      .finally(function () {
+        tarifLoading = false;
+        if (btn) btn.disabled = false;
+      });
   }
 
   function syncJenisUi() {
@@ -2125,6 +2200,13 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
 
   document.getElementById('kurirJenis').addEventListener('change', syncJenisUi);
   document.getElementById('kurirKaryawan').addEventListener('change', syncSubmitLabel);
+
+  root.querySelectorAll('.kurir-surcas-tarif-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-surcas-target') || '';
+      if (target) fillSurcasFromTarif(target, btn);
+    });
+  });
 
   document.getElementById('kurirSubmit').addEventListener('click', function () {
     var btn = document.getElementById('kurirSubmit');

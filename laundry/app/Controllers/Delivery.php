@@ -181,6 +181,66 @@ class Delivery extends Controller
    }
 
    /**
+    * Hitung tarif surcas dari rumus ongkir (jarak cabang → lokasi pelanggan).
+    * GET/POST: id_pelanggan (opsional jika phone_tail), phone_tail (opsional), id_request (opsional).
+    */
+   public function tarif_surcas()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+
+      $idPelanggan = (int) ($_REQUEST['id_pelanggan'] ?? 0);
+      $idRequest = (int) ($_REQUEST['id_request'] ?? 0);
+      $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_REQUEST['phone_tail'] ?? ''));
+
+      if ($idPelanggan <= 0 && strlen($phoneTail) >= 8) {
+         $ids = $this->pelangganIdsByPhoneTail($phoneTail);
+         if (!empty($ids)) {
+            $idPelanggan = (int) $ids[0];
+         }
+      }
+
+      $loc = $this->resolveLokasiCoordsForTarif($idPelanggan, $idRequest);
+      if ($loc === null) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => 'Lokasi pelanggan belum ada',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+
+      $cabLat = (float) ($this->dCabang['latt'] ?? 0);
+      $cabLon = (float) ($this->dCabang['long'] ?? 0);
+      if ($cabLat == 0.0 && $cabLon == 0.0) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => 'Koordinat cabang belum diatur',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+
+      $calc = $this->helper('AntarTarif')->tarifFromCoords(
+         $cabLat,
+         $cabLon,
+         (float) $loc['latt'],
+         (float) $loc['longt']
+      );
+
+      echo json_encode([
+         'status' => 'success',
+         'data' => [
+            'tarif' => (int) ($calc['tarif'] ?? 0),
+            'km' => (float) ($calc['km'] ?? 0),
+            'lokasi_nama' => (string) ($loc['nama'] ?? ''),
+         ],
+      ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
     * Tarik lokasi pelanggan ke delivery_request yang lokasinya masih kosong.
     * POST: id_request, id_lokasi (opsional).
     * Tanpa id_lokasi: 1 lokasi → apply; >1 → need_choose + list; 0 → error.
@@ -2680,6 +2740,92 @@ class Delivery extends Controller
          $cabangRow = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
       }
       return FonnteService::cabangGroupId(is_array($cabangRow) ? $cabangRow : null);
+   }
+
+   /**
+    * Koordinat lokasi pelanggan untuk hitung tarif ongkir.
+    *
+    * @return array{latt:float,longt:float,nama:string}|null
+    */
+   private function resolveLokasiCoordsForTarif(int $idPelanggan, int $idRequest = 0): ?array
+   {
+      if ($idRequest > 0) {
+         $req = $this->db(0)->get_where_row('delivery_request', 'id_request = ' . $idRequest);
+         if (is_array($req) && !empty($req['id_request'])) {
+            if ($idPelanggan <= 0) {
+               $idPelanggan = (int) ($req['id_pelanggan'] ?? 0);
+            }
+            $lat = (float) ($req['lokasi_latt'] ?? 0);
+            $lon = (float) ($req['lokasi_longt'] ?? 0);
+            if ($lat != 0.0 || $lon != 0.0) {
+               $nama = trim((string) ($req['lokasi_nama'] ?? ''));
+               return [
+                  'latt' => $lat,
+                  'longt' => $lon,
+                  'nama' => $nama !== '' ? $nama : 'Lokasi request',
+               ];
+            }
+            $idLok = (int) ($req['id_lokasi'] ?? 0);
+            if ($idLok > 0 && $idPelanggan > 0) {
+               $fromLok = $this->lokasiCoordsRow($idLok, $idPelanggan);
+               if ($fromLok !== null) {
+                  return $fromLok;
+               }
+            }
+         }
+      }
+
+      if ($idPelanggan <= 0) {
+         return null;
+      }
+
+      $rows = $this->db(0)->get_where_order(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . $idPelanggan,
+         'id_lokasi DESC'
+      );
+      if (!is_array($rows)) {
+         return null;
+      }
+      foreach ($rows as $r) {
+         $lat = (float) ($r['latt'] ?? 0);
+         $lon = (float) ($r['longt'] ?? 0);
+         if ($lat != 0.0 || $lon != 0.0) {
+            $nama = trim((string) ($r['nama'] ?? ''));
+            return [
+               'latt' => $lat,
+               'longt' => $lon,
+               'nama' => $nama !== '' ? $nama : 'Lokasi pelanggan',
+            ];
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * @return array{latt:float,longt:float,nama:string}|null
+    */
+   private function lokasiCoordsRow(int $idLokasi, int $idPelanggan): ?array
+   {
+      $lok = $this->db(0)->get_where_row(
+         'pelanggan_lokasi',
+         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . $idPelanggan
+      );
+      if (!is_array($lok) || empty($lok['id_lokasi'])) {
+         return null;
+      }
+      $lat = (float) ($lok['latt'] ?? 0);
+      $lon = (float) ($lok['longt'] ?? 0);
+      if ($lat == 0.0 && $lon == 0.0) {
+         return null;
+      }
+      $nama = trim((string) ($lok['nama'] ?? ''));
+      return [
+         'latt' => $lat,
+         'longt' => $lon,
+         'nama' => $nama !== '' ? $nama : 'Lokasi pelanggan',
+      ];
    }
 
    /**

@@ -17,7 +17,8 @@ $canCekDetail = !empty($data['canCekDetail']);
      data-lokasi-options-url="<?= URL::BASE_URL ?>Delivery/lokasi_options"
      data-tarik-lokasi-url="<?= URL::BASE_URL ?>Delivery/tarik_lokasi_request"
      data-share-lokasi-url="<?= URL::BASE_URL ?>Delivery/share_lokasi_request"
-     data-buat-manual-url="<?= URL::BASE_URL ?>Delivery/buat_manual">
+     data-buat-manual-url="<?= URL::BASE_URL ?>Delivery/buat_manual"
+     data-tarif-surcas-url="<?= URL::BASE_URL ?>Delivery/tarif_surcas">
   <style>
     #dlv-root {
       --dlv-ink: #0f172a;
@@ -539,6 +540,30 @@ $canCekDetail = !empty($data['canCekDetail']);
       box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
       border-color: var(--dlv-blue);
     }
+    #dlv-root .dlv-surcas-input-row {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+    #dlv-root .dlv-surcas-input-row .dlv-input {
+      flex: 1;
+      min-width: 0;
+    }
+    #dlv-root .dlv-surcas-tarif-btn {
+      flex-shrink: 0;
+      width: 40px;
+      padding: 0;
+      border: 1px solid #94a3b8;
+      background: #f8fafc;
+      color: var(--dlv-blue);
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    #dlv-root .dlv-surcas-tarif-btn:hover:not(:disabled) {
+      background: #eff6ff;
+      border-color: var(--dlv-blue);
+    }
+    #dlv-root .dlv-surcas-tarif-btn:disabled { opacity: 0.55; cursor: wait; }
     #dlv-root .dlv-hint {
       margin: 10px 0 0;
       font-size: 0.75rem;
@@ -1117,6 +1142,7 @@ $canCekDetail = !empty($data['canCekDetail']);
           <input type="hidden" id="dlvSelesaiRequestId" name="id_request" value="">
           <input type="hidden" id="dlvSelesaiLayanan" value="sameday">
           <input type="hidden" id="dlvSelesaiPhone" name="phone_tail" value="">
+          <input type="hidden" id="dlvSelesaiPelanggan" value="">
           <input type="hidden" id="dlvSelesaiPrefill" value="">
           <input type="hidden" id="dlvSelesaiJenisLocked" value="">
           <input type="hidden" id="dlvSelesaiSurcasBound" value="0">
@@ -1160,7 +1186,12 @@ $canCekDetail = !empty($data['canCekDetail']);
 
           <div id="dlvSurcasJemputRow" hidden>
             <label class="dlv-field-label mt-2" for="dlvSurcasJemputJumlah">Surcas Penjemputan</label>
-            <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+            <div class="dlv-surcas-input-row">
+              <input type="number" id="dlvSurcasJemputJumlah" name="jumlah_surcas_jemput" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+              <button type="button" class="dlv-surcas-tarif-btn" data-surcas-target="dlvSurcasJemputJumlah" title="Isi dari rumus ongkir" aria-label="Isi surcas dari rumus ongkir">
+                <i class="fas fa-route" aria-hidden="true"></i>
+              </button>
+            </div>
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasJemputHint">
               <i class="fas fa-info-circle me-1"></i>
               Wajib diisi. Isi nominal, atau 0 untuk gratis.
@@ -1169,7 +1200,12 @@ $canCekDetail = !empty($data['canCekDetail']);
 
           <div id="dlvSurcasAntarRow" hidden>
             <label class="dlv-field-label mt-2" for="dlvSurcasAntarJumlah">Surcas Pengantaran</label>
-            <input type="number" id="dlvSurcasAntarJumlah" name="jumlah_surcas_antar" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+            <div class="dlv-surcas-input-row">
+              <input type="number" id="dlvSurcasAntarJumlah" name="jumlah_surcas_antar" class="dlv-input" min="0" step="1000" placeholder="0 = gratis" inputmode="numeric">
+              <button type="button" class="dlv-surcas-tarif-btn" data-surcas-target="dlvSurcasAntarJumlah" title="Isi dari rumus ongkir" aria-label="Isi surcas dari rumus ongkir">
+                <i class="fas fa-route" aria-hidden="true"></i>
+              </button>
+            </div>
             <p class="dlv-hint mt-1 mb-0" id="dlvSurcasAntarHint">
               <i class="fas fa-info-circle me-1"></i>
               Wajib diisi. Isi nominal, atau 0 untuk gratis.
@@ -1483,7 +1519,9 @@ $canCekDetail = !empty($data['canCekDetail']);
   var shareLokasiUrl = root.getAttribute('data-share-lokasi-url') || '';
   var buatManualUrl = root.getAttribute('data-buat-manual-url') || '';
   var boardUrl = root.getAttribute('data-board-url') || '';
+  var tarifSurcasUrl = root.getAttribute('data-tarif-surcas-url') || '';
   var boardLoading = false;
+  var tarifSurcasLoading = false;
   var karyawanSelectize = null;
   var terimaPakaiKaryawanSelectize = null;
   var batalKaryawanSelectize = null;
@@ -1578,6 +1616,55 @@ $canCekDetail = !empty($data['canCekDetail']);
 
   function fmtRp(n) {
     return 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+  }
+
+  function fillDlvSurcasFromTarif(inputId, btn) {
+    if (tarifSurcasLoading) return;
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var idPel = parseInt((document.getElementById('dlvSelesaiPelanggan') || {}).value || '0', 10) || 0;
+    var idReq = parseInt((document.getElementById('dlvSelesaiRequestId') || {}).value || '0', 10) || 0;
+    var phone = String((document.getElementById('dlvSelesaiPhone') || {}).value || '').trim();
+    if (!tarifSurcasUrl) {
+      toast('Endpoint tarif tidak tersedia', 'error');
+      return;
+    }
+    if (idPel <= 0 && !phone) {
+      toast('Pelanggan tidak valid', 'warn');
+      return;
+    }
+    var q = [];
+    if (idPel > 0) q.push('id_pelanggan=' + encodeURIComponent(String(idPel)));
+    if (idReq > 0) q.push('id_request=' + encodeURIComponent(String(idReq)));
+    if (phone) q.push('phone_tail=' + encodeURIComponent(phone));
+    tarifSurcasLoading = true;
+    if (btn) btn.disabled = true;
+    fetch(tarifSurcasUrl + '?' + q.join('&'), {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          toast((res && res.message) || 'Lokasi pelanggan belum ada', 'warn');
+          return;
+        }
+        var tarif = parseInt((res.data && res.data.tarif) || 0, 10) || 0;
+        input.value = String(tarif);
+        input.dataset.userEdited = '1';
+        if (inputId === 'dlvSurcasJemputJumlah') syncSurcasAntarUi();
+        var km = res.data && res.data.km;
+        var lok = res.data && res.data.lokasi_nama;
+        var msg = 'Surcas diisi ' + fmtRp(tarif);
+        if (km != null && km !== '') msg += ' · ' + km + ' km';
+        if (lok) msg += ' · ' + lok;
+        toast(msg, 'ok');
+      })
+      .catch(function () { toast('Gagal hitung tarif', 'error'); })
+      .finally(function () {
+        tarifSurcasLoading = false;
+        if (btn) btn.disabled = false;
+      });
   }
 
   function fmtTime(t) {
@@ -1786,6 +1873,8 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
     setJenisLocked('');
     if (phone) phone.value = '';
+    var pelEl = document.getElementById('dlvSelesaiPelanggan');
+    if (pelEl) pelEl.value = '';
     if (modeEl) modeEl.value = 'crm';
     if (reqEl) reqEl.value = '';
     if (layananEl) layananEl.value = 'sameday';
@@ -2600,6 +2689,9 @@ $canCekDetail = !empty($data['canCekDetail']);
     resetSelesaiForm();
     document.getElementById('dlvSelesaiMode').value = 'crm';
     document.getElementById('dlvSelesaiPhone').value = phone;
+    var idPel = parseInt(btn.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+    var pelEl = document.getElementById('dlvSelesaiPelanggan');
+    if (pelEl) pelEl.value = idPel > 0 ? String(idPel) : '';
     var sub = document.getElementById('dlvSelesaiSub');
     if (sub) sub.textContent = nama + ' · ' + phone + ' · CRM';
     var title = document.getElementById('dlvSelesaiTitle');
@@ -2624,6 +2716,13 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (surcasBoundEl) surcasBoundEl.value = surcasBound ? '1' : '0';
     document.getElementById('dlvSelesaiRequestId').value = idReq;
     document.getElementById('dlvSelesaiPhone').value = phone;
+    var idPel = parseInt(btn.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+    if (idPel <= 0) {
+      var reqEl = btn.closest('[data-id-pelanggan]');
+      if (reqEl) idPel = parseInt(reqEl.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+    }
+    var pelEl = document.getElementById('dlvSelesaiPelanggan');
+    if (pelEl) pelEl.value = idPel > 0 ? String(idPel) : '';
     document.getElementById('dlvSelesaiPrefill').value = prefill;
     var layananEl = document.getElementById('dlvSelesaiLayanan');
     if (layananEl) layananEl.value = layanan;
@@ -3471,6 +3570,13 @@ $canCekDetail = !empty($data['canCekDetail']);
       this.dataset.userEdited = '1';
     });
   }
+
+  root.querySelectorAll('.dlv-surcas-tarif-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-surcas-target') || '';
+      if (target) fillDlvSurcasFromTarif(target, btn);
+    });
+  });
 
   var sekalianCheck = document.getElementById('dlvSekalianCheck');
   if (sekalianCheck) {
