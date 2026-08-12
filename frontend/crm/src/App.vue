@@ -100,8 +100,38 @@ const currentPollingInterval = ref(30000); // Start with 30s
 const chatPollingInterval = ref(null);
 const localLastMessageAt = ref(null);
 const chatPollingPhone = ref(null); // Store phone being polled
+const isChatPolling = ref(false); // true while active-chat poll request in flight
+const isChatPollIdlePaused = ref(false); // true when poll stopped because user idle
+const chatPollBarHideTimer = ref(null);
+const CHAT_POLL_BAR_MIN_MS = 900; // API lokal terlalu cepat — bar perlu durasi minimum
 const CHAT_POLL_IDLE_MS = 5 * 60 * 1000; // Keep polling while chat open; pause only after long idle
 
+const showChatPollBar = () => {
+  if (chatPollBarHideTimer.value) {
+    clearTimeout(chatPollBarHideTimer.value);
+    chatPollBarHideTimer.value = null;
+  }
+  isChatPollIdlePaused.value = false;
+  isChatPolling.value = true;
+};
+
+const hideChatPollBar = (startedAt) => {
+  // If polling already stopped (idle/close), don't re-show via delayed hide
+  if (!chatPollingInterval.value) {
+    isChatPolling.value = false;
+    if (chatPollBarHideTimer.value) {
+      clearTimeout(chatPollBarHideTimer.value);
+      chatPollBarHideTimer.value = null;
+    }
+    return;
+  }
+  const remaining = Math.max(0, CHAT_POLL_BAR_MIN_MS - (Date.now() - startedAt));
+  if (chatPollBarHideTimer.value) clearTimeout(chatPollBarHideTimer.value);
+  chatPollBarHideTimer.value = setTimeout(() => {
+    isChatPolling.value = false;
+    chatPollBarHideTimer.value = null;
+  }, remaining);
+};
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'touchmove'];
@@ -1989,6 +2019,7 @@ const syncActiveChatMessages = async (chat, { forceScroll = false } = {}) => {
 // Poll open chat for new messages every 5 seconds
 const startChatPolling = (phone) => {
   stopChatPolling();
+  isChatPollIdlePaused.value = false;
   chatPollingPhone.value = phone;
 
   const chat = conversations.value.find((c) => c.wa_number === phone);
@@ -2009,13 +2040,15 @@ const startChatPolling = (phone) => {
         Math.round(idleTime / 1000),
         "seconds"
       );
-      stopChatPolling();
+      stopChatPolling({ reason: "idle" }); // bar jadi warna idle; gerak mouse untuk aktif lagi
       return;
     }
 
     const chat = conversations.value.find((c) => c.wa_number === phone);
     if (!chat || chat.id !== activeChatId.value) return;
 
+    const pollStartedAt = Date.now();
+    showChatPollBar();
     try {
       let serverLastMessageAt = null;
       const metaRes = await fetch(
@@ -2040,6 +2073,8 @@ const startChatPolling = (phone) => {
       }
     } catch (error) {
       console.error("Failed to poll/sync active chat:", error);
+    } finally {
+      hideChatPollBar(pollStartedAt);
     }
   };
 
@@ -2049,12 +2084,20 @@ const startChatPolling = (phone) => {
 };
 
 // Stop chat polling (keeps chatPollingPhone so we can restart when user becomes active again)
-const stopChatPolling = () => {
+const stopChatPolling = ({ reason } = {}) => {
   if (chatPollingInterval.value) {
     clearInterval(chatPollingInterval.value);
     chatPollingInterval.value = null;
   }
   localLastMessageAt.value = null;
+  if (chatPollBarHideTimer.value) {
+    clearTimeout(chatPollBarHideTimer.value);
+    chatPollBarHideTimer.value = null;
+  }
+  // Idle/close: animasi aktif harus ikut mati, jangan tertahan min-duration timer
+  isChatPolling.value = false;
+  // Idle: biarkan bar full dengan warna khusus; close chat: hilangkan indikator
+  isChatPollIdlePaused.value = reason === "idle";
   // Don't clear chatPollingPhone - needed for restart when user becomes active after idle
 };
 
@@ -2243,6 +2286,7 @@ watch(lastActivityTime, () => {
     // Only restart if user is not idle
     if (idleTime < CHAT_POLL_IDLE_MS) {
       console.log('▶️ Restarting chat polling - user active again');
+      isChatPollIdlePaused.value = false;
       startChatPolling(chatPollingPhone.value);
     }
   }
@@ -5245,6 +5289,8 @@ const handleLinkClick = (e) => {
       :is-loading-messages="isLoadingMessages"
       :is-loading-more-messages="isLoadingMoreMessages"
       :is-connected="isConnected"
+      :is-chat-polling="isChatPolling"
+      :is-chat-poll-idle-paused="isChatPollIdlePaused"
       :font-size="fontSize"
       @back-to-menu="backToMenu"
       @load-more-messages="loadMoreMessages"

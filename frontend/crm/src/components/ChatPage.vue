@@ -66,6 +66,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  isChatPolling: {
+    type: Boolean,
+    default: false,
+  },
+  isChatPollIdlePaused: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Computed font size class based on prop
@@ -978,6 +986,21 @@ onUnmounted(() => {
                          </div>
                     </div>
                </div>
+               <div
+                 class="absolute bottom-0 inset-x-0 h-[3px] overflow-hidden pointer-events-none transition-colors"
+                 :class="isChatPollIdlePaused ? 'bg-amber-500' : 'bg-[var(--wa-border)]'"
+                 :title="isChatPollIdlePaused ? 'Polling paused — move mouse or touch to resume' : ''"
+                 aria-hidden="true"
+               >
+                 <div
+                   v-if="isChatPolling"
+                   class="chat-poll-bar h-full w-1/3 bg-[var(--wa-accent-green)]"
+                 />
+                 <div
+                   v-else-if="isChatPollIdlePaused"
+                   class="chat-poll-idle-bar h-full w-full bg-amber-500"
+                 />
+               </div>
           </header>
 
          <!-- Messages -->
@@ -1481,3 +1504,31 @@ onUnmounted(() => {
     </div>
     </main>
 </template>
+
+<style scoped>
+@keyframes chat-poll-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.chat-poll-bar {
+  animation: chat-poll-indeterminate 0.85s ease-in-out infinite;
+}
+
+@keyframes chat-poll-idle-pulse {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chat-poll-idle-bar {
+  animation: chat-poll-idle-pulse 1.6s ease-in-out infinite;
+}
+</style>
