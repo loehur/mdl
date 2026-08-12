@@ -128,6 +128,7 @@ class Controller extends URL
     /**
      * Pembayaran order (kas jenis_transaksi = 1) dengan status_mutasi = 2 masih menunggu verifikasi.
      * Dipanggil saat order dituntaskan agar entri pending tidak tertinggal.
+     * QRIS paid/pending/unknown tidak dihapus.
      */
     protected function hapusKasPembayaranPengecekanOrder($ref)
     {
@@ -140,30 +141,19 @@ class Controller extends URL
         $refSql = "'" . $db->escape($ref) . "'";
         $where = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = $refSql AND status_mutasi = 2";
 
-        $rows = $db->get_where('kas', $where);
-        if (empty($rows)) {
+        $result = $this->deleteKasSafe($where, false);
+        if (!$result['ok']) {
+            $this->model('Log')->write("[hapusKasPembayaranPengecekanOrder] Delete kas error ref=$ref: " . ($result['error'] ?? ''));
             return;
         }
 
-        $refFinances = [];
-        foreach ($rows as $r) {
-            if (!empty($r['ref_finance'])) {
-                $refFinances[$r['ref_finance']] = true;
-            }
-        }
-
-        $del = $db->delete('kas', $where);
-        if (isset($del['errno']) && $del['errno'] != 0) {
-            $this->model('Log')->write("[hapusKasPembayaranPengecekanOrder] Delete kas error ref=$ref: " . ($del['error'] ?? ''));
-            return;
-        }
-
-        foreach (array_keys($refFinances) as $rf) {
-            $rfEsc = $db->escape($rf);
-            try {
-                $this->db(100)->delete('wh_midtrans', "ref_id = '$rfEsc'");
-            } catch (\Throwable $e) {
-            }
+        $kept = (int) $result['kept_paid'] + (int) $result['kept_pending'] + (int) $result['kept_unknown'] + (int) $result['kept_lunas'];
+        if ($kept > 0) {
+            $this->model('Log')->write(
+                "[hapusKasPembayaranPengecekanOrder] QRIS dilindungi ref=$ref"
+                . " deleted={$result['deleted']} paid={$result['kept_paid']}"
+                . " pending={$result['kept_pending']} unknown={$result['kept_unknown']}"
+            );
         }
     }
 

@@ -1996,7 +1996,10 @@
           if (!data || !data.ok) {
             throw new Error((data && data.message) || 'Gagal bayar Saldo');
           }
-          toast(data.message || 'Pembayaran Saldo berhasil', 'ok');
+          toast(
+            data.message || (data.paid ? 'Pembayaran QRIS sudah berhasil' : 'Pembayaran Saldo berhasil'),
+            'ok'
+          );
           loadPage('kurir', '', false);
         })
         .catch(function (err) {
@@ -2065,7 +2068,10 @@
         if (!data || !data.ok) {
           throw new Error((data && data.message) || 'Gagal membatalkan');
         }
-        toast(data.message || 'Dibatalkan', 'ok');
+        toast(
+          data.message || (data.paid ? 'Pembayaran QRIS sudah berhasil, tidak dibatalkan' : 'Dibatalkan'),
+          'ok'
+        );
         loadPage('kurir', '', false);
       })
       .catch(function (err) {

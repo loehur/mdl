@@ -76,9 +76,9 @@ class HapusOrder extends Controller
          $dataRef = unserialize($_POST['dataRef']);
          foreach ($dataRef as $a) {
 
-            //KAS
-            $where = $this->wCabang . " AND ref_transaksi = '" . $a . "' AND jenis_transaksi = " . $transaksi;
-            $this->db(0)->delete('kas', $where);
+            //KAS (QRIS paid/pending/unknown tidak dihapus)
+            $where = $this->wCabang . " AND ref_transaksi = '" . $this->db(0)->escape($a) . "' AND jenis_transaksi = " . (int) $transaksi;
+            $this->deleteKasSafe($where, false);
 
             //NOTIF_BON
             $where = $this->wCabang . " AND no_ref = '" . $a . "' AND tipe = 1";

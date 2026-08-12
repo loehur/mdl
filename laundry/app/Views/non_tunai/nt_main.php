@@ -203,6 +203,11 @@ if (count($data['cek']) == 0) { ?>
       data: { id: tolakData.id },
       type: "POST",
       success: function(response) {
+        if (String(response).trim() !== '0') {
+          alert(String(response || 'Gagal menolak transaksi').trim());
+          btn.prop('disabled', false).html('<i class="fas fa-times"></i>');
+          return;
+        }
         btn.closest('.list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {
@@ -227,6 +232,11 @@ if (count($data['cek']) == 0) { ?>
       data: { id: $(this).attr('data-id') },
       type: "POST",
       success: function(response) {
+        if (String(response).trim() !== '0') {
+          alert(String(response || 'Gagal konfirmasi transaksi').trim());
+          btn.prop('disabled', false).html('<i class="fas fa-check"></i>');
+          return;
+        }
         btn.closest('.list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {

@@ -22,66 +22,75 @@ class NonTunai extends Controller
    public function operasi($tipe)
    {
       $id = $_POST['id'];
-      $set = [
-         'status_mutasi' => $tipe
-      ];
-      $where = $this->wCabang . " AND ref_finance = '" . $id . "'";
-      $up = $this->db(0)->update('kas', $set, $where);
-      if($up['errno'] <> 0){
-         $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
-         return $up['error'];
-      }else{
-         // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
-         try {
-            // Get nomor_pelanggan from kas table using ref_finance
-            $kasData = $this->db(0)->get_where_row('kas', "ref_finance = '$id'");
-            
-            if ($kasData && isset($kasData['id_client'])) {
-               $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
-               
-               if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
-                  // Format nomor dengan berbagai variasi (+62, 62, 08)
-                  $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan['nomor_pelanggan']);
-                  $phone08 = '0' . substr($cleanPhone, -10);
-                  $phone62 = '62' . substr($cleanPhone, -10);
-                  $phonePlus62 = '+62' . substr($cleanPhone, -10);
-                  
-                  $phones = ["'$phone08'", "'$phone62'", "'$phonePlus62'"];
-                  $phoneIn = implode(',', $phones);
-                  
-                  // Update priority dari 2 (payment check) menjadi 0 (done)
-                  $this->db(100)->query(
-                     "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
-                  );
-                     
-                  // Broadcast WebSocket ke semua agent
-                  $payload = [
-                     'type' => 'priority_updated',
-                     'phone' => $phonePlus62,
-                     'priority' => 0,
-                     'target_id' => '0', // Broadcast to all
-                     'sender_id' => 'system'
-                  ];
-                  
-                  // Log payload sebelum push
-                  $this->model('Log')->write('[NonTunai::operasi] Attempting WebSocket push. Payload: ' . json_encode($payload) . ' | Phone: ' . $phonePlus62);
-                  
-                  // Push to WebSocket server
-                  $wsResult = $this->pushToWebSocket($payload);
-                  
-                  // Log hasil push
-                  $this->model('Log')->write('[NonTunai::operasi] WebSocket push result: ' . ($wsResult ? $wsResult : 'NULL/EMPTY'));
-               }
-            }
-         } catch (\Exception $e) {
-            $this->model('Log')->write("[NonTunai::operasi] WA conversation error: " . $e->getMessage());
-         } catch (\Error $e) {
-            $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
-         }
-         
-         // Note: Moota integration removed - no wh_moota cleanup needed
+      $tipe = (int) $tipe;
+      $idEsc = $this->db(0)->escape((string) $id);
+      $where = $this->wCabang . " AND ref_finance = '" . $idEsc . "'";
+      $kas = $this->db(0)->get_where_row('kas', $where);
+      if (!$kas || empty($kas['id_kas'])) {
+         echo 'Transaksi tidak ditemukan';
+         return;
       }
-      return 0;
+
+      $guard = $this->guardQrisStatusChange($kas, $tipe, false);
+      if (empty($guard['ok'])) {
+         echo $guard['msg'] ?: 'QRIS tidak dapat diubah';
+         return;
+      }
+
+      if (empty($guard['paid']) || $tipe !== 3) {
+         $set = [
+            'status_mutasi' => $tipe
+         ];
+         $up = $this->db(0)->update('kas', $set, $where);
+         if($up['errno'] <> 0){
+            $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
+            echo $up['error'];
+            return;
+         }
+      }
+
+      // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
+      try {
+         $kasData = $this->db(0)->get_where_row('kas', $where);
+
+         if ($kasData && isset($kasData['id_client'])) {
+            $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
+
+            if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
+               $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan['nomor_pelanggan']);
+               $phone08 = '0' . substr($cleanPhone, -10);
+               $phone62 = '62' . substr($cleanPhone, -10);
+               $phonePlus62 = '+62' . substr($cleanPhone, -10);
+
+               $phones = ["'$phone08'", "'$phone62'", "'$phonePlus62'"];
+               $phoneIn = implode(',', $phones);
+
+               $this->db(100)->query(
+                  "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
+               );
+
+               $payload = [
+                  'type' => 'priority_updated',
+                  'phone' => $phonePlus62,
+                  'priority' => 0,
+                  'target_id' => '0',
+                  'sender_id' => 'system'
+               ];
+
+               $this->model('Log')->write('[NonTunai::operasi] Attempting WebSocket push. Payload: ' . json_encode($payload) . ' | Phone: ' . $phonePlus62);
+
+               $wsResult = $this->pushToWebSocket($payload);
+
+               $this->model('Log')->write('[NonTunai::operasi] WebSocket push result: ' . ($wsResult ? $wsResult : 'NULL/EMPTY'));
+            }
+         }
+      } catch (\Exception $e) {
+         $this->model('Log')->write("[NonTunai::operasi] WA conversation error: " . $e->getMessage());
+      } catch (\Error $e) {
+         $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
+      }
+
+      echo 0;
    }
 
 

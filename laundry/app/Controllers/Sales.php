@@ -640,28 +640,37 @@ class Sales extends Controller
              throw new Exception('ID Kas tidak valid');
           }
           
-          // Cek apakah status_mutasi = 3 (tidak boleh dihapus)
-          $kas = $this->db(0)->get_where_row('kas', "id_kas = '$id_kas'");
-          
+          $idEsc = $this->db(0)->escape((string) $id_kas);
+          $where = "id_kas = '$idEsc'";
+          if (!empty($this->wCabang)) {
+             $where = $this->wCabang . " AND " . $where;
+          }
+
+          $kas = $this->db(0)->get_where_row('kas', $where);
           if (!$kas) {
              throw new Exception('Data tidak ditemukan');
           }
-          
-          // Cek field status_mutasi
-          if (isset($kas['status_mutasi']) && $kas['status_mutasi'] == 3) {
+
+          $result = $this->deleteKasSafe($where, false);
+          if (!empty($result['kept_lunas'])) {
              throw new Exception('Tidak dapat menghapus pembayaran yang sudah LUNAS');
           }
-          
-          // Hapus data
-          $delete = $this->db(0)->delete('kas', "id_kas = '$id_kas'");
-          
-          if (isset($delete['errno']) && $delete['errno'] == 0) {
-             $response = ['status' => 'success', 'message' => 'Pembayaran berhasil dihapus'];
-          } else {
-             $errorMsg = $delete['error'] ?? 'Unknown DB Error';
-             $this->model('Log')->write("[Sales::hapusPayment] Delete error: " . $errorMsg);
-             throw new Exception('Gagal menghapus pembayaran: ' . $errorMsg);
+          if (!empty($result['kept_paid'])) {
+             throw new Exception($result['msg'] ?: 'Pembayaran sudah lunas di QRIS, tidak dihapus');
           }
+          if (!empty($result['kept_pending']) || !empty($result['kept_unknown'])) {
+             throw new Exception($result['msg'] ?: 'QRIS masih aktif, tidak dapat dihapus');
+          }
+          if (!$result['ok']) {
+             $errorMsg = $result['error'] ?: 'Unknown DB Error';
+             $this->model('Log')->write("[Sales::hapusPayment] Delete error: " . $errorMsg);
+             throw new Exception($errorMsg);
+          }
+          if ((int) $result['deleted'] <= 0) {
+             throw new Exception('Data tidak ditemukan');
+          }
+
+          $response = ['status' => 'success', 'message' => 'Pembayaran berhasil dihapus'];
       } catch (\Throwable $e) {
           $this->model('Log')->write("[Sales::hapusPayment] Error: " . $e->getMessage());
           $response = ['status' => 'error', 'message' => $e->getMessage()];

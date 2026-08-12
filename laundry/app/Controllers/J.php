@@ -2531,11 +2531,30 @@ class J extends Controller
 
       $refOld = trim((string) ($req['payment_ref_finance'] ?? ''));
       if ($refOld !== '') {
-         $this->db(0)->delete(
-            'kas',
+         $delOld = $this->deleteKasSafe(
             "ref_finance = '" . $this->db(0)->escape($refOld)
-               . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+               . "' AND jenis_transaksi = 10 AND status_mutasi = 2",
+            true
          );
+         if (!empty($delOld['kept_paid'])) {
+            echo json_encode([
+               'ok' => true,
+               'paid' => true,
+               'message' => $delOld['msg'] ?: 'Pembayaran QRIS sudah berhasil. Order Instant diproses.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+         }
+         if (!empty($delOld['kept_pending']) || !empty($delOld['kept_unknown'])) {
+            echo json_encode([
+               'ok' => false,
+               'message' => $delOld['msg'] ?: 'QRIS masih aktif. Tidak bisa ganti ke Saldo.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+         }
+         if (!$delOld['ok'] && !empty($delOld['error'])) {
+            echo json_encode(['ok' => false, 'message' => $delOld['error']], JSON_UNESCAPED_UNICODE);
+            return;
+         }
       }
 
       $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
@@ -2603,16 +2622,36 @@ class J extends Controller
       $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
       $refFinance = trim((string) ($req['payment_ref_finance'] ?? ''));
       if ($refFinance !== '') {
-         $this->db(0)->delete(
-            'kas',
+         $delKas = $this->deleteKasSafe(
             "ref_finance = '" . $this->db(0)->escape($refFinance)
-               . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+               . "' AND jenis_transaksi = 10 AND status_mutasi = 2",
+            true
          );
       } else {
-         $this->db(0)->delete(
-            'kas',
-            "ref_transaksi = '" . $idRequest . "' AND jenis_transaksi = 10 AND status_mutasi = 2"
+         $delKas = $this->deleteKasSafe(
+            "ref_transaksi = '" . $this->db(0)->escape((string) $idRequest)
+               . "' AND jenis_transaksi = 10 AND status_mutasi = 2",
+            true
          );
+      }
+      if (!empty($delKas['kept_paid'])) {
+         echo json_encode([
+            'ok' => true,
+            'paid' => true,
+            'message' => $delKas['msg'] ?: 'Pembayaran QRIS sudah berhasil, tidak dibatalkan.',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+      if (!empty($delKas['kept_pending']) || !empty($delKas['kept_unknown'])) {
+         echo json_encode([
+            'ok' => false,
+            'message' => $delKas['msg'] ?: 'QRIS masih aktif, tidak dapat dibatalkan.',
+         ], JSON_UNESCAPED_UNICODE);
+         return;
+      }
+      if (!$delKas['ok'] && !empty($delKas['error'])) {
+         echo json_encode(['ok' => false, 'message' => $delKas['error']], JSON_UNESCAPED_UNICODE);
+         return;
       }
 
       $upd = $this->db(0)->update(

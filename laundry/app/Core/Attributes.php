@@ -933,12 +933,244 @@ trait Attributes
    }
 
    /**
+    * Hapus kas secara aman (global laundry).
+    * QRIS lunas / masih pending / status gateway tidak jelas → jangan hapus.
+    * QRIS expired atau belum pernah generate QR → boleh hapus.
+    *
+    * @return array{
+    *   ok:bool,action:string,deleted:int,kept_paid:int,kept_pending:int,
+    *   kept_lunas:int,kept_unknown:int,msg:string,errno:int,error:string
+    * }
+    */
+   protected function deleteKasSafe($where, $is_public = false)
+   {
+      $empty = [
+         'ok' => true,
+         'action' => 'empty',
+         'deleted' => 0,
+         'kept_paid' => 0,
+         'kept_pending' => 0,
+         'kept_lunas' => 0,
+         'kept_unknown' => 0,
+         'msg' => '',
+         'errno' => 0,
+         'error' => '',
+      ];
+
+      $where = trim((string) $where);
+      if ($where === '') {
+         $empty['ok'] = false;
+         $empty['action'] = 'error';
+         $empty['error'] = 'Where kas kosong';
+         return $empty;
+      }
+
+      $rows = $this->db(0)->get_where('kas', $where);
+      if (!is_array($rows) || empty($rows)) {
+         return $empty;
+      }
+
+      $groups = [];
+      foreach ($rows as $row) {
+         $rf = trim((string) ($row['ref_finance'] ?? ''));
+         $key = $rf !== '' ? ('rf:' . $rf) : ('id:' . ($row['id_kas'] ?? uniqid('kas', true)));
+         if (!isset($groups[$key])) {
+            $groups[$key] = [];
+         }
+         $groups[$key][] = $row;
+      }
+
+      $toDeleteIds = [];
+      $deletedRefs = [];
+      $result = $empty;
+      $result['action'] = 'deleted';
+
+      foreach ($groups as $groupRows) {
+         $sample = $groupRows[0];
+         $decision = $this->classifyKasDeleteSafety($sample, $is_public);
+         $action = $decision['action'] ?? 'delete';
+         if ($decision['msg'] !== '' && $result['msg'] === '') {
+            $result['msg'] = $decision['msg'];
+         }
+
+         if ($action === 'delete') {
+            foreach ($groupRows as $row) {
+               $idKas = trim((string) ($row['id_kas'] ?? ''));
+               if ($idKas !== '') {
+                  $toDeleteIds[$idKas] = true;
+               }
+               $rf = trim((string) ($row['ref_finance'] ?? ''));
+               if ($rf !== '') {
+                  $deletedRefs[$rf] = true;
+               }
+            }
+            continue;
+         }
+
+         if ($action === 'keep_paid') {
+            $result['kept_paid']++;
+         } elseif ($action === 'keep_pending') {
+            $result['kept_pending']++;
+         } elseif ($action === 'keep_lunas') {
+            $result['kept_lunas']++;
+         } else {
+            $result['kept_unknown']++;
+         }
+      }
+
+      $keptTotal = $result['kept_paid'] + $result['kept_pending'] + $result['kept_lunas'] + $result['kept_unknown'];
+      if (empty($toDeleteIds)) {
+         $result['action'] = $result['kept_paid'] > 0 ? 'paid'
+            : ($result['kept_lunas'] > 0 ? 'lunas' : 'blocked');
+         return $result;
+      }
+
+      $idList = [];
+      foreach (array_keys($toDeleteIds) as $idKas) {
+         $idList[] = "'" . $this->db(0)->escape($idKas) . "'";
+      }
+      $deleteWhere = 'id_kas IN (' . implode(',', $idList) . ')';
+      $deleteKas = $this->db(0)->delete('kas', $deleteWhere);
+      if (isset($deleteKas['errno']) && (int) $deleteKas['errno'] !== 0) {
+         if (!$is_public) {
+            $this->model('Log')->write('[deleteKasSafe] Delete error: ' . ($deleteKas['error'] ?? ''));
+         }
+         $result['ok'] = false;
+         $result['action'] = 'error';
+         $result['errno'] = (int) $deleteKas['errno'];
+         $result['error'] = 'Gagal menghapus data kas: ' . ($deleteKas['error'] ?? '');
+         $result['msg'] = $result['error'];
+         return $result;
+      }
+
+      $result['deleted'] = count($toDeleteIds);
+      foreach (array_keys($deletedRefs) as $rf) {
+         try {
+            $rfEsc = $this->db(0)->escape($rf);
+            $this->db(100)->delete('wh_midtrans', "ref_id = '$rfEsc'");
+         } catch (\Throwable $e) {
+         }
+      }
+
+      if ($keptTotal > 0) {
+         $result['action'] = 'partial';
+      }
+      return $result;
+   }
+
+   /**
+    * @return array{action:string,msg:string} delete|keep_paid|keep_pending|keep_lunas|keep_unknown
+    */
+   protected function classifyKasDeleteSafety($kas, $is_public = false)
+   {
+      if (!$kas || !is_array($kas)) {
+         return ['action' => 'delete', 'msg' => ''];
+      }
+
+      if ((int) ($kas['status_mutasi'] ?? 0) === 3) {
+         return ['action' => 'keep_lunas', 'msg' => 'Transaksi sudah berhasil, tidak dapat dihapus'];
+      }
+
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      if ($note !== 'QRIS') {
+         return ['action' => 'delete', 'msg' => ''];
+      }
+
+      $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
+      $qrString = trim((string) ($kas['payment_qr_string'] ?? ''));
+      if ($trxId === '' && $qrString === '') {
+         return ['action' => 'delete', 'msg' => ''];
+      }
+      if ($trxId === '') {
+         return [
+            'action' => 'keep_unknown',
+            'msg' => 'QRIS sudah digenerate, tidak dapat dihapus tanpa konfirmasi gateway',
+         ];
+      }
+
+      $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
+      $bucket = $this->probeQrisGatewayBucket($kas, $refFinance, $is_public);
+      if ($bucket === 'paid') {
+         if ($this->applyQrisPaidToKas($kas, $refFinance, $is_public)) {
+            return [
+               'action' => 'keep_paid',
+               'msg' => 'Pembayaran sudah berhasil di QRIS. Status diperbarui (tidak dihapus).',
+            ];
+         }
+         return [
+            'action' => 'keep_unknown',
+            'msg' => 'QRIS sudah terbayar di gateway, tapi gagal update status. Tidak dihapus.',
+         ];
+      }
+      if ($bucket === 'expired') {
+         return ['action' => 'delete', 'msg' => ''];
+      }
+      if ($bucket === 'pending') {
+         return [
+            'action' => 'keep_pending',
+            'msg' => 'QRIS masih aktif di gateway. Tidak dapat dihapus sampai expired atau terbayar.',
+         ];
+      }
+
+      return [
+         'action' => 'keep_unknown',
+         'msg' => 'Status QRIS tidak dapat dipastikan. Tidak dihapus demi keamanan.',
+      ];
+   }
+
+   /**
+    * Cegah terima/tolak NonTunai yang menabrak status QRIS di gateway.
+    * @return array{ok:bool,msg:string,paid:bool}
+    */
+   protected function guardQrisStatusChange($kas, $newStatus, $is_public = false)
+   {
+      $newStatus = (int) $newStatus;
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      if ($note !== 'QRIS') {
+         return ['ok' => true, 'msg' => '', 'paid' => false];
+      }
+      if ((int) ($kas['status_mutasi'] ?? 0) === 3) {
+         return ['ok' => $newStatus === 3, 'msg' => 'QRIS sudah lunas', 'paid' => true];
+      }
+
+      $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
+      $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
+      if ($trxId === '') {
+         if ($newStatus === 3) {
+            return ['ok' => false, 'msg' => 'QRIS belum digenerate, tidak bisa dikonfirmasi lunas', 'paid' => false];
+         }
+         return ['ok' => true, 'msg' => '', 'paid' => false];
+      }
+
+      $bucket = $this->probeQrisGatewayBucket($kas, $refFinance, $is_public);
+      if ($bucket === 'paid') {
+         $synced = $this->applyQrisPaidToKas($kas, $refFinance, $is_public);
+         if ($newStatus === 3 && $synced) {
+            return ['ok' => true, 'msg' => '', 'paid' => true];
+         }
+         return ['ok' => false, 'msg' => 'QRIS sudah terbayar di gateway, tidak dapat ditolak', 'paid' => true];
+      }
+      if ($bucket === 'expired') {
+         if ($newStatus === 4) {
+            return ['ok' => true, 'msg' => '', 'paid' => false];
+         }
+         return ['ok' => false, 'msg' => 'QRIS sudah expired/gagal, tidak bisa dikonfirmasi lunas', 'paid' => false];
+      }
+      if ($bucket === 'pending') {
+         return ['ok' => false, 'msg' => 'QRIS masih pending di gateway. Cek status atau tunggu webhook.', 'paid' => false];
+      }
+
+      return ['ok' => false, 'msg' => 'Status QRIS tidak dapat dipastikan. Coba lagi.', 'paid' => false];
+   }
+
+   /**
     * Batalkan pembayaran pending. Jika QRIS sudah Success di gateway, sync jadi lunas
     * (jangan hapus kas) agar uang masuk tidak orphan dari tagihan.
     */
    public function cancel_payment_logic($ref_finance, $is_public = false)
    {
-      $where = "ref_finance = '" . $ref_finance . "'";
+      $refEsc = $this->db(0)->escape((string) $ref_finance);
+      $where = "ref_finance = '" . $refEsc . "'";
       if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
          $where = $this->wCabang . " AND " . $where;
       }
@@ -955,38 +1187,36 @@ trait Attributes
          exit();
       }
 
-      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
-      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
-      if ($note === 'QRIS' && $payment_trx_id !== '') {
-         if ($this->syncQrisPaidFromGateway($kas, $ref_finance, $is_public)) {
-            echo json_encode([
-               'status' => 'paid',
-               'msg' => 'Pembayaran sudah berhasil di QRIS. Status tagihan diperbarui (tidak dibatalkan).'
-            ]);
-            exit();
-         }
-      }
+      $result = $this->deleteKasSafe($where, $is_public);
 
-      $deleteWhere = "ref_finance = '$ref_finance'";
-      if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
-         $deleteWhere = $this->wCabang . " AND " . $deleteWhere;
-      }
-
-      $deleteKas = $this->db(0)->delete('kas', $deleteWhere);
-      if ($deleteKas['errno'] != 0) {
-         if (!$is_public) {
-            $this->model('Log')->write('[cancel_payment] Delete Kas Error: ' . $deleteKas['error']);
-         }
-         echo json_encode(['status' => 'error', 'msg' => 'Gagal menghapus data kas: ' . $deleteKas['error']]);
+      if (!empty($result['kept_paid'])) {
+         echo json_encode([
+            'status' => 'paid',
+            'msg' => $result['msg'] ?: 'Pembayaran sudah berhasil di QRIS. Status tagihan diperbarui (tidak dibatalkan).'
+         ]);
          exit();
       }
 
-      try {
-         $this->db(100)->delete('wh_midtrans', "ref_id = '$ref_finance'");
-      } catch (Exception $e) {
+      if (!empty($result['kept_lunas']) && (int) $result['deleted'] === 0) {
+         echo json_encode(['status' => 'error', 'msg' => 'Transaksi sudah berhasil, tidak dapat dibatalkan']);
+         exit();
       }
 
-      echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
+      if (!$result['ok']) {
+         echo json_encode(['status' => 'error', 'msg' => $result['error'] ?: ($result['msg'] ?: 'Gagal membatalkan pembayaran')]);
+         exit();
+      }
+
+      if ((int) $result['deleted'] > 0 && ((int) $result['kept_pending'] + (int) $result['kept_unknown'] + (int) $result['kept_lunas']) === 0) {
+         echo json_encode(['status' => 'success', 'msg' => 'Pembayaran berhasil dibatalkan']);
+         exit();
+      }
+
+      echo json_encode([
+         'status' => 'error',
+         'msg' => $result['msg'] ?: 'Pembayaran tidak dapat dibatalkan'
+      ]);
+      exit();
    }
 
    /**
@@ -999,18 +1229,35 @@ trait Attributes
          return true;
       }
 
-      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
-      if ($payment_trx_id === '') {
+      $bucket = $this->probeQrisGatewayBucket($kas, $ref_finance, $is_public);
+      if ($bucket !== 'paid') {
          return false;
       }
 
-      $sumRow = $this->db(0)->sum_col_where('kas', 'jumlah', "ref_finance = '$ref_finance'");
-      $nominal = intval($sumRow ?? 0);
+      return $this->applyQrisPaidToKas($kas, $ref_finance, $is_public);
+   }
+
+   /**
+    * @return string paid|expired|pending|unknown|none
+    */
+   protected function probeQrisGatewayBucket($kas, $ref_finance, $is_public = false)
+   {
+      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
+      if ($payment_trx_id === '') {
+         return 'none';
+      }
+
+      $ref_finance = trim((string) $ref_finance);
+      $refEsc = $this->db(0)->escape($ref_finance);
+      $nominal = 0;
+      if ($ref_finance !== '') {
+         $nominal = intval($this->db(0)->sum_col_where('kas', 'jumlah', "ref_finance = '$refEsc'") ?? 0);
+      }
       if ($nominal <= 0) {
          $nominal = intval($kas['jumlah'] ?? 0);
       }
       if ($nominal <= 0) {
-         return false;
+         return 'unknown';
       }
 
       try {
@@ -1018,65 +1265,114 @@ trait Attributes
          $qrisApi = new QRISApi();
          $res = $qrisApi->checkStatus($payment_trx_id, $nominal, 'QRIS');
          $data = is_array($res) ? $res : json_decode($res, true);
-
-         $payment_status = isset($data['payment_status']) ? strtolower(trim($data['payment_status'])) : '';
-         $trx_status = isset($data['trx_status']) ? strtolower(trim($data['trx_status'])) : '';
-         if ($payment_status === '' && isset($data['status_detail'])) {
-            $trx_status = strtolower(trim($data['status_detail']));
+         if (!is_array($data)) {
+            return 'unknown';
          }
+         return $this->parseQrisGatewayBucket($data);
+      } catch (\Throwable $e) {
+         if (!$is_public) {
+            $this->model('Log')->write('[probeQris] Error ref=' . $ref_finance . ' ' . $e->getMessage());
+         }
+         return 'unknown';
+      }
+   }
 
-         $isPaid = ($payment_status === 'paid')
-            || in_array($trx_status, ['success', 'paid', 'settlement', 'capture', 'completed'], true);
+   /**
+    * @return string paid|expired|pending|unknown
+    */
+   protected function parseQrisGatewayBucket(array $data)
+   {
+      if (isset($data['status']) && $data['status'] === false) {
+         return 'unknown';
+      }
 
-         if (!$isPaid) {
+      $payment_status = isset($data['payment_status']) ? strtolower(trim((string) $data['payment_status'])) : '';
+      $trx_status = isset($data['trx_status']) ? strtolower(trim((string) $data['trx_status'])) : '';
+      if ($payment_status === '' && isset($data['status_detail'])) {
+         $trx_status = strtolower(trim((string) $data['status_detail']));
+      }
+      if ($trx_status === '' && isset($data['data']['status_detail'])) {
+         $trx_status = strtolower(trim((string) $data['data']['status_detail']));
+      }
+      if ($trx_status === '' && isset($data['data']['status'])) {
+         $trx_status = is_string($data['data']['status']) ? strtolower(trim($data['data']['status'])) : '';
+      }
+
+      $paidList = ['paid', 'success', 'settlement', 'capture', 'completed'];
+      $expiredList = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'];
+
+      if ($payment_status === 'paid' || in_array($trx_status, $paidList, true) || in_array($payment_status, $paidList, true)) {
+         return 'paid';
+      }
+      if ($payment_status === 'expired' || in_array($trx_status, $expiredList, true) || in_array($payment_status, $expiredList, true)) {
+         return 'expired';
+      }
+
+      if ($payment_status !== '' || $trx_status !== '' || (isset($data['status']) && $data['status'] === true)) {
+         return 'pending';
+      }
+
+      return 'unknown';
+   }
+
+   /**
+    * Tandai kas QRIS lunas + side-effect sales/instant.
+    */
+   protected function applyQrisPaidToKas($kas, $ref_finance, $is_public = false)
+   {
+      $ref_finance = trim((string) $ref_finance);
+      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
+      if ($ref_finance === '') {
+         $idKas = trim((string) ($kas['id_kas'] ?? ''));
+         if ($idKas === '') {
             return false;
          }
+         $idEsc = $this->db(0)->escape($idKas);
+         $updateWhere = "id_kas = '$idEsc'";
+      } else {
+         $refEsc = $this->db(0)->escape($ref_finance);
+         $updateWhere = "ref_finance = '$refEsc'";
+      }
 
-         $update = $this->db(0)->update('kas', [
-            'status_mutasi' => 3,
-            'payment_state' => 'paid'
-         ], "ref_finance = '$ref_finance'");
+      $update = $this->db(0)->update('kas', [
+         'status_mutasi' => 3,
+         'payment_state' => 'paid'
+      ], $updateWhere);
 
-         if ($update['errno'] != 0) {
-            if (!$is_public) {
-               $this->model('Log')->write("[syncQrisPaid] Update failed ref=$ref_finance: " . $update['error']);
-            }
-            return false;
-         }
-
+      if ($update['errno'] != 0) {
          if (!$is_public) {
-            $this->model('Log')->write("[syncQrisPaid] PAID synced ref=$ref_finance trx=$payment_trx_id");
-         }
-
-         $rows = $this->db(0)->get_where('kas', "ref_finance = '$ref_finance'");
-         if (is_array($rows)) {
-            $seen = [];
-            foreach ($rows as $row) {
-               $rt = $row['ref_transaksi'] ?? '';
-               if ($rt === '' || isset($seen[$rt])) {
-                  continue;
-               }
-               $seen[$rt] = true;
-               $this->updateSalesState($rt);
-            }
-            foreach ($rows as $row) {
-               if ((int) ($row['jenis_transaksi'] ?? 0) === 10) {
-                  $this->activateInstantKurirPayment($row);
-                  break;
-               }
-            }
-         } elseif (isset($kas['ref_transaksi'])) {
-            $this->updateSalesState($kas['ref_transaksi']);
-            $this->activateInstantKurirPayment($kas);
-         }
-
-         return true;
-      } catch (Exception $e) {
-         if (!$is_public) {
-            $this->model('Log')->write('[syncQrisPaid] Error ref=' . $ref_finance . ' ' . $e->getMessage());
+            $this->model('Log')->write("[syncQrisPaid] Update failed ref=$ref_finance: " . $update['error']);
          }
          return false;
       }
+
+      if (!$is_public) {
+         $this->model('Log')->write("[syncQrisPaid] PAID synced ref=$ref_finance trx=$payment_trx_id");
+      }
+
+      $rows = $this->db(0)->get_where('kas', $updateWhere);
+      if (is_array($rows)) {
+         $seen = [];
+         foreach ($rows as $row) {
+            $rt = $row['ref_transaksi'] ?? '';
+            if ($rt === '' || isset($seen[$rt])) {
+               continue;
+            }
+            $seen[$rt] = true;
+            $this->updateSalesState($rt);
+         }
+         foreach ($rows as $row) {
+            if ((int) ($row['jenis_transaksi'] ?? 0) === 10) {
+               $this->activateInstantKurirPayment($row);
+               break;
+            }
+         }
+      } elseif (isset($kas['ref_transaksi'])) {
+         $this->updateSalesState($kas['ref_transaksi']);
+         $this->activateInstantKurirPayment($kas);
+      }
+
+      return true;
    }
 
    public function payment_gateway_status_logic($ref_finance, $is_public = false)
