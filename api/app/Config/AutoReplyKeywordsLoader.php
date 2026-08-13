@@ -2,8 +2,8 @@
 namespace App\Config;
 
 /**
- * Load AutoReply keyword config dari DB (mdl_main) dengan cache in-memory + version check.
- * Fallback ke Config/AutoReplyKeywords.php jika tabel kosong / DB error.
+ * Load AutoReply keyword config dari DB mdl_main saja (wajib).
+ * Cache in-memory + version check via wa_autoreply_meta.cache_version.
  */
 class AutoReplyKeywordsLoader
 {
@@ -13,40 +13,31 @@ class AutoReplyKeywordsLoader
     /** @var string|null */
     private static $version = null;
 
-    /** Path file PHP fallback (return array) */
-    public static function filePath(): string
-    {
-        return __DIR__ . '/AutoReplyKeywords.php';
-    }
-
     /**
-     * Config berbentuk sama seperti AutoReplyKeywords.php
      * @return array<string, array{patterns: list<string>, ai_prompt?: string, case?: int|null, notify?: bool}>
      */
     public static function all(): array
     {
         try {
             $version = self::readCacheVersion();
-            if (self::$config !== null && self::$version === $version && self::$config !== []) {
+            if (self::$config !== null && self::$version === $version) {
                 return self::$config;
             }
 
             $fromDb = self::loadFromDatabase();
-            if ($fromDb !== []) {
-                self::$config = $fromDb;
-                self::$version = $version;
-                return self::$config;
-            }
+            self::$config = $fromDb;
+            self::$version = $version;
+            return self::$config;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write('AutoReplyKeywordsLoader: ' . $e->getMessage(), 'wa_error', 'KeywordsLoader');
             }
+            // Jangan silent-fallback ke file — kembalikan cache lama jika ada, else []
+            if (self::$config !== null) {
+                return self::$config;
+            }
+            return [];
         }
-
-        $fromFile = self::loadFromFile();
-        self::$config = $fromFile;
-        self::$version = self::$version ?? 'file';
-        return self::$config;
     }
 
     /** Paksa reload (setelah admin save dari proses yang sama). */
@@ -153,119 +144,5 @@ class AutoReplyKeywordsLoader
         }
 
         return $out;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function loadFromFile(): array
-    {
-        $path = self::filePath();
-        if (!is_file($path)) {
-            return [];
-        }
-        $data = require $path;
-        return is_array($data) ? $data : [];
-    }
-
-    /**
-     * Seed DB dari file PHP. $replace=true menghapus semua lalu isi ulang.
-     * @return array{ok:bool, intents:int, patterns:int, message:string}
-     */
-    public static function seedFromFile(bool $replace = false): array
-    {
-        $data = self::loadFromFile();
-        if ($data === []) {
-            return ['ok' => false, 'intents' => 0, 'patterns' => 0, 'message' => 'File AutoReplyKeywords.php kosong / tidak ditemukan'];
-        }
-
-        $db = \App\Core\DB::getInstance(0);
-
-        if (!$replace) {
-            $cnt = $db->query('SELECT COUNT(*) AS c FROM wa_autoreply_intents')->row_array();
-            if ((int) ($cnt['c'] ?? 0) > 0) {
-                return [
-                    'ok' => false,
-                    'intents' => 0,
-                    'patterns' => 0,
-                    'message' => 'DB sudah berisi data. Centang replace untuk timpa ulang dari file.',
-                ];
-            }
-        } else {
-            $db->query('DELETE FROM wa_autoreply_patterns');
-            $db->query('DELETE FROM wa_autoreply_intents');
-        }
-
-        $intentCount = 0;
-        $patternCount = 0;
-        $sort = 0;
-
-        foreach ($data as $code => $cfg) {
-            if (!is_array($cfg)) {
-                continue;
-            }
-            $sort++;
-            $code = strtoupper(trim((string) $code));
-            $caseVal = array_key_exists('case', $cfg) ? $cfg['case'] : null;
-            $notify = array_key_exists('notify', $cfg) ? ($cfg['notify'] ? 1 : 0) : null;
-            $aiPrompt = isset($cfg['ai_prompt']) && is_string($cfg['ai_prompt']) ? $cfg['ai_prompt'] : null;
-
-            $rowData = [
-                'code' => $code,
-                'sort_order' => $sort,
-                'is_active' => 1,
-            ];
-            if ($caseVal !== null) {
-                $rowData['case_value'] = (int) $caseVal;
-            }
-            if ($notify !== null) {
-                $rowData['notify'] = (int) $notify;
-            }
-            if ($aiPrompt !== null) {
-                $rowData['ai_prompt'] = $aiPrompt;
-            }
-
-            $intentId = $db->insert('wa_autoreply_intents', $rowData);
-            $intentId = (int) $intentId;
-            if ($intentId <= 0) {
-                $row = $db->query(
-                    'SELECT id FROM wa_autoreply_intents WHERE code = ? LIMIT 1',
-                    [$code]
-                )->row_array();
-                $intentId = (int) ($row['id'] ?? 0);
-            }
-            if ($intentId <= 0) {
-                continue;
-            }
-            $intentCount++;
-
-            $psort = 0;
-            foreach (($cfg['patterns'] ?? []) as $pat) {
-                if (!is_string($pat) || $pat === '') {
-                    continue;
-                }
-                $psort++;
-                $ok = $db->insert('wa_autoreply_patterns', [
-                    'intent_id' => $intentId,
-                    'pattern' => $pat,
-                    'sort_order' => $psort,
-                    'is_active' => 1,
-                ]);
-                if ($ok) {
-                    $patternCount++;
-                }
-            }
-        }
-
-        self::bumpCacheVersion();
-        self::$config = null;
-        self::$version = null;
-
-        return [
-            'ok' => true,
-            'intents' => $intentCount,
-            'patterns' => $patternCount,
-            'message' => "Seed OK: {$intentCount} intent, {$patternCount} pattern",
-        ];
     }
 }

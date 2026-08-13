@@ -316,27 +316,4 @@ class AutoReplyKeywords extends Controller
             'message' => $valid === 1 ? 'MATCH' : 'no match',
         ], JSON_UNESCAPED_UNICODE);
     }
-
-    /**
-     * Seed via API (baca AutoReplyKeywords.php di server api.nalju.com).
-     * Laundry tidak boleh akses filesystem folder api (open_basedir).
-     * POST replace=1 untuk timpa ulang
-     */
-    public function seed()
-    {
-        $this->session_cek(1);
-        $replace = !empty($_POST['replace']);
-
-        /** @var AutoReplyKeywordsApi $api */
-        $api = $this->helper('AutoReplyKeywordsApi');
-        $res = $api->seed($replace);
-
-        if (!empty($res['ok'])) {
-            echo 0;
-            return;
-        }
-
-        $msg = trim((string) ($res['message'] ?? $res['error'] ?? 'Seed gagal'));
-        echo $msg !== '' ? $msg : 'Seed gagal';
-    }
 }

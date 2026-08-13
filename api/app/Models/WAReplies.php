@@ -266,7 +266,7 @@ class WAReplies
     }
 
     /**
-     * Keyword config: DB (mdl_main) + in-memory version cache; fallback AutoReplyKeywords.php.
+     * Keyword config: DB mdl_main saja (AutoReplyKeywordsLoader + cache version).
      * @return array<string, mixed>
      */
     private function loadAutoreplyKeywordConfig(): array
@@ -279,11 +279,6 @@ class WAReplies
         }
         if (class_exists('\\App\\Config\\AutoReplyKeywordsLoader')) {
             return \App\Config\AutoReplyKeywordsLoader::all();
-        }
-        $file = __DIR__ . '/../Config/AutoReplyKeywords.php';
-        if (is_file($file)) {
-            $data = require $file;
-            return is_array($data) ? $data : [];
         }
         return [];
     }
@@ -1902,7 +1897,7 @@ class WAReplies
             ];
         }
 
-        // Load keyword configuration (DB + cache, fallback file)
+        // Load keyword configuration (DB + cache)
         $keywordConfig = $this->loadAutoreplyKeywordConfig();
         $this->autoreplyKeywordConfig = $keywordConfig;
         $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'AutoReplyKeywords loaded');

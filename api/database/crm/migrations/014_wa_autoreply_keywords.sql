@@ -1,10 +1,7 @@
 -- CRM mdl_main (API db 0 / laundry db 100): Auto-reply intent keywords + AI prompts
 -- Jalankan di database mdl_main.
--- Seed di VPS: Tools → Auto Reply Keywords → Seed via API
---   (laundry memanggil https://api.nalju.com/Laundry/AutoReplyKeywords/seed)
--- Atau CLI di server API:
---   php api/database/crm/migrations/014_wa_autoreply_keywords_seed.php
--- Jangan seed dari filesystem laundry (open_basedir hanya /laundry + /tmp).
+-- Sumber tunggal runtime: DB (App\Config\AutoReplyKeywordsLoader). Tidak ada file PHP fallback.
+-- Kelola data lewat laundry Admin → Tools → Auto Reply Keywords.
 
   CREATE TABLE IF NOT EXISTS wa_autoreply_intents (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,

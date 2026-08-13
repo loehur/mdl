@@ -25,7 +25,7 @@
       <h1 class="ark-title">Auto Reply Keywords</h1>
       <p class="ark-lead">
         Intent + regex + AI prompt untuk klasifikasi WA.
-        Runtime API baca dari DB <code>mdl_main</code> (cache version); fallback file PHP jika kosong.
+        Runtime API baca hanya dari DB <code>mdl_main</code> (cache version).
       </p>
 
       <?php if (empty($data['db_ready'])): ?>
@@ -37,12 +37,11 @@
       <?php else: ?>
         <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
           <?php if (($data['source'] ?? '') === 'empty'): ?>
-            <span class="ark-badge ark-badge--warn">DB kosong — seed dari file</span>
+            <span class="ark-badge ark-badge--warn">DB kosong</span>
           <?php else: ?>
             <span class="ark-badge ark-badge--ok">Sumber: database</span>
           <?php endif; ?>
           <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addIntentModal">+ Intent</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#seedModal">Seed via API</button>
           <a class="btn btn-sm btn-outline-primary" href="<?= URL::BASE_URL ?>IntentLab">Intent Lab</a>
         </div>
 
@@ -124,28 +123,6 @@
     </div>
   </div>
 
-  <div class="modal" id="seedModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content" style="border-radius:0">
-        <div class="modal-header">
-          <h5 class="modal-title">Seed via API</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-2">Import intent + pattern dari file di server <code>api.nalju.com</code> (bukan dari filesystem laundry).</p>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="seedReplace" value="1">
-            <label class="form-check-label" for="seedReplace">Replace — hapus data DB lalu isi ulang dari file</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="button" class="btn btn-sm btn-primary" id="btnSeed">Jalankan Seed</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="modal" id="confirmDeleteModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
       <div class="modal-content" style="border-radius:0">
@@ -191,22 +168,6 @@ $(function() {
     $.post('<?= URL::BASE_URL ?>AutoReplyKeywords/deleteIntent', { id: delId }).done(function(r) {
       if (String(r).trim() === '0') location.reload(true);
       else alert(r);
-    });
-  });
-
-  $('#btnSeed').on('click', function() {
-    var $b = $(this).prop('disabled', true);
-    $.post('<?= URL::BASE_URL ?>AutoReplyKeywords/seed', {
-      replace: $('#seedReplace').is(':checked') ? 1 : 0
-    }).done(function(r) {
-      if (String(r).trim() === '0') location.reload(true);
-      else {
-        alert(r);
-        $b.prop('disabled', false);
-      }
-    }).fail(function() {
-      $b.prop('disabled', false);
-      alert('Seed gagal');
     });
   });
 });
