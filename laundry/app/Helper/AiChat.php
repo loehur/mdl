@@ -8,12 +8,12 @@ class AiChat
     /**
      * @param list<array{role:string,content:string}> $messages
      */
-    public function chat(array $messages, int $maxTokens = 200, float $temperature = 0.4): string
+    public function chat(array $messages, int $maxTokens = 200, float $temperature = 0.4, int $timeout = 12): string
     {
         $keys = $this->loadKeys();
         $openaiKey = $keys['openai'];
         $groqKey = $keys['groq'];
-        $timeout = 15;
+        $timeout = max(5, min(60, $timeout));
 
         if ($openaiKey === '' && $groqKey === '') {
             throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GROQ_API_KEY di api Env.php)');

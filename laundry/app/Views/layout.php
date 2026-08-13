@@ -3898,17 +3898,29 @@ if ($privUi === 100) {
                     function loadList() {
                         // Baca list task saja — jangan ubah badge (badge turun hanya setelah task dikerjakan)
                         bodyEl.innerHTML = '<div class="mdl-notif-empty">Memuat…</div>';
-                        $.getJSON(baseUrl + 'Estimasi/list')
-                            .done(function(res) {
-                                if (!res || !res.ok) {
-                                    bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat: ' + escHtml((res && res.msg) || 'error') + '</div>';
-                                    return;
-                                }
-                                renderItems(res.items || []);
-                            })
-                            .fail(function(xhr) {
-                                bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat notifikasi (' + xhr.status + ')</div>';
-                            });
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/list',
+                            method: 'GET',
+                            dataType: 'json',
+                            timeout: 90000
+                        }).done(function(res) {
+                            if (!res || !res.ok) {
+                                bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat: ' + escHtml((res && res.msg) || 'error') + '</div>';
+                                return;
+                            }
+                            renderItems(res.items || []);
+                        }).fail(function(xhr) {
+                            var raw = String(xhr.responseText || '').replace(/^\uFEFF/, '').replace(/^[\s\uFEFF]+/, '');
+                            var parsed = null;
+                            try { parsed = JSON.parse(raw); } catch (e) {}
+                            if (parsed && parsed.ok) {
+                                renderItems(parsed.items || []);
+                                return;
+                            }
+                            bodyEl.innerHTML = '<div class="mdl-notif-empty">Gagal memuat notifikasi'
+                                + (parsed && parsed.msg ? (': ' + escHtml(parsed.msg)) : (' (' + xhr.status + ')'))
+                                + '</div>';
+                        });
                     }
 
                     bellBtn.addEventListener('click', function(e) {

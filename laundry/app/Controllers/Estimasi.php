@@ -36,6 +36,10 @@ class Estimasi extends Controller
      */
     public function list()
     {
+        if (ob_get_level() === 0) {
+            ob_start();
+        }
+        @set_time_limit(90);
         $this->session_cek();
         header('Content-Type: application/json; charset=utf-8');
 
@@ -310,9 +314,9 @@ class Estimasi extends Controller
                 return strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? ''));
             });
 
-            echo json_encode(['ok' => 1, 'items' => $items]);
+            $this->echoJson(['ok' => 1, 'items' => $items]);
         } catch (\Throwable $e) {
-            echo json_encode(['ok' => 0, 'items' => [], 'msg' => $e->getMessage()]);
+            $this->echoJson(['ok' => 0, 'items' => [], 'msg' => $e->getMessage()]);
         }
     }
 
@@ -901,17 +905,23 @@ class Estimasi extends Controller
         if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
             $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
         }
+        // Sanitasi rekursif string agar json_encode tidak gagal
+        array_walk_recursive($data, function (&$v) {
+            if (is_string($v)) {
+                $v = $this->sanitizeUtf8($v);
+            }
+        });
         $json = json_encode($data, $flags);
         if ($json === false) {
-            unset($data['reply_text']);
             $json = json_encode([
                 'ok' => (int) ($data['ok'] ?? 0),
-                'wa_ok' => (int) ($data['wa_ok'] ?? 0),
+                'items' => [],
                 'count' => (int) ($data['count'] ?? 0),
-                'msg' => (string) ($data['msg'] ?? 'OK'),
+                'wa_ok' => (int) ($data['wa_ok'] ?? 0),
+                'msg' => 'JSON encode failed: ' . json_last_error_msg(),
             ], $flags);
         }
-        echo $json !== false ? $json : '{"ok":0,"msg":"JSON encode failed"}';
+        echo $json !== false ? $json : '{"ok":0,"items":[],"msg":"JSON encode failed"}';
     }
 
     private function sanitizeUtf8(string $text): string
@@ -1325,12 +1335,22 @@ class Estimasi extends Controller
                     $nama = trim((string) ($resolved['nama'] ?? ''));
                 }
 
-                $summary = $this->resolvePermintaanAiSummary(
-                    $waPhone,
-                    (string) ($row['summary'] ?? ''),
-                    (string) ($row['raw_log'] ?? ''),
-                    true
-                );
+                $summary = '';
+                try {
+                    $summary = $this->resolvePermintaanAiSummary(
+                        $waPhone,
+                        (string) ($row['summary'] ?? ''),
+                        (string) ($row['raw_log'] ?? ''),
+                        true
+                    );
+                } catch (\Throwable $eSum) {
+                    $summary = $this->permintaanShortFallbackFromLines(
+                        $this->permintaanCollectChatLines($waPhone, (string) ($row['raw_log'] ?? ''))
+                    );
+                }
+                if ($summary === '') {
+                    $summary = 'Permintaan pelanggan';
+                }
                 $items[] = [
                     'task_type' => 'permintaan',
                     'task_id' => 'permintaan:' . $waPhone,
@@ -1422,9 +1442,17 @@ class Estimasi extends Controller
                 $nama = trim((string) $row['contact_name']);
             }
 
-            $pesan = $this->resolvePermintaanAiSummary($waPhone, '', '', false);
+            $pesan = '';
+            try {
+                $pesan = $this->resolvePermintaanAiSummary($waPhone, '', '', true);
+            } catch (\Throwable $eSum) {
+                $pesan = $this->permintaanShortFallbackFromLines($this->permintaanCollectChatLines($waPhone, ''));
+            }
             if ($pesan === '') {
                 $pesan = $this->normalizePermintaanDisplayText(trim((string) ($row['last_message'] ?? '')));
+            }
+            if ($pesan === '') {
+                $pesan = 'Permintaan pelanggan';
             }
 
             $items[] = [
@@ -1615,7 +1643,7 @@ class Estimasi extends Controller
             $out = trim($ai->chat([
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
-            ], 120, 0.3));
+            ], 100, 0.2, 10));
             $out = $this->normalizePermintaanDisplayText($out);
             $out = trim($out, " \t\n\r\0\x0B\"'");
             $out = preg_replace('/\s+/u', ' ', $out) ?? $out;
