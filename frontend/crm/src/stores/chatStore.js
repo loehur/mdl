@@ -101,12 +101,14 @@ export const autoOpenChatOnIncoming = ref(false);
 // Increment this when message status changes to force activeConversation to re-compute
 export const messageUpdateTrigger = ref(0);
 
-// WhatsApp / Meta may return "accepted"; UI only treats sent|delivered|read as checkmarks
+// WhatsApp / Meta may return "accepted"; UI only treats sent|delivered|read as checkmarks.
+// queue/processing = belum pernah ke Meta — jangan tampilkan sebagai 1 centang (terlihat "terkirim").
 export const MESSAGE_STATUS_PRIORITY = {
   failed: -1,
   error: -1,
   pending: 0,
   queue: 0,
+  processing: 0,
   accepted: 1,
   sent: 1,
   delivered: 2,
@@ -116,7 +118,9 @@ export const MESSAGE_STATUS_PRIORITY = {
 export const normalizeMessageStatus = (status) => {
   if (!status) return "pending";
   const s = String(status).toLowerCase();
-  if (s === "accepted" || s === "queue") return "sent";
+  if (s === "accepted") return "sent";
+  // queue/processing: keep as pending so ChatPage shows clock, not fake single tick
+  if (s === "queue" || s === "processing") return "pending";
   return s;
 };
 

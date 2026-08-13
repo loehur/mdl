@@ -8,6 +8,10 @@ use App\Core\Controller;
  * Resend WA outbound messages stuck in wa_messages_out.status='queue'
  * after yCloud timeout/network errors.
  *
+ * Catatan CSW: free-text CSW closed tidak lagi di-insert ke wa_messages_out
+ * (hindari bubble palsu di CRM). Retry laundry = notif.pending + Cron laundry.
+ * Queue di sini terutama timeout/5xx; sisa antrean CSW lama dibuang jika cocok notif.
+ *
  * Jika CSW (last_in_at) belum terbuka: baris tetap queue — tidak dihapus — cron mencoba lagi nanti.
  *
  * Jika ada baris di tabel notif (db(1)) dengan text sama dan nomor cocok (9 digit terakhir),

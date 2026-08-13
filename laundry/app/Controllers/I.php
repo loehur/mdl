@@ -341,6 +341,7 @@ class I extends Controller
 
       if ($res['status']) {
          $db->update('notif', ['id_api' => $idApi, 'state' => 'sent'], $where);
+         $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
          echo 0;
       } else {
          $db->update('notif', ['state' => 'pending'], $where);

@@ -59,9 +59,9 @@ class WhatsAppService
     }
     
     /**
-     * Antrekan free text (status queue) saat CSW yCloud & Fonnte tidak memungkinkan kirim —
-     * dipakai endpoint /Laundry/WhatsApp/send bila last_in menolak keduanya tanpa hit API,
-     * atau bisa dipanggil eksplisit. Cron ResendWAQueue mengirim saat CSW terbuka (24 jam).
+     * Antrekan free text (status queue) saat timeout/network — dipakai ResendWAQueue.
+     * Jangan dipakai untuk CSW closed (laundry/CRM free): insert palsu kotor di ChatPage.
+     * CSW closed → return error saja; laundry retry lewat notif.pending + Cron.
      */
     public function queueFreeTextForCswRetry($to, $message, $replyToMessageId = null, $senderCode = null, $errorMessage = 'CSW closed — standby for resend within 24h')
     {
@@ -635,19 +635,15 @@ class WhatsAppService
                         }
                     }
                 } elseif ($this->isFreeTextPayload($payload) && $this->isYCloudCswApiError($responseData)) {
-                    // CSW tertutup di API yCloud (4xx) — antrekan agar cron bisa kirim saat CSW terbuka
-                    try {
-                        $this->saveOutboundQueueMessage(
-                            $payload,
-                            $messageText,
-                            $senderCode,
-                            $replyToMessageId,
-                            'CSW closed (yCloud API)'
+                    // CSW tertutup di API yCloud (4xx): JANGAN insert wa_messages_out.
+                    // Antrean palsu tampil di CRM (1 centang) lalu retry laundry membuat bubble dobel.
+                    // Retry laundry lewat notif.pending + Cron; timeout/5xx tetap di-queue di atas.
+                    if (class_exists('\Log')) {
+                        \Log::write(
+                            "CSW API reject to $to — no wa_messages_out queue insert | " . json_encode($responseData),
+                            'wa_error',
+                            'SendRequest'
                         );
-                    } catch (\Throwable $e) {
-                        if (class_exists('\Log')) {
-                            \Log::write("!! EXCEPTION queue insert outbound (CSW): " . $e->getMessage(), 'wa_error', 'SaveOutbound');
-                        }
                     }
                 }
                 return [

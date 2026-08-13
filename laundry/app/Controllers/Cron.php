@@ -158,6 +158,8 @@ class Cron extends Controller
                $where2 = "id_notif = '" . $id_notif . "'";
                $this->db(0)->update('notif', $set, $where2);
                $sent += 1;
+               // Bersihkan sisa antrean CSW-era di mdl_main (hindari bubble dobel di CRM)
+               $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
             }else{
                $log->write($logMessage, 'laundry', 'cron_send_wa');
             }

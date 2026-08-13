@@ -110,6 +110,47 @@ class Notif extends Controller
         ];
     }
 
+    /**
+     * Hapus baris wa_messages_out status=queue dengan teks sama + 9 digit HP sama (db 100 = mdl_main).
+     * Membersihkan antrean CSW-era agar tidak jadi bubble 1-centang berdampingan dengan kirim sukses.
+     */
+    public function deleteMatchingWaOutQueue(string $phone, string $text): int
+    {
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($digits) < 9) {
+            return 0;
+        }
+        $last9 = substr($digits, -9);
+        $textTrim = trim($text);
+        if ($textTrim === '') {
+            return 0;
+        }
+
+        try {
+            $db100 = $this->db(100);
+            $escText = $db100->escape($textTrim);
+            $escLast9 = $db100->escape($last9);
+            $sql = "
+                DELETE FROM wa_messages_out
+                WHERE status IN ('queue', 'processing')
+                  AND TRIM(COALESCE(content, '')) = '{$escText}'
+                  AND LENGTH(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', '')) >= 9
+                  AND RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '{$escLast9}'
+            ";
+            $ok = $db100->query($sql);
+            return $ok ? 1 : 0;
+        } catch (\Throwable $e) {
+            if (class_exists('Log')) {
+                @\Log::write(
+                    '[Notif::deleteMatchingWaOutQueue] ' . $e->getMessage() . ' | phone=' . $phone,
+                    'laundry',
+                    'wa_out_cleanup'
+                );
+            }
+            return 0;
+        }
+    }
+
     function insertOTP($res, $today, $hp, $otp, $id_cabang)
     {
         // Fix: API returns nested data structure {status:true, data:{message_id:...}}

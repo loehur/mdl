@@ -1,0 +1,28 @@
+---
+description: Laundry/CRM WhatsApp free-text CSW — no fake wa_messages_out queue inserts
+globs: "{api/app/Helpers/CRM/FreeTextOutboundDispatcher.php,api/app/Helpers/CRM/WhatsAppService.php,api/app/Controllers/Laundry/WhatsApp.php,api/app/Controllers/Cron/ResendWAQueue.php,laundry/app/Controllers/Cron.php,laundry/app/Controllers/Antrian.php,laundry/app/Helper/Notif.php,frontend/crm/src/stores/chatStore.js}"
+alwaysApply: false
+---
+
+# WA CSW outbound (no dirty queue)
+
+## Problem (proven)
+
+Free text while CSW closed used to `INSERT wa_messages_out` with `status=queue`. CRM shows that as a bubble. Laundry `notif` stays `pending`. When CSW opens, Cron laundry sends again → **duplicate bubbles** (same text: fake 1-tick + real delivered).
+
+Do **not** “fix” this by hiding `queue` rows in `getMessages` / ChatPage — that only hides DB dirt.
+
+## Rules
+
+1. **CSW closed (yCloud + Fonnte):** return `csw_expired` / error only. **Do not** insert `wa_messages_out` for CSW standby.
+2. **Laundry retry:** only `notif.state=pending` + `laundry/Cron::send` (and immediate send paths that already check CSW).
+3. **After successful laundry send:** delete matching `wa_messages_out` rows with `status IN ('queue','processing')` same content + last-9 phone (`Notif::deleteMatchingWaOutQueue`).
+4. **`wa_messages_out` queue** remains OK for **timeout / 5xx / network** retries (`ResendWAQueue`) — same `external_id` upgrades in place.
+5. **UI:** `queue` / `processing` must **not** normalize to `sent` (fake single tick). Map to `pending` (clock).
+
+## Touch points
+
+- `FreeTextOutboundDispatcher` — no `queueFreeTextForCswRetry` on CSW closed
+- `WhatsAppService::sendRequest` — no queue insert on yCloud CSW API error
+- `laundry` Cron / Antrian — cleanup after success
+- `frontend/crm` `normalizeMessageStatus` — queue ≠ sent

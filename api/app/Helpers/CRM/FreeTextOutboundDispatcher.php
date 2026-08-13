@@ -3,8 +3,11 @@
 namespace App\Helpers\CRM;
 
 /**
- * Alur pengiriman free text: CSW yCloud → (fallback) Fonnte → queue wa_messages_out.
+ * Alur pengiriman free text: CSW yCloud → (fallback) Fonnte.
  * Satu sumber kebenaran untuk /Laundry/WhatsApp/send (mode free & template yang dibatalkan jadi free text) dan pemanggilan internal (mis. webhook IAK).
+ *
+ * CSW tertutup: JANGAN insert wa_messages_out (status=queue). Insert palsu tampil di CRM
+ * sebagai 1 centang lalu Cron laundry mengirim ulang → bubble dobel. Retry laundry lewat notif.pending saja.
  */
 class FreeTextOutboundDispatcher
 {
@@ -13,7 +16,7 @@ class FreeTextOutboundDispatcher
      * @param array|null $options e.g. ['template_cancelled' => true] untuk menyesuaikan pesan/data HTTP (alur template→free)
      * @return array{
      *   ok: bool,
-     *   channel: 'ycloud'|'fonnte'|'queued'|'error',
+     *   channel: 'ycloud'|'fonnte'|'csw_closed'|'error',
      *   http_message: string,
      *   http_data?: mixed,
      *   http_code?: int
@@ -117,12 +120,12 @@ class FreeTextOutboundDispatcher
                         $fonnteHoursElapsed
                     );
                 }
-                $bothCswClosedData['free_text_queued_for_resend'] = true;
 
+                // Jangan antre ke wa_messages_out — hindari bubble CRM palsu (1 centang tanpa delivery)
                 return self::finalizeDispatchResult(
                     [
                         'ok' => false,
-                        'channel' => 'queued',
+                        'channel' => 'csw_closed',
                         'http_message' => 'Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text message.',
                         'http_data' => $bothCswClosedData,
                         'http_code' => 400,
@@ -169,19 +172,11 @@ class FreeTextOutboundDispatcher
             );
         }
 
-        $wa->queueFreeTextForCswRetry(
-            $phone,
-            $messageText,
-            null,
-            $senderCode,
-            'CSW closed — yCloud & Fonnte (DB); message not sent to API'
-        );
-        $bothCswClosedData['free_text_queued_for_resend'] = true;
-
+        // CSW close di DB: jangan insert wa_messages_out. Retry laundry = notif.pending + Cron laundry.
         return self::finalizeDispatchResult(
             [
                 'ok' => false,
-                'channel' => 'queued',
+                'channel' => 'csw_closed',
                 'http_message' => 'Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text message.',
                 'http_data' => $bothCswClosedData,
                 'http_code' => 400,
@@ -227,7 +222,7 @@ class FreeTextOutboundDispatcher
 
             return $res;
         }
-        if (empty($res['ok']) && ($res['channel'] ?? '') === 'queued') {
+        if (empty($res['ok']) && in_array(($res['channel'] ?? ''), ['queued', 'csw_closed'], true)) {
             $data = $res['http_data'] ?? [];
             if (is_array($data)) {
                 $data['template_cancelled'] = true;

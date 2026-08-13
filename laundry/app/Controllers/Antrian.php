@@ -616,6 +616,7 @@ class Antrian extends Controller
             $this->model('Log')->write("[notifReadySend] ERROR: Update notif to sent failed - ID: " . $idPenjualan . " | Error: " . $updateResult['error']);
          } else {
             $this->model('Log')->write("[notifReadySend] SUCCESS: WA sent - ID: " . $idPenjualan . " | API ID: " . $idApi . " | Phone: " . $hp);
+            $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
          }
       } else {
          $errorMsg = $res['message'] ?? $res['error'] ?? 'Unknown error';
@@ -756,6 +757,7 @@ class Antrian extends Controller
             'state' => 'sent'
          ];
          $this->db(0)->update('notif', $updateVals, $where);
+         $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
          echo 0;
       } else {
          // WA send failed — tetap pending untuk retry; tanpa alert di UI (response sama seperti sukses agar loadDiv refresh)
