@@ -3,7 +3,7 @@
 namespace App\Helpers\Laundry;
 
 /**
- * Intent Lab — usulkan pattern + potongan ai_prompt agar kalimat masuk intent target.
+ * Intent Lab — usulkan pattern + potongan ai_prompt agar kalimat masuk / keluar intent target.
  */
 class IntentTeachHelper
 {
@@ -130,6 +130,208 @@ class IntentTeachHelper
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Usulan kebalikan teach: nonaktifkan pattern yang match + append pengecualian ai_prompt
+     * agar kalimat TIDAK masuk intent target.
+     *
+     * @return array{
+     *   ok:bool,
+     *   message?:string,
+     *   intent?:string,
+     *   text?:string,
+     *   matching_patterns?:list<array{id:int,pattern:string,note?:string}>,
+     *   prompt_append?:string,
+     *   reason?:string,
+     *   has_matching_patterns?:bool,
+     *   current_prompt?:string,
+     *   error?:string
+     * }
+     */
+    public static function proposeUntouch(string $text, string $intentCode): array
+    {
+        $text = trim($text);
+        $intentCode = strtoupper(trim($intentCode));
+        if ($text === '' || $intentCode === '') {
+            return ['ok' => false, 'message' => 'text dan intent wajib'];
+        }
+        if (mb_strlen($text) > 2000) {
+            return ['ok' => false, 'message' => 'Teks maksimal 2000 karakter'];
+        }
+        if (!preg_match('/^[A-Z0-9_]+$/', $intentCode)) {
+            return ['ok' => false, 'message' => 'Kode intent tidak valid'];
+        }
+
+        try {
+            $db = \App\Core\DB::getInstance(0);
+            $intent = $db->query(
+                'SELECT id, code, ai_prompt FROM wa_autoreply_intents WHERE code = ? AND is_active = 1 LIMIT 1',
+                [$intentCode]
+            )->row_array();
+            if (!$intent) {
+                return ['ok' => false, 'message' => 'Intent tidak ditemukan / nonaktif: ' . $intentCode];
+            }
+
+            $patRows = $db->query(
+                'SELECT id, pattern, note FROM wa_autoreply_patterns WHERE intent_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC',
+                [(int) $intent['id']]
+            )->result_array();
+
+            $matching = [];
+            $samplePatterns = [];
+            foreach ($patRows ?: [] as $r) {
+                $pat = (string) ($r['pattern'] ?? '');
+                if ($pat === '') {
+                    continue;
+                }
+                $samplePatterns[] = $pat;
+                if (@preg_match($pat, $text) === 1) {
+                    $matching[] = [
+                        'id' => (int) $r['id'],
+                        'pattern' => $pat,
+                        'note' => (string) ($r['note'] ?? ''),
+                    ];
+                }
+            }
+
+            $ai = self::askAiForUntouchProposal(
+                $text,
+                $intentCode,
+                (string) ($intent['ai_prompt'] ?? ''),
+                $samplePatterns,
+                $matching
+            );
+            if (empty($ai['ok'])) {
+                return $ai;
+            }
+
+            $promptAppend = trim((string) ($ai['prompt_append'] ?? ''));
+            $reason = trim((string) ($ai['reason'] ?? ''));
+            if ($promptAppend === '') {
+                $promptAppend = 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |';
+            }
+            if ($reason === '') {
+                $reason = $matching === []
+                    ? 'Tidak ada pattern aktif yang match. Cukup append pengecualian ke ai_prompt agar AI tidak mengklasifikasi ke intent ini.'
+                    : 'Nonaktifkan pattern yang match teks ini, lalu append pengecualian ke ai_prompt.';
+            }
+
+            return [
+                'ok' => true,
+                'intent' => $intentCode,
+                'text' => $text,
+                'matching_patterns' => $matching,
+                'prompt_append' => $promptAppend,
+                'reason' => $reason,
+                'has_matching_patterns' => $matching !== [],
+                'current_prompt' => (string) ($intent['ai_prompt'] ?? ''),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'message' => 'Gagal membuat usulan keluarkan',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @param list<string> $samplePatterns
+     * @param list<array{id:int,pattern:string,note?:string}> $matching
+     * @return array{ok:bool,prompt_append?:string,reason?:string,message?:string,error?:string}
+     */
+    private static function askAiForUntouchProposal(
+        string $text,
+        string $intentCode,
+        string $currentPrompt,
+        array $samplePatterns,
+        array $matching
+    ): array {
+        if (!class_exists('\\App\\Config\\AI')) {
+            require_once __DIR__ . '/../../Config/AI.php';
+        }
+        if (!\App\Config\AI::isEnabled()) {
+            return [
+                'ok' => true,
+                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
+                'reason' => 'AI disabled — fallback pengecualian literal.',
+            ];
+        }
+
+        $openaiKey = \App\Config\AI::getOpenAIApiKey();
+        $groqKey = \App\Config\AI::getGroqApiKey();
+        if ($openaiKey === '' && $groqKey === '') {
+            return [
+                'ok' => true,
+                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
+                'reason' => 'No AI key — fallback pengecualian literal.',
+            ];
+        }
+
+        $matchList = $matching === []
+            ? '(tidak ada pattern aktif yang match teks ini)'
+            : implode("\n", array_map(
+                static fn ($m) => '- id=' . $m['id'] . ' ' . $m['pattern'],
+                array_slice($matching, 0, 15)
+            ));
+        $patList = $samplePatterns === []
+            ? '(belum ada)'
+            : implode("\n", array_map(static fn ($p) => '- ' . $p, array_slice($samplePatterns, 0, 10)));
+        $promptExcerpt = mb_substr(trim($currentPrompt), 0, 1800);
+        if ($promptExcerpt === '') {
+            $promptExcerpt = '(kosong)';
+        }
+
+        $system = "Kamu membantu merawat klasifikasi intent WhatsApp laundry (PHP PCRE + prompt AI).\n"
+            . "Tugas: agar pesan customer TIDAK MASUK / KELUAR dari intent target.\n"
+            . "Sistem akan menonaktifkan pattern yang match teks ini (jika ada).\n"
+            . "Aturan prompt_append:\n"
+            . "- Satu baris pendek pengecualian untuk ditambahkan ke ai_prompt\n"
+            . "- Format: BUKAN {$intentCode}: | contoh kalimat |\n"
+            . "- Jelaskan singkat bahwa contoh ini bukan intent tersebut\n"
+            . "- Bahasa Indonesia santai seperti chat customer\n"
+            . "Balas HANYA JSON valid tanpa markdown:\n"
+            . '{"prompt_append":"BUKAN ...: | ... |","reason":"singkat"}';
+
+        $user = "Intent yang harus DILEWATI (keluarkan):\n{$intentCode}\n"
+            . "Pesan customer:\n\"\"\"\n{$text}\n\"\"\"\n\n"
+            . "Pattern aktif yang MATCH teks ini (akan dinonaktifkan):\n{$matchList}\n\n"
+            . "Sample pattern aktif intent ini:\n{$patList}\n\n"
+            . "Cuplikan ai_prompt saat ini:\n{$promptExcerpt}\n";
+
+        $messages = [
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user', 'content' => $user],
+        ];
+
+        try {
+            $raw = self::chatCompletions($messages, 400);
+        } catch (\Throwable $e) {
+            return [
+                'ok' => true,
+                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
+                'reason' => 'AI error — fallback: ' . mb_substr($e->getMessage(), 0, 120),
+            ];
+        }
+
+        $parsed = self::parseJsonObject($raw);
+        if ($parsed === null) {
+            return [
+                'ok' => true,
+                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
+                'reason' => 'AI tidak mengembalikan JSON valid — fallback pengecualian.',
+            ];
+        }
+
+        $promptAppend = trim((string) ($parsed['prompt_append'] ?? ''));
+        $reason = trim((string) ($parsed['reason'] ?? 'Usulan AI keluarkan'));
+
+        return [
+            'ok' => true,
+            'prompt_append' => $promptAppend,
+            'reason' => $reason,
+        ];
     }
 
     /**

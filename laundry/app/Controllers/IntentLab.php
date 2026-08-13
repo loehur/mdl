@@ -234,6 +234,169 @@ class IntentLab extends Controller
         ], JSON_UNESCAPED_UNICODE);
     }
 
+    /**
+     * POST { text, intent } → API AI usulkan keluarkan dari intent
+     */
+    public function proposeUntouch()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intent = strtoupper(trim((string) ($data['intent'] ?? '')));
+        if ($text === '' || $intent === '') {
+            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $api = $this->helper('IntentCheckApi');
+        $res = $api->proposeUntouch($text, $intent);
+        if (!isset($res['ok'])) {
+            $res['ok'] = false;
+        }
+        if ($res['ok'] === true) {
+            $res['ok'] = 1;
+        } elseif ($res['ok'] === false) {
+            $res['ok'] = 0;
+        }
+        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * POST { text, intent, prompt_append, pattern_ids[], deactivate_patterns=1, update_prompt=1 }
+     * Nonaktifkan pattern yang match + append pengecualian ai_prompt, bump cache, re-cek.
+     */
+    public function applyUntouch()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
+        $promptAppend = trim((string) ($data['prompt_append'] ?? ''));
+        $updatePrompt = !isset($data['update_prompt']) || !empty($data['update_prompt']);
+        $deactivatePatterns = !isset($data['deactivate_patterns']) || !empty($data['deactivate_patterns']);
+
+        $patternIds = $data['pattern_ids'] ?? [];
+        if (!is_array($patternIds)) {
+            $patternIds = [];
+        }
+        $patternIds = array_values(array_unique(array_filter(array_map('intval', $patternIds), static fn ($id) => $id > 0)));
+
+        if ($text === '' || $intentCode === '') {
+            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if (!$deactivatePatterns && !$updatePrompt) {
+            echo json_encode(['ok' => 0, 'message' => 'Centang minimal satu aksi'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if ($deactivatePatterns && $patternIds === []) {
+            // boleh kosong jika hanya update prompt; tapi jika deactivate dicentang tanpa id → error jika tidak ada update
+            if (!$updatePrompt || $promptAppend === '') {
+                echo json_encode([
+                    'ok' => 0,
+                    'message' => 'Tidak ada pattern untuk dinonaktifkan. Centang Append pengecualian atau pilih pattern.',
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+        }
+
+        $db = $this->dbMain();
+        $intent = $db->get_where_row(
+            'wa_autoreply_intents',
+            "code = '" . $db->escape($intentCode) . "' AND is_active = 1"
+        );
+        if (!$intent || empty($intent['id'])) {
+            echo json_encode(['ok' => 0, 'message' => 'Intent tidak ditemukan'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        $intentId = (int) $intent['id'];
+
+        $patternsDeactivated = 0;
+        $promptUpdated = false;
+        $deactivatedIds = [];
+
+        if ($deactivatePatterns && $patternIds !== []) {
+            $idList = implode(',', $patternIds);
+            $rows = $db->query_array(
+                "SELECT id, note FROM wa_autoreply_patterns
+                 WHERE intent_id = {$intentId} AND is_active = 1 AND id IN ({$idList})"
+            );
+            if (is_array($rows)) {
+                foreach ($rows as $row) {
+                    $pid = (int) ($row['id'] ?? 0);
+                    if ($pid <= 0) {
+                        continue;
+                    }
+                    $oldNote = trim((string) ($row['note'] ?? ''));
+                    $tag = 'Intent Lab untouch: ' . mb_substr($text, 0, 80);
+                    $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
+                    $up = $db->update(
+                        'wa_autoreply_patterns',
+                        [
+                            'is_active' => 0,
+                            'note' => mb_substr($newNote, 0, 250),
+                        ],
+                        "id = {$pid} AND intent_id = {$intentId}"
+                    );
+                    if (($up['errno'] ?? 1) == 0) {
+                        $patternsDeactivated++;
+                        $deactivatedIds[] = $pid;
+                    }
+                }
+            }
+        }
+
+        if ($updatePrompt && $promptAppend !== '') {
+            $current = (string) ($intent['ai_prompt'] ?? '');
+            if (mb_stripos($current, $promptAppend) === false) {
+                $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
+                $newPrompt = $current . $sep . $promptAppend;
+                $up = $db->update(
+                    'wa_autoreply_intents',
+                    ['ai_prompt' => $newPrompt],
+                    "id = {$intentId}"
+                );
+                if (($up['errno'] ?? 1) != 0) {
+                    echo json_encode([
+                        'ok' => 0,
+                        'message' => $up['error'] ?? 'Gagal update ai_prompt',
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $promptUpdated = true;
+            }
+        }
+
+        if ($patternsDeactivated > 0 || $promptUpdated) {
+            $this->bumpAutoreplyCache();
+        }
+
+        $api = $this->helper('IntentCheckApi');
+        $check = $api->check($text);
+        $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
+        $verifyOk = ($gotIntent !== $intentCode);
+
+        echo json_encode([
+            'ok' => 1,
+            'message' => 'Dikeluarkan',
+            'patterns_deactivated' => $patternsDeactivated,
+            'deactivated_ids' => $deactivatedIds,
+            'prompt_updated' => $promptUpdated,
+            'target_intent' => $intentCode,
+            'verify_intent' => $gotIntent,
+            'verify_ok' => $verifyOk,
+            'verify' => $check,
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
     /** @return array<string,mixed> */
     private function readRequestData(): array
     {

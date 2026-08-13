@@ -30,6 +30,19 @@ class IntentCheckApi
     }
 
     /**
+     * Usulan AI: keluarkan text dari intent (pattern match + pengecualian prompt).
+     * @return array<string,mixed>
+     */
+    public function proposeUntouch(string $text, string $intent): array
+    {
+        $payload = json_encode([
+            'text' => $text,
+            'intent' => $intent,
+        ], JSON_UNESCAPED_UNICODE);
+        return $this->request('proposeUntouch', $payload, true);
+    }
+
+    /**
      * @return array<string,mixed>
      */
     private function request(string $path, ?string $jsonBody, bool $post): array

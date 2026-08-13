@@ -96,15 +96,21 @@
       background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%);
       border-color: #0e7490;
     }
+    #intent-lab-root .il-btn--untouch {
+      background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
+      border-color: #b91c1c;
+    }
     #intent-lab-root .il-btn--ghost {
       background: #fff;
       color: var(--il-ink);
       border-color: #cbd5e1;
     }
     #intent-lab-root .il-result,
-    #intent-lab-root .il-teach-box { margin-top: 14px; display: none; }
+    #intent-lab-root .il-teach-box,
+    #intent-lab-root .il-untouch-box { margin-top: 14px; display: none; }
     #intent-lab-root .il-result.is-show,
-    #intent-lab-root .il-teach-box.is-show { display: block; }
+    #intent-lab-root .il-teach-box.is-show,
+    #intent-lab-root .il-untouch-box.is-show { display: block; }
     #intent-lab-root .il-card {
       border: 1px solid #93c5fd;
       background: linear-gradient(180deg, #eff6ff, #fff);
@@ -123,6 +129,36 @@
     #intent-lab-root .il-card--teach {
       border-color: #67e8f9;
       background: linear-gradient(180deg, #ecfeff, #fff);
+    }
+    #intent-lab-root .il-card--untouch {
+      border-color: #fca5a5;
+      background: linear-gradient(180deg, #fef2f2, #fff);
+    }
+    #intent-lab-root .il-pat-list {
+      margin: 0 0 10px;
+      padding: 0;
+      list-style: none;
+      border: 1px solid #fecaca;
+      background: #fff;
+    }
+    #intent-lab-root .il-pat-list li {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 8px 10px;
+      border-bottom: 1px solid #fecaca;
+      font-weight: 700;
+      color: #334155;
+      font-size: 0.82rem;
+      word-break: break-all;
+    }
+    #intent-lab-root .il-pat-list li:last-child { border-bottom: 0; }
+    #intent-lab-root .il-pat-list input { margin-top: 2px; width: 16px; height: 16px; flex-shrink: 0; }
+    #intent-lab-root .il-pat-empty {
+      margin: 0 0 10px;
+      font-weight: 700;
+      color: #92400e;
+      font-size: 0.85rem;
     }
     #intent-lab-root .il-intent {
       font-size: 1.35rem;
@@ -232,7 +268,7 @@
     </div>
 
     <h3 class="il-title"><i class="fas fa-flask"></i> Intent Lab</h3>
-    <p class="il-lead">Tempel pesan customer — cek intent, lalu ajarin intent target (AI usulkan pattern + prompt).</p>
+    <p class="il-lead">Tempel pesan customer — cek intent, lalu ajarin masuk intent ATAU keluarkan dari intent (AI).</p>
 
     <label class="il-label" for="ilText">Pesan chat</label>
     <textarea id="ilText" class="il-textarea" placeholder="Contoh: mksh byk kak"></textarea>
@@ -254,8 +290,8 @@
     </div>
 
     <div class="il-section">
-      <h4 class="il-section-title"><i class="fas fa-graduation-cap"></i> Ajarkan Intent</h4>
-      <p class="il-lead" style="margin-bottom:10px">Pilih intent yang diinginkan untuk kalimat di atas. AI mengusulkan regex + contoh prompt; review lalu aktifkan ke DB.</p>
+      <h4 class="il-section-title"><i class="fas fa-graduation-cap"></i> Ajarkan / Keluarkan Intent</h4>
+      <p class="il-lead" style="margin-bottom:10px">Pilih intent. <b>Usulkan</b> = masukkan ke intent; <b>Keluarkan</b> = buang dari intent (nonaktifkan pattern match + pengecualian prompt).</p>
 
       <div class="il-row il-row--2">
         <div>
@@ -271,6 +307,9 @@
           <div class="il-actions" style="margin-top:0;width:100%">
             <button type="button" class="il-btn il-btn--teach" id="ilBtnPropose">
               <i class="fas fa-magic"></i> Usulkan (AI)
+            </button>
+            <button type="button" class="il-btn il-btn--untouch" id="ilBtnProposeUntouch">
+              <i class="fas fa-unlink"></i> Keluarkan (AI)
             </button>
           </div>
         </div>
@@ -305,6 +344,36 @@
           <div id="ilApplyMsg" style="margin-top:10px;font-weight:800"></div>
         </div>
       </div>
+
+      <div class="il-untouch-box" id="ilUntouchBox">
+        <div class="il-card il-card--untouch">
+          <div class="il-meta" id="ilUntouchMeta" style="margin-bottom:10px"></div>
+          <p id="ilUntouchReason" style="font-weight:700;color:#334155;margin:0 0 10px"></p>
+
+          <label class="il-label">Pattern aktif yang match (akan dinonaktifkan)</label>
+          <div id="ilUntouchPatterns"></div>
+
+          <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">Pengecualian AI prompt</label>
+          <textarea id="ilUntouchPrompt" class="il-textarea" style="min-height:60px"></textarea>
+
+          <label class="il-check">
+            <input type="checkbox" id="ilDeactivatePatterns" checked>
+            Nonaktifkan pattern tercentang
+          </label>
+          <label class="il-check">
+            <input type="checkbox" id="ilUntouchUpdatePrompt" checked>
+            Append pengecualian ke ai_prompt
+          </label>
+
+          <div class="il-actions">
+            <button type="button" class="il-btn il-btn--untouch" id="ilBtnApplyUntouch">
+              <i class="fas fa-ban"></i> Terapkan keluarkan
+            </button>
+            <button type="button" class="il-btn il-btn--ghost" id="ilBtnRecheckUntouch">Cek ulang</button>
+          </div>
+          <div id="ilUntouchMsg" style="margin-top:10px;font-weight:800"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -335,10 +404,18 @@
     var $teachPattern = $('#ilTeachPattern');
     var $teachPrompt = $('#ilTeachPrompt');
     var $applyMsg = $('#ilApplyMsg');
+    var $untouchBox = $('#ilUntouchBox');
+    var $untouchMeta = $('#ilUntouchMeta');
+    var $untouchReason = $('#ilUntouchReason');
+    var $untouchPatterns = $('#ilUntouchPatterns');
+    var $untouchPrompt = $('#ilUntouchPrompt');
+    var $untouchMsg = $('#ilUntouchMsg');
 
     var checkUrl = '<?= URL::BASE_URL; ?>IntentLab/check';
     var proposeUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeTeach';
     var applyUrl = '<?= URL::BASE_URL; ?>IntentLab/applyTeach';
+    var proposeUntouchUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeUntouch';
+    var applyUntouchUrl = '<?= URL::BASE_URL; ?>IntentLab/applyUntouch';
     var running = false;
 
     function toast(msg, kind) {
@@ -354,14 +431,24 @@
       running = !!on;
       $root.toggleClass('is-loading', running);
       $loading.attr('aria-busy', running ? 'true' : 'false');
-      $('#ilBtnRun, #ilBtnPropose, #ilBtnApply').prop('disabled', running);
+      $('#ilBtnRun, #ilBtnPropose, #ilBtnProposeUntouch, #ilBtnApply, #ilBtnApplyUntouch').prop('disabled', running);
       if (title) $('#ilLoadingTitle').text(title);
       if (sub) $('#ilLoadingSub').text(sub);
       if (!running) {
         $btn.html('<i class="fas fa-search"></i> Cek Intent');
         $('#ilBtnPropose').html('<i class="fas fa-magic"></i> Usulkan (AI)');
+        $('#ilBtnProposeUntouch').html('<i class="fas fa-unlink"></i> Keluarkan (AI)');
         $('#ilBtnApply').html('<i class="fas fa-check"></i> Aktifkan');
+        $('#ilBtnApplyUntouch').html('<i class="fas fa-ban"></i> Terapkan keluarkan');
       }
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     }
 
     function caseBadge(c) {
@@ -441,6 +528,7 @@
       setLoading(true, 'AI menyusun usulan…', 'Pattern regex + potongan prompt');
       $('#ilBtnPropose').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
       $applyMsg.text('');
+      $untouchBox.removeClass('is-show');
       $.ajax({
         url: proposeUrl,
         type: 'POST',
@@ -475,6 +563,67 @@
         }
       }).fail(function (xhr) {
         var msg = 'Usulan gagal';
+        try {
+          var j = JSON.parse(xhr.responseText || '{}');
+          if (j.message) msg = j.message;
+        } catch (e) {}
+        toast(msg, 'err');
+      }).always(function () { setLoading(false); });
+    }
+
+    function renderUntouchPatterns(list) {
+      if (!Array.isArray(list) || !list.length) {
+        $untouchPatterns.html('<p class="il-pat-empty">Tidak ada pattern aktif yang match teks ini. Cukup append pengecualian prompt bila AI masih mengklasifikasi ke intent ini.</p>');
+        $('#ilDeactivatePatterns').prop('checked', false);
+        return;
+      }
+      var html = '<ul class="il-pat-list">';
+      list.forEach(function (p) {
+        var id = Number(p.id || 0);
+        var pat = escapeHtml(p.pattern || '');
+        html += '<li><input type="checkbox" class="il-untouch-pat" value="' + id + '" checked> <code>' + pat + '</code></li>';
+      });
+      html += '</ul>';
+      $untouchPatterns.html(html);
+      $('#ilDeactivatePatterns').prop('checked', true);
+    }
+
+    function runProposeUntouch() {
+      if (running) return;
+      var text = $.trim($text.val() || '');
+      var intent = $.trim($teachIntent.val() || '');
+      if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
+      if (!intent) { toast('Pilih intent yang akan dikeluarkan', 'warn'); return; }
+      setLoading(true, 'AI menyusun keluarkan…', 'Cari pattern match + pengecualian prompt');
+      $('#ilBtnProposeUntouch').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
+      $untouchMsg.text('');
+      $teachBox.removeClass('is-show');
+      $.ajax({
+        url: proposeUntouchUrl,
+        type: 'POST',
+        contentType: 'application/json; charset=utf-8',
+        data: JSON.stringify({ text: text, intent: intent }),
+        dataType: 'json',
+        timeout: 90000
+      }).done(function (res) {
+        if (!(res && (res.ok === 1 || res.ok === true))) {
+          toast((res && (res.message || res.error)) || 'Usulan keluarkan gagal', 'err');
+          return;
+        }
+        $untouchBox.addClass('is-show');
+        var bits = [];
+        bits.push('<span class="il-badge il-badge--src">keluarkan dari: ' + (res.intent || intent) + '</span>');
+        var n = (res.matching_patterns && res.matching_patterns.length) || 0;
+        bits.push(n
+          ? '<span class="il-badge il-badge--warn">pattern match: ' + n + '</span>'
+          : '<span class="il-badge il-badge--ok">pattern match: 0</span>');
+        $untouchMeta.html(bits.join(''));
+        $untouchReason.text(res.reason || '');
+        $untouchPrompt.val(res.prompt_append || '');
+        renderUntouchPatterns(res.matching_patterns || []);
+        $('#ilUntouchUpdatePrompt').prop('checked', true);
+      }).fail(function (xhr) {
+        var msg = 'Usulan keluarkan gagal';
         try {
           var j = JSON.parse(xhr.responseText || '{}');
           if (j.message) msg = j.message;
@@ -529,16 +678,77 @@
       }).always(function () { setLoading(false); });
     }
 
+    function runApplyUntouch() {
+      if (running) return;
+      var text = $.trim($text.val() || '');
+      var intent = $.trim($teachIntent.val() || '');
+      var promptAppend = $.trim($untouchPrompt.val() || '');
+      var deactivatePatterns = $('#ilDeactivatePatterns').is(':checked') ? 1 : 0;
+      var updatePrompt = $('#ilUntouchUpdatePrompt').is(':checked') ? 1 : 0;
+      var patternIds = [];
+      $('.il-untouch-pat:checked').each(function () {
+        var id = parseInt($(this).val(), 10);
+        if (id > 0) patternIds.push(id);
+      });
+      if (!text || !intent) { toast('Teks dan intent wajib', 'warn'); return; }
+      if (!deactivatePatterns && !updatePrompt) { toast('Centang minimal satu aksi', 'warn'); return; }
+      if (deactivatePatterns && !patternIds.length && (!updatePrompt || !promptAppend)) {
+        toast('Tidak ada pattern tercentang. Centang Append pengecualian atau pilih pattern.', 'warn');
+        return;
+      }
+      if (updatePrompt && !promptAppend) {
+        toast('Isi pengecualian prompt atau matikan centang Append', 'warn');
+        return;
+      }
+      setLoading(true, 'Mengeluarkan dari intent…', 'Nonaktifkan pattern / append pengecualian');
+      $('#ilBtnApplyUntouch').html('<i class="fas fa-spinner fa-spin"></i> Menerapkan…');
+      $.ajax({
+        url: applyUntouchUrl,
+        type: 'POST',
+        contentType: 'application/json; charset=utf-8',
+        data: JSON.stringify({
+          text: text,
+          intent: intent,
+          prompt_append: promptAppend,
+          pattern_ids: patternIds,
+          deactivate_patterns: deactivatePatterns,
+          update_prompt: updatePrompt
+        }),
+        dataType: 'json',
+        timeout: 90000
+      }).done(function (res) {
+        if (!(res && (res.ok === 1 || res.ok === true))) {
+          $untouchMsg.css('color', '#dc2626').text((res && res.message) || 'Gagal keluarkan');
+          toast((res && res.message) || 'Gagal keluarkan', 'err');
+          return;
+        }
+        var msg = 'Dikeluarkan.';
+        if (res.patterns_deactivated) msg += ' Pattern nonaktif: ' + res.patterns_deactivated + '.';
+        if (res.prompt_updated) msg += ' Prompt diupdate.';
+        if (res.verify_ok) msg += ' Verifikasi: bukan ' + intent + ' (dapat ' + (res.verify_intent || '—') + ').';
+        else msg += ' Verifikasi: masih ' + (res.verify_intent || intent) + '.';
+        $untouchMsg.css('color', res.verify_ok ? '#15803d' : '#b45309').text(msg);
+        if (res.verify) showResult(res.verify);
+        toast(res.verify_ok ? 'Berhasil dikeluarkan' : 'Tersimpan, verifikasi masih di intent ini', res.verify_ok ? 'info' : 'warn');
+      }).fail(function () {
+        toast('Request keluarkan gagal', 'err');
+      }).always(function () { setLoading(false); });
+    }
+
     $btn.off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runCheck(); });
     $('#ilBtnPropose').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runPropose(); });
+    $('#ilBtnProposeUntouch').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runProposeUntouch(); });
     $('#ilBtnApply').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runApply(); });
-    $('#ilBtnRecheck').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runCheck(); });
+    $('#ilBtnApplyUntouch').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runApplyUntouch(); });
+    $('#ilBtnRecheck, #ilBtnRecheckUntouch').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runCheck(); });
     $('#ilBtnClear').off('click.intentLab').on('click.intentLab', function (e) {
       e.preventDefault();
       $text.val('');
       $result.removeClass('is-show');
       $teachBox.removeClass('is-show');
+      $untouchBox.removeClass('is-show');
       $applyMsg.text('');
+      $untouchMsg.text('');
     });
     $text.off('keydown.intentLab').on('keydown.intentLab', function (e) {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'Enter' || e.keyCode === 13)) {

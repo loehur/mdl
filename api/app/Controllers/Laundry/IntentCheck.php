@@ -32,6 +32,7 @@ class IntentCheck extends Controller
             'usage' => [
                 'POST /Laundry/IntentCheck/check JSON { "text": "..." }',
                 'POST /Laundry/IntentCheck/proposeTeach JSON { "text": "...", "intent": "PENUTUP" }',
+                'POST /Laundry/IntentCheck/proposeUntouch JSON { "text": "...", "intent": "PENUTUP" }',
             ],
         ], JSON_UNESCAPED_UNICODE);
     }
@@ -128,6 +129,50 @@ class IntentCheck extends Controller
             echo json_encode([
                 'ok' => false,
                 'message' => 'Gagal usulan teach',
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * POST /Laundry/IntentCheck/proposeUntouch
+     * Body: { text, intent } — AI usulkan keluarkan dari intent (pattern match + pengecualian prompt).
+     */
+    public function proposeUntouch()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+
+        if (!$this->isPost()) {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'message' => 'Method not allowed'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!$this->verifyTeachAccess()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'message' => 'Unauthorized'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $data = $this->readJsonOrPost();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intent = strtoupper(trim((string) ($data['intent'] ?? '')));
+
+        try {
+            $out = \App\Helpers\Laundry\IntentTeachHelper::proposeUntouch($text, $intent);
+            if (empty($out['ok'])) {
+                http_response_code(400);
+            }
+            echo json_encode($out, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('IntentCheck proposeUntouch: ' . $e->getMessage(), 'api', 'IntentCheck');
+            }
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Gagal usulan keluarkan',
                 'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
