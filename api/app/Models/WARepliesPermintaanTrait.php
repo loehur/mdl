@@ -200,6 +200,15 @@ trait WARepliesPermintaanTrait
             }
         }
 
+        // Pelanggan baru / belum terdaftar: jangan buat/update session (case 3 tetap dari caller)
+        if (empty($idPelanggan)) {
+            if ($session !== null) {
+                $this->clearPermintaanSession($waNumber);
+            }
+            $this->logAutoreplyTrace($waNumber, 'PERMINTAAN', 'skip_session_no_pelanggan');
+            return true;
+        }
+
         $prevSummary = trim((string) ($session['summary'] ?? ''));
         $prevRaw = trim((string) ($session['raw_log'] ?? ''));
         $newRaw = $prevRaw === ''
