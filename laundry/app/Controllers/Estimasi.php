@@ -319,7 +319,8 @@ class Estimasi extends Controller
     /**
      * Update satu task.
      * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|ambil_tutup|pelanggan_new|permintaan,
-     *       estimasi_jam?, request_granted?, reject_reason?, reject_alt?, nama_pelanggan?, send_wa?
+     *       estimasi_jam?, request_granted?, reject_reason?, reject_alt?, permintaan_action?, catatan?,
+     *       id_karyawan?, nama_pelanggan?, send_wa?
      */
     public function update()
     {
@@ -1370,17 +1371,35 @@ class Estimasi extends Controller
     }
 
     /**
-     * Terpenuhi / Tolak permintaan: WA AI + close case 3 + hapus/akhiri session.
-     * POST: request_granted=1|0, reject_reason?, reject_alt?, send_wa?
+     * Penuhi / Tolak / Hapus permintaan.
+     * POST: permintaan_action=hapus|fulfill|reject  (atau request_granted=1|0),
+     *       reject_reason?, reject_alt?, catatan? (wajib untuk hapus), id_karyawan?, send_wa?
      */
     private function updatePermintaanTask(string $phone, string $phoneEsc): void
     {
-        $grantedRaw = $_POST['request_granted'] ?? null;
-        if ($grantedRaw === null || $grantedRaw === '') {
-            // Kompatibilitas tombol lama "sudah terpenuhi" tanpa granted → anggap fulfill
-            $grantedRaw = '1';
+        $action = strtolower(trim((string) ($_POST['permintaan_action'] ?? '')));
+        if ($action === '' || $action === 'fulfill' || $action === 'reject') {
+            $grantedRaw = $_POST['request_granted'] ?? null;
+            if ($action === 'fulfill') {
+                $grantedRaw = '1';
+            } elseif ($action === 'reject') {
+                $grantedRaw = '0';
+            } elseif ($grantedRaw === null || $grantedRaw === '') {
+                $grantedRaw = '1';
+            }
+            if ((string) $grantedRaw === '0') {
+                $action = 'reject';
+            } else {
+                $action = 'fulfill';
+            }
         }
-        $granted = (int) $grantedRaw === 1;
+
+        if ($action === 'hapus' || $action === 'delete' || $action === 'batal') {
+            $this->hapusPermintaanTask($phone, $phoneEsc);
+            return;
+        }
+
+        $granted = $action === 'fulfill';
         $rejectReason = trim((string) ($_POST['reject_reason'] ?? ''));
         $rejectAlt = trim((string) ($_POST['reject_alt'] ?? $_POST['reject_alternative'] ?? ''));
 
@@ -1391,32 +1410,7 @@ class Estimasi extends Controller
             }
         }
 
-        $session = null;
-        try {
-            $session = $this->db(100)->get_where_row(
-                'wa_permintaan_session',
-                "phone = '" . $phoneEsc . "' AND status = 'open' AND expires_at > NOW()"
-            );
-            if (!is_array($session) || empty($session['phone'])) {
-                // coba match last digits
-                $digits = preg_replace('/[^0-9]/', '', $phone);
-                $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
-                if ($tail !== '') {
-                    $rows = $this->db(100)->query_array(
-                        "SELECT * FROM wa_permintaan_session
-                         WHERE status = 'open' AND expires_at > NOW()
-                           AND RIGHT(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''), "
-                        . strlen($tail) . ") = '" . $this->db(100)->escape($tail) . "'
-                         LIMIT 1"
-                    );
-                    if (!empty($rows[0])) {
-                        $session = $rows[0];
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            $session = null;
-        }
+        $session = $this->findOpenPermintaanSession($phone, $phoneEsc);
 
         $summary = trim((string) ($session['summary'] ?? ''));
         if ($summary === '') {
@@ -1462,7 +1456,6 @@ class Estimasi extends Controller
                 echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update session']);
                 return;
             }
-            // Hapus session agar tidak nyangkut
             try {
                 $this->db(100)->delete('wa_permintaan_session', "phone = '" . $sessPhoneEsc . "'");
             } catch (\Throwable $e) {
@@ -1470,10 +1463,125 @@ class Estimasi extends Controller
             }
         }
 
-        // Tutup case 3 di CRM (hilangkan merah)
+        $this->closePermintaanCaseQuiet($phone);
+        $this->respondAfterUpdate($phone, $replyText);
+    }
+
+    /**
+     * Hapus permintaan: tutup case 3 + hapus session, tanpa WA. Wajib catatan → activity_log.
+     */
+    private function hapusPermintaanTask(string $phone, string $phoneEsc): void
+    {
+        $catatan = trim((string) ($_POST['catatan'] ?? $_POST['reject_reason'] ?? ''));
+        if ($catatan === '') {
+            echo json_encode(['ok' => 0, 'msg' => 'Catatan hapus wajib diisi']);
+            return;
+        }
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+        if ($idKaryawan < 1) {
+            $idKaryawan = $idUser;
+        }
+        $namaKaryawan = '';
+        if ($idKaryawan > 0) {
+            try {
+                $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
+                if (is_array($karyawan)) {
+                    $namaKaryawan = (string) ($karyawan['nama_user'] ?? '');
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+        if ($namaKaryawan === '') {
+            $namaKaryawan = (string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? ('#' . $idKaryawan));
+        }
+        $idCabang = $this->currentCabangId();
+
+        $session = $this->findOpenPermintaanSession($phone, $phoneEsc);
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $sessPhone = is_array($session) ? (string) ($session['phone'] ?? '') : '';
+
+        if ($sessPhone !== '') {
+            try {
+                $this->db(100)->delete(
+                    'wa_permintaan_session',
+                    "phone = '" . $this->db(100)->escape($sessPhone) . "'"
+                );
+            } catch (\Throwable $e) {
+                echo json_encode(['ok' => 0, 'msg' => 'Gagal hapus session']);
+                return;
+            }
+        }
+
         $this->closePermintaanCaseQuiet($phone);
 
-        $this->respondAfterUpdate($phone, $replyText);
+        $phoneTail = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($phoneTail) >= 9) {
+            $phoneTail = substr($phoneTail, -9);
+        }
+
+        $log = $this->helper('ActivityLog')->write([
+            'modul' => 'permintaan',
+            'aksi' => 'hapus',
+            'id_ref' => $phoneTail,
+            'ref' => $phoneTail,
+            'id_karyawan' => $idKaryawan > 0 ? $idKaryawan : null,
+            'nama_karyawan' => strtoupper($namaKaryawan),
+            'id_user' => $idUser > 0 ? $idUser : null,
+            'id_cabang' => $idCabang > 0 ? $idCabang : null,
+            'catatan' => $catatan,
+            'meta' => [
+                'phone' => $phone,
+                'phone_tail' => $phoneTail,
+                'summary' => $summary !== '' ? mb_substr($summary, 0, 300) : null,
+                'closed_case' => 3,
+            ],
+        ]);
+        if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
+            echo json_encode(['ok' => 0, 'msg' => $log['error'] ?? 'Gagal menyimpan log']);
+            return;
+        }
+
+        $pendingCount = $this->syncNotifTaskCount();
+        echo json_encode([
+            'ok' => 1,
+            'wa_ok' => 0,
+            'count' => $pendingCount,
+            'msg' => 'Permintaan dihapus',
+        ]);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function findOpenPermintaanSession(string $phone, string $phoneEsc): ?array
+    {
+        try {
+            $session = $this->db(100)->get_where_row(
+                'wa_permintaan_session',
+                "phone = '" . $phoneEsc . "' AND status = 'open' AND expires_at > NOW()"
+            );
+            if (is_array($session) && !empty($session['phone'])) {
+                return $session;
+            }
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+            if ($tail !== '') {
+                $rows = $this->db(100)->query_array(
+                    "SELECT * FROM wa_permintaan_session
+                     WHERE status = 'open' AND expires_at > NOW()
+                       AND RIGHT(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''), "
+                    . strlen($tail) . ") = '" . $this->db(100)->escape($tail) . "'
+                     LIMIT 1"
+                );
+                if (!empty($rows[0])) {
+                    return $rows[0];
+                }
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return null;
     }
 
     private function composePermintaanReplyAi(

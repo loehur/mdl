@@ -2252,7 +2252,7 @@ if ($privUi === 100) {
                 <div class="mdl-chat-modal__foot">
                     <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-chat-close>Tutup</button>
                     <button type="button" class="mdl-notif-btn" id="mdlChatCloseCaseBtn">
-                        <i class="fas fa-check"></i> Sudah terpenuhi
+                        <i class="fas fa-check"></i> Penuhi
                     </button>
                 </div>
             </div>
@@ -3589,21 +3589,21 @@ if ($privUi === 100) {
                                 formFields =
                                     '<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
                                     '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
-                                    '<i class="fas fa-comments"></i> Lihat chat</button>' +
+                                    '<i class="fas fa-comments"></i> Chat</button>' +
                                     '<button type="button" class="mdl-notif-btn js-notif-fulfill-permintaan">' +
-                                    '<i class="fas fa-check"></i> Permintaan Terpenuhi</button>' +
+                                    '<i class="fas fa-check"></i> Penuhi</button>' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-reject-permintaan">' +
+                                    '<i class="fas fa-times"></i> Tolak</button>' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-hapus-permintaan">' +
+                                    '<i class="fas fa-trash"></i> Hapus</button>' +
                                     '</div>' +
-                                    '<div style="flex:1;min-width:160px">' +
+                                    '<div style="flex:1;min-width:140px">' +
                                     '<label>Alasan tolak</label>' +
                                     '<input type="text" class="js-notif-reject-reason" placeholder="Wajib jika tolak" maxlength="500">' +
                                     '</div>' +
-                                    '<div style="flex:1;min-width:160px">' +
-                                    '<label>Alternatif (opsional)</label>' +
-                                    '<input type="text" class="js-notif-reject-alt" placeholder="Boleh kosong" maxlength="500">' +
-                                    '</div>' +
-                                    '<div>' +
-                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-reject-permintaan">' +
-                                    '<i class="fas fa-times"></i> Tolak Permintaan</button>' +
+                                    '<div style="flex:1;min-width:140px">' +
+                                    '<label>Alternatif</label>' +
+                                    '<input type="text" class="js-notif-reject-alt" placeholder="Opsional" maxlength="500">' +
                                     '</div>';
                                 cardExtra = '';
                             } else if (taskType === 'pelanggan_new') {
@@ -3880,7 +3880,13 @@ if ($privUi === 100) {
                             url: baseUrl + 'Estimasi/update',
                             method: 'POST',
                             dataType: 'json',
-                            data: { phone: phone, task_type: 'permintaan', request_granted: 1, send_wa: 1 }
+                            data: {
+                                phone: phone,
+                                task_type: 'permintaan',
+                                permintaan_action: 'fulfill',
+                                request_granted: 1,
+                                send_wa: 1
+                            }
                         }).done(function(res) {
                             if (res && res.ok) {
                                 if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan terpenuhi');
@@ -3915,6 +3921,7 @@ if ($privUi === 100) {
                             data: {
                                 phone: phone,
                                 task_type: 'permintaan',
+                                permintaan_action: 'reject',
                                 request_granted: 0,
                                 reject_reason: reason,
                                 reject_alt: alt,
@@ -3931,6 +3938,48 @@ if ($privUi === 100) {
                             }
                         }).fail(function() {
                             if (window.MdlToast) MdlToast.error('Gagal memproses');
+                            $btn.prop('disabled', false);
+                        });
+                    });
+
+                    $(bodyEl).on('click', '.js-notif-hapus-permintaan', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        var phone = $card.data('phone');
+                        var $btn = $(this);
+                        if (!phone) return;
+                        var catatan = window.prompt('Catatan hapus permintaan (wajib):', '');
+                        if (catatan === null) return;
+                        catatan = String(catatan || '').trim();
+                        if (catatan.length < 2) {
+                            if (window.MdlToast) MdlToast.warn('Catatan hapus wajib diisi');
+                            return;
+                        }
+                        if (!window.confirm('Hapus permintaan ini? Case CRM ditutup, tanpa WA ke pelanggan.')) {
+                            return;
+                        }
+                        $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: {
+                                phone: phone,
+                                task_type: 'permintaan',
+                                permintaan_action: 'hapus',
+                                catatan: catatan,
+                                send_wa: 0
+                            }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan dihapus');
+                                loadList();
+                                refreshCount();
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal menghapus');
                             $btn.prop('disabled', false);
                         });
                     });
@@ -4035,7 +4084,13 @@ if ($privUi === 100) {
                             url: baseUrl + 'Estimasi/update',
                             method: 'POST',
                             dataType: 'json',
-                            data: { phone: phone, task_type: 'permintaan', request_granted: 1, send_wa: 1 }
+                            data: {
+                                phone: phone,
+                                task_type: 'permintaan',
+                                permintaan_action: 'fulfill',
+                                request_granted: 1,
+                                send_wa: 1
+                            }
                         }).done(function(res) {
                             if (res && res.ok) {
                                 if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan selesai');
