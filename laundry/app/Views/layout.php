@@ -2264,7 +2264,7 @@ if ($privUi === 100) {
                 <div class="mdl-chat-modal__body mdl-chat-modal__body--confirm">
                     <div class="mdl-chat-confirm-icon"><i class="fas fa-check"></i></div>
                     <h3 class="mdl-chat-confirm-title" id="mdlChatConfirmTitle">Konfirmasi</h3>
-                    <p class="mdl-chat-confirm-text">Yakin permintaan sudah terpenuhi? Status case akan diubah menjadi closed.</p>
+                    <p class="mdl-chat-confirm-text">Yakin permintaan sudah terpenuhi? Pelanggan akan dikabari via WA dan case CRM ditutup.</p>
                 </div>
                 <div class="mdl-chat-modal__foot">
                     <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-chat-confirm-close>Batal</button>
@@ -3568,6 +3568,12 @@ if ($privUi === 100) {
                                     '<span class="mdl-notif-req__label">Pesan customer</span>' +
                                     escHtml(pesan) +
                                     '</div>';
+                            } else if (pesan && taskType === 'permintaan') {
+                                bodyBlock +=
+                                    '<div class="mdl-notif-req">' +
+                                    '<span class="mdl-notif-req__label">Isi permintaan</span>' +
+                                    escHtml(pesan) +
+                                    '</div>';
                             } else if (pesan && taskType === 'pelanggan_new') {
                                 bodyBlock +=
                                     '<div class="mdl-notif-req">' +
@@ -3580,14 +3586,26 @@ if ($privUi === 100) {
                             var formFields = '';
                             var cardExtra = '';
                             if (taskType === 'permintaan') {
-                                formFields = '';
-                                cardExtra =
-                                    '<div class="mdl-notif-actions">' +
+                                formFields =
+                                    '<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
                                     '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
                                     '<i class="fas fa-comments"></i> Lihat chat</button>' +
-                                    '<button type="button" class="mdl-notif-btn js-notif-close-permintaan">' +
-                                    '<i class="fas fa-check"></i> Sudah terpenuhi</button>' +
+                                    '<button type="button" class="mdl-notif-btn js-notif-fulfill-permintaan">' +
+                                    '<i class="fas fa-check"></i> Permintaan Terpenuhi</button>' +
+                                    '</div>' +
+                                    '<div style="flex:1;min-width:160px">' +
+                                    '<label>Alasan tolak</label>' +
+                                    '<input type="text" class="js-notif-reject-reason" placeholder="Wajib jika tolak" maxlength="500">' +
+                                    '</div>' +
+                                    '<div style="flex:1;min-width:160px">' +
+                                    '<label>Alternatif (opsional)</label>' +
+                                    '<input type="text" class="js-notif-reject-alt" placeholder="Boleh kosong" maxlength="500">' +
+                                    '</div>' +
+                                    '<div>' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-reject-permintaan">' +
+                                    '<i class="fas fa-times"></i> Tolak Permintaan</button>' +
                                     '</div>';
+                                cardExtra = '';
                             } else if (taskType === 'pelanggan_new') {
                                 var saranNama = escHtml(it.nama_saran || it.nama || '');
                                 formFields =
@@ -3669,7 +3687,7 @@ if ($privUi === 100) {
                                 (it.updated_at ? (' · ' + escHtml(it.updated_at)) : '') + '</p>' +
                                 bodyBlock +
                                 (taskType === 'permintaan'
-                                    ? cardExtra
+                                    ? ('<div class="mdl-notif-form"><div class="mdl-notif-row">' + formFields + '</div></div>')
                                     : ('<form class="mdl-notif-form js-notif-form"><div class="mdl-notif-row">' + formFields + '</div></form>')) +
                                 '</div>';
                         });
@@ -3846,13 +3864,75 @@ if ($privUi === 100) {
                         }
                     });
 
-                    $(bodyEl).on('click', '.js-notif-close-permintaan', function() {
+                    $(bodyEl).on('click', '.js-notif-close-permintaan, .js-notif-fulfill-permintaan', function() {
                         var $card = $(this).closest('.mdl-notif-card');
-                        if (window.MdlChatHistory) {
-                            MdlChatHistory.confirmClosePermintaan($card.data('phone'), {
+                        var phone = $card.data('phone');
+                        var $btn = $(this);
+                        if (!phone) return;
+                        if (window.MdlChatHistory && typeof MdlChatHistory.confirmClosePermintaan === 'function') {
+                            MdlChatHistory.confirmClosePermintaan(phone, {
                                 onClosed: function() { loadList(); refreshCount(); }
                             });
+                            return;
                         }
+                        $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: { phone: phone, task_type: 'permintaan', request_granted: 1, send_wa: 1 }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan terpenuhi');
+                                loadList();
+                                refreshCount();
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal memproses');
+                            $btn.prop('disabled', false);
+                        });
+                    });
+
+                    $(bodyEl).on('click', '.js-notif-reject-permintaan', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        var phone = $card.data('phone');
+                        var reason = String($card.find('.js-notif-reject-reason').val() || '').trim();
+                        var alt = String($card.find('.js-notif-reject-alt').val() || '').trim();
+                        var $btn = $(this);
+                        if (!phone) return;
+                        if (reason.length < 3) {
+                            if (window.MdlToast) MdlToast.warn('Isi alasan tolak');
+                            return;
+                        }
+                        $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: {
+                                phone: phone,
+                                task_type: 'permintaan',
+                                request_granted: 0,
+                                reject_reason: reason,
+                                reject_alt: alt,
+                                send_wa: 1
+                            }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan ditolak');
+                                loadList();
+                                refreshCount();
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                $btn.prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal memproses');
+                            $btn.prop('disabled', false);
+                        });
                     });
                 })();
 
@@ -3955,7 +4035,7 @@ if ($privUi === 100) {
                             url: baseUrl + 'Estimasi/update',
                             method: 'POST',
                             dataType: 'json',
-                            data: { phone: phone, task_type: 'permintaan', send_wa: 0 }
+                            data: { phone: phone, task_type: 'permintaan', request_granted: 1, send_wa: 1 }
                         }).done(function(res) {
                             if (res && res.ok) {
                                 if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan selesai');

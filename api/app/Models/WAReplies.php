@@ -8,12 +8,14 @@ use App\Core\DB;
 require_once __DIR__ . '/WARepliesKurirTrait.php';
 require_once __DIR__ . '/WARepliesLokasiTrait.php';
 require_once __DIR__ . '/WARepliesAmbilTutupTrait.php';
+require_once __DIR__ . '/WARepliesPermintaanTrait.php';
 
 class WAReplies
 {
     use WARepliesKurirTrait;
     use WARepliesLokasiTrait;
     use WARepliesAmbilTutupTrait;
+    use WARepliesPermintaanTrait;
 
     private $waService = null;
     private $noRegisterTextVariations = [
@@ -309,7 +311,7 @@ class WAReplies
         if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
             return 60;
         }
-        if ($h === 'MINTA_JEMPUT_ANTAR' || $h === 'LOKASI') {
+        if ($h === 'MINTA_JEMPUT_ANTAR' || $h === 'LOKASI' || $h === 'PERMINTAAN') {
             // Multi-turn session aktif: jangan blok 24 jam
             return 1;
         }
@@ -1954,6 +1956,23 @@ class WAReplies
             }
         }
 
+        // Session PERMINTAAN aktif: standby rangkum AI (tanpa autoreply), case 3
+        if ($this->getPermintaanSession($waNumber) !== null
+            && !$this->messageBreaksPermintaanSession($textBodyToCheck, $fullKeywordConfig)) {
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'permintaan_session_followup→PERMINTAAN case=3');
+            $this->currentHandler = 'PERMINTAAN';
+            $this->handlePermintaan($phoneIn, $waNumber, $textBody);
+            $conversationId = $this->getOrCreateConversationWithCase(
+                $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 3
+            );
+            $this->logAutoreplyTrace($waNumber, 'DONE', 'permintaan_session_followup_ok');
+            return (object) [
+                'case' => 3,
+                'notify' => true,
+                'conversation_id' => $conversationId,
+            ];
+        }
+
         // Session AMBIL_LEWAT_TUTUP aktif
         if ($this->getAmbilTutupSession($waNumber) !== null
             && !$this->messageBreaksAmbilTutupSession($textBodyToCheck, $fullKeywordConfig)) {
@@ -2213,10 +2232,11 @@ class WAReplies
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // MINTA_JEMPUT_ANTAR: minta satu pakaian/item diambil/dulukan dulu dari order = PERMINTAAN (regex), bukan kurir ke alamat
+                    // MINTA_JEMPUT_ANTAR: minta satu pakaian/item diambil/dulukan dulu dari order = PERMINTAAN, bukan kurir ke alamat
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→permintaan_ambil_pakaian_dulu');
-                        continue;
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'MINTA_JEMPUT_ANTAR→PERMINTAAN ambil_pakaian_dulu');
+                        $handler = 'PERMINTAAN';
+                        $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
                     // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
                     if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
@@ -2284,6 +2304,12 @@ class WAReplies
                     // Get case from config (pakai handler final — bisa sudah di-remap MINTA→ESTIMASI)
                     $caseVal = $fullKeywordConfig[$handler]['case'] ?? ($config['case'] ?? null);
                     $notify = $fullKeywordConfig[$handler]['notify'] ?? ($config['notify'] ?? false);
+                    if ($handler === 'PERMINTAAN') {
+                        if ($caseVal === null || (int) $caseVal === 0) {
+                            $caseVal = 3;
+                        }
+                        $notify = true;
+                    }
                     $matchPattern[] = $handler;
 
                     // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR (cek sale tuntas=0, tanpa notif pending)
@@ -2367,7 +2393,8 @@ class WAReplies
                             ];
                         }
                         // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
-                        if ($handler !== 'PEMBUKA') {
+                        // PERMINTAAN: standby tanpa autoreply (termasuk sapaan)
+                        if ($handler !== 'PEMBUKA' && $handler !== 'PERMINTAAN') {
                             $this->sendGreetingReplyFirst($waNumber, $textBody);
                         }
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
@@ -2540,8 +2567,16 @@ class WAReplies
             if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→PERMINTAAN ambil_pakaian_dulu');
                 $aiIntent = 'PERMINTAAN';
-                $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? false;
+                $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
+                $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
+            }
+
+            // Default case/notify PERMINTAAN (CRM merah case 3) jika intent dari AI/config
+            if ($aiIntent === 'PERMINTAAN') {
+                if ($aiCase === null || (int) $aiCase === 0) {
+                    $aiCase = 3;
+                }
+                $aiNotify = true;
             }
 
             // STATUS / MINTA / JAM → ESTIMASI_SELESAI (tanya selesai relatif / jam) jika ada order aktif
@@ -2799,7 +2834,8 @@ class WAReplies
                     ];
                 }
                 // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
-                if ($aiIntent !== 'PEMBUKA') {
+                // PERMINTAAN: standby tanpa autoreply (termasuk sapaan)
+                if ($aiIntent !== 'PEMBUKA' && $aiIntent !== 'PERMINTAAN') {
                     $this->sendGreetingReplyFirst($waNumber, $textBody);
                 }
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
