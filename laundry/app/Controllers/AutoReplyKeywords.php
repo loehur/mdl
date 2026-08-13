@@ -28,11 +28,6 @@ class AutoReplyKeywords extends Controller
         $db->update('wa_autoreply_meta', ['meta_value' => $next], "meta_key = 'cache_version'");
     }
 
-    private function keywordsFilePath(): string
-    {
-        return dirname(__DIR__, 3) . '/api/app/Config/AutoReplyKeywords.php';
-    }
-
     public function index()
     {
         $this->session_cek(1);
@@ -67,7 +62,6 @@ class AutoReplyKeywords extends Controller
             'intents' => $intents,
             'db_ready' => $dbReady,
             'source' => $source,
-            'file_exists' => is_file($this->keywordsFilePath()),
         ]);
     }
 
@@ -324,90 +318,25 @@ class AutoReplyKeywords extends Controller
     }
 
     /**
-     * Seed dari api/app/Config/AutoReplyKeywords.php
+     * Seed via API (baca AutoReplyKeywords.php di server api.nalju.com).
+     * Laundry tidak boleh akses filesystem folder api (open_basedir).
      * POST replace=1 untuk timpa ulang
      */
     public function seed()
     {
         $this->session_cek(1);
         $replace = !empty($_POST['replace']);
-        $path = $this->keywordsFilePath();
-        if (!is_file($path)) {
-            echo 'File tidak ditemukan: AutoReplyKeywords.php';
+
+        /** @var AutoReplyKeywordsApi $api */
+        $api = $this->helper('AutoReplyKeywordsApi');
+        $res = $api->seed($replace);
+
+        if (!empty($res['ok'])) {
+            echo 0;
             return;
         }
 
-        $data = require $path;
-        if (!is_array($data) || $data === []) {
-            echo 'File kosong / invalid';
-            return;
-        }
-
-        $db = $this->dbMain();
-        if (!$replace) {
-            $cnt = $db->query_array('SELECT COUNT(*) AS c FROM wa_autoreply_intents');
-            if ((int) ($cnt[0]['c'] ?? 0) > 0) {
-                echo 'DB sudah berisi data. Centang Replace untuk timpa dari file.';
-                return;
-            }
-        } else {
-            $db->query('DELETE FROM wa_autoreply_patterns');
-            $db->query('DELETE FROM wa_autoreply_intents');
-        }
-
-        $intentCount = 0;
-        $patternCount = 0;
-        $sort = 0;
-        foreach ($data as $code => $cfg) {
-            if (!is_array($cfg)) {
-                continue;
-            }
-            $sort++;
-            $code = strtoupper(trim((string) $code));
-            $row = [
-                'code' => $code,
-                'sort_order' => $sort,
-                'is_active' => 1,
-                'ai_prompt' => isset($cfg['ai_prompt']) && is_string($cfg['ai_prompt']) ? $cfg['ai_prompt'] : null,
-                'case_value' => null,
-                'notify' => null,
-            ];
-            if (array_key_exists('case', $cfg)) {
-                $row['case_value'] = $cfg['case'] === null ? null : (int) $cfg['case'];
-            }
-            if (array_key_exists('notify', $cfg)) {
-                $row['notify'] = $cfg['notify'] ? 1 : 0;
-            }
-
-            $in = $db->insert('wa_autoreply_intents', $row);
-            $intentId = (int) ($in['insert_id'] ?? 0);
-            if (($in['errno'] ?? 1) != 0 || $intentId <= 0) {
-                continue;
-            }
-            $intentCount++;
-            $psort = 0;
-            foreach (($cfg['patterns'] ?? []) as $pat) {
-                if (!is_string($pat) || $pat === '') {
-                    continue;
-                }
-                $psort++;
-                $pin = $db->insert('wa_autoreply_patterns', [
-                    'intent_id' => $intentId,
-                    'pattern' => $pat,
-                    'sort_order' => $psort,
-                    'is_active' => 1,
-                ]);
-                if (($pin['errno'] ?? 1) == 0) {
-                    $patternCount++;
-                }
-            }
-        }
-
-        $this->bumpCache();
-        echo 0; // success — UI reloads; counts in flash via query string optional
-        // Also print counts for non-zero responses? Reminder uses 0 only.
-        // Put counts in a custom success: still echo 0 and rely on reload.
-        // For UX, echo JSON if wanted — keep Reminder style: 0 = OK
-        // Store message in session briefly? Skip — page shows new rows.
+        $msg = trim((string) ($res['message'] ?? $res['error'] ?? 'Seed gagal'));
+        echo $msg !== '' ? $msg : 'Seed gagal';
     }
 }

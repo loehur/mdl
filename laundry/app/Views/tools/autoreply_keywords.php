@@ -42,9 +42,7 @@
             <span class="ark-badge ark-badge--ok">Sumber: database</span>
           <?php endif; ?>
           <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addIntentModal">+ Intent</button>
-          <?php if (!empty($data['file_exists'])): ?>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#seedModal">Seed dari file</button>
-          <?php endif; ?>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#seedModal">Seed via API</button>
           <a class="btn btn-sm btn-outline-primary" href="<?= URL::BASE_URL ?>IntentLab">Intent Lab</a>
         </div>
 
@@ -130,11 +128,11 @@
     <div class="modal-dialog">
       <div class="modal-content" style="border-radius:0">
         <div class="modal-header">
-          <h5 class="modal-title">Seed dari AutoReplyKeywords.php</h5>
+          <h5 class="modal-title">Seed via API</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p class="mb-2">Import semua intent + pattern dari file API ke database.</p>
+          <p class="mb-2">Import intent + pattern dari file di server <code>api.nalju.com</code> (bukan dari filesystem laundry).</p>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="seedReplace" value="1">
             <label class="form-check-label" for="seedReplace">Replace — hapus data DB lalu isi ulang dari file</label>
