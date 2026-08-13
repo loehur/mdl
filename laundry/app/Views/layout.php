@@ -596,7 +596,7 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell {
             position: relative;
             border-color: transparent;
-            color: #fff;
+            color: #7f1d1d;
             background: transparent;
             padding: 0;
             width: 34px;
@@ -605,12 +605,16 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell i {
             font-size: 22px;
             line-height: 1;
+            color: #7f1d1d;
         }
         .mdl-tbtn--bell:hover {
             background: transparent;
             border-color: transparent;
-            color: #fff;
-            filter: brightness(1.12);
+            color: #991b1b;
+            filter: none;
+        }
+        .mdl-tbtn--bell:hover i {
+            color: #991b1b;
         }
         .mdl-tbtn--bell:active {
             transform: none;
@@ -618,11 +622,11 @@ if (isset($data['data_operasi'])) {
         @keyframes mdl-bell-blink {
             0%, 100% {
                 opacity: 1;
-                color: #fff;
+                color: #7f1d1d;
             }
             50% {
-                opacity: 0.25;
-                color: #fbbf24;
+                opacity: 0.35;
+                color: #dc2626;
             }
         }
         .mdl-tbtn--bell.has-notif i {
