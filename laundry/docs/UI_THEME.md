@@ -9,7 +9,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Modal Operasi → `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `window.OpModal`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
 - Toast → `laundry/app/Views/layout.php` (`.mdl-toast` + `window.MdlToast`)
-- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`); termasuk section **Permintaan Pelanggan** + modal chat `#mdlChatHistoryModal` + konfirmasi `#mdlChatConfirmModal` / `#mdlPermintaanTolakModal` / `#mdlPermintaanHapusModal` (tanpa `alert`/`confirm`/`prompt` browser)
+- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`); termasuk section **Permintaan Pelanggan** + modal chat `#mdlChatHistoryModal` + konfirmasi `#mdlChatConfirmModal` / `#mdlPermintaanTolakModal` + panel hapus inline `.mdl-notif-hapus-panel` (tanpa `alert`/`confirm`/`prompt` browser)
 - Riwayat chat WA (shared) → Helper `WaChatHistory` + JS `in_assets/js/mdl-wa-chat.js` (`window.MdlWaChat`) + CSS `.mdl-wa-chat` di `layout.php` (Delivery + Notifikasi permintaan)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
@@ -467,7 +467,7 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 6. **Jangan** toast untuk konfirmasi hapus / checkout / print-server-offline / aksi destruktif.
 7. Butuh input teks (catatan hapus, alasan, dll.) → **modal bertema** + field, **bukan** `prompt()`.
 
-**Notifikasi Permintaan (lonceng):** Penuhi / Tolak / Hapus memakai modal konfirmasi (`.mdl-chat-modal`); validasi singkat & hasil sukses/gagal memakai `MdlToast`. Referensi: `#mdlChatConfirmModal`, `#mdlPermintaanTolakModal`, `#mdlPermintaanHapusModal` di `layout.php`.
+**Notifikasi Permintaan (lonceng):** Penuhi / Tolak memakai modal konfirmasi (`.mdl-chat-modal`); **Hapus** memakai panel catatan **inline di kartu** (di dalam offcanvas, agar input bisa diketik — hindari modal di luar focus-trap). Validasi & hasil → `MdlToast`. Referensi: `#mdlChatConfirmModal`, `#mdlPermintaanTolakModal`, `.mdl-notif-hapus-panel` di `layout.php`.
 
 #### Toast (feedback singkat)
 

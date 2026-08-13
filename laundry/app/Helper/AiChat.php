@@ -13,7 +13,7 @@ class AiChat
         $keys = $this->loadKeys();
         $openaiKey = $keys['openai'];
         $groqKey = $keys['groq'];
-        $timeout = 25;
+        $timeout = 15;
 
         if ($openaiKey === '' && $groqKey === '') {
             throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GROQ_API_KEY di api Env.php)');
@@ -73,7 +73,10 @@ class AiChat
         }
 
         if (!class_exists('Env', false)) {
+            // Tangkap BOM/whitespace dari Env.php agar tidak merusak JSON response caller.
+            ob_start();
             require_once $envPath;
+            ob_end_clean();
         }
         if (!class_exists('Env', false)) {
             return $out;

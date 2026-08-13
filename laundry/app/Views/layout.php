@@ -1099,6 +1099,59 @@ if (isset($data['data_operasi'])) {
         .mdl-notif-btn--danger:hover {
             filter: brightness(1.05);
         }
+        .mdl-notif-hapus-panel {
+            flex: 1 1 100%;
+            width: 100%;
+            margin: 0 0 10px;
+            padding: 10px;
+            border: 1px solid #fca5a5;
+            background: linear-gradient(180deg, #fef2f2, #fff);
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
+        }
+        .mdl-notif-hapus-panel[hidden] {
+            display: none !important;
+        }
+        .mdl-notif-hapus-panel label {
+            display: block;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .mdl-notif-hapus-panel textarea {
+            display: block;
+            width: 100%;
+            min-height: 72px;
+            border: 1px solid #94a3b8;
+            border-radius: 0;
+            background: #fff;
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 8px 10px;
+            resize: vertical;
+            pointer-events: auto;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        .mdl-notif-hapus-panel textarea:focus {
+            outline: none;
+            border-color: #dc2626;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+        }
+        .mdl-notif-hapus-hint {
+            margin: 6px 0 8px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #7f1d1d;
+        }
+        .mdl-notif-actions[hidden] {
+            display: none !important;
+        }
         .mdl-notif-form label {
             display: block;
             font-size: 10px;
@@ -1153,6 +1206,33 @@ if (isset($data['data_operasi'])) {
         .mdl-notif-btn:disabled {
             opacity: 0.55;
             cursor: not-allowed;
+        }
+        .mdl-notif-btn.is-loading {
+            pointer-events: none;
+            opacity: 0.9;
+            min-width: 110px;
+            gap: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .mdl-notif-btn .mdl-notif-spin {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: mdl-notif-spin 0.7s linear infinite;
+            flex: 0 0 auto;
+        }
+        .mdl-notif-btn--ghost.is-loading .mdl-notif-spin,
+        .mdl-notif-btn.mdl-notif-btn--ghost .mdl-notif-spin {
+            border-color: rgba(15, 23, 42, 0.25);
+            border-top-color: #0f172a;
+        }
+        @keyframes mdl-notif-spin {
+            to { transform: rotate(360deg); }
         }
         .mdl-notif-empty {
             border: 1px dashed #94a3b8;
@@ -2381,27 +2461,6 @@ if ($privUi === 100) {
             </div>
         </div>
 
-        <div class="mdl-chat-modal" id="mdlPermintaanHapusModal" aria-hidden="true">
-            <div class="mdl-chat-modal__backdrop" data-permintaan-hapus-close></div>
-            <div class="mdl-chat-modal__panel mdl-chat-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="mdlPermintaanHapusTitle">
-                <div class="mdl-chat-modal__body mdl-chat-modal__body--confirm mdl-chat-modal__body--confirm-danger">
-                    <div class="mdl-chat-confirm-icon mdl-chat-confirm-icon--danger"><i class="fas fa-trash"></i></div>
-                    <h3 class="mdl-chat-confirm-title" id="mdlPermintaanHapusTitle">Hapus permintaan?</h3>
-                    <p class="mdl-chat-confirm-text">Case CRM ditutup tanpa WA ke pelanggan. Catatan wajib untuk log.</p>
-                    <div class="mdl-chat-confirm-field">
-                        <label for="mdlPermintaanHapusCatatan">Catatan hapus</label>
-                        <textarea id="mdlPermintaanHapusCatatan" maxlength="500" placeholder="Alasan penghapusan"></textarea>
-                    </div>
-                </div>
-                <div class="mdl-chat-modal__foot">
-                    <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-permintaan-hapus-close>Batal</button>
-                    <button type="button" class="mdl-notif-btn mdl-notif-btn--danger" id="mdlPermintaanHapusOk">
-                        <i class="fas fa-trash"></i> Hapus
-                    </button>
-                </div>
-            </div>
-        </div>
-
         <?php if ($this->id_privilege == 100 || $this->id_privilege == 12) {
             $userSwitchList = [];
             $currentUserId = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
@@ -3522,11 +3581,14 @@ if ($privUi === 100) {
                     }
 
                     var baseUrl = '<?= URL::BASE_URL ?>';
-                    var bsOffcanvas = (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas)
-                        ? (bootstrap.Offcanvas.getOrCreateInstance
-                            ? bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl)
-                            : new bootstrap.Offcanvas(offcanvasEl))
-                        : null;
+                    var bsOffcanvas = null;
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+                        try {
+                            var existingOc = bootstrap.Offcanvas.getInstance(offcanvasEl);
+                            if (existingOc) existingOc.dispose();
+                        } catch (eDispose) {}
+                        bsOffcanvas = new bootstrap.Offcanvas(offcanvasEl, { focus: false, scroll: true });
+                    }
 
                     function escHtml(s) {
                         return String(s == null ? '' : s)
@@ -3716,7 +3778,7 @@ if ($privUi === 100) {
                             var cardExtra = '';
                             if (taskType === 'permintaan') {
                                 formFields =
-                                    '<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
+                                    '<div class="mdl-notif-actions js-notif-permintaan-actions" style="width:100%;margin-bottom:8px">' +
                                     '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
                                     '<i class="fas fa-comments"></i> Chat</button>' +
                                     '<button type="button" class="mdl-notif-btn js-notif-fulfill-permintaan">' +
@@ -3734,7 +3796,17 @@ if ($privUi === 100) {
                                     '<label>Alternatif</label>' +
                                     '<input type="text" class="js-notif-reject-alt" placeholder="Opsional" maxlength="500">' +
                                     '</div>';
-                                cardExtra = '';
+                                cardExtra =
+                                    '<div class="mdl-notif-hapus-panel" hidden>' +
+                                    '<label for="mdlHapusCatatan_' + escHtml(String(it.phone || '').replace(/\D/g, '')) + '">Catatan hapus</label>' +
+                                    '<textarea id="mdlHapusCatatan_' + escHtml(String(it.phone || '').replace(/\D/g, '')) + '" class="js-notif-hapus-catatan" rows="3" maxlength="500" placeholder="Alasan penghapusan (wajib)" autocomplete="off"></textarea>' +
+                                    '<p class="mdl-notif-hapus-hint">Case CRM ditutup tanpa WA. Catatan masuk log.</p>' +
+                                    '<div class="mdl-notif-actions">' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-hapus-batal">Batal</button>' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--danger js-notif-hapus-confirm">' +
+                                    '<i class="fas fa-trash"></i> Hapus</button>' +
+                                    '</div>' +
+                                    '</div>';
                             } else if (taskType === 'pelanggan_new') {
                                 var saranNama = escHtml(it.nama_saran || it.nama || '');
                                 formFields =
@@ -3816,7 +3888,7 @@ if ($privUi === 100) {
                                 (it.updated_at ? (' · ' + escHtml(it.updated_at)) : '') + '</p>' +
                                 bodyBlock +
                                 (taskType === 'permintaan'
-                                    ? ('<div class="mdl-notif-form"><div class="mdl-notif-row">' + formFields + '</div></div>')
+                                    ? ('<div class="mdl-notif-form"><div class="mdl-notif-row">' + formFields + '</div>' + cardExtra + '</div>')
                                     : ('<form class="mdl-notif-form js-notif-form"><div class="mdl-notif-row">' + formFields + '</div></form>')) +
                                 '</div>';
                         });
@@ -4022,37 +4094,130 @@ if ($privUi === 100) {
                         });
                     });
 
+                    function deactivateNotifFocusTrap() {
+                        try {
+                            if (bsOffcanvas && bsOffcanvas._focustrap) {
+                                bsOffcanvas._focustrap.deactivate();
+                            }
+                        } catch (e) {}
+                    }
+
                     $(bodyEl).on('click', '.js-notif-hapus-permintaan', function() {
                         var $card = $(this).closest('.mdl-notif-card');
+                        var $panel = $card.find('.mdl-notif-hapus-panel');
+                        var $actions = $card.find('.js-notif-permintaan-actions');
+                        var $ta = $card.find('.js-notif-hapus-catatan');
+                        if (!$panel.length) return;
+                        deactivateNotifFocusTrap();
+                        $actions.attr('hidden', true);
+                        $panel.prop('hidden', false).removeAttr('hidden');
+                        $ta.prop({ disabled: false, readOnly: false }).val('');
+                        setTimeout(function() {
+                            deactivateNotifFocusTrap();
+                            var el = $ta.get(0);
+                            if (el) {
+                                try { el.focus({ preventScroll: false }); } catch (e1) {
+                                    try { el.focus(); } catch (e2) {}
+                                }
+                                try { el.click(); } catch (e3) {}
+                            }
+                        }, 50);
+                    });
+
+                    $(bodyEl).on('click', '.js-notif-hapus-batal', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        $card.find('.mdl-notif-hapus-panel').attr('hidden', true);
+                        $card.find('.js-notif-permintaan-actions').removeAttr('hidden');
+                        $card.find('.js-notif-hapus-catatan').val('');
+                    });
+
+                    function setNotifBtnLoading(btn, on, idleHtml, loadingText) {
+                        var el = btn && btn.jquery ? btn.get(0) : btn;
+                        if (!el) return;
+                        if (on) {
+                            if (!el.getAttribute('data-idle-html')) {
+                                el.setAttribute('data-idle-html', el.innerHTML);
+                            }
+                            el.classList.add('is-loading');
+                            el.disabled = true;
+                            el.innerHTML = '<span class="mdl-notif-spin" aria-hidden="true"></span> '
+                                + (loadingText || 'Memproses…');
+                        } else {
+                            el.classList.remove('is-loading');
+                            el.disabled = false;
+                            el.innerHTML = idleHtml || el.getAttribute('data-idle-html') || el.innerHTML;
+                            el.removeAttribute('data-idle-html');
+                        }
+                    }
+
+                    $(bodyEl).on('click', '.js-notif-hapus-confirm', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
                         var phone = $card.data('phone');
+                        var $btn = $(this);
+                        var $batal = $card.find('.js-notif-hapus-batal');
+                        var catatan = String($card.find('.js-notif-hapus-catatan').val() || '').trim();
                         if (!phone) return;
-                        openPermintaanHapusModal(phone, function() {
-                            loadList();
-                            refreshCount();
+                        if ($btn.hasClass('is-loading')) return;
+                        if (catatan.length < 2) {
+                            if (window.MdlToast) MdlToast.warn('Catatan hapus wajib diisi');
+                            $card.find('.js-notif-hapus-catatan').trigger('focus');
+                            return;
+                        }
+                        setNotifBtnLoading($btn, true, '<i class="fas fa-trash"></i> Hapus', 'Menghapus…');
+                        $batal.prop('disabled', true);
+                        $card.find('.js-notif-hapus-catatan').prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            timeout: 60000,
+                            data: {
+                                phone: phone,
+                                task_type: 'permintaan',
+                                permintaan_action: 'hapus',
+                                catatan: catatan,
+                                send_wa: 0
+                            }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan dihapus');
+                                loadList();
+                                refreshCount();
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                setNotifBtnLoading($btn, false, '<i class="fas fa-trash"></i> Hapus');
+                                $batal.prop('disabled', false);
+                                $card.find('.js-notif-hapus-catatan').prop('disabled', false);
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal menghapus');
+                            setNotifBtnLoading($btn, false, '<i class="fas fa-trash"></i> Hapus');
+                            $batal.prop('disabled', false);
+                            $card.find('.js-notif-hapus-catatan').prop('disabled', false);
                         });
                     });
 
                     var tolakModal = document.getElementById('mdlPermintaanTolakModal');
                     var tolakOk = document.getElementById('mdlPermintaanTolakOk');
                     var tolakText = document.getElementById('mdlPermintaanTolakText');
-                    var hapusModal = document.getElementById('mdlPermintaanHapusModal');
-                    var hapusOk = document.getElementById('mdlPermintaanHapusOk');
-                    var hapusCatatan = document.getElementById('mdlPermintaanHapusCatatan');
                     var pendingTolak = null;
-                    var pendingHapus = null;
 
                     function openPermintaanTolakModal(phone, reason, alt, onDone) {
                         pendingTolak = { phone: phone, reason: reason, alt: alt, onDone: onDone };
+                        deactivateNotifFocusTrap();
                         if (tolakText) {
                             tolakText.textContent = alt
                                 ? ('Alasan: ' + reason + ' · Alternatif: ' + alt)
                                 : ('Alasan: ' + reason);
                         }
                         if (tolakOk) {
-                            tolakOk.disabled = false;
-                            tolakOk.innerHTML = 'Ya, tolak';
+                            setNotifBtnLoading(tolakOk, false, 'Ya, tolak');
                         }
                         if (tolakModal) {
+                            $(tolakModal).find('[data-permintaan-tolak-close]').prop('disabled', false);
+                            if (tolakModal.parentElement !== document.body) {
+                                document.body.appendChild(tolakModal);
+                            }
                             tolakModal.classList.add('is-open');
                             tolakModal.setAttribute('aria-hidden', 'false');
                         }
@@ -4062,50 +4227,30 @@ if ($privUi === 100) {
                         if (tolakModal) {
                             tolakModal.classList.remove('is-open');
                             tolakModal.setAttribute('aria-hidden', 'true');
+                            $(tolakModal).find('[data-permintaan-tolak-close]').prop('disabled', false);
                         }
+                        if (tolakOk) setNotifBtnLoading(tolakOk, false, 'Ya, tolak');
                         pendingTolak = null;
-                    }
-
-                    function openPermintaanHapusModal(phone, onDone) {
-                        pendingHapus = { phone: phone, onDone: onDone };
-                        if (hapusCatatan) hapusCatatan.value = '';
-                        if (hapusOk) {
-                            hapusOk.disabled = false;
-                            hapusOk.innerHTML = '<i class="fas fa-trash"></i> Hapus';
-                        }
-                        if (hapusModal) {
-                            hapusModal.classList.add('is-open');
-                            hapusModal.setAttribute('aria-hidden', 'false');
-                        }
-                        setTimeout(function() {
-                            if (hapusCatatan) {
-                                try { hapusCatatan.focus({ preventScroll: true }); } catch (e) { hapusCatatan.focus(); }
-                            }
-                        }, 80);
-                    }
-
-                    function closePermintaanHapusModal() {
-                        if (hapusModal) {
-                            hapusModal.classList.remove('is-open');
-                            hapusModal.setAttribute('aria-hidden', 'true');
-                        }
-                        pendingHapus = null;
                     }
 
                     if (tolakModal) {
                         $(tolakModal).on('click', '[data-permintaan-tolak-close]', function() {
+                            if (tolakOk && tolakOk.classList.contains('is-loading')) return;
                             closePermintaanTolakModal();
                         });
                     }
                     if (tolakOk) {
                         tolakOk.addEventListener('click', function() {
                             if (!pendingTolak || !pendingTolak.phone) return;
+                            if (tolakOk.classList.contains('is-loading')) return;
                             var payload = pendingTolak;
-                            tolakOk.disabled = true;
+                            setNotifBtnLoading(tolakOk, true, 'Ya, tolak', 'Mengirim…');
+                            $(tolakModal).find('[data-permintaan-tolak-close]').prop('disabled', true);
                             $.ajax({
                                 url: baseUrl + 'Estimasi/update',
                                 method: 'POST',
                                 dataType: 'json',
+                                timeout: 90000,
                                 data: {
                                     phone: payload.phone,
                                     task_type: 'permintaan',
@@ -4122,57 +4267,22 @@ if ($privUi === 100) {
                                     if (typeof payload.onDone === 'function') payload.onDone(res);
                                 } else {
                                     if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
-                                    tolakOk.disabled = false;
+                                    setNotifBtnLoading(tolakOk, false, 'Ya, tolak');
+                                    $(tolakModal).find('[data-permintaan-tolak-close]').prop('disabled', false);
                                 }
-                            }).fail(function() {
+                            }).fail(function(xhr) {
+                                var raw = String(xhr.responseText || '').replace(/^\uFEFF/, '').replace(/^[\s\uFEFF]+/, '');
+                                var parsed = null;
+                                try { parsed = JSON.parse(raw); } catch (e) {}
+                                if (parsed && parsed.ok) {
+                                    if (window.MdlToast) MdlToast.ok(parsed.msg || 'Permintaan ditolak');
+                                    closePermintaanTolakModal();
+                                    if (typeof payload.onDone === 'function') payload.onDone(parsed);
+                                    return;
+                                }
                                 if (window.MdlToast) MdlToast.error('Gagal memproses');
-                                tolakOk.disabled = false;
-                            });
-                        });
-                    }
-
-                    if (hapusModal) {
-                        $(hapusModal).on('click', '[data-permintaan-hapus-close]', function() {
-                            closePermintaanHapusModal();
-                        });
-                        $(hapusModal).on('mousedown click', '.mdl-chat-modal__panel', function(e) {
-                            e.stopPropagation();
-                        });
-                    }
-                    if (hapusOk) {
-                        hapusOk.addEventListener('click', function() {
-                            if (!pendingHapus || !pendingHapus.phone) return;
-                            var catatan = String((hapusCatatan && hapusCatatan.value) || '').trim();
-                            if (catatan.length < 2) {
-                                if (window.MdlToast) MdlToast.warn('Catatan hapus wajib diisi');
-                                if (hapusCatatan) hapusCatatan.focus();
-                                return;
-                            }
-                            var payload = pendingHapus;
-                            hapusOk.disabled = true;
-                            $.ajax({
-                                url: baseUrl + 'Estimasi/update',
-                                method: 'POST',
-                                dataType: 'json',
-                                data: {
-                                    phone: payload.phone,
-                                    task_type: 'permintaan',
-                                    permintaan_action: 'hapus',
-                                    catatan: catatan,
-                                    send_wa: 0
-                                }
-                            }).done(function(res) {
-                                if (res && res.ok) {
-                                    if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan dihapus');
-                                    closePermintaanHapusModal();
-                                    if (typeof payload.onDone === 'function') payload.onDone(res);
-                                } else {
-                                    if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
-                                    hapusOk.disabled = false;
-                                }
-                            }).fail(function() {
-                                if (window.MdlToast) MdlToast.error('Gagal menghapus');
-                                hapusOk.disabled = false;
+                                setNotifBtnLoading(tolakOk, false, 'Ya, tolak');
+                                $(tolakModal).find('[data-permintaan-tolak-close]').prop('disabled', false);
                             });
                         });
                     }
@@ -4254,12 +4364,29 @@ if ($privUi === 100) {
                         chatModal.setAttribute('aria-hidden', 'true');
                     }
 
-                    function openConfirm() {
-                        if (!confirmModal) return;
-                        if (confirmOk) {
+                    function setConfirmBtnLoading(on, loadingText) {
+                        if (!confirmOk) return;
+                        if (on) {
+                            confirmOk.classList.add('is-loading');
+                            confirmOk.disabled = true;
+                            confirmOk.innerHTML = '<span class="mdl-notif-spin" aria-hidden="true"></span> '
+                                + (loadingText || 'Memproses…');
+                            if (confirmModal) {
+                                $(confirmModal).find('[data-chat-confirm-close]').prop('disabled', true);
+                            }
+                        } else {
+                            confirmOk.classList.remove('is-loading');
                             confirmOk.disabled = false;
                             confirmOk.innerHTML = 'Ya, penuhi';
+                            if (confirmModal) {
+                                $(confirmModal).find('[data-chat-confirm-close]').prop('disabled', false);
+                            }
                         }
+                    }
+
+                    function openConfirm() {
+                        if (!confirmModal) return;
+                        setConfirmBtnLoading(false);
                         confirmModal.classList.add('is-open');
                         confirmModal.setAttribute('aria-hidden', 'false');
                     }
@@ -4268,15 +4395,21 @@ if ($privUi === 100) {
                         if (!confirmModal) return;
                         confirmModal.classList.remove('is-open');
                         confirmModal.setAttribute('aria-hidden', 'true');
+                        setConfirmBtnLoading(false);
                     }
 
                     function submitClosePermintaan(phone, $btn) {
                         if (!phone) return;
-                        if ($btn) $btn.prop('disabled', true);
+                        if (confirmOk && confirmOk.classList.contains('is-loading')) return;
+                        setConfirmBtnLoading(true, 'Mengirim…');
+                        if ($btn && $btn.get && $btn.get(0) !== confirmOk) {
+                            $btn.prop('disabled', true);
+                        }
                         $.ajax({
                             url: baseUrl + 'Estimasi/update',
                             method: 'POST',
                             dataType: 'json',
+                            timeout: 90000,
                             data: {
                                 phone: phone,
                                 task_type: 'permintaan',
@@ -4301,10 +4434,22 @@ if ($privUi === 100) {
                                 if (onClosedCb) onClosedCb(res);
                             } else {
                                 if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                setConfirmBtnLoading(false);
                                 if ($btn) $btn.prop('disabled', false);
                             }
-                        }).fail(function() {
+                        }).fail(function(xhr) {
+                            var raw = String(xhr.responseText || '').replace(/^\uFEFF/, '').replace(/^[\s\uFEFF]+/, '');
+                            var parsed = null;
+                            try { parsed = JSON.parse(raw); } catch (e) {}
+                            if (parsed && parsed.ok) {
+                                if (window.MdlToast) MdlToast.ok(parsed.msg || 'Permintaan selesai');
+                                closeConfirm();
+                                close();
+                                if (onClosedCb) onClosedCb(parsed);
+                                return;
+                            }
                             if (window.MdlToast) MdlToast.error('Gagal menutup permintaan');
+                            setConfirmBtnLoading(false);
                             if ($btn) $btn.prop('disabled', false);
                         });
                     }
@@ -4331,6 +4476,7 @@ if ($privUi === 100) {
                     }
                     if (confirmModal) {
                         $(confirmModal).on('click', '[data-chat-confirm-close]', function() {
+                            if (confirmOk && confirmOk.classList.contains('is-loading')) return;
                             closeConfirm();
                         });
                     }

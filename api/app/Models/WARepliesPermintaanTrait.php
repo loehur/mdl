@@ -174,7 +174,7 @@ trait WARepliesPermintaanTrait
     }
 
     /**
-     * Handler PERMINTAAN: upsert 1 session, AI rangkum, TANPA autoreply.
+     * Handler PERMINTAAN: upsert 1 session, AI rangkum dari SELURUH chat inbound sesi, TANPA autoreply.
      *
      * @return bool true = dikonsumsi
      */
@@ -211,15 +211,31 @@ trait WARepliesPermintaanTrait
 
         $prevSummary = trim((string) ($session['summary'] ?? ''));
         $prevRaw = trim((string) ($session['raw_log'] ?? ''));
-        $newRaw = $prevRaw === ''
-            ? mb_substr($msg, 0, 500)
-            : ($prevRaw . "\n---\n" . mb_substr($msg, 0, 500));
 
-        // Selalu rangkum dari SELURUH raw_log session (bukan chat terakhir saja)
+        // Sumber utama: riwayat inbound DB (ycloud + fonnte) agar multi-bubble selalu masuk ringkasan
+        $inbound = $this->permintaanFetchRecentInboundTexts($waNumber, 20, 90);
+        if ($msg !== '') {
+            $inbound = $this->permintaanAppendUniqueText($inbound, $msg);
+        }
+        // Cadangan: gabung raw_log session lama jika DB belum sempat menyimpan bubble terbaru
+        if ($prevRaw !== '') {
+            foreach (preg_split('/\n---\n/', $prevRaw) ?: [] as $line) {
+                $inbound = $this->permintaanAppendUniqueText($inbound, trim((string) $line));
+            }
+        }
+
+        $newRaw = $inbound === []
+            ? mb_substr($msg, 0, 500)
+            : implode("\n---\n", array_map(static function ($t) {
+                return mb_substr($t, 0, 500);
+            }, $inbound));
+
         $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $newRaw);
         if ($summary === '') {
             $summary = $this->permintaanFallbackSummary($newRaw, $prevSummary, $msg);
         }
+        // Jangan simpan preview CRM "i- …" sebagai summary
+        $summary = $this->permintaanStripPreviewPrefix($summary);
 
         $this->savePermintaanSession($waNumber, [
             'id_pelanggan' => $idPelanggan,
@@ -232,11 +248,125 @@ trait WARepliesPermintaanTrait
         $this->logAutoreplyTrace(
             $waNumber,
             'PERMINTAAN',
-            'session_upsert summary=' . mb_substr($summary, 0, 120)
+            'session_upsert lines=' . count($inbound) . ' summary=' . mb_substr($summary, 0, 120)
         );
 
-        // Standby — tidak kirim autoreply
         return true;
+    }
+
+    /**
+     * Ambil teks inbound pelanggan terbaru (urut lama→baru), strip prefix preview i-/o-.
+     *
+     * @return list<string>
+     */
+    private function permintaanFetchRecentInboundTexts(string $waNumber, int $limit = 20, int $withinMinutes = 90): array
+    {
+        $phones = $this->waMessagesOutPhoneVariants($waNumber);
+        if ($phones === []) {
+            $norm = $this->normalizePhoneNumber($waNumber);
+            if ($norm) {
+                $phones = [$norm];
+            }
+        }
+        if ($phones === []) {
+            return [];
+        }
+
+        $limit = max(3, min(40, $limit));
+        $withinMinutes = max(5, min(24 * 60, $withinMinutes));
+        $placeholders = implode(',', array_fill(0, count($phones), '?'));
+        $params = array_merge($phones, [$withinMinutes, $limit]);
+        $out = [];
+
+        try {
+            $db = DB::getInstance(0);
+            $rows = $db->query(
+                "SELECT text AS body, created_at AS at FROM wa_messages_in
+                 WHERE phone IN ($placeholders)
+                   AND created_at >= (NOW() - INTERVAL ? MINUTE)
+                 ORDER BY created_at DESC
+                 LIMIT ?",
+                $params
+            );
+            if ($rows) {
+                foreach ($rows->result_array() as $r) {
+                    $body = $this->permintaanStripPreviewPrefix(trim((string) ($r['body'] ?? '')));
+                    if ($body === '' || mb_strlen($body) < 2) {
+                        continue;
+                    }
+                    $out[] = ['at' => (string) ($r['at'] ?? ''), 'body' => mb_substr($body, 0, 500)];
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        try {
+            $db = DB::getInstance(0);
+            $rows = $db->query(
+                "SELECT text AS body, created_at AS at FROM wa_fonnte_messages_in
+                 WHERE phone IN ($placeholders)
+                   AND created_at >= (NOW() - INTERVAL ? MINUTE)
+                 ORDER BY created_at DESC
+                 LIMIT ?",
+                $params
+            );
+            if ($rows) {
+                foreach ($rows->result_array() as $r) {
+                    $body = $this->permintaanStripPreviewPrefix(trim((string) ($r['body'] ?? '')));
+                    if ($body === '' || mb_strlen($body) < 2) {
+                        continue;
+                    }
+                    $out[] = ['at' => (string) ($r['at'] ?? ''), 'body' => mb_substr($body, 0, 500)];
+                }
+            }
+        } catch (\Throwable $e) {
+            // tabel fonnte belum ada
+        }
+
+        if ($out === []) {
+            return [];
+        }
+
+        usort($out, static function ($a, $b) {
+            return strcmp((string) ($a['at'] ?? ''), (string) ($b['at'] ?? ''));
+        });
+
+        $texts = [];
+        foreach ($out as $row) {
+            $texts = $this->permintaanAppendUniqueText($texts, (string) ($row['body'] ?? ''));
+        }
+
+        // Ambil paling akhir (bubble terbaru) jika kebanyakan
+        if (count($texts) > $limit) {
+            $texts = array_slice($texts, -$limit);
+        }
+
+        return $texts;
+    }
+
+    /** @param list<string> $list @return list<string> */
+    private function permintaanAppendUniqueText(array $list, string $text): array
+    {
+        $text = $this->permintaanStripPreviewPrefix(trim($text));
+        if ($text === '') {
+            return $list;
+        }
+        foreach ($list as $existing) {
+            if (mb_strtolower($existing) === mb_strtolower($text)) {
+                return $list;
+            }
+        }
+        $list[] = $text;
+        return $list;
+    }
+
+    private function permintaanStripPreviewPrefix(string $text): string
+    {
+        $text = trim($text);
+        // Preview CRM Fonnte: "i- …" / "o- …"
+        $text = preg_replace('/^[io]\-\s+/iu', '', $text) ?? $text;
+        return trim($text);
     }
 
     /**
@@ -310,14 +440,16 @@ trait WARepliesPermintaanTrait
         }
 
         $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
-            . "WAJIB gabungkan SEMUA pesan chat (bukan hanya yang terakhir). Contoh: kalau minta dulukan seragam merah putih lalu tambah pramuka = "
-            . "\"Dulukan baju seragam merah putih dan baju pramuka\".\n"
-            . "Sertakan aksi (dulukan/prioritas/ambil dulu/dll) + semua item yang disebut.\n"
-            . "Jangan buang detail dari pesan sebelumnya. Tanpa sapaan (kak/bu/pak), tanpa emoji, tanpa tanda kutip, tanpa nomor urut.\n"
+            . "WAJIB gabungkan SEMUA pesan chat bernomor di bawah (bukan hanya yang terakhir).\n"
+            . "Contoh: (1) dulukan baju sekolah (2) seragam merah putih dulu (3) sekalian pramuka "
+            . "→ \"Dulukan seragam merah putih dan baju pramuka\".\n"
+            . "Sertakan aksi (dulukan/prioritas/ambil dulu/dll) + SEMUA item yang disebut di pesan mana pun.\n"
+            . "Jangan buang detail dari pesan sebelumnya. Jangan salin mentah satu bubble terakhir saja.\n"
+            . "Tanpa sapaan (kak/bu/pak), tanpa emoji, tanpa tanda kutip, tanpa nomor urut, tanpa prefix i-/o-.\n"
             . "Jawaban HANYA teks ringkasan, maksimal ~220 karakter.";
 
         $user = "Ringkasan sebelumnya (opsional): " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n\n"
-            . "Semua chat pelanggan di sesi ini (urut waktu):\n"
+            . "Semua chat pelanggan di sesi ini (urut waktu, WAJIB digabung):\n"
             . $chatBlock . "\n"
             . "Tulis SATU ringkasan permintaan yang mencakup SEMUA item/aksi di atas:";
 

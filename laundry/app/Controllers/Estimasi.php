@@ -324,17 +324,20 @@ class Estimasi extends Controller
      */
     public function update()
     {
+        if (ob_get_level() === 0) {
+            ob_start();
+        }
         $this->session_cek();
         header('Content-Type: application/json; charset=utf-8');
 
         $phone = trim((string) ($_POST['phone'] ?? ''));
         $taskType = strtolower(trim((string) ($_POST['task_type'] ?? '')));
         if ($phone === '') {
-            echo json_encode(['ok' => 0, 'msg' => 'Nomor WA wajib']);
+            $this->echoJson(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
         if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'ambil_tutup', 'pelanggan_new', 'permintaan'], true)) {
-            echo json_encode(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, ambil_tutup, pelanggan_new, atau permintaan']);
+            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, ambil_tutup, pelanggan_new, atau permintaan']);
             return;
         }
 
@@ -845,28 +848,90 @@ class Estimasi extends Controller
     {
         $sendWa = !isset($_POST['send_wa']) || (int) $_POST['send_wa'] === 1;
         $pendingCount = $this->syncNotifTaskCount();
+        $replyText = $this->sanitizeUtf8($replyText);
 
+        $waOk = 0;
+        $msg = 'Task selesai';
         if ($sendWa) {
-            $waResult = $this->helper('Notif')->send_wa($phone, $replyText, 'free');
-            if (empty($waResult['status'])) {
-                echo json_encode([
+            try {
+                $waResult = $this->helper('Notif')->send_wa($phone, $replyText, 'free');
+                if (empty($waResult['status'])) {
+                    $this->echoJson([
+                        'ok' => 1,
+                        'wa_ok' => 0,
+                        'count' => $pendingCount,
+                        'msg' => 'State tersimpan, tapi WA gagal: ' . ($waResult['error'] ?? 'unknown'),
+                        'reply_text' => $replyText,
+                    ]);
+                    return;
+                }
+                $waOk = 1;
+                $msg = 'Task selesai & WA terkirim';
+            } catch (\Throwable $e) {
+                $this->echoJson([
                     'ok' => 1,
                     'wa_ok' => 0,
                     'count' => $pendingCount,
-                    'msg' => 'State tersimpan, tapi WA gagal: ' . ($waResult['error'] ?? 'unknown'),
+                    'msg' => 'State tersimpan, tapi WA gagal: ' . $e->getMessage(),
                     'reply_text' => $replyText,
                 ]);
                 return;
             }
         }
 
-        echo json_encode([
+        $this->echoJson([
             'ok' => 1,
-            'wa_ok' => $sendWa ? 1 : 0,
+            'wa_ok' => $waOk,
             'count' => $pendingCount,
-            'msg' => $sendWa ? 'Task selesai & WA terkirim' : 'Task selesai',
+            'msg' => $msg,
             'reply_text' => $replyText,
         ]);
+    }
+
+    /** Buang output tak sengaja (BOM/warning) lalu kirim JSON bersih. */
+    private function echoJson(array $data): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        $flags = JSON_UNESCAPED_UNICODE;
+        if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+            $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
+        }
+        $json = json_encode($data, $flags);
+        if ($json === false) {
+            unset($data['reply_text']);
+            $json = json_encode([
+                'ok' => (int) ($data['ok'] ?? 0),
+                'wa_ok' => (int) ($data['wa_ok'] ?? 0),
+                'count' => (int) ($data['count'] ?? 0),
+                'msg' => (string) ($data['msg'] ?? 'OK'),
+            ], $flags);
+        }
+        echo $json !== false ? $json : '{"ok":0,"msg":"JSON encode failed"}';
+    }
+
+    private function sanitizeUtf8(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+        if (function_exists('mb_convert_encoding')) {
+            $clean = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+            if (is_string($clean) && $clean !== '') {
+                return $clean;
+            }
+        }
+        if (function_exists('iconv')) {
+            $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
+            if (is_string($clean)) {
+                return $clean;
+            }
+        }
+        return $text;
     }
 
     private function syncNotifTaskCount(): int
@@ -1261,6 +1326,19 @@ class Estimasi extends Controller
                 }
 
                 $summary = trim((string) ($row['summary'] ?? ''));
+                $rawLog = trim((string) ($row['raw_log'] ?? ''));
+                $summary = $this->normalizePermintaanDisplayText($summary);
+                if ($summary === '' || $this->permintaanSummaryLooksLikeSinglePreview($summary, $rawLog)) {
+                    $fromRaw = $this->permintaanSummaryFromRawLog($rawLog);
+                    if ($fromRaw !== '') {
+                        $summary = $fromRaw;
+                    } else {
+                        $fromChat = $this->permintaanSummaryFromRecentChat($waPhone);
+                        if ($fromChat !== '') {
+                            $summary = $fromChat;
+                        }
+                    }
+                }
                 $items[] = [
                     'task_type' => 'permintaan',
                     'task_id' => 'permintaan:' . $waPhone,
@@ -1352,6 +1430,11 @@ class Estimasi extends Controller
                 $nama = trim((string) $row['contact_name']);
             }
 
+            $pesan = $this->permintaanSummaryFromRecentChat($waPhone);
+            if ($pesan === '') {
+                $pesan = $this->normalizePermintaanDisplayText(trim((string) ($row['last_message'] ?? '')));
+            }
+
             $items[] = [
                 'task_type' => 'permintaan',
                 'task_id' => 'permintaan:' . $waPhone,
@@ -1359,8 +1442,8 @@ class Estimasi extends Controller
                 'phone_display' => $this->displayPhone($waPhone),
                 'id_penjualan' => null,
                 'id_pelanggan' => isset($pel['id_pelanggan']) ? (int) $pel['id_pelanggan'] : null,
-                'customer_message' => trim((string) ($row['last_message'] ?? '')),
-                'request_text' => trim((string) ($row['last_message'] ?? '')),
+                'customer_message' => $pesan,
+                'request_text' => $pesan,
                 'updated_at' => $row['updated_at'] ?? ($row['last_message_at'] ?? null),
                 'expires_at' => null,
                 'nama' => $nama !== '' ? $nama : 'Pelanggan',
@@ -1370,6 +1453,88 @@ class Estimasi extends Controller
         return $items;
     }
 
+    /** Buang prefix preview CRM Fonnte "i- "/"o- ". */
+    private function normalizePermintaanDisplayText(string $text): string
+    {
+        $text = trim($text);
+        $text = preg_replace('/^[io]\-\s+/iu', '', $text) ?? $text;
+        return trim($text);
+    }
+
+    /** Summary jelek: masih preview i-/o- atau cuma 1 bubble padahal raw_log banyak. */
+    private function permintaanSummaryLooksLikeSinglePreview(string $summary, string $rawLog): bool
+    {
+        if (preg_match('/^[io]\-\s+/iu', $summary)) {
+            return true;
+        }
+        $parts = preg_split('/\n---\n/', trim($rawLog)) ?: [];
+        $parts = array_values(array_filter(array_map('trim', $parts)));
+        if (count($parts) < 2) {
+            return false;
+        }
+        $last = $this->normalizePermintaanDisplayText((string) end($parts));
+        $sum = $this->normalizePermintaanDisplayText($summary);
+        return $sum !== '' && mb_strtolower($sum) === mb_strtolower($last);
+    }
+
+    private function permintaanSummaryFromRawLog(string $rawLog): string
+    {
+        $parts = preg_split('/\n---\n/', trim($rawLog)) ?: [];
+        $parts = array_values(array_filter(array_map(function ($l) {
+            return $this->normalizePermintaanDisplayText(trim((string) $l));
+        }, $parts)));
+        if ($parts === []) {
+            return '';
+        }
+        return mb_substr(implode('; ', $parts), 0, 500);
+    }
+
+    /** Gabung chat inbound terbaru (bukan last_message saja). */
+    private function permintaanSummaryFromRecentChat(string $phone): string
+    {
+        try {
+            $msgs = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $phone, 15);
+            if (!is_array($msgs) || $msgs === []) {
+                return '';
+            }
+            $texts = [];
+            $cutoff = time() - (90 * 60);
+            foreach ($msgs as $m) {
+                if (($m['sender'] ?? '') !== 'customer') {
+                    continue;
+                }
+                $t = $this->normalizePermintaanDisplayText(trim((string) ($m['text'] ?? '')));
+                if ($t === '' || mb_strlen($t) < 2) {
+                    continue;
+                }
+                $at = strtotime((string) ($m['time'] ?? '')) ?: 0;
+                if ($at > 0 && $at < $cutoff) {
+                    continue;
+                }
+                $dup = false;
+                foreach ($texts as $existing) {
+                    if (mb_strtolower($existing) === mb_strtolower($t)) {
+                        $dup = true;
+                        break;
+                    }
+                }
+                if (!$dup) {
+                    $texts[] = mb_substr($t, 0, 280);
+                }
+            }
+            if ($texts === []) {
+                return '';
+            }
+            // Ambil cluster terakhir (max 8 bubble inbound)
+            if (count($texts) > 8) {
+                $texts = array_slice($texts, -8);
+            }
+            return mb_substr(implode('; ', $texts), 0, 500);
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
     /**
      * Penuhi / Tolak / Hapus permintaan.
      * POST: permintaan_action=hapus|fulfill|reject  (atau request_granted=1|0),
@@ -1377,6 +1542,8 @@ class Estimasi extends Controller
      */
     private function updatePermintaanTask(string $phone, string $phoneEsc): void
     {
+        @set_time_limit(120);
+
         $action = strtolower(trim((string) ($_POST['permintaan_action'] ?? '')));
         if ($action === '' || $action === 'fulfill' || $action === 'reject') {
             $grantedRaw = $_POST['request_granted'] ?? null;
@@ -1405,7 +1572,7 @@ class Estimasi extends Controller
 
         if (!$granted) {
             if (mb_strlen($rejectReason) < 3) {
-                echo json_encode(['ok' => 0, 'msg' => 'Untuk tolak, isi alasan (wajib)']);
+                $this->echoJson(['ok' => 0, 'msg' => 'Untuk tolak, isi alasan (wajib)']);
                 return;
             }
         }
@@ -1453,7 +1620,7 @@ class Estimasi extends Controller
                 "phone = '" . $sessPhoneEsc . "'"
             );
             if (!empty($up['errno'])) {
-                echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update session']);
+                $this->echoJson(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update session']);
                 return;
             }
             try {
@@ -1463,7 +1630,11 @@ class Estimasi extends Controller
             }
         }
 
-        $this->closePermintaanCaseQuiet($phone);
+        try {
+            $this->closePermintaanCaseQuiet($phone);
+        } catch (\Throwable $e) {
+            // case close gagal tidak boleh gagalkan response setelah state/WA
+        }
         $this->respondAfterUpdate($phone, $replyText);
     }
 
@@ -1474,7 +1645,7 @@ class Estimasi extends Controller
     {
         $catatan = trim((string) ($_POST['catatan'] ?? $_POST['reject_reason'] ?? ''));
         if ($catatan === '') {
-            echo json_encode(['ok' => 0, 'msg' => 'Catatan hapus wajib diisi']);
+            $this->echoJson(['ok' => 0, 'msg' => 'Catatan hapus wajib diisi']);
             return;
         }
 
@@ -1510,12 +1681,16 @@ class Estimasi extends Controller
                     "phone = '" . $this->db(100)->escape($sessPhone) . "'"
                 );
             } catch (\Throwable $e) {
-                echo json_encode(['ok' => 0, 'msg' => 'Gagal hapus session']);
+                $this->echoJson(['ok' => 0, 'msg' => 'Gagal hapus session']);
                 return;
             }
         }
 
-        $this->closePermintaanCaseQuiet($phone);
+        try {
+            $this->closePermintaanCaseQuiet($phone);
+        } catch (\Throwable $e) {
+            // ignore
+        }
 
         $phoneTail = preg_replace('/[^0-9]/', '', $phone);
         if (strlen($phoneTail) >= 9) {
@@ -1540,12 +1715,12 @@ class Estimasi extends Controller
             ],
         ]);
         if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
-            echo json_encode(['ok' => 0, 'msg' => $log['error'] ?? 'Gagal menyimpan log']);
+            $this->echoJson(['ok' => 0, 'msg' => $log['error'] ?? 'Gagal menyimpan log']);
             return;
         }
 
         $pendingCount = $this->syncNotifTaskCount();
-        echo json_encode([
+        $this->echoJson([
             'ok' => 1,
             'wa_ok' => 0,
             'count' => $pendingCount,
@@ -1603,8 +1778,8 @@ class Estimasi extends Controller
             if ($granted) {
                 $system = "Kamu CS Madinah Laundry. Buat 1 pesan WhatsApp singkat, ramah, Bahasa Indonesia.\n"
                     . "Konfirmasi bahwa permintaan pelanggan SUDAH DIPENUHI / SELESAI.\n"
-                    . "Wajib: pakai sapaan \"{$sapaan}\", sebutkan isi permintaan secara spesifik agar nyambung, akhiri dengan emoji senyum 😊.\n"
-                    . "Jangan pakai tanda kutip. Hanya teks balasan saja.";
+                    . "Wajib: pakai sapaan \"{$sapaan}\", sebutkan isi permintaan secara spesifik agar nyambung.\n"
+                    . "Boleh akhiri dengan emoji senyum. Jangan pakai tanda kutip. Hanya teks balasan saja.";
                 $user = "Isi permintaan: {$summary}\nTulis balasan:";
             } else {
                 $altNote = $rejectAlt !== ''
@@ -1623,7 +1798,7 @@ class Estimasi extends Controller
             $text = trim($ai->chat([
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
-            ], 180, 0.5));
+            ], 120, 0.5));
             $text = trim($text, " \t\n\r\0\x0B\"'");
             if ($text === '') {
                 return $fallback;
