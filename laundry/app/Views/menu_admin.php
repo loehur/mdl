@@ -119,6 +119,11 @@ $menu[1] = [
                 'c' => '@IntentLab',
                 'title' => 'Intent Lab',
                 'txt' => 'Intent Lab'
+            ],
+            [
+                'c' => '@AutoReplyKeywords',
+                'title' => 'Auto Reply Keywords',
+                'txt' => 'Auto Reply Keywords'
             ]
         ]
     ],

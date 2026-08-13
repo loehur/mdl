@@ -181,7 +181,7 @@ trait WARepliesLokasiTrait
         $patterns = $keywordConfig['MINTA_JEMPUT_ANTAR']['patterns'] ?? [];
         if ($patterns === []) {
             try {
-                $full = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+                $full = $this->loadAutoreplyKeywordConfig();
                 $patterns = $full['MINTA_JEMPUT_ANTAR']['patterns'] ?? [];
             } catch (\Throwable $e) {
                 $patterns = [];

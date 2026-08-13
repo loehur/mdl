@@ -70,7 +70,7 @@ class WAReplies
     /** TTL session ESTIMASI_SELESAI (menit) */
     private const ESTIMASI_SESSION_TTL_MINUTES = 60;
 
-    /** @var array|null Cache AutoReplyKeywords.php untuk cek rate limit per handler */
+    /** @var array|null Cache keyword config (DB/loader) untuk cek rate limit per handler */
     private $autoreplyKeywordConfig = null;
 
     /**
@@ -266,12 +266,35 @@ class WAReplies
     }
 
     /**
+     * Keyword config: DB (mdl_main) + in-memory version cache; fallback AutoReplyKeywords.php.
+     * @return array<string, mixed>
+     */
+    private function loadAutoreplyKeywordConfig(): array
+    {
+        if (!class_exists('\\App\\Config\\AutoReplyKeywordsLoader')) {
+            $path = __DIR__ . '/../Config/AutoReplyKeywordsLoader.php';
+            if (is_file($path)) {
+                require_once $path;
+            }
+        }
+        if (class_exists('\\App\\Config\\AutoReplyKeywordsLoader')) {
+            return \App\Config\AutoReplyKeywordsLoader::all();
+        }
+        $file = __DIR__ . '/../Config/AutoReplyKeywords.php';
+        if (is_file($file)) {
+            $data = require $file;
+            return is_array($data) ? $data : [];
+        }
+        return [];
+    }
+
+    /**
      * Handler di AutoReplyKeywords tanpa ai_prompt = regex-only / perintah admin, tanpa cooldown.
      */
     private function handlerSkipsAutoreplyRateLimit(string $handler): bool
     {
         if ($this->autoreplyKeywordConfig === null) {
-            $this->autoreplyKeywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            $this->autoreplyKeywordConfig = $this->loadAutoreplyKeywordConfig();
         }
         $config = $this->autoreplyKeywordConfig[$handler] ?? null;
         if ($config === null) {
@@ -1879,8 +1902,8 @@ class WAReplies
             ];
         }
 
-        // Load keyword configuration
-        $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+        // Load keyword configuration (DB + cache, fallback file)
+        $keywordConfig = $this->loadAutoreplyKeywordConfig();
         $this->autoreplyKeywordConfig = $keywordConfig;
         $this->logAutoreplyTrace($waNumber, 'CHECKPOINT', 'AutoReplyKeywords loaded');
         
@@ -3171,7 +3194,7 @@ class WAReplies
             if ($this->autoReplyProvider === 'B' && ($res['success'] ?? false)) {
                 usleep(450000);
             }
-            $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+            $keywordConfig = $this->loadAutoreplyKeywordConfig();
             unset($keywordConfig['PEMBUKA']);
             $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
             if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
@@ -8368,7 +8391,7 @@ class WAReplies
             // Use provided keywordConfig (already filtered) or load full config
             // Jika keywordConfig tidak diberikan, load full config (backward compatibility)
             if ($keywordConfig === null) {
-                $keywordConfig = require __DIR__ . '/../Config/AutoReplyKeywords.php';
+                $keywordConfig = $this->loadAutoreplyKeywordConfig();
             }
 
             // Prepare AI prompt for intent classification
