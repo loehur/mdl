@@ -308,6 +308,13 @@ trait WARepliesKurirTrait
             if (!$jenis) {
                 $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
+            // Antar: wajib ada sale belum tuntas + belum ambil (bin=0) sebelum lokasi / early activate
+            if ($jenis === 'antar') {
+                $sapaan = $this->getSapaanForGreeting($waNumber);
+                if (!$this->kurirAllowAntarOrReject($waNumber, $idPelanggan, $sapaan)) {
+                    return true;
+                }
+            }
             $layananPref = $this->detectKurirLayanan($msg);
             // Luar jam: jangan simpan prefer instant — anggap sameday; chat grab/gosend ditolak di route
             if ($outsideHours && $layananPref === 'instant') {
@@ -353,11 +360,115 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Jenis kurir jika pesan ambigu: ada sale aktif → antar; selain itu jemput.
+     * Jenis kurir jika pesan ambigu: ada sale antarable (belum tuntas/ambil, bin=0) → antar; selain itu jemput.
      */
     private function kurirInferJenisWhenAmbiguous(string $phoneIn, string $waNumber): string
     {
-        return $this->pelangganHasActiveSale($phoneIn, $waNumber) ? 'antar' : 'jemput';
+        return $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber) ? 'antar' : 'jemput';
+    }
+
+    /**
+     * Ada sale pelanggan yang boleh diantar: bin=0, tuntas=0, id_user_ambil=0.
+     */
+    private function pelangganHasAntarableSale(int $idPelanggan): bool
+    {
+        if ($idPelanggan <= 0) {
+            return false;
+        }
+        try {
+            $rows = DB::getInstance(1)->query(
+                'SELECT id_penjualan FROM sale
+                 WHERE id_pelanggan = ?
+                   AND bin = 0
+                   AND tuntas = 0
+                   AND id_user_ambil = 0
+                 LIMIT 1',
+                [$idPelanggan]
+            )->result_array();
+
+            return !empty($rows);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('pelangganHasAntarableSale: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+
+            return false;
+        }
+    }
+
+    /** Cek antarable sale lewat nomor WA (bisa multi id_pelanggan). */
+    private function pelangganHasAntarableSaleForWa(string $phoneIn, string $waNumber): bool
+    {
+        try {
+            $db1 = DB::getInstance(1);
+            $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+            $idPelanggans = array_column($pelanggan, 'id_pelanggan');
+            if (empty($idPelanggans)) {
+                return false;
+            }
+            $idsIn = implode(',', array_map('intval', $idPelanggans));
+            $sales = $db1->query(
+                "SELECT id_penjualan FROM sale
+                 WHERE tuntas = 0 AND bin = 0 AND id_user_ambil = 0
+                   AND id_pelanggan IN ($idsIn)
+                 LIMIT 1"
+            )->result_array();
+
+            return !empty($sales);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('pelangganHasAntarableSaleForWa: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+
+            return false;
+        }
+    }
+
+    private function kurirFetchPelangganNama(int $idPelanggan): string
+    {
+        if ($idPelanggan <= 0) {
+            return 'PELANGGAN';
+        }
+        try {
+            $row = DB::getInstance(1)->query(
+                'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                [$idPelanggan]
+            )->row();
+            $nama = strtoupper(trim((string) ($row->nama_pelanggan ?? '')));
+
+            return $nama !== '' ? $nama : 'PELANGGAN';
+        } catch (\Throwable $e) {
+            return 'PELANGGAN';
+        }
+    }
+
+    /** Tolak antar: semua laundry sudah diambil. */
+    private function kurirAntarNoEligibleOrderReply(string $sapaan, string $namaPelanggan): string
+    {
+        $nama = strtoupper(trim($namaPelanggan));
+        if ($nama === '') {
+            $nama = 'PELANGGAN';
+        }
+        $emoji = $this->pickPenutupSoftSmile();
+
+        return "Maaf {$sapaan}, semua laundry an. {$nama} sudah diambil {$emoji}";
+    }
+
+    /**
+     * Gate antar sebelum lokasi/early-activate.
+     * @return bool true = boleh lanjut; false = sudah kirim tolak + clear session
+     */
+    private function kurirAllowAntarOrReject(string $waNumber, int $idPelanggan, string $sapaan): bool
+    {
+        if ($this->pelangganHasAntarableSale($idPelanggan)) {
+            return true;
+        }
+        $nama = $this->kurirFetchPelangganNama($idPelanggan);
+        $this->sendAutoreplyText($waNumber, $this->kurirAntarNoEligibleOrderReply($sapaan, $nama));
+        $this->clearKurirSession($waNumber);
+        $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'antar_reject_no_unpicked_sale id_pelanggan=' . $idPelanggan);
+
+        return false;
     }
 
     /** Pertanyaan singkat hanya untuk edge case step ask_jenis yang masih macet. */
@@ -1005,6 +1116,11 @@ trait WARepliesKurirTrait
             if (!$jenis) {
                 $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
+            if ($jenis === 'antar'
+                && !$this->kurirAllowAntarOrReject($waNumber, (int) ($session['id_pelanggan'] ?? 0), $sapaan)
+            ) {
+                return true;
+            }
             $layananPref = $this->detectKurirLayanan($msg);
             $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];
             $summary = trim((string) ($session['summary'] ?? ''));
@@ -1027,6 +1143,11 @@ trait WARepliesKurirTrait
         // "jemput juga" / "antar juga": gabung dengan summary → antar bila keduanya
         if ($this->kurirLooksAddingOtherJenis($msg)) {
             $resolved = $this->detectKurirJenis($msg, $session) ?: 'antar';
+            if ($resolved === 'antar'
+                && !$this->kurirAllowAntarOrReject($waNumber, (int) ($session['id_pelanggan'] ?? 0), $sapaan)
+            ) {
+                return true;
+            }
             $this->saveKurirSession($waNumber, ['jenis' => $resolved]);
             $session['jenis'] = $resolved;
             $this->kurirAppendSummary($waNumber, $session, 'jenis_merge=' . $resolved);

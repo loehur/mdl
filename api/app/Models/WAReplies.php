@@ -1317,7 +1317,7 @@ class WAReplies
 
     /**
      * Ucapan terima kasih (termasuk typo umum) — cukup untuk PENUTUP.
-     * Contoh: terima kasih, makasih, makasi, makaci, makaseh, trima ksih, thanks.
+     * Contoh: terima kasih, makasih, makasi, makaci, makaseh, trima ksih, mksh, thanks.
      */
     private function messageLooksLikeThanksPenutup(?string $text): bool
     {
@@ -1330,7 +1330,7 @@ class WAReplies
             . 'ma*ka*(s|c)(i|e)+h?|'               // makasih, makasi, makaci, makaseh, ...
             . 'te*ri*ma*ka*si*h|'                   // terimakasih (satu kata)
             . '(trima|terima)\s+(kasih|ksih|ksh)|' // trima ksih / terima kasih
-            . 'trimakasih|trmksh|trm\s*ksh|'
+            . 'trimakasih|trmksh|trm\s*ksh|mksh|'  // mksh / mksh kak
             . 'tha*nks|thx|tq|ty'
             . ')\b/iu',
             $text

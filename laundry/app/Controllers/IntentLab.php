@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Admin Tools — Intent Lab (cek klasifikasi intent chat WA)
+ * Admin Tools — Intent Lab (cek klasifikasi + ajarkan intent ke DB)
  */
 class IntentLab extends Controller
 {
@@ -10,12 +10,40 @@ class IntentLab extends Controller
         $this->operating_data();
     }
 
+    private function dbMain()
+    {
+        return $this->db(100);
+    }
+
+    private function bumpAutoreplyCache(): void
+    {
+        $db = $this->dbMain();
+        $row = $db->get_where_row('wa_autoreply_meta', "meta_key = 'cache_version'");
+        if (!$row) {
+            $db->insert('wa_autoreply_meta', ['meta_key' => 'cache_version', 'meta_value' => '1']);
+            return;
+        }
+        $next = (string) ((int) ($row['meta_value'] ?? 0) + 1);
+        $db->update('wa_autoreply_meta', ['meta_value' => $next], "meta_key = 'cache_version'");
+    }
+
+    /** @return list<array{id:int|string,code:string}> */
+    private function listActiveIntents(): array
+    {
+        $rows = $this->dbMain()->query_array(
+            "SELECT id, code FROM wa_autoreply_intents WHERE is_active = 1 ORDER BY sort_order ASC, code ASC"
+        );
+        return is_array($rows) ? $rows : [];
+    }
+
     public function index()
     {
         $this->session_cek(1);
         $data_operasi = ['title' => 'Intent Lab'];
         $this->view('layout', ['data_operasi' => $data_operasi]);
-        $this->view('tools/intent_lab', []);
+        $this->view('tools/intent_lab', [
+            'intents' => $this->listActiveIntents(),
+        ]);
     }
 
     /**
@@ -28,6 +56,187 @@ class IntentLab extends Controller
             header('Content-Type: application/json; charset=utf-8');
         }
 
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? $_POST['text'] ?? ''));
+        if ($text === '') {
+            echo json_encode(['ok' => 0, 'message' => 'Teks kosong'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $api = $this->helper('IntentCheckApi');
+        $res = $api->check($text);
+        if (!isset($res['ok'])) {
+            $res['ok'] = false;
+        }
+        if ($res['ok'] === true) {
+            $res['ok'] = 1;
+        } elseif ($res['ok'] === false) {
+            $res['ok'] = 0;
+        }
+        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * POST { text, intent } → API AI usulkan pattern + prompt_append
+     */
+    public function proposeTeach()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intent = strtoupper(trim((string) ($data['intent'] ?? '')));
+        if ($text === '' || $intent === '') {
+            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $api = $this->helper('IntentCheckApi');
+        $res = $api->proposeTeach($text, $intent);
+        if (!isset($res['ok'])) {
+            $res['ok'] = false;
+        }
+        if ($res['ok'] === true) {
+            $res['ok'] = 1;
+        } elseif ($res['ok'] === false) {
+            $res['ok'] = 0;
+        }
+        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * POST { text, intent, pattern, prompt_append, update_prompt=1 }
+     * Simpan pattern (+ opsional append ai_prompt) ke DB, bump cache, re-cek intent.
+     */
+    public function applyTeach()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
+        $pattern = trim((string) ($data['pattern'] ?? ''));
+        $promptAppend = trim((string) ($data['prompt_append'] ?? ''));
+        $updatePrompt = !isset($data['update_prompt']) || !empty($data['update_prompt']);
+        $addPattern = !isset($data['add_pattern']) || !empty($data['add_pattern']);
+
+        if ($text === '' || $intentCode === '') {
+            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if ($addPattern && $pattern === '') {
+            echo json_encode(['ok' => 0, 'message' => 'pattern wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if ($addPattern && @preg_match($pattern, '') === false) {
+            echo json_encode([
+                'ok' => 0,
+                'message' => 'Regex tidak valid: ' . preg_last_error_msg(),
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if ($addPattern && @preg_match($pattern, $text) !== 1) {
+            echo json_encode([
+                'ok' => 0,
+                'message' => 'Pattern tidak match teks contoh. Perbaiki dulu sebelum aktifkan.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $db = $this->dbMain();
+        $intent = $db->get_where_row(
+            'wa_autoreply_intents',
+            "code = '" . $db->escape($intentCode) . "' AND is_active = 1"
+        );
+        if (!$intent || empty($intent['id'])) {
+            echo json_encode(['ok' => 0, 'message' => 'Intent tidak ditemukan'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        $intentId = (int) $intent['id'];
+
+        $patternAdded = false;
+        $promptUpdated = false;
+
+        if ($addPattern) {
+            $dup = $db->query_array(
+                "SELECT id FROM wa_autoreply_patterns WHERE intent_id = {$intentId} AND pattern = '" . $db->escape($pattern) . "' LIMIT 1"
+            );
+            if (is_array($dup) && count($dup) > 0) {
+                // sudah ada — skip insert
+            } else {
+                $max = $db->query_array(
+                    "SELECT COALESCE(MAX(sort_order),0) AS m FROM wa_autoreply_patterns WHERE intent_id = {$intentId}"
+                );
+                $sort = (int) (($max[0]['m'] ?? 0) + 1);
+                $in = $db->insert('wa_autoreply_patterns', [
+                    'intent_id' => $intentId,
+                    'pattern' => $pattern,
+                    'sort_order' => $sort,
+                    'is_active' => 1,
+                    'note' => 'Intent Lab teach: ' . mb_substr($text, 0, 120),
+                ]);
+                if (($in['errno'] ?? 1) != 0) {
+                    echo json_encode([
+                        'ok' => 0,
+                        'message' => $in['error'] ?? 'Gagal insert pattern',
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $patternAdded = true;
+            }
+        }
+
+        if ($updatePrompt && $promptAppend !== '') {
+            $current = (string) ($intent['ai_prompt'] ?? '');
+            if (mb_stripos($current, $promptAppend) === false) {
+                $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
+                $newPrompt = $current . $sep . $promptAppend;
+                $up = $db->update(
+                    'wa_autoreply_intents',
+                    ['ai_prompt' => $newPrompt],
+                    "id = {$intentId}"
+                );
+                if (($up['errno'] ?? 1) != 0) {
+                    echo json_encode([
+                        'ok' => 0,
+                        'message' => $up['error'] ?? 'Gagal update ai_prompt',
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $promptUpdated = true;
+            }
+        }
+
+        if ($patternAdded || $promptUpdated) {
+            $this->bumpAutoreplyCache();
+        }
+
+        // Re-cek klasifikasi
+        $api = $this->helper('IntentCheckApi');
+        $check = $api->check($text);
+        $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
+
+        echo json_encode([
+            'ok' => 1,
+            'message' => 'Aktif',
+            'pattern_added' => $patternAdded,
+            'prompt_updated' => $promptUpdated,
+            'target_intent' => $intentCode,
+            'verify_intent' => $gotIntent,
+            'verify_ok' => ($gotIntent === $intentCode),
+            'verify' => $check,
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @return array<string,mixed> */
+    private function readRequestData(): array
+    {
         $raw = file_get_contents('php://input');
         $data = [];
         if (is_string($raw) && $raw !== '') {
@@ -39,28 +248,6 @@ class IntentLab extends Controller
         if ($data === []) {
             $data = $_POST;
         }
-
-        $text = trim((string) ($data['text'] ?? ''));
-        if ($text === '') {
-            // fallback form-urlencoded / multipart
-            $text = trim((string) ($_POST['text'] ?? ''));
-        }
-        if ($text === '') {
-            echo json_encode(['ok' => 0, 'message' => 'Teks kosong'], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        $api = $this->helper('IntentCheckApi');
-        $res = $api->check($text);
-        if (!isset($res['ok'])) {
-            $res['ok'] = false;
-        }
-        // Samakan flag ok numerik untuk UI lama bila perlu
-        if ($res['ok'] === true) {
-            $res['ok'] = 1;
-        } elseif ($res['ok'] === false) {
-            $res['ok'] = 0;
-        }
-        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+        return is_array($data) ? $data : [];
     }
 }

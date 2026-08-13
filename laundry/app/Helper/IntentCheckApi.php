@@ -13,20 +13,51 @@ class IntentCheckApi
     public function check(string $text): array
     {
         $payload = json_encode(['text' => $text], JSON_UNESCAPED_UNICODE);
+        return $this->request('check', $payload, true);
+    }
+
+    /**
+     * Usulan AI: pattern + prompt_append agar text masuk intent.
+     * @return array<string,mixed>
+     */
+    public function proposeTeach(string $text, string $intent): array
+    {
+        $payload = json_encode([
+            'text' => $text,
+            'intent' => $intent,
+        ], JSON_UNESCAPED_UNICODE);
+        return $this->request('proposeTeach', $payload, true);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function request(string $path, ?string $jsonBody, bool $post): array
+    {
+        $url = rtrim($this->apiUrl, '/') . '/' . ltrim($path, '/');
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ];
+        $secret = $this->cronSecret();
+        if ($secret !== '') {
+            $headers[] = 'X-Cron-Secret: ' . $secret;
+        }
+
         $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => rtrim($this->apiUrl, '/') . '/check',
+        $opts = [
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Accept: application/json',
-            ],
-            CURLOPT_TIMEOUT => 60,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_TIMEOUT => 90,
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-        ]);
+        ];
+        if ($post) {
+            $opts[CURLOPT_POST] = true;
+            $opts[CURLOPT_POSTFIELDS] = $jsonBody ?? '{}';
+        }
+        curl_setopt_array($ch, $opts);
         $raw = curl_exec($ch);
         $curlErr = curl_error($ch);
         $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -52,5 +83,22 @@ class IntentCheckApi
         }
 
         return $decoded;
+    }
+
+    private function cronSecret(): string
+    {
+        if (class_exists('URL') && defined('URL::API_CRON_SECRET')) {
+            $s = trim((string) URL::API_CRON_SECRET);
+            if ($s !== '') {
+                return $s;
+            }
+        }
+        foreach (['API_CRON_SECRET', 'CRON_SECRET'] as $envKey) {
+            $s = trim((string) (getenv($envKey) ?: ''));
+            if ($s !== '') {
+                return $s;
+            }
+        }
+        return '';
     }
 }
