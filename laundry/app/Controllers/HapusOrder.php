@@ -11,9 +11,11 @@ class HapusOrder extends Controller
    public function index()
    {
       $viewData = 'hapusOrder/hapus_order_main';
+      $db = $this->db(0);
+      $wc = $this->wCabang;
 
-      $where = $this->wCabang . " AND id_pelanggan <> 0 AND bin = 1 ORDER BY id_penjualan DESC LIMIT 50";
-      $data_main = $this->db(0)->get_where('sale', $where);
+      $where = $wc . " AND id_pelanggan <> 0 AND bin = 1 ORDER BY id_penjualan DESC LIMIT 50";
+      $data_main = $db->get_where('sale', $where);
 
       $operasi = [];
       $kas = [];
@@ -21,40 +23,25 @@ class HapusOrder extends Controller
       $notifBon = [];
       $notifSelesai = [];
 
-      $numbers = array_column($data_main, 'id_penjualan');
-      $refs = array_unique(array_column($data_main, 'no_ref'));
-      foreach ($numbers as $id) {
+      if (count($data_main) > 0) {
+         $ids = array_values(array_unique(array_map('intval', array_column($data_main, 'id_penjualan'))));
+         $refs = array_values(array_unique(array_filter(array_column($data_main, 'no_ref'), static function ($r) {
+            return $r !== null && $r !== '';
+         })));
 
-         //OPERASI
-         $where = $this->wCabang . " AND id_penjualan = '" . $id . "'";
-         $ops = $this->db(0)->get_where('operasi', $where);
-         if (count($ops) > 0) {
-            foreach ($ops as $opsv) {
-               array_push($operasi, $opsv);
-            }
-         }
-      }
-
-      foreach ($refs as $rf) {
-         //KAS
-         $where = $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '" . $rf . "'";
-         $ks = $this->db(0)->get_where_row('kas', $where);
-         if (count($ks) > 0) {
-            array_push($kas, $ks);
+         if (count($ids) > 0) {
+            $idIn = implode(',', $ids);
+            $operasi = $db->get_where('operasi', $wc . " AND id_penjualan IN ($idIn)");
          }
 
-         //SURCAS
-         $where = $this->wCabang . " AND no_ref = '" . $rf . "'";
-         $sc = $this->db(0)->get_where_row('surcas', $where);
-         if (count($sc) > 0) {
-            array_push($surcas, $sc);
-         }
+         if (count($refs) > 0) {
+            $refIn = implode(',', array_map(static function ($r) use ($db) {
+               return "'" . $db->escape((string) $r) . "'";
+            }, $refs));
 
-         //NOTIF BON
-         $where = $this->wCabang . " AND tipe = 1 AND no_ref = '" . $rf . "'";
-         $nf = $this->db(0)->get_where_row('notif', $where);
-         if (count($nf) > 0) {
-            array_push($notifBon, $nf);
+            $kas = $db->get_where('kas', $wc . " AND jenis_transaksi = 1 AND ref_transaksi IN ($refIn)");
+            $surcas = $db->get_where('surcas', $wc . " AND no_ref IN ($refIn)");
+            $notifBon = $db->get_where('notif', $wc . " AND tipe = 1 AND no_ref IN ($refIn)");
          }
       }
 
@@ -62,7 +49,7 @@ class HapusOrder extends Controller
          'data_main' => $data_main,
          'operasi' => $operasi,
          'kas' => $kas,
-         "surcas" => $surcas,
+         'surcas' => $surcas,
          'notif_bon' => $notifBon,
          'notif_selesai' => $notifSelesai
       ]);

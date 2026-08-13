@@ -42,31 +42,85 @@
     #intent-lab-root .il-label {
       display: block;
       color: var(--il-muted);
-      font-weight: 800;
-      font-size: 0.75rem;
+      font-weight: 900;
+      font-size: 0.78rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       margin-bottom: 6px;
     }
-    #intent-lab-root .il-textarea,
-    #intent-lab-root .il-select {
+    #intent-lab-root .il-textarea {
       width: 100%;
       border: 1px solid var(--il-line);
       border-radius: 0;
       padding: 10px 12px;
-      font-weight: 600;
+      font-weight: 800;
       color: var(--il-ink);
       background: #fff;
-    }
-    #intent-lab-root .il-textarea {
       min-height: 110px;
       resize: vertical;
     }
-    #intent-lab-root .il-textarea:focus,
-    #intent-lab-root .il-select:focus {
+    #intent-lab-root .il-textarea:focus {
       outline: none;
       border-color: var(--il-blue);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    }
+    /* Selectize Intent target — satu border saja (UI_THEME) */
+    #intent-lab-root select.tize,
+    #intent-lab-root select.selectized {
+      border: 0 !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      padding: 0 !important;
+    }
+    #intent-lab-root .selectize-control,
+    #intent-lab-root .selectize-control.single {
+      border: 0 !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      margin: 0;
+      width: 100%;
+    }
+    #intent-lab-root .selectize-control.single .selectize-input {
+      border: 1px solid #94a3b8 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      color: #0f172a;
+      font-weight: 800;
+      min-height: 42px;
+      padding: 8px 12px !important;
+    }
+    #intent-lab-root .selectize-control.single .selectize-input.focus {
+      border-color: #2563eb !important;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+    }
+    #intent-lab-root .selectize-control.single .selectize-input:after {
+      border: 0 !important;
+    }
+    #intent-lab-root .selectize-dropdown {
+      border: 1px solid #94a3b8 !important;
+      border-radius: 0 !important;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+      z-index: 30 !important;
+    }
+    #intent-lab-root .selectize-dropdown .option {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    #intent-lab-root .selectize-dropdown .option.active {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    #intent-lab-root .il-teach-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+      width: 100%;
+    }
+    #intent-lab-root .il-teach-actions .il-btn {
+      flex: 1 1 auto;
+      min-height: 42px;
     }
     #intent-lab-root .il-actions {
       display: flex;
@@ -296,15 +350,15 @@
       <div class="il-row il-row--2">
         <div>
           <label class="il-label" for="ilTeachIntent">Intent target</label>
-          <select id="ilTeachIntent" class="il-select">
-            <option value="">— pilih —</option>
+          <select id="ilTeachIntent" class="tize" style="width:100%;">
+            <option value="">— pilih intent —</option>
             <?php foreach ($intentOptions as $opt): ?>
               <option value="<?= htmlspecialchars($opt['code']) ?>"><?= htmlspecialchars($opt['code']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="d-flex align-items-end">
-          <div class="il-actions" style="margin-top:0;width:100%">
+          <div class="il-teach-actions">
             <button type="button" class="il-btn il-btn--teach" id="ilBtnPropose">
               <i class="fas fa-magic"></i> Usulkan (AI)
             </button>
@@ -378,6 +432,7 @@
   </div>
 </div>
 
+<script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
 <script>
 (function () {
   function boot() {
@@ -410,6 +465,33 @@
     var $untouchPatterns = $('#ilUntouchPatterns');
     var $untouchPrompt = $('#ilUntouchPrompt');
     var $untouchMsg = $('#ilUntouchMsg');
+    var teachSelectize = null;
+
+    if ($.fn.selectize && !$teachIntent[0].selectize) {
+      teachSelectize = $root.find('select.tize').selectize({
+        allowEmptyOption: true
+      })[0].selectize;
+    } else if ($teachIntent[0] && $teachIntent[0].selectize) {
+      teachSelectize = $teachIntent[0].selectize;
+    }
+
+    function getTeachIntent() {
+      if (teachSelectize) return $.trim(teachSelectize.getValue() || '');
+      return $.trim($teachIntent.val() || '');
+    }
+
+    function setTeachIntentIfEmpty(code) {
+      if (!code) return;
+      var cur = getTeachIntent();
+      if (cur) return;
+      if (teachSelectize) {
+        if (teachSelectize.options[code]) teachSelectize.setValue(code, true);
+        return;
+      }
+      if ($teachIntent.find('option[value="' + code + '"]').length) {
+        $teachIntent.val(code);
+      }
+    }
 
     var checkUrl = '<?= URL::BASE_URL; ?>IntentLab/check';
     var proposeUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeTeach';
@@ -489,8 +571,8 @@
       else $trace.text(tr ? String(tr) : '(kosong)');
 
       var got = String(data.intent || '').toUpperCase();
-      if (got && got !== 'FALSE' && got !== 'NONE' && $teachIntent.find('option[value="' + got + '"]').length) {
-        if (!$teachIntent.val()) $teachIntent.val(got);
+      if (got && got !== 'FALSE' && got !== 'NONE') {
+        setTeachIntentIfEmpty(got);
       }
     }
 
@@ -522,7 +604,7 @@
     function runPropose() {
       if (running) return;
       var text = $.trim($text.val() || '');
-      var intent = $.trim($teachIntent.val() || '');
+      var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent target', 'warn'); return; }
       setLoading(true, 'AI menyusun usulan…', 'Pattern regex + potongan prompt');
@@ -591,7 +673,7 @@
     function runProposeUntouch() {
       if (running) return;
       var text = $.trim($text.val() || '');
-      var intent = $.trim($teachIntent.val() || '');
+      var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent yang akan dikeluarkan', 'warn'); return; }
       setLoading(true, 'AI menyusun keluarkan…', 'Cari pattern match + pengecualian prompt');
@@ -635,7 +717,7 @@
     function runApply() {
       if (running) return;
       var text = $.trim($text.val() || '');
-      var intent = $.trim($teachIntent.val() || '');
+      var intent = getTeachIntent();
       var pattern = $.trim($teachPattern.val() || '');
       var promptAppend = $.trim($teachPrompt.val() || '');
       var addPattern = $('#ilAddPattern').is(':checked') ? 1 : 0;
@@ -681,7 +763,7 @@
     function runApplyUntouch() {
       if (running) return;
       var text = $.trim($text.val() || '');
-      var intent = $.trim($teachIntent.val() || '');
+      var intent = getTeachIntent();
       var promptAppend = $.trim($untouchPrompt.val() || '');
       var deactivatePatterns = $('#ilDeactivatePatterns').is(':checked') ? 1 : 0;
       var updatePrompt = $('#ilUntouchUpdatePrompt').is(':checked') ? 1 : 0;

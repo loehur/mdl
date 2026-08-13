@@ -1,5 +1,6 @@
 <?php
-$array = array(0 => 'Setoran', 1 => 'NonTunai', 2 => 'HapusOrder', 3 => 'HapusDeposit', 4 => 'Pengeluaran')
+$array = array(0 => 'Setoran', 1 => 'NonTunai', 2 => 'HapusOrder', 3 => 'HapusDeposit', 4 => 'Pengeluaran');
+$counts = $data['counts'] ?? [];
 ?>
 
 <div class="row mx-0 py-2 px-2 bg-warning-subtle position-sticky" style="top: 70px; z-index: 100;">
@@ -7,7 +8,8 @@ $array = array(0 => 'Setoran', 1 => 'NonTunai', 2 => 'HapusOrder', 3 => 'HapusDe
     $classActive = "";
     foreach ($array as $a) { ?>
         <div class="col-auto px-1 my-2" style="white-space: nowrap;">
-            <?php $count = count($data[$a]);
+            <?php
+            $count = (int) ($counts[$a] ?? 0);
             $classActive = ($a == $data['mode']) ? "bg-white shadow-sm" : "";
             ?>
             <a href="<?= URL::BASE_URL ?>AdminApproval/index/<?= $a ?>" class="border border-warning rounded-2 px-3 py-1 text-decoration-none <?= $classActive ?>">

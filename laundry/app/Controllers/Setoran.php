@@ -11,8 +11,14 @@ class Setoran extends Controller
    public function index()
    {
       $view = 'setoran/setoran_main';
-      $where = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2 ORDER BY insertTime DESC LIMIT 20";
-      $list = $this->db(0)->get_where('kas', $where);
+      $db = $this->db(0);
+      $base = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2";
+
+      // Pisah pending vs riwayat agar LIMIT 20 tidak menelan antrean approve
+      $pending = $db->get_where('kas', $base . " AND status_mutasi = 2 ORDER BY insertTime DESC LIMIT 20");
+      $riwayat = $db->get_where('kas', $base . " AND status_mutasi <> 2 ORDER BY insertTime DESC LIMIT 20");
+      $list = array_merge(is_array($pending) ? $pending : [], is_array($riwayat) ? $riwayat : []);
+
       $this->view($view, ['list' => $list]);
    }
 
