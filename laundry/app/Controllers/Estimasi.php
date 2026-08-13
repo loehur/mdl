@@ -1325,20 +1325,12 @@ class Estimasi extends Controller
                     $nama = trim((string) ($resolved['nama'] ?? ''));
                 }
 
-                $summary = trim((string) ($row['summary'] ?? ''));
-                $rawLog = trim((string) ($row['raw_log'] ?? ''));
-                $summary = $this->normalizePermintaanDisplayText($summary);
-                if ($summary === '' || $this->permintaanSummaryLooksLikeSinglePreview($summary, $rawLog)) {
-                    $fromRaw = $this->permintaanSummaryFromRawLog($rawLog);
-                    if ($fromRaw !== '') {
-                        $summary = $fromRaw;
-                    } else {
-                        $fromChat = $this->permintaanSummaryFromRecentChat($waPhone);
-                        if ($fromChat !== '') {
-                            $summary = $fromChat;
-                        }
-                    }
-                }
+                $summary = $this->resolvePermintaanAiSummary(
+                    $waPhone,
+                    (string) ($row['summary'] ?? ''),
+                    (string) ($row['raw_log'] ?? ''),
+                    true
+                );
                 $items[] = [
                     'task_type' => 'permintaan',
                     'task_id' => 'permintaan:' . $waPhone,
@@ -1430,7 +1422,7 @@ class Estimasi extends Controller
                 $nama = trim((string) $row['contact_name']);
             }
 
-            $pesan = $this->permintaanSummaryFromRecentChat($waPhone);
+            $pesan = $this->resolvePermintaanAiSummary($waPhone, '', '', false);
             if ($pesan === '') {
                 $pesan = $this->normalizePermintaanDisplayText(trim((string) ($row['last_message'] ?? '')));
             }
@@ -1461,77 +1453,225 @@ class Estimasi extends Controller
         return trim($text);
     }
 
-    /** Summary jelek: masih preview i-/o- atau cuma 1 bubble padahal raw_log banyak. */
-    private function permintaanSummaryLooksLikeSinglePreview(string $summary, string $rawLog): bool
+    /**
+     * Isi notif = SATU kalimat ringkasan AI (bukan dump seluruh chat).
+     * Jika summary session sudah bagus, pakai itu; kalau mentah/dump → AI rangkum lalu simpan.
+     */
+    private function resolvePermintaanAiSummary(
+        string $phone,
+        string $sessionSummary,
+        string $rawLog,
+        bool $persistToSession
+    ): string {
+        $sessionSummary = $this->normalizePermintaanDisplayText($sessionSummary);
+        $lines = $this->permintaanCollectChatLines($phone, $rawLog);
+
+        if ($sessionSummary !== '' && !$this->permintaanLooksLikeRawDump($sessionSummary, $lines)) {
+            return mb_substr($sessionSummary, 0, 280);
+        }
+
+        if ($lines === []) {
+            return $sessionSummary !== '' ? mb_substr($sessionSummary, 0, 280) : '';
+        }
+
+        $ai = $this->permintaanAiRangkumLines($lines, $sessionSummary);
+        if ($ai === '') {
+            // Fallback singkat: jangan dump semua; ambil inti 1–2 klausa terakhir yang unik
+            $ai = $this->permintaanShortFallbackFromLines($lines);
+        }
+
+        if ($persistToSession && $ai !== '') {
+            $this->permintaanPersistSessionSummary($phone, $ai, $lines);
+        }
+
+        return mb_substr($ai, 0, 280);
+    }
+
+    /** @return list<string> */
+    private function permintaanCollectChatLines(string $phone, string $rawLog = ''): array
+    {
+        $texts = [];
+
+        foreach (preg_split('/\n---\n/', trim($rawLog)) ?: [] as $line) {
+            $t = $this->normalizePermintaanDisplayText(trim((string) $line));
+            if ($t !== '' && mb_strlen($t) >= 2) {
+                $texts = $this->permintaanAppendUniqueLine($texts, $t);
+            }
+        }
+
+        try {
+            $msgs = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $phone, 20);
+            $cutoff = time() - (90 * 60);
+            if (is_array($msgs)) {
+                foreach ($msgs as $m) {
+                    if (($m['sender'] ?? '') !== 'customer') {
+                        continue;
+                    }
+                    $t = $this->normalizePermintaanDisplayText(trim((string) ($m['text'] ?? '')));
+                    if ($t === '' || mb_strlen($t) < 2) {
+                        continue;
+                    }
+                    $at = strtotime((string) ($m['time'] ?? '')) ?: 0;
+                    if ($at > 0 && $at < $cutoff) {
+                        continue;
+                    }
+                    $texts = $this->permintaanAppendUniqueLine($texts, mb_substr($t, 0, 280));
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        if (count($texts) > 10) {
+            $texts = array_slice($texts, -10);
+        }
+
+        return $texts;
+    }
+
+    /** @param list<string> $list @return list<string> */
+    private function permintaanAppendUniqueLine(array $list, string $text): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return $list;
+        }
+        foreach ($list as $existing) {
+            if (mb_strtolower($existing) === mb_strtolower($text)) {
+                return $list;
+            }
+            // near-dup: satu mengandung yang lain hampir penuh
+            if (mb_stripos($existing, $text) !== false || mb_stripos($text, $existing) !== false) {
+                if (mb_strlen($text) > mb_strlen($existing)) {
+                    // replace shorter with longer
+                    $key = array_search($existing, $list, true);
+                    if ($key !== false) {
+                        $list[(int) $key] = $text;
+                    }
+                }
+                return $list;
+            }
+        }
+        $list[] = $text;
+        return $list;
+    }
+
+    /** @param list<string> $lines */
+    private function permintaanLooksLikeRawDump(string $summary, array $lines): bool
     {
         if (preg_match('/^[io]\-\s+/iu', $summary)) {
             return true;
         }
-        $parts = preg_split('/\n---\n/', trim($rawLog)) ?: [];
-        $parts = array_values(array_filter(array_map('trim', $parts)));
-        if (count($parts) < 2) {
-            return false;
+        if (substr_count($summary, ';') >= 1) {
+            return true;
         }
-        $last = $this->normalizePermintaanDisplayText((string) end($parts));
-        $sum = $this->normalizePermintaanDisplayText($summary);
-        return $sum !== '' && mb_strtolower($sum) === mb_strtolower($last);
+        if (count($lines) >= 2) {
+            $last = mb_strtolower(trim((string) end($lines)));
+            if ($last !== '' && mb_strtolower($summary) === $last) {
+                return true;
+            }
+        }
+        // terlalu mirip dump gabungan
+        if (count($lines) >= 2 && mb_strlen($summary) > 90) {
+            $hits = 0;
+            foreach ($lines as $line) {
+                if (mb_stripos($summary, mb_substr($line, 0, min(20, mb_strlen($line)))) !== false) {
+                    $hits++;
+                }
+            }
+            if ($hits >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private function permintaanSummaryFromRawLog(string $rawLog): string
+    /** @param list<string> $lines */
+    private function permintaanAiRangkumLines(array $lines, string $prevSummary = ''): string
     {
-        $parts = preg_split('/\n---\n/', trim($rawLog)) ?: [];
-        $parts = array_values(array_filter(array_map(function ($l) {
-            return $this->normalizePermintaanDisplayText(trim((string) $l));
-        }, $parts)));
-        if ($parts === []) {
+        if ($lines === []) {
             return '';
         }
-        return mb_substr(implode('; ', $parts), 0, 500);
-    }
 
-    /** Gabung chat inbound terbaru (bukan last_message saja). */
-    private function permintaanSummaryFromRecentChat(string $phone): string
-    {
+        $chatBlock = '';
+        foreach ($lines as $i => $line) {
+            $chatBlock .= ($i + 1) . '. ' . $line . "\n";
+        }
+
+        $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat Bahasa Indonesia.\n"
+            . "WAJIB gabungkan SEMUA poin chat (bukan hanya yang terakhir, jangan salin mentah).\n"
+            . "Contoh input: dulukan baju sekolah + seragam merah putih + sekalian pramuka "
+            . "→ output: \"Dulukan seragam merah putih dan baju pramuka\".\n"
+            . "Tanpa sapaan kak/bu/pak, tanpa emoji, tanpa tanda kutip, tanpa nomor, tanpa titik koma daftar chat.\n"
+            . "HANYA teks ringkasan, maksimal 180 karakter.";
+
+        $user = "Ringkasan lama (opsional): " . ($prevSummary !== '' && !$this->permintaanLooksLikeRawDump($prevSummary, $lines) ? $prevSummary : '(abaikan)') . "\n\n"
+            . "Chat pelanggan:\n{$chatBlock}\n"
+            . "Tulis SATU ringkasan permintaan:";
+
         try {
-            $msgs = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $phone, 15);
-            if (!is_array($msgs) || $msgs === []) {
+            /** @var AiChat $ai */
+            $ai = $this->helper('AiChat');
+            $out = trim($ai->chat([
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ], 120, 0.3));
+            $out = $this->normalizePermintaanDisplayText($out);
+            $out = trim($out, " \t\n\r\0\x0B\"'");
+            $out = preg_replace('/\s+/u', ' ', $out) ?? $out;
+            if ($out === '' || $this->permintaanLooksLikeRawDump($out, $lines)) {
                 return '';
             }
-            $texts = [];
-            $cutoff = time() - (90 * 60);
-            foreach ($msgs as $m) {
-                if (($m['sender'] ?? '') !== 'customer') {
-                    continue;
-                }
-                $t = $this->normalizePermintaanDisplayText(trim((string) ($m['text'] ?? '')));
-                if ($t === '' || mb_strlen($t) < 2) {
-                    continue;
-                }
-                $at = strtotime((string) ($m['time'] ?? '')) ?: 0;
-                if ($at > 0 && $at < $cutoff) {
-                    continue;
-                }
-                $dup = false;
-                foreach ($texts as $existing) {
-                    if (mb_strtolower($existing) === mb_strtolower($t)) {
-                        $dup = true;
-                        break;
-                    }
-                }
-                if (!$dup) {
-                    $texts[] = mb_substr($t, 0, 280);
-                }
-            }
-            if ($texts === []) {
-                return '';
-            }
-            // Ambil cluster terakhir (max 8 bubble inbound)
-            if (count($texts) > 8) {
-                $texts = array_slice($texts, -8);
-            }
-            return mb_substr(implode('; ', $texts), 0, 500);
+            return mb_substr($out, 0, 280);
         } catch (\Throwable $e) {
             return '';
+        }
+    }
+
+    /** @param list<string> $lines */
+    private function permintaanShortFallbackFromLines(array $lines): string
+    {
+        if ($lines === []) {
+            return '';
+        }
+        // Satu kalimat sederhana dari item unik, bukan dump penuh
+        $joined = implode(' dan ', array_slice($lines, -3));
+        $joined = preg_replace('/\b(kak|gan|bos|min)\b/iu', '', $joined) ?? $joined;
+        $joined = preg_replace('/\s+/u', ' ', trim($joined)) ?? $joined;
+        return mb_substr($joined, 0, 220);
+    }
+
+    /** @param list<string> $lines */
+    private function permintaanPersistSessionSummary(string $phone, string $summary, array $lines): void
+    {
+        $phoneEsc = $this->db(100)->escape($phone);
+        $raw = implode("\n---\n", $lines);
+        try {
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+            $existingRows = $this->db(100)->query_array(
+                "SELECT phone FROM wa_permintaan_session
+                 WHERE status = 'open' AND expires_at > NOW() AND ("
+                . "phone = '" . $phoneEsc . "'"
+                . ($tail !== ''
+                    ? (" OR RIGHT(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''), " . strlen($tail) . ") = '"
+                        . $this->db(100)->escape($tail) . "'")
+                    : '')
+                . ") LIMIT 1"
+            );
+            if (!empty($existingRows[0]['phone'])) {
+                $this->db(100)->update(
+                    'wa_permintaan_session',
+                    [
+                        'summary' => mb_substr($summary, 0, 500),
+                        'raw_log' => mb_substr($raw, 0, 8000),
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ],
+                    "phone = '" . $this->db(100)->escape((string) $existingRows[0]['phone']) . "'"
+                );
+            }
+        } catch (\Throwable $e) {
+            // tabel belum ada
         }
     }
 
@@ -1579,25 +1719,12 @@ class Estimasi extends Controller
 
         $session = $this->findOpenPermintaanSession($phone, $phoneEsc);
 
-        $summary = trim((string) ($session['summary'] ?? ''));
-        if ($summary === '') {
-            try {
-                $digits = preg_replace('/[^0-9]/', '', $phone);
-                $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
-                if ($tail !== '') {
-                    $conv = $this->db(100)->get_where_row(
-                        'wa_conversations',
-                        "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '"
-                        . $this->db(100)->escape($tail) . "'"
-                    );
-                    if (is_array($conv) && !empty($conv['last_message'])) {
-                        $summary = trim((string) $conv['last_message']);
-                    }
-                }
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
+        $summary = $this->resolvePermintaanAiSummary(
+            $phone,
+            (string) ($session['summary'] ?? ''),
+            (string) ($session['raw_log'] ?? ''),
+            true
+        );
         if ($summary === '') {
             $summary = 'permintaan pelanggan';
         }
