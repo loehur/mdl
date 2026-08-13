@@ -10,7 +10,7 @@ use App\Core\DB;
  */
 trait WARepliesPermintaanTrait
 {
-    private const PERMINTAAN_SESSION_TTL_MINUTES = 1440; // 24 jam
+    private const PERMINTAAN_SESSION_TTL_MINUTES = 60; // 1 jam (sama intent state lain)
 
     private function getPermintaanSession(string $waNumber): ?array
     {
@@ -215,9 +215,10 @@ trait WARepliesPermintaanTrait
             ? mb_substr($msg, 0, 500)
             : ($prevRaw . "\n---\n" . mb_substr($msg, 0, 500));
 
-        $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $msg);
+        // Selalu rangkum dari SELURUH raw_log session (bukan chat terakhir saja)
+        $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $newRaw);
         if ($summary === '') {
-            $summary = $prevSummary !== '' ? $prevSummary : mb_substr($msg, 0, 280);
+            $summary = $this->permintaanFallbackSummary($newRaw, $prevSummary, $msg);
         }
 
         $this->savePermintaanSession($waNumber, [
@@ -287,23 +288,38 @@ trait WARepliesPermintaanTrait
     }
 
     /**
-     * AI: satukan permintaan lama + chat baru menjadi 1 kalimat ringkas.
+     * AI: satukan SEMUA chat di session jadi 1 kalimat permintaan (jangan hanya chat terakhir).
+     *
+     * @param string $prevSummary ringkasan lama (opsional)
+     * @param string $fullRawLog  seluruh raw_log termasuk pesan baru (dipisah ---)
      */
-    private function permintaanAiSummarize(string $waNumber, string $prevSummary, string $newMsg): string
+    private function permintaanAiSummarize(string $waNumber, string $prevSummary, string $fullRawLog): string
     {
-        $newMsg = trim($newMsg);
-        if ($newMsg === '') {
+        $fullRawLog = trim($fullRawLog);
+        if ($fullRawLog === '') {
             return trim($prevSummary);
         }
 
-        $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
-            . "Fokus pada apa yang diminta (item, aksi, prioritas). Tanpa sapaan, tanpa emoji, tanpa tanda kutip.\n"
-            . "Jika ada ringkasan lama + pesan baru, gabungkan jadi satu permintaan utuh (jangan buang detail penting).\n"
-            . "Jawaban HANYA teks ringkasan, maksimal ~200 karakter.";
+        $chatLines = preg_split('/\n---\n/', $fullRawLog) ?: [$fullRawLog];
+        $chatLines = array_values(array_filter(array_map('trim', $chatLines), static function ($l) {
+            return $l !== '';
+        }));
+        $chatBlock = '';
+        foreach ($chatLines as $i => $line) {
+            $chatBlock .= ($i + 1) . '. ' . $line . "\n";
+        }
 
-        $user = "Ringkasan sebelumnya: " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n"
-            . "Pesan baru pelanggan: " . $newMsg . "\n"
-            . "Tulis ringkasan permintaan terbaru:";
+        $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
+            . "WAJIB gabungkan SEMUA pesan chat (bukan hanya yang terakhir). Contoh: kalau minta dulukan seragam merah putih lalu tambah pramuka = "
+            . "\"Dulukan baju seragam merah putih dan baju pramuka\".\n"
+            . "Sertakan aksi (dulukan/prioritas/ambil dulu/dll) + semua item yang disebut.\n"
+            . "Jangan buang detail dari pesan sebelumnya. Tanpa sapaan (kak/bu/pak), tanpa emoji, tanpa tanda kutip, tanpa nomor urut.\n"
+            . "Jawaban HANYA teks ringkasan, maksimal ~220 karakter.";
+
+        $user = "Ringkasan sebelumnya (opsional): " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n\n"
+            . "Semua chat pelanggan di sesi ini (urut waktu):\n"
+            . $chatBlock . "\n"
+            . "Tulis SATU ringkasan permintaan yang mencakup SEMUA item/aksi di atas:";
 
         try {
             $raw = $this->executeOpenAIRequestWithMessages(
@@ -311,21 +327,38 @@ trait WARepliesPermintaanTrait
                     ['role' => 'system', 'content' => $system],
                     ['role' => 'user', 'content' => $user],
                 ],
-                120,
+                180,
                 $waNumber
             );
             $out = trim(preg_replace('/\s+/u', ' ', (string) $raw));
             $out = trim($out, " \t\n\r\0\x0B\"'");
+            $out = preg_replace('/^(baik|oke|ok|siap)[,.]?\s+/iu', '', (string) $out);
+            $out = trim((string) $out);
             if ($out === '') {
-                return $prevSummary !== '' ? $prevSummary : mb_substr($newMsg, 0, 280);
+                return $this->permintaanFallbackSummary($fullRawLog, $prevSummary, '');
             }
             return mb_substr($out, 0, 500);
         } catch (\Throwable $e) {
             $this->logAutoreplyTrace($waNumber, 'PERMINTAAN', 'ai_summary_fail: ' . mb_substr($e->getMessage(), 0, 120));
-            if ($prevSummary !== '') {
-                return mb_substr($prevSummary . '; ' . $newMsg, 0, 500);
-            }
-            return mb_substr($newMsg, 0, 280);
+            return $this->permintaanFallbackSummary($fullRawLog, $prevSummary, '');
         }
+    }
+
+    /** Fallback tanpa AI: gabung semua baris raw_log. */
+    private function permintaanFallbackSummary(string $fullRawLog, string $prevSummary, string $newMsg): string
+    {
+        $parts = preg_split('/\n---\n/', trim($fullRawLog)) ?: [];
+        $parts = array_values(array_filter(array_map('trim', $parts), static function ($l) {
+            return $l !== '';
+        }));
+        if ($parts !== []) {
+            return mb_substr(implode('; ', $parts), 0, 500);
+        }
+        if ($prevSummary !== '') {
+            return $newMsg !== ''
+                ? mb_substr($prevSummary . '; ' . $newMsg, 0, 500)
+                : mb_substr($prevSummary, 0, 500);
+        }
+        return mb_substr($newMsg, 0, 280);
     }
 }

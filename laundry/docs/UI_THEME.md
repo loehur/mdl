@@ -9,7 +9,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Modal Operasi → `laundry/app/Views/operasi/partials/modals.php` (`.op-modal` + `window.OpModal`)
 - Top nav + Sidebar → `laundry/app/Views/layout.php` (`.mdl-topbar`, `.main-sidebar`)
 - Toast → `laundry/app/Views/layout.php` (`.mdl-toast` + `window.MdlToast`)
-- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`); termasuk section **Permintaan Pelanggan** (CRM case 3) + modal chat `#mdlChatHistoryModal`
+- Offcanvas Notifikasi (lonceng) → `laundry/app/Views/layout.php` (`#offcanvasNotif` + `#btnNotifBell`); data via `Estimasi` controller (`db(100)` = `mdl_main`); termasuk section **Permintaan Pelanggan** + modal chat `#mdlChatHistoryModal` + konfirmasi `#mdlChatConfirmModal` / `#mdlPermintaanTolakModal` / `#mdlPermintaanHapusModal` (tanpa `alert`/`confirm`/`prompt` browser)
 - Riwayat chat WA (shared) → Helper `WaChatHistory` + JS `in_assets/js/mdl-wa-chat.js` (`window.MdlWaChat`) + CSS `.mdl-wa-chat` di `layout.php` (Delivery + Notifikasi permintaan)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
@@ -30,6 +30,7 @@ Referensi implementasi yang sudah sesuai tema:
 7. **Border tipis** — default **`1px`**. Dilarang border `2px`/`3px`/`1.5px` sebagai default panel/input/tombol. Focus ring: `0 0 0 2px …`. Opsi terpilih boleh `border-width: 2px` (hanya 1 langkah lebih tegas dari default).
 8. **Jangan default AI look** — hindari ungu/indigo generik, cream terracotta, tipografi soft abu-abu.
 9. **Header satu hue** — top nav, offcanvas header, modal head: **satu warna** (deep → light). **Dilarang** gradient pelangi 3+ warna (biru+hijau+kuning, merah+oranye, kuning+merah, dll.).
+10. **Dilarang dialog bawaan browser** — **jangan pernah** pakai `alert()`, `confirm()`, atau `prompt()` (dan `window.alert` / `window.confirm` / `window.prompt`). Feedback singkat → **toast** (`MdlToast`). Butuh keputusan / input teks / Ya–Batal → **modal** bertema (`.op-modal`, `.mdl-chat-modal`, dll.).
 
 ---
 
@@ -77,16 +78,19 @@ text-shadow: 0 1px 0 rgba(0,0,0,.18);
 /* cyan   */ background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%);
 ```
 
-### Top nav (chrome) — beda privilege
+### Top nav (chrome) — beda privilege (warna soft)
 
-Body class di `layout.php`: `mode-priv-100` / `mode-priv-12`. Mode Training (`mode-training`) tetap override.
+Body class di `layout.php`: `mode-priv-100` / `mode-priv-12`. Mode Training (`mode-training`) tetap override.  
+Gradient **satu hue**, nada **soft** (lebih terang / kurang saturated), tetap teks putih tebal.
 
-| Privilege | Class | Topnav (satu hue) |
-|-----------|--------|-------------------|
-| Default / kasir | — | biru `#1d4ed8 → #2563eb` |
-| 100 (admin) | `mode-priv-100` | merah `#991b1b → #dc2626` |
-| 12 (kurir) | `mode-priv-12` | cyan `#0e7490 → #0891b2` |
-| Training | `mode-training` | kuning `#d97706 → #f59e0b` |
+| Privilege | Body class | Gradient soft |
+|-----------|------------|---------------|
+| Kasir / default | — | biru `#5b8def → #7aa7f5` |
+| 100 (admin) | `mode-priv-100` | merah `#e86a6a → #f08b8b` |
+| 12 (kurir) | `mode-priv-12` | cyan `#2eb8cc → #5ccfde` |
+| Training | `mode-training` | kuning `#e8b03a → #f0c65c` |
+
+**Notifikasi pending:** class `.has-notif` pada `.mdl-topbar` → **border-bottom merah tebal `4px solid #dc2626`** (bukan blink / overlay seluruh topnav). Badge lonceng tetap.
 
 ### Body offcanvas
 
@@ -458,9 +462,12 @@ Desktop: **2 kolom**. Mobile (`≤720px` / `≤639px`): 1 kolom.
 1. Bisa diabaikan sambil lanjut kerja → **toast**.
 2. Harus baca / klik OK / pilih Ya–Batal sebelum lanjut → **modal**.
 3. Satu kalimat status → **toast**. Multi kalimat + aksi perbaikan → **modal**.
-4. **Jangan** `alert()` / `confirm()` bawaan browser.
+4. **Dilarang keras** `alert()` / `confirm()` / `prompt()` bawaan browser — **tidak ada pengecualian** (termasuk fallback “kalau toast belum load”).
 5. **Jangan** modal penuh hanya untuk “Berhasil” 1 kata — pakai toast.
-6. **Jangan** toast untuk konfirmasi hapus / checkout / print-server-offline.
+6. **Jangan** toast untuk konfirmasi hapus / checkout / print-server-offline / aksi destruktif.
+7. Butuh input teks (catatan hapus, alasan, dll.) → **modal bertema** + field, **bukan** `prompt()`.
+
+**Notifikasi Permintaan (lonceng):** Penuhi / Tolak / Hapus memakai modal konfirmasi (`.mdl-chat-modal`); validasi singkat & hasil sukses/gagal memakai `MdlToast`. Referensi: `#mdlChatConfirmModal`, `#mdlPermintaanTolakModal`, `#mdlPermintaanHapusModal` di `layout.php`.
 
 #### Toast (feedback singkat)
 
@@ -551,8 +558,9 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - [ ] Header (topnav / offcanvas / modal) gradient **satu hue** — bukan pelangi 3+ warna
 - [ ] Modal Operasi memakai `.op-modal` / `OpModal` (bukan Bootstrap Modal + backdrop)
 - [ ] Feedback singkat memakai **toast** (`MdlToast`), bukan `alert()` / modal OK-only
+- [ ] **Tidak ada** `alert()` / `confirm()` / `prompt()` bawaan browser di kode baru atau yang diubah
 - [ ] Print server offline / instruksi aksi memakai **modal** (`PrintServer.showAlert` / `OpModal`), bukan toast singkat & bukan `window.print`
-- [ ] Konfirmasi destruktif / multi-step tetap modal (bukan toast)
+- [ ] Konfirmasi destruktif / multi-step / input catatan tetap modal (bukan toast, bukan `prompt`)
 - [ ] Cetak hanya via Print Server — tanpa fallback browser / bluetooth / serial langsung
 ---
 
@@ -574,6 +582,7 @@ Halaman khusus (portal J, dll.) boleh punya toast sendiri, tapi **visual harus m
 - **Sudut membulat / round / pill / `border-radius: 50%`** — dilarang
 - Class Bootstrap `rounded`, `rounded-pill`, `rounded-3`, dll. pada elemen bertema
 - Modal/`alert()` untuk pesan sukses atau error 1 baris — **pakai toast**
+- `alert()` / `confirm()` / `prompt()` / `window.alert` / `window.confirm` / `window.prompt` — **dilarang total**
 - Toast untuk print-server-offline / instruksi “jalankan server dulu” — **pakai modal**
 - Fallback cetak browser (`window.print` / `window.open` + print) saat print server mati — **dilarang**; tampilkan warning modal
 - Bootstrap Toast default (rounded + shadow generik) tanpa token warna tema

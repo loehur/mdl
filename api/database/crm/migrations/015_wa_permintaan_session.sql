@@ -1,5 +1,5 @@
 -- CRM mdl_main (API db 0 / laundry db 100)
--- Session intent PERMINTAAN: 1 aktif per nomor WA, ringkasan AI, TTL 24 jam.
+-- Session intent PERMINTAAN: 1 aktif per nomor WA, ringkasan AI, TTL 1 jam.
 -- Jangan dijalankan otomatis dari app — jalankan manual di DB production/staging.
 
 CREATE TABLE IF NOT EXISTS wa_permintaan_session (

@@ -480,36 +480,31 @@ if (isset($data['data_operasi'])) {
         .main-header.mdl-topbar {
             display: block;
             padding: 8px 10px !important;
-            background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%) !important;
-            background-image: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%) !important;
-            border-bottom: 1px solid #0f172a;
+            /* Soft blue (kasir / default) */
+            background: linear-gradient(105deg, #5b8def 0%, #7aa7f5 100%) !important;
+            background-image: linear-gradient(105deg, #5b8def 0%, #7aa7f5 100%) !important;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.12);
             min-height: 0;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            transition: border-bottom-color .2s ease, border-bottom-width .2s ease, box-shadow .2s ease;
         }
-        /* Priv 100 (admin): merah */
+        /* Priv 100 (admin): soft merah */
         body.mode-priv-100 .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #991b1b 0%, #dc2626 100%) !important;
-            background-image: linear-gradient(105deg, #991b1b 0%, #dc2626 100%) !important;
-            border-bottom-color: #7f1d1d;
+            background: linear-gradient(105deg, #e86a6a 0%, #f08b8b 100%) !important;
+            background-image: linear-gradient(105deg, #e86a6a 0%, #f08b8b 100%) !important;
+            border-bottom-color: rgba(127, 29, 29, 0.18);
         }
-        /* Priv 12 (kurir): cyan */
+        /* Priv 12 (kurir): soft cyan */
         body.mode-priv-12 .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #0e7490 0%, #0891b2 100%) !important;
-            background-image: linear-gradient(105deg, #0e7490 0%, #0891b2 100%) !important;
-            border-bottom-color: #155e75;
+            background: linear-gradient(105deg, #2eb8cc 0%, #5ccfde 100%) !important;
+            background-image: linear-gradient(105deg, #2eb8cc 0%, #5ccfde 100%) !important;
+            border-bottom-color: rgba(21, 94, 117, 0.18);
         }
-        @keyframes mdl-topbar-notif-blink {
-            0%, 100% {
-                box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
-                filter: none;
-            }
-            50% {
-                box-shadow: inset 0 0 0 999px rgba(245, 158, 11, 0.55), 0 4px 18px rgba(180, 83, 9, 0.45);
-                filter: brightness(1.12) saturate(1.25);
-            }
-        }
+        /* Ada notifikasi: sinyal = border-bottom merah tebal (bukan blink seluruh topnav) */
         .main-header.mdl-topbar.has-notif {
-            animation: mdl-topbar-notif-blink 0.9s ease-in-out infinite;
+            border-bottom: 4px solid #dc2626;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            animation: none;
         }
         .mdl-topbar-row {
             display: flex;
@@ -602,12 +597,23 @@ if (isset($data['data_operasi'])) {
             position: relative;
             border-color: transparent;
             color: #fff;
-            background: rgba(15, 23, 42, 0.35);
+            background: transparent;
+            padding: 0;
+            width: 34px;
+            flex: 0 0 34px;
+        }
+        .mdl-tbtn--bell i {
+            font-size: 22px;
+            line-height: 1;
         }
         .mdl-tbtn--bell:hover {
-            background: rgba(15, 23, 42, 0.55);
+            background: transparent;
             border-color: transparent;
             color: #fff;
+            filter: brightness(1.12);
+        }
+        .mdl-tbtn--bell:active {
+            transform: none;
         }
         @keyframes mdl-bell-blink {
             0%, 100% {
@@ -997,6 +1003,22 @@ if (isset($data['data_operasi'])) {
             color: #15803d;
             font-size: 22px;
         }
+        .mdl-chat-confirm-icon--danger {
+            border-color: #fca5a5;
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .mdl-chat-confirm-icon--warn {
+            border-color: #fcd34d;
+            background: #fef3c7;
+            color: #b45309;
+        }
+        .mdl-chat-modal__body--confirm-danger {
+            background: linear-gradient(180deg, #fef2f2, #fff);
+        }
+        .mdl-chat-modal__body--confirm-warn {
+            background: linear-gradient(180deg, #fffbeb, #fff);
+        }
         .mdl-chat-confirm-title {
             font-family: 'fontku', sans-serif;
             font-weight: 900;
@@ -1009,6 +1031,46 @@ if (isset($data['data_operasi'])) {
             font-weight: 700;
             color: #1e293b;
             margin: 0;
+        }
+        .mdl-chat-confirm-field {
+            text-align: left;
+            margin-top: 14px;
+        }
+        .mdl-chat-confirm-field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .mdl-chat-confirm-field textarea,
+        .mdl-chat-confirm-field input {
+            width: 100%;
+            border: 1px solid #94a3b8;
+            border-radius: 0;
+            background: #fff;
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 8px 10px;
+            min-height: 72px;
+            resize: vertical;
+        }
+        .mdl-chat-confirm-field textarea:focus,
+        .mdl-chat-confirm-field input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+            border-color: #2563eb;
+        }
+        .mdl-notif-btn--danger {
+            background: linear-gradient(180deg, #dc2626, #b91c1c);
+            border-color: #b91c1c;
+            color: #fff;
+        }
+        .mdl-notif-btn--danger:hover {
+            filter: brightness(1.05);
         }
         .mdl-notif-form label {
             display: block;
@@ -1295,9 +1357,12 @@ if (isset($data['data_operasi'])) {
         }
 
         body.mode-training .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%) !important;
-            background-image: linear-gradient(105deg, #d97706 0%, #f59e0b 100%) !important;
-            border-bottom-color: #92400e;
+            background: linear-gradient(105deg, #e8b03a 0%, #f0c65c 100%) !important;
+            background-image: linear-gradient(105deg, #e8b03a 0%, #f0c65c 100%) !important;
+            border-bottom-color: rgba(146, 64, 14, 0.2);
+        }
+        body.mode-training .main-header.mdl-topbar.has-notif {
+            border-bottom: 4px solid #dc2626;
         }
         body.mode-training .mode-live-toggle {
             background: rgba(15, 23, 42, 0.28);
@@ -2268,7 +2333,43 @@ if ($privUi === 100) {
                 </div>
                 <div class="mdl-chat-modal__foot">
                     <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-chat-confirm-close>Batal</button>
-                    <button type="button" class="mdl-notif-btn" id="mdlChatConfirmOk">Ya, selesai</button>
+                    <button type="button" class="mdl-notif-btn" id="mdlChatConfirmOk">Ya, penuhi</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mdl-chat-modal" id="mdlPermintaanTolakModal" aria-hidden="true">
+            <div class="mdl-chat-modal__backdrop" data-permintaan-tolak-close></div>
+            <div class="mdl-chat-modal__panel mdl-chat-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="mdlPermintaanTolakTitle">
+                <div class="mdl-chat-modal__body mdl-chat-modal__body--confirm mdl-chat-modal__body--confirm-warn">
+                    <div class="mdl-chat-confirm-icon mdl-chat-confirm-icon--warn"><i class="fas fa-times"></i></div>
+                    <h3 class="mdl-chat-confirm-title" id="mdlPermintaanTolakTitle">Tolak permintaan?</h3>
+                    <p class="mdl-chat-confirm-text" id="mdlPermintaanTolakText">Pelanggan akan dikabari via WA (maaf + alasan).</p>
+                </div>
+                <div class="mdl-chat-modal__foot">
+                    <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-permintaan-tolak-close>Batal</button>
+                    <button type="button" class="mdl-notif-btn" id="mdlPermintaanTolakOk">Ya, tolak</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mdl-chat-modal" id="mdlPermintaanHapusModal" aria-hidden="true">
+            <div class="mdl-chat-modal__backdrop" data-permintaan-hapus-close></div>
+            <div class="mdl-chat-modal__panel mdl-chat-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="mdlPermintaanHapusTitle">
+                <div class="mdl-chat-modal__body mdl-chat-modal__body--confirm mdl-chat-modal__body--confirm-danger">
+                    <div class="mdl-chat-confirm-icon mdl-chat-confirm-icon--danger"><i class="fas fa-trash"></i></div>
+                    <h3 class="mdl-chat-confirm-title" id="mdlPermintaanHapusTitle">Hapus permintaan?</h3>
+                    <p class="mdl-chat-confirm-text">Case CRM ditutup tanpa WA ke pelanggan. Catatan wajib untuk log.</p>
+                    <div class="mdl-chat-confirm-field">
+                        <label for="mdlPermintaanHapusCatatan">Catatan hapus</label>
+                        <textarea id="mdlPermintaanHapusCatatan" maxlength="500" placeholder="Alasan penghapusan"></textarea>
+                    </div>
+                </div>
+                <div class="mdl-chat-modal__foot">
+                    <button type="button" class="mdl-notif-btn mdl-notif-btn--ghost" data-permintaan-hapus-close>Batal</button>
+                    <button type="button" class="mdl-notif-btn mdl-notif-btn--danger" id="mdlPermintaanHapusOk">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>
                 </div>
             </div>
         </div>
@@ -3867,7 +3968,6 @@ if ($privUi === 100) {
                     $(bodyEl).on('click', '.js-notif-close-permintaan, .js-notif-fulfill-permintaan', function() {
                         var $card = $(this).closest('.mdl-notif-card');
                         var phone = $card.data('phone');
-                        var $btn = $(this);
                         if (!phone) return;
                         if (window.MdlChatHistory && typeof MdlChatHistory.confirmClosePermintaan === 'function') {
                             MdlChatHistory.confirmClosePermintaan(phone, {
@@ -3875,31 +3975,7 @@ if ($privUi === 100) {
                             });
                             return;
                         }
-                        $btn.prop('disabled', true);
-                        $.ajax({
-                            url: baseUrl + 'Estimasi/update',
-                            method: 'POST',
-                            dataType: 'json',
-                            data: {
-                                phone: phone,
-                                task_type: 'permintaan',
-                                permintaan_action: 'fulfill',
-                                request_granted: 1,
-                                send_wa: 1
-                            }
-                        }).done(function(res) {
-                            if (res && res.ok) {
-                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan terpenuhi');
-                                loadList();
-                                refreshCount();
-                            } else {
-                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
-                                $btn.prop('disabled', false);
-                            }
-                        }).fail(function() {
-                            if (window.MdlToast) MdlToast.error('Gagal memproses');
-                            $btn.prop('disabled', false);
-                        });
+                        if (window.MdlToast) MdlToast.warn('Modal konfirmasi belum siap');
                     });
 
                     $(bodyEl).on('click', '.js-notif-reject-permintaan', function() {
@@ -3907,82 +3983,166 @@ if ($privUi === 100) {
                         var phone = $card.data('phone');
                         var reason = String($card.find('.js-notif-reject-reason').val() || '').trim();
                         var alt = String($card.find('.js-notif-reject-alt').val() || '').trim();
-                        var $btn = $(this);
                         if (!phone) return;
                         if (reason.length < 3) {
                             if (window.MdlToast) MdlToast.warn('Isi alasan tolak');
                             return;
                         }
-                        $btn.prop('disabled', true);
-                        $.ajax({
-                            url: baseUrl + 'Estimasi/update',
-                            method: 'POST',
-                            dataType: 'json',
-                            data: {
-                                phone: phone,
-                                task_type: 'permintaan',
-                                permintaan_action: 'reject',
-                                request_granted: 0,
-                                reject_reason: reason,
-                                reject_alt: alt,
-                                send_wa: 1
-                            }
-                        }).done(function(res) {
-                            if (res && res.ok) {
-                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan ditolak');
-                                loadList();
-                                refreshCount();
-                            } else {
-                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
-                                $btn.prop('disabled', false);
-                            }
-                        }).fail(function() {
-                            if (window.MdlToast) MdlToast.error('Gagal memproses');
-                            $btn.prop('disabled', false);
+                        openPermintaanTolakModal(phone, reason, alt, function() {
+                            loadList();
+                            refreshCount();
                         });
                     });
 
                     $(bodyEl).on('click', '.js-notif-hapus-permintaan', function() {
                         var $card = $(this).closest('.mdl-notif-card');
                         var phone = $card.data('phone');
-                        var $btn = $(this);
                         if (!phone) return;
-                        var catatan = window.prompt('Catatan hapus permintaan (wajib):', '');
-                        if (catatan === null) return;
-                        catatan = String(catatan || '').trim();
-                        if (catatan.length < 2) {
-                            if (window.MdlToast) MdlToast.warn('Catatan hapus wajib diisi');
-                            return;
-                        }
-                        if (!window.confirm('Hapus permintaan ini? Case CRM ditutup, tanpa WA ke pelanggan.')) {
-                            return;
-                        }
-                        $btn.prop('disabled', true);
-                        $.ajax({
-                            url: baseUrl + 'Estimasi/update',
-                            method: 'POST',
-                            dataType: 'json',
-                            data: {
-                                phone: phone,
-                                task_type: 'permintaan',
-                                permintaan_action: 'hapus',
-                                catatan: catatan,
-                                send_wa: 0
-                            }
-                        }).done(function(res) {
-                            if (res && res.ok) {
-                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan dihapus');
-                                loadList();
-                                refreshCount();
-                            } else {
-                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
-                                $btn.prop('disabled', false);
-                            }
-                        }).fail(function() {
-                            if (window.MdlToast) MdlToast.error('Gagal menghapus');
-                            $btn.prop('disabled', false);
+                        openPermintaanHapusModal(phone, function() {
+                            loadList();
+                            refreshCount();
                         });
                     });
+
+                    var tolakModal = document.getElementById('mdlPermintaanTolakModal');
+                    var tolakOk = document.getElementById('mdlPermintaanTolakOk');
+                    var tolakText = document.getElementById('mdlPermintaanTolakText');
+                    var hapusModal = document.getElementById('mdlPermintaanHapusModal');
+                    var hapusOk = document.getElementById('mdlPermintaanHapusOk');
+                    var hapusCatatan = document.getElementById('mdlPermintaanHapusCatatan');
+                    var pendingTolak = null;
+                    var pendingHapus = null;
+
+                    function openPermintaanTolakModal(phone, reason, alt, onDone) {
+                        pendingTolak = { phone: phone, reason: reason, alt: alt, onDone: onDone };
+                        if (tolakText) {
+                            tolakText.textContent = alt
+                                ? ('Alasan: ' + reason + ' · Alternatif: ' + alt)
+                                : ('Alasan: ' + reason);
+                        }
+                        if (tolakOk) {
+                            tolakOk.disabled = false;
+                            tolakOk.innerHTML = 'Ya, tolak';
+                        }
+                        if (tolakModal) {
+                            tolakModal.classList.add('is-open');
+                            tolakModal.setAttribute('aria-hidden', 'false');
+                        }
+                    }
+
+                    function closePermintaanTolakModal() {
+                        if (tolakModal) {
+                            tolakModal.classList.remove('is-open');
+                            tolakModal.setAttribute('aria-hidden', 'true');
+                        }
+                        pendingTolak = null;
+                    }
+
+                    function openPermintaanHapusModal(phone, onDone) {
+                        pendingHapus = { phone: phone, onDone: onDone };
+                        if (hapusCatatan) hapusCatatan.value = '';
+                        if (hapusOk) {
+                            hapusOk.disabled = false;
+                            hapusOk.innerHTML = '<i class="fas fa-trash"></i> Hapus';
+                        }
+                        if (hapusModal) {
+                            hapusModal.classList.add('is-open');
+                            hapusModal.setAttribute('aria-hidden', 'false');
+                        }
+                        setTimeout(function() {
+                            if (hapusCatatan) hapusCatatan.focus();
+                        }, 50);
+                    }
+
+                    function closePermintaanHapusModal() {
+                        if (hapusModal) {
+                            hapusModal.classList.remove('is-open');
+                            hapusModal.setAttribute('aria-hidden', 'true');
+                        }
+                        pendingHapus = null;
+                    }
+
+                    if (tolakModal) {
+                        $(tolakModal).on('click', '[data-permintaan-tolak-close]', function() {
+                            closePermintaanTolakModal();
+                        });
+                    }
+                    if (tolakOk) {
+                        tolakOk.addEventListener('click', function() {
+                            if (!pendingTolak || !pendingTolak.phone) return;
+                            var payload = pendingTolak;
+                            tolakOk.disabled = true;
+                            $.ajax({
+                                url: baseUrl + 'Estimasi/update',
+                                method: 'POST',
+                                dataType: 'json',
+                                data: {
+                                    phone: payload.phone,
+                                    task_type: 'permintaan',
+                                    permintaan_action: 'reject',
+                                    request_granted: 0,
+                                    reject_reason: payload.reason,
+                                    reject_alt: payload.alt || '',
+                                    send_wa: 1
+                                }
+                            }).done(function(res) {
+                                if (res && res.ok) {
+                                    if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan ditolak');
+                                    closePermintaanTolakModal();
+                                    if (typeof payload.onDone === 'function') payload.onDone(res);
+                                } else {
+                                    if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                    tolakOk.disabled = false;
+                                }
+                            }).fail(function() {
+                                if (window.MdlToast) MdlToast.error('Gagal memproses');
+                                tolakOk.disabled = false;
+                            });
+                        });
+                    }
+
+                    if (hapusModal) {
+                        $(hapusModal).on('click', '[data-permintaan-hapus-close]', function() {
+                            closePermintaanHapusModal();
+                        });
+                    }
+                    if (hapusOk) {
+                        hapusOk.addEventListener('click', function() {
+                            if (!pendingHapus || !pendingHapus.phone) return;
+                            var catatan = String((hapusCatatan && hapusCatatan.value) || '').trim();
+                            if (catatan.length < 2) {
+                                if (window.MdlToast) MdlToast.warn('Catatan hapus wajib diisi');
+                                if (hapusCatatan) hapusCatatan.focus();
+                                return;
+                            }
+                            var payload = pendingHapus;
+                            hapusOk.disabled = true;
+                            $.ajax({
+                                url: baseUrl + 'Estimasi/update',
+                                method: 'POST',
+                                dataType: 'json',
+                                data: {
+                                    phone: payload.phone,
+                                    task_type: 'permintaan',
+                                    permintaan_action: 'hapus',
+                                    catatan: catatan,
+                                    send_wa: 0
+                                }
+                            }).done(function(res) {
+                                if (res && res.ok) {
+                                    if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan dihapus');
+                                    closePermintaanHapusModal();
+                                    if (typeof payload.onDone === 'function') payload.onDone(res);
+                                } else {
+                                    if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                    hapusOk.disabled = false;
+                                }
+                            }).fail(function() {
+                                if (window.MdlToast) MdlToast.error('Gagal menghapus');
+                                hapusOk.disabled = false;
+                            });
+                        });
+                    }
                 })();
 
                 (function initMdlChatHistory() {
@@ -4065,7 +4225,7 @@ if ($privUi === 100) {
                         if (!confirmModal) return;
                         if (confirmOk) {
                             confirmOk.disabled = false;
-                            confirmOk.innerHTML = 'Ya, selesai';
+                            confirmOk.innerHTML = 'Ya, penuhi';
                         }
                         confirmModal.classList.add('is-open');
                         confirmModal.setAttribute('aria-hidden', 'false');

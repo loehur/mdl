@@ -23,4 +23,5 @@ Saat membuat atau mengubah tampilan (offcanvas, modal, form, kartu, tombol, radi
    - **Init:** `$(".scope .tize").selectize()` saja. **Dilarang** `dropdownParent` ke modal/body (dropdown loncat ke pojok kiri).
    - **Karyawan:** ikut HTML optgroup `$this->user` + `$this->userCabang` seperti `penjualan/penjualan_main.php` (acuan utama).
    - Opsi sedikit/tetap → select **native**, bukan selectize.
-6. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.
+6. **Dilarang** `alert()` / `confirm()` / `prompt()` bawaan browser. Feedback singkat → `MdlToast`; konfirmasi / input → modal bertema (`OpModal` / `.mdl-chat-modal`).
+7. Jika menambah pola visual baru yang disetujui user, **perbarui** `laundry/docs/UI_THEME.md`.
