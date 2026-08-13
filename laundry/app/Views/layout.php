@@ -500,11 +500,26 @@ if (isset($data['data_operasi'])) {
             background-image: linear-gradient(105deg, #2eb8cc 0%, #5ccfde 100%) !important;
             border-bottom-color: rgba(21, 94, 117, 0.18);
         }
-        /* Ada notifikasi: sinyal = border-bottom merah tebal (bukan blink seluruh topnav) */
+        /* Ada notifikasi: border-bottom merah pekat tebal + berkedip */
+        @keyframes mdl-topbar-notif-border {
+            0%, 100% {
+                border-bottom-color: #7f1d1d;
+                border-bottom-width: 4px;
+            }
+            50% {
+                border-bottom-color: #dc2626;
+                border-bottom-width: 4px;
+            }
+        }
         .main-header.mdl-topbar.has-notif {
-            border-bottom: 4px solid #dc2626;
+            border-bottom-style: solid;
+            border-bottom-width: 4px;
+            border-bottom-color: #7f1d1d;
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
-            animation: none;
+            animation: mdl-topbar-notif-border 0.9s ease-in-out infinite;
+        }
+        .main-header.mdl-topbar:not(.has-notif) {
+            border-bottom-width: 1px;
         }
         .mdl-topbar-row {
             display: flex;
@@ -808,16 +823,9 @@ if (isset($data['data_operasi'])) {
             padding: 16px;
         }
         .mdl-chat-modal.is-open { display: flex; }
-        .mdl-chat-modal__backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.58);
-            backdrop-filter: blur(3px);
-            cursor: pointer;
-        }
         .mdl-chat-modal__panel {
             position: relative;
-            z-index: 1;
+            z-index: 2;
             width: min(440px, 100%);
             max-height: min(90vh, 720px);
             display: flex;
@@ -826,6 +834,15 @@ if (isset($data['data_operasi'])) {
             border-radius: 0;
             box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
             overflow: hidden;
+            pointer-events: auto;
+        }
+        .mdl-chat-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            background: rgba(15, 23, 42, 0.58);
+            backdrop-filter: blur(3px);
+            cursor: pointer;
         }
         .mdl-chat-modal__panel--sm {
             width: min(360px, 100%);
@@ -1039,6 +1056,9 @@ if (isset($data['data_operasi'])) {
         .mdl-chat-confirm-field {
             text-align: left;
             margin-top: 14px;
+            position: relative;
+            z-index: 3;
+            pointer-events: auto;
         }
         .mdl-chat-confirm-field label {
             display: block;
@@ -1061,6 +1081,9 @@ if (isset($data['data_operasi'])) {
             padding: 8px 10px;
             min-height: 72px;
             resize: vertical;
+            pointer-events: auto;
+            position: relative;
+            z-index: 3;
         }
         .mdl-chat-confirm-field textarea:focus,
         .mdl-chat-confirm-field input:focus {
@@ -1366,7 +1389,8 @@ if (isset($data['data_operasi'])) {
             border-bottom-color: rgba(146, 64, 14, 0.2);
         }
         body.mode-training .main-header.mdl-topbar.has-notif {
-            border-bottom: 4px solid #dc2626;
+            border-bottom-color: #7f1d1d;
+            animation: mdl-topbar-notif-border 0.9s ease-in-out infinite;
         }
         body.mode-training .mode-live-toggle {
             background: rgba(15, 23, 42, 0.28);
@@ -2291,7 +2315,7 @@ if ($privUi === 100) {
         </div>
         <?php } ?>
 
-        <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotif" aria-labelledby="offcanvasNotifLabel" data-bs-backdrop="true" data-bs-scroll="true" style="z-index: 1100;">
+        <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNotif" aria-labelledby="offcanvasNotifLabel" data-bs-backdrop="true" data-bs-scroll="true" data-bs-focus="false" style="z-index: 1100;">
             <div class="offcanvas-header">
                 <h5 class="offcanvas-title" id="offcanvasNotifLabel">
                     <i class="fas fa-bell me-2"></i>Notifikasi
@@ -4054,8 +4078,10 @@ if ($privUi === 100) {
                             hapusModal.setAttribute('aria-hidden', 'false');
                         }
                         setTimeout(function() {
-                            if (hapusCatatan) hapusCatatan.focus();
-                        }, 50);
+                            if (hapusCatatan) {
+                                try { hapusCatatan.focus({ preventScroll: true }); } catch (e) { hapusCatatan.focus(); }
+                            }
+                        }, 80);
                     }
 
                     function closePermintaanHapusModal() {
@@ -4108,6 +4134,9 @@ if ($privUi === 100) {
                     if (hapusModal) {
                         $(hapusModal).on('click', '[data-permintaan-hapus-close]', function() {
                             closePermintaanHapusModal();
+                        });
+                        $(hapusModal).on('mousedown click', '.mdl-chat-modal__panel', function(e) {
+                            e.stopPropagation();
                         });
                     }
                     if (hapusOk) {

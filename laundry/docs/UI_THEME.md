@@ -90,7 +90,7 @@ Gradient **satu hue**, nada **soft** (lebih terang / kurang saturated), tetap te
 | 12 (kurir) | `mode-priv-12` | cyan `#2eb8cc → #5ccfde` |
 | Training | `mode-training` | kuning `#e8b03a → #f0c65c` |
 
-**Notifikasi pending:** class `.has-notif` pada `.mdl-topbar` → **border-bottom merah tebal `4px solid #dc2626`** (bukan blink / overlay seluruh topnav). Badge lonceng tetap.
+**Notifikasi pending:** class `.has-notif` pada `.mdl-topbar` → **border-bottom merah pekat tebal 4px** (`#7f1d1d` ↔ `#dc2626`) **berkedip**; tanpa notif → border tipis biasa (bukan tebal). Badge lonceng tetap.
 
 ### Body offcanvas
 
