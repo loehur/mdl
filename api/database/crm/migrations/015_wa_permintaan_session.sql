@@ -1,5 +1,7 @@
 -- CRM mdl_main (API db 0 / laundry db 100)
--- Session intent PERMINTAAN: 1 aktif per nomor WA, ringkasan AI, TTL 1 jam.
+-- Session intent PERMINTAAN: 1 aktif per nomor WA, ringkasan AI.
+-- expires_at = jendela follow-up chat (1 jam). notify_expires_at = kartu notif laundry (24 jam).
+-- Tabel sudah ada tanpa notify_expires_at → jalankan 019_wa_permintaan_notify_expires.sql.
 -- Jangan dijalankan otomatis dari app — jalankan manual di DB production/staging.
 
 CREATE TABLE IF NOT EXISTS wa_permintaan_session (
@@ -13,11 +15,13 @@ CREATE TABLE IF NOT EXISTS wa_permintaan_session (
   reject_alt TEXT NULL,
   reply_text TEXT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at DATETIME NOT NULL,
+  expires_at DATETIME NOT NULL COMMENT 'Jendela follow-up chat (1 jam)',
+  notify_expires_at DATETIME NOT NULL COMMENT 'Kartu notif laundry (24 jam dari buat)',
   PRIMARY KEY (phone),
   KEY idx_permintaan_expires (expires_at),
   KEY idx_permintaan_cabang_status (id_cabang, status),
-  KEY idx_permintaan_status_expires (status, expires_at)
+  KEY idx_permintaan_status_expires (status, expires_at),
+  KEY idx_permintaan_status_notify (status, notify_expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pastikan intent PERMINTAAN ada (case 3 = merah CRM / notif laundry)

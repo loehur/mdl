@@ -6,11 +6,13 @@ use App\Core\DB;
 
 /**
  * Intent PERMINTAAN — session standby (tanpa autoreply), AI merangkum isi permintaan.
- * Notifikasi laundry baca dari wa_permintaan_session.summary.
+ * expires_at = follow-up chat 1 jam (baris tidak dihapus saat habis).
+ * notify_expires_at = kartu notif laundry 24 jam (diset saat buat, tidak di-reset follow-up).
  */
 trait WARepliesPermintaanTrait
 {
-    private const PERMINTAAN_SESSION_TTL_MINUTES = 60; // 1 jam (sama intent state lain)
+    private const PERMINTAAN_SESSION_TTL_MINUTES = 60; // jendela follow-up chat
+    private const PERMINTAAN_NOTIFY_TTL_HOURS = 24; // kartu notif laundry
 
     private function getPermintaanSession(string $waNumber): ?array
     {
@@ -30,8 +32,8 @@ trait WARepliesPermintaanTrait
             if (($row['status'] ?? '') !== 'open') {
                 return null;
             }
+            // State 1 jam habis: jangan consume chat sebagai follow-up, tapi jangan hapus baris (kartu 24 jam).
             if (empty($row['expires_at']) || strtotime($row['expires_at']) < time()) {
-                $this->clearPermintaanSession($waNumber);
                 return null;
             }
             return $row;
@@ -51,6 +53,7 @@ trait WARepliesPermintaanTrait
         }
         $now = date('Y-m-d H:i:s');
         $expires = date('Y-m-d H:i:s', time() + (self::PERMINTAAN_SESSION_TTL_MINUTES * 60));
+        $notifyExpires = date('Y-m-d H:i:s', time() + (self::PERMINTAAN_NOTIFY_TTL_HOURS * 3600));
 
         try {
             $db = DB::getInstance(0);
@@ -58,6 +61,11 @@ trait WARepliesPermintaanTrait
             $res = $db->query('SELECT * FROM wa_permintaan_session WHERE phone = ? LIMIT 1', [$phone]);
             if ($res && $res->num_rows() > 0) {
                 $existing = (array) $res->row();
+            }
+
+            $existingNotify = $existing['notify_expires_at'] ?? null;
+            if ($existingNotify && strtotime((string) $existingNotify) >= time()) {
+                $notifyExpires = $existingNotify;
             }
 
             $merge = static function (string $key, $default = null) use ($data, $existing) {
@@ -79,8 +87,8 @@ trait WARepliesPermintaanTrait
             $db->query(
                 'INSERT INTO wa_permintaan_session
                  (phone, id_pelanggan, id_cabang, status, summary, raw_log,
-                  reject_reason, reject_alt, reply_text, updated_at, expires_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  reject_reason, reject_alt, reply_text, updated_at, expires_at, notify_expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                     id_pelanggan = VALUES(id_pelanggan),
                     id_cabang = VALUES(id_cabang),
@@ -91,7 +99,8 @@ trait WARepliesPermintaanTrait
                     reject_alt = VALUES(reject_alt),
                     reply_text = VALUES(reply_text),
                     updated_at = VALUES(updated_at),
-                    expires_at = VALUES(expires_at)',
+                    expires_at = VALUES(expires_at),
+                    notify_expires_at = VALUES(notify_expires_at)',
                 [
                     $phone,
                     $merge('id_pelanggan'),
@@ -104,6 +113,7 @@ trait WARepliesPermintaanTrait
                     $merge('reply_text'),
                     $now,
                     $expires,
+                    $notifyExpires,
                 ]
             );
         } catch (\Throwable $e) {

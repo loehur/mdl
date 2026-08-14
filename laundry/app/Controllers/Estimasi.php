@@ -292,7 +292,7 @@ class Estimasi extends Controller
                 // tabel belum ada / skip
             }
 
-            // Permintaan pelanggan (CRM case 3 open) — order aktif di cabang ini
+            // Permintaan pelanggan — hanya wa_permintaan_session
             foreach ($this->getOpenPermintaanTasks() as $permItem) {
                 $items[] = $permItem;
             }
@@ -1301,8 +1301,15 @@ class Estimasi extends Controller
         return $this->formatEstimasiJamLabel((float) $jam);
     }
 
+    /** Kartu notif PERMINTAAN: status open + notify_expires_at 24 jam (bukan expires_at 1 jam). */
+    private function permintaanNotifyOpenWhereSql(): string
+    {
+        return "status = 'open' AND notify_expires_at > NOW()";
+    }
+
     /**
-     * CRM case 3 / session PERMINTAAN open — sumber utama: wa_permintaan_session.summary.
+     * Kartu notif PERMINTAAN: hanya wa_permintaan_session (bukan conversation case 3).
+     * Case 3 ditutup saat penuhi/tolak/hapus.
      * @return list<array<string,mixed>>
      */
     private function getOpenPermintaanTasks(): array
@@ -1318,10 +1325,9 @@ class Estimasi extends Controller
 
         try {
             $rows = $this->db(100)->query_array(
-                "SELECT phone, id_pelanggan, id_cabang, status, summary, raw_log, updated_at, expires_at
+                "SELECT phone, id_pelanggan, id_cabang, status, summary, raw_log, updated_at, expires_at, notify_expires_at
                  FROM wa_permintaan_session
-                 WHERE status = 'open'
-                   AND expires_at > NOW()
+                 WHERE " . $this->permintaanNotifyOpenWhereSql() . "
                  ORDER BY updated_at DESC
                  LIMIT 100"
             );
@@ -1408,111 +1414,12 @@ class Estimasi extends Controller
                     'customer_message' => $summary,
                     'request_text' => $summary,
                     'updated_at' => $row['updated_at'] ?? null,
-                    'expires_at' => $row['expires_at'] ?? null,
+                    'expires_at' => $row['notify_expires_at'] ?? $row['expires_at'] ?? null,
                     'nama' => $nama !== '' ? $nama : 'Pelanggan',
                 ];
             }
         } catch (\Throwable $e) {
-            // tabel belum ada — fallback case 3 di bawah
-        }
-
-        // Gabung fallback case 3 (transisi / tanpa session)
-        foreach ($this->getOpenPermintaanTasksFromCase3($cabangId, $kodeCabang, $seenPhones) as $extra) {
-            $items[] = $extra;
-        }
-
-        return $items;
-    }
-
-    /**
-     * Fallback: CRM case 3 open (jika session table belum / kosong).
-     * @param array<string,bool> $seenPhones
-     * @return list<array<string,mixed>>
-     */
-    private function getOpenPermintaanTasksFromCase3(int $cabangId, string $kodeCabang, array $seenPhones = []): array
-    {
-        $openWaRaw = $this->db(100)->query_array(
-            "SELECT id, wa_number, contact_name, code, cust_id, conv_case, last_message, updated_at, last_message_at
-             FROM wa_conversations
-             WHERE conv_case IS NOT NULL
-               AND conv_case <> ''
-               AND conv_case <> '0'
-               AND conv_case <> '[]'
-             ORDER BY COALESCE(updated_at, last_message_at) DESC
-             LIMIT 300"
-        );
-        if (!is_array($openWaRaw) || empty($openWaRaw)) {
-            return [];
-        }
-
-        $items = [];
-        foreach ($openWaRaw as $row) {
-            if (!$this->conversationHasOpenCase3($row['conv_case'] ?? '')) {
-                continue;
-            }
-
-            $waPhone = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
-            if ($waPhone === '') {
-                continue;
-            }
-
-            $phoneKey = $this->phoneKey($waPhone);
-            if (isset($seenPhones[$phoneKey])) {
-                continue;
-            }
-
-            if (!$this->permintaanBelongsToCabang($row, $cabangId, $kodeCabang, $waPhone)) {
-                continue;
-            }
-
-            $seenPhones[$phoneKey] = true;
-
-            $pel = $this->resolvePelangganInCabangByPhone($waPhone, $cabangId);
-            if (!$pel && !empty($row['cust_id'])) {
-                try {
-                    $pelRow = $this->db(0)->get_where_row(
-                        'pelanggan',
-                        'id_pelanggan = ' . (int) $row['cust_id'] . ' AND id_cabang = ' . (int) $cabangId
-                    );
-                    if (is_array($pelRow) && !empty($pelRow['id_pelanggan'])) {
-                        $pel = $pelRow;
-                    }
-                } catch (\Throwable $e) {
-                    // ignore
-                }
-            }
-
-            $nama = trim((string) ($pel['nama_pelanggan'] ?? ''));
-            if ($nama === '' && !empty($row['contact_name'])) {
-                $nama = trim((string) $row['contact_name']);
-            }
-
-            $pesan = '';
-            try {
-                $pesan = $this->resolvePermintaanAiSummary($waPhone, '', '', true);
-            } catch (\Throwable $eSum) {
-                $pesan = $this->permintaanShortFallbackFromLines($this->permintaanCollectChatLines($waPhone, ''));
-            }
-            if ($pesan === '') {
-                $pesan = $this->normalizePermintaanDisplayText(trim((string) ($row['last_message'] ?? '')));
-            }
-            if ($pesan === '') {
-                $pesan = 'Permintaan pelanggan';
-            }
-
-            $items[] = [
-                'task_type' => 'permintaan',
-                'task_id' => 'permintaan:' . $waPhone,
-                'phone' => $waPhone,
-                'phone_display' => $this->displayPhone($waPhone),
-                'id_penjualan' => null,
-                'id_pelanggan' => isset($pel['id_pelanggan']) ? (int) $pel['id_pelanggan'] : null,
-                'customer_message' => $pesan,
-                'request_text' => $pesan,
-                'updated_at' => $row['updated_at'] ?? ($row['last_message_at'] ?? null),
-                'expires_at' => null,
-                'nama' => $nama !== '' ? $nama : 'Pelanggan',
-            ];
+            // tabel belum ada — tidak ada kartu permintaan
         }
 
         return $items;
@@ -1723,7 +1630,7 @@ class Estimasi extends Controller
             $nomor = $this->phoneKey($phone);
             $existingRows = $this->db(100)->query_array(
                 "SELECT phone FROM wa_permintaan_session
-                 WHERE status = 'open' AND expires_at > NOW() AND ("
+                 WHERE " . $this->permintaanNotifyOpenWhereSql() . " AND ("
                 . "phone = '" . $phoneEsc . "'"
                 . ($nomor !== ''
                     ? (" OR " . $this->phoneLikeSql($nomor, 'phone'))
@@ -1929,7 +1836,7 @@ class Estimasi extends Controller
         try {
             $session = $this->db(100)->get_where_row(
                 'wa_permintaan_session',
-                "phone = '" . $phoneEsc . "' AND status = 'open' AND expires_at > NOW()"
+                "phone = '" . $phoneEsc . "' AND " . $this->permintaanNotifyOpenWhereSql()
             );
             if (is_array($session) && !empty($session['phone'])) {
                 return $session;
@@ -1938,7 +1845,7 @@ class Estimasi extends Controller
             if ($nomor !== '') {
                 $rows = $this->db(100)->query_array(
                     "SELECT * FROM wa_permintaan_session
-                     WHERE status = 'open' AND expires_at > NOW()
+                     WHERE " . $this->permintaanNotifyOpenWhereSql() . "
                        AND " . $this->phoneLikeSql($nomor, 'phone') . "
                      LIMIT 1"
                 );
