@@ -8470,42 +8470,23 @@ class WAReplies
                 $keywordConfig = $this->loadAutoreplyKeywordConfig();
             }
 
-            // Prepare AI prompt for intent classification
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan berikut ke dalam SATU kategori saja:\n";
-            $prompt .= "Kategori:\n";
+            // Klasifikasi: definisi intent HANYA dari ai_prompt DB. Format JSON + ask tetap di kode.
+            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan ke SATU kategori.\n";
+            $prompt .= "Definisi tiap kategori HANYA dari teks di blok === NAMA === (field ai_prompt database). Ikuti syarat TRUE/FALSE di situ secara harfiah. Jangan menambah arti, jangan perluas kategori.\n\n";
 
-            // Build categories dynamically from config
             foreach ($keywordConfig as $category => $config) {
-                if (isset($config['ai_prompt'])) {
-                    $prompt .= "- {$category}: {$config['ai_prompt']}\n";
+                $aiPrompt = trim((string) ($config['ai_prompt'] ?? ''));
+                if ($aiPrompt === '') {
+                    continue;
                 }
+                $prompt .= "=== {$category} ===\n{$aiPrompt}\n\n";
             }
 
-            $prompt .= "- FALSE: Tidak termasuk kategori di atas\n";
+            $prompt .= "=== FALSE ===\nTidak termasuk kategori di atas.\n\n";
             $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
             $prompt .= "Field \"ask\" (boolean, wajib): true jika pesan adalah PERTANYAAN atau PERMINTAAN yang butuh respon CS; false jika hanya info/pemberitahuan/ack/omongan biasa tanpa minta aksi.\n";
             $prompt .= "ask=true: bertanya (ada/tidak ada tanda ?), minta bantuan/cek/info/kabari/tolong/komplain.\n";
             $prompt .= "ask=false: info saja (otw, daftar item tanpa minta aksi), ack singkat (ok/siap/baik), cerita sosial.\n";
-            $prompt .= "PRIORITAS: Jika user menanyakan apakah laundry/toko BUKA atau TIDAK (termasuk 'buka ga/gak', 'masih buka', 'sudah tutup') = pilih JAM_OPERASIONAL.\n";
-            $prompt .= "PRIORITAS: Jika user menanyakan apakah cucian/laundry sudah SIAP/SELESAI (termasuk typo sudh, laundri, 'apakah sudh siap laundri saya?') = pilih STATUS — jangan FALSE dan jangan mengarang intent baru.\n";
-            $prompt .= "PRIORITAS: Shareloc/pin Maps atau menjelaskan alamat TANPA minta kurir = LOKASI, BUKAN MINTA_JEMPUT_ANTAR. Minta jemput/antar = MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Jika user bertanya KAPAN/JAM BERAPA siap/selesai/bisa diambil/dijemput (estimasi selesai, mis. 'kira jam berapa bisa dijemput kak?', 'kapan siap?') = ESTIMASI_SELESAI, BUKAN STATUS dan BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Jika user bertanya berapa/brp/brpa kilo (mis. 'berapa kilo itu kak?', 'brpa kilo kk?') tanpa tanya harga/biaya per kilo = pilih TAGIHAN (tanya berat order), bukan FALSE.\n";
-            $prompt .= "PRIORITAS: Jika user meminta pricelist / price list / daftar harga / list harga (mis. 'boleh dibantu pricelistnya kak', 'minta pricelist') = pilih HARGA, bukan FALSE.\n";
-            $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit + antar/jemput/delivery/ongkir paket (mis. paket member antar jemput, harga paket include antar) = HARGA_PAKET_D, BUKAN HARGA_PAKET dan BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit TANPA antar/jemput = HARGA_PAKET.\n";
-            $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
-            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' (minta CS update, tanpa terima kasih penutup) = FALSE (BUKAN PEMBUKA, BUKAN PENUTUP, BUKAN PEMBERITAHUAN).\n";
-            $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
-            $prompt .= "PRIORITAS: 'oke/ok' + ditunggu kabar/kbr + terima kasih/trima ksih (mis. 'Oke kk, di tunggu kbr ny dn trima ksih byk') = PENUTUP.\n";
-            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih (termasuk typo trima ksih), (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain, ATAU emoji/reaction/sticker saja.\n";
-            $prompt .= "PRIORITAS: Info/pemberitahuan TANPA pertanyaan dan TANPA minta aksi = PEMBERITAHUAN, BUKAN PENUTUP dan BUKAN FALSE. Contoh: 'Ok kk,aku otw ya kk', 'baik nanti dijemput', daftar item laundry, 'belum diambil', 'sudah diantar sama suami', 'nnti transfer', 'kami aja yang antar'.\n";
-            $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = PEMBERITAHUAN, BUKAN PENUTUP.\n";
-            $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = PEMBERITAHUAN, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
-            $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Kalimat hipotetis 'kalau/klo/kalo' lalu antar/jemput (mis. 'Kalau express di antar sekarang', 'klo jemput brp') = FALSE, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Customer yang antar/jemput SENDIRI (mis. 'kami antar', 'kami jemput', 'kami aja yang antar', 'saya yang antar', 'aku aja jemput') = PEMBERITAHUAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = PEMBERITAHUAN, BUKAN NOTA. Contoh PEMBERITAHUAN: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
