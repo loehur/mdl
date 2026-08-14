@@ -3060,11 +3060,8 @@ trait WARepliesKurirTrait
             return;
         }
 
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Permintaan " . $this->kurirJenisLabel($session) . " sudah kami terima {$sapaan}. "
-            . "Kalau ada jam tertentu atau ingin batalkan, tinggal bilang saja ya."
-        );
+        // Request sudah dikonfirmasi — jangan kirim ack berulang.
+        $this->logAutoreplyTrace($waNumber, 'KURIR', 'request_aktif_silent');
     }
 
     /**
@@ -3229,8 +3226,6 @@ trait WARepliesKurirTrait
             }
         } elseif (!$this->isOperatingHours()) {
             $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-        } else {
-            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya.");
         }
         $this->kurirForwardJamEstimasiToGroups($waNumber, $session, $msg, $tglHint);
     }
@@ -3375,8 +3370,6 @@ trait WARepliesKurirTrait
             }
         } elseif (!$this->isOperatingHours()) {
             $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-        } else {
-            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan driver dulu ya {$sapaan}.");
         }
         $this->kurirForwardJamToGroups($waNumber, $session, $msg, $tgl, (float) $jam);
     }
@@ -4677,6 +4670,8 @@ trait WARepliesKurirTrait
             . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
             . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
+            . "Di step request_aktif / wait_driver_jam: ok/terima kasih/pesan tanpa jam/batal/instant → noop_ack, reply KOSONG. "
+            . "JANGAN kirim 'permintaan sudah kami terima' atau ajakan jam/batal. "
             . "Di step ask_shareloc: jika sudah pernah minta shareloc, JANGAN minta lagi (action noop / diam). "
             . "Hanya minta shareloc sekali; tunggu pin/link tanpa mengulang pertanyaan. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
@@ -4985,14 +4980,9 @@ trait WARepliesKurirTrait
                 return;
 
             case 'noop_ack':
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    $aiReply ?: (
-                        "Permintaan " . $this->kurirJenisLabel($session) . " sudah kami terima {$sapaan}. "
-                        . "Kalau ada jam tertentu atau ingin batalkan, tinggal bilang saja ya."
-                    )
-                );
+                // Jangan spam ack "permintaan sudah kami terima"
                 $this->kurirAppendSummary($waNumber, $session, $note);
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'noop_ack_silent');
                 return;
 
             case 'clarify':
