@@ -86,6 +86,11 @@
             <p class="text-muted small mb-0">Centang = pengirim wajib role itu (AND). Semua kosong = publik.</p>
           </div>
           <div class="col-12">
+            <label class="form-label">Deny reply</label>
+            <textarea name="deny_reply" class="form-control" rows="4" placeholder="Kosong = diam (jangan kirim). Contoh NOTA: Nomor ini belum terdaftar sebagai pelanggan."><?= htmlspecialchars((string)($intent['deny_reply'] ?? '')) ?></textarea>
+            <p class="text-muted small mb-0 mt-1">Dikirim hanya jika gerbang tidak terpenuhi. Intent admin biasanya dikosongkan agar tidak bocor.</p>
+          </div>
+          <div class="col-12">
             <label class="form-label">Note</label>
             <input type="text" name="note" class="form-control form-control-sm" value="<?= htmlspecialchars((string)($intent['note'] ?? '')) ?>">
           </div>
