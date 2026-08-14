@@ -13,13 +13,6 @@ $menu[1] = [
         'txt' => 'Approval'
     ],
     [
-        'c' => 'Kas_Besar',
-        'title' => 'Kas Besar',
-        'icon' => 'fas fa-cash-register',
-        'txt' => 'Kas Besar',
-        'hide_if_training' => true
-    ],
-    [
         'c' => '#',
         'title' => 'Sales Ops',
         'icon' => 'fas fa-shopping-cart',

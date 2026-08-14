@@ -247,6 +247,11 @@
     line-height: 1.2;
   }
   .op-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .op-btn.is-loading {
+    pointer-events: none;
+    min-width: 132px;
+    opacity: 0.9;
+  }
   .op-btn--ghost {
     background: #e2e8f0;
     color: var(--op-ink);

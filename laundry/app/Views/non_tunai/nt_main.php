@@ -30,27 +30,40 @@ if (count($data['cek']) == 0) { ?>
     }
 
     $pelanggan = $f17;
+    $jenis_bill = '';
+    $hp = '';
+    $pRow = null;
+    if (isset($this->pelanggan[$f17]) && is_array($this->pelanggan[$f17])) {
+      $pRow = $this->pelanggan[$f17];
+    } elseif (isset($this->pelangganLaundry[$f17]) && is_array($this->pelangganLaundry[$f17])) {
+      $pRow = $this->pelangganLaundry[$f17];
+    }
+
     switch ($jenisT) {
       case 1:
         $jenis_bill = "Laundry";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
         break;
       case 3:
         $jenis_bill = "Member";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
         break;
       case 5:
         $jenis_bill = "Kasbon";
-        if(isset($this->user[$f17])) $pelanggan = $this->user[$f17]['nama_user'];
+        if (isset($this->user[$f17])) $pelanggan = $this->user[$f17]['nama_user'];
+        $pRow = null;
         break;
       case 6:
         $jenis_bill = "Deposit";
-        if(isset($this->pelanggan[$f17])) $pelanggan = $this->pelanggan[$f17]['nama_pelanggan'];
         break;
       case 7:
         $jenis_bill = "Jualan";
         $pelanggan = "Umum";
+        $pRow = null;
         break;
+    }
+
+    if ($pRow) {
+      $pelanggan = $pRow['nama_pelanggan'] ?? $pelanggan;
+      $hp = trim((string) ($pRow['nomor_pelanggan'] ?? ''));
     }
 
     $invoiceUrl = URL::BASE_URL . 'I/' . $f17;
@@ -76,6 +89,16 @@ if (count($data['cek']) == 0) { ?>
       <!-- Right: Amount & Actions -->
       <div class="d-flex align-items-center gap-2">
         <span class="fw-bold text-primary me-2"><?= number_format($f4) ?></span>
+        <?php if ($hp !== '') { ?>
+        <button type="button"
+          class="nt-chat-btn nChat"
+          title="Riwayat Chat"
+          aria-label="Riwayat Chat"
+          data-hp="<?= htmlspecialchars($hp, ENT_QUOTES, 'UTF-8') ?>"
+          data-nama="<?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?>">
+          <i class="fas fa-comments"></i>
+        </button>
+        <?php } ?>
         <button class="btn btn-outline-danger btn-sm nTolak" data-id="<?= $id ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
           <i class="fas fa-times"></i>
         </button>
@@ -92,6 +115,32 @@ if (count($data['cek']) == 0) { ?>
 
 <!-- Lebar mengikuti nota (~640px). Tinggi ~85vh -->
 <style>
+  .nt-chat-btn {
+    box-sizing: border-box;
+    width: 31px;
+    height: 31px;
+    min-width: 31px;
+    padding: 0;
+    border: 1px solid #93c5fd;
+    border-radius: 0;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+    color: #1d4ed8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .nt-chat-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    border-color: #1d4ed8;
+    color: #fff;
+  }
+  .nt-chat-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
   #modalInvoicePelanggan .nt-modal-tagihan {
     max-width: min(640px, 96vw);
     width: 100%;
@@ -191,6 +240,23 @@ if (count($data['cek']) == 0) { ?>
 
   $("#modalInvoicePelanggan").on("hidden.bs.modal", function () {
     $("#iframeInvoicePelanggan").attr("src", "about:blank");
+  });
+
+  $(".nChat").on("click", function(e) {
+    e.preventDefault();
+    var $btn = $(this);
+    if ($btn.prop('disabled')) return;
+    var hp = String($btn.attr('data-hp') || '').trim();
+    var nama = String($btn.attr('data-nama') || 'Pelanggan').trim();
+    if (!hp) {
+      ntToast('Nomor pelanggan tidak tersedia', 'warn');
+      return;
+    }
+    if (window.MdlChatHistory && typeof MdlChatHistory.open === 'function') {
+      MdlChatHistory.open(hp, nama, { showCloseCase: false });
+    } else {
+      ntToast('Modal chat belum siap', 'error');
+    }
   });
 
   // Tombol Tolak - tampilkan modal konfirmasi

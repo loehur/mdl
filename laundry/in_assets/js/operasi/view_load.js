@@ -703,13 +703,23 @@
   $(document).off("submit", "form.ajax");
   $(document).on("submit", "form.ajax", function (e) {
     e.preventDefault();
+    var $form = $(this);
+    var action = String($form.attr("action") || "");
+    var isOpSubmit = /Antrian\/(operasi|ambil)(\/|$|\?)/.test(action);
+    var $btn = $form.find("button[type='submit']").first();
+    var $modal = $form.find(".op-modal").first();
+    var originalBtn = $btn.length ? $btn.html() : "";
+
+    if (isOpSubmit && ($btn.data("loading") === 1 || $btn.prop("disabled"))) {
+      return;
+    }
 
     // Guard form Ubah Penyelesai
-    if ($(this).find("#modalGanti").length) {
-      var valGanti = String($(this).find("select[name='f1']").val() || "");
-      var tuntasGanti = parseInt($(this).data("tuntas") || "0", 10);
-      var bulanOk = parseInt($(this).data("bulanOk") || "0", 10) === 1;
-      var keyGanti = String($(this).find("input[name='access_key']").val() || "").trim();
+    if ($form.find("#modalGanti").length) {
+      var valGanti = String($form.find("select[name='f1']").val() || "");
+      var tuntasGanti = parseInt($form.data("tuntas") || "0", 10);
+      var bulanOk = parseInt($form.data("bulanOk") || "0", 10) === 1;
+      var keyGanti = String($form.find("input[name='access_key']").val() || "").trim();
       if (!/^\d{4}$/.test(keyGanti)) {
         showAlert("Access Key penyelesai sebelumnya wajib 4 digit.", "error");
         return;
@@ -725,12 +735,27 @@
       }
     }
 
+    function setOpSubmitLoading(on) {
+      if (!isOpSubmit || !$btn.length) return;
+      if (on) {
+        $btn.data("loading", 1).addClass("is-loading").prop("disabled", true)
+          .html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+        $form.find("button[data-op-close]").prop("disabled", true);
+        $modal.addClass("is-static");
+      } else {
+        $btn.data("loading", 0).removeClass("is-loading").prop("disabled", false).html(originalBtn);
+        $form.find("button[data-op-close]").prop("disabled", false);
+        $modal.removeClass("is-static");
+      }
+    }
+
     $.ajax({
-      url: $(this).attr("action"),
-      data: $(this).serialize(),
-      type: $(this).attr("method"),
+      url: $form.attr("action"),
+      data: $form.serialize(),
+      type: $form.attr("method"),
       beforeSend: function () {
         $(".loaderDiv").fadeIn("fast");
+        setOpSubmitLoading(true);
       },
       success: function (res) {
         if (res == 0) {
@@ -756,6 +781,7 @@
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");
+        setOpSubmitLoading(false);
       },
     });
   });
