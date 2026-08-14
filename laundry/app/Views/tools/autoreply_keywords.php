@@ -59,6 +59,7 @@
                 <th>AI</th>
                 <th>Case</th>
                 <th>Notify</th>
+                <th>Gerbang</th>
                 <th>Aktif</th>
                 <th></th>
               </tr>
@@ -73,6 +74,17 @@
                 $ai = !empty($a['ai_prompt']) ? 'ya' : '—';
                 $case = ($a['case_value'] === null || $a['case_value'] === '') ? '—' : (int) $a['case_value'];
                 $notify = ($a['notify'] === null || $a['notify'] === '') ? '—' : (((int)$a['notify'] === 1) ? 'true' : 'false');
+                $gates = [];
+                if ((int) ($a['is_admin'] ?? 0) === 1) {
+                    $gates[] = '<span class="ark-badge">admin</span>';
+                }
+                if ((int) ($a['is_karyawan'] ?? 0) === 1) {
+                    $gates[] = '<span class="ark-badge ark-badge--warn">karyawan</span>';
+                }
+                if ((int) ($a['is_pelanggan'] ?? 0) === 1) {
+                    $gates[] = '<span class="ark-badge ark-badge--ok">pelanggan</span>';
+                }
+                $gateHtml = $gates !== [] ? implode(' ', $gates) : '<span class="ark-badge ark-badge--off">publik</span>';
                 $active = ((int)$a['is_active'] === 1)
                   ? '<span class="ark-badge ark-badge--ok">on</span>'
                   : '<span class="ark-badge ark-badge--off">off</span>';
@@ -86,6 +98,7 @@
                 echo '<td>' . $ai . '</td>';
                 echo '<td>' . $case . '</td>';
                 echo '<td>' . $notify . '</td>';
+                echo '<td>' . $gateHtml . '</td>';
                 echo '<td>' . $active . '</td>';
                 echo '<td class="text-nowrap">';
                 echo '<a class="btn btn-sm btn-primary" href="' . URL::BASE_URL . 'AutoReplyKeywords/detail/' . $id . '">Edit</a> ';
@@ -114,6 +127,21 @@
             <input type="text" name="code" class="form-control form-control-sm" placeholder="PENUTUP" required pattern="[A-Za-z0-9_]+">
             <label class="form-label fw-bold mt-2">Note (opsional)</label>
             <input type="text" name="note" class="form-control form-control-sm">
+            <div class="mt-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_admin" id="addIsAdmin" value="1">
+                <label class="form-check-label fw-bold" for="addIsAdmin">Admin</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_karyawan" id="addIsKaryawan" value="1">
+                <label class="form-check-label fw-bold" for="addIsKaryawan">Karyawan</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_pelanggan" id="addIsPelanggan" value="1">
+                <label class="form-check-label fw-bold" for="addIsPelanggan">Pelanggan</label>
+              </div>
+              <p class="text-muted small mb-0 mt-1">Centang = pengirim wajib role itu. Semua kosong = publik.</p>
+            </div>
           </form>
         </div>
         <div class="modal-footer">

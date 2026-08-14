@@ -68,6 +68,24 @@
             </div>
           </div>
           <div class="col-12">
+            <label class="form-label">Gerbang pengirim</label>
+            <div class="d-flex flex-wrap gap-3 mb-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_admin" id="isAdmin" value="1" <?= ((int)($intent['is_admin'] ?? 0) === 1) ? 'checked' : '' ?>>
+                <label class="form-check-label fw-bold" for="isAdmin">Admin</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_karyawan" id="isKaryawan" value="1" <?= ((int)($intent['is_karyawan'] ?? 0) === 1) ? 'checked' : '' ?>>
+                <label class="form-check-label fw-bold" for="isKaryawan">Karyawan</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_pelanggan" id="isPelanggan" value="1" <?= ((int)($intent['is_pelanggan'] ?? 0) === 1) ? 'checked' : '' ?>>
+                <label class="form-check-label fw-bold" for="isPelanggan">Pelanggan</label>
+              </div>
+            </div>
+            <p class="text-muted small mb-0">Centang = pengirim wajib role itu (AND). Semua kosong = publik.</p>
+          </div>
+          <div class="col-12">
             <label class="form-label">Note</label>
             <input type="text" name="note" class="form-control form-control-sm" value="<?= htmlspecialchars((string)($intent['note'] ?? '')) ?>">
           </div>

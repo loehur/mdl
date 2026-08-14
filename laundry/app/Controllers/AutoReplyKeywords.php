@@ -16,6 +16,20 @@ class AutoReplyKeywords extends Controller
         return $this->db(100);
     }
 
+    /** Checkbox POST: ada & bukan '0' → 1. */
+    private function postFlag(string $key): int
+    {
+        if (!isset($_POST[$key])) {
+            return 0;
+        }
+        $v = $_POST[$key];
+        if ($v === '' || $v === '0' || $v === 0 || $v === false) {
+            return 0;
+        }
+
+        return 1;
+    }
+
     private function bumpCache(): void
     {
         $db = $this->dbMain();
@@ -137,6 +151,9 @@ class AutoReplyKeywords extends Controller
             'ai_prompt' => $aiPrompt,
             'case_value' => $caseValue,
             'notify' => $notify,
+            'is_admin' => $this->postFlag('is_admin'),
+            'is_karyawan' => $this->postFlag('is_karyawan'),
+            'is_pelanggan' => $this->postFlag('is_pelanggan'),
         ];
 
         $up = $this->dbMain()->update('wa_autoreply_intents', $set, "id = $id");
@@ -167,6 +184,9 @@ class AutoReplyKeywords extends Controller
             'ai_prompt' => null,
             'case_value' => null,
             'notify' => null,
+            'is_admin' => $this->postFlag('is_admin'),
+            'is_karyawan' => $this->postFlag('is_karyawan'),
+            'is_pelanggan' => $this->postFlag('is_pelanggan'),
             'note' => trim((string) ($_POST['note'] ?? '')) ?: null,
         ]);
 
