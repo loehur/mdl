@@ -430,10 +430,14 @@ class WhatsApp extends Controller
                 }
                 $senderCtx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
                 $replies->setSenderContext($senderCtx);
-                if (!empty($senderCtx['is_pelanggan'])) {
-                    $assigned_user_id = $senderCtx['assigned_user_id'] ?? $assigned_user_id;
-                    $code = $senderCtx['code'] ?? $code;
-                    $cust_id = $senderCtx['cust_id'] ?? $cust_id;
+                $isPelanggan = !empty($senderCtx['is_pelanggan']);
+                $isKaryawan = !empty($senderCtx['is_karyawan']);
+                if ($isPelanggan || $isKaryawan) {
+                    if ($isPelanggan) {
+                        $assigned_user_id = $senderCtx['assigned_user_id'] ?? $assigned_user_id;
+                        $code = $senderCtx['code'] ?? $code;
+                        $cust_id = $senderCtx['cust_id'] ?? $cust_id;
+                    }
                     if (!empty($senderCtx['contact_name'])) {
                         $contact_name = $senderCtx['contact_name'];
                     }

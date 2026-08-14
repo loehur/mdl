@@ -2013,8 +2013,12 @@ class WAReplies
         $this->humanActiveCache = null;
         if (!$this->intentLabMode) {
             $ctx = $this->ensureSenderContext((string) $waNumber);
-            if ($contactName === null || $contactName === '') {
-                $contactName = $ctx['contact_name'] ?? $contactName;
+            $ctxName = trim((string) ($ctx['contact_name'] ?? ''));
+            if (!empty($ctx['is_karyawan']) && $ctxName !== '') {
+                $contactName = $ctxName;
+                $this->currentContactName = $contactName;
+            } elseif ($contactName === null || $contactName === '') {
+                $contactName = $ctxName !== '' ? $ctxName : $contactName;
                 $this->currentContactName = $contactName;
             }
             if ($assigned_user_id === null || $assigned_user_id === '') {

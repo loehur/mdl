@@ -174,12 +174,16 @@ class WaSenderContext
         try {
             $expr = self::sqlDigitsExpr('no_user');
             $row = $db1->query(
-                "SELECT id_user FROM user WHERE en = 1 AND {$expr} LIKE ? ORDER BY id_user ASC LIMIT 1",
+                "SELECT id_user, nama_user FROM user WHERE en = 1 AND {$expr} LIKE ? ORDER BY id_user ASC LIMIT 1",
                 ['%' . $nomor]
             )->row();
             if ($row && !empty($row->id_user)) {
                 $ctx['is_karyawan'] = true;
                 $ctx['id_karyawan'] = (int) $row->id_user;
+                $nama = trim((string) ($row->nama_user ?? ''));
+                if ($nama !== '') {
+                    $ctx['contact_name'] = $nama;
+                }
             }
         } catch (\Throwable $e) {
             // biarkan false
@@ -238,11 +242,13 @@ class WaSenderContext
 
         $ctx['id_pelanggan'] = $primaryId;
         $ctx['cust_id'] = $primaryId;
-        $nama = trim((string) ($byId[$primaryId]['nama_pelanggan'] ?? ''));
-        if ($nama === '' && isset($byId[$ids[0]])) {
-            $nama = trim((string) ($byId[$ids[0]]['nama_pelanggan'] ?? ''));
+        if (empty($ctx['contact_name'])) {
+            $nama = trim((string) ($byId[$primaryId]['nama_pelanggan'] ?? ''));
+            if ($nama === '' && isset($byId[$ids[0]])) {
+                $nama = trim((string) ($byId[$ids[0]]['nama_pelanggan'] ?? ''));
+            }
+            $ctx['contact_name'] = $nama !== '' ? $nama : null;
         }
-        $ctx['contact_name'] = $nama !== '' ? $nama : null;
 
         if ($idCabang <= 0 && isset($byId[$primaryId]['id_cabang'])) {
             $idCabang = (int) $byId[$primaryId]['id_cabang'];

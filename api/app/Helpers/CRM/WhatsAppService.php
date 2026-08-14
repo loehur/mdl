@@ -1261,7 +1261,7 @@ class WhatsAppService
                 require_once __DIR__ . '/WaSenderContext.php';
             }
             $ctx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
-            if (empty($ctx['is_pelanggan'])) {
+            if (empty($ctx['is_pelanggan']) && empty($ctx['is_karyawan'])) {
                 return null;
             }
 
