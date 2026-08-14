@@ -396,8 +396,8 @@
           <label class="il-label" for="ilTeachPattern" id="ilTeachPatternLabel">Pattern (PHP regex)</label>
           <textarea id="ilTeachPattern" class="il-textarea" style="min-height:70px;font-family:ui-monospace,Consolas,monospace;font-size:.85rem"></textarea>
 
-          <label class="il-label" for="ilTeachPrompt" style="margin-top:10px">Tambahan AI prompt</label>
-          <textarea id="ilTeachPrompt" class="il-textarea" style="min-height:60px"></textarea>
+          <label class="il-label" for="ilTeachPrompt" style="margin-top:10px">AI prompt (lengkap)</label>
+          <textarea id="ilTeachPrompt" class="il-textarea" style="min-height:180px"></textarea>
 
           <label class="il-check">
             <input type="checkbox" id="ilAddPattern" checked>
@@ -405,7 +405,7 @@
           </label>
           <label class="il-check">
             <input type="checkbox" id="ilUpdatePrompt" checked>
-            Append ke ai_prompt intent
+            Update ai_prompt
           </label>
 
           <div class="il-actions">
@@ -426,8 +426,8 @@
           <label class="il-label">Pattern aktif yang match (akan dinonaktifkan)</label>
           <div id="ilUntouchPatterns"></div>
 
-          <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">Pengecualian AI prompt</label>
-          <textarea id="ilUntouchPrompt" class="il-textarea" style="min-height:60px"></textarea>
+          <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">AI prompt (lengkap)</label>
+          <textarea id="ilUntouchPrompt" class="il-textarea" style="min-height:180px"></textarea>
 
           <label class="il-check">
             <input type="checkbox" id="ilDeactivatePatterns" checked>
@@ -435,7 +435,7 @@
           </label>
           <label class="il-check">
             <input type="checkbox" id="ilUntouchUpdatePrompt" checked>
-            Append pengecualian ke ai_prompt
+            Update ai_prompt
           </label>
 
           <div class="il-actions">
@@ -662,15 +662,17 @@
         $teachMeta.html(bits.join(''));
         $teachReason.text(res.reason || '');
         $teachPattern.val(res.pattern || '');
-        $teachPrompt.val(res.prompt_append || '');
+        var teachFull = fullProposedPrompt(res);
+        $teachPrompt.val(teachFull);
         $('#ilTeachPatternId').val(pid > 0 && action === 'update' ? String(pid) : '');
+        var promptChanged = teachFull !== String(res.current_prompt || '');
         if (action === 'update' && !res.already_covered && (res.existing_pattern || pid)) {
           $('#ilTeachExistingWrap').show();
           $('#ilTeachExisting').text(res.existing_pattern || '');
           $('#ilTeachPatternLabel').text('Pattern baru (usulan)');
           $('#ilAddPatternLabel').text(pid ? ('Ubah pattern yang sudah ada (#' + pid + ')') : 'Ubah pattern yang sudah ada');
           $('#ilAddPattern').prop('checked', true);
-          $('#ilUpdatePrompt').prop('checked', !!$.trim(res.prompt_append || ''));
+          $('#ilUpdatePrompt').prop('checked', promptChanged);
         } else {
           $('#ilTeachExistingWrap').hide();
           $('#ilTeachExisting').text('');
@@ -678,10 +680,10 @@
           $('#ilAddPatternLabel').text('Tambah pattern ke DB');
           if (res.already_covered) {
             $('#ilAddPattern').prop('checked', false);
-            $('#ilUpdatePrompt').prop('checked', true);
+            $('#ilUpdatePrompt').prop('checked', promptChanged);
           } else {
             $('#ilAddPattern').prop('checked', true);
-            $('#ilUpdatePrompt').prop('checked', true);
+            $('#ilUpdatePrompt').prop('checked', promptChanged || action === 'insert');
           }
         }
       }).fail(function (xhr) {
@@ -694,9 +696,25 @@
       }).always(function () { setLoading(false); });
     }
 
+    function mergePromptDraft(current, append) {
+      current = String(current == null ? '' : current).replace(/\s+$/, '');
+      append = $.trim(append || '');
+      if (!append) return current;
+      if (current && current.toLowerCase().indexOf(append.toLowerCase()) !== -1) return current;
+      if (!current) return append;
+      return current + '\n' + append;
+    }
+
+    function fullProposedPrompt(res) {
+      if (res && typeof res.proposed_prompt === 'string' && res.proposed_prompt !== '') {
+        return res.proposed_prompt;
+      }
+      return mergePromptDraft(res && res.current_prompt, res && res.prompt_append);
+    }
+
     function renderUntouchPatterns(list) {
       if (!Array.isArray(list) || !list.length) {
-        $untouchPatterns.html('<p class="il-pat-empty">Tidak ada pattern aktif yang match teks ini. Cukup append pengecualian prompt bila AI masih mengklasifikasi ke intent ini.</p>');
+        $untouchPatterns.html('<p class="il-pat-empty">Tidak ada pattern aktif yang match teks ini. Edit ai_prompt bila AI masih mengklasifikasi ke intent ini.</p>');
         $('#ilDeactivatePatterns').prop('checked', false);
         return;
       }
@@ -742,9 +760,10 @@
           : '<span class="il-badge il-badge--ok">pattern match: 0</span>');
         $untouchMeta.html(bits.join(''));
         $untouchReason.text(res.reason || '');
-        $untouchPrompt.val(res.prompt_append || '');
+        var untouchFull = fullProposedPrompt(res);
+        $untouchPrompt.val(untouchFull);
         renderUntouchPatterns(res.matching_patterns || []);
-        $('#ilUntouchUpdatePrompt').prop('checked', true);
+        $('#ilUntouchUpdatePrompt').prop('checked', untouchFull !== String(res.current_prompt || ''));
       }).fail(function (xhr) {
         var msg = 'Usulan keluarkan gagal';
         try {
@@ -778,7 +797,7 @@
           intent: intent,
           pattern: pattern,
           pattern_id: patternId,
-          prompt_append: promptAppend,
+          ai_prompt: $teachPrompt.val() || '',
           add_pattern: addPattern,
           update_prompt: updatePrompt
         }),
@@ -808,7 +827,7 @@
       if (running) return;
       var text = $.trim($text.val() || '');
       var intent = getTeachIntent();
-      var promptAppend = $.trim($untouchPrompt.val() || '');
+      var promptText = $untouchPrompt.val() || '';
       var deactivatePatterns = $('#ilDeactivatePatterns').is(':checked') ? 1 : 0;
       var updatePrompt = $('#ilUntouchUpdatePrompt').is(':checked') ? 1 : 0;
       var patternIds = [];
@@ -818,15 +837,11 @@
       });
       if (!text || !intent) { toast('Teks dan intent wajib', 'warn'); return; }
       if (!deactivatePatterns && !updatePrompt) { toast('Centang minimal satu aksi', 'warn'); return; }
-      if (deactivatePatterns && !patternIds.length && (!updatePrompt || !promptAppend)) {
-        toast('Tidak ada pattern tercentang. Centang Append pengecualian atau pilih pattern.', 'warn');
+      if (deactivatePatterns && !patternIds.length && !updatePrompt) {
+        toast('Tidak ada pattern tercentang. Centang Update ai_prompt atau pilih pattern.', 'warn');
         return;
       }
-      if (updatePrompt && !promptAppend) {
-        toast('Isi pengecualian prompt atau matikan centang Append', 'warn');
-        return;
-      }
-      setLoading(true, 'Mengeluarkan dari intent…', 'Nonaktifkan pattern / append pengecualian');
+      setLoading(true, 'Mengeluarkan dari intent…', 'Nonaktifkan pattern / update ai_prompt');
       $('#ilBtnApplyUntouch').html('<i class="fas fa-spinner fa-spin"></i> Menerapkan…');
       $.ajax({
         url: applyUntouchUrl,
@@ -835,7 +850,7 @@
         data: JSON.stringify({
           text: text,
           intent: intent,
-          prompt_append: promptAppend,
+          ai_prompt: promptText,
           pattern_ids: patternIds,
           deactivate_patterns: deactivatePatterns,
           update_prompt: updatePrompt

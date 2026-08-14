@@ -827,7 +827,7 @@ class WAReplies
 
     /**
      * Ambil context greeting: contactName + sapaan (pak/bu/kak/bang/bg/…).
-     * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, JAM_OPERASIONAL).
+     * Fungsi terpusat untuk handler yang butuh keduanya (PEMBUKA, PENUTUP, PEMBERITAHUAN, JAM_OPERASIONAL).
      *
      * Urutan wajib sapaan (berhenti di langkah pertama yang menghasilkan nilai):
      * 1) sapaan_stats (db0), jumlah terbesar — tidak lanjut ke 2 atau 3.
@@ -1169,7 +1169,7 @@ class WAReplies
     }
 
     /**
-     * Penutup singkat tetap (tanpa AI): Baik / Oke / Ok + sapaan + emote soft.
+     * Penutup / pemberitahuan singkat tetap (tanpa AI): Baik / Oke / Ok + sapaan + emote soft.
      */
     private function getRandomSiapReply($sapaan)
     {
@@ -1453,6 +1453,35 @@ class WAReplies
     }
 
     /**
+     * PENUTUP yang bukan closing ketat: info/otw/daftar item/jadwal/janji bayar → kandidat PEMBERITAHUAN.
+     */
+    private function messageIsNonStrictPenutup(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        if ($this->messageLooksLikeLaundryItemListNotPenutup($text)
+            || $this->messageLooksLikeBelumDiambilInfo($text)
+            || $this->messageLooksLikeSudahDiantarInfo($text)
+            || $this->messageLooksLikeJadwalRujukOrderBukanPenutup($text)
+            || $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($text)
+        ) {
+            return true;
+        }
+        if (!$this->messageMatchesStrictPenutupAllowlist($text)) {
+            return true;
+        }
+        if ($this->messageExceedsPenutupMaxLength($text)
+            && !$this->messageLooksLikePaymentConfirmationPenutup($text)
+            && !$this->messageLooksLikeThanksPenutup($text)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Informasi "belum diambil" adalah status/info, bukan penutup.
      */
     private function messageLooksLikeBelumDiambilInfo(?string $text): bool
@@ -1599,7 +1628,7 @@ class WAReplies
 
     /**
      * Pertanyaan tidak selalu memakai tanda (?). Contoh: "Alhamdulillah foto dimana"
-     * PEMBUKA/PENUTUP tidak boleh jika ini true.
+     * PEMBUKA/PENUTUP/PEMBERITAHUAN tidak boleh jika ini true.
      */
     private function messageLooksLikeQuestion(?string $textBody): bool
     {
@@ -2164,18 +2193,24 @@ class WAReplies
                     if ($handler === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
                         continue;
                     }
-                    // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP
-                    if (($handler === 'PEMBUKA' || $handler === 'PENUTUP') && $this->messageLooksLikeQuestion($textBody)) {
+                    // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA, PENUTUP, atau PEMBERITAHUAN
+                    if (($handler === 'PEMBUKA' || $handler === 'PENUTUP' || $handler === 'PEMBERITAHUAN') && $this->messageLooksLikeQuestion($textBody)) {
                         continue;
                     }
                     // waalaikumsalam = balasan salam, bukan PEMBUKA (beda dari assalamualaikum)
                     if ($handler === 'PEMBUKA' && $this->messageIsWalaikumsalamReply($textBodyToCheck)) {
                         continue;
                     }
-                    // MINTA_JEMPUT_ANTAR: "saya/aku ambil" / "kami aja yang antar" = customer sendiri, bukan minta kurir
+                    // MINTA_JEMPUT_ANTAR: "saya/aku ambil" / "kami aja yang antar" = pemberitahuan, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→customer_self_antar_jemput');
-                        continue;
+                        if (isset($fullKeywordConfig['PEMBERITAHUAN']) && !$this->messageLooksLikeQuestion($textBody)) {
+                            $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'MINTA_JEMPUT_ANTAR→PEMBERITAHUAN customer_self');
+                            $handler = 'PEMBERITAHUAN';
+                            $config = $fullKeywordConfig['PEMBERITAHUAN'] ?? $config;
+                        } else {
+                            $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→customer_self_antar_jemput');
+                            continue;
+                        }
                     }
                     // LOKASI tapi jelas minta jemput/antar → MINTA_JEMPUT_ANTAR
                     if ($handler === 'LOKASI' && $this->messageLooksLikeMintaJemputAntar($textBodyToCheck, $fullKeywordConfig)) {
@@ -2246,35 +2281,15 @@ class WAReplies
                         $handler = 'PERMINTAAN';
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
-                    // PENUTUP: daftar/instruksi item laundry panjang (bukan closing) — regex ok/sip kadang overlap
-                    if ($handler === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP: info "belum diambil" bukan closing
-                    if ($handler === 'PENUTUP' && $this->messageLooksLikeBelumDiambilInfo($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP: info "sudah diantar sama suami/saya" bukan closing
-                    if ($handler === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP: yg tadi sore + besok di ambil — jadwal/order, bukan penutup
-                    if ($handler === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP: janji/nanti bayar atau transfer (belum dilakukan) — bukan ack sudah bayar
-                    if ($handler === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP ketat: hanya terima kasih / sudah bayar-lunas / ack murni (ok/baik/sip/siap)
-                    if ($handler === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBodyToCheck)) {
-                        continue;
-                    }
-                    // PENUTUP: kalimat panjang (>50 karakter) bukan ack penutup — kecuali bayar/lunas atau terima kasih
-                    if ($handler === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)
-                        && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
-                        && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)) {
-                        continue;
+                    // PENUTUP yang bukan closing ketat → PEMBERITAHUAN (info/otw/item/jadwal/janji bayar)
+                    if ($handler === 'PENUTUP' && $this->messageIsNonStrictPenutup($textBodyToCheck)) {
+                        if (isset($fullKeywordConfig['PEMBERITAHUAN']) && !$this->messageLooksLikeQuestion($textBody)) {
+                            $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'PENUTUP→PEMBERITAHUAN');
+                            $handler = 'PEMBERITAHUAN';
+                            $config = $fullKeywordConfig['PEMBERITAHUAN'] ?? $config;
+                        } else {
+                            continue;
+                        }
                     }
                     // "jam berapa bisa jemput/diambil?" / "bisa jemput sore ini":
                     // ada order → biarkan ESTIMASI; tanpa order → kurir MINTA
@@ -2410,7 +2425,8 @@ class WAReplies
                         }
                         // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
                         // PERMINTAAN: standby tanpa autoreply (termasuk sapaan)
-                        if ($handler !== 'PEMBUKA' && $handler !== 'PERMINTAAN') {
+                        // PEMBERITAHUAN: ack singkat saja, jangan dobel sapaan
+                        if ($handler !== 'PEMBUKA' && $handler !== 'PERMINTAAN' && $handler !== 'PEMBERITAHUAN') {
                             $this->sendGreetingReplyFirst($waNumber, $textBody);
                         }
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
@@ -2461,9 +2477,9 @@ class WAReplies
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
-            // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA atau PENUTUP - treat sebagai unknown
+            // Pertanyaan (termasuk tanpa tanda ?) TIDAK boleh masuk PEMBUKA, PENUTUP, atau PEMBERITAHUAN
             $isQuestion = $this->messageLooksLikeQuestion($textBody);
-            if ($isQuestion && in_array($aiIntent, ['PEMBUKA', 'PENUTUP'])) {
+            if ($isQuestion && in_array($aiIntent, ['PEMBUKA', 'PENUTUP', 'PEMBERITAHUAN'])) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_question_as_pembuka_penutup intent=' . $aiIntent);
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -2543,24 +2559,31 @@ class WAReplies
                 ];
             }
 
-            // AI salah: "kami aja yang antar" / "saya yang jemput" = customer sendiri → biarkan CS
+            // AI salah: "kami aja yang antar" / "saya yang jemput" = pemberitahuan (bukan minta kurir)
             if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_customer_self_antar_jemput');
-                if ($this->isHumanAgentRecentlyActive($waNumber)) {
-                    return $this->silentExitHumanActive(
-                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
-                        'ai_reject_minta_customer_self'
+                if (isset($fullKeywordConfig['PEMBERITAHUAN']) && !$this->messageLooksLikeQuestion($textBody)) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→PEMBERITAHUAN customer_self');
+                    $aiIntent = 'PEMBERITAHUAN';
+                    $aiCase = $fullKeywordConfig['PEMBERITAHUAN']['case'] ?? null;
+                    $aiNotify = $fullKeywordConfig['PEMBERITAHUAN']['notify'] ?? false;
+                } else {
+                    $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_customer_self_antar_jemput');
+                    if ($this->isHumanAgentRecentlyActive($waNumber)) {
+                        return $this->silentExitHumanActive(
+                            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                            'ai_reject_minta_customer_self'
+                        );
+                    }
+                    $conversationId = $this->getOrCreateConversationWithCase(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                     );
+                    return (object) [
+                        'case' => 4,
+                        'notify' => true,
+                        'conversation_id' => $conversationId,
+                        'no_handler' => true,
+                    ];
                 }
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
             }
 
             // AI salah: ongkos + durasi (hari) / jenis layanan = HARGA, bukan minta kurir
@@ -2675,6 +2698,24 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? false;
             }
 
+            // PENUTUP yang bukan closing ketat → PEMBERITAHUAN (info/otw/item/jadwal/janji bayar)
+            if ($aiIntent === 'PENUTUP' && $this->messageIsNonStrictPenutup($textBodyToCheck)
+                && isset($fullKeywordConfig['PEMBERITAHUAN']) && !$this->messageLooksLikeQuestion($textBody)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_remap PENUTUP→PEMBERITAHUAN');
+                $aiIntent = 'PEMBERITAHUAN';
+                $aiCase = $fullKeywordConfig['PEMBERITAHUAN']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['PEMBERITAHUAN']['notify'] ?? false;
+            }
+
+            // FALSE hasil remap lain + ask false → PEMBERITAHUAN
+            if ($aiIntent === 'FALSE' && empty($aiResult['ask'])
+                && isset($fullKeywordConfig['PEMBERITAHUAN']) && !$this->messageLooksLikeQuestion($textBody)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_remap FALSE ask=0→PEMBERITAHUAN');
+                $aiIntent = 'PEMBERITAHUAN';
+                $aiCase = $fullKeywordConfig['PEMBERITAHUAN']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['PEMBERITAHUAN']['notify'] ?? false;
+            }
+
             // Human agent aktif: setelah remap, hanya intent data/self-service yang boleh balas
             if ($this->isHumanAgentRecentlyActive($waNumber)
                 && !$this->isIntentAllowedDuringHumanActive($aiIntent)) {
@@ -2684,9 +2725,10 @@ class WAReplies
                 );
             }
 
-            // PEMBUKA AI salah: "kabari ya kak" = minta kabar (bukan sapaan, juga bukan PENUTUP ketat) → biarkan CS
-            if ($aiIntent === 'PEMBUKA' && (preg_match('/\b(kabari|kabarin)\s+(ya|dong)\b/iu', $textBodyToCheck) || preg_match('/\binfokan\s+(ya|dong)\b/iu', $textBodyToCheck))) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_pembuka_kabari_ya');
+            // "kabari ya kak" / "infokan ya" = minta CS update, bukan sapaan/pemberitahuan
+            if (in_array($aiIntent, ['PEMBUKA', 'PEMBERITAHUAN'], true)
+                && (preg_match('/\b(kabari|kabarin)\s+(ya|dong)\b/iu', $textBodyToCheck) || preg_match('/\binfokan\s+(ya|dong)\b/iu', $textBodyToCheck))) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_kabari_ya intent=' . $aiIntent);
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -2719,9 +2761,9 @@ class WAReplies
                 ];
             }
 
-            // PENUTUP ketat: AI salah klasifikasi — hanya terima kasih / bayar-lunas / ack murni
-            if ($aiIntent === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_not_in_allowlist');
+            // PENUTUP sisa yang bukan closing ketat (intent PEMBERITAHUAN belum di DB) → biarkan CS
+            if ($aiIntent === 'PENUTUP' && $this->messageIsNonStrictPenutup($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_non_strict_no_pemberitahuan');
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
                 );
@@ -2733,22 +2775,6 @@ class WAReplies
                 ];
             }
 
-            // PENUTUP: pesan panjang (>50 karakter) — jangan pakai intent PENUTUP, kecuali bayar/lunas atau terima kasih
-            if ($aiIntent === 'PENUTUP' && $this->messageExceedsPenutupMaxLength($textBodyToCheck)
-                && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
-                && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_too_long len=' . mb_strlen(trim($textBodyToCheck ?? '')));
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
-            
             // HARGA laundry: AI salah klasifikasi untuk harga parfum/plastik/dll → biarkan CS (case 4)
             if ($aiIntent === 'HARGA' && $this->messageIsHargaBarangTambahan($textBodyToCheck)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_harga_barang_tambahan');
@@ -2769,72 +2795,6 @@ class WAReplies
                 $aiIntent = 'MINTA_JEMPUT_ANTAR';
                 $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? 2;
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? true;
-            }
-
-            // PENUTUP: AI salah — daftar/instruksi item laundry panjang bukan closing
-            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeLaundryItemListNotPenutup($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_item_list');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
-            // PENUTUP: AI salah — info "belum diambil" bukan closing
-            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeBelumDiambilInfo($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_belum_diambil');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
-            // PENUTUP: AI salah — info "sudah diantar sama suami/saya" bukan closing
-            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeSudahDiantarInfo($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_sudah_diantar_info');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
-            // PENUTUP: AI salah — rujukan order + jadwal ambil (yg td sore besok di ambil) = operasional, bukan penutup
-            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeJadwalRujukOrderBukanPenutup($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_jadwal_rujuk_order');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
-            }
-            // PENUTUP: AI salah — konfirmasi akan/nanti bayar/transfer (belum kirim) bukan penutup
-            if ($aiIntent === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_penutup_future_payment_commitment');
-                $conversationId = $this->getOrCreateConversationWithCase(
-                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
-                );
-                return (object) [
-                    'case' => 4,
-                    'notify' => true,
-                    'conversation_id' => $conversationId,
-                    'no_handler' => true,
-                ];
             }
 
             // Rate limit passed - create conversation with AI case
@@ -2868,7 +2828,8 @@ class WAReplies
                 }
                 // Jika handler BUKAN PEMBUKA dan pesan ada sapaan+intent lain: kirim sapaan dulu, baru handler (satu per satu)
                 // PERMINTAAN: standby tanpa autoreply (termasuk sapaan)
-                if ($aiIntent !== 'PEMBUKA' && $aiIntent !== 'PERMINTAAN') {
+                // PEMBERITAHUAN: ack singkat saja, jangan dobel sapaan
+                if ($aiIntent !== 'PEMBUKA' && $aiIntent !== 'PERMINTAAN' && $aiIntent !== 'PEMBERITAHUAN') {
                     $this->sendGreetingReplyFirst($waNumber, $textBody);
                 }
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
@@ -3402,6 +3363,24 @@ class WAReplies
         // (3) Lainnya: ok/baik/siap / fallback ack
         $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_ack');
         $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
+    }
+
+    /**
+     * Handle intent PEMBERITAHUAN — ack singkat info tanpa pertanyaan/permintaan.
+     * Variasi hanya emote senyum soft (sama pola PENUTUP): Baik/Ok/Oke + sapaan + emote.
+     * Di luar jam operasional → tidak balas.
+     */
+    private function handlePemberitahuan($phoneIn, $waNumber, $textBody = '')
+    {
+        if (!$this->isOperatingHours()) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'pemberitahuan_skip_outside_hours');
+            return;
+        }
+
+        $ctx = $this->getGreetingContext($waNumber);
+        $sapaan = $ctx['sapaan'];
+        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'pemberitahuan_ack');
+        $this->sendAutoreplyText($waNumber, $this->getRandomSiapReply($sapaan));
     }
 
     /**
@@ -8516,16 +8495,17 @@ class WAReplies
             $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit + antar/jemput/delivery/ongkir paket (mis. paket member antar jemput, harga paket include antar) = HARGA_PAKET_D, BUKAN HARGA_PAKET dan BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Pertanyaan harga paket/member/langganan/deposit TANPA antar/jemput = HARGA_PAKET.\n";
             $prompt .= "PRIORITAS: Jika user bertanya brp/berapa + laundry/londry (typo) + ku/saya/aku (mis. 'brp londry ku buk', 'berapa laundry saya kak') = TAGIHAN (tanya total/tagihan order), bukan FALSE.\n";
-            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' (minta CS update, tanpa terima kasih penutup) = FALSE (BUKAN PEMBUKA, BUKAN PENUTUP).\n";
+            $prompt .= "PRIORITAS: 'kabari ya kak' / 'kabarin ya' / 'infokan ya' (minta CS update, tanpa terima kasih penutup) = FALSE (BUKAN PEMBUKA, BUKAN PENUTUP, BUKAN PEMBERITAHUAN).\n";
             $prompt .= "PRIORITAS: Jika user meminta info transfer/tf/rekening/QRIS untuk bayar (mis. 'bisa tf kak', 'mau transfer kak', 'minta no rek') dan BUKAN konfirmasi sudah kirim = pilih REKENING, BUKAN FALSE.\n";
             $prompt .= "PRIORITAS: 'oke/ok' + ditunggu kabar/kbr + terima kasih/trima ksih (mis. 'Oke kk, di tunggu kbr ny dn trima ksih byk') = PENUTUP.\n";
-            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih (termasuk typo trima ksih), (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain, ATAU emoji/reaction/sticker saja. Contoh BUKAN PENUTUP: 'Ok kk,aku otw ya kk', 'baik nanti dijemput'.\n";
-            $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = BUKAN PENUTUP (info operasional untuk CS), pilih FALSE.\n";
-            $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = FALSE, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
+            $prompt .= "PRIORITAS: PENUTUP HANYA untuk (1) terima kasih (termasuk typo trima ksih), (2) sudah bayar/lunas/bukti/pelunasan, (3) ack murni ok/baik/sip/siap tanpa isi lain, ATAU emoji/reaction/sticker saja.\n";
+            $prompt .= "PRIORITAS: Info/pemberitahuan TANPA pertanyaan dan TANPA minta aksi = PEMBERITAHUAN, BUKAN PENUTUP dan BUKAN FALSE. Contoh: 'Ok kk,aku otw ya kk', 'baik nanti dijemput', daftar item laundry, 'belum diambil', 'sudah diantar sama suami', 'nnti transfer', 'kami aja yang antar'.\n";
+            $prompt .= "PRIORITAS: Pesan yang merujuk order/waktu (yg td sore, yg tadi sore) DAN jadwal pengambilan (besok di ambil, besok dijemput) — meski ada 'iya kak/buk' — = PEMBERITAHUAN, BUKAN PENUTUP.\n";
+            $prompt .= "PRIORITAS: Janji atau konfirmasi AKAN bayar/transfer/tf (belum dilakukan), misalnya 'nnti transfer', 'nntk byr ... deal ya kk', 'besok bayar ya' — = PEMBERITAHUAN, BUKAN PENUTUP. PENUTUP untuk pembayaran hanya jika SUDAH: sudah transfer, sudah bayar, sudah kirim.\n";
             $prompt .= "PRIORITAS: Minta satu pakaian/item tertentu diambil/dulukan dulu dari order/cucian yang sudah di laundry (belum waktunya ambil semua) = PERMINTAAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
             $prompt .= "PRIORITAS: Kalimat hipotetis 'kalau/klo/kalo' lalu antar/jemput (mis. 'Kalau express di antar sekarang', 'klo jemput brp') = FALSE, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: Customer yang antar/jemput SENDIRI (mis. 'kami antar', 'kami jemput', 'kami aja yang antar', 'saya yang antar', 'aku aja jemput') = FALSE, BUKAN MINTA_JEMPUT_ANTAR.\n";
-            $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = FALSE, BUKAN NOTA. Contoh FALSE: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
+            $prompt .= "PRIORITAS: Customer yang antar/jemput SENDIRI (mis. 'kami antar', 'kami jemput', 'kami aja yang antar', 'saya yang antar', 'aku aja jemput') = PEMBERITAHUAN, BUKAN MINTA_JEMPUT_ANTAR.\n";
+            $prompt .= "PRIORITAS: User merujuk cucian yang baru/kemarin diantar/masukkan + sekaligus menjelaskan PILIHAN LAYANAN (cuci setrika, reguler, ekspres, setrika aja, dll) = NOTA. Jika HANYA memberitahu ada laundry + daftar item (celana putih, baju, dll) tanpa minta bon/nota dan tanpa pilihan layanan = PEMBERITAHUAN, BUKAN NOTA. Contoh PEMBERITAHUAN: 'saya kn kmrin ada loundry dlm nya ada clna putih'.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
@@ -8608,16 +8588,15 @@ class WAReplies
                 $reason = 'remap minta info tf/transfer → REKENING';
             }
 
-            // PENUTUP padahal janji bayar/transfer nanti — FALSE (belum setara sudah kirim)
-            if ($intent === 'PENUTUP' && $this->messageLooksLikeFuturePaymentCommitmentBukanPenutup($textBody)) {
-                $intent = 'FALSE';
-                $reason = 'remap janji/nanti bayar atau transfer → FALSE (bukan penutup sudah bayar)';
-            }
-
-            // PENUTUP ketat — di luar terima kasih / bayar-lunas / ack murni → FALSE
-            if ($intent === 'PENUTUP' && !$this->messageMatchesStrictPenutupAllowlist($textBody)) {
-                $intent = 'FALSE';
-                $reason = 'remap PENUTUP → FALSE (bukan allowlist ketat: thanks/bayar/ack murni)';
+            // PENUTUP yang bukan closing ketat → PEMBERITAHUAN (info/otw/item/jadwal/janji bayar)
+            if ($intent === 'PENUTUP' && $this->messageIsNonStrictPenutup($textBody)) {
+                if (isset($keywordConfig['PEMBERITAHUAN'])) {
+                    $intent = 'PEMBERITAHUAN';
+                    $reason = 'remap PENUTUP → PEMBERITAHUAN (bukan closing ketat)';
+                } else {
+                    $intent = 'FALSE';
+                    $reason = 'remap PENUTUP → FALSE (bukan allowlist ketat: thanks/bayar/ack murni)';
+                }
             }
 
             // FALSE padahal follow-up nota: infonya + laundry + antar + waktu (sama pola regex NOTA)
@@ -8655,8 +8634,13 @@ class WAReplies
 
             // MINTA padahal customer sendiri yang antar/jemput ("kami aja yang antar")
             if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBody)) {
-                $intent = 'FALSE';
-                $reason = 'remap customer self antar/jemput → FALSE (bukan minta kurir)';
+                if (isset($keywordConfig['PEMBERITAHUAN'])) {
+                    $intent = 'PEMBERITAHUAN';
+                    $reason = 'remap customer self antar/jemput → PEMBERITAHUAN';
+                } else {
+                    $intent = 'FALSE';
+                    $reason = 'remap customer self antar/jemput → FALSE (bukan minta kurir)';
+                }
             }
 
             // MINTA padahal hanya tanya ongkir/ongkos antar-jemput (belum minta kurir)
@@ -8692,6 +8676,13 @@ class WAReplies
                     $intent = 'HARGA';
                     $reason = 'remap ' . $paketIntent . ' tanpa kata paket/member → HARGA';
                 }
+            }
+
+            // FALSE + ask false (info tanpa minta aksi) → PEMBERITAHUAN
+            if ($intent === 'FALSE' && !$ask && isset($keywordConfig['PEMBERITAHUAN'])
+                && !$this->messageLooksLikeQuestion($textBody)) {
+                $intent = 'PEMBERITAHUAN';
+                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap FALSE ask=false → PEMBERITAHUAN';
             }
 
             // Log: text | intent | ask | reason

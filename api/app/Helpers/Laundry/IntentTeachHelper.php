@@ -80,6 +80,7 @@ class IntentTeachHelper
                         'matches_text' => true,
                         'pattern_exists' => true,
                         'current_prompt' => (string) ($intent['ai_prompt'] ?? ''),
+                        'proposed_prompt' => (string) ($intent['ai_prompt'] ?? ''),
                         'already_covered' => true,
                     ];
                 }
@@ -176,6 +177,7 @@ class IntentTeachHelper
                 $promptAppend = '| ' . self::shortExample($text) . ' |';
             }
 
+            $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
             return [
                 'ok' => true,
                 'intent' => $intentCode,
@@ -188,7 +190,8 @@ class IntentTeachHelper
                 'reason' => $reason !== '' ? $reason : 'Usulan AI',
                 'matches_text' => $valid === 1,
                 'pattern_exists' => $exists,
-                'current_prompt' => (string) ($intent['ai_prompt'] ?? ''),
+                'current_prompt' => $currentPrompt,
+                'proposed_prompt' => self::mergePromptDraft($currentPrompt, $promptAppend),
                 'already_covered' => false,
             ];
         } catch (\Throwable $e) {
@@ -281,10 +284,11 @@ class IntentTeachHelper
             }
             if ($reason === '') {
                 $reason = $matching === []
-                    ? 'Tidak ada pattern aktif yang match. Cukup append pengecualian ke ai_prompt agar AI tidak mengklasifikasi ke intent ini.'
-                    : 'Nonaktifkan pattern yang match teks ini, lalu append pengecualian ke ai_prompt.';
+                    ? 'Tidak ada pattern aktif yang match. Edit ai_prompt bila AI masih mengklasifikasi ke intent ini.'
+                    : 'Nonaktifkan pattern yang match teks ini, lalu update ai_prompt bila perlu.';
             }
 
+            $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
             return [
                 'ok' => true,
                 'intent' => $intentCode,
@@ -293,7 +297,8 @@ class IntentTeachHelper
                 'prompt_append' => $promptAppend,
                 'reason' => $reason,
                 'has_matching_patterns' => $matching !== [],
-                'current_prompt' => (string) ($intent['ai_prompt'] ?? ''),
+                'current_prompt' => $currentPrompt,
+                'proposed_prompt' => self::mergePromptDraft($currentPrompt, $promptAppend),
             ];
         } catch (\Throwable $e) {
             return [
@@ -1096,6 +1101,22 @@ class IntentTeachHelper
         $fixed = preg_replace('/,\s*([}\]])/', '$1', $raw);
         $decoded = json_decode((string) $fixed, true);
         return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function mergePromptDraft(string $current, string $append): string
+    {
+        $current = rtrim($current);
+        $append = trim($append);
+        if ($append === '') {
+            return $current;
+        }
+        if ($current !== '' && mb_stripos($current, $append) !== false) {
+            return $current;
+        }
+        if ($current === '') {
+            return $append;
+        }
+        return $current . "\n" . $append;
     }
 
     private static function shortExample(string $text): string

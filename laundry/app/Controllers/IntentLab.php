@@ -108,8 +108,8 @@ class IntentLab extends Controller
     }
 
     /**
-     * POST { text, intent, pattern, prompt_append, update_prompt=1 }
-     * Simpan pattern (+ opsional append ai_prompt) ke DB, bump cache, re-cek intent.
+     * POST { text, intent, pattern, ai_prompt, update_prompt=1 }
+     * Simpan pattern (+ opsional replace ai_prompt) ke DB, bump cache, re-cek intent.
      */
     public function applyTeach()
     {
@@ -123,6 +123,7 @@ class IntentLab extends Controller
         $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
         $pattern = trim((string) ($data['pattern'] ?? ''));
         $promptAppend = trim((string) ($data['prompt_append'] ?? ''));
+        $aiPrompt = array_key_exists('ai_prompt', $data) ? (string) $data['ai_prompt'] : null;
         $patternId = (int) ($data['pattern_id'] ?? 0);
         $updatePrompt = !isset($data['update_prompt']) || !empty($data['update_prompt']);
         $addPattern = !isset($data['add_pattern']) || !empty($data['add_pattern']);
@@ -228,11 +229,10 @@ class IntentLab extends Controller
             }
         }
 
-        if ($updatePrompt && $promptAppend !== '') {
+        if ($updatePrompt) {
             $current = (string) ($intent['ai_prompt'] ?? '');
-            if (mb_stripos($current, $promptAppend) === false) {
-                $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
-                $newPrompt = $current . $sep . $promptAppend;
+            $newPrompt = $this->resolvePromptReplace($current, $aiPrompt, $promptAppend);
+            if ($newPrompt !== $current) {
                 $up = $db->update(
                     'wa_autoreply_intents',
                     ['ai_prompt' => $newPrompt],
@@ -304,8 +304,8 @@ class IntentLab extends Controller
     }
 
     /**
-     * POST { text, intent, prompt_append, pattern_ids[], deactivate_patterns=1, update_prompt=1 }
-     * Nonaktifkan pattern yang match + append pengecualian ai_prompt, bump cache, re-cek.
+     * POST { text, intent, ai_prompt, pattern_ids[], deactivate_patterns=1, update_prompt=1 }
+     * Nonaktifkan pattern yang match + replace ai_prompt, bump cache, re-cek.
      */
     public function applyUntouch()
     {
@@ -318,6 +318,7 @@ class IntentLab extends Controller
         $text = trim((string) ($data['text'] ?? ''));
         $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
         $promptAppend = trim((string) ($data['prompt_append'] ?? ''));
+        $aiPrompt = array_key_exists('ai_prompt', $data) ? (string) $data['ai_prompt'] : null;
         $updatePrompt = !isset($data['update_prompt']) || !empty($data['update_prompt']);
         $deactivatePatterns = !isset($data['deactivate_patterns']) || !empty($data['deactivate_patterns']);
 
@@ -336,11 +337,11 @@ class IntentLab extends Controller
             return;
         }
         if ($deactivatePatterns && $patternIds === []) {
-            // boleh kosong jika hanya update prompt; tapi jika deactivate dicentang tanpa id → error jika tidak ada update
-            if (!$updatePrompt || $promptAppend === '') {
+            $hasPrompt = $aiPrompt !== null || $promptAppend !== '';
+            if (!$updatePrompt || !$hasPrompt) {
                 echo json_encode([
                     'ok' => 0,
-                    'message' => 'Tidak ada pattern untuk dinonaktifkan. Centang Append pengecualian atau pilih pattern.',
+                    'message' => 'Tidak ada pattern untuk dinonaktifkan. Centang Update ai_prompt atau pilih pattern.',
                 ], JSON_UNESCAPED_UNICODE);
                 return;
             }
@@ -392,11 +393,10 @@ class IntentLab extends Controller
             }
         }
 
-        if ($updatePrompt && $promptAppend !== '') {
+        if ($updatePrompt) {
             $current = (string) ($intent['ai_prompt'] ?? '');
-            if (mb_stripos($current, $promptAppend) === false) {
-                $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
-                $newPrompt = $current . $sep . $promptAppend;
+            $newPrompt = $this->resolvePromptReplace($current, $aiPrompt, $promptAppend);
+            if ($newPrompt !== $current) {
                 $up = $db->update(
                     'wa_autoreply_intents',
                     ['ai_prompt' => $newPrompt],
@@ -433,6 +433,22 @@ class IntentLab extends Controller
             'verify_ok' => $verifyOk,
             'verify' => $check,
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Full replace if $aiPrompt given; otherwise legacy append of $promptAppend.
+     */
+    private function resolvePromptReplace(string $current, ?string $aiPrompt, string $promptAppend): string
+    {
+        if ($aiPrompt !== null) {
+            return $aiPrompt;
+        }
+        $promptAppend = trim($promptAppend);
+        if ($promptAppend === '' || mb_stripos($current, $promptAppend) !== false) {
+            return $current;
+        }
+        $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
+        return $current . $sep . $promptAppend;
     }
 
     /** @return array<string,mixed> */
