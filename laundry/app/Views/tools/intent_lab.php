@@ -424,7 +424,7 @@
           <p id="ilUntouchReason" style="font-weight:700;color:#334155;margin:0 0 10px"></p>
 
           <label class="il-label">Pattern aktif yang match (akan dinonaktifkan)</label>
-          <p class="il-lead" style="margin:0 0 8px;font-size:0.82rem">Kalau Cek Intent <code>source: regex</code> tapi list ini tadinya kosong, biasanya pattern yang match ada di intent ASAL (lihat TRACE remap, mis. ESTIMASI_SELESAI→MINTA), bukan di intent hasil remap.</p>
+          <p class="il-lead" style="margin:0 0 8px;font-size:0.82rem">Kalau Cek Intent <code>source: regex</code> tapi list ini tadinya kosong, biasanya pattern yang match ada di intent ASAL (lihat TRACE remap, mis. ESTIMASI_SELESAI→PERMINTAAN), bukan di intent hasil remap.</p>
           <div id="ilUntouchPatterns"></div>
 
           <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">AI prompt (lengkap)</label>

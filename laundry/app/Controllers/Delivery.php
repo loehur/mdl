@@ -885,6 +885,9 @@ class Delivery extends Controller
                if ($existingTarif === null || $existingTarif === '') {
                   $updSet['tarif_surcas'] = $tarifSurcas;
                }
+               if ($this->requestLokasiIsEmpty($reqAntar)) {
+                  $updSet = array_merge($updSet, $this->defaultLokasiFieldsForRequest($idPelanggan));
+               }
                $upd = $this->db(0)->update(
                   'delivery_request',
                   $updSet,
@@ -894,7 +897,8 @@ class Delivery extends Controller
                   throw new Exception($upd['error'] ?? 'Gagal mengikat request antar');
                }
             } else {
-               $ins = $this->db(0)->insert('delivery_request', [
+               $lokasiSet = $this->defaultLokasiFieldsForRequest($idPelanggan);
+               $ins = $this->db(0)->insert('delivery_request', array_merge([
                   'sumber' => 'customer',
                   'jenis' => 'antar',
                   'layanan' => 'sameday',
@@ -902,15 +906,10 @@ class Delivery extends Controller
                   'id_pelanggan' => $idPelanggan,
                   'phone_tail' => $phoneTail,
                   'id_cabang' => $idCabang,
-                  'id_lokasi' => 0,
-                  'lokasi_nama' => '',
-                  'lokasi_detail' => '',
-                  'lokasi_latt' => 0,
-                  'lokasi_longt' => 0,
                   'insertTime' => $now,
                   'catatan_kurir' => 'Dari Operasi (Kurir)',
                   'tarif_surcas' => $tarifSurcas,
-               ]);
+               ], $lokasiSet));
                if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
                   throw new Exception($ins['error'] ?? 'Gagal membuat request');
                }
@@ -2945,6 +2944,95 @@ class Delivery extends Controller
    }
 
    /**
+    * Prefill lokasi seperti intent MINTA_JEMPUT_ANTAR:
+    * 1 lokasi tersimpan → pakai itu; >1 → lokasi delivery selesai terakhir; else lokasi tersimpan terbaru.
+    */
+   private function pickDefaultLokasiForRequest(int $idPelanggan): ?array
+   {
+      $idPelanggan = (int) $idPelanggan;
+      if ($idPelanggan <= 0) {
+         return null;
+      }
+      $rows = $this->db(0)->get_where_order(
+         'pelanggan_lokasi',
+         'id_pelanggan = ' . $idPelanggan,
+         'id_lokasi DESC'
+      );
+      if (!is_array($rows) || empty($rows)) {
+         return null;
+      }
+      $list = array_values($rows);
+      if (count($list) === 1) {
+         return $list[0];
+      }
+
+      $lastOk = $this->db(0)->get_where_row(
+         'delivery_request',
+         'id_pelanggan = ' . $idPelanggan
+            . " AND delivery_status = 'selesai'"
+            . ' AND id_lokasi IS NOT NULL AND id_lokasi > 0'
+            . ' ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC'
+      );
+      if (is_array($lastOk)) {
+         $targetId = (int) ($lastOk['id_lokasi'] ?? 0);
+         if ($targetId > 0) {
+            foreach ($list as $lok) {
+               if ((int) ($lok['id_lokasi'] ?? 0) === $targetId) {
+                  return $lok;
+               }
+            }
+         }
+      }
+
+      return $list[0];
+   }
+
+   /**
+    * @return array{id_lokasi:int,lokasi_nama:string,lokasi_detail:string,lokasi_latt:float,lokasi_longt:float}
+    */
+   private function lokasiFieldsForDeliveryRequest(array $lok): array
+   {
+      return [
+         'id_lokasi' => (int) ($lok['id_lokasi'] ?? 0),
+         'lokasi_nama' => (string) ($lok['nama'] ?? ''),
+         'lokasi_detail' => (string) ($lok['detail'] ?? ''),
+         'lokasi_latt' => isset($lok['latt']) ? (float) $lok['latt'] : 0,
+         'lokasi_longt' => isset($lok['longt']) ? (float) $lok['longt'] : 0,
+      ];
+   }
+
+   private function defaultLokasiFieldsForRequest(int $idPelanggan): array
+   {
+      $lok = $this->pickDefaultLokasiForRequest($idPelanggan);
+      if ($lok === null) {
+         return [
+            'id_lokasi' => 0,
+            'lokasi_nama' => '',
+            'lokasi_detail' => '',
+            'lokasi_latt' => 0,
+            'lokasi_longt' => 0,
+         ];
+      }
+      return $this->lokasiFieldsForDeliveryRequest($lok);
+   }
+
+   private function requestLokasiIsEmpty(?array $req): bool
+   {
+      if (!is_array($req) || empty($req)) {
+         return true;
+      }
+      if ((int) ($req['id_lokasi'] ?? 0) > 0) {
+         return false;
+      }
+      if (trim((string) ($req['lokasi_nama'] ?? '')) !== '') {
+         return false;
+      }
+      $lat = (float) ($req['lokasi_latt'] ?? 0);
+      $lon = (float) ($req['lokasi_longt'] ?? 0);
+      return $lat == 0.0 && $lon == 0.0;
+   }
+
+   /**
     * id_pelanggan yang nomornya match 9 digit terakhir.
     */
    private function pelangganIdsByPhoneTail(string $phoneTail): array
@@ -3569,15 +3657,12 @@ class Delivery extends Controller
       $safe = array_values($safe);
       $idPelanggan = (int) ($safe[0] ?? 0);
       $lokasi = null;
-      if (!empty($safe)) {
-         $lokasi = $this->db(0)->get_where_row(
-            'pelanggan_lokasi',
-            'id_pelanggan IN (' . implode(',', $safe) . ') ORDER BY insertTime DESC, id_lokasi DESC'
-         );
-         if (is_array($lokasi) && !empty($lokasi['id_pelanggan'])) {
-            $idPelanggan = (int) $lokasi['id_pelanggan'];
-         } else {
-            $lokasi = null;
+      foreach ($safe as $pid) {
+         $found = $this->pickDefaultLokasiForRequest((int) $pid);
+         if ($found !== null) {
+            $lokasi = $found;
+            $idPelanggan = (int) ($found['id_pelanggan'] ?? $pid);
+            break;
          }
       }
       if ($idPelanggan <= 0) {
@@ -3727,6 +3812,9 @@ class Delivery extends Controller
          if ($existingTarif === null || $existingTarif === '') {
             $updSet['tarif_surcas'] = max(0, (int) $tarifSurcas);
          }
+         if ($this->requestLokasiIsEmpty($existing)) {
+            $updSet = array_merge($updSet, $this->defaultLokasiFieldsForRequest($idPelanggan));
+         }
          $upd = $this->db(0)->update(
             'delivery_request',
             $updSet,
@@ -3738,16 +3826,11 @@ class Delivery extends Controller
          return ['id_request' => $idRequest, 'bound' => true];
       }
 
-      $seed = [
+      $seed = array_merge([
          'id_pelanggan' => $idPelanggan,
          'id_cabang' => $idCabang,
          'phone_tail' => $phoneTail,
-         'id_lokasi' => 0,
-         'lokasi_nama' => '',
-         'lokasi_detail' => '',
-         'lokasi_latt' => 0,
-         'lokasi_longt' => 0,
-      ];
+      ], $this->defaultLokasiFieldsForRequest($idPelanggan));
       $idNew = $this->createAntarKembaliRequest($seed, $tarifSurcas, $fromJemputId);
       if ($idNew <= 0) {
          throw new Exception('Gagal membuat request antar kembali');

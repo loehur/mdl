@@ -2336,20 +2336,19 @@ class WAReplies
                     }
                     $matchPattern[] = $handler;
 
-                    // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR (cek sale tuntas=0, tanpa notif pending)
+                    // ESTIMASI tanpa order aktif → PERMINTAAN (bukan minta kurir)
                     if ($handler === 'ESTIMASI_SELESAI') {
                         $resolved = $this->resolveEstimasiSelesaiByActiveSale($handler, $phoneIn, $waNumber);
                         if ($resolved !== $handler) {
-                            if ($this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)) {
-                                $handler = 'PERMINTAAN';
-                                $caseVal = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
+                            $handler = $resolved;
+                            $caseVal = $fullKeywordConfig[$handler]['case'] ?? null;
+                            $notify = $fullKeywordConfig[$handler]['notify'] ?? false;
+                            if ($handler === 'PERMINTAAN') {
+                                if ($caseVal === null || (int) $caseVal === 0) {
+                                    $caseVal = 3;
+                                }
                                 $notify = true;
                                 $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
-                                $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'ESTIMASI_SELESAI→PERMINTAAN no_sale antar_kembali');
-                            } else {
-                                $handler = $resolved;
-                                $caseVal = $fullKeywordConfig[$handler]['case'] ?? null;
-                                $notify = $fullKeywordConfig[$handler]['notify'] ?? false;
                             }
                         }
                     }
@@ -2672,19 +2671,18 @@ class WAReplies
                 }
             }
 
-            // ESTIMASI tanpa order aktif → MINTA_JEMPUT_ANTAR
+            // ESTIMASI tanpa order aktif → PERMINTAAN (bukan minta kurir)
             if ($aiIntent === 'ESTIMASI_SELESAI') {
                 $resolved = $this->resolveEstimasiSelesaiByActiveSale($aiIntent, $phoneIn, $waNumber);
                 if ($resolved !== $aiIntent) {
-                    if ($this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)) {
-                        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI→PERMINTAAN no_sale antar_kembali');
-                        $aiIntent = 'PERMINTAAN';
-                        $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
-                        $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
-                    } else {
-                        $aiIntent = $resolved;
-                        $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
-                        $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+                    $aiIntent = $resolved;
+                    $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
+                    $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+                    if ($aiIntent === 'PERMINTAAN') {
+                        if ($aiCase === null || (int) $aiCase === 0) {
+                            $aiCase = 3;
+                        }
+                        $aiNotify = true;
                     }
                 }
             }
@@ -4755,7 +4753,7 @@ class WAReplies
     }
 
     /**
-     * ESTIMASI_SELESAI hanya jika ada order aktif; jika tidak → MINTA_JEMPUT_ANTAR.
+     * ESTIMASI_SELESAI hanya jika ada order aktif; jika tidak → PERMINTAAN (CS), bukan minta kurir.
      */
     private function resolveEstimasiSelesaiByActiveSale(string $intent, string $phoneIn, string $waNumber): string
     {
@@ -4766,30 +4764,23 @@ class WAReplies
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI keep (ada sale aktif)');
             return 'ESTIMASI_SELESAI';
         }
-        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR (tidak ada sale aktif)');
-        return 'MINTA_JEMPUT_ANTAR';
+        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI→PERMINTAAN (tidak ada sale aktif)');
+        return 'PERMINTAAN';
     }
 
     /**
      * Intent ESTIMASI_SELESAI: hit pertama (fase item) atau follow-up (forward group + ack).
-     * Safety: tanpa order aktif alihkan ke MINTA_JEMPUT_ANTAR.
+     * Safety: tanpa order aktif alihkan ke PERMINTAAN.
      *
      * @return bool true = pesan dikonsumsi (jangan lanjut routing); false = tidak terkait, lanjut intent lain
      */
     private function handleEstimasi_Selesai($phoneIn, $waNumber, $textBody = '')
     {
         if (!$this->pelangganHasActiveSale($phoneIn, $waNumber)) {
-            if ($this->messageLooksLikeAntarKembaliDeadline((string) $textBody)) {
-                $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→PERMINTAAN no_sale antar_kembali');
-                $this->clearEstimasiSession($waNumber);
-                $this->currentHandler = 'PERMINTAAN';
-                $this->handlePermintaan($phoneIn, $waNumber, $textBody);
-                return true;
-            }
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→MINTA_JEMPUT_ANTAR no_active_sale');
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→PERMINTAAN no_active_sale');
             $this->clearEstimasiSession($waNumber);
-            $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
-            $this->handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody);
+            $this->currentHandler = 'PERMINTAAN';
+            $this->handlePermintaan($phoneIn, $waNumber, $textBody);
             return true;
         }
 

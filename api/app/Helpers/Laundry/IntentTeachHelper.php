@@ -319,7 +319,7 @@ class IntentTeachHelper
 
     /**
      * Pattern yang match teks: milik intent target dulu, lalu intent lain
-     * (Cek Intent bisa source=regex via remap PHP, mis. ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR).
+     * (Cek Intent bisa source=regex via remap PHP, mis. ESTIMASI_SELESAI→PERMINTAAN).
      *
      * @return array{
      *   matching: list<array{id:int,pattern:string,note:string,source_intent:string}>,
@@ -418,7 +418,7 @@ class IntentTeachHelper
         $system = "Kamu membantu merawat klasifikasi intent WhatsApp laundry (PHP PCRE + prompt AI).\n"
             . "Tugas: agar pesan customer TIDAK MASUK / KELUAR dari intent target.\n"
             . "Sistem akan menonaktifkan pattern yang match teks ini (jika ada).\n"
-            . "Pattern match bisa milik intent LAIN jika Cek Intent hasil remap PHP (mis. ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR). Tetap sebutkan itu di reason.\n"
+            . "Pattern match bisa milik intent LAIN jika Cek Intent hasil remap PHP (mis. ESTIMASI_SELESAI→PERMINTAAN). Tetap sebutkan itu di reason.\n"
             . "Aturan prompt_append:\n"
             . "- Satu baris pendek pengecualian untuk ditambahkan ke ai_prompt\n"
             . "- Format: BUKAN {$intentCode}: | contoh kalimat |\n"
