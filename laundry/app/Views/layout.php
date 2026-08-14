@@ -4119,8 +4119,15 @@ if ($privUi === 100) {
                                 refreshCount();
                                 return;
                             }
+                            var msg = String((res && res.msg) || '');
+                            if (/kedaluwarsa|kadaluarsa|expired/i.test(msg)) {
+                                if (window.MdlToast) MdlToast.ok('Notifikasi di-skip');
+                                loadList();
+                                refreshCount();
+                                return;
+                            }
                             $btn.prop('disabled', false);
-                            if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal skip');
+                            if (window.MdlToast) MdlToast.error(msg || 'Gagal skip');
                         }).fail(function() {
                             $btn.prop('disabled', false);
                             if (window.MdlToast) MdlToast.error('Gagal skip');

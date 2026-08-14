@@ -353,10 +353,22 @@ class Estimasi extends Controller
         }
 
         if ($taskType === 'pelanggan_new' || $taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
+            $isSkip = strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip'
+                && ($taskType === 'kurir_grant' || $taskType === 'kurir_estimasi');
             $session = $this->db(100)->get_where_row(
                 'wa_kurir_session',
-                "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
+                $isSkip
+                    ? ("phone = '" . $phoneEsc . "'")
+                    : ("phone = '" . $phoneEsc . "' AND expires_at > NOW()")
             );
+            if ($isSkip) {
+                if (!is_array($session) || empty($session['phone'])) {
+                    $this->echoJson(['ok' => 1, 'wa_ok' => 0, 'count' => $this->syncNotifTaskCount(), 'msg' => 'Notifikasi di-skip']);
+                    return;
+                }
+                $this->skipKurirJamTask($phone, $phoneEsc, $session, $taskType);
+                return;
+            }
             if (!is_array($session) || empty($session['phone'])) {
                 echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
                 return;
@@ -364,16 +376,8 @@ class Estimasi extends Controller
             if ($taskType === 'pelanggan_new') {
                 $this->updatePelangganNewTask($phone, $phoneEsc, $session);
             } elseif ($taskType === 'kurir_estimasi') {
-                if (strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip') {
-                    $this->skipKurirJamTask($phone, $phoneEsc, $session, 'kurir_estimasi');
-                    return;
-                }
                 $this->updateKurirEstimasiTask($phone, $phoneEsc, $session);
             } else {
-                if (strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip') {
-                    $this->skipKurirJamTask($phone, $phoneEsc, $session, 'kurir_grant');
-                    return;
-                }
                 $this->updateKurirGrantTask($phone, $phoneEsc, $session);
             }
             return;
