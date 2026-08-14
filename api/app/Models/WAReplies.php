@@ -2181,6 +2181,7 @@ class WAReplies
             // Check regex patterns
             foreach ($patterns as $patternIndex => $pattern) {
                 if (preg_match($pattern, $textBodyToCheck)) {
+                    $regexSourceHandler = $handler;
                     // REKENING pattern match tapi pesan konfirmasi pembayaran (sudah transfer) = PENUTUP, skip REKENING
                     if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
                         continue;
@@ -2365,7 +2366,12 @@ class WAReplies
                     if (class_exists('\Log')) {
                         \Log::write(mb_substr($textBody ?? '', 0, 100) . " | {$handler} | regex", 'wa', 'intent');
                     }
-                    $this->logAutoreplyTrace($waNumber, 'REGEX_MATCH', 'handler=' . $handler);
+                    $this->logAutoreplyTrace(
+                        $waNumber,
+                        'REGEX_MATCH',
+                        'handler=' . $handler
+                        . ($regexSourceHandler !== $handler ? ' regex_source=' . $regexSourceHandler : '')
+                    );
                     
                     // Unset matched keyword from config to optimize AI detection
                     // AI tidak perlu cek keyword yang sudah match di regex

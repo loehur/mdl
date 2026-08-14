@@ -249,22 +249,17 @@ class IntentTeachHelper
                 [(int) $intent['id']]
             )->result_array();
 
-            $matching = [];
             $samplePatterns = [];
             foreach ($patRows ?: [] as $r) {
                 $pat = (string) ($r['pattern'] ?? '');
-                if ($pat === '') {
-                    continue;
-                }
-                $samplePatterns[] = $pat;
-                if (@preg_match($pat, $text) === 1) {
-                    $matching[] = [
-                        'id' => (int) $r['id'],
-                        'pattern' => $pat,
-                        'note' => (string) ($r['note'] ?? ''),
-                    ];
+                if ($pat !== '') {
+                    $samplePatterns[] = $pat;
                 }
             }
+
+            $found = self::findMatchingPatternsForUntouch($db, $text, $intentCode);
+            $matching = $found['matching'];
+            $matchingOther = $found['matching_other'];
 
             $ai = self::askAiForUntouchProposal(
                 $text,
@@ -282,10 +277,22 @@ class IntentTeachHelper
             if ($promptAppend === '') {
                 $promptAppend = 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |';
             }
-            if ($reason === '') {
-                $reason = $matching === []
-                    ? 'Tidak ada pattern aktif yang match. Edit ai_prompt bila AI masih mengklasifikasi ke intent ini.'
-                    : 'Nonaktifkan pattern yang match teks ini, lalu update ai_prompt bila perlu.';
+            $otherCodes = [];
+            foreach ($matchingOther as $m) {
+                $code = (string) ($m['source_intent'] ?? '');
+                if ($code !== '' && !in_array($code, $otherCodes, true)) {
+                    $otherCodes[] = $code;
+                }
+            }
+            if ($matching === []) {
+                $reason = 'Tidak ada pattern aktif yang match. Edit ai_prompt bila AI masih mengklasifikasi ke intent ini.';
+            } elseif ($found['matching_target'] === [] && $otherCodes !== []) {
+                $reason = 'Cek Intent source regex karena pattern intent '
+                    . implode(', ', $otherCodes)
+                    . ' yang match, lalu PHP remap ke ' . $intentCode
+                    . '. Pattern ' . $intentCode . ' sendiri tidak match teks ini. Nonaktifkan pattern sumber itu.';
+            } elseif ($reason === '') {
+                $reason = 'Nonaktifkan pattern yang match teks ini, lalu update ai_prompt bila perlu.';
             }
 
             $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
@@ -294,6 +301,7 @@ class IntentTeachHelper
                 'intent' => $intentCode,
                 'text' => $text,
                 'matching_patterns' => $matching,
+                'matching_other_intents' => $otherCodes,
                 'prompt_append' => $promptAppend,
                 'reason' => $reason,
                 'has_matching_patterns' => $matching !== [],
@@ -310,8 +318,55 @@ class IntentTeachHelper
     }
 
     /**
+     * Pattern yang match teks: milik intent target dulu, lalu intent lain
+     * (Cek Intent bisa source=regex via remap PHP, mis. ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR).
+     *
+     * @return array{
+     *   matching: list<array{id:int,pattern:string,note:string,source_intent:string}>,
+     *   matching_target: list<array{id:int,pattern:string,note:string,source_intent:string}>,
+     *   matching_other: list<array{id:int,pattern:string,note:string,source_intent:string}>
+     * }
+     */
+    private static function findMatchingPatternsForUntouch($db, string $text, string $intentCode): array
+    {
+        $rows = $db->query(
+            'SELECT p.id, p.pattern, p.note, i.code AS intent_code
+             FROM wa_autoreply_patterns p
+             INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
+             WHERE p.is_active = 1 AND i.is_active = 1
+             ORDER BY i.code ASC, p.sort_order ASC, p.id ASC'
+        )->result_array();
+
+        $matchingTarget = [];
+        $matchingOther = [];
+        foreach ($rows ?: [] as $r) {
+            $pat = (string) ($r['pattern'] ?? '');
+            if ($pat === '' || @preg_match($pat, $text) !== 1) {
+                continue;
+            }
+            $item = [
+                'id' => (int) $r['id'],
+                'pattern' => $pat,
+                'note' => (string) ($r['note'] ?? ''),
+                'source_intent' => strtoupper(trim((string) ($r['intent_code'] ?? ''))),
+            ];
+            if ($item['source_intent'] === $intentCode) {
+                $matchingTarget[] = $item;
+            } else {
+                $matchingOther[] = $item;
+            }
+        }
+
+        return [
+            'matching' => array_merge($matchingTarget, $matchingOther),
+            'matching_target' => $matchingTarget,
+            'matching_other' => $matchingOther,
+        ];
+    }
+
+    /**
      * @param list<string> $samplePatterns
-     * @param list<array{id:int,pattern:string,note?:string}> $matching
+     * @param list<array{id:int,pattern:string,note?:string,source_intent?:string}> $matching
      * @return array{ok:bool,prompt_append?:string,reason?:string,message?:string,error?:string}
      */
     private static function askAiForUntouchProposal(
@@ -345,7 +400,11 @@ class IntentTeachHelper
         $matchList = $matching === []
             ? '(tidak ada pattern aktif yang match teks ini)'
             : implode("\n", array_map(
-                static fn ($m) => '- id=' . $m['id'] . ' ' . $m['pattern'],
+                static function ($m) {
+                    $src = strtoupper(trim((string) ($m['source_intent'] ?? '')));
+                    $prefix = $src !== '' ? '[' . $src . '] ' : '';
+                    return '- id=' . $m['id'] . ' ' . $prefix . $m['pattern'];
+                },
                 array_slice($matching, 0, 15)
             ));
         $patList = $samplePatterns === []
@@ -359,6 +418,7 @@ class IntentTeachHelper
         $system = "Kamu membantu merawat klasifikasi intent WhatsApp laundry (PHP PCRE + prompt AI).\n"
             . "Tugas: agar pesan customer TIDAK MASUK / KELUAR dari intent target.\n"
             . "Sistem akan menonaktifkan pattern yang match teks ini (jika ada).\n"
+            . "Pattern match bisa milik intent LAIN jika Cek Intent hasil remap PHP (mis. ESTIMASI_SELESAI→MINTA_JEMPUT_ANTAR). Tetap sebutkan itu di reason.\n"
             . "Aturan prompt_append:\n"
             . "- Satu baris pendek pengecualian untuk ditambahkan ke ai_prompt\n"
             . "- Format: BUKAN {$intentCode}: | contoh kalimat |\n"

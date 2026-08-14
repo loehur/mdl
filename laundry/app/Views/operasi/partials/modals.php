@@ -2010,8 +2010,18 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     if (fromRoot > 0) return fromRoot;
     return parseInt((window.ViewLoadConfig && window.ViewLoadConfig.idPelanggan) || '0', 10) || 0;
   }
-  function currentPhoneTail() {
-    return String(root.getAttribute('data-phone-tail') || '');
+  function currentPenyelesai() {
+    var sel = root.querySelector('#kurirKaryawan');
+    if (sel && sel.selectize) {
+      return parseInt(sel.selectize.getValue() || '0', 10) || 0;
+    }
+    if (kurirSelectize) {
+      return parseInt(kurirSelectize.getValue() || '0', 10) || 0;
+    }
+    if (sel) {
+      return parseInt(sel.value || '0', 10) || 0;
+    }
+    return 0;
   }
 
   function toast(msg, type) {
@@ -2129,12 +2139,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       lab.textContent = 'Tambah Surcas Antar';
       return;
     }
-    var hasKaryawan = false;
-    if (kurirSelectize) hasKaryawan = !!kurirSelectize.getValue();
-    else {
-      var el = document.getElementById('kurirKaryawan');
-      hasKaryawan = !!(el && el.value);
-    }
+    var hasKaryawan = currentPenyelesai() > 0;
     lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
   }
 
@@ -2298,11 +2303,15 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   }
 
   function initSelectize() {
-    if (kurirSelectize || typeof jQuery === 'undefined' || !jQuery.fn.selectize) return;
-    var $el = jQuery('#kurirKaryawan');
-    if (!$el.length) return;
-    if ($el[0].selectize) kurirSelectize = $el[0].selectize;
+    if (typeof jQuery === 'undefined' || !jQuery.fn.selectize) return;
+    var el = root.querySelector('#kurirKaryawan');
+    if (!el) return;
+    var $el = jQuery(el);
+    if (el.selectize) kurirSelectize = el.selectize;
     else kurirSelectize = $el.selectize({ allowEmptyOption: true })[0].selectize;
+    if (kurirSelectize && typeof kurirSelectize.off === 'function') {
+      kurirSelectize.off('change');
+    }
     kurirSelectize.on('change', syncSubmitLabel);
   }
 
@@ -2311,8 +2320,10 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     syncSubmitLabel();
   });
 
-  document.getElementById('kurirJenis').addEventListener('change', syncJenisUi);
-  document.getElementById('kurirKaryawan').addEventListener('change', syncSubmitLabel);
+  var jenisEl = root.querySelector('#kurirJenis');
+  if (jenisEl) jenisEl.addEventListener('change', syncJenisUi);
+  var karyEl = root.querySelector('#kurirKaryawan');
+  if (karyEl) karyEl.addEventListener('change', syncSubmitLabel);
 
   root.querySelectorAll('.kurir-surcas-tarif-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -2328,9 +2339,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       toast('Pilih jenis jemput/antar', 'warn');
       return;
     }
-    var idKaryawan = 0;
-    if (kurirSelectize) idKaryawan = parseInt(kurirSelectize.getValue() || '0', 10) || 0;
-    else idKaryawan = parseInt(document.getElementById('kurirKaryawan').value || '0', 10) || 0;
+    var idKaryawan = currentPenyelesai();
 
     var ids = [];
     root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {

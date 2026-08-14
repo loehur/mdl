@@ -847,16 +847,13 @@ class Delivery extends Controller
 
             // Legacy: item sudah Delivered (WA/manual lama) tapi surcas pengantaran belum masuk nota
             if ($deliveredCount === count($ids)) {
-               $idUserSurcas = $idKaryawan > 0
-                  ? $idKaryawan
-                  : (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
                $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
                $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
                $surcasAntar = $this->upsertSurcasPengantaran(
                   $idCabang,
                   $ids,
                   $tarifSurcas,
-                  $idUserSurcas,
+                  $idKaryawan,
                   $idReqAntar
                );
                if (!empty($surcasAntar['skipped'])) {
@@ -925,12 +922,11 @@ class Delivery extends Controller
 
             $this->attachSaleItemsToRequest($idRequest, $idPelanggan, $ids);
 
-            $idUserSurcas = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
             $surcasAntar = $this->upsertSurcasPengantaran(
                $idCabang,
                $ids,
                $tarifSurcas,
-               $idUserSurcas,
+               $idKaryawan,
                $idRequest
             );
 

@@ -365,8 +365,10 @@ class IntentLab extends Controller
         if ($deactivatePatterns && $patternIds !== []) {
             $idList = implode(',', $patternIds);
             $rows = $db->query_array(
-                "SELECT id, note FROM wa_autoreply_patterns
-                 WHERE intent_id = {$intentId} AND is_active = 1 AND id IN ({$idList})"
+                "SELECT p.id, p.note, i.code AS intent_code
+                 FROM wa_autoreply_patterns p
+                 INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
+                 WHERE p.is_active = 1 AND p.id IN ({$idList})"
             );
             if (is_array($rows)) {
                 foreach ($rows as $row) {
@@ -375,7 +377,12 @@ class IntentLab extends Controller
                         continue;
                     }
                     $oldNote = trim((string) ($row['note'] ?? ''));
-                    $tag = 'Intent Lab untouch: ' . mb_substr($text, 0, 80);
+                    $srcIntent = strtoupper(trim((string) ($row['intent_code'] ?? '')));
+                    $tag = 'Intent Lab untouch ' . $intentCode;
+                    if ($srcIntent !== '' && $srcIntent !== $intentCode) {
+                        $tag .= ' via ' . $srcIntent;
+                    }
+                    $tag .= ': ' . mb_substr($text, 0, 80);
                     $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
                     $up = $db->update(
                         'wa_autoreply_patterns',
@@ -383,7 +390,7 @@ class IntentLab extends Controller
                             'is_active' => 0,
                             'note' => mb_substr($newNote, 0, 250),
                         ],
-                        "id = {$pid} AND intent_id = {$intentId}"
+                        "id = {$pid}"
                     );
                     if (($up['errno'] ?? 1) == 0) {
                         $patternsDeactivated++;

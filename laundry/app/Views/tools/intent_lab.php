@@ -424,6 +424,7 @@
           <p id="ilUntouchReason" style="font-weight:700;color:#334155;margin:0 0 10px"></p>
 
           <label class="il-label">Pattern aktif yang match (akan dinonaktifkan)</label>
+          <p class="il-lead" style="margin:0 0 8px;font-size:0.82rem">Kalau Cek Intent <code>source: regex</code> tapi list ini tadinya kosong, biasanya pattern yang match ada di intent ASAL (lihat TRACE remap, mis. ESTIMASI_SELESAI→MINTA), bukan di intent hasil remap.</p>
           <div id="ilUntouchPatterns"></div>
 
           <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">AI prompt (lengkap)</label>
@@ -712,9 +713,10 @@
       return mergePromptDraft(res && res.current_prompt, res && res.prompt_append);
     }
 
-    function renderUntouchPatterns(list) {
+    function renderUntouchPatterns(list, targetIntent) {
+      targetIntent = String(targetIntent || '').toUpperCase();
       if (!Array.isArray(list) || !list.length) {
-        $untouchPatterns.html('<p class="il-pat-empty">Tidak ada pattern aktif yang match teks ini. Edit ai_prompt bila AI masih mengklasifikasi ke intent ini.</p>');
+        $untouchPatterns.html('<p class="il-pat-empty">Tidak ada pattern aktif yang match teks ini. Jika Cek Intent source regex, cek TRACE remap (pattern bisa milik intent lain). Edit ai_prompt hanya menolong jalur AI, bukan regex remap PHP.</p>');
         $('#ilDeactivatePatterns').prop('checked', false);
         return;
       }
@@ -722,7 +724,14 @@
       list.forEach(function (p) {
         var id = Number(p.id || 0);
         var pat = escapeHtml(p.pattern || '');
-        html += '<li><input type="checkbox" class="il-untouch-pat" value="' + id + '" checked> <code>' + pat + '</code></li>';
+        var src = String(p.source_intent || '').toUpperCase();
+        var badge = '';
+        if (src && src !== targetIntent) {
+          badge = ' <span class="il-badge il-badge--warn">dari ' + escapeHtml(src) + '</span>';
+        } else if (src) {
+          badge = ' <span class="il-badge il-badge--src">' + escapeHtml(src) + '</span>';
+        }
+        html += '<li><input type="checkbox" class="il-untouch-pat" value="' + id + '" checked> <code>' + pat + '</code>' + badge + '</li>';
       });
       html += '</ul>';
       $untouchPatterns.html(html);
@@ -758,11 +767,15 @@
         bits.push(n
           ? '<span class="il-badge il-badge--warn">pattern match: ' + n + '</span>'
           : '<span class="il-badge il-badge--ok">pattern match: 0</span>');
+        var other = res.matching_other_intents;
+        if (Array.isArray(other) && other.length) {
+          bits.push('<span class="il-badge il-badge--warn">regex sumber: ' + other.join(', ') + '</span>');
+        }
         $untouchMeta.html(bits.join(''));
         $untouchReason.text(res.reason || '');
         var untouchFull = fullProposedPrompt(res);
         $untouchPrompt.val(untouchFull);
-        renderUntouchPatterns(res.matching_patterns || []);
+        renderUntouchPatterns(res.matching_patterns || [], res.intent || intent);
         $('#ilUntouchUpdatePrompt').prop('checked', untouchFull !== String(res.current_prompt || ''));
       }).fail(function (xhr) {
         var msg = 'Usulan keluarkan gagal';
