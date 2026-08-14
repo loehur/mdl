@@ -1923,6 +1923,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       Operasi selalu menulis surcas ke nota (wajib pilih item).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
       Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
+      Item terikat request jemput tetap bisa dipilih.
       Item sudah Delivered tanpa surcas antar tetap bisa dipilih (isi surcas saja).
     </p>
     <div class="kurir-field">
@@ -2135,8 +2136,10 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       var items = (ord.items || []).map(function (it) {
         var belum = !!it.belum_selesai;
         var delivered = !!it.sudah_delivered;
+        var terikat = !!it.terikat;
         var meta = '#' + it.id + (it.member ? ' · member' : '')
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
+          + (terikat && !delivered ? ' · terikat request' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
         // Operasi antar: default tercentang supaya langsung bisa isi surcas
         return '<label class="kurir-item">' +

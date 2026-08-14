@@ -725,7 +725,8 @@ class Delivery extends Controller
                $namaKaryawan,
                $idCabang,
                $now,
-               $idReqJemput
+               $idReqJemput,
+               true
             );
 
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
@@ -1054,7 +1055,9 @@ class Delivery extends Controller
    /**
     * List sale eligible untuk Selesai Delivery Customer.
     * GET Delivery/sales_options/{phoneTail}?jenis=jemput|antar
-    * Operasi: ?operasi=1 — antar juga menampilkan item sudah delivered tapi belum surcas pengantaran.
+    * Operasi: ?operasi=1
+    * - antar: item sudah delivered / terikat request tetap tampil jika belum surcas pengantaran
+    * - jemput: item terikat request berjalan tetap tampil (selama belum ada riwayat jemput)
     */
    public function sales_options($phoneTail = '')
    {
@@ -1078,6 +1081,7 @@ class Delivery extends Controller
       }
       $exceptRequestId = (int) ($_GET['id_request'] ?? 0);
       $includeDeliveredMissingSurcas = $fromOperasi && $jenis === 'antar';
+      $includeBound = $fromOperasi && $jenis === 'jemput';
 
       $pelangganIds = [];
       if ($fromOperasi && $idPelangganGet > 0) {
@@ -1098,7 +1102,8 @@ class Delivery extends Controller
          $pelangganIds,
          $jenis,
          $exceptRequestId,
-         $includeDeliveredMissingSurcas
+         $includeDeliveredMissingSurcas,
+         $includeBound
       );
       echo json_encode([
          'status' => 'success',
@@ -2530,10 +2535,11 @@ class Delivery extends Controller
       string $namaKaryawan,
       int $idCabang,
       string $now,
-      int $exceptRequestId = 0
+      int $exceptRequestId = 0,
+      bool $includeBound = false
    ): int {
       $eligibleMap = [];
-      foreach ($this->fetchEligibleSaleRows($pelangganIds, $jenis, $exceptRequestId) as $row) {
+      foreach ($this->fetchEligibleSaleRows($pelangganIds, $jenis, $exceptRequestId, false, $includeBound) as $row) {
          $eligibleMap[(int) $row['id_penjualan']] = $row;
       }
 
@@ -2595,6 +2601,44 @@ class Delivery extends Controller
          'SELECT DISTINCT id_penjualan FROM delivery_riwayat
           WHERE jenis = \'' . $jenisEsc . '\'
             AND id_penjualan IN (' . implode(',', $safe) . ')'
+      );
+      $out = [];
+      if (is_array($rows)) {
+         foreach ($rows as $r) {
+            $sid = (int) ($r['id_penjualan'] ?? 0);
+            if ($sid > 0) {
+               $out[$sid] = true;
+            }
+         }
+      }
+      return $out;
+   }
+
+   /**
+    * id_penjualan yang terikat delivery_request berjalan untuk jenis tertentu.
+    * @param int[] $idPenjualans
+    * @return array<int,true>
+    */
+   private function saleIdsBoundToRunningRequest(array $idPenjualans, string $jenis): array
+   {
+      $safe = [];
+      foreach ($idPenjualans as $id) {
+         $id = (int) $id;
+         if ($id > 0) {
+            $safe[$id] = $id;
+         }
+      }
+      if (empty($safe)) {
+         return [];
+      }
+      $jenisEsc = $this->db(0)->escape($jenis);
+      $rows = $this->db(0)->query_array(
+         "SELECT DISTINCT dri.id_penjualan
+          FROM delivery_request_item dri
+          INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+          WHERE dri.id_penjualan IN (" . implode(',', $safe) . ")
+            AND drq.jenis = '$jenisEsc'
+            AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')"
       );
       $out = [];
       if (is_array($rows)) {
@@ -2860,7 +2904,8 @@ class Delivery extends Controller
       array $pelangganIds,
       string $jenis,
       int $exceptRequestId = 0,
-      bool $includeDeliveredMissingSurcas = false
+      bool $includeDeliveredMissingSurcas = false,
+      bool $includeBound = false
    ): array {
       if (empty($pelangganIds)) {
          return [];
@@ -2873,11 +2918,7 @@ class Delivery extends Controller
       }
 
       // Default: belum ada riwayat + tidak terikat request berjalan.
-      $eligibilityClause = "
-            AND NOT EXISTS (
-              SELECT 1 FROM delivery_riwayat dr
-              WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
-            )
+      $boundClause = $includeBound ? '' : "
             AND NOT EXISTS (
               SELECT 1
               FROM delivery_request_item dri
@@ -2887,6 +2928,12 @@ class Delivery extends Controller
                 AND drq.delivery_status = 'berjalan'
                 $exceptClause
             )";
+      $eligibilityClause = "
+            AND NOT EXISTS (
+              SELECT 1 FROM delivery_riwayat dr
+              WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
+            )
+            $boundClause";
 
       // Operasi antar: semua item nota aktif yang belum punya surcas pengantaran
       // (termasuk sudah delivered / terikat request — supaya bisa backfill surcas).
@@ -2922,13 +2969,15 @@ class Delivery extends Controller
       array $pelangganIds,
       string $jenis,
       int $exceptRequestId = 0,
-      bool $includeDeliveredMissingSurcas = false
+      bool $includeDeliveredMissingSurcas = false,
+      bool $includeBound = false
    ): array {
       $rows = $this->fetchEligibleSaleRows(
          $pelangganIds,
          $jenis,
          $exceptRequestId,
-         $includeDeliveredMissingSurcas
+         $includeDeliveredMissingSurcas,
+         $includeBound
       );
       if (empty($rows)) {
          return [];
@@ -2987,6 +3036,7 @@ class Delivery extends Controller
             'member' => (int) ($a['member'] ?? 0),
             'belum_selesai' => false,
             'sudah_delivered' => false,
+            'terikat' => false,
          ];
       }
 
@@ -3018,6 +3068,23 @@ class Delivery extends Controller
                }
                return ((int) ($b['id'] ?? 0)) <=> ((int) ($a['id'] ?? 0));
             });
+         }
+      }
+
+      // Operasi jemput: tandai item yang sudah terikat request berjalan
+      if ($includeBound && $jenis === 'jemput' && !empty($orders)) {
+         $allIds = [];
+         foreach ($orders as $ord) {
+            foreach ($ord['items'] as $it) {
+               $allIds[] = (int) $it['id'];
+            }
+         }
+         $boundSet = $this->saleIdsBoundToRunningRequest($allIds, 'jemput');
+         foreach ($orders as $refKey => $ord) {
+            foreach ($ord['items'] as $ix => $it) {
+               $sid = (int) ($it['id'] ?? 0);
+               $orders[$refKey]['items'][$ix]['terikat'] = $sid > 0 && isset($boundSet[$sid]);
+            }
          }
       }
 
