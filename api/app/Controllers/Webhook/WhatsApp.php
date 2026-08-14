@@ -425,13 +425,17 @@ class WhatsApp extends Controller
                 ]);
 
                 // 2) Enrich setelah UI sudah update: pelanggan, quote body, media file, intent
-                $user_data = $this->getUserData($phone0);
-                if ($user_data) {
-                    $assigned_user_id = $user_data->assigned_user_id ?? $assigned_user_id;
-                    $code = $user_data->code ?? $code;
-                    $cust_id = $user_data->cust_id ?? $cust_id;
-                    if (!empty($user_data->customer_name)) {
-                        $contact_name = $user_data->customer_name;
+                if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+                }
+                $senderCtx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+                $replies->setSenderContext($senderCtx);
+                if (!empty($senderCtx['is_pelanggan'])) {
+                    $assigned_user_id = $senderCtx['assigned_user_id'] ?? $assigned_user_id;
+                    $code = $senderCtx['code'] ?? $code;
+                    $cust_id = $senderCtx['cust_id'] ?? $cust_id;
+                    if (!empty($senderCtx['contact_name'])) {
+                        $contact_name = $senderCtx['contact_name'];
                     }
                     $replies->getOrCreateConversationWithCase(
                         $db,
@@ -994,78 +998,18 @@ class WhatsApp extends Controller
 
     function getUserData($phone0)
     {
-        $db = $this->db(1);
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+        $ctx = \App\Helpers\CRM\WaSenderContext::resolveFromPhone($phone0);
+        if (empty($ctx['is_pelanggan'])) {
+            return null;
+        }
         $return = new \stdClass();
-
-        $digits = preg_replace('/[^0-9]/', '', (string) $phone0);
-        if (strlen($digits) < 8) {
-            return null;
-        }
-        $last8 = substr($digits, -8);
-        $last9 = strlen($digits) >= 9 ? substr($digits, -9) : $last8;
-        $variants = array_values(array_unique(array_filter([
-            $phone0,
-            $digits,
-            '0' . (str_starts_with($digits, '62') ? substr($digits, 2) : ltrim($digits, '0')),
-            '+' . (str_starts_with($digits, '62') ? $digits : '62' . ltrim($digits, '0')),
-        ])));
-
-        $customer = null;
-        // Exact match dulu (cepat / index-friendly)
-        if ($variants !== []) {
-            $placeholders = implode(',', array_fill(0, count($variants), '?'));
-            $customer = $db->query(
-                "SELECT * FROM pelanggan WHERE nomor_pelanggan IN ($placeholders) ORDER BY updated_at DESC LIMIT 1",
-                $variants
-            )->row();
-        }
-        // Fallback: 8–9 digit akhir tanpa leading-wildcard di tengah
-        if (!$customer) {
-            try {
-                $customer = $db->query(
-                    "SELECT * FROM pelanggan
-                     WHERE RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''), 9) = ?
-                        OR RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''), 8) = ?
-                     ORDER BY updated_at DESC LIMIT 1",
-                    [$last9, $last8]
-                )->row();
-            } catch (\Throwable $e) {
-                $customer = $db->query(
-                    "SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE ? ORDER BY updated_at DESC LIMIT 1",
-                    ['%' . $last8]
-                )->row();
-            }
-        }
-
-        if ($customer) {
-            $return->customer_name = $customer->nama_pelanggan;
-            $return->cust_id = $customer->id_pelanggan;
-        } else {
-            return null;
-        }
-
-        // Prefer cabang of latest sale (multi-cabang customers); else pelanggan.id_cabang
-        $idCabang = null;
-        $last_sale = $db->query(
-            "SELECT id_cabang FROM sale WHERE id_pelanggan = ? ORDER BY insertTime DESC LIMIT 1",
-            [$customer->id_pelanggan]
-        )->row();
-        if ($last_sale && !empty($last_sale->id_cabang)) {
-            $idCabang = $last_sale->id_cabang;
-        } elseif (!empty($customer->id_cabang)) {
-            $idCabang = $customer->id_cabang;
-        }
-
-        if ($idCabang) {
-            $return->assigned_user_id = $idCabang;
-            $cabang = $db->query(
-                "SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1",
-                [$idCabang]
-            )->row();
-            if ($cabang) {
-                $return->code = $cabang->kode_cabang;
-            }
-        }
+        $return->customer_name = $ctx['contact_name'];
+        $return->cust_id = $ctx['cust_id'] ?: $ctx['id_pelanggan'];
+        $return->assigned_user_id = $ctx['assigned_user_id'];
+        $return->code = $ctx['code'];
 
         return $return;
     }

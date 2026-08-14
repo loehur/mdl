@@ -1257,40 +1257,20 @@ class WhatsAppService
         if (!class_exists('\App\Core\DB')) return null;
         
         try {
-            $db = new \App\Core\DB(1);
-            if (!$db) return null;
-            
-            $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber); // 628...
-            $phone0 = '0' . substr($cleanPhone, 2); // 08...
-            
-            // Search Customer
-            $customer = $db->query("SELECT * FROM pelanggan WHERE nomor_pelanggan LIKE '%" . substr($phone0, 2) . "%' ORDER BY updated_at DESC LIMIT 1")->row();
-            
-            if (!$customer) return null;
-            
-            $result = [
-                'contact_name' => $customer->nama_pelanggan,
-                'assigned_user_id' => null,
-                'code' => null,
-                'cust_id' => $customer->id_pelanggan,
-            ];
-            
-            // Prefer cabang of latest sale (multi-cabang customers); else pelanggan.id_cabang
-            $idCabang = null;
-            $last_sale = $db->query("SELECT id_cabang FROM sale WHERE id_pelanggan = " . (int) $customer->id_pelanggan . " ORDER BY insertTime DESC LIMIT 1")->row();
-            if ($last_sale && !empty($last_sale->id_cabang)) {
-                $idCabang = $last_sale->id_cabang;
-            } elseif (!empty($customer->id_cabang)) {
-                $idCabang = $customer->id_cabang;
+            if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                require_once __DIR__ . '/WaSenderContext.php';
+            }
+            $ctx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+            if (empty($ctx['is_pelanggan'])) {
+                return null;
             }
 
-            if ($idCabang) {
-                $result['assigned_user_id'] = $idCabang;
-                $cabang = $db->query("SELECT kode_cabang FROM cabang WHERE id_cabang = " . (int) $idCabang)->row();
-                if ($cabang) $result['code'] = $cabang->kode_cabang;
-            }
-            
-            return $result;
+            return [
+                'contact_name' => $ctx['contact_name'],
+                'assigned_user_id' => $ctx['assigned_user_id'],
+                'code' => $ctx['code'],
+                'cust_id' => $ctx['cust_id'] ?: $ctx['id_pelanggan'],
+            ];
             
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {

@@ -83,7 +83,7 @@
                 <label class="form-check-label fw-bold" for="isPelanggan">Pelanggan</label>
               </div>
             </div>
-            <p class="text-muted small mb-0">Centang = pengirim wajib role itu (AND). Semua kosong = publik.</p>
+            <p class="text-muted small mb-0">Centang = role yang boleh (OR). Dua centang = salah satu cukup. Semua kosong = publik.</p>
           </div>
           <div class="col-12">
             <label class="form-label">Deny reply</label>

@@ -143,7 +143,7 @@
                 <input class="form-check-input" type="checkbox" name="is_pelanggan" id="addIsPelanggan" value="1">
                 <label class="form-check-label fw-bold" for="addIsPelanggan">Pelanggan</label>
               </div>
-              <p class="text-muted small mb-0 mt-1">Centang = pengirim wajib role itu. Semua kosong = publik.</p>
+              <p class="text-muted small mb-0 mt-1">Centang = role yang boleh (OR). Semua kosong = publik.</p>
             </div>
             <label class="form-label fw-bold mt-3">Deny reply (opsional)</label>
             <textarea name="deny_reply" class="form-control form-control-sm" rows="3" placeholder="Kosong = diam jika gerbang gagal"></textarea>

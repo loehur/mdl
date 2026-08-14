@@ -20,7 +20,7 @@ class WaChatHistory
      */
     public function fetchMessages($db, string $phone, int $limitPerSource = self::LIMIT_PER_SOURCE): array
     {
-        $digits = $this->matchDigits($phone, 9);
+        $digits = $this->matchDigits($phone);
         if ($digits === '') {
             return [];
         }
@@ -60,7 +60,7 @@ class WaChatHistory
      */
     private function fetchYcloudMessages($db, string $digits, int $limit): array
     {
-        $tailEsc = $db->escape($digits);
+        $like = $this->phoneLikeSql($db, $digits, 'phone');
         $limit = (int) $limit;
 
         try {
@@ -77,7 +77,7 @@ class WaChatHistory
                            media_id,
                            media_url
                         FROM wa_messages_in
-                        WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
+                        WHERE {$like})
                        UNION ALL
                        (SELECT
                            id,
@@ -89,7 +89,7 @@ class WaChatHistory
                            NULL AS media_id,
                            media_url
                         FROM wa_messages_out
-                        WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
+                        WHERE {$like}
                           AND COALESCE(`private`, 0) = 0)
                     ) AS combined_msgs
                     ORDER BY time DESC
@@ -109,7 +109,7 @@ class WaChatHistory
      */
     private function fetchFonnteMessages($db, string $digits, int $limit): array
     {
-        $tailEsc = $db->escape($digits);
+        $like = $this->phoneLikeSql($db, $digits, 'phone');
         $limit = (int) $limit;
 
         try {
@@ -126,7 +126,7 @@ class WaChatHistory
                            NULL AS media_id,
                            media_url
                         FROM wa_fonnte_messages_in
-                        WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
+                        WHERE {$like})
                        UNION ALL
                        (SELECT
                            id,
@@ -138,7 +138,7 @@ class WaChatHistory
                            NULL AS media_id,
                            media_url
                         FROM wa_fonnte_messages_out
-                        WHERE RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc')
+                        WHERE {$like})
                     ) AS combined_msgs
                     ORDER BY time DESC
                     LIMIT $limit
@@ -176,17 +176,26 @@ class WaChatHistory
         return $list;
     }
 
-    /** Digit akhir nomor (default 9, sama pola Delivery/CRM). */
+    /** Nasional 852… setelah buang +62 / 62 / 0. */
     public function matchDigits(string $phone, int $len = 9): string
     {
-        $clean = preg_replace('/[^0-9]/', '', $phone);
-        if ($clean === '' || $clean === null) {
-            return '';
+        $this->ensurePelangganByPhone();
+
+        return PelangganByPhone::key($phone);
+    }
+
+    private function phoneLikeSql($db, string $nomor, string $column): string
+    {
+        $this->ensurePelangganByPhone();
+        $esc = $db->escape($nomor);
+
+        return PelangganByPhone::likeSql($esc, $column);
+    }
+
+    private function ensurePelangganByPhone(): void
+    {
+        if (!class_exists('PelangganByPhone', false)) {
+            require_once __DIR__ . '/PelangganByPhone.php';
         }
-        $len = max(8, min(12, (int) $len));
-        if (strlen($clean) < $len) {
-            return strlen($clean) >= 8 ? $clean : '';
-        }
-        return substr($clean, -$len);
     }
 }

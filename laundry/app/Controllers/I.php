@@ -285,10 +285,11 @@ class I extends Controller
       }
 
       $userExists = $db->count_where('user', 'no_user IN (' . implode(', ', $hpVariations) . ')');
-      $matchDigitsWa = (strlen($hpClean) >= 9) ? substr($hpClean, -9) : $hpClean;
+      $this->helper('PelangganByPhone');
+      $matchDigitsWa = PelangganByPhone::key($hpClean);
       $waOutCount = $this->db(100)->count_where(
          'wa_messages_out',
-         "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'"
+         PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone')
       );
       $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
 

@@ -57,17 +57,16 @@ class NonTunai extends Controller
             $pelanggan = $this->db(0)->get_where_row('pelanggan', "id_pelanggan = '{$kasData['id_client']}'");
 
             if ($pelanggan && !empty($pelanggan['nomor_pelanggan'])) {
-               $cleanPhone = preg_replace('/[^0-9]/', '', $pelanggan['nomor_pelanggan']);
-               $phone08 = '0' . substr($cleanPhone, -10);
-               $phone62 = '62' . substr($cleanPhone, -10);
-               $phonePlus62 = '+62' . substr($cleanPhone, -10);
+               $this->helper('PelangganByPhone');
+               $nomor = PelangganByPhone::key($pelanggan['nomor_pelanggan']);
+               $phonePlus62 = $nomor !== '' ? ('62' . $nomor) : '';
 
-               $phones = ["'$phone08'", "'$phone62'", "'$phonePlus62'"];
-               $phoneIn = implode(',', $phones);
-
-               $this->db(100)->query(
-                  "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)"
-               );
+               if ($nomor !== '') {
+                  $this->db(100)->query(
+                     "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND "
+                     . PelangganByPhone::likeSql($this->db(100)->escape($nomor), 'wa_number')
+                  );
+               }
 
                $payload = [
                   'type' => 'priority_updated',

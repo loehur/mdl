@@ -167,14 +167,15 @@ class Antrian extends Controller
 
    public function close_case_request()
    {
+      $this->helper('PelangganByPhone');
       $hp = $_POST['hp'];
-      
-      // Normalize HP
-      $hpClean = preg_replace('/[^0-9]/', '', $hp);
-      $matchDigits = substr($hpClean, -10);
+      $nomor = PelangganByPhone::key($hp);
+      if ($nomor === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Conversation not found']);
+         return;
+      }
 
-      // Fetch the conversation row
-      $where = "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '$matchDigits'";
+      $where = PelangganByPhone::likeSql($this->db(100)->escape($nomor), 'wa_number');
       $row = $this->db(100)->get_where_row('wa_conversations', $where);
 
       if ($row) {
@@ -676,8 +677,9 @@ class Antrian extends Controller
       $userExists = $this->db(0)->count_where('user', $whereUser);
 
       // Template WA: hanya jika nomor pelanggan belum pernah ada di wa_messages_out (satu nomor = no_pelanggan / $_POST['hp'])
-      $matchDigitsWa = (strlen($hpClean) >= 9) ? substr($hpClean, -9) : $hpClean;
-      $whereWaOut = "REPLACE(REPLACE(phone, '+', ''), '-', '') LIKE '%" . $matchDigitsWa . "'";
+      $this->helper('PelangganByPhone');
+      $matchDigitsWa = PelangganByPhone::key($hpClean);
+      $whereWaOut = PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone');
       $waOutCount = $this->db(100)->count_where('wa_messages_out', $whereWaOut);
       $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
       

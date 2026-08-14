@@ -111,16 +111,17 @@ class Notif extends Controller
     }
 
     /**
-     * Hapus baris wa_messages_out status=queue dengan teks sama + 9 digit HP sama (db 100 = mdl_main).
+     * Hapus baris wa_messages_out status=queue dengan teks sama + nomor HP sama
+     * (bersih +62/62/0, LIKE '%852…'; db 100 = mdl_main).
      * Membersihkan antrean CSW-era agar tidak jadi bubble 1-centang berdampingan dengan kirim sukses.
      */
     public function deleteMatchingWaOutQueue(string $phone, string $text): int
     {
-        $digits = preg_replace('/[^0-9]/', '', $phone);
-        if (strlen($digits) < 9) {
+        $this->helper('PelangganByPhone');
+        $nomor = PelangganByPhone::key($phone);
+        if (strlen($nomor) < 8) {
             return 0;
         }
-        $last9 = substr($digits, -9);
         $textTrim = trim($text);
         if ($textTrim === '') {
             return 0;
@@ -129,13 +130,12 @@ class Notif extends Controller
         try {
             $db100 = $this->db(100);
             $escText = $db100->escape($textTrim);
-            $escLast9 = $db100->escape($last9);
+            $like = PelangganByPhone::likeSql($db100->escape($nomor), 'phone');
             $sql = "
                 DELETE FROM wa_messages_out
                 WHERE status IN ('queue', 'processing')
                   AND TRIM(COALESCE(content, '')) = '{$escText}'
-                  AND LENGTH(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', '')) >= 9
-                  AND RIGHT(REPLACE(REPLACE(REPLACE(phone, '+', ''), '-', ''), ' ', ''), 9) = '{$escLast9}'
+                  AND {$like}
             ";
             $ok = $db100->query($sql);
             return $ok ? 1 : 0;

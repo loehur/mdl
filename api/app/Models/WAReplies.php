@@ -94,6 +94,167 @@ class WAReplies
         $this->autoReplyProvider = ($provider === 'B') ? 'B' : 'A';
     }
 
+    /** @var array|null Hasil WaSenderContext::resolve() */
+    private $senderContext = null;
+
+    public function setSenderContext(array $ctx): void
+    {
+        $this->senderContext = $ctx;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function ensureSenderContext(string $waNumber): array
+    {
+        if (is_array($this->senderContext) && ($this->senderContext['nomor'] ?? '') !== '') {
+            return $this->senderContext;
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+        $this->senderContext = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+
+        return $this->senderContext;
+    }
+
+    private function senderIdPelanggan(): int
+    {
+        return (int) ($this->senderContext['id_pelanggan'] ?? 0);
+    }
+
+    /** @return list<int> */
+    private function senderIdsPelanggan(): array
+    {
+        $ids = $this->senderContext['ids_pelanggan'] ?? [];
+        if (!is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('intval', $ids)));
+    }
+
+    /** Pengaman kedua: intent admin harus is_admin, meski gerbang DB terlupa. */
+    private function requireAdminSender(string $waNumber, string $handler): bool
+    {
+        if ($this->intentLabMode) {
+            return true;
+        }
+        if (!empty($this->senderContext['is_admin'])) {
+            return true;
+        }
+        $this->logAutoreplyTrace($waNumber, $handler, 'require_admin');
+
+        return false;
+    }
+
+    private function senderPassesIntentGate(array $config): bool
+    {
+        if ($this->intentLabMode) {
+            return true;
+        }
+        $needAdmin = !empty($config['is_admin']);
+        $needKaryawan = !empty($config['is_karyawan']);
+        $needPelanggan = !empty($config['is_pelanggan']);
+        if (!$needAdmin && !$needKaryawan && !$needPelanggan) {
+            return true;
+        }
+        $ctx = $this->senderContext ?? [];
+        if ($needAdmin && !empty($ctx['is_admin'])) {
+            return true;
+        }
+        if ($needKaryawan && !empty($ctx['is_karyawan'])) {
+            return true;
+        }
+        if ($needPelanggan && !empty($ctx['is_pelanggan'])) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function intentVisibleForSender(array $config): bool
+    {
+        if ($this->senderPassesIntentGate($config)) {
+            return true;
+        }
+
+        return trim((string) ($config['deny_reply'] ?? '')) !== '';
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    private function filterKeywordConfigBySenderGate(array $config): array
+    {
+        if ($this->intentLabMode) {
+            return $config;
+        }
+        $out = [];
+        foreach ($config as $code => $cfg) {
+            if (!is_array($cfg)) {
+                continue;
+            }
+            if ($this->intentVisibleForSender($cfg)) {
+                $out[$code] = $cfg;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Gerbang gagal: kirim deny_reply (jika ada) lalu return hasil process; silent → null (lanjut intent lain).
+     *
+     * @return object|null
+     */
+    private function gateDenyOrContinue(
+        string $handler,
+        array $config,
+        $db,
+        string $waNumber,
+        $contactName,
+        $assigned_user_id,
+        $code,
+        $cust_id,
+        $lastMessage
+    ) {
+        if ($this->senderPassesIntentGate($config)) {
+            return null;
+        }
+        $deny = trim((string) ($config['deny_reply'] ?? ''));
+        if ($deny === '') {
+            $this->logAutoreplyTrace($waNumber, 'GATE_SKIP', 'handler=' . $handler);
+            return false;
+        }
+        $this->logAutoreplyTrace($waNumber, 'GATE_DENY', 'handler=' . $handler);
+        $this->currentHandler = $handler;
+        $this->intentLabMark($handler, 'gate');
+        $caseVal = $config['case'] ?? null;
+        $notify = $config['notify'] ?? false;
+        if (!$this->intentLabMode) {
+            if (!$this->handlerSkipsAutoreplyRateLimit($handler)
+                && $this->isInAutoreplyCooldown($waNumber, $handler)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'gate_deny_rate_limit handler=' . $handler);
+            } else {
+                $this->sendAutoreplyText($waNumber, $deny);
+                if (!$this->handlerSkipsAutoreplyRateLimit($handler)) {
+                    $this->recordHandlerCooldown($waNumber, $handler);
+                }
+            }
+        }
+        $conversationId = $this->getOrCreateConversationWithCase(
+            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $caseVal
+        );
+
+        return (object) [
+            'case' => $caseVal,
+            'notify' => (bool) $notify,
+            'conversation_id' => $conversationId,
+        ];
+    }
+
     /**
      * Dry-run klasifikasi intent (Intent Lab). Hanya teks — tanpa phone/session customer.
      *
@@ -890,7 +1051,7 @@ class WAReplies
 
     /**
      * Sapaan dari sapaan_stats: ORDER BY jumlah DESC (paling sering dipakai agent ke nomor ini).
-     * Urutan lookup: exact wa_number (variasi) → match digit penuh kolom = digit nomor webhook → 9 digit terakhir.
+     * Urutan lookup: exact wa_number (variasi) → match digit penuh kolom = digit nomor webhook → suffix nasional 852….
      *
      * @return string|null null jika belum ada baris atau nilai tidak valid
      */
@@ -941,32 +1102,32 @@ class WAReplies
                 }
             }
 
-            $last9 = $this->waPhoneLastNineDigits($waNumber);
-            if ($last9 === null) {
-                $this->logSapaanResolve("STATS miss wa_number={$waNumber} (last9 null, nomor terlalu pendek)");
+            $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber);
+            if ($nomor === null) {
+                $this->logSapaanResolve("STATS miss wa_number={$waNumber} (nomor nasional null)");
 
                 return null;
             }
 
             $digits = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
-            $sql = 'SELECT sapaan, jumlah, wa_number AS wn FROM sapaan_stats WHERE LENGTH(' . $digits . ') >= 9 '
-                . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1';
-            $db->query($sql, [$last9]);
+            $sql = 'SELECT sapaan, jumlah, wa_number AS wn FROM sapaan_stats WHERE '
+                . $digits . ' LIKE ? ORDER BY jumlah DESC, sapaan ASC LIMIT 1';
+            $db->query($sql, ['%' . $nomor]);
             if ($db->num_rows() > 0) {
                 $row = $db->row();
                 $raw = (string) ($row->sapaan ?? '');
                 $normalized = $this->normalizeSapaanFromStats($raw);
                 if ($normalized !== null) {
                     $this->logSapaanResolve(
-                        "STATS hit=last9 last9={$last9} row_wn=" . ($row->wn ?? '') . " raw={$raw} jumlah=" . ($row->jumlah ?? '') . " normalized={$normalized}"
+                        "STATS hit=nomor_suffix nomor={$nomor} row_wn=" . ($row->wn ?? '') . " raw={$raw} jumlah=" . ($row->jumlah ?? '') . " normalized={$normalized}"
                     );
 
                     return $normalized;
                 }
-                $this->logSapaanResolve("STATS last9 row tapi normalize gagal raw={$raw}");
+                $this->logSapaanResolve("STATS nomor_suffix row tapi normalize gagal raw={$raw}");
             }
 
-            $this->logSapaanResolve("STATS miss wa_number={$waNumber} digits_in={$digitsIn} last9={$last9} (tidak ada baris sapaan_stats)");
+            $this->logSapaanResolve("STATS miss wa_number={$waNumber} digits_in={$digitsIn} nomor={$nomor} (tidak ada baris sapaan_stats)");
         } catch (\Throwable $e) {
             $this->logSapaanResolve('STATS exception ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
             if (class_exists('Log', false)) {
@@ -1693,7 +1854,7 @@ class WAReplies
     }
 
     /**
-     * Boleh kirim balasan generik saat TIDAK ada data (noRegister / "belum ada tagihan...")?
+     * Boleh kirim balasan generik saat TIDAK ada data ("belum ada tagihan...")?
      * Hanya jika pesan tegas satu kata: bon|nota|struk, bil|bill|tagihan, cek|status.
      *
      * Bukan syarat untuk mengirim rincian tagihan, nota, atau status — itu tetap jalan jika ada data di DB.
@@ -1709,23 +1870,6 @@ class WAReplies
             || preg_match('/^\s*(bil+|tagihan)\s*$/i', $t)
             || preg_match('/^\s*(cek|sta*tu*s)\s*$/i', $t)
         );
-    }
-
-    /**
-     * Balasan generik noRegister — hanya saat pelanggan tidak ada di DB + pola tegas.
-     */
-    private function trySendNoRegisterAutoreply($waService, string $waNumber, ?string $textBody, string $logPrefix = 'SKIP'): void
-    {
-        if (!$this->shouldSendGenericNoDataAutoreply($textBody)) {
-            $this->logAutoreplyTrace($waNumber, $logPrefix, 'no_register_skipped_not_strict_keyword');
-            return;
-        }
-        $noRegText = $this->getNoRegisterText();
-        $res = $waService->sendFreeText($waNumber, $noRegText);
-        if ($res['success']) {
-            $this->pushToWebSocket($this->buildWsPayload($waNumber, $noRegText, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-        }
-        $this->logAutoreplyTrace($waNumber, $logPrefix, 'no_register_sent');
     }
 
     /**
@@ -1867,6 +2011,36 @@ class WAReplies
         }
         $this->currentContactName = $contactName;
         $this->humanActiveCache = null;
+        if (!$this->intentLabMode) {
+            $ctx = $this->ensureSenderContext((string) $waNumber);
+            if ($contactName === null || $contactName === '') {
+                $contactName = $ctx['contact_name'] ?? $contactName;
+                $this->currentContactName = $contactName;
+            }
+            if ($assigned_user_id === null || $assigned_user_id === '') {
+                $assigned_user_id = $ctx['assigned_user_id'] ?? $assigned_user_id;
+            }
+            if ($code === null || $code === '') {
+                $code = $ctx['code'] ?? $code;
+            }
+            if ($cust_id === null || $cust_id === '') {
+                $cust_id = $ctx['cust_id'] ?? $cust_id;
+            }
+            $nomor = (string) ($ctx['nomor'] ?? '');
+            if ($nomor !== '' && class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                $phoneIn = \App\Helpers\CRM\WaSenderContext::phoneInClause($nomor);
+            }
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'SENDER',
+                'nomor=' . $nomor
+                . ' admin=' . (!empty($ctx['is_admin']) ? '1' : '0')
+                . ' karyawan=' . (!empty($ctx['is_karyawan']) ? '1' : '0')
+                . ' pelanggan=' . (!empty($ctx['is_pelanggan']) ? '1' : '0')
+                . ' id_pelanggan=' . (int) ($ctx['id_pelanggan'] ?? 0)
+                . ' ids=' . implode(',', $ctx['ids_pelanggan'] ?? [])
+            );
+        }
         // Strip WhatsApp formatters: * (bold), _ (italic), ~ (strikethrough), ` (monospace)
         $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody ?? '');
         // Strip quote prefix (> at start of line)
@@ -1935,6 +2109,12 @@ class WAReplies
         
         // Simpan config lengkap untuk akses case dan notify nanti
         $fullKeywordConfig = $keywordConfig;
+        $keywordConfig = $this->filterKeywordConfigBySenderGate($keywordConfig);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'GATE_FILTER',
+            'intents=' . count($keywordConfig) . '/' . count($fullKeywordConfig)
+        );
 
         // Permintaan/instruksi: jangan auto-reply, biarkan CS manusia yang merespon
         $permintaanPatterns = [
@@ -2360,6 +2540,25 @@ class WAReplies
                             $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
                             'regex handler=' . $handler
                         );
+                    }
+
+                    $gateCfg = $fullKeywordConfig[$handler] ?? $config;
+                    $gateResult = $this->gateDenyOrContinue(
+                        $handler,
+                        $gateCfg,
+                        $db,
+                        $waNumber,
+                        $contactName,
+                        $assigned_user_id,
+                        $code,
+                        $cust_id,
+                        $lastMessage
+                    );
+                    if ($gateResult === false) {
+                        continue;
+                    }
+                    if (is_object($gateResult)) {
+                        return $gateResult;
                     }
 
                     if (class_exists('\Log')) {
@@ -2802,6 +3001,34 @@ class WAReplies
             }
 
             // Rate limit passed - create conversation with AI case
+            $gateCfg = $fullKeywordConfig[$aiIntent] ?? [];
+            $gateResult = $this->gateDenyOrContinue(
+                $aiIntent,
+                $gateCfg,
+                $db,
+                $waNumber,
+                $contactName,
+                $assigned_user_id,
+                $code,
+                $cust_id,
+                $lastMessage
+            );
+            if ($gateResult === false) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_gate_silent intent=' . $aiIntent);
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => false,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
+            }
+            if (is_object($gateResult)) {
+                return $gateResult;
+            }
+
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $aiCase
             );
@@ -3054,18 +3281,18 @@ class WAReplies
             }
             $this->logAutoreplyTrace($waNumber, 'NOTA_SEND', 'pending_notif count=' . count($pendingNotifs));
         } else {
-            // Find customer (exact variasi nomor atau 7 digit terakhir sama)
+            // Find customer (LIKE '%852…' setelah buang +62/62/0)
             $pelanggan = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan');
             $id_pelanggans = array_column($pelanggan, 'id_pelanggan');
 
-            // --- Tidak ada pelanggan di DB: generik noRegister hanya pola tegas ---
             if (empty($id_pelanggans)) {
-                $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'NOTA');
+                $this->logAutoreplyTrace($waNumber, 'NOTA', 'no_pelanggan');
                 return;
             }
 
-            $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan');
-            $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? 'PELANGGAN')));
+            $nama_pelanggans = array_column($pelanggan, 'nama_pelanggan', 'id_pelanggan');
+            $primaryId = $this->senderIdPelanggan() ?: (int) ($id_pelanggans[0] ?? 0);
+            $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[$primaryId] ?? $nama_pelanggans[$id_pelanggans[0] ?? 0] ?? 'PELANGGAN')));
 
             $ids_in = implode(',', $id_pelanggans);
 
@@ -3172,6 +3399,11 @@ class WAReplies
         $ids = array_values(array_unique(array_filter(array_map('intval', array_column($pelanggan, 'id_pelanggan')))));
         if (empty($ids)) {
             return null;
+        }
+
+        $primary = $this->senderIdPelanggan();
+        if ($primary > 0 && in_array($primary, $ids, true)) {
+            return $primary;
         }
 
         $idsIn = implode(',', $ids);
@@ -3971,9 +4203,8 @@ class WAReplies
 
         $pelanggan = $this->queryPelangganRowsByWaNumber($db, $phoneIn, $waNumber, 'id_pelanggan, nama_pelanggan, id_cabang');
 
-        // --- Tidak ada pelanggan di DB: generik noRegister hanya pola tegas ---
         if (empty($pelanggan)) {
-            $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'TAGIHAN');
+            $this->logAutoreplyTrace($waNumber, 'TAGIHAN', 'no_pelanggan');
             return;
         }
 
@@ -3995,8 +4226,8 @@ class WAReplies
         $id_pelanggans_to_check = array_unique(array_merge($id_pelanggans_from_sale, $id_pelanggans_from_member));
         // --- Tidak ada sale/member aktif: generik hanya pola tegas ---
         if (empty($id_pelanggans_to_check)) {
-            $id_pelanggan = $id_pelanggans[0];
-            $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? 'PELANGGAN')));
+            $id_pelanggan = $this->senderIdPelanggan() ?: (int) $id_pelanggans[0];
+            $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? $pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN')));
             $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, 'https://ml.nalju.com/I/' . $id_pelanggan, 'TAGIHAN');
             return;
         }
@@ -4004,8 +4235,9 @@ class WAReplies
         // --- Ada data tagihan: bangun rincian (tanpa cek pola tegas) ---
 
         $ids_bill = implode(',', array_map('intval', $id_pelanggans_to_check));
-        $id_pelanggan = (int) $id_pelanggans[0];
-        $nama_pelanggan = strtoupper(trim((string) ($pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN')));
+        $id_pelanggan = $this->senderIdPelanggan() ?: (int) $id_pelanggans[0];
+        $namaRow = $pelanggan[array_search($id_pelanggan, $id_pelanggans)] ?? $pelanggan[0];
+        $nama_pelanggan = strtoupper(trim((string) ($namaRow['nama_pelanggan'] ?? 'PELANGGAN')));
 
         $lookup = $this->loadTagihanLookups($db);
         $lines = [];
@@ -6123,7 +6355,7 @@ class WAReplies
         $nama_pelanggan = strtoupper(trim((string) ($nama_pelanggans[0] ?? ''))); // fix index 0 if empty
 
         if (empty($id_pelanggans)) {
-            $this->trySendNoRegisterAutoreply($waService, $waNumber, $textBody, 'STATUS');
+            $this->logAutoreplyTrace($waNumber, 'STATUS', 'no_pelanggan_skip_sale_status');
         } else {
             $ids_in = implode(',', $id_pelanggans);
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
@@ -6504,6 +6736,9 @@ class WAReplies
 
     function handleReminder($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'REMINDER')) {
+            return;
+        }
         try {
             $waService = $this->getWaService();
 
@@ -6607,7 +6842,6 @@ class WAReplies
      * Access Key per user (tabel user.access_key).
      * - "key" → kirim key existing; jika null auto-generate 4 digit
      * - "key new" → generate key baru
-     * Hanya nomor yang terdaftar di user (en=1).
      */
     function handleKey($phoneIn, $waNumber, $textBody = '')
     {
@@ -6630,7 +6864,7 @@ class WAReplies
             )->row_array();
 
             if (empty($user['id_user'])) {
-                // Bukan user terdaftar — diam (jangan bocor ke pelanggan)
+                $this->logAutoreplyTrace($waNumber, 'KEY', 'no_karyawan');
                 return;
             }
 
@@ -6657,25 +6891,10 @@ class WAReplies
 
     function handleKas_laundry($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'KAS_LAUNDRY')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             $db1 = DB::getInstance(1);
             $cabangs = $db1->query("SELECT * FROM cabang")->result_array();
 
@@ -6720,23 +6939,13 @@ class WAReplies
 
     /**
      * Handle intent KARYAWAN - cari data karyawan dari tabel user (en=1) db(1).
-     * Hanya bisa diakses ADMIN_NUMBERS.
      * Alur: regex exact match nama_user → jika tidak ketemu, AI fuzzy match → jika gagal, balas maaf.
      */
     function handleKaryawan($phoneIn, $waNumber, $textBody = '')
     {
-        $hp = \Env::ADMIN_NUMBERS;
-        $phones = array_map(function ($p) { return trim($p, "' "); }, explode(',', $phoneIn));
-        $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-        $phone0 = '0' . substr($cleanWaNumber, 2);
-        $phones[] = $phone0;
-        $phones[] = $cleanWaNumber;
-        $phones = array_unique(array_filter($phones));
-        $intersect = array_intersect($phones, $hp);
-        if (empty($intersect)) {
+        if (!$this->requireAdminSender($waNumber, 'KARYAWAN')) {
             return;
         }
-
         if (!preg_match('/^\s*(karyawan|crew|staf+|staff)\s+(.+)\s*$/i', $textBody, $m)) {
             return;
         }
@@ -6834,25 +7043,10 @@ class WAReplies
         $id_user = isset($parts[1]) ? intval($parts[1]) : null;
 
         if($id_user != null) {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
+            // slip {id} = lihat gaji orang lain — hanya admin (gerbang intent bisa is_karyawan untuk slip sendiri)
+            if (empty($this->senderContext['is_admin'])) {
                 return;
             }
-            
-            // Admin dengan ID user spesifik - langsung ambil data user by ID, tidak pakai nomor
             $skipPhoneCheck = true;
         } else {
             $skipPhoneCheck = false;
@@ -6919,7 +7113,7 @@ class WAReplies
                 }
                 
                 if (empty($users)) {
-                    $sendErrorToWa("Maaf, nomor tidak terdaftar sebagai karyawan Madinah Laundry.");
+                    $this->logAutoreplyTrace($waNumber, 'SLIP_GAJI', 'no_karyawan');
                     return;
                 }
                 $user = $users[0];
@@ -6930,7 +7124,7 @@ class WAReplies
             }
             
             if (!$user || !isset($user['id_user'])) {
-                $sendErrorToWa("Maaf, nomor tidak terdaftar sebagai karyawan Madinah Laundry.");
+                $this->logAutoreplyTrace($waNumber, 'SLIP_GAJI', 'no_karyawan');
                 return;
             }
             
@@ -7071,6 +7265,9 @@ class WAReplies
 
     function handleGaji_cash($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'GAJI_CASH')) {
+            return;
+        }
         $waService = null;
         $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
             try {
@@ -7092,24 +7289,6 @@ class WAReplies
         }
 
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             // Tentukan periode berdasarkan tanggal hari ini (sama dengan handleSlip_gaji)
             $hariIni = (int)date('d');
             if ($hariIni >= 1 && $hariIni <= 5) {
@@ -7187,6 +7366,9 @@ class WAReplies
      */
     function handleGaji_tf($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'GAJI_TF')) {
+            return;
+        }
         $waService = null;
         $sendErrorToWa = function ($msg) use (&$waService, $waNumber) {
             try {
@@ -7208,22 +7390,6 @@ class WAReplies
         }
 
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             $hariIni = (int)date('d');
             if ($hariIni >= 1 && $hariIni <= 5) {
                 $period = date('Y-m', strtotime('-1 month'));
@@ -7363,7 +7529,7 @@ class WAReplies
             $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
             $waService->sendFreeText($waNumber, $text);
         } else {
-            $waService->sendFreeText($waNumber, "Nomor Anda tidak terdaftar di sistem $bisnis.");
+            $this->logAutoreplyTrace($waNumber, 'CEK_TOKEN', 'no_karyawan bisnis=' . $bisnis);
         }
         
         } catch (\Throwable $e) {
@@ -7548,31 +7714,16 @@ class WAReplies
 
             $waService->sendFreeText($waNumber, $text);
         } else {
-            $waService->sendFreeText($waNumber, "Nomor anda tidak terdaftar sebagai karyawan.");
+            $this->logAutoreplyTrace($waNumber, 'BELI_TOKEN', 'no_karyawan');
         }
     }
 
     function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'SALDO_IAK')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             // Cek saldo IAK
             $iak = new \App\Models\IAK();
             $response = $iak->check_balance();
@@ -7607,22 +7758,10 @@ class WAReplies
 
     function handleCek_qris($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'CEK_QRIS')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            if (empty(array_intersect($phones, $hp))) {
-                return;
-            }
-
             if (!preg_match('/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i', trim($textBody), $m)) {
                 $this->getWaService()->sendFreeText($waNumber, $this->cekQrisFormatHelpMessage());
                 return;
@@ -7685,25 +7824,10 @@ class WAReplies
 
     function handleSaldo_tokopay($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'SALDO_TOKOPAY')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             // Cek saldo TokoPay menggunakan endpoint QRIS
             $apiUrl = 'https://api.nalju.com/Laundry/QRIS/balance';
             
@@ -7779,22 +7903,10 @@ class WAReplies
 
     function handleSaldo_ycloud($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'SALDO_YCLOUD')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            if (empty(array_intersect($phones, $hp))) {
-                return;
-            }
-
             $apiKey = \App\Config\WhatsApp::getApiKey();
             $baseUrl = rtrim(\App\Config\WhatsApp::getBaseUrl(), '/');
 
@@ -7850,22 +7962,10 @@ class WAReplies
 
     function handleInfo_fonnte($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'INFO_FONNTE')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            if (empty(array_intersect($phones, $hp))) {
-                return;
-            }
-
             if (!class_exists('\\App\\Helpers\\FonnteService')) {
                 require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
             }
@@ -7904,25 +8004,10 @@ class WAReplies
 
      function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
     {
+        if (!$this->requireAdminSender($waNumber, 'TARIK_TOKOPAY')) {
+            return;
+        }
         try {
-            $hp = \Env::ADMIN_NUMBERS;
-
-            // Parse phone numbers and check authorization
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2);
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Only allowed phones can access this
-            $intersect = array_intersect($phones, $hp);
-            if (empty($intersect)) {
-                return;
-            }
-
             $waService = $this->getWaService();
             
             // Extract amount from text body
@@ -8466,6 +8551,7 @@ class WAReplies
             if ($keywordConfig === null) {
                 $keywordConfig = $this->loadAutoreplyKeywordConfig();
             }
+            $keywordConfig = $this->filterKeywordConfigBySenderGate($keywordConfig);
 
             // Klasifikasi: definisi intent HANYA dari ai_prompt DB. Format JSON + ask tetap di kode.
             $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan ke SATU kategori.\n";
@@ -9133,32 +9219,6 @@ class WAReplies
     }
 
     /**
-     * 9 digit terakhir dari nomor (hanya angka), untuk match wa_number tanpa peduli +62 / 08 / 628 / dll.
-     */
-    private function waPhoneLastNineDigits(string $phone): ?string
-    {
-        $digits = $this->normalizePhoneDigitsOnlyPhp($phone);
-        if (strlen($digits) < 9) {
-            return null;
-        }
-
-        return substr($digits, -9);
-    }
-
-    /**
-     * 8 digit terakhir dari nomor (hanya angka), untuk cocokkan nomor_pelanggan walaupun format penyimpanan beda (+62 / 08 / spasi, dll.).
-     */
-    private function waPhoneLastEightDigits(string $phone): ?string
-    {
-        $digits = $this->normalizePhoneDigitsOnlyPhp($phone);
-        if (strlen($digits) < 8) {
-            return null;
-        }
-
-        return substr($digits, -8);
-    }
-
-    /**
      * Variasi format nomor WA untuk lookup exact di kolom wa_number (+62… / 62… / 08… / 8…).
      *
      * @return string[]
@@ -9210,7 +9270,7 @@ class WAReplies
     }
 
     /**
-     * Cari pelanggan: exact nomor_pelanggan IN (variasi dari webhook) atau 8 digit terakhir sama.
+     * Cari pelanggan: id dari sender context, atau LIKE '%852…' setelah buang +62/62/0.
      * Nomor WA dinormalisasi ke digit saja di PHP; nomor_pelanggan di DB dinormalisasi sebisa mungkin di SQL (MySQL 5.7).
      *
      * @param \App\Core\DB $db DB laundry (biasanya getInstance(1))
@@ -9219,17 +9279,25 @@ class WAReplies
      */
     private function queryPelangganRowsByWaNumber($db, string $phoneIn, string $waNumber, string $selectColumns = 'id_pelanggan, nama_pelanggan'): array
     {
-        $last8 = $this->waPhoneLastEightDigits($waNumber);
-        if ($last8 !== null) {
-            $digits = $this->sqlPhoneColumnDigitsOnlyExpr('nomor_pelanggan');
-            $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE nomor_pelanggan IN (' . $phoneIn . ') OR (LENGTH(' . $digits . ') >= 8 AND RIGHT(' . $digits . ', 8) = ?) ORDER BY id_pelanggan ASC';
+        $ids = $this->senderIdsPelanggan();
+        if ($ids !== []) {
+            $idsIn = implode(',', $ids);
+            $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE id_pelanggan IN (' . $idsIn . ') ORDER BY id_pelanggan ASC';
 
-            return $db->query($sql, [$last8])->result_array();
+            return $db->query($sql)->result_array() ?: [];
         }
 
-        $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE nomor_pelanggan IN (' . $phoneIn . ') ORDER BY id_pelanggan ASC';
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+        $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber);
+        if ($nomor === null || strlen($nomor) < 8) {
+            return [];
+        }
+        $digits = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('nomor_pelanggan');
+        $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE ' . $digits . ' LIKE ? ORDER BY id_pelanggan ASC';
 
-        return $db->query($sql)->result_array();
+        return $db->query($sql, ['%' . $nomor])->result_array() ?: [];
     }
 
     /**
@@ -9246,7 +9314,7 @@ class WAReplies
     }
 
     /**
-     * Cari baris wa_conversations: exact dulu (variasi format), lalu 9 digit terakhir (MySQL 5.7).
+     * Cari baris wa_conversations: exact dulu (variasi format), lalu suffix nasional 852… (MySQL 5.7).
      *
      * @return object|null row from wa_conversations
      */
@@ -9259,17 +9327,19 @@ class WAReplies
             }
         }
 
-        $last9 = $this->waPhoneLastNineDigits($waNumber);
-        if ($last9 === null) {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+        $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber);
+        if ($nomor === null) {
             return null;
         }
 
         $digits = $this->sqlPhoneColumnDigitsOnlyExpr('wa_number');
-        $sql = 'SELECT * FROM wa_conversations WHERE LENGTH(' . $digits . ') >= 9 '
-            . 'AND RIGHT(' . $digits . ', 9) = ? ORDER BY id DESC LIMIT 1';
+        $sql = 'SELECT * FROM wa_conversations WHERE ' . $digits . ' LIKE ? ORDER BY id DESC LIMIT 1';
 
         try {
-            $db->query($sql, [$last9]);
+            $db->query($sql, ['%' . $nomor]);
             if ($db->num_rows() > 0) {
                 return $db->row();
             }

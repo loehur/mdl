@@ -3,6 +3,7 @@
 namespace App\Controllers\CRM;
 
 use App\Core\Controller;
+use App\Helpers\CRM\WaSenderContext;
 
 class Chat extends Controller
 {
@@ -232,10 +233,12 @@ class Chat extends Controller
 
         $db = $this->db(0);
 
-        // Normalize input phone to digits only
-        $normPhone = preg_replace('/[^0-9]/', '', $phone);
-        // Use last 10 digits for matching (covers local and international formats)
-        $matchDigits = substr($normPhone, -10);
+        $nomor = WaSenderContext::toNomorNasional($phone);
+        if ($nomor === null) {
+            $this->error('Phone required');
+        }
+        $like = '%' . $nomor;
+        $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
 
         // Fetch limit+1 to check if there's more data
         $fetchLimit = $limit + 1;
@@ -259,7 +262,7 @@ class Chat extends Controller
                         NULL as sender_code,
                         0 as `private`
                      FROM wa_messages_in 
-                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
+                     WHERE {$phoneExpr} LIKE ?)
                     UNION ALL
                     (SELECT 
                         id,
@@ -277,7 +280,7 @@ class Chat extends Controller
                         sender_code,
                         COALESCE(`private`, 0) as `private`
                      FROM wa_messages_out 
-                     WHERE RIGHT(REPLACE(REPLACE(phone, '+', ''), '-', ''), 10) = ?)
+                     WHERE {$phoneExpr} LIKE ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
                 LIMIT ? OFFSET ?
@@ -286,7 +289,7 @@ class Chat extends Controller
         ";
         
         // Use result_array() instead of result() to get arrays directly
-        $messages = $db->query($sql, [$matchDigits, $matchDigits, $fetchLimit, $offset])->result_array();
+        $messages = $db->query($sql, [$like, $like, $fetchLimit, $offset])->result_array();
         
         // Normalize private field to integer (0 or 1) for consistent frontend handling
         foreach ($messages as &$msg) {

@@ -106,8 +106,10 @@ class Delivery extends Controller
             "nomor_pelanggan LIKE '%{$esc}%'",
          ];
          if ($digits !== '') {
-            $escD = $this->db(0)->escape($digits);
-            $parts[] = "nomor_pelanggan LIKE '%{$escD}%'";
+            $this->helper('PelangganByPhone');
+            $nomor = PelangganByPhone::toNomorNasional($digits) ?? $digits;
+            $escD = $this->db(0)->escape($nomor);
+            $parts[] = PelangganByPhone::likeSql($escD);
          }
          $where .= ' AND (' . implode(' OR ', $parts) . ')';
       }
@@ -531,8 +533,7 @@ class Delivery extends Controller
             throw new Exception('Pelanggan tidak ditemukan di cabang aktif');
          }
 
-         $digits = preg_replace('/[^0-9]/', '', (string) ($pel['nomor_pelanggan'] ?? ''));
-         $phoneTail = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+         $phoneTail = $this->phoneKey($pel['nomor_pelanggan'] ?? '');
          if (strlen($phoneTail) < 8) {
             throw new Exception('Nomor pelanggan belum lengkap');
          }
@@ -681,8 +682,7 @@ class Delivery extends Controller
             throw new Exception('Pelanggan tidak ditemukan di cabang aktif');
          }
 
-         $digits = preg_replace('/[^0-9]/', '', (string) ($pel['nomor_pelanggan'] ?? ''));
-         $phoneTail = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+         $phoneTail = $this->phoneKey($pel['nomor_pelanggan'] ?? '');
          if (strlen($phoneTail) < 8) {
             throw new Exception('Nomor pelanggan belum lengkap');
          }
@@ -1020,24 +1020,22 @@ class Delivery extends Controller
 
    /**
     * Riwayat 50 pesan terakhir conversation customer — semua user.
-    * Param: 9 digit terakhir nomor WA.
+    * Param: nomor WA (08 / 62 / +62 / nasional 852…).
     */
    public function customer_detail($phoneTail = '')
    {
       header('Content-Type: application/json; charset=utf-8');
 
-      $phoneTail = preg_replace('/[^0-9]/', '', (string) $phoneTail);
-      if (strlen($phoneTail) < 9) {
+      $phoneTail = $this->phoneKey($phoneTail);
+      if (strlen($phoneTail) < 8) {
          echo json_encode(['status' => 'error', 'message' => 'Nomor tidak valid']);
          return;
       }
-      $phoneTail = substr($phoneTail, -9);
-      $tailEsc = $this->db(100)->escape($phoneTail);
 
       $convRows = $this->db(100)->query_array(
          "SELECT id, wa_number, contact_name, COALESCE(code, '00') AS kode_cabang, conv_case, last_message_at
           FROM wa_conversations
-          WHERE RIGHT(REPLACE(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
+          WHERE " . $this->waNumberLikeSql($phoneTail) . "
           LIMIT 5"
       );
       if (!is_array($convRows) || empty($convRows)) {
@@ -1058,7 +1056,11 @@ class Delivery extends Controller
 
       $messages = [];
       try {
-         $messages = $this->helper('WaChatHistory')->fetchMessages($this->db(100), $phoneTail, 30);
+         $messages = $this->helper('WaChatHistory')->fetchMessages(
+            $this->db(100),
+            (string) ($conv['wa_number'] ?? $phoneTail),
+            30
+         );
       } catch (\Throwable $e) {
          $messages = [];
       }
@@ -1069,7 +1071,7 @@ class Delivery extends Controller
          'status' => 'success',
          'data' => [
             'nama' => strtoupper(trim((string) ($conv['contact_name'] ?? '')) !== '' ? trim($conv['contact_name']) : 'Customer'),
-            'phone_tail' => strlen($digits) >= 9 ? substr($digits, -9) : $digits,
+            'phone_tail' => $this->phoneKey($conv['wa_number'] ?? $digits),
             'phone_display' => $phoneDisplay,
             'kode_cabang' => strtoupper((string) ($conv['kode_cabang'] ?? '00')),
             'messages' => $messages,
@@ -1091,13 +1093,10 @@ class Delivery extends Controller
       $fromOperasi = (int) ($_GET['operasi'] ?? 0) === 1;
       $idPelangganGet = (int) ($_GET['id_pelanggan'] ?? 0);
 
-      $phoneTail = preg_replace('/[^0-9]/', '', (string) $phoneTail);
+      $phoneTail = $this->phoneKey($phoneTail);
       if (strlen($phoneTail) < 8 && !($fromOperasi && $idPelangganGet > 0)) {
          echo json_encode(['status' => 'error', 'message' => 'Nomor tidak valid']);
          return;
-      }
-      if (strlen($phoneTail) >= 9) {
-         $phoneTail = substr($phoneTail, -9);
       }
       $jenis = strtolower(trim((string) ($_GET['jenis'] ?? '')));
       if (!in_array($jenis, ['jemput', 'antar'], true)) {
@@ -1153,7 +1152,7 @@ class Delivery extends Controller
       $response = ['status' => 'error', 'message' => 'Unknown error'];
 
       try {
-         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_POST['phone_tail'] ?? ''));
+         $phoneTail = $this->phoneKey($_POST['phone_tail'] ?? '');
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
          $idsRaw = $_POST['ids'] ?? [];
@@ -1183,10 +1182,9 @@ class Delivery extends Controller
          }
          $idsSekalian = array_values($idsSekalian);
 
-         if (strlen($phoneTail) < 9) {
+         if (strlen($phoneTail) < 8) {
             throw new Exception('Nomor tidak valid');
          }
-         $phoneTail = substr($phoneTail, -9);
          if (!in_array($jenis, ['jemput', 'antar'], true)) {
             throw new Exception('Jenis harus jemput atau antar');
          }
@@ -1442,10 +1440,7 @@ class Delivery extends Controller
             $idsSekalian = [];
          }
 
-         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($req['phone_tail'] ?? ''));
-         if (strlen($phoneTail) >= 9) {
-            $phoneTail = substr($phoneTail, -9);
-         }
+         $phoneTail = $this->phoneKey($req['phone_tail'] ?? '');
          if ($phoneTail === '') {
             throw new Exception('Nomor request tidak valid');
          }
@@ -1702,10 +1697,7 @@ class Delivery extends Controller
             throw new Exception($log['error'] ?? 'Gagal menyimpan log');
          }
 
-         $phoneTailReq = preg_replace('/[^0-9]/', '', (string) ($req['phone_tail'] ?? ''));
-         if (strlen($phoneTailReq) >= 9) {
-            $phoneTailReq = substr($phoneTailReq, -9);
-         }
+         $phoneTailReq = $this->phoneKey($req['phone_tail'] ?? '');
          $crmClosed = $phoneTailReq !== ''
             ? $this->maybeCloseCrmCase2ByPhoneTail($phoneTailReq, $idKaryawan)
             : false;
@@ -1744,14 +1736,13 @@ class Delivery extends Controller
       $response = ['status' => 'error', 'message' => 'Unknown error'];
 
       try {
-         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($_POST['phone_tail'] ?? ''));
+         $phoneTail = $this->phoneKey($_POST['phone_tail'] ?? '');
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
          $catatan = trim((string) ($_POST['catatan'] ?? ''));
 
-         if (strlen($phoneTail) < 9) {
+         if (strlen($phoneTail) < 8) {
             throw new Exception('Nomor tidak valid');
          }
-         $phoneTail = substr($phoneTail, -9);
          if ($idKaryawan < 1) {
             throw new Exception('Pilih karyawan yang membatalkan');
          }
@@ -2220,7 +2211,7 @@ class Delivery extends Controller
             continue;
          }
          $digits = preg_replace('/[^0-9]/', '', (string) ($row['wa_number'] ?? ''));
-         $phoneTail = strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+         $phoneTail = $this->phoneKey($row['wa_number'] ?? $digits);
          if ($phoneTail === '') {
             continue;
          }
@@ -2306,11 +2297,8 @@ class Delivery extends Controller
          $jenis = strtolower((string) ($row['jenis'] ?? ''));
          $idCabang = (int) ($row['id_cabang'] ?? 0);
          $nama = trim((string) ($row['nama_pelanggan'] ?? ''));
-         $phoneTail = preg_replace('/[^0-9]/', '', (string) ($row['phone_tail'] ?? ''));
-         if (strlen($phoneTail) >= 9) {
-            $phoneTail = substr($phoneTail, -9);
-         }
          $nomorRaw = trim((string) ($row['nomor_pelanggan'] ?? ''));
+         $phoneTail = $this->phoneKey($nomorRaw !== '' ? $nomorRaw : ($row['phone_tail'] ?? ''));
          $phoneDisplay = $this->formatPhoneDisplay($nomorRaw !== '' ? $nomorRaw : $phoneTail);
 
          $prefillIds = $itemsByRequest[$idRequest] ?? [];
@@ -2824,7 +2812,7 @@ class Delivery extends Controller
    }
 
    /**
-    * Nomor HP untuk tampilan (08…). 9 digit / 62… dilengkapi, tanpa mengubah data match.
+    * Nomor HP untuk tampilan (08…). Nasional 852… / 62… dilengkapi 0.
     */
    private function formatPhoneDisplay(string $raw): string
    {
@@ -2838,6 +2826,30 @@ class Delivery extends Controller
          $digits = '0' . $digits;
       }
       return $digits;
+   }
+
+   /** Nasional 852… setelah buang +62 / 62 / 0. */
+   private function phoneKey($phone): string
+   {
+      $this->helper('PelangganByPhone');
+
+      return PelangganByPhone::key((string) $phone);
+   }
+
+   private function waNumberLikeSql($phone, string $column = 'wa_number'): string
+   {
+      $this->helper('PelangganByPhone');
+      $esc = $this->db(100)->escape($this->phoneKey($phone));
+
+      return PelangganByPhone::likeSql($esc, $column);
+   }
+
+   private function phoneTailMatchSql($phone, string $column = 'phone_tail'): string
+   {
+      $this->helper('PelangganByPhone');
+      $esc = $this->db(0)->escape($this->phoneKey($phone));
+
+      return PelangganByPhone::phoneTailWhere($esc, $column);
    }
 
    /**
@@ -3033,31 +3045,11 @@ class Delivery extends Controller
    }
 
    /**
-    * id_pelanggan yang nomornya match 9 digit terakhir.
+    * Semua id_pelanggan untuk nomor HP (LIKE '%852…' + sale terbaru sebagai primary di helper).
     */
    private function pelangganIdsByPhoneTail(string $phoneTail): array
    {
-      $tailEsc = $this->db(0)->escape($phoneTail);
-      $digitsExpr = "REPLACE(REPLACE(REPLACE(COALESCE(nomor_pelanggan,''), '+', ''), '-', ''), ' ', '')";
-      $rows = $this->db(0)->query_array(
-         "SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
-          FROM pelanggan
-          WHERE RIGHT($digitsExpr, 9) = '$tailEsc'
-             OR RIGHT($digitsExpr, 8) = '" . $this->db(0)->escape(substr($phoneTail, -8)) . "'
-          ORDER BY id_pelanggan DESC
-          LIMIT 50"
-      );
-      if (!is_array($rows)) {
-         return [];
-      }
-      $ids = [];
-      foreach ($rows as $r) {
-         $id = (int) ($r['id_pelanggan'] ?? 0);
-         if ($id > 0) {
-            $ids[$id] = $id;
-         }
-      }
-      return array_values($ids);
+      return $this->helper('PelangganByPhone')->ids($phoneTail);
    }
 
    private function fetchEligibleSaleRows(
@@ -3321,7 +3313,7 @@ class Delivery extends Controller
       $groups = [];
 
       foreach ($customerRequests as $rq) {
-         $tail = (string) ($rq['phone_tail'] ?? '');
+         $tail = $this->phoneKey($rq['phone_tail'] ?? '');
          if ($tail === '') {
             continue;
          }
@@ -3361,17 +3353,13 @@ class Delivery extends Controller
     */
    private function countActiveDeliveryRequestsByPhoneTail(string $phoneTail): int
    {
-      $phoneTail = preg_replace('/[^0-9]/', '', $phoneTail);
-      if (strlen($phoneTail) >= 9) {
-         $phoneTail = substr($phoneTail, -9);
-      }
+      $phoneTail = $this->phoneKey($phoneTail);
       if ($phoneTail === '') {
          return 0;
       }
-      $esc = $this->db(0)->escape($phoneTail);
       return (int) ($this->db(0)->count_where(
          'delivery_request',
-         "phone_tail = '" . $esc . "'"
+         $this->phoneTailMatchSql($phoneTail)
             . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
       ) ?? 0);
    }
@@ -3393,11 +3381,10 @@ class Delivery extends Controller
     */
    private function closeCrmCase2ByPhoneTail(string $phoneTail, int $userId = 0): bool
    {
-      $tailEsc = $this->db(100)->escape($phoneTail);
       $rows = $this->db(100)->query_array(
          "SELECT id, wa_number, conv_case
           FROM wa_conversations
-          WHERE RIGHT(REPLACE(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), ' ', ''), 9) = '$tailEsc'
+          WHERE " . $this->waNumberLikeSql($phoneTail) . "
           LIMIT 10"
       );
       if (!is_array($rows)) {
@@ -3853,9 +3840,15 @@ class Delivery extends Controller
    {
       $idPelanggan = (int) ($jemputReq['id_pelanggan'] ?? 0);
       $idCabang = (int) ($jemputReq['id_cabang'] ?? 0);
-      $phoneTail = preg_replace('/[^0-9]/', '', (string) ($jemputReq['phone_tail'] ?? ''));
-      if (strlen($phoneTail) >= 9) {
-         $phoneTail = substr($phoneTail, -9);
+      $phoneTail = $this->phoneKey($jemputReq['phone_tail'] ?? '');
+      if ($idPelanggan > 0) {
+         $pel = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
+         if (!empty($pel['nomor_pelanggan'])) {
+            $fromPel = $this->phoneKey($pel['nomor_pelanggan']);
+            if (strlen($fromPel) >= 8) {
+               $phoneTail = $fromPel;
+            }
+         }
       }
       if ($idPelanggan <= 0 || $idCabang <= 0 || $phoneTail === '') {
          throw new Exception('Data request jemput tidak lengkap untuk Antar kembali');

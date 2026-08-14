@@ -14,7 +14,8 @@ use App\Core\Controller;
  *
  * Jika CSW (last_in_at) belum terbuka: baris tetap queue — tidak dihapus — cron mencoba lagi nanti.
  *
- * Jika ada baris di tabel notif (db(1)) dengan text sama dan nomor cocok (9 digit terakhir),
+ * Jika ada baris di tabel notif (db(1)) dengan text sama dan nomor cocok
+ * (nasional 852… setelah buang +62/62/0),
  * state apa pun, baris antrian WA dihapus agar tidak dobel dengan pengiriman lewat Cron laundry.
  *
  * URL (example):
@@ -93,7 +94,7 @@ class ResendWAQueue extends Controller
                 continue;
             }
 
-            // Laundry punya baris notif (teks + nomor sama per 9 digit terakhir, state apa pun) → jangan kirim WA antrian; hapus baris
+            // Laundry punya baris notif (teks + nomor nasional 852… sama, state apa pun) → jangan kirim WA antrian; hapus baris
             if ($this->hasNotifMatchingQueueRow($dbNotif, $content, $phone)) {
                 $db->delete('wa_messages_out', ['id' => $id]);
                 $removedNotifMatch++;
@@ -188,29 +189,16 @@ class ResendWAQueue extends Controller
     }
 
     /**
-     * 9 digit terakhir nomor (digit saja), untuk samakan 081… / 628… / +62….
-     */
-    private function phoneLast9Digits(string $phone): ?string
-    {
-        $d = preg_replace('/[^0-9]/', '', $phone);
-        if ($d === '') {
-            return null;
-        }
-        if (strlen($d) >= 9) {
-            return substr($d, -9);
-        }
-
-        return $d;
-    }
-
-    /**
-     * Ada baris di notif dengan text sama (trim) dan nomor cocok (9 digit terakhir), state apa pun.
+     * Ada baris di notif dengan text sama (trim) dan nomor cocok (nasional 852…), state apa pun.
      * Tabel notif ada di db(1) (laundry); wa_messages_out tetap di db(0).
      */
     private function hasNotifMatchingQueueRow($db, string $content, string $phone): bool
     {
-        $last9 = $this->phoneLast9Digits($phone);
-        if ($last9 === null) {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once dirname(__DIR__, 2) . '/Helpers/CRM/WaSenderContext.php';
+        }
+        $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($phone);
+        if ($nomor === null) {
             return false;
         }
         $text = trim($content);
@@ -220,11 +208,10 @@ class ResendWAQueue extends Controller
                 SELECT 1 AS ok
                 FROM notif
                 WHERE TRIM(text) = ?
-                  AND LENGTH({$digits}) >= 9
-                  AND RIGHT({$digits}, 9) = ?
+                  AND {$digits} LIKE ?
                 LIMIT 1
             ";
-            $q = $db->query($sql, [$text, $last9]);
+            $q = $db->query($sql, [$text, '%' . $nomor]);
             if ($q && $q->num_rows() > 0) {
                 return true;
             }

@@ -2951,11 +2951,9 @@ class J extends Controller
 
    private function phoneTailFromPelanggan(array $pelanggan): string
    {
-      $digits = preg_replace('/[^0-9]/', '', (string) ($pelanggan['nomor_pelanggan'] ?? ''));
-      if (strlen($digits) >= 9) {
-         return substr($digits, -9);
-      }
-      return $digits;
+      $this->helper('PelangganByPhone');
+
+      return PelangganByPhone::key($pelanggan['nomor_pelanggan'] ?? '');
    }
 
    /**

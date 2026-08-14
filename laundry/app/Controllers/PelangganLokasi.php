@@ -44,8 +44,10 @@ class PelangganLokasi extends Controller
                 "nomor_pelanggan LIKE '%{$esc}%'",
             ];
             if ($digits !== '') {
-                $escD = $this->db(0)->escape($digits);
-                $parts[] = "nomor_pelanggan LIKE '%{$escD}%'";
+                $this->helper('PelangganByPhone');
+                $nomor = PelangganByPhone::toNomorNasional($digits) ?? $digits;
+                $escD = $this->db(0)->escape($nomor);
+                $parts[] = PelangganByPhone::likeSql($escD);
             }
             $where .= ' AND (' . implode(' OR ', $parts) . ')';
         }

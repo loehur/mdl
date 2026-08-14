@@ -1773,8 +1773,8 @@
 </div>
 
 <?php
-$kurirPhoneDigits = preg_replace('/[^0-9]/', '', (string) ($no_pelanggan ?? ''));
-$kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9) : $kurirPhoneDigits;
+$this->helper('PelangganByPhone');
+$kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 ?>
 <style>
   #offcanvasKurir {

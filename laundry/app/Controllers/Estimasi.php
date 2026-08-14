@@ -731,8 +731,7 @@ class Estimasi extends Controller
             return false;
         }
         $pel = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
-        $digits = preg_replace('/\D+/', '', (string) ($pel['nomor_pelanggan'] ?? ''));
-        $phoneTail = strlen($digits) >= 8 ? substr($digits, -9) : $digits;
+        $phoneTail = $this->phoneKey($pel['nomor_pelanggan'] ?? '');
         if (strlen($phoneTail) < 8) {
             return false;
         }
@@ -1211,35 +1210,27 @@ class Estimasi extends Controller
     /** @return array{nama:string} */
     private function resolvePelangganByPhone(string $phone): array
     {
-        $digits = preg_replace('/\D+/', '', $phone);
-        $last8 = strlen($digits) >= 8 ? substr($digits, -8) : '';
         $nama = '';
-
-        if ($last8 !== '') {
-            try {
-                $conv = $this->db(100)->query_array(
-                    "SELECT contact_name FROM wa_conversations
-                     WHERE RIGHT(REPLACE(REPLACE(REPLACE(wa_number,'+',''),'-',''),' ',''), 8) = '"
-                    . $this->db(100)->escape($last8) . "'
-                     ORDER BY id DESC LIMIT 1"
-                );
-                if (!empty($conv[0]['contact_name'])) {
-                    $nama = trim((string) $conv[0]['contact_name']);
-                }
-            } catch (\Throwable $e) {
-                // ignore
+        try {
+            $resolved = $this->helper('PelangganByPhone')->resolve($phone);
+            if (!empty($resolved['nama_pelanggan'])) {
+                $nama = trim((string) $resolved['nama_pelanggan']);
             }
+        } catch (\Throwable $e) {
+            // ignore
+        }
 
-            if ($nama === '') {
+        if ($nama === '') {
+            $nomor = $this->phoneKey($phone);
+            if ($nomor !== '') {
                 try {
-                    $pel = $this->db(0)->query_array(
-                        "SELECT nama_pelanggan FROM pelanggan
-                         WHERE RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''), 8) = '"
-                        . $this->db(0)->escape($last8) . "'
-                         ORDER BY id_pelanggan ASC LIMIT 1"
+                    $conv = $this->db(100)->query_array(
+                        "SELECT contact_name FROM wa_conversations
+                         WHERE " . $this->waNumberLikeSql($nomor) . "
+                         ORDER BY id DESC LIMIT 1"
                     );
-                    if (!empty($pel[0]['nama_pelanggan'])) {
-                        $nama = trim((string) $pel[0]['nama_pelanggan']);
+                    if (!empty($conv[0]['contact_name'])) {
+                        $nama = trim((string) $conv[0]['contact_name']);
                     }
                 } catch (\Throwable $e) {
                     // ignore
@@ -1343,7 +1334,7 @@ class Estimasi extends Controller
                 if ($waPhone === '') {
                     continue;
                 }
-                $phoneKey = strlen($waPhone) >= 9 ? substr($waPhone, -9) : $waPhone;
+                $phoneKey = $this->phoneKey($waPhone);
                 if (isset($seenPhones[$phoneKey])) {
                     continue;
                 }
@@ -1465,7 +1456,7 @@ class Estimasi extends Controller
                 continue;
             }
 
-            $phoneKey = strlen($waPhone) >= 9 ? substr($waPhone, -9) : $waPhone;
+            $phoneKey = $this->phoneKey($waPhone);
             if (isset($seenPhones[$phoneKey])) {
                 continue;
             }
@@ -1729,15 +1720,13 @@ class Estimasi extends Controller
         $phoneEsc = $this->db(100)->escape($phone);
         $raw = implode("\n---\n", $lines);
         try {
-            $digits = preg_replace('/[^0-9]/', '', $phone);
-            $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
+            $nomor = $this->phoneKey($phone);
             $existingRows = $this->db(100)->query_array(
                 "SELECT phone FROM wa_permintaan_session
                  WHERE status = 'open' AND expires_at > NOW() AND ("
                 . "phone = '" . $phoneEsc . "'"
-                . ($tail !== ''
-                    ? (" OR RIGHT(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''), " . strlen($tail) . ") = '"
-                        . $this->db(100)->escape($tail) . "'")
+                . ($nomor !== ''
+                    ? (" OR " . $this->phoneLikeSql($nomor, 'phone'))
                     : '')
                 . ") LIMIT 1"
             );
@@ -1901,10 +1890,7 @@ class Estimasi extends Controller
             // ignore
         }
 
-        $phoneTail = preg_replace('/[^0-9]/', '', $phone);
-        if (strlen($phoneTail) >= 9) {
-            $phoneTail = substr($phoneTail, -9);
-        }
+        $phoneTail = $this->phoneKey($phone);
 
         $log = $this->helper('ActivityLog')->write([
             'modul' => 'permintaan',
@@ -1948,14 +1934,12 @@ class Estimasi extends Controller
             if (is_array($session) && !empty($session['phone'])) {
                 return $session;
             }
-            $digits = preg_replace('/[^0-9]/', '', $phone);
-            $tail = strlen($digits) >= 10 ? substr($digits, -10) : $digits;
-            if ($tail !== '') {
+            $nomor = $this->phoneKey($phone);
+            if ($nomor !== '') {
                 $rows = $this->db(100)->query_array(
                     "SELECT * FROM wa_permintaan_session
                      WHERE status = 'open' AND expires_at > NOW()
-                       AND RIGHT(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''), "
-                    . strlen($tail) . ") = '" . $this->db(100)->escape($tail) . "'
+                       AND " . $this->phoneLikeSql($nomor, 'phone') . "
                      LIMIT 1"
                 );
                 if (!empty($rows[0])) {
@@ -2021,14 +2005,12 @@ class Estimasi extends Controller
     /** Tutup case 3 tanpa echo JSON (dipakai dari updatePermintaanTask). */
     private function closePermintaanCaseQuiet(string $phone): void
     {
-        $hpClean = preg_replace('/[^0-9]/', '', $phone);
-        $matchDigits = substr($hpClean, -10);
-        if ($matchDigits === '') {
+        $nomor = $this->phoneKey($phone);
+        if ($nomor === '') {
             return;
         }
 
-        $where = "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '"
-            . $this->db(100)->escape($matchDigits) . "'";
+        $where = $this->waNumberLikeSql($nomor);
         $row = $this->db(100)->get_where_row('wa_conversations', $where);
         if (!is_array($row) || empty($row['id'])) {
             return;
@@ -2125,22 +2107,10 @@ class Estimasi extends Controller
     /** @return array<string,mixed>|null */
     private function resolvePelangganInCabangByPhone(string $waPhone, int $cabangId): ?array
     {
-        $tail9 = strlen($waPhone) >= 9 ? substr($waPhone, -9) : '';
-        if ($tail9 === '') {
-            return null;
-        }
-
         try {
-            $rows = $this->db(0)->query_array(
-                "SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan FROM pelanggan
-                 WHERE id_cabang = " . (int) $cabangId . "
-                   AND RIGHT(REPLACE(REPLACE(REPLACE(nomor_pelanggan, '+', ''), '-', ''), ' ', ''), 9) = '"
-                . $this->db(0)->escape($tail9) . "'
-                 ORDER BY id_pelanggan ASC
-                 LIMIT 1"
-            );
-            if (!empty($rows[0]['id_pelanggan'])) {
-                return $rows[0];
+            $row = $this->helper('PelangganByPhone')->rowInCabang($waPhone, $cabangId);
+            if (is_array($row) && !empty($row['id_pelanggan'])) {
+                return $row;
             }
         } catch (\Throwable $e) {
             // ignore
@@ -2151,15 +2121,13 @@ class Estimasi extends Controller
 
     private function closePermintaanCase(string $phone): void
     {
-        $hpClean = preg_replace('/[^0-9]/', '', $phone);
-        $matchDigits = substr($hpClean, -10);
-        if ($matchDigits === '') {
+        $nomor = $this->phoneKey($phone);
+        if ($nomor === '') {
             echo json_encode(['ok' => 0, 'msg' => 'Nomor tidak valid']);
             return;
         }
 
-        $where = "RIGHT(REPLACE(REPLACE(wa_number, '+', ''), '-', ''), 10) = '"
-            . $this->db(100)->escape($matchDigits) . "'";
+        $where = $this->waNumberLikeSql($nomor);
         $row = $this->db(100)->get_where_row('wa_conversations', $where);
         if (!is_array($row) || empty($row['id'])) {
             echo json_encode(['ok' => 0, 'msg' => 'Conversation tidak ditemukan']);
@@ -2246,5 +2214,26 @@ class Estimasi extends Controller
         $result = curl_exec($ch);
         curl_close($ch);
         return $result;
+    }
+
+    /** Nasional 852… setelah buang +62 / 62 / 0. */
+    private function phoneKey($phone): string
+    {
+        $this->helper('PelangganByPhone');
+
+        return PelangganByPhone::key((string) $phone);
+    }
+
+    private function waNumberLikeSql(string $nomor, string $column = 'wa_number'): string
+    {
+        return $this->phoneLikeSql($nomor, $column);
+    }
+
+    private function phoneLikeSql(string $nomor, string $column): string
+    {
+        $this->helper('PelangganByPhone');
+        $esc = $this->db(100)->escape($nomor);
+
+        return PelangganByPhone::likeSql($esc, $column);
     }
 }

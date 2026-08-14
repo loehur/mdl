@@ -3,6 +3,7 @@
 namespace App\Controllers\CRM;
 
 use App\Core\Controller;
+use App\Helpers\CRM\WaSenderContext;
 
 /**
  * CRM Approval - List pembayaran NonTunai per customer
@@ -110,16 +111,16 @@ class Approval extends Controller
             if ($kasData && !empty($kasData['id_client'])) {
                 $pel = $db->query("SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ?", [(int)$kasData['id_client']])->row_array();
                 if ($pel && !empty($pel['nomor_pelanggan'])) {
-                    $cleanPhone = preg_replace('/[^0-9]/', '', $pel['nomor_pelanggan']);
-                    $phone08 = '0' . substr($cleanPhone, -10);
-                    $phone62 = '62' . substr($cleanPhone, -10);
-                    $phonePlus62 = '+62' . substr($cleanPhone, -10);
-                    $phones = ["'$phone08'", "'$phone62'", "'$phonePlus62'"];
-                    $phoneIn = implode(',', $phones);
+                    $nomor = WaSenderContext::toNomorNasional($pel['nomor_pelanggan']);
+                    $phonePlus62 = $nomor !== null ? ('62' . $nomor) : '';
 
                     $dbMain = $this->db(0);
-                    if (method_exists($dbMain, 'query')) {
-                        $dbMain->query("UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND wa_number IN ($phoneIn)");
+                    if ($nomor !== null && method_exists($dbMain, 'query')) {
+                        $expr = WaSenderContext::sqlDigitsExpr('wa_number');
+                        $dbMain->query(
+                            "UPDATE wa_conversations SET priority = 0 WHERE priority = 2 AND {$expr} LIKE ?",
+                            ['%' . $nomor]
+                        );
                     }
 
                     $payload = [

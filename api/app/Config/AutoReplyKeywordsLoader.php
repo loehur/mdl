@@ -95,7 +95,8 @@ class AutoReplyKeywordsLoader
         $db = \App\Core\DB::getInstance(0);
 
         $intents = $db->query(
-            "SELECT id, code, case_value, notify, ai_prompt
+            "SELECT id, code, case_value, notify, ai_prompt,
+                    is_admin, is_karyawan, is_pelanggan, deny_reply
              FROM wa_autoreply_intents
              WHERE is_active = 1
              ORDER BY sort_order ASC, id ASC"
@@ -139,6 +140,13 @@ class AutoReplyKeywordsLoader
             $prompt = $row['ai_prompt'] ?? null;
             if (is_string($prompt) && trim($prompt) !== '') {
                 $cfg['ai_prompt'] = $prompt;
+            }
+            $cfg['is_admin'] = ((int) ($row['is_admin'] ?? 0)) === 1;
+            $cfg['is_karyawan'] = ((int) ($row['is_karyawan'] ?? 0)) === 1;
+            $cfg['is_pelanggan'] = ((int) ($row['is_pelanggan'] ?? 0)) === 1;
+            $deny = trim((string) ($row['deny_reply'] ?? ''));
+            if ($deny !== '') {
+                $cfg['deny_reply'] = $deny;
             }
             $out[$code] = $cfg;
         }

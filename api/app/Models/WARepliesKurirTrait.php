@@ -4240,20 +4240,23 @@ trait WARepliesKurirTrait
 
     private function kurirPhoneTail(int $idPelanggan, string $waNumber): string
     {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
         try {
             $row = DB::getInstance(1)->query(
                 'SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idPelanggan]
             )->row();
-            $digits = preg_replace('/\D+/', '', (string) ($row->nomor_pelanggan ?? ''));
-            if (strlen($digits) >= 8) {
-                return substr($digits, -9);
+            $fromPel = \App\Helpers\CRM\WaSenderContext::key((string) ($row->nomor_pelanggan ?? ''));
+            if (strlen($fromPel) >= 8) {
+                return $fromPel;
             }
         } catch (\Throwable $e) {
             // ignore
         }
-        $digits = preg_replace('/\D+/', '', $waNumber);
-        return strlen($digits) >= 8 ? substr($digits, -9) : $digits;
+
+        return \App\Helpers\CRM\WaSenderContext::key($waNumber);
     }
 
     private function kurirEligibleSaleIds(int $idPelanggan, bool $requireSelesai): array

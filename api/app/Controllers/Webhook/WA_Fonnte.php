@@ -91,7 +91,19 @@ class WA_Fonnte extends Controller
 
         $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
         $phone0 = '0' . substr($cleanPhone, 2);
-        $customerCtx = $this->resolveFonnteCustomerContext($phone0, $waNumber, $name);
+        if (! class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+        $senderCtx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+        $customerCtx = [
+            'contact_name' => $senderCtx['contact_name'] ?: ($name !== null && $name !== '' ? (string) $name : null),
+            'assigned_user_id' => $senderCtx['assigned_user_id'],
+            'code' => $senderCtx['code'],
+            'cust_id' => $senderCtx['cust_id'] ?: null,
+        ];
+        if ($customerCtx['assigned_user_id'] === null) {
+            $customerCtx = $this->mergeAssignmentFromExistingConversations($waNumber, $customerCtx);
+        }
 
         if ($isMediaWithoutCaption) {
             $this->recordFonnteIncoming($waNumber, $timestamp);
@@ -154,6 +166,7 @@ class WA_Fonnte extends Controller
             $replies->setCustomSender($fonnteAdapter);
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
+            $replies->setSenderContext($senderCtx);
 
             $processResult = $replies->process(
                 $phoneIn,
