@@ -742,6 +742,10 @@ class Delivery extends Controller
             }
 
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
+            $lockedJemput = $this->lockedTarifSurcasForSaleIds($ids, 'jemput');
+            if ($lockedJemput !== null) {
+               $jumlahSurcas = $lockedJemput;
+            }
             $surcasJemput = $this->upsertSurcasPenjemputan(
                $idCabang,
                $ids,
@@ -768,6 +772,10 @@ class Delivery extends Controller
             $antarBound = false;
             $surcasAntar = null;
             if ($jenis === 'jemput_antar') {
+               $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
+               if ($lockedAntar !== null) {
+                  $jumlahAntar = $lockedAntar;
+               }
                $antarRes = $this->ensureAntarRequestBound(
                   $idPelanggan,
                   $idCabang,
@@ -818,6 +826,10 @@ class Delivery extends Controller
                throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
             }
             $tarifSurcas = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
+            $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
+            if ($lockedAntar !== null) {
+               $tarifSurcas = $lockedAntar;
+            }
             if ($tarifSurcas < 0) {
                throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
             }
@@ -869,12 +881,16 @@ class Delivery extends Controller
 
             if ($idRequest > 0) {
                $bound = true;
+               $updSet = [
+                  'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
+               ];
+               $existingTarif = $reqAntar['tarif_surcas'] ?? null;
+               if ($existingTarif === null || $existingTarif === '') {
+                  $updSet['tarif_surcas'] = $tarifSurcas;
+               }
                $upd = $this->db(0)->update(
                   'delivery_request',
-                  [
-                     'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
-                     'tarif_surcas' => $tarifSurcas,
-                  ],
+                  $updSet,
                   'id_request = ' . $idRequest
                );
                if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
@@ -2630,11 +2646,11 @@ class Delivery extends Controller
    }
 
    /**
-    * id_penjualan yang terikat delivery_request berjalan untuk jenis tertentu.
+    * Binding item ke delivery_request berjalan untuk jenis tertentu (request terbaru dulu).
     * @param int[] $idPenjualans
-    * @return array<int,true>
+    * @return array<int, array{id_request:int, tarif_surcas:?int, layanan:string}>
     */
-   private function saleIdsBoundToRunningRequest(array $idPenjualans, string $jenis): array
+   private function saleBindingsToRunningRequest(array $idPenjualans, string $jenis): array
    {
       $safe = [];
       foreach ($idPenjualans as $id) {
@@ -2648,23 +2664,68 @@ class Delivery extends Controller
       }
       $jenisEsc = $this->db(0)->escape($jenis);
       $rows = $this->db(0)->query_array(
-         "SELECT DISTINCT dri.id_penjualan
+         "SELECT dri.id_penjualan, drq.id_request, drq.tarif_surcas, drq.layanan
           FROM delivery_request_item dri
           INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
           WHERE dri.id_penjualan IN (" . implode(',', $safe) . ")
             AND drq.jenis = '$jenisEsc'
-            AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')"
+            AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')
+          ORDER BY drq.id_request DESC"
       );
       $out = [];
       if (is_array($rows)) {
          foreach ($rows as $r) {
             $sid = (int) ($r['id_penjualan'] ?? 0);
-            if ($sid > 0) {
-               $out[$sid] = true;
+            if ($sid <= 0 || isset($out[$sid])) {
+               continue;
             }
+            $tarifRaw = $r['tarif_surcas'] ?? null;
+            $out[$sid] = [
+               'id_request' => (int) ($r['id_request'] ?? 0),
+               'tarif_surcas' => ($tarifRaw === null || $tarifRaw === '') ? null : (int) $tarifRaw,
+               'layanan' => strtolower((string) ($r['layanan'] ?? 'sameday')),
+            ];
          }
       }
       return $out;
+   }
+
+   /**
+    * Tarif sameday yang mengunci surcas (null = tidak terkunci). 0 = gratis.
+    * Instant diabaikan (pakai ongkir, bukan surcas nota).
+    * @param int[] $ids
+    */
+   private function lockedTarifSurcasForSaleIds(array $ids, string $jenis): ?int
+   {
+      $map = $this->saleBindingsToRunningRequest($ids, $jenis);
+      foreach ($ids as $id) {
+         $b = $map[(int) $id] ?? null;
+         if (!$b) {
+            continue;
+         }
+         if (($b['layanan'] ?? '') === 'instant') {
+            continue;
+         }
+         if (!array_key_exists('tarif_surcas', $b) || $b['tarif_surcas'] === null) {
+            continue;
+         }
+         return (int) $b['tarif_surcas'];
+      }
+      return null;
+   }
+
+   /**
+    * @param array{id_request?:int, tarif_surcas?:mixed, layanan?:string}|null $binding
+    */
+   private function bindingLockTarif(?array $binding): ?int
+   {
+      if (!$binding || (($binding['layanan'] ?? '') === 'instant')) {
+         return null;
+      }
+      if (!array_key_exists('tarif_surcas', $binding) || $binding['tarif_surcas'] === null) {
+         return null;
+      }
+      return (int) $binding['tarif_surcas'];
    }
 
    /**
@@ -3060,6 +3121,9 @@ class Delivery extends Controller
             'belum_selesai' => false,
             'sudah_delivered' => false,
             'terikat' => false,
+            'tarif_surcas' => null,
+            'terikat_antar' => false,
+            'tarif_surcas_antar' => null,
          ];
       }
 
@@ -3075,12 +3139,16 @@ class Delivery extends Controller
          $deliveredSet = $includeDeliveredMissingSurcas
             ? $this->saleIdsWithDeliveryRiwayat($allIds, 'antar')
             : [];
+         $boundMap = $this->saleBindingsToRunningRequest($allIds, 'antar');
          foreach ($orders as $refKey => $ord) {
             foreach ($ord['items'] as $ix => $it) {
                $sid = (int) ($it['id'] ?? 0);
                $belum = $sid > 0 && !isset($selesaiSet[$sid]);
                $orders[$refKey]['items'][$ix]['belum_selesai'] = $belum;
                $orders[$refKey]['items'][$ix]['sudah_delivered'] = $sid > 0 && isset($deliveredSet[$sid]);
+               $bind = $boundMap[$sid] ?? null;
+               $orders[$refKey]['items'][$ix]['terikat'] = $bind !== null;
+               $orders[$refKey]['items'][$ix]['tarif_surcas'] = $this->bindingLockTarif($bind);
             }
             // Siap dulu, lalu belum selesai
             usort($orders[$refKey]['items'], static function ($a, $b) {
@@ -3102,12 +3170,18 @@ class Delivery extends Controller
                $allIds[] = (int) $it['id'];
             }
          }
-         $boundSet = $this->saleIdsBoundToRunningRequest($allIds, 'jemput');
+         $boundMap = $this->saleBindingsToRunningRequest($allIds, 'jemput');
+         $antarBoundMap = $this->saleBindingsToRunningRequest($allIds, 'antar');
          $deliveredSet = $this->saleIdsWithDeliveryRiwayat($allIds, 'jemput');
          foreach ($orders as $refKey => $ord) {
             foreach ($ord['items'] as $ix => $it) {
                $sid = (int) ($it['id'] ?? 0);
-               $orders[$refKey]['items'][$ix]['terikat'] = $sid > 0 && isset($boundSet[$sid]);
+               $bind = $boundMap[$sid] ?? null;
+               $bindAntar = $antarBoundMap[$sid] ?? null;
+               $orders[$refKey]['items'][$ix]['terikat'] = $bind !== null;
+               $orders[$refKey]['items'][$ix]['tarif_surcas'] = $this->bindingLockTarif($bind);
+               $orders[$refKey]['items'][$ix]['terikat_antar'] = $bindAntar !== null;
+               $orders[$refKey]['items'][$ix]['tarif_surcas_antar'] = $this->bindingLockTarif($bindAntar);
                $orders[$refKey]['items'][$ix]['sudah_delivered'] = $sid > 0 && isset($deliveredSet[$sid]);
             }
          }
@@ -3650,12 +3724,16 @@ class Delivery extends Controller
       $existing = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
       if (is_array($existing) && !empty($existing['id_request'])) {
          $idRequest = (int) $existing['id_request'];
+         $updSet = [
+            'catatan_kurir' => mb_substr($catatan !== '' ? $catatan : 'Diikat dari Operasi (Kurir)', 0, 150),
+         ];
+         $existingTarif = $existing['tarif_surcas'] ?? null;
+         if ($existingTarif === null || $existingTarif === '') {
+            $updSet['tarif_surcas'] = max(0, (int) $tarifSurcas);
+         }
          $upd = $this->db(0)->update(
             'delivery_request',
-            [
-               'tarif_surcas' => max(0, (int) $tarifSurcas),
-               'catatan_kurir' => mb_substr($catatan !== '' ? $catatan : 'Diikat dari Operasi (Kurir)', 0, 150),
-            ],
+            $updSet,
             'id_request = ' . $idRequest
          );
          if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {

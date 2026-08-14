@@ -1900,7 +1900,12 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     background: #eff6ff;
     border-color: #2563eb;
   }
-  #offcanvasKurir .kurir-surcas-tarif-btn:disabled { opacity: 0.55; cursor: wait; }
+  #offcanvasKurir .kurir-surcas-tarif-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  #offcanvasKurir .form-control[readonly] {
+    background: #f1f5f9;
+    color: #0f172a;
+    cursor: default;
+  }
 </style>
 
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasKurir"
@@ -1923,8 +1928,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       Operasi selalu menulis surcas ke nota (wajib pilih item).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
       Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
-      Item terikat / sudah jemput tetap tampil (seperti Antar).
-      Item sudah Delivered tanpa surcas antar tetap bisa dipilih (isi surcas saja).
+      Item terikat request dengan tarif tidak bisa diubah nominal surcas-nya.
     </p>
     <div class="kurir-field">
       <label class="kurir-label" for="kurirJenis">Jenis</label>
@@ -1943,6 +1947,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
           <i class="fas fa-route" aria-hidden="true"></i>
         </button>
       </div>
+      <small id="kurirSurcasJemputHint" class="kurir-hint" style="margin:4px 0 0;display:none"></small>
     </div>
     <div class="kurir-field" id="kurirSurcasAntarWrap" hidden>
       <label class="kurir-label" for="kurirSurcasAntar">Surcas Pengantaran</label>
@@ -2030,7 +2035,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   function fillSurcasFromTarif(inputId, btn) {
     if (tarifLoading) return;
     var input = document.getElementById(inputId);
-    if (!input) return;
+    if (!input || input.readOnly) return;
     var idPel = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
     if (!tarifUrl || idPel <= 0) {
       toast('Pelanggan tidak valid', 'warn');
@@ -2060,7 +2065,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       .catch(function () { toast('Gagal hitung tarif', 'error'); })
       .finally(function () {
         tarifLoading = false;
-        if (btn) btn.disabled = false;
+        syncSurcasLock();
       });
   }
 
@@ -2100,6 +2105,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
 
     loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
     syncSubmitLabel();
+    syncSurcasLock();
   }
 
   function syncSubmitLabel() {
@@ -2132,11 +2138,89 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
   }
 
+  function lockedTarifFromChecked(attr, terikatAttr) {
+    var locked = null;
+    var found = false;
+    root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+      if (cb.getAttribute(terikatAttr) !== '1') return;
+      var raw = cb.getAttribute(attr);
+      if (raw === null || raw === '') return;
+      var n = parseInt(raw, 10);
+      if (isNaN(n) || n < 0) return;
+      if (!found) {
+        locked = n;
+        found = true;
+      }
+    });
+    return found ? locked : null;
+  }
+
+  function setSurcasLocked(inputId, lockedVal, hintId, lockedText, unlockedText) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var btn = root.querySelector('.kurir-surcas-tarif-btn[data-surcas-target="' + inputId + '"]');
+    var hint = hintId ? document.getElementById(hintId) : null;
+    if (lockedVal === null) {
+      input.readOnly = false;
+      input.removeAttribute('data-tarif-locked');
+      if (btn) btn.disabled = false;
+      if (hint) {
+        if (unlockedText) {
+          hint.style.display = 'block';
+          hint.textContent = unlockedText;
+        } else {
+          hint.style.display = 'none';
+        }
+      }
+      return;
+    }
+    input.value = String(lockedVal);
+    input.readOnly = true;
+    input.setAttribute('data-tarif-locked', '1');
+    if (btn) btn.disabled = true;
+    if (hint) {
+      hint.style.display = 'block';
+      hint.textContent = lockedText || ('Terkunci dari tarif request Rp' + Number(lockedVal).toLocaleString('id-ID'));
+    }
+  }
+
+  function syncSurcasLock() {
+    var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+    var isJemput = jenis === 'jemput';
+    var isAntar = jenis === 'antar';
+    var isCombo = jenis === 'jemput_antar';
+    var lockJemput = (isJemput || isCombo)
+      ? lockedTarifFromChecked('data-tarif-surcas', 'data-terikat')
+      : null;
+    var lockAntar = isAntar
+      ? lockedTarifFromChecked('data-tarif-surcas', 'data-terikat')
+      : (isCombo ? lockedTarifFromChecked('data-tarif-surcas-antar', 'data-terikat-antar') : null);
+
+    setSurcasLocked(
+      'kurirSurcasJemput',
+      lockJemput,
+      'kurirSurcasJemputHint',
+      lockJemput === null ? '' : ('Terkunci dari tarif request Rp' + Number(lockJemput).toLocaleString('id-ID')),
+      ''
+    );
+    var antarUnlocked = isCombo
+      ? 'Wajib. Langsung ke nota (ref item jemput). Request Antar di board.'
+      : (isAntar ? 'Wajib. Langsung ke nota.' : '');
+    setSurcasLocked(
+      'kurirSurcasAntar',
+      lockAntar,
+      'kurirSurcasAntarHint',
+      lockAntar === null ? '' : ('Terkunci dari tarif request Rp' + Number(lockAntar).toLocaleString('id-ID')),
+      (isAntar || isCombo) ? antarUnlocked : ''
+    );
+  }
+
   function renderSales(orders) {
     var box = root.querySelector('#kurirSales') || document.getElementById('kurirSales');
     if (!box) return;
     if (!orders || !orders.length) {
       box.innerHTML = '<div class="kurir-sales-empty">Tidak ada item eligible</div>';
+      syncSurcasLock();
       return;
     }
     box.innerHTML = orders.map(function (ord) {
@@ -2144,15 +2228,22 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
         var belum = !!it.belum_selesai;
         var delivered = !!it.sudah_delivered;
         var terikat = !!it.terikat;
+        var terikatAntar = !!it.terikat_antar;
+        var tarif = (it.tarif_surcas === 0 || it.tarif_surcas) ? String(it.tarif_surcas) : '';
+        var tarifAntar = (it.tarif_surcas_antar === 0 || it.tarif_surcas_antar) ? String(it.tarif_surcas_antar) : '';
         var meta = '#' + it.id + (it.member ? ' · member' : '')
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
           + (terikat && !delivered ? ' · terikat request' : '')
+          + (tarif !== '' && terikat ? ' · tarif Rp' + Number(tarif).toLocaleString('id-ID') : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
-        // Operasi antar: default tercentang supaya langsung bisa isi surcas
         return '<label class="kurir-item">' +
           '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '" checked' +
           (belum && !delivered ? ' data-belum-selesai="1"' : '') +
-          (delivered ? ' data-sudah-delivered="1"' : '') + '>' +
+          (delivered ? ' data-sudah-delivered="1"' : '') +
+          (terikat ? ' data-terikat="1"' : '') +
+          (terikatAntar ? ' data-terikat-antar="1"' : '') +
+          (tarif !== '' ? ' data-tarif-surcas="' + esc(tarif) + '"' : '') +
+          (tarifAntar !== '' ? ' data-tarif-surcas-antar="' + esc(tarifAntar) + '"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
           '<div class="kurir-item__meta">' + esc(meta) + '</div></span></label>';
       }).join('');
@@ -2163,9 +2254,13 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
         '<div class="kurir-group-head">#' + esc(ord.no_ref) + esc(scHint) + '</div>' + items + '</div>';
     }).join('');
     box.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
-      cb.addEventListener('change', syncSubmitLabel);
+      cb.addEventListener('change', function () {
+        syncSubmitLabel();
+        syncSurcasLock();
+      });
     });
     syncSubmitLabel();
+    syncSurcasLock();
   }
 
   function loadSales(jenis) {
@@ -2173,6 +2268,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     if (!box) return;
     if (!jenis || !salesUrl) {
       box.innerHTML = '<div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>';
+      syncSurcasLock();
       return;
     }
     var idPelanggan = currentPelanggan();
