@@ -42,6 +42,7 @@
             <span class="ark-badge ark-badge--ok">Sumber: database</span>
           <?php endif; ?>
           <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addIntentModal">+ Intent</button>
+          <button type="button" class="btn btn-sm btn-outline-success" id="btnCompactAll">Rapikan pattern</button>
           <a class="btn btn-sm btn-outline-primary" href="<?= URL::BASE_URL ?>IntentLab">Intent Lab</a>
         </div>
 
@@ -123,6 +124,25 @@
     </div>
   </div>
 
+  <div class="modal" id="compactModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content" style="border-radius:0">
+        <div class="modal-header">
+          <h5 class="modal-title">Rapikan pattern</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2" style="font-weight:700">Keyword sederhana (mis. <code>terimakash</code> + <code>mksh</code>) digabung jadi <b>satu</b> regex <code>(a|b|c)</code>. Pattern frasa tetap utuh.</p>
+          <div id="compactPreview" style="max-height:320px;overflow:auto;font-size:.85rem"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-sm btn-success" id="btnCompactApply" disabled>Ya, rapikan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="confirmDeleteModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
       <div class="modal-content" style="border-radius:0">
@@ -167,7 +187,72 @@ $(function() {
   $('#btnConfirmDel').on('click', function() {
     $.post('<?= URL::BASE_URL ?>AutoReplyKeywords/deleteIntent', { id: delId }).done(function(r) {
       if (String(r).trim() === '0') location.reload(true);
-      else alert(r);
+      else if (window.MdlToast) MdlToast.error(r);
+      else $('#arkInfo').html('<div class="alert alert-danger">' + r + '</div>');
+    });
+  });
+
+  var compactUrl = '<?= URL::BASE_URL ?>AutoReplyKeywords/compactPatterns';
+  var compactModal = null;
+  function toast(msg, kind) {
+    if (window.MdlToast) {
+      if (kind === 'err' && MdlToast.error) return MdlToast.error(msg);
+      if (kind === 'warn' && MdlToast.warn) return MdlToast.warn(msg);
+      if (MdlToast.info) return MdlToast.info(msg);
+    }
+    $('#arkInfo').html('<div class="alert alert-' + (kind === 'err' ? 'danger' : 'info') + '">' + msg + '</div>');
+  }
+  function renderCompactPlans(plans) {
+    if (!plans || !plans.length) {
+      $('#compactPreview').html('<p class="mb-0">Tidak ada yang perlu digabung.</p>');
+      return;
+    }
+    var html = '';
+    plans.forEach(function (p) {
+      html += '<div class="mb-3 p-2" style="border:1px solid #cbd5e1;background:#fff">';
+      html += '<div style="font-weight:900">' + (p.intent || '') + ' — hapus ' + ((p.delete_ids && p.delete_ids.length) || 0) + ' row</div>';
+      html += '<code style="word-break:break-all">' + String(p.merged_pattern || '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>';
+      html += '</div>';
+    });
+    $('#compactPreview').html(html);
+  }
+  $('#btnCompactAll').on('click', function() {
+    $('#compactPreview').html('Memeriksa…');
+    $('#btnCompactApply').prop('disabled', true);
+    compactModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('compactModal'));
+    compactModal.show();
+    $.ajax({
+      url: compactUrl, type: 'POST',
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify({ all: 1 }), dataType: 'json'
+    }).done(function (res) {
+      if (!(res && (res.ok === 1 || res.ok === true))) {
+        toast((res && res.message) || 'Gagal preview', 'err');
+        return;
+      }
+      renderCompactPlans(res.plans || []);
+      $('#btnCompactApply').prop('disabled', !((res.needed_count || 0) > 0));
+      if (!(res.needed_count > 0)) toast(res.message || 'Sudah rapi', 'warn');
+    }).fail(function () { toast('Request gagal', 'err'); });
+  });
+  $('#btnCompactApply').on('click', function() {
+    $('#btnCompactApply').prop('disabled', true).text('Merapikan…');
+    $.ajax({
+      url: compactUrl, type: 'POST',
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify({ all: 1, apply: 1 }), dataType: 'json'
+    }).done(function (res) {
+      if (!(res && (res.ok === 1 || res.ok === true))) {
+        toast((res && res.message) || 'Gagal merapikan', 'err');
+        $('#btnCompactApply').prop('disabled', false).text('Ya, rapikan');
+        return;
+      }
+      toast(res.message || 'Selesai', 'info');
+      location.reload(true);
+    }).fail(function () {
+      toast('Request gagal', 'err');
+      $('#btnCompactApply').prop('disabled', false).text('Ya, rapikan');
     });
   });
 });

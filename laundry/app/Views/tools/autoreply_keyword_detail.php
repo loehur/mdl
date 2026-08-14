@@ -81,8 +81,11 @@
         </div>
       </form>
 
-      <h2 class="section-h">Patterns (<?= count($patterns) ?>)</h2>
-      <p class="text-muted small mb-2">Klik pattern untuk edit. Regex wajib valid (delimiter PHP, contoh <code>/pola/i</code>).</p>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="section-h mb-0">Patterns (<?= count($patterns) ?>)</h2>
+        <button type="button" class="btn btn-sm btn-outline-success" id="btnCompactOne">Rapikan pattern</button>
+      </div>
+      <p class="text-muted small mb-2">Klik pattern untuk edit. Regex wajib valid (delimiter PHP, contoh <code>/pola/i</code>). Keyword sederhana bisa digabung jadi satu record <code>(a|b|c)</code>.</p>
 
       <div class="table-responsive mb-3">
         <table class="table table-sm align-middle" id="patTable">
@@ -142,6 +145,25 @@
       </div>
       <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnRunTest">Jalankan Test</button>
       <div id="testResult" class="mt-2 fw-bold"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="compactModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius:0">
+      <div class="modal-header">
+        <h5 class="modal-title">Rapikan pattern</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2" style="font-weight:700">Keyword sederhana digabung jadi satu regex. Pattern frasa (ada spasi / <code>\s</code>) tidak diubah.</p>
+        <div id="compactPreview" style="max-height:320px;overflow:auto;font-size:.85rem"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-sm btn-success" id="btnCompactApply" disabled>Ya, rapikan</button>
+      </div>
     </div>
   </div>
 </div>
@@ -229,6 +251,62 @@ $(function() {
       var match = res && res.match;
       $('#testResult').css('color', match ? '#15803d' : '#b45309')
         .text((res && res.message) ? res.message : (ok ? 'ok' : 'error'));
+    });
+  });
+
+  var compactUrl = '<?= URL::BASE_URL ?>AutoReplyKeywords/compactPatterns';
+  var intentId = <?= $id ?>;
+  function toast(msg, kind) {
+    if (window.MdlToast) {
+      if (kind === 'err' && MdlToast.error) return MdlToast.error(msg);
+      if (kind === 'warn' && MdlToast.warn) return MdlToast.warn(msg);
+      if (MdlToast.info) return MdlToast.info(msg);
+    }
+    info(msg, kind !== 'err');
+  }
+  $('#btnCompactOne').on('click', function() {
+    $('#compactPreview').html('Memeriksa…');
+    $('#btnCompactApply').prop('disabled', true);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('compactModal')).show();
+    $.ajax({
+      url: compactUrl, type: 'POST',
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify({ intent_id: intentId }), dataType: 'json'
+    }).done(function (res) {
+      if (!(res && (res.ok === 1 || res.ok === true))) {
+        toast((res && res.message) || 'Gagal preview', 'err');
+        return;
+      }
+      var plans = res.plans || [];
+      if (!plans.length) {
+        $('#compactPreview').html('<p class="mb-0">' + (res.message || 'Tidak ada yang perlu digabung.') + '</p>');
+        return;
+      }
+      var p = plans[0];
+      var html = '<div style="font-weight:900;margin-bottom:6px">Hapus ' + ((p.delete_ids && p.delete_ids.length) || 0) + ' row, sisakan #' + (p.keeper_id || '') + '</div>';
+      html += '<code style="word-break:break-all">' + String(p.merged_pattern || '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>';
+      $('#compactPreview').html(html);
+      $('#btnCompactApply').prop('disabled', false);
+    }).fail(function () { toast('Request gagal', 'err'); });
+  });
+  $('#btnCompactApply').on('click', function() {
+    $('#btnCompactApply').prop('disabled', true).text('Merapikan…');
+    $.ajax({
+      url: compactUrl, type: 'POST',
+      contentType: 'application/json; charset=utf-8',
+      data: JSON.stringify({ intent_id: intentId, apply: 1 }), dataType: 'json'
+    }).done(function (res) {
+      if (!(res && (res.ok === 1 || res.ok === true))) {
+        toast((res && res.message) || 'Gagal merapikan', 'err');
+        $('#btnCompactApply').prop('disabled', false).text('Ya, rapikan');
+        return;
+      }
+      toast(res.message || 'Selesai', 'info');
+      location.reload(true);
+    }).fail(function () {
+      toast('Request gagal', 'err');
+      $('#btnCompactApply').prop('disabled', false).text('Ya, rapikan');
     });
   });
 });

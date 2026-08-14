@@ -214,6 +214,19 @@
       color: #92400e;
       font-size: 0.85rem;
     }
+    #intent-lab-root .il-existing-box {
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      border: 1px solid #67e8f9;
+      background: #fff;
+    }
+    #intent-lab-root .il-existing-box code {
+      display: block;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #0e7490;
+      word-break: break-all;
+    }
     #intent-lab-root .il-intent {
       font-size: 1.35rem;
       font-weight: 900;
@@ -345,7 +358,7 @@
 
     <div class="il-section">
       <h4 class="il-section-title"><i class="fas fa-graduation-cap"></i> Ajarkan / Keluarkan Intent</h4>
-      <p class="il-lead" style="margin-bottom:10px">Pilih intent. <b>Usulkan</b> = masukkan ke intent; <b>Keluarkan</b> = buang dari intent (nonaktifkan pattern match + pengecualian prompt).</p>
+      <p class="il-lead" style="margin-bottom:10px">Pilih intent. <b>Usulkan</b> = masukkan ke intent (lebih suka melebarkan / menggabung pattern yang sudah ada, mis. <code>cek</code> → <code>cek+</code> atau <code>terimakash|mksh</code>, daripada menambah row baru). <b>Keluarkan</b> = buang dari intent (nonaktifkan pattern match + pengecualian prompt).</p>
 
       <div class="il-row il-row--2">
         <div>
@@ -374,7 +387,13 @@
           <div class="il-meta" id="ilTeachMeta" style="margin-bottom:10px"></div>
           <p id="ilTeachReason" style="font-weight:700;color:#334155;margin:0 0 10px"></p>
 
-          <label class="il-label" for="ilTeachPattern">Pattern (PHP regex)</label>
+          <div id="ilTeachExistingWrap" style="display:none">
+            <label class="il-label">Pattern lama (akan diubah)</label>
+            <div class="il-existing-box"><code id="ilTeachExisting"></code></div>
+          </div>
+          <input type="hidden" id="ilTeachPatternId" value="">
+
+          <label class="il-label" for="ilTeachPattern" id="ilTeachPatternLabel">Pattern (PHP regex)</label>
           <textarea id="ilTeachPattern" class="il-textarea" style="min-height:70px;font-family:ui-monospace,Consolas,monospace;font-size:.85rem"></textarea>
 
           <label class="il-label" for="ilTeachPrompt" style="margin-top:10px">Tambahan AI prompt</label>
@@ -382,7 +401,7 @@
 
           <label class="il-check">
             <input type="checkbox" id="ilAddPattern" checked>
-            Tambah pattern ke DB
+            <span id="ilAddPatternLabel">Tambah pattern ke DB</span>
           </label>
           <label class="il-check">
             <input type="checkbox" id="ilUpdatePrompt" checked>
@@ -607,7 +626,7 @@
       var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent target', 'warn'); return; }
-      setLoading(true, 'AI menyusun usulan…', 'Pattern regex + potongan prompt');
+      setLoading(true, 'AI menyusun usulan…', 'Lebarkan pattern existing bila bisa, baru pattern baru');
       $('#ilBtnPropose').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
       $applyMsg.text('');
       $untouchBox.removeClass('is-show');
@@ -629,19 +648,41 @@
         bits.push(res.matches_text
           ? '<span class="il-badge il-badge--ok">match contoh: ya</span>'
           : '<span class="il-badge il-badge--warn">match contoh: tidak</span>');
-        if (res.pattern_exists || res.already_covered) {
+        var pid = Number(res.pattern_id || 0);
+        var action = String(res.action || (pid ? 'update' : 'insert'));
+        if (res.already_covered) {
           bits.push('<span class="il-badge il-badge--warn">pattern sudah ada / tercakup</span>');
+        } else if (action === 'update' && pid) {
+          bits.push('<span class="il-badge il-badge--ok">ubah pattern #' + pid + '</span>');
+        } else if (res.pattern_exists) {
+          bits.push('<span class="il-badge il-badge--warn">pattern sudah ada</span>');
+        } else {
+          bits.push('<span class="il-badge">pattern baru</span>');
         }
         $teachMeta.html(bits.join(''));
         $teachReason.text(res.reason || '');
         $teachPattern.val(res.pattern || '');
         $teachPrompt.val(res.prompt_append || '');
-        if (res.already_covered) {
-          $('#ilAddPattern').prop('checked', false);
-          $('#ilUpdatePrompt').prop('checked', true);
-        } else {
+        $('#ilTeachPatternId').val(pid > 0 && action === 'update' ? String(pid) : '');
+        if (action === 'update' && !res.already_covered && (res.existing_pattern || pid)) {
+          $('#ilTeachExistingWrap').show();
+          $('#ilTeachExisting').text(res.existing_pattern || '');
+          $('#ilTeachPatternLabel').text('Pattern baru (usulan)');
+          $('#ilAddPatternLabel').text(pid ? ('Ubah pattern yang sudah ada (#' + pid + ')') : 'Ubah pattern yang sudah ada');
           $('#ilAddPattern').prop('checked', true);
-          $('#ilUpdatePrompt').prop('checked', true);
+          $('#ilUpdatePrompt').prop('checked', !!$.trim(res.prompt_append || ''));
+        } else {
+          $('#ilTeachExistingWrap').hide();
+          $('#ilTeachExisting').text('');
+          $('#ilTeachPatternLabel').text('Pattern (PHP regex)');
+          $('#ilAddPatternLabel').text('Tambah pattern ke DB');
+          if (res.already_covered) {
+            $('#ilAddPattern').prop('checked', false);
+            $('#ilUpdatePrompt').prop('checked', true);
+          } else {
+            $('#ilAddPattern').prop('checked', true);
+            $('#ilUpdatePrompt').prop('checked', true);
+          }
         }
       }).fail(function (xhr) {
         var msg = 'Usulan gagal';
@@ -723,9 +764,10 @@
       var addPattern = $('#ilAddPattern').is(':checked') ? 1 : 0;
       var updatePrompt = $('#ilUpdatePrompt').is(':checked') ? 1 : 0;
       if (!text || !intent) { toast('Teks dan intent wajib', 'warn'); return; }
-      if (addPattern && !pattern) { toast('Isi pattern atau matikan centang Tambah pattern', 'warn'); return; }
+      if (addPattern && !pattern) { toast('Isi pattern atau matikan centang pattern', 'warn'); return; }
       if (!addPattern && !updatePrompt) { toast('Centang minimal satu aksi', 'warn'); return; }
-      setLoading(true, 'Mengaktifkan ke DB…', 'Simpan pattern/prompt lalu verifikasi');
+      var patternId = parseInt($('#ilTeachPatternId').val() || '0', 10) || 0;
+      setLoading(true, 'Mengaktifkan ke DB…', patternId ? 'Ubah pattern existing lalu verifikasi' : 'Simpan pattern/prompt lalu verifikasi');
       $('#ilBtnApply').html('<i class="fas fa-spinner fa-spin"></i> Mengaktifkan…');
       $.ajax({
         url: applyUrl,
@@ -735,6 +777,7 @@
           text: text,
           intent: intent,
           pattern: pattern,
+          pattern_id: patternId,
           prompt_append: promptAppend,
           add_pattern: addPattern,
           update_prompt: updatePrompt
@@ -748,6 +791,7 @@
           return;
         }
         var msg = 'Aktif.';
+        if (res.pattern_updated) msg += ' Pattern diubah.';
         if (res.pattern_added) msg += ' Pattern ditambah.';
         if (res.prompt_updated) msg += ' Prompt diupdate.';
         if (res.verify_ok) msg += ' Verifikasi: intent = ' + (res.verify_intent || intent);

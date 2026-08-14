@@ -123,6 +123,7 @@ class IntentLab extends Controller
         $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
         $pattern = trim((string) ($data['pattern'] ?? ''));
         $promptAppend = trim((string) ($data['prompt_append'] ?? ''));
+        $patternId = (int) ($data['pattern_id'] ?? 0);
         $updatePrompt = !isset($data['update_prompt']) || !empty($data['update_prompt']);
         $addPattern = !isset($data['add_pattern']) || !empty($data['add_pattern']);
 
@@ -161,34 +162,69 @@ class IntentLab extends Controller
         $intentId = (int) $intent['id'];
 
         $patternAdded = false;
+        $patternUpdated = false;
         $promptUpdated = false;
 
         if ($addPattern) {
-            $dup = $db->query_array(
-                "SELECT id FROM wa_autoreply_patterns WHERE intent_id = {$intentId} AND pattern = '" . $db->escape($pattern) . "' LIMIT 1"
-            );
-            if (is_array($dup) && count($dup) > 0) {
-                // sudah ada — skip insert
-            } else {
-                $max = $db->query_array(
-                    "SELECT COALESCE(MAX(sort_order),0) AS m FROM wa_autoreply_patterns WHERE intent_id = {$intentId}"
+            if ($patternId > 0) {
+                $existing = $db->query_array(
+                    "SELECT id, note FROM wa_autoreply_patterns
+                     WHERE id = {$patternId} AND intent_id = {$intentId} LIMIT 1"
                 );
-                $sort = (int) (($max[0]['m'] ?? 0) + 1);
-                $in = $db->insert('wa_autoreply_patterns', [
-                    'intent_id' => $intentId,
-                    'pattern' => $pattern,
-                    'sort_order' => $sort,
-                    'is_active' => 1,
-                    'note' => 'Intent Lab teach: ' . mb_substr($text, 0, 120),
-                ]);
-                if (($in['errno'] ?? 1) != 0) {
+                if (!is_array($existing) || count($existing) === 0) {
                     echo json_encode([
                         'ok' => 0,
-                        'message' => $in['error'] ?? 'Gagal insert pattern',
+                        'message' => 'Pattern existing tidak ditemukan (id=' . $patternId . ')',
                     ], JSON_UNESCAPED_UNICODE);
                     return;
                 }
-                $patternAdded = true;
+                $oldNote = trim((string) ($existing[0]['note'] ?? ''));
+                $tag = 'Intent Lab widen: ' . mb_substr($text, 0, 80);
+                $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
+                $up = $db->update(
+                    'wa_autoreply_patterns',
+                    [
+                        'pattern' => $pattern,
+                        'is_active' => 1,
+                        'note' => mb_substr($newNote, 0, 250),
+                    ],
+                    "id = {$patternId} AND intent_id = {$intentId}"
+                );
+                if (($up['errno'] ?? 1) != 0) {
+                    echo json_encode([
+                        'ok' => 0,
+                        'message' => $up['error'] ?? 'Gagal ubah pattern',
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+                $patternUpdated = true;
+            } else {
+                $dup = $db->query_array(
+                    "SELECT id FROM wa_autoreply_patterns WHERE intent_id = {$intentId} AND pattern = '" . $db->escape($pattern) . "' LIMIT 1"
+                );
+                if (is_array($dup) && count($dup) > 0) {
+                    // sudah ada — skip insert
+                } else {
+                    $max = $db->query_array(
+                        "SELECT COALESCE(MAX(sort_order),0) AS m FROM wa_autoreply_patterns WHERE intent_id = {$intentId}"
+                    );
+                    $sort = (int) (($max[0]['m'] ?? 0) + 1);
+                    $in = $db->insert('wa_autoreply_patterns', [
+                        'intent_id' => $intentId,
+                        'pattern' => $pattern,
+                        'sort_order' => $sort,
+                        'is_active' => 1,
+                        'note' => 'Intent Lab teach: ' . mb_substr($text, 0, 120),
+                    ]);
+                    if (($in['errno'] ?? 1) != 0) {
+                        echo json_encode([
+                            'ok' => 0,
+                            'message' => $in['error'] ?? 'Gagal insert pattern',
+                        ], JSON_UNESCAPED_UNICODE);
+                        return;
+                    }
+                    $patternAdded = true;
+                }
             }
         }
 
@@ -213,7 +249,7 @@ class IntentLab extends Controller
             }
         }
 
-        if ($patternAdded || $promptUpdated) {
+        if ($patternAdded || $patternUpdated || $promptUpdated) {
             $this->bumpAutoreplyCache();
         }
 
@@ -226,6 +262,8 @@ class IntentLab extends Controller
             'ok' => 1,
             'message' => 'Aktif',
             'pattern_added' => $patternAdded,
+            'pattern_updated' => $patternUpdated,
+            'pattern_id' => $patternId > 0 ? $patternId : null,
             'prompt_updated' => $promptUpdated,
             'target_intent' => $intentCode,
             'verify_intent' => $gotIntent,

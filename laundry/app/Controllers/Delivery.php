@@ -716,18 +716,30 @@ class Delivery extends Controller
             $reqJemput = $this->findActiveDeliveryRequest($idPelanggan, 'jemput');
             $idReqJemput = (int) ($reqJemput['id_request'] ?? 0);
 
-            $inserted = $this->insertDeliveryRiwayatBatch(
-               $phoneTail,
-               $pelangganIds,
-               'jemput',
-               $ids,
-               $idKaryawan,
-               $namaKaryawan,
-               $idCabang,
-               $now,
-               $idReqJemput,
-               true
-            );
+            $deliveredSet = $this->saleIdsWithDeliveryRiwayat($ids, 'jemput');
+            $freshIds = [];
+            foreach ($ids as $idSale) {
+               $idSale = (int) $idSale;
+               if ($idSale > 0 && !isset($deliveredSet[$idSale])) {
+                  $freshIds[] = $idSale;
+               }
+            }
+
+            $inserted = 0;
+            if (!empty($freshIds)) {
+               $inserted = $this->insertDeliveryRiwayatBatch(
+                  $phoneTail,
+                  $pelangganIds,
+                  'jemput',
+                  $freshIds,
+                  $idKaryawan,
+                  $namaKaryawan,
+                  $idCabang,
+                  $now,
+                  $idReqJemput,
+                  true
+               );
+            }
 
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
             $surcasJemput = $this->upsertSurcasPenjemputan(
@@ -742,7 +754,9 @@ class Delivery extends Controller
                $this->closeActiveDeliveryRequest($idReqJemput, $idKaryawan, $namaKaryawan, $now);
             }
 
-            $msg = "Delivery jemput selesai ($inserted item)";
+            $msg = $inserted > 0
+               ? "Delivery jemput selesai ($inserted item)"
+               : 'Item sudah ada riwayat jemput';
             if ($idReqJemput > 0) {
                $msg .= " · Request jemput #$idReqJemput ditutup";
             }
@@ -1057,7 +1071,7 @@ class Delivery extends Controller
     * GET Delivery/sales_options/{phoneTail}?jenis=jemput|antar
     * Operasi: ?operasi=1
     * - antar: item sudah delivered / terikat request tetap tampil jika belum surcas pengantaran
-    * - jemput: item terikat request berjalan tetap tampil (selama belum ada riwayat jemput)
+    * - jemput: semua item nota aktif (terikat / sudah riwayat jemput tetap tampil), seperti Antar
     */
    public function sales_options($phoneTail = '')
    {
@@ -1081,7 +1095,7 @@ class Delivery extends Controller
       }
       $exceptRequestId = (int) ($_GET['id_request'] ?? 0);
       $includeDeliveredMissingSurcas = $fromOperasi && $jenis === 'antar';
-      $includeBound = $fromOperasi && $jenis === 'jemput';
+      $includeAllActive = $fromOperasi && $jenis === 'jemput';
 
       $pelangganIds = [];
       if ($fromOperasi && $idPelangganGet > 0) {
@@ -1103,7 +1117,8 @@ class Delivery extends Controller
          $jenis,
          $exceptRequestId,
          $includeDeliveredMissingSurcas,
-         $includeBound
+         false,
+         $includeAllActive
       );
       echo json_encode([
          'status' => 'success',
@@ -2905,7 +2920,8 @@ class Delivery extends Controller
       string $jenis,
       int $exceptRequestId = 0,
       bool $includeDeliveredMissingSurcas = false,
-      bool $includeBound = false
+      bool $includeBound = false,
+      bool $includeAllActive = false
    ): array {
       if (empty($pelangganIds)) {
          return [];
@@ -2934,6 +2950,11 @@ class Delivery extends Controller
               WHERE dr.id_penjualan = s.id_penjualan AND dr.jenis = '$jenisEsc'
             )
             $boundClause";
+
+      // Operasi jemput: semua item nota aktif (terikat / sudah riwayat tetap tampil), seperti Antar.
+      if ($includeAllActive) {
+         $eligibilityClause = '';
+      }
 
       // Operasi antar: semua item nota aktif yang belum punya surcas pengantaran
       // (termasuk sudah delivered / terikat request — supaya bisa backfill surcas).
@@ -2970,14 +2991,16 @@ class Delivery extends Controller
       string $jenis,
       int $exceptRequestId = 0,
       bool $includeDeliveredMissingSurcas = false,
-      bool $includeBound = false
+      bool $includeBound = false,
+      bool $includeAllActive = false
    ): array {
       $rows = $this->fetchEligibleSaleRows(
          $pelangganIds,
          $jenis,
          $exceptRequestId,
          $includeDeliveredMissingSurcas,
-         $includeBound
+         $includeBound,
+         $includeAllActive
       );
       if (empty($rows)) {
          return [];
@@ -3071,8 +3094,8 @@ class Delivery extends Controller
          }
       }
 
-      // Operasi jemput: tandai item yang sudah terikat request berjalan
-      if ($includeBound && $jenis === 'jemput' && !empty($orders)) {
+      // Operasi jemput: tandai item terikat request / sudah ada riwayat jemput
+      if ($includeAllActive && $jenis === 'jemput' && !empty($orders)) {
          $allIds = [];
          foreach ($orders as $ord) {
             foreach ($ord['items'] as $it) {
@@ -3080,10 +3103,12 @@ class Delivery extends Controller
             }
          }
          $boundSet = $this->saleIdsBoundToRunningRequest($allIds, 'jemput');
+         $deliveredSet = $this->saleIdsWithDeliveryRiwayat($allIds, 'jemput');
          foreach ($orders as $refKey => $ord) {
             foreach ($ord['items'] as $ix => $it) {
                $sid = (int) ($it['id'] ?? 0);
                $orders[$refKey]['items'][$ix]['terikat'] = $sid > 0 && isset($boundSet[$sid]);
+               $orders[$refKey]['items'][$ix]['sudah_delivered'] = $sid > 0 && isset($deliveredSet[$sid]);
             }
          }
       }

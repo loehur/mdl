@@ -316,4 +316,142 @@ class AutoReplyKeywords extends Controller
             'message' => $valid === 1 ? 'MATCH' : 'no match',
         ], JSON_UNESCAPED_UNICODE);
     }
+
+    /**
+     * Preview / terapkan gabung pattern keyword sederhana jadi 1 record per intent.
+     * POST { intent_id } atau { all: 1 }  + apply=1 untuk mengeksekusi.
+     */
+    public function compactPatterns()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $this->helper('IntentPatternBag');
+
+        $raw = file_get_contents('php://input');
+        $data = [];
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
+            }
+        }
+        if ($data === []) {
+            $data = $_POST;
+        }
+
+        $apply = !empty($data['apply']);
+        $all = !empty($data['all']);
+        $intentId = (int) ($data['intent_id'] ?? 0);
+
+        $intents = [];
+        if ($all) {
+            $rows = $this->dbMain()->query_array(
+                "SELECT id, code FROM wa_autoreply_intents ORDER BY sort_order ASC, id ASC"
+            );
+            $intents = is_array($rows) ? $rows : [];
+        } elseif ($intentId > 0) {
+            $one = $this->dbMain()->get_where_row('wa_autoreply_intents', "id = {$intentId}");
+            if ($one) {
+                $intents[] = $one;
+            }
+        } else {
+            echo json_encode(['ok' => 0, 'message' => 'intent_id atau all wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($intents === []) {
+            echo json_encode(['ok' => 0, 'message' => 'Intent tidak ditemukan'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $plans = [];
+        $db = $this->dbMain();
+        $changed = false;
+        $deletedTotal = 0;
+        $intentsTouched = 0;
+
+        foreach ($intents as $intent) {
+            $iid = (int) ($intent['id'] ?? 0);
+            $code = (string) ($intent['code'] ?? '');
+            if ($iid <= 0) {
+                continue;
+            }
+            $patRows = $db->query_array(
+                "SELECT id, pattern, is_active FROM wa_autoreply_patterns WHERE intent_id = {$iid} ORDER BY sort_order ASC, id ASC"
+            );
+            if (!is_array($patRows)) {
+                $patRows = [];
+            }
+            $plan = IntentPatternBag::compactRows($patRows);
+            $plan['intent_id'] = $iid;
+            $plan['intent'] = $code;
+
+            if ($apply && !empty($plan['needed'])) {
+                $keeperId = (int) ($plan['keeper_id'] ?? 0);
+                $merged = (string) ($plan['merged_pattern'] ?? '');
+                $deleteIds = $plan['delete_ids'] ?? [];
+                if ($keeperId > 0 && $merged !== '' && @preg_match($merged, '') !== false) {
+                    $up = $db->update(
+                        'wa_autoreply_patterns',
+                        [
+                            'pattern' => $merged,
+                            'note' => 'Rapikan: gabung keyword sederhana',
+                        ],
+                        "id = {$keeperId} AND intent_id = {$iid}"
+                    );
+                    if (($up['errno'] ?? 1) != 0) {
+                        $plan['apply_error'] = $up['error'] ?? 'Gagal update keeper';
+                        $plans[] = $plan;
+                        continue;
+                    }
+                    $deleted = 0;
+                    foreach ($deleteIds as $did) {
+                        $did = (int) $did;
+                        if ($did <= 0 || $did === $keeperId) {
+                            continue;
+                        }
+                        $del = $db->delete(
+                            'wa_autoreply_patterns',
+                            "id = {$did} AND intent_id = {$iid}"
+                        );
+                        if (($del['errno'] ?? 1) == 0) {
+                            $deleted++;
+                        }
+                    }
+                    $plan['deleted'] = $deleted;
+                    $plan['applied'] = true;
+                    $deletedTotal += $deleted;
+                    $intentsTouched++;
+                    $changed = true;
+                }
+            }
+
+            $plans[] = $plan;
+        }
+
+        if ($changed) {
+            $this->bumpCache();
+        }
+
+        $needed = array_values(array_filter($plans, static fn ($p) => !empty($p['needed'])));
+
+        echo json_encode([
+            'ok' => 1,
+            'applied' => $apply,
+            'intents_touched' => $intentsTouched,
+            'patterns_deleted' => $deletedTotal,
+            'needed_count' => count($needed),
+            'plans' => $needed,
+            'message' => $apply
+                ? ($intentsTouched > 0
+                    ? "Dirapikan: {$intentsTouched} intent, hapus {$deletedTotal} pattern duplikat."
+                    : 'Tidak ada yang perlu dirapikan.')
+                : (count($needed) > 0
+                    ? count($needed) . ' intent bisa dirapikan.'
+                    : 'Tidak ada pattern keyword sederhana yang bisa digabung.'),
+        ], JSON_UNESCAPED_UNICODE);
+    }
 }

@@ -1923,7 +1923,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
       Operasi selalu menulis surcas ke nota (wajib pilih item).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
       Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
-      Item terikat request jemput tetap bisa dipilih.
+      Item terikat / sudah jemput tetap tampil (seperti Antar).
       Item sudah Delivered tanpa surcas antar tetap bisa dipilih (isi surcas saja).
     </p>
     <div class="kurir-field">
@@ -1994,13 +1994,20 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   var root = document.getElementById('offcanvasKurir');
   if (!root) return;
 
-  var idPelanggan = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
-  var phoneTail = String(root.getAttribute('data-phone-tail') || '');
   var salesUrl = String(root.getAttribute('data-sales-url') || '');
   var tarifUrl = String(root.getAttribute('data-tarif-url') || '');
   var submitUrl = String(root.getAttribute('data-submit-url') || '');
   var kurirSelectize = null;
   var tarifLoading = false;
+
+  function currentPelanggan() {
+    var fromRoot = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
+    if (fromRoot > 0) return fromRoot;
+    return parseInt((window.ViewLoadConfig && window.ViewLoadConfig.idPelanggan) || '0', 10) || 0;
+  }
+  function currentPhoneTail() {
+    return String(root.getAttribute('data-phone-tail') || '');
+  }
 
   function toast(msg, type) {
     type = type || 'info';
@@ -2126,7 +2133,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   }
 
   function renderSales(orders) {
-    var box = document.getElementById('kurirSales');
+    var box = root.querySelector('#kurirSales') || document.getElementById('kurirSales');
     if (!box) return;
     if (!orders || !orders.length) {
       box.innerHTML = '<div class="kurir-sales-empty">Tidak ada item eligible</div>';
@@ -2162,12 +2169,14 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
   }
 
   function loadSales(jenis) {
-    var box = document.getElementById('kurirSales');
+    var box = root.querySelector('#kurirSales') || document.getElementById('kurirSales');
     if (!box) return;
     if (!jenis || !salesUrl) {
       box.innerHTML = '<div class="kurir-sales-empty">Pilih jenis terlebih dahulu</div>';
       return;
     }
+    var idPelanggan = currentPelanggan();
+    var phoneTail = currentPhoneTail();
     if (!phoneTail && !idPelanggan) {
       box.innerHTML = '<div class="kurir-sales-empty">Pelanggan tidak valid</div>';
       return;
@@ -2280,7 +2289,7 @@ $kurirPhoneTail = strlen($kurirPhoneDigits) >= 9 ? substr($kurirPhoneDigits, -9)
     }
 
     var fd = new FormData();
-    fd.append('id_pelanggan', String(idPelanggan));
+    fd.append('id_pelanggan', String(currentPelanggan()));
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
     ids.forEach(function (id) { fd.append('ids[]', String(id)); });
