@@ -364,8 +364,16 @@ class Estimasi extends Controller
             if ($taskType === 'pelanggan_new') {
                 $this->updatePelangganNewTask($phone, $phoneEsc, $session);
             } elseif ($taskType === 'kurir_estimasi') {
+                if (strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip') {
+                    $this->skipKurirJamTask($phone, $phoneEsc, $session, 'kurir_estimasi');
+                    return;
+                }
                 $this->updateKurirEstimasiTask($phone, $phoneEsc, $session);
             } else {
+                if (strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip') {
+                    $this->skipKurirJamTask($phone, $phoneEsc, $session, 'kurir_grant');
+                    return;
+                }
                 $this->updateKurirGrantTask($phone, $phoneEsc, $session);
             }
             return;
@@ -515,6 +523,48 @@ class Estimasi extends Controller
             'wa_ok' => 0,
             'count' => $pendingCount,
             'msg' => 'Nama pelanggan disimpan',
+        ]);
+    }
+
+    /**
+     * Hilangkan notifikasi kurir estimasi / request waktu tanpa kirim WA.
+     */
+    private function skipKurirJamTask(string $phone, string $phoneEsc, array $session, string $taskType): void
+    {
+        $summary = trim((string) ($session['summary'] ?? ''));
+        $summary .= ($summary !== '' ? ' | ' : '') . 'skip_' . $taskType;
+        $step = (string) ($session['step'] ?? '');
+        if ($step === 'wait_driver_jam') {
+            $step = 'request_aktif';
+        }
+
+        $set = [
+            'summary' => mb_substr($summary, 0, 800),
+            'updated_at' => date('Y-m-d H:i:s'),
+            'step' => $step !== '' ? $step : 'request_aktif',
+        ];
+        if ($taskType === 'kurir_estimasi') {
+            $set['butuh_estimasi'] = 0;
+        } else {
+            $set['request_granted'] = 2;
+        }
+
+        $up = $this->db(100)->update(
+            'wa_kurir_session',
+            $set,
+            "phone = '" . $phoneEsc . "'"
+        );
+        if (!empty($up['errno'])) {
+            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal skip']);
+            return;
+        }
+
+        $pendingCount = $this->syncNotifTaskCount();
+        echo json_encode([
+            'ok' => 1,
+            'wa_ok' => 0,
+            'count' => $pendingCount,
+            'msg' => 'Notifikasi di-skip',
         ]);
     }
 

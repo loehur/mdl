@@ -343,15 +343,16 @@ trait WARepliesKurirTrait
             $this->kurirEarlyActivateRequest($waNumber, $session);
             $session = $this->getKurirSession($waNumber) ?: $session;
 
+            $sapaan = $this->getSapaanForGreeting($waNumber);
             // Chat langsung minta grab/gosend di luar jam → tolak sekali, lanjut sameday
             if ($outsideHours && $this->kurirLooksWantFast($msg)) {
-                $sapaan = $this->getSapaanForGreeting($waNumber);
                 $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
-                return true;
             }
 
-            $sapaan = $this->getSapaanForGreeting($waNumber);
+            // Request waktu / butuh estimasi di pesan pertama: simpan + ack driver dulu, baru state lokasi
+            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
+            $session = $this->getKurirSession($waNumber) ?: $session;
+
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             return true;
         }
@@ -888,7 +889,7 @@ trait WARepliesKurirTrait
             }
         }
 
-        $hasJemput = (bool) preg_match('/\b(jemput|jmpt|dijemput|penjemputan)\b/u', $blob)
+        $hasJemput = (bool) preg_match('/\b(jemput|jmpt|jmput|jempt|dijemput|penjemputan)\b/u', $blob)
             || $this->kurirMsgLooksAmbilKotorJemput($blob);
         $hasAntar = (bool) preg_match(
             '/\b(antar|anter|antr|diantar|dianter|diantr|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u',
@@ -1038,6 +1039,26 @@ trait WARepliesKurirTrait
             return true;
         }
 
+        // Request waktu / butuh estimasi: ack driver dulu, baru lanjut state
+        if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg)) {
+            $session = $this->getKurirSession($waNumber) ?: $session;
+            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+                return true;
+            }
+            if ($step === 'confirm_lokasi') {
+                $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                return true;
+            }
+            if (in_array($step, ['ask_shareloc', 'new_ask_shareloc', 'pick_lokasi'], true)) {
+                return true;
+            }
+            if ($step === 'lokasi_check') {
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                return true;
+            }
+            return true;
+        }
+
         // Hard: pin/Maps coords (terutama ask_shareloc, atau customer kirim pin saat confirm/pick)
         $coords = $this->kurirExtractCoords($msg);
         if ($coords !== null && in_array($step, ['ask_shareloc', 'confirm_lokasi', 'pick_lokasi', 'lokasi_check'], true)) {
@@ -1107,7 +1128,7 @@ trait WARepliesKurirTrait
         // ask_jenis (session lama): deteksi dari pesan, atau infer dari order aktif
         if ($step === 'ask_jenis') {
             $jenis = $this->detectKurirJenis($msg, $session);
-            if (!$jenis && preg_match('/\b(jemput|jmpt)\b/iu', $msg)) {
+            if (!$jenis && preg_match('/\b(jemput|jmpt|jmput|jempt)\b/iu', $msg)) {
                 $jenis = 'jemput';
             }
             if (!$jenis && preg_match('/\b(antar|anter|antr)\b/iu', $msg)) {
@@ -1170,6 +1191,21 @@ trait WARepliesKurirTrait
         if ($step === 'lokasi_check' && trim($msg) === '') {
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             return true;
+        }
+
+        // Request sudah jadi: jangan telan semua chat sebagai perkiraan jam driver.
+        // Hanya jam kunjungan kurir / instant; selain itu lepas ke intent lain.
+        if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+            if ($this->kurirLooksWantFast($msg)) {
+                if (!$this->isOperatingHours()) {
+                    $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
+                    return true;
+                }
+                $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
+                return true;
+            }
+            $this->logAutoreplyTrace($waNumber, 'KURIR', $step . '→release_other_intent');
+            return false;
         }
 
         // AI decide (summary + konteks)
@@ -1356,7 +1392,7 @@ trait WARepliesKurirTrait
             || $this->kurirLooksRefuse($msg)
             || $this->kurirLooksWantOtherLokasi($msg)
             || $this->kurirLooksWantDeleteLokasi($msg)
-            || $this->kurirLooksWantJam($msg)
+            || $this->kurirLooksWantJam($msg, $session)
             || $this->kurirLooksWantFast($msg)
         ) {
             return false;
@@ -1519,20 +1555,68 @@ trait WARepliesKurirTrait
         return false;
     }
 
-    private function kurirLooksWantJam(string $msg): bool
+    private function kurirJenisTokenPattern(string $jenis): string
     {
-        if ($this->kurirLooksCancel($msg)) {
+        if ($jenis === 'antar') {
+            return '(di\s*)?(antar|anter|antr)';
+        }
+
+        return '(di\s*)?(jemput|jmpt|jmput|jempt)';
+    }
+
+    private function kurirMsgHasJenisToken(string $msg, string $jenis): bool
+    {
+        return (bool) preg_match('/\b' . $this->kurirJenisTokenPattern($jenis) . '\b/iu', $msg);
+    }
+
+    private function kurirActiveJenis(array $session): string
+    {
+        return (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
+    }
+
+    /**
+     * Request waktu: jam angka + token jenis aktif. Tanpa hari = hari ini.
+     */
+    private function kurirLooksRequestWaktu(string $msg, array $session): bool
+    {
+        if ($this->kurirLooksCancel($msg) || $this->messageLooksLikeAntarKembaliDeadline($msg)) {
             return false;
         }
-        if ($this->parseEstimasiRequestWaktu($msg) !== null) {
-            return true;
+        if (!$this->kurirMsgHasJenisToken($msg, $this->kurirActiveJenis($session))) {
+            return false;
         }
+        $waktu = $this->parseEstimasiRequestWaktu($msg);
+
+        return $this->estimasiWaktuIsResolved($waktu) || (!empty($waktu['ask_ampm']));
+    }
+
+    /**
+     * Butuh estimasi: tanya kapan/jam berapa/pagi-siang-sore-malam + token jenis, tanpa jam angka.
+     */
+    private function kurirLooksButuhEstimasi(string $msg, array $session): bool
+    {
+        if ($this->kurirLooksCancel($msg) || $this->messageLooksLikeAntarKembaliDeadline($msg)) {
+            return false;
+        }
+        if ($this->kurirLooksRequestWaktu($msg, $session)) {
+            return false;
+        }
+        if (!$this->kurirMsgHasJenisToken($msg, $this->kurirActiveJenis($session))) {
+            return false;
+        }
+
         return (bool) preg_match(
-            '/\b(jam\s*\d{1,2}|pukul\s*\d{1,2}|jam\s*(brp|berapa|bisa|bs|gak|ga|nggak|ngga)|'
-            . 'kapan\s*(dijemput|diantar|jemput|antar)|siang\s*(ini)?|sore\s*(ini)?|'
-            . 'mau\s*(jam|pukul)|minta\s*(jam|pukul))\b/iu',
+            '/\b(kapan|jam\s*(brp|brpa|berapa)|pagi|siang|sore|malam)\b/iu',
             $msg
         );
+    }
+
+    private function kurirLooksWantJam(string $msg, ?array $session = null): bool
+    {
+        $session = $session ?? [];
+
+        return $this->kurirLooksRequestWaktu($msg, $session)
+            || $this->kurirLooksButuhEstimasi($msg, $session);
     }
 
     private function kurirLooksWantFast(string $msg): bool
@@ -2678,12 +2762,10 @@ trait WARepliesKurirTrait
 
     private function kurirHandleConfirmLokasi(string $waNumber, string $sapaan, array $session, string $msg): void
     {
-        if ($this->kurirLooksWantJam($msg)) {
-            if (!$this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session)) {
-                return;
-            }
+        if ($this->kurirLooksWantJam($msg, $session)) {
+            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
             $session = $this->getKurirSession($waNumber) ?: $session;
-            $this->kurirProcessJamIntent($waNumber, $sapaan, $session, $msg);
+            $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;
         }
         if ($this->kurirLooksAgree($msg)) {
@@ -3054,14 +3136,186 @@ trait WARepliesKurirTrait
             return;
         }
 
-        $wantJam = $this->kurirLooksWantJam($msg);
+        $wantJam = $this->kurirLooksWantJam($msg, $session);
         if ($wantJam) {
-            $this->kurirProcessJamIntent($waNumber, $sapaan, $session, $msg);
+            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
             return;
         }
 
         // Request sudah dikonfirmasi — jangan kirim ack berulang.
         $this->logAutoreplyTrace($waNumber, 'KURIR', 'request_aktif_silent');
+    }
+
+    /**
+     * Simpan request waktu / butuh estimasi. Ack driver dulu.
+     * Fonnte hanya sekali: jika sudah pending, cukup update session.
+     * Tidak menimpa step lokasi (shareloc/pilih/konfirmasi).
+     *
+     * @return bool true = intent jam tertangkap
+     */
+    private function kurirTryCaptureJamIntent(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg,
+        ?array $waktuOverride = null
+    ): bool {
+        $waktu = $waktuOverride;
+        if ($waktu === null) {
+            $waktu = $this->parseEstimasiRequestWaktu($msg);
+        }
+
+        if ($waktuOverride === null
+            && preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $ampmM)
+            && preg_match('/\b(pagi|malam)\b/iu', $msg)
+        ) {
+            $rawH = (int) $ampmM[1];
+            $ampmWord = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
+            $synthetic = "jam {$rawH} {$ampmWord}";
+            $prev = (string) ($session['request_text'] ?? '');
+            if (preg_match('/\b(besok|bsk|hari\s*ini|lusa)\b/iu', $prev, $dayM)) {
+                $synthetic .= ' ' . $dayM[0];
+            }
+            $parsedAmpm = $this->parseEstimasiRequestWaktu($synthetic);
+            if ($this->estimasiWaktuIsResolved($parsedAmpm)) {
+                $waktu = $parsedAmpm;
+                $waktuOverride = $parsedAmpm;
+            }
+        }
+
+        $forceResolved = $waktuOverride !== null && $this->estimasiWaktuIsResolved($waktuOverride);
+        $isRequest = $forceResolved || $this->kurirLooksRequestWaktu($msg, $session);
+        $isEst = !$isRequest && $this->kurirLooksButuhEstimasi($msg, $session);
+        if (!$isRequest && !$isEst) {
+            return false;
+        }
+
+        if ($isRequest && is_array($waktu) && !empty($waktu['ask_ampm']) && !$this->estimasiWaktuIsResolved($waktu)) {
+            $rawH = (int) ($waktu['raw_hour'] ?? 0);
+            $tgl = $waktu['tanggal'] ?? date('Y-m-d');
+            $keepStep = $this->kurirShouldKeepLokasiStep($session);
+            $set = [
+                'request_text' => $msg,
+                'request_tanggal' => $tgl,
+                'request_jam' => null,
+                'request_granted' => null,
+                'summary' => mb_substr(
+                    trim((string) ($session['summary'] ?? '') . ' | ask_ampm hour=' . $rawH),
+                    0,
+                    800
+                ),
+            ];
+            if (!$keepStep) {
+                $set['step'] = 'ask_jam_ampm';
+            }
+            $this->saveKurirSession($waNumber, $set);
+            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+            return true;
+        }
+
+        $alreadyPending = $this->kurirJamPendingInSession($session);
+        $keepStep = $this->kurirShouldKeepLokasiStep($session);
+
+        if ($isRequest) {
+            if ($waktu === null || !$this->estimasiWaktuIsResolved($waktu)) {
+                $waktu = $this->parseEstimasiRequestWaktu($msg);
+            }
+            if (!$this->estimasiWaktuIsResolved($waktu)) {
+                return false;
+            }
+            $tgl = $waktu['tanggal'] ?? date('Y-m-d');
+            $jam = $waktu['jam'];
+            $today = date('Y-m-d');
+            if ($tgl === $today && $this->kurirIsJamAfterNightCutoff(isset($jam) ? (float) $jam : null)) {
+                $this->kurirReplyHardCutScheduleTomorrow($waNumber, $sapaan, $session);
+                return true;
+            }
+            $set = [
+                'request_text' => $msg,
+                'request_tanggal' => $tgl,
+                'request_jam' => $jam,
+                'request_granted' => null,
+                'butuh_estimasi' => 0,
+                'estimasi_tanggal' => null,
+                'estimasi_jam' => null,
+                'driver_alt_tanggal' => null,
+                'driver_alt_jam' => null,
+            ];
+            if (!$keepStep) {
+                $set['step'] = 'wait_driver_jam';
+            }
+            $this->saveKurirSession($waNumber, $set);
+            $this->kurirSendJamDriverAck($waNumber, $sapaan, (string) $tgl);
+            if (!$alreadyPending) {
+                $this->kurirForwardJamToGroups($waNumber, $session, $msg, (string) $tgl, (float) $jam);
+            } else {
+                $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_request_update_skip_fonnte');
+            }
+            return true;
+        }
+
+        $tglHint = $this->kurirPreferTanggalFromMsg($msg) ?: date('Y-m-d');
+        $set = [
+            'request_text' => $msg,
+            'request_tanggal' => $tglHint,
+            'request_jam' => null,
+            'request_granted' => null,
+            'butuh_estimasi' => 1,
+            'estimasi_tanggal' => null,
+            'estimasi_jam' => null,
+            'driver_alt_tanggal' => null,
+            'driver_alt_jam' => null,
+        ];
+        if (!$keepStep) {
+            $set['step'] = 'wait_driver_jam';
+        }
+        $this->saveKurirSession($waNumber, $set);
+        $this->kurirSendJamDriverAck($waNumber, $sapaan, (string) $tglHint);
+        if (!$alreadyPending) {
+            $this->kurirForwardJamEstimasiToGroups($waNumber, $session, $msg, (string) $tglHint);
+        } else {
+            $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_estimasi_update_skip_fonnte');
+        }
+        return true;
+    }
+
+    private function kurirJamPendingInSession(array $session): bool
+    {
+        $butuh = !empty($session['butuh_estimasi'])
+            && ($session['estimasi_jam'] === null || $session['estimasi_jam'] === '');
+        $req = $session['request_jam'] !== null && $session['request_jam'] !== ''
+            && ($session['request_granted'] === null || $session['request_granted'] === '');
+
+        return $butuh || $req;
+    }
+
+    private function kurirShouldKeepLokasiStep(array $session): bool
+    {
+        $step = (string) ($session['step'] ?? '');
+
+        return in_array($step, [
+            'lokasi_check', 'ask_shareloc', 'new_ask_shareloc', 'pick_lokasi',
+            'confirm_lokasi', 'ask_layanan', 'wait_lokasi', 'ask_jenis',
+        ], true);
+    }
+
+    private function kurirSendJamDriverAck(string $waNumber, string $sapaan, string $tgl): void
+    {
+        $today = date('Y-m-d');
+        if ($tgl === $today && $this->kurirIsPastSamedayJamCutoff()) {
+            if ($this->isOperatingHours()) {
+                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
+            } else {
+                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
+            }
+            return;
+        }
+        if (!$this->isOperatingHours()) {
+            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
+            return;
+        }
+        $emoji = $this->pickPenutupSoftSmile();
+        $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya {$emoji}");
     }
 
     /**
@@ -3074,52 +3328,10 @@ trait WARepliesKurirTrait
         string $msg,
         ?array $waktuOverride = null
     ): void {
-        $waktu = $waktuOverride;
-        if ($waktu === null) {
-            $waktu = $this->parseEstimasiRequestWaktu($msg);
-        }
-
-        // "hari ini/besok jam berapa?" → petugas isi perkiraan
-        if ($waktu === null || (!$this->estimasiWaktuIsResolved($waktu) && empty($waktu['ask_ampm']))) {
-            if ($this->kurirLooksAskJamBerapa($msg) || $this->kurirLooksWantJam($msg)) {
-                $preferTgl = $this->kurirPreferTanggalFromMsg($msg);
-                $this->kurirEscalateJamEstimasi($waNumber, $sapaan, $session, $msg, $preferTgl);
-                return;
-            }
-        }
-
-        if (!empty($waktu['ask_ampm'])) {
-            $rawH = (int) ($waktu['raw_hour'] ?? 0);
-            $tgl = $waktu['tanggal'] ?? date('Y-m-d');
-            $this->saveKurirSession($waNumber, [
-                'step' => 'ask_jam_ampm',
-                'request_text' => $msg,
-                'request_tanggal' => $tgl,
-                'request_jam' => null,
-                'request_granted' => null,
-                'summary' => mb_substr(
-                    trim((string) ($session['summary'] ?? '') . ' | ask_ampm hour=' . $rawH),
-                    0,
-                    800
-                ),
-            ]);
-            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
+        if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg, $waktuOverride)) {
             return;
         }
-
-        if ($this->estimasiWaktuIsResolved($waktu)) {
-            $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $msg, $waktu);
-            return;
-        }
-
-        // Fallback: tanya estimasi
-        $this->kurirEscalateJamEstimasi(
-            $waNumber,
-            $sapaan,
-            $session,
-            $msg,
-            $this->kurirPreferTanggalFromMsg($msg)
-        );
+        $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_intent_unresolved_no_escalate');
     }
 
     private function kurirLooksAskJamBerapa(string $msg): bool
@@ -3184,7 +3396,13 @@ trait WARepliesKurirTrait
             $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
             return;
         }
-        $this->kurirEscalateJamRequest($waNumber, $sapaan, $session, $prev !== '' ? $prev : $synthetic, $waktu);
+        $this->kurirTryCaptureJamIntent(
+            $waNumber,
+            $sapaan,
+            $session,
+            $prev !== '' ? $prev : $synthetic,
+            $waktu
+        );
     }
 
     /**
@@ -3197,37 +3415,7 @@ trait WARepliesKurirTrait
         string $msg,
         ?string $preferTgl
     ): void {
-        $tglHint = $preferTgl;
-        $today = date('Y-m-d');
-        if ($tglHint === null || $tglHint === '') {
-            $tglHint = $today;
-        }
-
-        $pastCutoffToday = ($tglHint === $today && $this->kurirIsPastSamedayJamCutoff());
-
-        $this->saveKurirSession($waNumber, [
-            'step' => 'wait_driver_jam',
-            'request_text' => $msg,
-            'request_tanggal' => $tglHint,
-            'request_jam' => null,
-            'request_granted' => null,
-            'butuh_estimasi' => 1,
-            'estimasi_tanggal' => null,
-            'estimasi_jam' => null,
-            'driver_alt_tanggal' => null,
-            'driver_alt_jam' => null,
-        ]);
-        if ($pastCutoffToday) {
-            // Soft "petugas alternatif" HANYA di jam operasional; luar jam → escalate ack next hours
-            if ($this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
-            } else {
-                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-            }
-        } elseif (!$this->isOperatingHours()) {
-            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-        }
-        $this->kurirForwardJamEstimasiToGroups($waNumber, $session, $msg, $tglHint);
+        $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
     }
 
     /**
@@ -3334,44 +3522,7 @@ trait WARepliesKurirTrait
         string $msg,
         array $waktu
     ): void {
-        if (!$this->estimasiWaktuIsResolved($waktu)) {
-            $this->kurirProcessJamIntent($waNumber, $sapaan, $session, $msg, $waktu);
-            return;
-        }
-        $tgl = $waktu['tanggal'] ?? date('Y-m-d');
-        $jam = $waktu['jam'];
-        $today = date('Y-m-d');
-
-        // Hari ini + jam permintaan > 20:00 → hard-cut jadwalkan besok (tanpa escalate)
-        if ($tgl === $today && $this->kurirIsJamAfterNightCutoff(isset($jam) ? (float) $jam : null)) {
-            $this->kurirReplyHardCutScheduleTomorrow($waNumber, $sapaan, $session);
-            return;
-        }
-
-        $pastCutoffToday = ($tgl === $today && $this->kurirIsPastSamedayJamCutoff());
-
-        $this->saveKurirSession($waNumber, [
-            'step' => 'wait_driver_jam',
-            'request_text' => $msg,
-            'request_tanggal' => $tgl,
-            'request_jam' => $jam,
-            'request_granted' => null,
-            'butuh_estimasi' => 0,
-            'estimasi_tanggal' => null,
-            'estimasi_jam' => null,
-            'driver_alt_tanggal' => null,
-            'driver_alt_jam' => null,
-        ]);
-        if ($pastCutoffToday) {
-            if ($this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
-            } else {
-                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-            }
-        } elseif (!$this->isOperatingHours()) {
-            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-        }
-        $this->kurirForwardJamToGroups($waNumber, $session, $msg, $tgl, (float) $jam);
+        $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg, $waktu);
     }
 
     private function kurirForwardJamToGroups(
@@ -4670,8 +4821,9 @@ trait WARepliesKurirTrait
             . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
             . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
             . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
-            . "Di step request_aktif / wait_driver_jam: ok/terima kasih/pesan tanpa jam/batal/instant → noop_ack, reply KOSONG. "
-            . "JANGAN kirim 'permintaan sudah kami terima' atau ajakan jam/batal. "
+            . "Di step request_aktif / wait_driver_jam: HANYA want_jam jika ada kata jemput/antar sesuai jenis session "
+            . "PLUS (jam angka = request waktu, ATAU kapan/jam berapa/pagi/siang/sore/malam = butuh estimasi). "
+            . "'antar kembali' / 'selambatnya' / tanpa kata jemput/antar → unrelated. Jangan want_jam default. "
             . "Di step ask_shareloc: jika sudah pernah minta shareloc, JANGAN minta lagi (action noop / diam). "
             . "Hanya minta shareloc sekali; tunggu pin/link tanpa mengulang pertanyaan. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
@@ -4912,6 +5064,13 @@ trait WARepliesKurirTrait
                 return;
 
             case 'want_jam':
+                if (!$this->kurirLooksWantJam($msg, $session)
+                    && !preg_match('/ask_ampm hour=/', (string) ($session['summary'] ?? ''))
+                ) {
+                    $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'want_jam_ignored_no_jenis_or_jam');
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
                 $waktu = null;
                 if (!empty($slots['jam'])) {
                     $jamRaw = (float) $slots['jam'];
@@ -4938,15 +5097,12 @@ trait WARepliesKurirTrait
                     $waktu = $this->parseEstimasiRequestWaktu($msg);
                 }
                 $step = (string) ($session['step'] ?? '');
-                // Pastikan request sudah ada jika masih di confirm
-                if ($step === 'confirm_lokasi') {
-                    if (!$this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session)) {
-                        return;
-                    }
-                    $session = $this->getKurirSession($waNumber) ?: $session;
-                }
-                // Jangan kirim AI reply dulu — PHP yang balas (ack / cutoff / tanya ampm)
+                // Ack driver dulu, baru konfirmasi lokasi/antrian
                 $this->kurirProcessJamIntent($waNumber, $sapaan, $session, $msg, $waktu);
+                if ($step === 'confirm_lokasi') {
+                    $session = $this->getKurirSession($waNumber) ?: $session;
+                    $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                }
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 

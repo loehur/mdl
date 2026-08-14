@@ -3753,7 +3753,8 @@ if ($privUi === 100) {
                                 }
                                 bodyBlock += '<div class="mdl-notif-jam-ask">' + askLabel + '</div>';
                             }
-                            if (pesan && taskType !== 'pelanggan_new' && taskType !== 'permintaan') {
+                            if (pesan && taskType !== 'pelanggan_new' && taskType !== 'permintaan'
+                                && taskType !== 'kurir_estimasi' && taskType !== 'kurir_grant') {
                                 bodyBlock +=
                                     '<div class="mdl-notif-req">' +
                                     '<span class="mdl-notif-req__label">Pesan customer</span>' +
@@ -3819,6 +3820,13 @@ if ($privUi === 100) {
                                     '</div>';
                             } else if (taskType === 'estimasi' || taskType === 'kurir_estimasi') {
                                 formFields =
+                                    ((taskType === 'kurir_estimasi')
+                                        ? ('<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
+                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
+                                            '<i class="fas fa-comments"></i> Chat</button>' +
+                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-skip-kurir">Skip</button>' +
+                                            '</div>')
+                                        : '') +
                                     '<div>' +
                                     '<label>Tanggal</label>' +
                                     dateSelectHtml(dateOpts, '', it.prefer_tanggal || it.request_tanggal || '') +
@@ -3850,6 +3858,13 @@ if ($privUi === 100) {
                             } else {
                                 // grant + kurir_grant
                                 formFields =
+                                    ((taskType === 'kurir_grant')
+                                        ? ('<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
+                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
+                                            '<i class="fas fa-comments"></i> Chat</button>' +
+                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-skip-kurir">Skip</button>' +
+                                            '</div>')
+                                        : '') +
                                     '<div>' +
                                     '<label>Keputusan</label>' +
                                     '<select class="js-notif-granted" required>' +
@@ -4075,6 +4090,41 @@ if ($privUi === 100) {
                                 onClosed: function() { loadList(); refreshCount(); }
                             });
                         }
+                    });
+
+                    $(bodyEl).on('click', '.js-notif-skip-kurir', function() {
+                        var $card = $(this).closest('.mdl-notif-card');
+                        var phone = $card.data('phone');
+                        var taskType = $card.data('task-type') || '';
+                        if (!phone || (taskType !== 'kurir_estimasi' && taskType !== 'kurir_grant')) {
+                            return;
+                        }
+                        var $btn = $(this);
+                        $btn.prop('disabled', true);
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/update',
+                            method: 'POST',
+                            dataType: 'json',
+                            timeout: 30000,
+                            data: {
+                                phone: phone,
+                                task_type: taskType,
+                                kurir_action: 'skip',
+                                send_wa: 0
+                            }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (window.MdlToast) MdlToast.ok('Notifikasi di-skip');
+                                loadList();
+                                refreshCount();
+                                return;
+                            }
+                            $btn.prop('disabled', false);
+                            if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal skip');
+                        }).fail(function() {
+                            $btn.prop('disabled', false);
+                            if (window.MdlToast) MdlToast.error('Gagal skip');
+                        });
                     });
 
                     $(bodyEl).on('click', '.js-notif-close-permintaan, .js-notif-fulfill-permintaan', function() {

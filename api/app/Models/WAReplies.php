@@ -2206,6 +2206,14 @@ class WAReplies
                             $this->logAutoreplyTrace($waNumber, 'REGEX_KEEP', 'MINTA_JEMPUT_ANTAR keep (no active sale)');
                         }
                     }
+                    // "diantar kembali selambatnya hari minggu" tanpa sale = PERMINTAAN, bukan jam kurir
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)
+                        && !$this->pelangganHasActiveSale($phoneIn, $waNumber)
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'MINTA_JEMPUT_ANTAR→PERMINTAAN antar_kembali_deadline');
+                        $handler = 'PERMINTAAN';
+                        $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
+                    }
                     // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput (paket -D) = HARGA_PAKET_D lewat AI, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
                         continue;
@@ -2316,9 +2324,17 @@ class WAReplies
                     if ($handler === 'ESTIMASI_SELESAI') {
                         $resolved = $this->resolveEstimasiSelesaiByActiveSale($handler, $phoneIn, $waNumber);
                         if ($resolved !== $handler) {
-                            $handler = $resolved;
-                            $caseVal = $fullKeywordConfig[$handler]['case'] ?? null;
-                            $notify = $fullKeywordConfig[$handler]['notify'] ?? false;
+                            if ($this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)) {
+                                $handler = 'PERMINTAAN';
+                                $caseVal = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
+                                $notify = true;
+                                $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
+                                $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'ESTIMASI_SELESAI→PERMINTAAN no_sale antar_kembali');
+                            } else {
+                                $handler = $resolved;
+                                $caseVal = $fullKeywordConfig[$handler]['case'] ?? null;
+                                $notify = $fullKeywordConfig[$handler]['notify'] ?? false;
+                            }
                         }
                     }
 
@@ -2594,6 +2610,16 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['ESTIMASI_SELESAI']['notify'] ?? false;
             }
 
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR'
+                && $this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)
+                && !$this->pelangganHasActiveSale($phoneIn, $waNumber)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→PERMINTAAN antar_kembali_deadline');
+                $aiIntent = 'PERMINTAAN';
+                $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
+                $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
+            }
+
             // Ambil sendiri lewat tutup (order selesai + jam operasional)
             if ($this->messageLooksLikeAmbilLewatTutup($textBodyToCheck)
                 && $this->isOperatingHours()
@@ -2621,9 +2647,16 @@ class WAReplies
             if ($aiIntent === 'ESTIMASI_SELESAI') {
                 $resolved = $this->resolveEstimasiSelesaiByActiveSale($aiIntent, $phoneIn, $waNumber);
                 if ($resolved !== $aiIntent) {
-                    $aiIntent = $resolved;
-                    $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
-                    $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+                    if ($this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI→PERMINTAAN no_sale antar_kembali');
+                        $aiIntent = 'PERMINTAAN';
+                        $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
+                        $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
+                    } else {
+                        $aiIntent = $resolved;
+                        $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
+                        $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
+                    }
                 }
             }
 
@@ -4252,6 +4285,32 @@ class WAReplies
         if ($this->parseEstimasiRequestedRelativeDay($t) !== null) {
             return true;
         }
+        // "diantar kembali selambatnya hari minggu" = deadline laundry, bukan jam kurir
+        if ($this->messageLooksLikeAntarKembaliDeadline($t)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Deadline pengembalian laundry: antar kembali / selambatnya — bukan jam kunjungan kurir jemput/antar.
+     */
+    private function messageLooksLikeAntarKembaliDeadline(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+        $t = $text;
+        if (preg_match('/\b(di\s*)?antar\s*kembali\b/iu', $t)) {
+            return true;
+        }
+        if (preg_match(
+            '/\b(selambat\s*2?\s*nya|selambat[\-\s]+lambatnya|paling\s*lambat)\b/iu',
+            $t
+        )) {
+            return true;
+        }
 
         return false;
     }
@@ -4735,6 +4794,13 @@ class WAReplies
     private function handleEstimasi_Selesai($phoneIn, $waNumber, $textBody = '')
     {
         if (!$this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            if ($this->messageLooksLikeAntarKembaliDeadline((string) $textBody)) {
+                $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→PERMINTAAN no_sale antar_kembali');
+                $this->clearEstimasiSession($waNumber);
+                $this->currentHandler = 'PERMINTAAN';
+                $this->handlePermintaan($phoneIn, $waNumber, $textBody);
+                return true;
+            }
             $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'handler_fallback→MINTA_JEMPUT_ANTAR no_active_sale');
             $this->clearEstimasiSession($waNumber);
             $this->currentHandler = 'MINTA_JEMPUT_ANTAR';
