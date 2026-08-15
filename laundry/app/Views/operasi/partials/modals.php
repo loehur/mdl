@@ -2243,6 +2243,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
           + (terikat && !delivered ? ' · terikat request' : '')
           + (tarif !== '' && terikat ? ' · tarif Rp' + Number(tarif).toLocaleString('id-ID') : '')
+          + (!!it.surcas_jemput ? ' · surcas jemput' : '')
+          + (!!it.surcas_antar ? ' · surcas antar' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
         return '<label class="kurir-item">' +
           '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '" checked' +

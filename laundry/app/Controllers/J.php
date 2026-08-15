@@ -268,7 +268,7 @@ class J extends Controller
          return;
       }
 
-      $inserted = $this->insertSurcasPengantaran($noRef, $jumlah);
+      $inserted = $this->insertSurcasPengantaran($noRef, $jumlah, 0, $ids);
       if ($inserted === false) {
          echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan surcas pengantaran']);
          return;
@@ -277,7 +277,7 @@ class J extends Controller
       echo json_encode([
          'ok' => true,
          'message' => $inserted === 'exists'
-            ? 'Surcas pengantaran sudah ada di ref ini'
+            ? 'Item yang dipilih sudah terikat surcas pengantaran'
             : 'Surcas pengantaran ditambahkan',
          'data' => [
             'no_ref' => $noRef,
@@ -2024,7 +2024,7 @@ class J extends Controller
          $jumlahSurcas = (int) $calc['tarif'];
          $noRefSurcas = $this->pickBelumTuntasRef($pelanggan, $ids);
          if ($noRefSurcas !== null && $noRefSurcas !== '') {
-            $insertedSurcas = $this->insertSurcasPengantaran($noRefSurcas, $jumlahSurcas, $idRequest);
+            $insertedSurcas = $this->insertSurcasPengantaran($noRefSurcas, $jumlahSurcas, $idRequest, $ids);
             if ($insertedSurcas !== false) {
                $surcasInfo = [
                   'no_ref' => $noRefSurcas,
@@ -3160,48 +3160,40 @@ class J extends Controller
    }
 
    /**
-    * Insert surcas Pengantaran (jenis 2) ke no_ref - skip jika sudah ada.
+    * Insert surcas Pengantaran (jenis 2). Satu ref boleh banyak;
+    * skip hanya jika semua id_penjualan sudah terikat jenis ini.
+    *
     * @param int $idDeliveryRequest 0 = tidak ditandai delivery
+    * @param int[] $ids
     * @return true|'exists'|false
     */
-   private function insertSurcasPengantaran($noRef, $jumlah, $idDeliveryRequest = 0)
+   private function insertSurcasPengantaran($noRef, $jumlah, $idDeliveryRequest = 0, array $ids = [])
    {
       $noRef = trim((string) $noRef);
       $jumlah = (int) $jumlah;
       $idDeliveryRequest = (int) $idDeliveryRequest;
-      if ($noRef === '' || $jumlah <= 0) {
+      if ($noRef === '' || $jumlah < 0) {
          return false;
       }
 
       $idCabang = (int) $this->id_cabang_p;
       $this->helper('AntarTarif');
-      $jenis = AntarTarif::SURCAS_JENIS_PENGANTARAN;
-      $noRefEsc = $this->db(0)->escape($noRef);
-
-      $setOne = "transaksi_jenis = 1 AND no_ref = '" . $noRefEsc . "' AND id_jenis_surcas = " . $jenis;
-      $where = 'id_cabang = ' . $idCabang . ' AND ' . $setOne;
-      $count = (int) ($this->db(0)->count_where('surcas', $where) ?? 0);
-      if ($count >= 1) {
-         return 'exists';
-      }
-
-      $row = [
-         'id_cabang' => $idCabang,
-         'transaksi_jenis' => 1,
-         'id_jenis_surcas' => $jenis,
-         'jumlah' => $jumlah,
-         'id_user' => 0,
-         'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
-         'dari_delivery' => 1,
-      ];
-      if ($idDeliveryRequest > 0) {
-         $row['id_delivery_request'] = $idDeliveryRequest;
-      }
-      $in = $this->db(0)->insert('surcas', $row);
-      if (is_array($in) && isset($in['errno']) && (int) $in['errno'] !== 0) {
-         $this->model('Log')->write(__CLASS__ . '->insertSurcasPengantaran() ' . ($in['error'] ?? ''));
+      $this->helper('SurcasKurir');
+      try {
+         $res = SurcasKurir::insertForSales(
+            $this->db(0),
+            $idCabang,
+            $ids,
+            $jumlah,
+            0,
+            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
+            $idDeliveryRequest,
+            'Pengantaran'
+         );
+         return !empty($res['skipped']) ? 'exists' : true;
+      } catch (\Throwable $e) {
+         $this->model('Log')->write(__CLASS__ . '->insertSurcasPengantaran() ' . $e->getMessage());
          return false;
       }
-      return true;
    }
 }

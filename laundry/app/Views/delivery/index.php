@@ -1977,20 +1977,18 @@ $canCekDetail = !empty($data['canCekDetail']);
       return;
     }
 
-    var existing = null;
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
-    var map = (window._dlvSurcasByRef && window._dlvSurcasByRef.antar) || {};
+    var allBound = checks.length > 0;
     for (var i = 0; i < checks.length; i++) {
-      var group = checks[i].closest('.dlv-sales-group');
-      var ref = group ? (group.getAttribute('data-no-ref') || '') : '';
-      if (ref && map[ref] != null && map[ref] !== '') {
-        existing = Number(map[ref]);
+      if (checks[i].getAttribute('data-surcas-antar') !== '1') {
+        allBound = false;
         break;
       }
     }
+    if (!checks.length) allBound = false;
 
-    if ((jenis === 'antar' && isSelesaiSurcasBound()) || (existing != null && !isNaN(existing) && existing >= 0)) {
-      lockHideSurcasRow(row, input, existing);
+    if ((jenis === 'antar' && isSelesaiSurcasBound()) || allBound) {
+      lockHideSurcasRow(row, input, null);
       return;
     }
 
@@ -2039,19 +2037,17 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
     var fixed = parseInt(input.getAttribute('data-tarif-fixed') || '0', 10) || 0;
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
-    var prefills = (window._dlvSurcasByRef && window._dlvSurcasByRef.jemput) || {};
-    var found = null;
+    var allBound = checks.length > 0;
     for (var i = 0; i < checks.length; i++) {
-      var group = checks[i].closest('.dlv-sales-group');
-      var ref = group ? (group.getAttribute('data-no-ref') || '') : '';
-      if (ref && prefills[ref] != null && prefills[ref] !== '') {
-        found = Number(prefills[ref]);
+      if (checks[i].getAttribute('data-surcas-jemput') !== '1') {
+        allBound = false;
         break;
       }
     }
+    if (!checks.length) allBound = false;
 
-    if (isSelesaiSurcasBound() || (found != null && !isNaN(found) && found >= 0)) {
-      lockHideSurcasRow(row, input, found);
+    if (isSelesaiSurcasBound() || allBound) {
+      lockHideSurcasRow(row, input, null);
       syncAntarKembaliUi();
       syncSurcasAntarUi();
       return;
@@ -2195,6 +2191,11 @@ $canCekDetail = !empty($data['canCekDetail']);
     function renderItem(it, belum) {
       var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
       var member = Number(it.member) === 1 ? ' · Member' : '';
+      var hasJemput = !!(it.surcas_jemput === true || it.surcas_jemput === 1 || it.surcas_jemput === '1');
+      var hasAntar = !!(it.surcas_antar === true || it.surcas_antar === 1 || it.surcas_antar === '1');
+      var surcasMeta = '';
+      if (hasJemput) surcasMeta += ' · surcas jemput';
+      if (hasAntar) surcasMeta += ' · surcas antar';
       var checked = !belum && pref[String(it.id)] ? ' checked' : '';
       if (belum) {
         return '<label class="dlv-sales-item is-locked" data-belum-selesai="1">' +
@@ -2210,12 +2211,14 @@ $canCekDetail = !empty($data['canCekDetail']);
         '</label>';
       }
       return '<label class="dlv-sales-item">' +
-        '<input type="checkbox" name="' + name + '" value="' + escapeHtml(String(it.id)) + '"' + checked + '>' +
+        '<input type="checkbox" name="' + name + '" value="' + escapeHtml(String(it.id)) + '"' + checked +
+          (hasJemput ? ' data-surcas-jemput="1"' : '') +
+          (hasAntar ? ' data-surcas-antar="1"' : '') + '>' +
         '<span class="dlv-sales-item__text">' +
           escapeHtml(it.kategori || '-') +
           (it.durasi ? ' · ' + escapeHtml(it.durasi) : '') +
           ' · ' + escapeHtml(it.qty_show || '') +
-          '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member + '</div>' +
+          '<div class="dlv-sales-item__meta">#' + escapeHtml(String(it.id)) + ' · ' + status + member + surcasMeta + '</div>' +
         '</span>' +
       '</label>';
     }

@@ -765,7 +765,7 @@ class Delivery extends Controller
                $msg .= " · Request jemput #$idReqJemput ditutup";
             }
             $msg .= !empty($surcasJemput['skipped'])
-               ? ' · Surcas jemput sudah ada (dilewati)'
+               ? ' · Surcas jemput sudah ada pada item (dilewati)'
                : ' · Surcas jemput ditambahkan';
 
             $idAntar = 0;
@@ -801,7 +801,7 @@ class Delivery extends Controller
                   ? " · Request Antar #$idAntar diikat"
                   : " + Request Antar kembali #$idAntar";
                $msg .= !empty($surcasAntar['skipped'])
-                  ? ' · Surcas antar sudah ada (dilewati)'
+                  ? ' · Surcas antar sudah ada pada item (dilewati)'
                   : ' · Surcas antar ditambahkan ke nota';
             }
 
@@ -857,7 +857,7 @@ class Delivery extends Controller
                   $idReqAntar
                );
                if (!empty($surcasAntar['skipped'])) {
-                  throw new Exception('Surcas pengantaran sudah ada di nota ref ' . ($surcasAntar['no_ref'] ?? ''));
+                  throw new Exception('Semua item yang dipilih sudah terikat surcas pengantaran');
                }
                $response = [
                   'status' => 'success',
@@ -933,7 +933,7 @@ class Delivery extends Controller
                ? 'Request antar #' . $idRequest . ' diikat dari Operasi'
                : 'Request antar #' . $idRequest . ' masuk board Delivery';
             $msg .= !empty($surcasAntar['skipped'])
-               ? ' · Surcas antar sudah ada (dilewati)'
+               ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan ke nota';
 
             $response = [
@@ -990,7 +990,7 @@ class Delivery extends Controller
                $msg .= " · Request antar #$idReqAntar ditutup";
             }
             $msg .= !empty($surcasAntar['skipped'])
-               ? ' · Surcas antar sudah ada (dilewati)'
+               ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan ke nota';
 
             $response = [
@@ -1083,7 +1083,7 @@ class Delivery extends Controller
     * List sale eligible untuk Selesai Delivery Customer.
     * GET Delivery/sales_options/{phoneTail}?jenis=jemput|antar
     * Operasi: ?operasi=1
-    * - antar: item sudah delivered / terikat request tetap tampil jika belum surcas pengantaran
+    * - antar: item sudah delivered / terikat request tetap tampil jika item itu belum terikat surcas pengantaran
     * - jemput: semua item nota aktif (terikat / sudah riwayat jemput tetap tampil), seperti Antar
     */
    public function sales_options($phoneTail = '')
@@ -1309,12 +1309,12 @@ class Delivery extends Controller
          }
          if (is_array($surcasJemput)) {
             $msg .= !empty($surcasJemput['skipped'])
-               ? ' · Surcas jemput sudah ada (dilewati)'
+               ? ' · Surcas jemput sudah ada pada item (dilewati)'
                : ' · Surcas jemput ditambahkan';
          }
          if (is_array($surcasAntar)) {
             $msg .= !empty($surcasAntar['skipped'])
-               ? ' · Surcas antar sudah ada (dilewati)'
+               ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan';
          }
          if ($antarKembaliId > 0) {
@@ -1564,12 +1564,12 @@ class Delivery extends Controller
          }
          if (is_array($surcasJemput)) {
             $msg .= !empty($surcasJemput['skipped'])
-               ? ' · Surcas jemput sudah ada (dilewati)'
+               ? ' · Surcas jemput sudah ada pada item (dilewati)'
                : ' · Surcas jemput ditambahkan';
          }
          if (is_array($surcasAntar)) {
             $msg .= !empty($surcasAntar['skipped'])
-               ? ' · Surcas antar sudah ada (dilewati)'
+               ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan';
          }
          if ($antarKembaliId > 0) {
@@ -3094,18 +3094,10 @@ class Delivery extends Controller
          $eligibilityClause = '';
       }
 
-      // Operasi antar: semua item nota aktif yang belum punya surcas pengantaran
-      // (termasuk sudah delivered / terikat request — supaya bisa backfill surcas).
+      // Operasi antar: semua item nota aktif (termasuk delivered) —
+      // yang sudah terikat surcas pengantaran disaring per id_penjualan di bawah.
       if ($includeDeliveredMissingSurcas && $jenis === 'antar') {
-         $this->helper('AntarTarif');
-         $jenisSurcas = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
-         $eligibilityClause = "
-            AND NOT EXISTS (
-              SELECT 1 FROM surcas sc
-              WHERE sc.transaksi_jenis = 1
-                AND sc.id_jenis_surcas = $jenisSurcas
-                AND CAST(sc.no_ref AS CHAR) = CAST(s.no_ref AS CHAR)
-            )";
+         $eligibilityClause = '';
       }
 
       $rows = $this->db(0)->query_array(
@@ -3121,7 +3113,30 @@ class Delivery extends Controller
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 300"
       );
-      return is_array($rows) ? $rows : [];
+      if (!is_array($rows) || $rows === []) {
+         return [];
+      }
+
+      if ($includeDeliveredMissingSurcas && $jenis === 'antar') {
+         $this->helper('AntarTarif');
+         $this->helper('SurcasKurir');
+         $saleIds = [];
+         foreach ($rows as $r) {
+            $saleIds[] = (int) ($r['id_penjualan'] ?? 0);
+         }
+         $bound = SurcasKurir::boundSaleIds(
+            $this->db(0),
+            $saleIds,
+            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+         );
+         $rows = array_values(array_filter($rows, static function ($r) use ($bound) {
+            $sid = (int) ($r['id_penjualan'] ?? 0);
+
+            return $sid > 0 && !isset($bound[$sid]);
+         }));
+      }
+
+      return $rows;
    }
 
    private function buildEligibleSalesOrders(
@@ -3201,6 +3216,8 @@ class Delivery extends Controller
             'tarif_surcas' => null,
             'terikat_antar' => false,
             'tarif_surcas_antar' => null,
+            'surcas_jemput' => false,
+            'surcas_antar' => false,
          ];
       }
 
@@ -3266,6 +3283,30 @@ class Delivery extends Controller
 
       if (!empty($orders)) {
          $this->helper('AntarTarif');
+         $this->helper('SurcasKurir');
+         $allSaleIds = [];
+         foreach ($orders as $ord) {
+            foreach ($ord['items'] as $it) {
+               $allSaleIds[] = (int) ($it['id'] ?? 0);
+            }
+         }
+         $boundJemput = SurcasKurir::boundSaleIds(
+            $this->db(0),
+            $allSaleIds,
+            (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+         );
+         $boundAntar = SurcasKurir::boundSaleIds(
+            $this->db(0),
+            $allSaleIds,
+            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+         );
+         foreach ($orders as $refKey => $ord) {
+            foreach ($ord['items'] as $ix => $it) {
+               $sid = (int) ($it['id'] ?? 0);
+               $orders[$refKey]['items'][$ix]['surcas_jemput'] = $sid > 0 && isset($boundJemput[$sid]);
+               $orders[$refKey]['items'][$ix]['surcas_antar'] = $sid > 0 && isset($boundAntar[$sid]);
+            }
+         }
          $idCabang = (int) ($this->id_cabang ?? 0);
          $refs = array_keys($orders);
          $safe = [];
@@ -3501,12 +3542,11 @@ class Delivery extends Controller
    }
 
    /**
-    * Insert Surcas Penjemputan (jenis 3) ke satu ref dari ids.
-    * Jika sudah ada di ref yang sama → skip (tidak insert, tidak update).
-    * Menandai dari_delivery=1 (+ id_delivery_request bila ada).
+    * Insert Surcas Penjemputan (jenis 3). Satu ref boleh banyak baris;
+    * id_penjualan yang sudah terikat jenis ini dilewati.
     *
     * @param int[] $ids
-    * @return array{no_ref:string,jumlah:int,updated:bool,skipped:bool}
+    * @return array{no_ref:string,jumlah:int,updated:bool,skipped:bool,bound_ids?:int[]}
     * @throws Exception
     */
    private function upsertSurcasPenjemputan(
@@ -3516,60 +3556,27 @@ class Delivery extends Controller
       int $idUser,
       int $idDeliveryRequest = 0
    ): array {
-      $jumlah = (int) $jumlah;
-      $noRef = $this->pickRefFromSaleIds($ids);
-      if ($noRef === null || $noRef === '') {
-         throw new Exception('Tidak ada ref dari item yang dipilih');
-      }
-
       $this->helper('AntarTarif');
-      $jenis = AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
-      $noRefEsc = $this->db(0)->escape($noRef);
-      $where = 'id_cabang = ' . (int) $idCabang
-         . " AND transaksi_jenis = 1 AND id_jenis_surcas = $jenis"
-         . " AND no_ref = '" . $noRefEsc . "'";
+      $this->helper('SurcasKurir');
 
-      $existing = $this->db(0)->get_where_row('surcas', $where);
-      if (is_array($existing) && !empty($existing['id_surcas'])) {
-         return [
-            'no_ref' => $noRef,
-            'jumlah' => (int) ($existing['jumlah'] ?? 0),
-            'updated' => false,
-            'skipped' => true,
-         ];
-      }
-
-      if ($jumlah < 0) {
-         throw new Exception('Isi Surcas Penjemputan (isi 0 untuk gratis)');
-      }
-
-      $set = [
-         'jumlah' => $jumlah,
-         'id_user' => (int) $idUser,
-         'dari_delivery' => 1,
-      ];
-      if ($idDeliveryRequest > 0) {
-         $set['id_delivery_request'] = $idDeliveryRequest;
-      }
-
-      $ins = $this->db(0)->insert('surcas', array_merge([
-         'id_cabang' => (int) $idCabang,
-         'transaksi_jenis' => 1,
-         'id_jenis_surcas' => $jenis,
-         'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
-      ], $set));
-      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-         throw new Exception($ins['error'] ?? 'Gagal insert surcas penjemputan');
-      }
-      return ['no_ref' => $noRef, 'jumlah' => $jumlah, 'updated' => false, 'skipped' => false];
+      return SurcasKurir::insertForSales(
+         $this->db(0),
+         $idCabang,
+         $ids,
+         $jumlah,
+         $idUser,
+         (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
+         $idDeliveryRequest,
+         'Penjemputan'
+      );
    }
 
    /**
-    * Insert Surcas Pengantaran (jenis 2) ke satu ref dari ids.
-    * Jika sudah ada di ref yang sama → skip (tidak insert, tidak update).
+    * Insert Surcas Pengantaran (jenis 2). Satu ref boleh banyak baris;
+    * id_penjualan yang sudah terikat jenis ini dilewati.
     *
     * @param int[] $ids
-    * @return array{no_ref:string,jumlah:int,updated:bool,skipped:bool}
+    * @return array{no_ref:string,jumlah:int,updated:bool,skipped:bool,bound_ids?:int[]}
     * @throws Exception
     */
    private function upsertSurcasPengantaran(
@@ -3579,52 +3586,19 @@ class Delivery extends Controller
       int $idUser,
       int $idDeliveryRequest = 0
    ): array {
-      $jumlah = (int) $jumlah;
-      $noRef = $this->pickRefFromSaleIds($ids);
-      if ($noRef === null || $noRef === '') {
-         throw new Exception('Tidak ada ref dari item yang dipilih');
-      }
-
       $this->helper('AntarTarif');
-      $jenis = AntarTarif::SURCAS_JENIS_PENGANTARAN;
-      $noRefEsc = $this->db(0)->escape($noRef);
-      $where = 'id_cabang = ' . (int) $idCabang
-         . " AND transaksi_jenis = 1 AND id_jenis_surcas = $jenis"
-         . " AND no_ref = '" . $noRefEsc . "'";
+      $this->helper('SurcasKurir');
 
-      $existing = $this->db(0)->get_where_row('surcas', $where);
-      if (is_array($existing) && !empty($existing['id_surcas'])) {
-         return [
-            'no_ref' => $noRef,
-            'jumlah' => (int) ($existing['jumlah'] ?? 0),
-            'updated' => false,
-            'skipped' => true,
-         ];
-      }
-
-      if ($jumlah < 0) {
-         throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
-      }
-
-      $set = [
-         'jumlah' => $jumlah,
-         'id_user' => (int) $idUser,
-         'dari_delivery' => 1,
-      ];
-      if ($idDeliveryRequest > 0) {
-         $set['id_delivery_request'] = $idDeliveryRequest;
-      }
-
-      $ins = $this->db(0)->insert('surcas', array_merge([
-         'id_cabang' => (int) $idCabang,
-         'transaksi_jenis' => 1,
-         'id_jenis_surcas' => $jenis,
-         'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
-      ], $set));
-      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-         throw new Exception($ins['error'] ?? 'Gagal insert surcas pengantaran');
-      }
-      return ['no_ref' => $noRef, 'jumlah' => $jumlah, 'updated' => false, 'skipped' => false];
+      return SurcasKurir::insertForSales(
+         $this->db(0),
+         $idCabang,
+         $ids,
+         $jumlah,
+         $idUser,
+         (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
+         $idDeliveryRequest,
+         'Pengantaran'
+      );
    }
 
    /**
