@@ -283,6 +283,37 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     color: #1d4ed8;
   }
 
+  #plg-root .plg-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #dbeafe;
+  }
+  #plg-root .plg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #15803d;
+    background: linear-gradient(180deg, #16a34a, #15803d);
+    color: #fff;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  #plg-root .plg-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #22c55e, #16a34a);
+  }
+  #plg-root .plg-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
+  }
+
   #plg-root .plg-edit {
     cursor: text;
     padding: 0 1px;
@@ -406,6 +437,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $isPartner = ((float) $f5 > 0);
               $cardClass = $isPartner ? 'plg-card plg-row is-partner' : 'plg-card plg-row';
               $chipClass = $isPartner ? 'plg-chip plg-chip--yellow' : 'plg-chip';
+              $hpDigits = preg_replace('/\D/', '', (string) $f2);
+              $canChat = strlen($hpDigits) >= 8;
             ?>
               <article class="<?= $cardClass ?>" data-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>">
                 <div class="plg-card-head">
@@ -444,6 +477,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                       <?= $f5Attr ?>%
                     <?php } ?>
                   </span>
+                </div>
+                <div class="plg-card-actions">
+                  <button type="button"
+                    class="plg-btn plg-chat-btn"
+                    data-hp="<?= $f2Attr ?>"
+                    data-nama="<?= $f1Attr ?>"
+                    title="Riwayat Chat"
+                    aria-label="Riwayat Chat"
+                    <?= $canChat ? '' : 'disabled' ?>>
+                    <i class="fas fa-comments"></i> Chat
+                  </button>
                 </div>
               </article>
             <?php } ?>
@@ -584,6 +628,14 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
           }).get().join(' ') + ' ' + id_value).toLowerCase();
           $row.attr('data-search', blob);
           $row.toggleClass('is-partner', mode === '5' ? parseFloat(value_after) > 0 : $row.hasClass('is-partner'));
+          var $chat = $row.find('.plg-chat-btn');
+          if ($chat.length) {
+            if (mode === '1') $chat.attr('data-nama', value_after);
+            if (mode === '2') {
+              $chat.attr('data-hp', value_after);
+              $chat.prop('disabled', String(value_after).replace(/\D/g, '').length < 8);
+            }
+          }
           editing = false;
           toast('Tersimpan', 'ok');
         },
@@ -596,5 +648,23 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   });
 
   $('#plg-filter, #ordPlgNama, #ordPlgHp').on('keyup input', applyFilter);
+
+  $root.on('click', '.plg-chat-btn', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    var $btn = $(this);
+    if ($btn.prop('disabled')) return;
+    var hp = String($btn.attr('data-hp') || '').trim();
+    var nama = String($btn.attr('data-nama') || 'Pelanggan').trim();
+    if (!hp || hp.replace(/\D/g, '').length < 8) {
+      toast('Nomor pelanggan tidak tersedia', 'warn');
+      return;
+    }
+    if (window.MdlChatHistory && typeof MdlChatHistory.open === 'function') {
+      MdlChatHistory.open(hp, nama, { showCloseCase: false });
+    } else {
+      toast('Modal chat belum siap', 'error');
+    }
+  });
 })(jQuery);
 </script>
