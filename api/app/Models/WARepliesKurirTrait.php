@@ -1255,6 +1255,27 @@ trait WARepliesKurirTrait
             $session = $this->getKurirSession($waNumber) ?: $session;
         }
 
+        // Hard: pin/Maps coords (terutama ask_shareloc, atau customer kirim pin saat confirm/pick/aktif)
+        $coords = $this->kurirExtractCoords($msg);
+        if ($coords !== null && in_array($step, ['ask_shareloc', 'confirm_lokasi', 'pick_lokasi', 'lokasi_check'], true)) {
+            $this->kurirHandleShareloc($waNumber, $sapaan, $session, $msg);
+            $this->kurirAppendSummary($waNumber, $session, 'shareloc_coords');
+            return true;
+        }
+        if ($coords !== null && $this->kurirStepAllowsLokasiUpdate($step) && !empty($session['id_request'])) {
+            $this->kurirApplySharelocToAktifRequest($waNumber, $sapaan, $session, $msg);
+            return true;
+        }
+
+        // Klarifikasi alamat ("saya kos di taman sari") → update detail, bukan setuju / jam
+        if ($this->kurirStepAllowsLokasiUpdate($step)
+            && $this->kurirLooksLikeLokasiDetailClarification($msg, $session)
+            && !($step === 'pick_lokasi' && $this->kurirMsgMatchesLokasiListItem($session, $msg))
+        ) {
+            $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
+            return true;
+        }
+
         // Request waktu / butuh estimasi: ack driver dulu, baru lanjut state
         if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg)) {
             $session = $this->getKurirSession($waNumber) ?: $session;
@@ -1262,7 +1283,15 @@ trait WARepliesKurirTrait
                 return true;
             }
             if ($step === 'confirm_lokasi') {
-                $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
+                    $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                    return true;
+                }
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Baik {$sapaan}, jamnya kami catat. Lokasinya sudah benar? "
+                    . "Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
+                );
                 return true;
             }
             if (in_array($step, ['ask_shareloc', 'new_ask_shareloc', 'pick_lokasi'], true)) {
@@ -1288,14 +1317,6 @@ trait WARepliesKurirTrait
                 return true;
             }
             $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami catat *{$disp}* ya.");
-            return true;
-        }
-
-        // Hard: pin/Maps coords (terutama ask_shareloc, atau customer kirim pin saat confirm/pick)
-        $coords = $this->kurirExtractCoords($msg);
-        if ($coords !== null && in_array($step, ['ask_shareloc', 'confirm_lokasi', 'pick_lokasi', 'lokasi_check'], true)) {
-            $this->kurirHandleShareloc($waNumber, $sapaan, $session, $msg);
-            $this->kurirAppendSummary($waNumber, $session, 'shareloc_coords');
             return true;
         }
 
@@ -1346,13 +1367,22 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        // Hard: ubah/hapus alamat → hapus lokasi (1 langsung, >1 tanya nomor)
+        // Hard: ubah/hapus alamat
         if ($this->kurirLooksWantDeleteLokasi($msg)
             && in_array($step, [
                 'lokasi_check', 'pick_lokasi', 'confirm_lokasi', 'ask_layanan',
-                'request_aktif', 'instant_confirm', 'instant_pick',
+                'request_aktif', 'wait_driver_jam', 'instant_confirm', 'instant_pick',
             ], true)
         ) {
+            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)
+                && !$this->kurirLooksHardDeleteLokasi($msg)
+            ) {
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Sebut alamat yang benar ya {$sapaan}? Contoh: *kos Taman Sari*, atau kirim *shareloc*."
+                );
+                return true;
+            }
             $this->kurirStartDeleteLokasi($waNumber, $sapaan, $session, $msg);
             return true;
         }
@@ -1402,7 +1432,7 @@ trait WARepliesKurirTrait
         }
 
         // Request sudah jadi: jangan telan semua chat sebagai perkiraan jam driver.
-        // Hanya jam kunjungan kurir / instant; selain itu lepas ke intent lain.
+        // Hanya jam kunjungan kurir / instant; alamat masih bisa di-update; selain itu lepas ke intent lain.
         if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
             if ($this->kurirLooksWantFast($msg)) {
                 if (!$this->isOperatingHours()) {
@@ -1410,6 +1440,10 @@ trait WARepliesKurirTrait
                     return true;
                 }
                 $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
+                return true;
+            }
+            if ($this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
+                $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
                 return true;
             }
             $this->logAutoreplyTrace($waNumber, 'KURIR', $step . '→release_other_intent');
@@ -1424,6 +1458,25 @@ trait WARepliesKurirTrait
             if ($this->kurirLooksNoProblemAck($msg) && in_array($act, ['cancel', 'refuse_alt'], true)) {
                 $decision['action'] = ($step === 'wait_continue_alt') ? 'agree_alt' : 'confirm';
                 $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'override_no_problem_ack→' . $decision['action']);
+            }
+            if (in_array($act, ['confirm', 'other_lokasi', 'pick_lokasi', 'noop_ack'], true)
+                && $this->kurirStepAllowsLokasiUpdate($step)
+                && $this->kurirLooksLikeLokasiDetailClarification($msg, $session)
+            ) {
+                $decision['action'] = 'update_detail';
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'override_clarification→update_detail');
+            }
+            if ($act === 'confirm' && $step === 'confirm_lokasi'
+                && !$this->kurirLooksExplicitConfirmAgree($msg, $session)
+                && ($decision['action'] ?? '') === 'confirm'
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'block_confirm_not_explicit_agree');
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
+                );
+                $this->kurirAppendSummary($waNumber, $session, 'confirm_blocked_not_agree');
+                return true;
             }
             // wait_continue_alt: hanya batal eksplisit; selain itu lanjut jam alternatif (jangan unrelated/instant)
             if ($step === 'wait_continue_alt') {
@@ -1591,7 +1644,7 @@ trait WARepliesKurirTrait
             . "Kirimkan *shareloc* untuk melanjutkan.";
     }
 
-    private function kurirLooksAgree(string $msg): bool
+    private function kurirLooksAgree(string $msg, ?array $session = null): bool
     {
         $t = mb_strtolower(trim($msg));
         if ($t === '') {
@@ -1600,6 +1653,9 @@ trait WARepliesKurirTrait
         // "ya sudah gak pa2" / gpp / gapapa = setuju lanjut, BUKAN tolak
         if ($this->kurirLooksNoProblemAck($msg)) {
             return true;
+        }
+        if ($session && $this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
+            return false;
         }
         if ($this->kurirLooksCancel($msg)
             || $this->kurirLooksRefuse($msg)
@@ -1611,9 +1667,78 @@ trait WARepliesKurirTrait
             return false;
         }
         return (bool) preg_match(
-            '/\b(ya|iya|iyo|yoi|ok|oke|baik|setuju|boleh|sip|siap|lanjut|gas|bener|benar|betul|yuk|yo)\b/u',
+            '/\b(ya|iya|iyo|yoi|ok|oke|baik|setuju|boleh|sip|siap|lanjut|gas|bener|benar|betul|yuk|yo|deal)\b/u',
             $t
         );
+    }
+
+    /**
+     * Konfirmasi lokasi: HANYA jika pesan mengarah setuju (ya/oke/baik/setuju/deal),
+     * bukan karena kata itu kebetulan ada di kalimat panjang / koreksi alamat.
+     */
+    private function kurirLooksExplicitConfirmAgree(string $msg, ?array $session = null): bool
+    {
+        $t = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $msg)));
+        if ($t === '') {
+            return false;
+        }
+        if ($session && $this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
+            return false;
+        }
+        if ($this->kurirLooksCancel($msg)
+            || $this->kurirLooksRefuse($msg)
+            || $this->kurirLooksWantOtherLokasi($msg)
+            || $this->kurirLooksHardDeleteLokasi($msg)
+        ) {
+            return false;
+        }
+        if (preg_match('/[?？]/u', $t)
+            || preg_match('/\b(siapa|yang\s+mana|kenapa|knp|kok|gimana|gmn)\b/iu', $t)
+        ) {
+            return false;
+        }
+        if ($this->kurirLooksNoProblemAck($msg)) {
+            return true;
+        }
+
+        $tok = 'ya+|iya|iye|iyo|yoi|ok+|oke|okeh|baik|setuju|deal|sip|siap|lanjut|gas|boleh|bener|benar|betul|yuk|yo|yes+';
+        $filler = 'kak|kk|bang|pak|bu|mbak|min|deh|lah|dong|aja|saja|sudah|udah|dah|ya';
+        if (preg_match('/^(?:' . $tok . ')(?:\s+(?:' . $tok . '|' . $filler . '))*\s*[.!,]*$/iu', $t)) {
+            return true;
+        }
+        if (preg_match('/^(?:' . $tok . ')\b/iu', $t) && $this->kurirLooksWantJam($msg, $session ?? [])) {
+            $rest = trim(preg_replace('/^(?:' . $tok . ')(?:\s+(?:' . $filler . '))*\s*/iu', '', $t));
+            if ($rest !== '' && (
+                $this->kurirParseLokasiJenis($rest) !== null
+                || $this->lokasiLooksLikeAlamatJalanNomor($rest)
+                || preg_match('/\b(kos|kost|taman|jalan|jl\.?|alamat|rumah|nomor|no\.?)\b/iu', $rest)
+            )) {
+                return false;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private function kurirStepAllowsLokasiUpdate(string $step): bool
+    {
+        return in_array($step, ['confirm_lokasi', 'pick_lokasi', 'request_aktif', 'wait_driver_jam'], true);
+    }
+
+    private function kurirLooksHardDeleteLokasi(string $msg): bool
+    {
+        return (bool) preg_match('/\b(hapus|delete|buang|hilangkan)\b/iu', $msg);
+    }
+
+    /** Sisa teks setelah "ganti/ubah alamat" — untuk update in-place, bukan hapus. */
+    private function kurirStripLokasiEditPrefix(string $msg): string
+    {
+        $t = preg_replace('/\b(ubah|ganti|edit|update)\s*(lokasi|alamat|tempat|pin|detail)?\b/iu', ' ', $msg);
+        $t = preg_replace('/\b(alamat(nya)?|lokasinya|detailnya)\s*(jadi|ke|:)?\b/iu', ' ', (string) $t);
+        $t = trim(preg_replace('/\s+/u', ' ', (string) $t), " \t,.;:-");
+
+        return $t;
     }
 
     /**
@@ -2342,7 +2467,13 @@ trait WARepliesKurirTrait
         $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
     }
 
-    private function kurirPrepareConfirm(string $waNumber, string $sapaan, array $session, array $lok): void
+    private function kurirPrepareConfirm(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        array $lok,
+        bool $forceAsk = false
+    ): void
     {
         $cab = $this->kurirCabangCoords((int) ($session['id_cabang'] ?? 0));
         $latt = (float) ($lok['latt'] ?? 0);
@@ -2384,8 +2515,9 @@ trait WARepliesKurirTrait
         $skipGratis = $tarif <= 0;
         $skipSame = $lastOk !== null
             && (int) ($lastOk['id_lokasi'] ?? 0) === $idLokasi
-            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif;
-        if ($skipGratis || $skipSame) {
+            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif
+            && mb_strtolower(trim((string) ($lastOk['lokasi_detail'] ?? ''))) === mb_strtolower(trim($detail));
+        if (!$forceAsk && ($skipGratis || $skipSame)) {
             $this->logAutoreplyTrace(
                 $waNumber,
                 'KURIR',
@@ -2942,16 +3074,14 @@ trait WARepliesKurirTrait
             $this->kurirStartShareloc($waNumber, $sapaan, $session, $msg);
             return;
         }
+        if ($this->kurirLooksLikeLokasiDetailClarification($msg, $session)
+            && $this->kurirResolvePickedLokasiFromList($session, $msg) === null
+        ) {
+            $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
+            return;
+        }
 
-        $list = [];
-        $raw = $session['rates_json'] ?? '';
-        if (is_string($raw) && $raw !== '') {
-            $j = json_decode($raw, true);
-            $list = $j['lokasi_list'] ?? [];
-        }
-        if (empty($list)) {
-            $list = $this->kurirListLokasi((int) ($session['id_pelanggan'] ?? 0));
-        }
+        $list = $this->kurirLokasiListFromSession($session);
         $idx = null;
         if (preg_match('/\b(\d{1,2})\b/', $msg, $m)) {
             $idx = (int) $m[1] - 1;
@@ -2977,15 +3107,440 @@ trait WARepliesKurirTrait
         $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $picked, $msg);
     }
 
+    /**
+     * Klarifikasi alamat saat konfirmasi: "saya kos di taman sari" — update detail, bukan setuju.
+     */
+    private function kurirLooksLikeLokasiDetailClarification(string $msg, array $session): bool
+    {
+        $t = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $msg)));
+        if ($t === '' || mb_strlen($t) < 6) {
+            return false;
+        }
+        if (preg_match('/^\s*(ya|iya|iyo|ok|oke|baik|setuju|deal|sip|siap|lanjut|gas)\s*(kak|kk|bang|pak|bu|ya)?\s*[.!]?\s*$/iu', $t)) {
+            return false;
+        }
+        if ($this->kurirLooksCancel($msg)
+            || $this->kurirLooksWantFast($msg)
+            || $this->kurirExtractCoords($msg) !== null
+        ) {
+            return false;
+        }
+        if ($this->kurirLooksHardDeleteLokasi($msg)) {
+            return false;
+        }
+        $editRemainder = $this->kurirStripLokasiEditPrefix($msg);
+        $msgForInfer = $msg;
+        if ($this->kurirLooksWantDeleteLokasi($msg)) {
+            if (mb_strlen($editRemainder) < 3) {
+                return false;
+            }
+            $msgForInfer = $editRemainder;
+            $t = mb_strtolower($editRemainder);
+        }
+        if (preg_match('/\b(siapa|yang\s+mana|kenapa|knp|kok)\b/iu', $t)) {
+            return false;
+        }
+        $hasSayaDi = (bool) preg_match(
+            '/\b(saya|aku|sy|gue|awak)\s+.{0,24}\b(tinggal|ngekos|ngkos|kos|kost|di)\b/iu',
+            $t
+        );
+        $hasPindah = (bool) preg_match(
+            '/\b(pindah|pindahan|sekarang|skrg)\s*(ke\s*)?(di|kos|kost|ngekos|rumah)\b/iu',
+            $t
+        );
+        $hasAlamatCue = (bool) preg_match(
+            '/\b(alamat(nya)?|lokasinya|detailnya)\b/iu',
+            mb_strtolower(trim(preg_replace('/\s+/u', ' ', $msg)))
+        );
+        if (!$hasSayaDi && !$hasPindah && !$hasAlamatCue
+            && preg_match('/\b(gak|ga|gk|tidak|tdk|bukan|salah|engga)\b/iu', $t)
+        ) {
+            return false;
+        }
+
+        $inferred = $this->lokasiInferNamaDetailFromReply($msgForInfer);
+        $detail = $this->kurirNormalizeClarifiedLokasiDetail((string) ($inferred['detail'] ?? ''), (string) ($inferred['nama'] ?? ''));
+        if ($detail === '' || mb_strlen($detail) < 3) {
+            return false;
+        }
+        $cur = mb_strtolower(trim((string) ($session['lokasi_detail'] ?? '')));
+        if ($cur !== '' && $cur === mb_strtolower($detail)) {
+            return false;
+        }
+        if ($hasSayaDi || $hasPindah || $hasAlamatCue) {
+            return true;
+        }
+        if ($this->kurirParseLokasiJenis($msgForInfer) !== null) {
+            return true;
+        }
+
+        return $this->lokasiLooksLikeAlamatJalanNomor($msgForInfer);
+    }
+
+    private function kurirNormalizeClarifiedLokasiDetail(string $detail, string $nama): string
+    {
+        $d = trim(preg_replace('/\s+/u', ' ', $detail));
+        $d = preg_replace('/\b(saya|aku|sy|gue|awak|kami)\b/iu', ' ', $d) ?? $d;
+        $d = preg_replace('/\b(tinggal|ngekos|ngkos)\b/iu', ' ', $d) ?? $d;
+        $d = preg_replace('/^\s*di\s+/iu', '', $d) ?? $d;
+        if ($nama !== '') {
+            $extracted = $this->kurirExtractLokasiDetailFromJenisReply($d, $nama);
+            if ($extracted !== null && $extracted !== '') {
+                $d = $extracted;
+            }
+        }
+        $d = trim(preg_replace('/\s+/u', ' ', (string) $d), " \t,.;:-");
+        if ($d === '' || mb_strlen($d) < 2) {
+            return '';
+        }
+
+        return mb_substr($d, 0, 255);
+    }
+
+    /**
+     * @return list<array>
+     */
+    private function kurirLokasiListFromSession(array $session): array
+    {
+        $list = [];
+        $raw = $session['rates_json'] ?? '';
+        if (is_string($raw) && $raw !== '') {
+            $j = json_decode($raw, true);
+            $list = $j['lokasi_list'] ?? [];
+        }
+        if (empty($list)) {
+            $list = $this->kurirListLokasi((int) ($session['id_pelanggan'] ?? 0));
+        }
+
+        return is_array($list) ? $list : [];
+    }
+
+    /** Pilih lokasi dari daftar: nomor, atau nama/detail unik (bukan kategori "Kos"/"Rumah"). */
+    private function kurirResolvePickedLokasiFromList(array $session, string $msg): ?array
+    {
+        $list = $this->kurirLokasiListFromSession($session);
+        if (empty($list)) {
+            return null;
+        }
+        if (preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg), $m)) {
+            $idx = (int) $m[1] - 1;
+
+            return $list[$idx] ?? null;
+        }
+        $categories = ['rumah', 'kos', 'kost', 'kosan', 'mess', 'mes', 'asrama', 'kantor', 'penginapan', 'toko'];
+        $hits = [];
+        foreach ($list as $lok) {
+            $nama = trim((string) ($lok['nama'] ?? ''));
+            $detail = trim((string) ($lok['detail'] ?? ''));
+            $ln = mb_strtolower($nama);
+            $namaHit = $nama !== '' && mb_strlen($ln) >= 4 && !in_array($ln, $categories, true)
+                && mb_stripos($msg, $nama) !== false;
+            $detailHit = $detail !== '' && mb_strlen($detail) >= 4 && mb_stripos($msg, $detail) !== false;
+            if ($namaHit || $detailHit) {
+                $hits[] = $lok;
+            }
+        }
+
+        return count($hits) === 1 ? $hits[0] : null;
+    }
+
+    private function kurirMsgMatchesLokasiListItem(array $session, string $msg): bool
+    {
+        return $this->kurirResolvePickedLokasiFromList($session, $msg) !== null;
+    }
+
+    private function kurirFindLokasiMatchingClarification(
+        int $idPelanggan,
+        string $nama,
+        string $detail,
+        int $excludeId = 0
+    ): ?array {
+        if ($idPelanggan <= 0 || $detail === '') {
+            return null;
+        }
+        $dn = mb_strtolower(trim($detail));
+        $nn = mb_strtolower(trim($nama));
+        foreach ($this->kurirListLokasi($idPelanggan) as $lok) {
+            $id = (int) ($lok['id_lokasi'] ?? 0);
+            if ($id <= 0 || $id === $excludeId) {
+                continue;
+            }
+            $ld = mb_strtolower(trim((string) ($lok['detail'] ?? '')));
+            $ln = mb_strtolower(trim((string) ($lok['nama'] ?? '')));
+            if ($ld === '') {
+                continue;
+            }
+            $namaOk = ($nn === '' || $ln === $nn || $ln === '');
+            $detailOk = ($ld === $dn)
+                || (mb_strlen($dn) >= 4 && mb_strpos($ld, $dn) !== false)
+                || (mb_strlen($ld) >= 6 && mb_strpos($dn, $ld) !== false);
+            if ($namaOk && $detailOk) {
+                return $lok;
+            }
+        }
+
+        return null;
+    }
+
+    private function kurirPatchAktifDeliveryRequest(array $session, array $lok): void
+    {
+        $idRequest = (int) ($session['id_request'] ?? 0);
+        if ($idRequest <= 0) {
+            return;
+        }
+        $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
+        $nama = (string) ($lok['nama'] ?? '');
+        $detail = (string) ($lok['detail'] ?? '');
+        $latt = array_key_exists('latt', $lok) ? (float) $lok['latt'] : null;
+        $longt = array_key_exists('longt', $lok) ? (float) $lok['longt'] : null;
+        try {
+            if ($latt !== null && $longt !== null && abs($latt) > 0.0001) {
+                $tarif = (int) ($session['tarif'] ?? 0);
+                DB::getInstance(1)->query(
+                    'UPDATE delivery_request
+                     SET lokasi_nama = ?, lokasi_detail = ?, id_lokasi = ?,
+                         lokasi_latt = ?, lokasi_longt = ?, tarif_surcas = ?
+                     WHERE id_request = ? AND delivery_status = \'berjalan\'',
+                    [
+                        $nama,
+                        $detail,
+                        $idLokasi > 0 ? $idLokasi : null,
+                        $latt,
+                        $longt,
+                        $tarif,
+                        $idRequest,
+                    ]
+                );
+            } else {
+                DB::getInstance(1)->query(
+                    'UPDATE delivery_request
+                     SET lokasi_nama = ?, lokasi_detail = ?, id_lokasi = ?
+                     WHERE id_request = ? AND delivery_status = \'berjalan\'',
+                    [$nama, $detail, $idLokasi > 0 ? $idLokasi : null, $idRequest]
+                );
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+    }
+
+    private function kurirApplySharelocToAktifRequest(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg
+    ): void {
+        $coords = $this->kurirExtractCoords($msg);
+        if ($coords === null) {
+            return;
+        }
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
+        $latt = (float) $coords['lat'];
+        $longt = (float) $coords['lng'];
+        $nama = trim((string) ($session['lokasi_nama'] ?? '')) ?: 'Rumah';
+        $detail = trim((string) ($session['lokasi_detail'] ?? ''));
+
+        if ($idLokasi > 0) {
+            $near = $this->lokasiFindNear($idPelanggan, $latt, $longt);
+            if ($near !== null && (int) $near['id_lokasi'] !== $idLokasi) {
+                $idLokasi = (int) $near['id_lokasi'];
+                $nama = trim((string) ($near['nama'] ?? $nama)) ?: $nama;
+                $detail = trim((string) ($near['detail'] ?? $detail));
+            } else {
+                $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
+                    'latt' => $latt,
+                    'longt' => $longt,
+                ]);
+            }
+        } else {
+            $saved = $this->lokasiUpsertCoords($idPelanggan, $latt, $longt);
+            if ($saved === null) {
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Maaf {$sapaan}, gagal menyimpan titik lokasi. Coba kirim shareloc lagi ya."
+                );
+                return;
+            }
+            $idLokasi = (int) $saved['id_lokasi'];
+            if (!empty($saved['nama'])) {
+                $nama = (string) $saved['nama'];
+            }
+            if (!empty($saved['detail'])) {
+                $detail = (string) $saved['detail'];
+            }
+        }
+
+        $cab = $this->kurirCabangCoords((int) ($session['id_cabang'] ?? 0));
+        $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
+        $tarif = (int) $calc['tarif'];
+        $this->saveKurirSession($waNumber, [
+            'id_lokasi' => $idLokasi,
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+            'latt' => $latt,
+            'longt' => $longt,
+            'tarif' => $tarif,
+        ]);
+        $session = $this->getKurirSession($waNumber) ?: array_merge($session, [
+            'id_lokasi' => $idLokasi,
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+            'latt' => $latt,
+            'longt' => $longt,
+            'tarif' => $tarif,
+        ]);
+        $this->kurirPatchAktifDeliveryRequest($session, [
+            'id_lokasi' => $idLokasi,
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => $latt,
+            'longt' => $longt,
+        ]);
+        $this->kurirAppendSummary($waNumber, $session, 'update_shareloc_aktif');
+        $label = $detail !== '' ? "{$nama}, {$detail}" : $nama;
+        $tarifRp = AntarTarif::formatRp($tarif);
+        $this->sendAutoreplyText(
+            $waNumber,
+            "Baik {$sapaan}, titik lokasi kami perbarui ke *{$label}*. Ongkir {$tarifRp}."
+        );
+    }
+
+    private function kurirApplyLokasiDetailClarification(
+        string $waNumber,
+        string $sapaan,
+        array $session,
+        string $msg
+    ): void {
+        $inferred = $this->lokasiInferNamaDetailFromReply($msg);
+        $nama = (string) ($inferred['nama'] ?? '');
+        if ($nama === '') {
+            $nama = trim((string) ($session['lokasi_nama'] ?? '')) ?: 'Rumah';
+        }
+        $detail = $this->kurirNormalizeClarifiedLokasiDetail((string) ($inferred['detail'] ?? ''), $nama);
+        if ($detail === '') {
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Boleh sebut detail alamat yang benar ya {$sapaan}? Contoh: *kos Taman Sari*."
+            );
+            return;
+        }
+
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
+        $matched = $this->kurirFindLokasiMatchingClarification($idPelanggan, $nama, $detail, $idLokasi);
+        if ($matched !== null) {
+            $mNama = (string) ($matched['nama'] ?? $nama);
+            $mDetail = (string) ($matched['detail'] ?? $detail);
+            $mId = (int) ($matched['id_lokasi'] ?? 0);
+            $mLatt = (float) ($matched['latt'] ?? 0);
+            $mLongt = (float) ($matched['longt'] ?? 0);
+            $cab = $this->kurirCabangCoords((int) ($session['id_cabang'] ?? 0));
+            $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $mLatt, $mLongt);
+            $this->saveKurirSession($waNumber, [
+                'id_lokasi' => $mId,
+                'lokasi_nama' => $mNama,
+                'lokasi_detail' => $mDetail,
+                'latt' => $mLatt,
+                'longt' => $mLongt,
+                'tarif' => (int) $calc['tarif'],
+            ]);
+            $session = $this->getKurirSession($waNumber) ?: array_merge($session, [
+                'id_lokasi' => $mId,
+                'lokasi_nama' => $mNama,
+                'lokasi_detail' => $mDetail,
+                'latt' => $mLatt,
+                'longt' => $mLongt,
+                'tarif' => (int) $calc['tarif'],
+            ]);
+            $this->kurirAppendSummary($waNumber, $session, 'update_detail_switch=' . $mNama . ', ' . $mDetail);
+            $this->kurirPatchAktifDeliveryRequest($session, [
+                'id_lokasi' => $mId,
+                'nama' => $mNama,
+                'detail' => $mDetail,
+                'latt' => $mLatt,
+                'longt' => $mLongt,
+            ]);
+            if ((int) ($session['id_request'] ?? 0) > 0) {
+                $label = $mDetail !== '' ? "{$mNama}, {$mDetail}" : $mNama;
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    "Baik {$sapaan}, alamat kami perbarui jadi *{$label}* ya."
+                );
+                return;
+            }
+            $this->kurirAfterLokasiReady($waNumber, $sapaan, $session, $matched, $msg);
+            return;
+        }
+
+        $latt = (float) ($session['latt'] ?? 0);
+        $longt = (float) ($session['longt'] ?? 0);
+        if ($idLokasi > 0) {
+            $this->kurirUpdateLokasi($idLokasi, $idPelanggan, [
+                'nama' => $nama,
+                'detail' => $detail,
+            ]);
+        }
+
+        $this->saveKurirSession($waNumber, [
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+        ]);
+        $session = $this->getKurirSession($waNumber) ?: array_merge($session, [
+            'lokasi_nama' => $nama,
+            'lokasi_detail' => $detail,
+        ]);
+        $this->kurirAppendSummary($waNumber, $session, 'update_detail=' . $nama . ', ' . $detail);
+
+        $label = $detail !== '' ? "{$nama}, {$detail}" : $nama;
+        $lok = [
+            'id_lokasi' => $idLokasi,
+            'nama' => $nama,
+            'detail' => $detail,
+            'latt' => $latt,
+            'longt' => $longt,
+        ];
+        if ((int) ($session['id_request'] ?? 0) > 0) {
+            $this->kurirPatchAktifDeliveryRequest($session, $lok);
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Baik {$sapaan}, alamat kami perbarui jadi *{$label}* ya."
+            );
+            return;
+        }
+
+        if ($idLokasi <= 0 && abs($latt) < 0.0001) {
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Baik {$sapaan}, kami catat *{$label}*. Pilih nomor lokasi atau kirim *shareloc* ya."
+            );
+            return;
+        }
+
+        $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok, true);
+    }
+
     private function kurirHandleConfirmLokasi(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if ($this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
+            $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
+            return;
+        }
         if ($this->kurirLooksWantJam($msg, $session)) {
             $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
             $session = $this->getKurirSession($waNumber) ?: $session;
-            $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+            if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
+                $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                return;
+            }
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Baik {$sapaan}, jamnya kami catat. Lokasinya sudah benar? "
+                . "Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
+            );
             return;
         }
-        if ($this->kurirLooksAgree($msg)) {
+        if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
             $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;
         }
@@ -3000,7 +3555,7 @@ trait WARepliesKurirTrait
         }
         $this->sendAutoreplyText(
             $waNumber,
-            "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut, atau bilang *beda lokasi* / kirim shareloc."
+            "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
         );
     }
 
@@ -3343,6 +3898,10 @@ trait WARepliesKurirTrait
      */
     private function kurirHandleRequestAktif(string $waNumber, string $sapaan, array $session, string $msg): void
     {
+        if ($this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
+            $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
+            return;
+        }
         if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelAndReply($waNumber, $sapaan, $session);
             return;
@@ -4863,21 +5422,21 @@ trait WARepliesKurirTrait
             case 'ask_layanan':
                 $actions = array_merge($common, ['pick_layanan', 'want_instant', 'confirm', 'other_lokasi', 'delete_lokasi']);
                 break;
+            case 'confirm_lokasi':
+                $actions = array_merge($common, ['confirm', 'update_detail', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
+                break;
             case 'pick_lokasi':
-                $actions = array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
+                $actions = array_merge($common, ['pick_lokasi', 'update_detail', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
                 break;
             case 'delete_lokasi':
                 $actions = array_merge($common, ['delete_lokasi', 'pick_lokasi']);
                 break;
-            case 'confirm_lokasi':
-                $actions = array_merge($common, ['confirm', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
-                break;
             case 'terms_setuju':
             case 'request_aktif':
-                $actions = array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'delete_lokasi']);
+                $actions = array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'delete_lokasi', 'update_detail']);
                 break;
             case 'wait_driver_jam':
-                $actions = array_merge($common, ['noop_ack', 'want_jam']);
+                $actions = array_merge($common, ['noop_ack', 'want_jam', 'update_detail']);
                 break;
             case 'ask_jam_ampm':
                 $actions = array_merge($common, ['want_jam', 'confirm']);
@@ -5050,7 +5609,11 @@ trait WARepliesKurirTrait
             . "Jika customer menolak lokasi / beda alamat / bukan itu → other_lokasi atau ask_shareloc. "
             . "Jika customer minta ubah alamat / ganti alamat / hapus lokasi → delete_lokasi (bukan edit; selalu hapus). "
             . "Di step delete_lokasi: customer pilih nomor lokasi yang dihapus → delete_lokasi + slots.pick_index. "
-            . "Jika setuju lokasi/ongkir → confirm. "
+            . "Jika setuju lokasi/ongkir → confirm HANYA bila pesan jelas setuju: ya/iya/oke/ok/baik/setuju/deal/sip. "
+            . "Jangan confirm hanya karena ada kata 'ya' di kalimat panjang. "
+            . "Jika customer mengoreksi/klarifikasi alamat (saya kos di X, bukan nomor itu, pindah kos, detail salah) "
+            . "→ update_detail (JANGAN confirm). Update nama+detail lokasi yang sama, lalu konfirmasi ulang. "
+            . "Di step request_aktif / wait_driver_jam: koreksi alamat atau shareloc baru → update_detail (request tetap berjalan). "
             . "Jika batal/gak jadi/gk jd/cancel/gak usah → cancel. "
             . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (agree/confirm/agree_alt), BUKAN cancel. "
             . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
@@ -5173,6 +5736,13 @@ trait WARepliesKurirTrait
 
             case 'confirm':
                 $step = (string) ($session['step'] ?? '');
+                if ($this->kurirStepAllowsLokasiUpdate($step)
+                    && $this->kurirLooksLikeLokasiDetailClarification($msg, $session)
+                ) {
+                    $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
                 if ($step === 'ask_jenis') {
                     $jenis = null;
                     $slotJenis = strtolower((string) ($slots['jenis'] ?? ''));
@@ -5240,8 +5810,28 @@ trait WARepliesKurirTrait
                     $this->kurirAppendSummary($waNumber, $session, $note);
                     return;
                 }
-                // confirm_lokasi → insert + template jam kerja (abaikan AI reply)
+                if ($step === 'confirm_lokasi') {
+                    if (!$this->kurirLooksExplicitConfirmAgree($msg, $session)) {
+                        $this->sendAutoreplyText(
+                            $waNumber,
+                            "Lokasinya sudah benar {$sapaan}? Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
+                        );
+                        $this->kurirAppendSummary($waNumber, $session, 'confirm_blocked_not_agree');
+                        return;
+                    }
+                    $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+                    return;
+                }
                 $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+                $this->kurirAppendSummary($waNumber, $session, $note);
+                return;
+
+            case 'update_detail':
+                $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 

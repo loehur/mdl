@@ -16,5 +16,5 @@ return [
     'min_tarif' => 5000,
 
     /** Tarif per kilometer (Rp) */
-    'rate_per_km' => 1500,
+    'rate_per_km' => 2000,
 ];
