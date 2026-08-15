@@ -10,8 +10,9 @@ class AntarTarifHelper
 {
     public const DEFAULT_MIN_TARIF = 5000;
     public const DEFAULT_RATE_PER_KM = 1000;
+    public const DEFAULT_FREE_KM = 1.0;
 
-    /** @return array{min_tarif:int,rate_per_km:int} */
+    /** @return array{min_tarif:int,rate_per_km:int,free_km:float} */
     public static function loadConfig(): array
     {
         $path = dirname(__DIR__, 2) . '/Config/AntarTarif.php';
@@ -22,18 +23,22 @@ class AntarTarifHelper
         return self::normalizeConfig(is_array($loaded) ? $loaded : []);
     }
 
-    /** @return array{min_tarif:int,rate_per_km:int} */
+    /** @return array{min_tarif:int,rate_per_km:int,free_km:float} */
     public static function normalizeConfig(array $loaded): array
     {
         $cfg = [
             'min_tarif' => (int) ($loaded['min_tarif'] ?? self::DEFAULT_MIN_TARIF),
             'rate_per_km' => (int) ($loaded['rate_per_km'] ?? self::DEFAULT_RATE_PER_KM),
+            'free_km' => (float) ($loaded['free_km'] ?? self::DEFAULT_FREE_KM),
         ];
         if ($cfg['min_tarif'] < 0) {
             $cfg['min_tarif'] = 0;
         }
         if ($cfg['rate_per_km'] < 0) {
             $cfg['rate_per_km'] = 0;
+        }
+        if ($cfg['free_km'] < 0) {
+            $cfg['free_km'] = 0.0;
         }
         return $cfg;
     }
@@ -62,11 +67,17 @@ class AntarTarifHelper
     public static function tarifFromKm($km, ?array $cfg = null): int
     {
         $c = $cfg ?? self::loadConfig();
-        return max($c['min_tarif'], (int) round((float) $km * $c['rate_per_km']));
+        $km = (float) $km;
+        $freeKm = (float) ($c['free_km'] ?? 0);
+        if ($freeKm > 0 && $km < $freeKm) {
+            return 0;
+        }
+
+        return max($c['min_tarif'], (int) round($km * $c['rate_per_km']));
     }
 
     /**
-     * @return array{km:float,tarif:int,min_tarif:int,rate_per_km:int}
+     * @return array{km:float,tarif:int,min_tarif:int,rate_per_km:int,free_km:float}
      */
     public static function tarifFromCoords($latCabang, $lonCabang, $latLokasi, $lonLokasi): array
     {
@@ -77,6 +88,7 @@ class AntarTarifHelper
             'tarif' => self::tarifFromKm($km, $cfg),
             'min_tarif' => $cfg['min_tarif'],
             'rate_per_km' => $cfg['rate_per_km'],
+            'free_km' => $cfg['free_km'],
         ];
     }
 }

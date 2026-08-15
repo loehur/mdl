@@ -10,6 +10,7 @@ class AntarTarif
    /** Fallback bila API tidak terbaca */
    const MIN_TARIF = 5000;
    const RATE_PER_KM = 1000;
+   const FREE_KM = 1.0;
 
    /** Legacy: gabungan jemput+antar — dibagi 2 saat penyelesaian delivery */
    const SURCAS_JENIS_GABUNGAN = 1;
@@ -19,7 +20,7 @@ class AntarTarif
    private $apiUrl = 'https://api.nalju.com/Laundry/AntarTarif';
 
    /**
-    * @return array{min_tarif:int,rate_per_km:int}
+    * @return array{min_tarif:int,rate_per_km:int,free_km:float}
     */
    private function config()
    {
@@ -33,11 +34,13 @@ class AntarTarif
          $cfg = [
             'min_tarif' => (int) ($res['min_tarif'] ?? self::MIN_TARIF),
             'rate_per_km' => (int) ($res['rate_per_km'] ?? self::RATE_PER_KM),
+            'free_km' => isset($res['free_km']) ? (float) $res['free_km'] : self::FREE_KM,
          ];
       } else {
          $cfg = [
             'min_tarif' => self::MIN_TARIF,
             'rate_per_km' => self::RATE_PER_KM,
+            'free_km' => self::FREE_KM,
          ];
       }
 
@@ -46,6 +49,9 @@ class AntarTarif
       }
       if ($cfg['rate_per_km'] < 0) {
          $cfg['rate_per_km'] = 0;
+      }
+      if ($cfg['free_km'] < 0) {
+         $cfg['free_km'] = 0.0;
       }
       return $cfg;
    }
@@ -76,11 +82,18 @@ class AntarTarif
 
    /**
     * Tarif antar dari jarak km.
+    * km < free_km → 0; selain itu max(min_tarif, round(km × rate_per_km)).
     */
    public function tarifFromKm($km)
    {
       $c = $this->config();
-      return max($c['min_tarif'], (int) round((float) $km * $c['rate_per_km']));
+      $km = (float) $km;
+      $freeKm = (float) ($c['free_km'] ?? 0);
+      if ($freeKm > 0 && $km < $freeKm) {
+         return 0;
+      }
+
+      return max($c['min_tarif'], (int) round($km * $c['rate_per_km']));
    }
 
    /**

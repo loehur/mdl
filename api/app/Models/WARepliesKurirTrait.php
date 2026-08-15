@@ -2378,17 +2378,20 @@ trait WARepliesKurirTrait
             'layanan' => 'sameday',
         ]);
 
-        // Riwayat sameday sukses terakhir: lokasi + tarif sama → skip konfirmasi, langsung create
+        // Ongkir gratis / 0, atau riwayat sameday lokasi+tarif sama → skip konfirmasi, langsung create
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $lastOk = $this->kurirLastSuccessfulSamedayRequest($idPelanggan);
-        if ($lastOk !== null
+        $skipGratis = $tarif <= 0;
+        $skipSame = $lastOk !== null
             && (int) ($lastOk['id_lokasi'] ?? 0) === $idLokasi
-            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif
-        ) {
+            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif;
+        if ($skipGratis || $skipSame) {
             $this->logAutoreplyTrace(
                 $waNumber,
                 'KURIR',
-                "skip_confirm same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
+                $skipGratis
+                    ? "skip_confirm ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}"
+                    : "skip_confirm same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
             );
             $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;

@@ -39,6 +39,10 @@ class AntarTarif
 
     public static function formatRp(int $n): string
     {
+        if ($n <= 0) {
+            return 'gratis';
+        }
+
         return 'Rp' . number_format($n, 0, ',', '.');
     }
 }

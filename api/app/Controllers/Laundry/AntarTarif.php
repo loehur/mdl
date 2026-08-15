@@ -13,7 +13,7 @@ class AntarTarif extends Controller
 {
     /**
      * GET /Laundry/AntarTarif/config
-     * Rumus: max(min_tarif, round(km × rate_per_km))
+     * Rumus: km < free_km → 0; selain itu max(min_tarif, round(km × rate_per_km))
      */
     public function config()
     {
@@ -33,6 +33,7 @@ class AntarTarif extends Controller
                 'ok' => true,
                 'min_tarif' => $cfg['min_tarif'],
                 'rate_per_km' => $cfg['rate_per_km'],
+                'free_km' => $cfg['free_km'],
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             \Log::write('AntarTarif config err: ' . $e->getMessage(), 'api', 'AntarTarif');
@@ -42,6 +43,7 @@ class AntarTarif extends Controller
                 'message' => 'Gagal memuat config tarif antar',
                 'min_tarif' => AntarTarifHelper::DEFAULT_MIN_TARIF,
                 'rate_per_km' => AntarTarifHelper::DEFAULT_RATE_PER_KM,
+                'free_km' => AntarTarifHelper::DEFAULT_FREE_KM,
             ], JSON_UNESCAPED_UNICODE);
         }
     }
