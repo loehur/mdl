@@ -10,7 +10,7 @@
  */
 return [
     /** Jarak di bawah ini (km, tidak termasuk batas) gratis */
-    'free_km' => 0.5,
+    'free_km' => 0.2,
 
     /** Minimal ongkir (Rp) jika di atas free_km */
     'min_tarif' => 5000,
