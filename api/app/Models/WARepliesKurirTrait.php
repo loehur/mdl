@@ -70,11 +70,13 @@ trait WARepliesKurirTrait
         $now = date('Y-m-d H:i:s');
         $step = (string) $merge('step', 'ask_jenis');
         $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
+        $sekalianJemput = (!empty($data['sekalian_jemput']) || !empty($existing['sekalian_jemput'])) ? 1 : 0;
         $vals = [
             $phone,
             $merge('id_pelanggan'),
             $merge('id_cabang'),
             $merge('jenis'),
+            $sekalianJemput,
             $merge('layanan', 'sameday'),
             $step,
             $merge('id_lokasi'),
@@ -100,6 +102,7 @@ trait WARepliesKurirTrait
             $merge('rates_json'),
             $merge('id_request'),
             $merge('summary'),
+            $merge('group_notify_label'),
             $now,
             $expires,
         ];
@@ -107,14 +110,15 @@ trait WARepliesKurirTrait
         try {
             DB::getInstance(0)->query(
                 'INSERT INTO wa_kurir_session
-                  (phone, id_pelanggan, id_cabang, jenis, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
+                  (phone, id_pelanggan, id_cabang, jenis, sekalian_jemput, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
                    latt, longt, tarif, request_text, request_tanggal, request_jam, request_granted,
                    butuh_estimasi, estimasi_tanggal, estimasi_jam, butuh_update_nama,
                    driver_alt_tanggal, driver_alt_jam, courier_company, courier_type, courier_name,
-                   ongkir, rates_json, id_request, summary, updated_at, expires_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ongkir, rates_json, id_request, summary, group_notify_label, updated_at, expires_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON DUPLICATE KEY UPDATE
                    id_pelanggan=VALUES(id_pelanggan), id_cabang=VALUES(id_cabang), jenis=VALUES(jenis),
+                   sekalian_jemput=VALUES(sekalian_jemput),
                    layanan=VALUES(layanan), step=VALUES(step), id_lokasi=VALUES(id_lokasi),
                    lokasi_nama=VALUES(lokasi_nama), lokasi_detail=VALUES(lokasi_detail),
                    latt=VALUES(latt), longt=VALUES(longt), tarif=VALUES(tarif),
@@ -126,6 +130,7 @@ trait WARepliesKurirTrait
                    courier_company=VALUES(courier_company), courier_type=VALUES(courier_type),
                    courier_name=VALUES(courier_name), ongkir=VALUES(ongkir), rates_json=VALUES(rates_json),
                    id_request=VALUES(id_request), summary=VALUES(summary),
+                   group_notify_label=VALUES(group_notify_label),
                    updated_at=VALUES(updated_at), expires_at=VALUES(expires_at)',
                 $vals
             );
@@ -303,11 +308,13 @@ trait WARepliesKurirTrait
         $outsideHours = !$this->isOperatingHours();
 
         if ($session === null) {
-            $jenis = $this->detectKurirJenis($msg, $session);
+            $resolved = $this->kurirResolveJenisState($msg, null);
+            $jenis = $resolved['jenis'];
             // Ambigu: ada order aktif → antar; tanpa order / baru → jemput (jangan tanya)
             if (!$jenis) {
                 $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
+            $sekalianJemput = ($jenis === 'antar') ? (int) $resolved['sekalian_jemput'] : 0;
             // Antar: wajib ada sale belum tuntas + belum ambil (bin=0) sebelum lokasi / early activate
             if ($jenis === 'antar') {
                 $sapaan = $this->getSapaanForGreeting($waNumber);
@@ -325,10 +332,14 @@ trait WARepliesKurirTrait
                 $summary .= ' | prefer_layanan=' . $layananPref;
             }
             $summary .= ' | jenis_infer=' . $jenis;
+            if ($sekalianJemput) {
+                $summary .= ' | sekalian_jemput=1';
+            }
             $this->saveKurirSession($waNumber, [
                 'id_pelanggan' => $idPelanggan,
                 'id_cabang' => $idCabang,
                 'jenis' => $jenis,
+                'sekalian_jemput' => $sekalianJemput,
                 'layanan' => $layananPref ?: 'sameday',
                 'step' => 'lokasi_check',
                 'summary' => $summary,
@@ -904,39 +915,144 @@ trait WARepliesKurirTrait
     /**
      * Deteksi jemput/antar. Typo "anter"/"antr" = antar.
      * Implicit: "ambil kain kotor" → jemput; "bawakan kain yang siap" → antar.
-     * Jika keduanya disebut (pesan + summary session) → antar.
+     * Jika keduanya (pesan + state) → antar (sekalian_jemput di kurirResolveJenisState).
      *
      * @return 'jemput'|'antar'|null
      */
     private function detectKurirJenis(string $msg, ?array $session = null): ?string
     {
-        $blob = mb_strtolower($msg);
-        if ($session !== null) {
-            $blob .= ' ' . mb_strtolower((string) ($session['summary'] ?? ''));
-            $prev = (string) ($session['jenis'] ?? '');
-            if ($prev === 'jemput' || $prev === 'antar') {
-                $blob .= ' ' . $prev;
-            }
+        $resolved = $this->kurirResolveJenisState($msg, $session);
+        $jenis = $resolved['jenis'] ?? null;
+
+        return ($jenis === 'antar' || $jenis === 'jemput') ? $jenis : null;
+    }
+
+    /** @return array{jenis:'jemput'|'antar'|null,sekalian_jemput:int} */
+    private function kurirResolveJenisState(string $msg, ?array $session = null): array
+    {
+        $msgBlob = mb_strtolower($msg);
+        $hasJemputMsg = $this->kurirBlobHasJemput($msgBlob);
+        $hasAntarMsg = $this->kurirBlobHasAntar($msgBlob);
+
+        $prevJenis = is_array($session) ? (string) ($session['jenis'] ?? '') : '';
+        $prevSekalian = is_array($session) && !empty($session['sekalian_jemput']);
+        if (is_array($session) && $prevJenis === '') {
+            $sumBlob = mb_strtolower((string) ($session['summary'] ?? ''));
+            $hasJemputMsg = $hasJemputMsg || $this->kurirBlobHasJemput($sumBlob);
+            $hasAntarMsg = $hasAntarMsg || $this->kurirBlobHasAntar($sumBlob);
         }
 
-        $hasJemput = (bool) preg_match('/\b(jemput|jmpt|jmput|jempt|dijemput|penjemputan)\b/u', $blob)
+        $hasJemput = $hasJemputMsg || $prevJenis === 'jemput' || $prevSekalian;
+        $hasAntar = $hasAntarMsg || $prevJenis === 'antar';
+
+        if ($hasJemput && $hasAntar) {
+            return ['jenis' => 'antar', 'sekalian_jemput' => 1];
+        }
+        if ($hasAntar) {
+            return ['jenis' => 'antar', 'sekalian_jemput' => $prevSekalian ? 1 : 0];
+        }
+        if ($hasJemput) {
+            return ['jenis' => 'jemput', 'sekalian_jemput' => 0];
+        }
+
+        $jenis = ($prevJenis === 'antar' || $prevJenis === 'jemput') ? $prevJenis : null;
+
+        return ['jenis' => $jenis, 'sekalian_jemput' => $prevSekalian ? 1 : 0];
+    }
+
+    private function kurirBlobHasJemput(string $blob): bool
+    {
+        return (bool) preg_match('/\b(jemput|jmpt|jmput|jempt|dijemput|penjemputan)\b/u', $blob)
             || $this->kurirMsgLooksAmbilKotorJemput($blob);
-        $hasAntar = (bool) preg_match(
+    }
+
+    private function kurirBlobHasAntar(string $blob): bool
+    {
+        return (bool) preg_match(
             '/\b(antar|anter|antr|diantar|dianter|diantr|pengantaran|kirim\s*(ke|ke\s+rumah)?)\b/u',
             $blob
         ) || $this->kurirMsgLooksBawakanSiapAntar($blob);
+    }
 
-        // Antar sekaligus jemput (atau sebaliknya) → antar
-        if ($hasJemput && $hasAntar) {
-            return 'antar';
+    private function kurirMessageTouchesJenis(string $msg): bool
+    {
+        $blob = mb_strtolower($msg);
+        if ($blob === '') {
+            return false;
         }
-        if ($hasJemput) {
-            return 'jemput';
+
+        return $this->kurirBlobHasJemput($blob)
+            || $this->kurirBlobHasAntar($blob)
+            || $this->kurirLooksAddingOtherJenis($msg);
+    }
+
+    /**
+     * Update jenis + sekalian_jemput dari follow-up. True jika state berubah.
+     */
+    private function kurirApplyJenisFollowup(
+        string $waNumber,
+        array $session,
+        string $msg,
+        string $sapaan
+    ): bool {
+        $resolved = $this->kurirResolveJenisState($msg, $session);
+        $jenis = $resolved['jenis'];
+        $sekalian = (int) $resolved['sekalian_jemput'];
+        if ($jenis !== 'antar' && $jenis !== 'jemput') {
+            return false;
         }
-        if ($hasAntar) {
-            return 'antar';
+
+        $prevJenis = (string) ($session['jenis'] ?? '');
+        $prevSekalian = !empty($session['sekalian_jemput']) ? 1 : 0;
+        if ($jenis === $prevJenis && $sekalian === $prevSekalian) {
+            return false;
         }
-        return null;
+
+        if ($jenis === 'antar'
+            && $prevJenis !== 'antar'
+            && !$this->kurirAllowAntarOrReject($waNumber, (int) ($session['id_pelanggan'] ?? 0), $sapaan)
+        ) {
+            return false;
+        }
+
+        $set = ['jenis' => $jenis, 'sekalian_jemput' => $sekalian];
+        $this->saveKurirSession($waNumber, $set);
+        $session['jenis'] = $jenis;
+        $session['sekalian_jemput'] = $sekalian;
+        $note = 'jenis=' . $jenis . ($sekalian ? ' | sekalian_jemput=1' : '');
+        $this->kurirAppendSummary($waNumber, $session, $note);
+        $this->kurirEarlyActivateRequest($waNumber, $session);
+        $session = $this->getKurirSession($waNumber) ?: $session;
+        $this->kurirNotifyDeliveryGroupIfLabelChanged($waNumber, $session);
+
+        return true;
+    }
+
+    private function kurirGroupJenisDisplay(array $session): string
+    {
+        if (!empty($session['sekalian_jemput']) && (($session['jenis'] ?? '') === 'antar' || ($session['jenis'] ?? '') === 'jemput')) {
+            return 'Antar & Jemput';
+        }
+
+        return (($session['jenis'] ?? '') === 'antar') ? 'Antar' : 'Jemput';
+    }
+
+    private function kurirNotifyDeliveryGroupIfLabelChanged(string $waNumber, array $session): void
+    {
+        $prev = trim((string) ($session['group_notify_label'] ?? ''));
+        if ($prev === '') {
+            return;
+        }
+        $label = $this->kurirGroupJenisDisplay($session);
+        if ($label === $prev) {
+            return;
+        }
+        $this->kurirNotifyDeliveryGroupRequestCreated(
+            $waNumber,
+            (int) ($session['id_pelanggan'] ?? 0),
+            (int) ($session['id_cabang'] ?? 0),
+            $session
+        );
     }
 
     /**
@@ -1069,6 +1185,13 @@ trait WARepliesKurirTrait
             return true;
         }
 
+        // Follow-up jenis: "antar juga" / "sekalian jemput" selama session hidup
+        $jenisChanged = false;
+        if ($this->kurirMessageTouchesJenis($msg)) {
+            $jenisChanged = $this->kurirApplyJenisFollowup($waNumber, $session, $msg, $sapaan);
+            $session = $this->getKurirSession($waNumber) ?: $session;
+        }
+
         // Request waktu / butuh estimasi: ack driver dulu, baru lanjut state
         if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg)) {
             $session = $this->getKurirSession($waNumber) ?: $session;
@@ -1086,6 +1209,22 @@ trait WARepliesKurirTrait
                 $this->kurirLokasiCheck($waNumber, $sapaan, $session);
                 return true;
             }
+            return true;
+        }
+
+        if ($jenisChanged) {
+            $disp = $this->kurirGroupJenisDisplay($session);
+            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+                $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami catat *{$disp}* ya.");
+                return true;
+            }
+            if ($step === 'ask_jenis' || empty($session['id_lokasi'])) {
+                $this->saveKurirSession($waNumber, ['step' => 'lokasi_check']);
+                $session['step'] = 'lokasi_check';
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+                return true;
+            }
+            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami catat *{$disp}* ya.");
             return true;
         }
 
@@ -1173,7 +1312,9 @@ trait WARepliesKurirTrait
                 return true;
             }
             $layananPref = $this->detectKurirLayanan($msg);
-            $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];
+            $resolved = $this->kurirResolveJenisState($msg, $session);
+            $sekalianJemput = ($jenis === 'antar') ? (int) $resolved['sekalian_jemput'] : 0;
+            $set = ['jenis' => $jenis, 'sekalian_jemput' => $sekalianJemput, 'step' => 'lokasi_check'];
             $summary = trim((string) ($session['summary'] ?? ''));
             if ($layananPref) {
                 $set['layanan'] = $layananPref;
@@ -1188,32 +1329,6 @@ trait WARepliesKurirTrait
             $session = $this->getKurirSession($waNumber) ?: $session;
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
-            return true;
-        }
-
-        // "jemput juga" / "antar juga": gabung dengan summary → antar bila keduanya
-        if ($this->kurirLooksAddingOtherJenis($msg)) {
-            $resolved = $this->detectKurirJenis($msg, $session) ?: 'antar';
-            if ($resolved === 'antar'
-                && !$this->kurirAllowAntarOrReject($waNumber, (int) ($session['id_pelanggan'] ?? 0), $sapaan)
-            ) {
-                return true;
-            }
-            $this->saveKurirSession($waNumber, ['jenis' => $resolved]);
-            $session['jenis'] = $resolved;
-            $this->kurirAppendSummary($waNumber, $session, 'jenis_merge=' . $resolved);
-            $this->kurirEarlyActivateRequest($waNumber, $session);
-            $session = $this->getKurirSession($waNumber) ?: $session;
-            if ($step === 'ask_jenis' || empty($session['id_lokasi'])) {
-                $this->saveKurirSession($waNumber, ['step' => 'lokasi_check']);
-                $session['step'] = 'lokasi_check';
-                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
-                return true;
-            }
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik {$sapaan}, kami catat sebagai *{$resolved}* ya."
-            );
             return true;
         }
 
@@ -3141,6 +3256,10 @@ trait WARepliesKurirTrait
         }
         $noun = $this->kurirJenisNoun($session);
         $aksi = (($session['jenis'] ?? '') === 'antar') ? 'di antar' : 'di jemput';
+        if (!empty($session['sekalian_jemput'])) {
+            $noun = 'pengantaran & penjemputan';
+            $aksi = 'di antar & di jemput';
+        }
         $text = "Baik {$sapaan}, {$noun} sudah masuk antrian, laundry akan {$aksi} dalam 1 x 24 jam. mohon ditunggu 😊";
         $this->saveKurirSession($waNumber, ['step' => 'request_aktif']);
         $this->sendAutoreplyText($waNumber, $text);
@@ -3965,7 +4084,9 @@ trait WARepliesKurirTrait
                 }
 
                 $this->saveKurirSession($waNumber, ['id_request' => $existingId, 'step' => 'request_aktif']);
-                $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $jenis);
+                $sessionNotify = $this->getKurirSession($waNumber) ?: $session;
+                $sessionNotify['jenis'] = $jenis;
+                $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $sessionNotify);
                 return true;
             }
 
@@ -4018,7 +4139,9 @@ trait WARepliesKurirTrait
                 }
             }
             $this->saveKurirSession($waNumber, ['id_request' => $idRequest, 'step' => 'request_aktif']);
-            $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $jenis);
+            $sessionNotify = $this->getKurirSession($waNumber) ?: $session;
+            $sessionNotify['jenis'] = $jenis;
+            $this->kurirNotifyDeliveryGroupRequestCreated($waNumber, $idPelanggan, $idCabang, $sessionNotify);
             return true;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -4032,16 +4155,24 @@ trait WARepliesKurirTrait
     /**
      * Notif singkat ke group delivery Fonnte saat request antar/jemput berhasil.
      * Contoh:
-     * ANDI #TG
+     * ANDI - TG
      * *Antar*
+     * Jika label berubah setelah terkirim: *Antar & Jemput* + (update)
      */
     private function kurirNotifyDeliveryGroupRequestCreated(
         string $waNumber,
         int $idPelanggan,
         int $idCabang,
-        string $jenis
+        array $session
     ): void {
         try {
+            $jenisLabel = $this->kurirGroupJenisDisplay($session);
+            $prevLabel = trim((string) ($session['group_notify_label'] ?? ''));
+            if ($prevLabel !== '' && $prevLabel === $jenisLabel) {
+                return;
+            }
+            $isUpdate = $prevLabel !== '';
+
             $nama = '';
             if ($idPelanggan > 0) {
                 $row = DB::getInstance(1)->query(
@@ -4070,8 +4201,10 @@ trait WARepliesKurirTrait
                 $kode = (string) ($idCabang > 0 ? $idCabang : '-');
             }
 
-            $jenisLabel = ($jenis === 'antar') ? 'Antar' : 'Jemput';
             $text = "{$nama} - {$kode}\n*{$jenisLabel}*";
+            if ($isUpdate) {
+                $text .= "\n(update)";
+            }
 
             if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
                 require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
@@ -4085,7 +4218,12 @@ trait WARepliesKurirTrait
             }
             $fonnte = new \App\Helpers\CRM\FonnteService();
             $fonnte->sendToGroup($driverG, $text);
-            $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'notify_delivery_group ok jenis=' . $jenis);
+            $this->saveKurirSession($waNumber, ['group_notify_label' => $jenisLabel]);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'MINTA_JEMPUT_ANTAR',
+                'notify_delivery_group ok label=' . $jenisLabel . ($isUpdate ? ' update=1' : '')
+            );
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write('kurirNotifyDeliveryGroupRequestCreated: ' . $e->getMessage(), 'wa_error', 'Autoreply');
@@ -4701,6 +4839,7 @@ trait WARepliesKurirTrait
         $lines[] = 'SESSION:';
         $lines[] = '- step: ' . $step;
         $lines[] = '- jenis: ' . ($session['jenis'] ?? '-');
+        $lines[] = '- sekalian_jemput: ' . (!empty($session['sekalian_jemput']) ? '1' : '0');
         $lines[] = '- layanan: ' . ($session['layanan'] ?? 'sameday');
         $lines[] = '- id_lokasi: ' . ($session['id_lokasi'] ?? '-');
         $lines[] = '- lokasi_nama: ' . ($session['lokasi_nama'] ?? '-');
@@ -4966,7 +5105,9 @@ trait WARepliesKurirTrait
                         $jenis = $this->detectKurirJenis($msg, $session);
                     }
                     if ($jenis) {
-                        $set = ['jenis' => $jenis, 'step' => 'lokasi_check'];
+                        $resolved = $this->kurirResolveJenisState($msg, $session);
+                        $sekalianJemput = ($jenis === 'antar') ? (int) $resolved['sekalian_jemput'] : 0;
+                        $set = ['jenis' => $jenis, 'sekalian_jemput' => $sekalianJemput, 'step' => 'lokasi_check'];
                         $layananPref = null;
                         $slotLayanan = strtolower((string) ($slots['layanan'] ?? ''));
                         if (in_array($slotLayanan, ['sameday', 'instant'], true)) {
