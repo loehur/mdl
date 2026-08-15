@@ -1507,6 +1507,11 @@ trait WARepliesKurirTrait
         return (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
     }
 
+    private function kurirSekalianJemputVal(array $session): int
+    {
+        return (!empty($session['sekalian_jemput']) && $this->kurirJenisLabel($session) === 'antar') ? 1 : 0;
+    }
+
     private function kurirJenisNoun(array $session): string
     {
         return (($session['jenis'] ?? '') === 'antar') ? 'pengantaran' : 'penjemputan';
@@ -3847,7 +3852,7 @@ trait WARepliesKurirTrait
         $defaultLok = $this->kurirPickDefaultLokasiForEarlyRequest($idPelanggan);
 
         if ($existingId > 0) {
-            $this->kurirSyncEarlyRequestJenis($existingId, $jenis);
+            $this->kurirSyncEarlyRequestJenis($existingId, $jenis, $this->kurirSekalianJemputVal($session));
             if ($defaultLok !== null && (int) ($session['id_lokasi'] ?? 0) <= 0) {
                 $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $existingId, $idCabang, $defaultLok);
             }
@@ -3881,6 +3886,7 @@ trait WARepliesKurirTrait
             $reuseId = (int) ($row->id_request ?? 0);
             if ($reuseId > 0) {
                 $this->saveKurirSession($waNumber, ['id_request' => $reuseId]);
+                $this->kurirSyncEarlyRequestJenis($reuseId, $jenis, $this->kurirSekalianJemputVal($session));
                 if ($defaultLok !== null && (int) ($row->id_lokasi ?? 0) <= 0) {
                     $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $reuseId, $idCabang, $defaultLok);
                 }
@@ -3892,6 +3898,7 @@ trait WARepliesKurirTrait
             $insData = [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
+                'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
                 'layanan' => 'sameday',
                 'delivery_status' => 'berjalan',
                 'id_pelanggan' => $idPelanggan,
@@ -3952,22 +3959,40 @@ trait WARepliesKurirTrait
         }
     }
 
-    private function kurirSyncEarlyRequestJenis(int $idRequest, string $jenis): void
+    private function kurirSyncEarlyRequestJenis(int $idRequest, string $jenis, int $sekalianJemput = 0): void
     {
         if ($idRequest <= 0 || !in_array($jenis, ['antar', 'jemput'], true)) {
             return;
         }
+        $sekalianJemput = ($jenis === 'antar' && $sekalianJemput) ? 1 : 0;
         try {
             $db = DB::getInstance(1);
             $row = $db->query(
-                'SELECT jenis FROM delivery_request WHERE id_request = ? LIMIT 1',
+                'SELECT jenis, sekalian_jemput FROM delivery_request WHERE id_request = ? LIMIT 1',
                 [$idRequest]
             )->row();
+            $set = [];
             if ($row && strtolower((string) ($row->jenis ?? '')) !== $jenis) {
-                $db->update('delivery_request', ['jenis' => $jenis], ['id_request' => $idRequest]);
+                $set['jenis'] = $jenis;
+            }
+            $prevSekalian = (int) ($row->sekalian_jemput ?? 0);
+            if ($row && $prevSekalian !== $sekalianJemput) {
+                $set['sekalian_jemput'] = $sekalianJemput;
+            }
+            if ($set !== []) {
+                $db->update('delivery_request', $set, ['id_request' => $idRequest]);
             }
         } catch (\Throwable $e) {
-            // ignore
+            // Kolom sekalian_jemput mungkin belum ada — coba jenis saja
+            try {
+                DB::getInstance(1)->update(
+                    'delivery_request',
+                    ['jenis' => $jenis],
+                    ['id_request' => $idRequest]
+                );
+            } catch (\Throwable $e2) {
+                // ignore
+            }
         }
     }
 
@@ -4044,6 +4069,7 @@ trait WARepliesKurirTrait
             if ($existingId > 0) {
                 $set = [
                     'jenis' => $jenis,
+                    'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
                     'id_cabang' => $idCabang,
                     'id_lokasi' => $idLokasi,
                     'lokasi_nama' => (string) ($session['lokasi_nama'] ?? ''),
@@ -4093,6 +4119,7 @@ trait WARepliesKurirTrait
             $insData = [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
+                'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
                 'layanan' => 'sameday',
                 'delivery_status' => 'berjalan',
                 'id_pelanggan' => $idPelanggan,
@@ -4688,6 +4715,7 @@ trait WARepliesKurirTrait
             $idRequest = $db->insert('delivery_request', [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
+                'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
                 'layanan' => 'instant',
                 'delivery_status' => 'menunggu_pembayaran',
                 'id_pelanggan' => $idPelanggan,

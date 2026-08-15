@@ -31,24 +31,12 @@ class WaChatHistory
         $fonnte = $this->fetchFonnteMessages($db, $digits, $limitPerSource);
 
         $merged = array_merge($ycloud, $fonnte);
-        usort($merged, static function (array $a, array $b): int {
-            $ta = (string) ($a['time'] ?? '');
-            $tb = (string) ($b['time'] ?? '');
-            if ($ta === $tb) {
-                // Stabil: ycloud dulu lalu fonnte; id sebagai tie-break
-                $sa = (string) ($a['source'] ?? '');
-                $sb = (string) ($b['source'] ?? '');
-                if ($sa !== $sb) {
-                    return $sa <=> $sb;
-                }
-                return ((int) ($a['_id'] ?? 0)) <=> ((int) ($b['_id'] ?? 0));
-            }
-
-            return $ta <=> $tb;
+        usort($merged, function (array $a, array $b): int {
+            return $this->compareTimeline($a, $b);
         });
 
         foreach ($merged as &$row) {
-            unset($row['_id']);
+            unset($row['_id'], $row['inboxid'], $row['reply_inboxid']);
         }
         unset($row);
 
@@ -56,7 +44,7 @@ class WaChatHistory
     }
 
     /**
-     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int}>
+     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int,inboxid:int,reply_inboxid:int}>
      */
     private function fetchYcloudMessages($db, string $digits, int $limit): array
     {
@@ -75,7 +63,9 @@ class WaChatHistory
                            created_at AS time,
                            status,
                            media_id,
-                           media_url
+                           media_url,
+                           NULL AS inboxid,
+                           NULL AS reply_inboxid
                         FROM wa_messages_in
                         WHERE {$like})
                        UNION ALL
@@ -87,7 +77,9 @@ class WaChatHistory
                            created_at AS time,
                            status,
                            NULL AS media_id,
-                           media_url
+                           media_url,
+                           NULL AS inboxid,
+                           NULL AS reply_inboxid
                         FROM wa_messages_out
                         WHERE {$like}
                           AND COALESCE(`private`, 0) = 0)
@@ -105,7 +97,10 @@ class WaChatHistory
     }
 
     /**
-     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int}>
+     * In/out Fonnte tabel terpisah — jangan UNION+ORDER BY id.
+     * Ambil N terbaru tiap arah, lalu urutkan dengan pasangan inboxid / reply_inboxid.
+     *
+     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int,inboxid:int,reply_inboxid:int}>
      */
     private function fetchFonnteMessages($db, string $digits, int $limit): array
     {
@@ -113,49 +108,58 @@ class WaChatHistory
         $limit = (int) $limit;
 
         try {
-            $messages = $db->query_array(
-                "SELECT * FROM (
-                    SELECT * FROM (
-                       (SELECT
-                           id,
-                           text,
-                           type,
-                           'customer' AS sender,
-                           created_at AS time,
-                           NULL AS status,
-                           NULL AS media_id,
-                           media_url
-                        FROM wa_fonnte_messages_in
-                        WHERE {$like})
-                       UNION ALL
-                       (SELECT
-                           id,
-                           COALESCE(text, '') AS text,
-                           type,
-                           'me' AS sender,
-                           created_at AS time,
-                           status,
-                           NULL AS media_id,
-                           media_url
-                        FROM wa_fonnte_messages_out
-                        WHERE {$like})
-                    ) AS combined_msgs
-                    ORDER BY time DESC
-                    LIMIT $limit
-                 ) AS latest_msgs
-                 ORDER BY time ASC"
+            $ins = $db->query_array(
+                "SELECT
+                    id,
+                    text,
+                    type,
+                    'customer' AS sender,
+                    created_at AS time,
+                    NULL AS status,
+                    NULL AS media_id,
+                    media_url,
+                    inboxid,
+                    NULL AS reply_inboxid
+                 FROM wa_fonnte_messages_in
+                 WHERE {$like}
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT {$limit}"
+            );
+            $outs = $db->query_array(
+                "SELECT
+                    id,
+                    COALESCE(text, '') AS text,
+                    type,
+                    'me' AS sender,
+                    created_at AS time,
+                    status,
+                    NULL AS media_id,
+                    media_url,
+                    NULL AS inboxid,
+                    reply_inboxid
+                 FROM wa_fonnte_messages_out
+                 WHERE {$like}
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT {$limit}"
             );
         } catch (\Throwable $e) {
-            // Tabel belum ada / migration belum jalan — jangan gagalkan UI
             return [];
         }
 
-        return $this->normalizeRows(is_array($messages) ? $messages : [], 'fonnte');
+        $rows = array_merge(
+            $this->normalizeRows(is_array($ins) ? $ins : [], 'fonnte'),
+            $this->normalizeRows(is_array($outs) ? $outs : [], 'fonnte')
+        );
+        usort($rows, function (array $a, array $b): int {
+            return $this->compareTimeline($a, $b);
+        });
+
+        return $rows;
     }
 
     /**
      * @param list<array<string,mixed>> $messages
-     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int}>
+     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int,inboxid:int,reply_inboxid:int}>
      */
     private function normalizeRows(array $messages, string $source): array
     {
@@ -170,10 +174,70 @@ class WaChatHistory
                 'media_id' => !empty($m['media_id']) ? (string) $m['media_id'] : null,
                 'source' => $source,
                 '_id' => (int) ($m['id'] ?? 0),
+                'inboxid' => (int) ($m['inboxid'] ?? 0),
+                'reply_inboxid' => (int) ($m['reply_inboxid'] ?? 0),
             ];
         }
 
         return $list;
+    }
+
+    /**
+     * Urutan chat: waktu, lalu pasangan Fonnte (inbox → balasannya),
+     * jangan pakai id lintas tabel in/out.
+     *
+     * @param array<string,mixed> $a
+     * @param array<string,mixed> $b
+     */
+    private function compareTimeline(array $a, array $b): int
+    {
+        $ta = (string) ($a['time'] ?? '');
+        $tb = (string) ($b['time'] ?? '');
+        if ($ta !== $tb) {
+            return $ta <=> $tb;
+        }
+
+        $ka = $this->timelineTieKey($a);
+        $kb = $this->timelineTieKey($b);
+        if ($ka !== $kb) {
+            return $ka <=> $kb;
+        }
+
+        $sa = (string) ($a['source'] ?? '');
+        $sb = (string) ($b['source'] ?? '');
+        if ($sa !== $sb) {
+            return $sa <=> $sb;
+        }
+
+        $da = (($a['sender'] ?? '') === 'me') ? 1 : 0;
+        $db = (($b['sender'] ?? '') === 'me') ? 1 : 0;
+        if ($da !== $db) {
+            return $da <=> $db;
+        }
+
+        return ((int) ($a['_id'] ?? 0)) <=> ((int) ($b['_id'] ?? 0));
+    }
+
+    /**
+     * Kunci pasangan saat detik sama.
+     * Customer inbox X →  {group:X, seq:0}; balasan reply_inboxid X → {group:X, seq:1}.
+     *
+     * @param array<string,mixed> $row
+     * @return array{0:int,1:int}
+     */
+    private function timelineTieKey(array $row): array
+    {
+        $isMe = (($row['sender'] ?? '') === 'me');
+        $inbox = (int) ($row['inboxid'] ?? 0);
+        $reply = (int) ($row['reply_inboxid'] ?? 0);
+        if (!$isMe && $inbox > 0) {
+            return [$inbox, 0];
+        }
+        if ($isMe && $reply > 0) {
+            return [$reply, 1];
+        }
+        // Tanpa inboxid: pelanggan dulu, laundry kemudian (jangan campur id in/out)
+        return [$isMe ? PHP_INT_MAX : 0, $isMe ? 1 : 0];
     }
 
     /** Nasional 852… setelah buang +62 / 62 / 0. */

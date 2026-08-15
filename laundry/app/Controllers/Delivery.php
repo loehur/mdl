@@ -2310,6 +2310,7 @@ class Delivery extends Controller
             'phone_display' => $phoneDisplay,
             'id_pelanggan' => (int) ($row['id_pelanggan'] ?? 0),
             'jenis' => $jenis,
+            'sekalian_jemput' => (int) ($row['sekalian_jemput'] ?? 0) === 1 ? 1 : 0,
             'layanan' => (string) ($row['layanan'] ?? 'sameday'),
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
             'insertTime' => $row['insertTime'] ?? '',

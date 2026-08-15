@@ -857,6 +857,7 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
     #dlv-root .dlv-jenis-pill--antar { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
     #dlv-root .dlv-jenis-pill--jemput { border-color: #fcd34d; background: #fffbeb; color: #b45309; }
+    #dlv-root .dlv-jenis-pill--sekalian { border-color: #86efac; background: #f0fdf4; color: #15803d; }
     #dlv-root .dlv-jenis-locked {
       display: flex;
       flex-direction: column;
@@ -2709,6 +2710,11 @@ $canCekDetail = !empty($data['canCekDetail']);
     var tarif = btn.getAttribute('data-tarif-surcas') || '';
     var nama = btn.getAttribute('data-nama') || 'Customer';
     var surcasBound = btn.getAttribute('data-surcas-bound') === '1';
+    var sekalianJemput = btn.getAttribute('data-sekalian-jemput') === '1';
+    if (!sekalianJemput) {
+      var hostSk = btn.closest('[data-sekalian-jemput]');
+      if (hostSk) sekalianJemput = hostSk.getAttribute('data-sekalian-jemput') === '1';
+    }
     ensureKaryawanSelectize();
     resetSelesaiForm();
     document.getElementById('dlvSelesaiMode').value = 'request';
@@ -2727,6 +2733,10 @@ $canCekDetail = !empty($data['canCekDetail']);
     var layananEl = document.getElementById('dlvSelesaiLayanan');
     if (layananEl) layananEl.value = layanan;
     setJenisLocked(jenis);
+    if (sekalianJemput && jenis === 'antar' && layanan !== 'instant') {
+      var sk = document.getElementById('dlvSekalianCheck');
+      if (sk) sk.checked = true;
+    }
     var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
     if (surcasJumlah) {
       surcasJumlah.setAttribute('data-tarif-fixed', tarif || '0');
