@@ -1270,11 +1270,13 @@ class WAReplies
     }
 
     /**
-     * Emote senyum soft (tanpa gigi): 😊 🙂 ☺️ 😌
+     * Emote happy untuk PENUTUP random. Sortir di sini sesuai selera.
      */
     private function getPenutupSoftSmileEmojis(): array
     {
-        return ['😊', '🙂', '☺️', '😌'];
+        return [
+            '😊', '🙂', '☺️', '😇', '🤗',
+        ];
     }
 
     private function pickPenutupSoftSmile(): string
