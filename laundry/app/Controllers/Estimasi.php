@@ -429,7 +429,7 @@ class Estimasi extends Controller
         $waktuLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
         $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : 0;
         $idLabel = $idPenjualan > 0 ? '#' . $idPenjualan : '';
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $replyText = $idLabel !== ''
             ? "Laundry ID {$idLabel} diperkirakan siap {$waktuLabel} ya {$sapaan} 😊"
             : "Diperkirakan siap {$waktuLabel} ya {$sapaan} 😊";
@@ -588,7 +588,7 @@ class Estimasi extends Controller
         }
 
         $waktuLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
         $noun = $jenis === 'antar' ? 'pengantaran' : 'penjemputan';
         $replyText = "Baik {$sapaan}, perkiraan {$noun} *{$waktuLabel}* ya {$sapaan} 😊";
@@ -649,7 +649,7 @@ class Estimasi extends Controller
             return;
         }
         $requestGranted = ((int) $grantedRaw === 1) ? 1 : 0;
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
         $noun = $jenis === 'antar' ? 'pengantaran' : 'penjemputan';
 
@@ -784,7 +784,7 @@ class Estimasi extends Controller
             return;
         }
         $requestGranted = ((int) $grantedRaw === 1) ? 1 : 0;
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : 0;
         $idLabel = $idPenjualan > 0 ? '#' . $idPenjualan : '';
         $jamLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
@@ -848,7 +848,7 @@ class Estimasi extends Controller
         }
         $requestGranted = ((int) $grantedRaw === 1) ? 1 : 0;
 
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : 0;
         $idLabel = $idPenjualan > 0 ? '#' . $idPenjualan : '';
 
@@ -1706,7 +1706,7 @@ class Estimasi extends Controller
         if ($summary === '') {
             $summary = 'permintaan pelanggan';
         }
-        $sapaan = 'kak';
+        $sapaan = $this->resolveSapaanForPhone($phone);
         $replyText = $this->composePermintaanReplyAi($granted, $summary, $sapaan, $rejectReason, $rejectAlt);
 
         $status = $granted ? 'fulfilled' : 'rejected';
@@ -2129,6 +2129,17 @@ class Estimasi extends Controller
         $this->helper('PelangganByPhone');
 
         return PelangganByPhone::key((string) $phone);
+    }
+
+    /** sapaan_stats → regex nama kontak → kak. */
+    private function resolveSapaanForPhone(string $phone): string
+    {
+        $this->helper('SapaanGreeting');
+        try {
+            return SapaanGreeting::resolve($this->db(100), $phone);
+        } catch (\Throwable $e) {
+            return 'kak';
+        }
     }
 
     private function waNumberLikeSql(string $nomor, string $column = 'wa_number'): string

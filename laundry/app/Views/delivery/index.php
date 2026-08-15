@@ -2171,10 +2171,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     var box = boxEl || document.getElementById('dlvSelesaiSales');
     if (!box) return;
     var name = inputName || 'ids[]';
-    var pref = {};
-    (prefillIds || []).forEach(function (id) {
-      pref[String(id)] = true;
-    });
     if (name === 'ids[]') {
       window._dlvSurcasByRef = { jemput: {}, antar: {} };
     }
@@ -2196,7 +2192,7 @@ $canCekDetail = !empty($data['canCekDetail']);
       var surcasMeta = '';
       if (hasJemput) surcasMeta += ' · surcas jemput';
       if (hasAntar) surcasMeta += ' · surcas antar';
-      var checked = !belum && pref[String(it.id)] ? ' checked' : '';
+      var checked = '';
       if (belum) {
         return '<label class="dlv-sales-item is-locked" data-belum-selesai="1">' +
           '<input type="checkbox" disabled tabindex="-1">' +

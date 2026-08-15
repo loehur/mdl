@@ -1037,6 +1037,69 @@ trait WARepliesKurirTrait
         return (($session['jenis'] ?? '') === 'antar') ? 'Antar' : 'Jemput';
     }
 
+    /** Tag grup Fonnte: *PAK SAYFUL- SB* */
+    private function kurirGroupCustomerStarTag(string $waNumber, array $session): string
+    {
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $idCabang = (int) ($session['id_cabang'] ?? 0);
+
+        $nama = '';
+        if ($idPelanggan > 0) {
+            try {
+                $row = DB::getInstance(1)->query(
+                    'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                    [$idPelanggan]
+                )->row();
+                $nama = trim((string) ($row->nama_pelanggan ?? ''));
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+        if ($nama === '') {
+            $nama = trim($this->getContactNameForGreeting($waNumber));
+        }
+        if ($nama === '') {
+            $nama = 'PELANGGAN';
+        }
+        $nama = mb_strtoupper($nama, 'UTF-8');
+
+        $kode = '';
+        if ($idCabang > 0) {
+            try {
+                $cab = DB::getInstance(1)->query(
+                    'SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1',
+                    [$idCabang]
+                )->row();
+                $kode = trim((string) ($cab->kode_cabang ?? ''));
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+        if ($kode === '') {
+            $kode = (string) ($idCabang > 0 ? $idCabang : '-');
+        }
+
+        return "*{$nama}- {$kode}*";
+    }
+
+    /** hari ini jam 14:00 / besok jam 10:00 / 15/08 jam 14:00 */
+    private function kurirGroupWaktuLabel(string $tgl, float $jam): string
+    {
+        $jamLabel = $this->formatKurirJamLabel($jam);
+        $today = date('Y-m-d');
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        if ($tgl === $today) {
+            $hari = 'hari ini';
+        } elseif ($tgl === $tomorrow) {
+            $hari = 'besok';
+        } else {
+            $ts = strtotime($tgl);
+            $hari = $ts ? date('d/m', $ts) : $tgl;
+        }
+
+        return "{$hari} jam {$jamLabel}";
+    }
+
     private function kurirNotifyDeliveryGroupIfLabelChanged(string $waNumber, array $session): void
     {
         $prev = trim((string) ($session['group_notify_label'] ?? ''));
@@ -3641,10 +3704,9 @@ trait WARepliesKurirTrait
         string $msg,
         string $tglHint
     ): void {
-        $nama = trim($this->getContactNameForGreeting($waNumber)) ?: 'Pelanggan';
+        $tag = $this->kurirGroupCustomerStarTag($waNumber, $session);
         $jenis = $this->kurirJenisLabel($session);
-        $hari = ($tglHint === date('Y-m-d')) ? 'hari ini' : (($tglHint === date('Y-m-d', strtotime('+1 day'))) ? 'besok' : $tglHint);
-        $groupText = "{$nama} tanya {$jenis} {$hari} jam berapa. \"{$msg}\". (AI Agent — isi estimasi)";
+        $groupText = "{$tag} minta perkiraan {$jenis}.";
 
         try {
             if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
@@ -3686,28 +3748,10 @@ trait WARepliesKurirTrait
         string $tgl,
         float $jam
     ): void {
-        $nama = trim($this->getContactNameForGreeting($waNumber));
-        if ($nama === '') {
-            $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
-            if ($idPelanggan > 0) {
-                try {
-                    $row = DB::getInstance(1)->query(
-                        'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
-                        [$idPelanggan]
-                    )->row();
-                    $nama = trim((string) ($row->nama_pelanggan ?? ''));
-                } catch (\Throwable $e) {
-                    // ignore
-                }
-            }
-        }
-        if ($nama === '') {
-            $nama = 'PELANGGAN';
-        }
-        $nama = mb_strtoupper($nama, 'UTF-8');
+        $tag = $this->kurirGroupCustomerStarTag($waNumber, $session);
         $jenis = $this->kurirJenisLabel($session);
-        $jamLabel = $this->formatKurirJamLabel($jam);
-        $groupText = "{$nama} minta {$jenis} jam {$jamLabel} ({$tgl}).";
+        $waktu = $this->kurirGroupWaktuLabel($tgl, $jam);
+        $groupText = "{$tag} minta {$jenis} {$waktu}.";
 
         try {
             if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {

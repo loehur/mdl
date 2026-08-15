@@ -1925,9 +1925,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   </div>
   <div class="offcanvas-body">
     <p class="kurir-hint" id="kurirHint">
-      Operasi selalu menulis surcas ke nota (wajib pilih item).
+      Operasi selalu menulis surcas ke nota (wajib pilih item dan pengisi surcas).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
       Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
+      Pengisi surcas terpisah dari penyelesai delivery.
       Item terikat request dengan tarif tidak bisa diubah nominal surcas-nya.
     </p>
     <div class="kurir-field">
@@ -1985,6 +1986,24 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         <?php } ?>
       </select>
     </div>
+    <div class="kurir-field" id="kurirPengisiSurcasWrap">
+      <label class="kurir-label" for="kurirPengisiSurcas">Pengisi Surcas (wajib)</label>
+      <select id="kurirPengisiSurcas" class="tize" style="width:100%" required>
+        <option value="">— Pilih pengisi surcas —</option>
+        <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? '') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
+          <?php foreach ($this->user as $a) { ?>
+            <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+          <?php } ?>
+        </optgroup>
+        <?php if (!empty($this->userCabang)) { ?>
+          <optgroup label="---- Cabang Lain ----">
+            <?php foreach ($this->userCabang as $a) { ?>
+              <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
+            <?php } ?>
+          </optgroup>
+        <?php } ?>
+      </select>
+    </div>
     <div class="kurir-actions">
       <button type="button" class="kurir-btn kurir-btn--ghost" data-bs-dismiss="offcanvas">Batal</button>
       <button type="button" class="kurir-btn kurir-btn--go" id="kurirSubmit">
@@ -2003,6 +2022,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var tarifUrl = String(root.getAttribute('data-tarif-url') || '');
   var submitUrl = String(root.getAttribute('data-submit-url') || '');
   var kurirSelectize = null;
+  var kurirPengisiSelectize = null;
   var tarifLoading = false;
 
   function currentPelanggan() {
@@ -2020,6 +2040,20 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
     if (kurirSelectize) {
       return parseInt(kurirSelectize.getValue() || '0', 10) || 0;
+    }
+    if (sel) {
+      return parseInt(sel.value || '0', 10) || 0;
+    }
+    return 0;
+  }
+
+  function currentPengisiSurcas() {
+    var sel = root.querySelector('#kurirPengisiSurcas');
+    if (sel && sel.selectize) {
+      return parseInt(sel.selectize.getValue() || '0', 10) || 0;
+    }
+    if (kurirPengisiSelectize) {
+      return parseInt(kurirPengisiSelectize.getValue() || '0', 10) || 0;
     }
     if (sel) {
       return parseInt(sel.value || '0', 10) || 0;
@@ -2100,8 +2134,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
     var salesWrap = document.getElementById('kurirSalesWrap');
     var karyWrap = document.getElementById('kurirKaryawanWrap');
+    var pengisiWrap = document.getElementById('kurirPengisiSurcasWrap');
     if (salesWrap) salesWrap.hidden = false;
     if (karyWrap) karyWrap.hidden = false;
+    if (pengisiWrap) pengisiWrap.hidden = false;
 
     var salesLabel = document.getElementById('kurirSalesLabel');
     var karyLabel = document.getElementById('kurirKaryawanLabel');
@@ -2247,7 +2283,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           + (!!it.surcas_antar ? ' · surcas antar' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
         return '<label class="kurir-item">' +
-          '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '" checked' +
+          '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
           (belum && !delivered ? ' data-belum-selesai="1"' : '') +
           (delivered ? ' data-sudah-delivered="1"' : '') +
           (terikat ? ' data-terikat="1"' : '') +
@@ -2310,14 +2346,21 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   function initSelectize() {
     if (typeof jQuery === 'undefined' || !jQuery.fn.selectize) return;
     var el = root.querySelector('#kurirKaryawan');
-    if (!el) return;
-    var $el = jQuery(el);
-    if (el.selectize) kurirSelectize = el.selectize;
-    else kurirSelectize = $el.selectize({ allowEmptyOption: true })[0].selectize;
-    if (kurirSelectize && typeof kurirSelectize.off === 'function') {
-      kurirSelectize.off('change');
+    if (el) {
+      var $el = jQuery(el);
+      if (el.selectize) kurirSelectize = el.selectize;
+      else kurirSelectize = $el.selectize({ allowEmptyOption: true })[0].selectize;
+      if (kurirSelectize && typeof kurirSelectize.off === 'function') {
+        kurirSelectize.off('change');
+      }
+      if (kurirSelectize) kurirSelectize.on('change', syncSubmitLabel);
     }
-    kurirSelectize.on('change', syncSubmitLabel);
+    var elPengisi = root.querySelector('#kurirPengisiSurcas');
+    if (elPengisi) {
+      var $pengisi = jQuery(elPengisi);
+      if (elPengisi.selectize) kurirPengisiSelectize = elPengisi.selectize;
+      else kurirPengisiSelectize = $pengisi.selectize({ allowEmptyOption: true })[0].selectize;
+    }
   }
 
   root.addEventListener('shown.bs.offcanvas', function () {
@@ -2345,6 +2388,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       return;
     }
     var idKaryawan = currentPenyelesai();
+    var idPengisiSurcas = currentPengisiSurcas();
+    if (idPengisiSurcas <= 0) {
+      toast('Wajib pilih pengisi surcas', 'warn');
+      return;
+    }
 
     var ids = [];
     root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
@@ -2402,6 +2450,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     fd.append('id_pelanggan', String(currentPelanggan()));
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
+    fd.append('id_pengisi_surcas', String(idPengisiSurcas));
     ids.forEach(function (id) { fd.append('ids[]', String(id)); });
     if (jenis === 'jemput' || jenis === 'jemput_antar') {
       var j = document.getElementById('kurirSurcasJemput').value;

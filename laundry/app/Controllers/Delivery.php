@@ -631,7 +631,8 @@ class Delivery extends Controller
 
    /**
     * Dari Operasi FAB Kurir.
-    * Surcas selalu ditulis ke nota (wajib pilih item). Request lama di board diikat (reuse).
+    * Surcas selalu ditulis ke nota (wajib pilih item + pengisi surcas). Request lama di board diikat (reuse).
+    * Penyelesai (id_karyawan) masuk riwayat delivery; pengisi surcas (id_pengisi_surcas) masuk baris surcas.
     * - jemput: selesai + surcas jemput (+ tutup request jemput jika ada)
     * - antar tanpa penyelesai: request antar + surcas antar ke nota
     * - antar + penyelesai: selesai + surcas antar (+ tutup request antar jika ada)
@@ -650,6 +651,7 @@ class Delivery extends Controller
          $idPelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
+         $idPengisiSurcas = (int) ($_POST['id_pengisi_surcas'] ?? 0);
 
          $idsRaw = $_POST['ids'] ?? [];
          if (!is_array($idsRaw)) {
@@ -672,6 +674,13 @@ class Delivery extends Controller
          }
          if (!in_array($jenis, ['jemput', 'antar', 'jemput_antar'], true)) {
             throw new Exception('Pilih jenis jemput / antar / jemput & antar');
+         }
+         if ($idPengisiSurcas <= 0) {
+            throw new Exception('Wajib pilih pengisi surcas');
+         }
+         $pengisi = $this->db(0)->get_where_row('user', 'id_user = ' . $idPengisiSurcas . ' AND en = 1');
+         if (!$pengisi) {
+            throw new Exception('Pengisi surcas tidak ditemukan');
          }
 
          $pel = $this->db(0)->get_where_row(
@@ -750,7 +759,7 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahSurcas,
-               $idKaryawan,
+               $idPengisiSurcas,
                $idReqJemput
             );
 
@@ -794,7 +803,7 @@ class Delivery extends Controller
                   $idCabang,
                   $ids,
                   $jumlahAntar,
-                  $idKaryawan,
+                  $idPengisiSurcas,
                   $idAntar
                );
                $msg .= $antarBound
@@ -853,7 +862,7 @@ class Delivery extends Controller
                   $idCabang,
                   $ids,
                   $tarifSurcas,
-                  $idKaryawan,
+                  $idPengisiSurcas,
                   $idReqAntar
                );
                if (!empty($surcasAntar['skipped'])) {
@@ -925,7 +934,7 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $tarifSurcas,
-               $idKaryawan,
+               $idPengisiSurcas,
                $idRequest
             );
 
@@ -977,7 +986,7 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahAntarSelesai,
-               $idKaryawan,
+               $idPengisiSurcas,
                $idReqAntar
             );
 
