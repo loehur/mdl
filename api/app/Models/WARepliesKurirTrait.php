@@ -1853,7 +1853,8 @@ trait WARepliesKurirTrait
         $id = (int) ($session['id_pelanggan'] ?? 0);
         $this->sendAutoreplyText(
             $waNumber,
-            "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
+            "Baik {$sapaan}, permintaan dibatalkan. 🙏\n"
+            . "Untuk pesan antar/jemput bisa juga via link berikut:\n"
             . "https://ml.nalju.com/J/kurir/{$id}"
         );
         $this->clearKurirSession($waNumber);
@@ -3793,7 +3794,8 @@ trait WARepliesKurirTrait
             $id = (int) ($session['id_pelanggan'] ?? 0);
             $this->sendAutoreplyText(
                 $waNumber,
-                "Baik, maaf ya {$sapaan}, permintaan dibatalkan. Untuk pemesanan antar/jemput bisa juga via link berikut:\n"
+                "Baik {$sapaan}, permintaan dibatalkan. 🙏\n"
+                . "Untuk pesan antar/jemput bisa juga via link berikut:\n"
                 . "https://ml.nalju.com/J/kurir/{$id}"
             );
             $this->clearKurirSession($waNumber);
