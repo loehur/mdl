@@ -527,11 +527,13 @@ trait WARepliesKurirTrait
             'step' => 'new_ask_nama',
             'summary' => '[pesan] ' . mb_substr($msg, 0, 200) . ' | onboarding_new=1 | jenis_infer=jemput',
         ]);
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Baik {$sapaan}, boleh sebut *nama lengkap* Anda ya?"
-        );
+        $this->sendAutoreplyText($waNumber, $this->kurirAskNewNamaPrompt($sapaan));
         return true;
+    }
+
+    private function kurirAskNewNamaPrompt(string $sapaan): string
+    {
+        return "Maaf {$sapaan}, kalau boleh tau atas nama siapa ya?";
     }
 
     /**
@@ -569,10 +571,7 @@ trait WARepliesKurirTrait
                         'layanan' => 'sameday',
                         'step' => 'new_ask_nama',
                     ]);
-                    $this->sendAutoreplyText(
-                        $waNumber,
-                        "Baik {$sapaan}, boleh sebut *nama lengkap* Anda ya?"
-                    );
+                    $this->sendAutoreplyText($waNumber, $this->kurirAskNewNamaPrompt($sapaan));
                     return true;
                 }
                 $this->sendAutoreplyText($waNumber, $this->kurirAskJenisPrompt($sapaan));
@@ -603,34 +602,80 @@ trait WARepliesKurirTrait
         array $session,
         string $msg
     ): void {
-        $nama = trim(preg_replace("/[\r\n]+/", ' ', $msg));
-        $nama = trim(preg_replace('/\s+/u', ' ', $nama));
-        // Buang sapaan pendek murni
-        if ($nama === '' || mb_strlen($nama) < 2
-            || preg_match('/^(kak|kk|bang|pak|bu|mbak|ya|iya|ok|oke|baik)\s*$/iu', $nama)
-        ) {
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Nama belum jelas {$sapaan}. Boleh ketik *nama lengkap* Anda ya?"
-            );
+        $coords = $this->kurirExtractCoords($msg);
+        if ($coords !== null) {
+            $this->saveKurirSession($waNumber, [
+                'step' => 'new_ask_nama',
+                'latt' => $coords['lat'],
+                'longt' => $coords['lng'],
+            ]);
+            $this->sendAutoreplyText($waNumber, $this->kurirAskNewNamaPrompt($sapaan));
             return;
         }
-        if (mb_strlen($nama) > 80) {
-            $nama = mb_substr($nama, 0, 80);
+
+        $nama = $this->kurirParseNewPelangganSebutan($msg);
+        if ($nama === null) {
+            // Belum panggilan/sebutan — diam, tetap standby new_ask_nama
+            return;
         }
 
         $summary = preg_replace('/\s*\|\s*new_nama_asli=[^|]*/', '', (string) ($session['summary'] ?? ''));
         $summary = trim($summary . ($summary !== '' ? ' | ' : '') . 'new_nama_asli=' . $nama);
         $summary = $this->kurirMarkSharelocAsked($summary);
+        $session['summary'] = $summary;
 
         $this->saveKurirSession($waNumber, [
             'step' => 'new_ask_shareloc',
             'summary' => mb_substr($summary, 0, 800),
         ]);
+
+        $lat = $session['latt'] ?? null;
+        $lng = $session['longt'] ?? null;
+        if ($lat !== null && $lat !== '' && $lng !== null && $lng !== '') {
+            $this->kurirHandleNewAskShareloc(
+                $waNumber,
+                $sapaan,
+                $session,
+                ((float) $lat) . ',' . ((float) $lng)
+            );
+            return;
+        }
+
         $this->sendAutoreplyText(
             $waNumber,
             $this->kurirAskSharelocPrompt($sapaan, $session)
         );
+    }
+
+    /**
+     * Panggilan/sebutan untuk pelanggan baru (boleh "Tukang Ayam", "Bang Gondrong", nama toko, dll).
+     * null = belum sebutan (ack/sapaan/kosong) → jangan balas.
+     */
+    private function kurirParseNewPelangganSebutan(string $msg): ?string
+    {
+        $nama = trim(preg_replace("/[\r\n]+/", ' ', $msg) ?? '');
+        $nama = trim(preg_replace('/\s+/u', ' ', $nama) ?? '');
+        if ($nama === '' || mb_strlen($nama) < 2) {
+            return null;
+        }
+        if (preg_match(
+            '/^(kak|kk|bang|pak|bu|mbak|bg|gan|bro|sis|ya|iya|ok|oke|okeh|baik|halo|hai|hi|tes|test|hmm|oh|sip|siap|nanti|tunggu)\s*$/iu',
+            $nama
+        )) {
+            return null;
+        }
+        $words = preg_split('/\s+/u', $nama) ?: [];
+        if (count($words) > 12) {
+            return null;
+        }
+        if (mb_strpos($nama, '?') !== false) {
+            return null;
+        }
+        if (mb_strlen($nama) > 80) {
+            $nama = mb_substr($nama, 0, 80);
+        }
+
+        return $nama;
     }
 
     private function kurirHandleNewAskShareloc(
@@ -662,7 +707,7 @@ trait WARepliesKurirTrait
         }
         if ($namaAsli === '') {
             $this->saveKurirSession($waNumber, ['step' => 'new_ask_nama', 'latt' => $latt, 'longt' => $longt]);
-            $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, boleh sebut *nama lengkap* Anda dulu ya?");
+            $this->sendAutoreplyText($waNumber, $this->kurirAskNewNamaPrompt($sapaan));
             return;
         }
 
@@ -719,39 +764,24 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * "Andi pratama jaya" → "ANDI PJ #NEW#"
+     * Panggilan/sebutan disimpan utuh + #NEW# (petugas bisa rapikan nanti).
+     * "Tukang Ayam" → "TUKANG AYAM #NEW#", "Bang Gondrong" → "BANG GONDRONG #NEW#"
      */
     private function kurirFormatNewPelangganNama(string $fullName): string
     {
-        $fullName = trim(preg_replace('/\s+/u', ' ', $fullName));
-        $parts = preg_split('/\s+/u', $fullName) ?: [];
-        $parts = array_values(array_filter($parts, static function ($p) {
-            return trim((string) $p) !== '';
-        }));
-        if ($parts === []) {
+        $fullName = trim(preg_replace('/\s+/u', ' ', $fullName) ?? '');
+        if ($fullName === '') {
             return 'BARU #NEW#';
         }
-
-        $firstLetters = preg_replace('/[^\p{L}]/u', '', $parts[0]);
-        $first = mb_strtoupper(mb_substr((string) $firstLetters, 0, 10));
-        if ($first === '') {
-            $first = 'BARU';
+        $name = mb_strtoupper($fullName);
+        if (mb_strlen($name) > 70) {
+            $name = mb_substr($name, 0, 70);
+        }
+        if (!preg_match('/#NEW#\s*$/u', $name)) {
+            $name .= ' #NEW#';
         }
 
-        $initials = '';
-        $n = count($parts);
-        for ($i = 1; $i < $n; $i++) {
-            $w = preg_replace('/[^\p{L}]/u', '', $parts[$i]);
-            if ($w !== null && $w !== '') {
-                $initials .= mb_strtoupper(mb_substr($w, 0, 1));
-            }
-        }
-
-        $name = $first;
-        if ($initials !== '') {
-            $name .= ' ' . $initials;
-        }
-        return $name . ' #NEW#';
+        return $name;
     }
 
     private function kurirNomorPelangganFromWa(string $waNumber): string

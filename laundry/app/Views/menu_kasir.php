@@ -32,7 +32,7 @@ $menu[0] = [
         'submenu' =>
         [
             [
-                'c' => 'Data_List/i/pelanggan',
+                'c' => 'Pelanggan',
                 'title' => 'Data Pelanggan',
                 'txt' => 'Pelanggan',
             ],

@@ -60,13 +60,8 @@ class Data_List extends Controller
             $data_main = $this->db(0)->get_where($table, $where);
             break;
          case "pelanggan":
-            $view = 'data_list/' . $page;
-            $data_operasi = ['title' => 'Data Pelanggan'];
-            $table = $page;
-            $where = $this->wCabang;
-            $order = 'id_pelanggan DESC';
-            $data_main = $this->db(0)->get_where_order($table, $where, $order);
-            break;
+            header('Location: ' . URL::BASE_URL . 'Pelanggan');
+            exit;
          case "karyawan":
             $view = 'data_list/' . $page;
             $data_operasi = ['title' => 'Karyawan Mac Address'];
@@ -149,31 +144,9 @@ class Data_List extends Controller
             }
             break;
          case "pelanggan":
-            $cols = 'id_cabang, nama_pelanggan, nomor_pelanggan';
-            $nama_pelanggan = trim($_POST['f1'] ?? '');
-            $vals = $this->id_cabang . ",'" . $nama_pelanggan . "','" . $_POST['f2'] . "'";
-            $setOne = "nama_pelanggan = '" . $nama_pelanggan . "'";
-            $where = $this->wCabang . " AND " . $setOne;
-            $data_main = $this->db(0)->count_where($table, $where);
-            if ($data_main < 1) {
-               $data = [
-                  'id_cabang' => $this->id_cabang,
-                  'nama_pelanggan' => $nama_pelanggan,
-                  'nomor_pelanggan' => preg_replace('/\D/', '', $_POST['f2'])
-               ];
-               $do = $this->db(0)->insert($table, $data);
-
-               if ($do['errno'] <> 0) {
-                  $this->model('Log')->write("[Data_List::insert/pelanggan] Error: " . $do['error'] . " | Query: " . $do['query']);
-               }
-
-               $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
-               echo 1;
-            } else {
-               $text =  "Gagal! nama " . strtoupper($nama_pelanggan) . " sudah digunakan";
-               echo $text;
-            }
-            break;
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($this->helper('PelangganDaftar')->tambahFromPost());
+            return;
          case "user":
             $this->session_cek(1);
             $privilege = $_POST['f4'] ?? 0;

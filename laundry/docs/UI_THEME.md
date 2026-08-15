@@ -16,6 +16,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
 - Operan → `laundry/app/Views/operan/form.php` (`#operan-root`) + `content.php`
 - Tiket → `laundry/app/Views/tiket/form.php` (`#tiket-root`) + `view_load.php`
+- Data Pelanggan → `laundry/app/Views/pelanggan/index.php` (`#plg-root`) + `form_tambah.php`
 
 ---
 

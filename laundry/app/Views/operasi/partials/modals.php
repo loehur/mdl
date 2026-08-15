@@ -2010,6 +2010,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (fromRoot > 0) return fromRoot;
     return parseInt((window.ViewLoadConfig && window.ViewLoadConfig.idPelanggan) || '0', 10) || 0;
   }
+  function currentPhoneTail() {
+    return String(root.getAttribute('data-phone-tail') || '');
+  }
   function currentPenyelesai() {
     var sel = root.querySelector('#kurirKaryawan');
     if (sel && sel.selectize) {
