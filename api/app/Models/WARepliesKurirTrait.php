@@ -247,6 +247,10 @@ trait WARepliesKurirTrait
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }
+        // Ucapan terima kasih = penutup, bukan konfirmasi ya/ok lokasi
+        if ($this->messageLooksLikeThanksPenutup($text)) {
+            return true;
+        }
         // Reminder / ingat — keyword jelas, jangan tahan di session kurir/lokasi
         if (preg_match('/^\s*(reminder|remind|ingatkan|ingat|pengingat)\s*$/iu', $text)) {
             return true;

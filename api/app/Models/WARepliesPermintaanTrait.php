@@ -147,6 +147,9 @@ trait WARepliesPermintaanTrait
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }
+        if ($this->messageLooksLikeThanksPenutup($text)) {
+            return true;
+        }
 
         $breakout = [
             'TAGIHAN',

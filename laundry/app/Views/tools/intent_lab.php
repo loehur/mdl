@@ -264,6 +264,23 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    #intent-lab-root .il-reply {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      background: #f0fdf4;
+      color: #14532d;
+      border: 1px solid #86efac;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 2.4em;
+    }
+    #intent-lab-root .il-reply.is-empty {
+      background: #fff7ed;
+      color: #9a3412;
+      border-color: #fdba74;
+    }
     #intent-lab-root .il-section {
       margin-top: 18px;
       padding-top: 14px;
@@ -352,6 +369,8 @@
         <div class="il-intent" id="ilIntent">—</div>
         <div class="il-meta" id="ilMeta"></div>
       </div>
+      <label class="il-label">Balasan autoreply</label>
+      <pre class="il-reply is-empty" id="ilReply">(tidak ada)</pre>
       <label class="il-label">Trace</label>
       <pre class="il-trace" id="ilTrace"></pre>
     </div>
@@ -470,6 +489,7 @@
     var $intent = $('#ilIntent');
     var $meta = $('#ilMeta');
     var $trace = $('#ilTrace');
+    var $reply = $('#ilReply');
     var $btn = $('#ilBtnRun');
     var $loading = $('#ilLoading');
     var $teachIntent = $('#ilTeachIntent');
@@ -572,6 +592,7 @@
         $card.addClass('il-card--err');
         $intent.text('Gagal');
         $meta.html('');
+        if ($reply && $reply.length) $reply.addClass('is-empty').text('(tidak ada balasan)');
         $trace.text((data && (data.message || data.error)) ? (data.message || data.error) : 'Unknown error');
         return;
       }
@@ -586,6 +607,12 @@
       }
       if (data.no_handler) bits.push('<span class="il-badge">no_handler</span>');
       $meta.html(bits.join(''));
+      var replies = data.replies;
+      if (Array.isArray(replies) && replies.length) {
+        $reply.removeClass('is-empty').text(replies.join('\n---\n'));
+      } else {
+        $reply.addClass('is-empty').text('(tidak ada balasan)');
+      }
       var tr = data.trace;
       if (Array.isArray(tr)) $trace.text(tr.length ? tr.join('\n') : '(kosong)');
       else $trace.text(tr ? String(tr) : '(kosong)');

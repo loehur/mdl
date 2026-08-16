@@ -61,6 +61,9 @@ class WAReplies
     /** @var string|null regex|ai|short|amount|false|exit|… */
     private $intentLabSource = null;
 
+    /** @var list<string> Teks yang akan dikirim (lab: tidak kirim WA) */
+    private $intentLabReplies = [];
+
     /** Cache per process(): null = belum dicek, bool = hasil isHumanAgentRecentlyActive */
     private $humanActiveCache = null;
 
@@ -224,13 +227,14 @@ class WAReplies
     /**
      * Dry-run klasifikasi intent (Intent Lab). Hanya teks — tanpa phone/session customer.
      *
-     * @return array{ok:bool,text:string,intent:?string,source:?string,case:mixed,notify:bool,no_handler:bool,ask:?bool,trace:list<string>}
+     * @return array{ok:bool,text:string,intent:?string,source:?string,case:mixed,notify:bool,no_handler:bool,ask:?bool,trace:list<string>,replies:list<string>}
      */
     public function classifyIntentLab(string $textBody): array
     {
         $textBody = trim($textBody);
         $this->intentLabMode = true;
         $this->intentLabTraces = [];
+        $this->intentLabReplies = [];
         $this->intentLabIntent = null;
         $this->intentLabSource = null;
         $this->currentHandler = null;
@@ -253,6 +257,7 @@ class WAReplies
                 null
             );
         } catch (\Throwable $e) {
+            $replies = $this->intentLabReplies;
             $this->intentLabMode = false;
             return [
                 'ok' => false,
@@ -264,10 +269,12 @@ class WAReplies
                 'no_handler' => true,
                 'ask' => null,
                 'trace' => array_merge($this->intentLabTraces, ['ERROR: ' . $e->getMessage()]),
+                'replies' => $replies,
                 'message' => $e->getMessage(),
             ];
         }
 
+        $replies = $this->intentLabReplies;
         $this->intentLabMode = false;
 
         $intent = $this->intentLabIntent ?? $this->currentHandler;
@@ -298,6 +305,7 @@ class WAReplies
             'no_handler' => !empty($result->no_handler),
             'ask' => $ask,
             'trace' => $this->intentLabTraces,
+            'replies' => $replies,
         ];
     }
 
@@ -340,6 +348,8 @@ class WAReplies
     private function sendAutoreplyText($waNumber, $text)
     {
         if ($this->intentLabMode) {
+            $this->intentLabReplies[] = (string) $text;
+            $this->logAutoreplyTrace($waNumber, 'REPLY', mb_substr((string) $text, 0, 200));
             return ['success' => true, 'data' => null, 'error' => null];
         }
         if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
@@ -663,6 +673,9 @@ class WAReplies
      */
     private function recordHandlerCooldown($waNumber, string $handler): void
     {
+        if ($this->intentLabMode) {
+            return;
+        }
         $db = DB::getInstance(0);
         $provider = $this->autoReplyProvider;
         $existing = $db->get_where('wa_auto_reply_log', [
@@ -1309,6 +1322,14 @@ class WAReplies
     }
 
     /**
+     * Token ok/oke/okey/okeyy (huruf e/y berlebih).
+     */
+    private function penutupOkTokenPattern(): string
+    {
+        return 'okk*(?:e+y*|ey+)?';
+    }
+
+    /**
      * True jika pesan mengandung ok/oke sebagai kata (bukan sekadar substring di tengah kata lain).
      */
     private function penutupMessageContainsOkToken(string $text): bool
@@ -1318,7 +1339,7 @@ class WAReplies
             return false;
         }
 
-        return (bool) preg_match('/\bokk*(?:e+|ey)?\b/i', $t);
+        return (bool) preg_match('/\b' . $this->penutupOkTokenPattern() . '\b/i', $t);
     }
 
     /**
@@ -1458,9 +1479,9 @@ class WAReplies
         return (bool) preg_match(
             '/\b('
             . 'ma*ka*(s|c)(i|e)+h?|'               // makasih, makasi, makaci, makaseh, ...
-            . 'te*ri*ma*ka*si*h|'                   // terimakasih (satu kata)
+            . 'te*ri*ma*ka*si*h|'                   // terimakasih / trimakasih (satu kata)
             . '(trima|terima)\s+(kasih|ksih|ksh)|' // trima ksih / terima kasih
-            . 'trimakasih|trmksh|trm\s*ksh|mksh|'  // mksh / mksh kak
+            . 'trima*kasih|trimakasih|trmksh|trm\s*ksh|mksh|'
             . 'tha*nks|thx|tq|ty'
             . ')\b/iu',
             $text
@@ -1561,8 +1582,9 @@ class WAReplies
         }
 
         // (3) Ack singkat murni — seluruh pesan hanya token ack (+ sapaan opsional); ok/okk/okkk/oke ok
+        $okTok = $this->penutupOkTokenPattern();
         if (preg_match(
-            '/^\s*\b(okk*(?:e+|ey)?|baik+|sip+|sia+p+|gpp|gak\s*apa\s*apa|ga\s*apa\s*apa|iya+|ya+)'
+            '/^\s*\b(' . $okTok . '|baik+|sip+|sia+p+|gpp|gak\s*apa\s*apa|ga\s*apa\s*apa|iya+|ya+)'
             . '(\s+(deh|lah|dong|ya))*'
             . '(?:\s+(kak|kk|bang|min|mbak|pak|bu|buk|mas|om|dek|nte|penya|punya))*'
             . '\s*[.!?]*\s*$/iu',
@@ -1571,7 +1593,7 @@ class WAReplies
             return true;
         }
         if (preg_match(
-            '/^\s*\b(okk*(?:e+)?|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
+            '/^\s*\b(' . $okTok . '|baik|sip)\s+(sia+p+|sip)(?:\s+(kak|kk|bang|min|mbak|pak|bu|ya))?\s*\??\s*$/iu',
             $t
         )) {
             return true;
@@ -2546,14 +2568,6 @@ class WAReplies
                     if (method_exists($this, $methodName)) {
                         $this->currentHandler = $handler;
                         $this->intentLabMark($handler, 'regex');
-                        if ($this->intentLabMode) {
-                            $this->logAutoreplyTrace($waNumber, 'DONE', 'lab_regex_ok handler=' . $handler);
-                            return (object) [
-                                'case' => $caseVal,
-                                'notify' => $notify,
-                                'conversation_id' => $conversationId
-                            ];
-                        }
                         // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                         if ($handler === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
                             $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_penutup_ambiguous_no_reply');
@@ -2949,14 +2963,6 @@ class WAReplies
             if ($methodExists) {
                 $this->currentHandler = $aiIntent;
                 $this->intentLabMark($aiIntent, 'ai');
-                if ($this->intentLabMode) {
-                    $this->logAutoreplyTrace($waNumber, 'DONE', 'lab_ai_ok intent=' . $aiIntent);
-                    return (object) [
-                        'case' => $aiCase,
-                        'notify' => $aiNotify,
-                        'conversation_id' => $conversationId
-                    ];
-                }
                 // Kalimat PENUTUP ambigu (closed order, dll): tetap intent PENUTUP tapi jangan dibalas AI
                 if ($aiIntent === 'PENUTUP' && $this->isAmbiguousPenutupShortPhrase($textBodyToCheck)) {
                     $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_penutup_ambiguous_no_reply');
@@ -3458,9 +3464,14 @@ class WAReplies
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->isOperatingHours()) {
-            $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_skip_outside_hours');
-            return;
+        $inHours = $this->isOperatingHours();
+        if (!$inHours) {
+            if ($this->intentLabMode) {
+                $this->logAutoreplyTrace($waNumber, 'LAB_NOTE', 'live would skip: di luar jam operasional');
+            } else {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_skip_outside_hours');
+                return;
+            }
         }
 
         $textLower = trim(strtolower($textBody ?? ''));
@@ -4615,6 +4626,9 @@ class WAReplies
         if (preg_match('/\b(bon|bill|bil{1,}|tagihan|nota|invoice|pricelist|price\s*list)\b/iu', $text)) {
             return true;
         }
+        if ($this->messageLooksLikeThanksPenutup($text) || $this->messageMatchesStrictPenutupAllowlist($text)) {
+            return true;
+        }
 
         $breakout = [
             'TAGIHAN',
@@ -5153,11 +5167,11 @@ class WAReplies
             return false;
         }
 
-        // Penutup / terima kasih → jangan escalate
+        // Penutup / terima kasih → lepas session, biarkan PENUTUP yang balas
         if ($msg !== '' && $this->estimasiLooksLikePenutup($msg)) {
-            $this->estimasiAppendSummary($waNumber, $session, 'penutup: ' . mb_substr($msg, 0, 80));
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_penutup_no_escalate');
-            return true;
+            $this->clearEstimasiSession($waNumber);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_penutup→continue_routing');
+            return false;
         }
 
         // Request waktu selesai bukan ESTIMASI
@@ -5268,7 +5282,7 @@ class WAReplies
             return false;
         }
         return (bool) preg_match(
-            '/\b(makasih|thanks|thank\s*you|trims|trimakasih|terima\s*kasih|mksh|mksih|trima\s*ksih|trmksh|sip|oke|ok|baik|noted|sudah)\b/iu',
+            '/\b(makasih|thanks|thank\s*you|trims|trima*kasih|trimakasih|terima\s*kasih|mksh|mksih|trima\s*ksih|trmksh|sip|oke+y*|ok|baik|noted|sudah)\b/iu',
             $t
         ) && mb_strlen($t) <= 40;
     }
@@ -7767,6 +7781,137 @@ class WAReplies
         return implode(' ', $parts);
     }
 
+    /**
+     * Parse JSON klasifikasi AI. Tahan markdown, trailing comma, reason terpotong.
+     *
+     * @return array{json:?array,repaired:bool}
+     */
+    private function decodeAiJsonObject(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return ['json' => null, 'repaired' => false];
+        }
+        $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+
+        $strict = $this->tryJsonDecodeAssoc($raw);
+        if (is_array($strict) && isset($strict['intent'])) {
+            return ['json' => $strict, 'repaired' => false];
+        }
+
+        $candidate = $raw;
+        if (preg_match('/```(?:json)?\s*(\{.*?\})\s*```/s', $raw, $m)) {
+            $candidate = trim($m[1]);
+        } elseif (preg_match('/\{.*\}/s', $raw, $m)) {
+            $candidate = $m[0];
+        }
+
+        $decoded = $this->tryJsonDecodeAssoc($candidate);
+        if (is_array($decoded) && isset($decoded['intent'])) {
+            return ['json' => $decoded, 'repaired' => $candidate !== $raw];
+        }
+
+        $repaired = $this->repairTruncatedAiJson($candidate);
+        $decoded = $this->tryJsonDecodeAssoc($repaired);
+        if (is_array($decoded) && isset($decoded['intent'])) {
+            return ['json' => $decoded, 'repaired' => true];
+        }
+
+        $salvaged = $this->salvageAiIntentFields($raw);
+        if (is_array($salvaged)) {
+            return ['json' => $salvaged, 'repaired' => true];
+        }
+
+        return ['json' => is_array($decoded) ? $decoded : null, 'repaired' => false];
+    }
+
+    private function tryJsonDecodeAssoc(string $s): ?array
+    {
+        $s = trim($s);
+        if ($s === '') {
+            return null;
+        }
+        $json = json_decode($s, true);
+        if (is_array($json)) {
+            return $json;
+        }
+        $fixed = str_replace(["\u{201C}", "\u{201D}", "\u{2018}", "\u{2019}"], ['"', '"', "'", "'"], $s);
+        $fixed = preg_replace('/,\s*([}\]])/', '$1', $fixed) ?? $fixed;
+        $json = json_decode($fixed, true);
+
+        return is_array($json) ? $json : null;
+    }
+
+    private function repairTruncatedAiJson(string $s): string
+    {
+        $s = trim($s);
+        if ($s === '') {
+            return $s;
+        }
+        if ($this->jsonHasUnclosedString($s)) {
+            $s .= '"';
+        }
+        $s = rtrim($s, ", \t\n\r");
+        $nBrack = substr_count($s, '[') - substr_count($s, ']');
+        if ($nBrack > 0) {
+            $s .= str_repeat(']', $nBrack);
+        }
+        $nBrace = substr_count($s, '{') - substr_count($s, '}');
+        if ($nBrace > 0) {
+            $s .= str_repeat('}', $nBrace);
+        }
+
+        return $s;
+    }
+
+    private function jsonHasUnclosedString(string $s): bool
+    {
+        $in = false;
+        $len = strlen($s);
+        for ($i = 0; $i < $len; $i++) {
+            $c = $s[$i];
+            if ($c === '\\' && $in) {
+                $i++;
+                continue;
+            }
+            if ($c === '"') {
+                $in = !$in;
+            }
+        }
+
+        return $in;
+    }
+
+    /**
+     * Ambil intent/ask/from_block dari JSON yang terpotong di field reason.
+     */
+    private function salvageAiIntentFields(string $raw): ?array
+    {
+        $out = [];
+        if (preg_match('/"intent"\s*:\s*"([^"]+)"/i', $raw, $m)
+            || preg_match('/"intent"\s*:\s*([A-Za-z0-9_]+)/i', $raw, $m)
+        ) {
+            $out['intent'] = trim($m[1]);
+        }
+        if (preg_match('/"ask"\s*:\s*(true|false|1|0)/i', $raw, $m)) {
+            $v = strtolower($m[1]);
+            $out['ask'] = ($v === 'true' || $v === '1');
+        }
+        if (preg_match('/"from_block"\s*:\s*"([^"]+)"/i', $raw, $m)
+            || preg_match('/"from_block"\s*:\s*([A-Za-z0-9_]+)/i', $raw, $m)
+        ) {
+            $out['from_block'] = trim($m[1]);
+        }
+        if (preg_match('/"reason"\s*:\s*"([^"]*)/i', $raw, $m)) {
+            $out['reason'] = trim($m[1]);
+        }
+        if (!isset($out['intent']) || $out['intent'] === '') {
+            return null;
+        }
+
+        return $out;
+    }
+
     private function handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig = null)
     {
         try {
@@ -7820,27 +7965,26 @@ class WAReplies
             $prompt .= "- Jika intent HARGA karena blok lain (mis. === BONEKA ===) menulis \"tanya harga boneka → HARGA\" → from_block=BONEKA (bukan HARGA).\n";
             $prompt .= "- from_block harus PERSIS nama blok di daftar, atau FALSE. Boleh berbeda dari field intent.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
-            $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
-            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
+            $prompt .= "JAWAB HANYA JSON SATU OBJEK (tanpa markdown, tanpa teks lain).\n";
+            $prompt .= "reason maksimal 12 kata, tanpa tanda kutip ganda.\n";
+            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"alasan singkat\"}\n";
             $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false. from_block wajib diisi.";
 
             $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', \App\Config\AI::describePriority());
             $response = $this->callOpenAI($prompt, $waNumber);
 
-            // Parse JSON Response
-            $json = json_decode($response, true);
-
-            // Handle markdown code blocks if AI adds them
-            if (!$json) {
-                $cleanMatches = [];
-                if (preg_match('/\{.*\}/s', $response, $cleanMatches)) {
-                    $json = json_decode($cleanMatches[0], true);
-                }
-            }
-
+            $parsed = $this->decodeAiJsonObject((string) $response);
+            $json = $parsed['json'];
             if (!is_array($json)) {
                 $this->logAutoreplyTrace($waNumber, 'AI_REJECT', 'unparseable JSON raw=' . mb_substr((string) $response, 0, 200));
                 return false;
+            }
+            if (($parsed['repaired'] ?? false) === true) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'AI_PARSE',
+                    'repaired JSON intent=' . (string) ($json['intent'] ?? '-')
+                );
             }
 
             $intent = $json['intent'] ?? 'FALSE';
@@ -8139,19 +8283,42 @@ class WAReplies
                 ],
                 'temperature' => $temperature,
             ];
+            $maxTokens = (int) \App\Config\AI::getMaxTokens();
+            if ($maxTokens < 80) {
+                $maxTokens = 180;
+            }
             if ($p['id'] === 'openai') {
-                $data['max_completion_tokens'] = 50;
+                $data['max_completion_tokens'] = $maxTokens;
             } else {
-                $data['max_tokens'] = 50;
+                $data['max_tokens'] = $maxTokens;
             }
             try {
-                return $this->executeOpenAiCompatibleChat(
-                    $p['url'],
-                    $p['key'],
-                    $data,
-                    $p['label'],
-                    $timeout
-                );
+                $withJson = $data;
+                $withJson['response_format'] = ['type' => 'json_object'];
+                try {
+                    return $this->executeOpenAiCompatibleChat(
+                        $p['url'],
+                        $p['key'],
+                        $withJson,
+                        $p['label'],
+                        $timeout
+                    );
+                } catch (\Exception $formatErr) {
+                    $em = strtolower($formatErr->getMessage());
+                    $formatIssue = strpos($em, 'response_format') !== false
+                        || strpos($em, 'json_object') !== false
+                        || strpos($em, 'http 400') !== false;
+                    if (!$formatIssue) {
+                        throw $formatErr;
+                    }
+                    return $this->executeOpenAiCompatibleChat(
+                        $p['url'],
+                        $p['key'],
+                        $data,
+                        $p['label'],
+                        $timeout
+                    );
+                }
             } catch (\Exception $e) {
                 $lastError = $e;
                 $next = $providers[$i + 1] ?? null;

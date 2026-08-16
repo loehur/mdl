@@ -30,7 +30,7 @@ class AI
      * AI Settings
      */
     private static $temperature = 0.1;  // Low temperature untuk konsistensi klasifikasi
-    private static $maxTokens = 50;     // Cukup untuk response 1 kata
+    private static $maxTokens = 180;    // JSON intent + ask + from_block + reason singkat (50 memotong reason)
     private static $timeout = 20;       // Timeout dalam detik (Increased to 20s for stability)
 
     /**
