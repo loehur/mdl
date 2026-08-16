@@ -163,6 +163,10 @@ trait WARepliesPermintaanTrait
             'MINTA_JEMPUT_ANTAR',
             'ESTIMASI_SELESAI',
             'JAM_OPERASIONAL',
+            'SALDO',
+            'SALDO_IAK',
+            'SALDO_TOKOPAY',
+            'SALDO_YCLOUD',
         ];
         foreach ($breakout as $code) {
             $patterns = $keywordConfig[$code]['patterns'] ?? [];

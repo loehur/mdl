@@ -427,6 +427,10 @@ class WAReplies
      */
     private function handlerSkipsAutoreplyRateLimit(string $handler): bool
     {
+        $h = strtoupper($handler);
+        if (in_array($h, ['SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD'], true)) {
+            return true;
+        }
         if ($this->autoreplyKeywordConfig === null) {
             $this->autoreplyKeywordConfig = $this->loadAutoreplyKeywordConfig();
         }
@@ -2340,6 +2344,10 @@ class WAReplies
                     }
                     // "cek qris ..." = intent admin CEK_QRIS, bukan minta rekening/QRIS pelanggan
                     if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
+                        continue;
+                    }
+                    // "tarik saldo ..." = TARIK_TOKOPAY, bukan cek SALDO
+                    if ($handler === 'SALDO' && preg_match('/\btarik\b/i', $textBodyToCheck)) {
                         continue;
                     }
                     // HARGA laundry: bukan harga parfum/plastik/pewangi/dll (nanti intent terpisah)
@@ -6939,17 +6947,76 @@ class WAReplies
         }
     }
 
-    function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
+    function handleSaldo($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->requireAdminSender($waNumber, 'SALDO_IAK')) {
+        if (!$this->requireAdminSender($waNumber, 'SALDO')) {
             return;
         }
+        $which = $this->saldoProviderFromText($textBody);
+        if ($which === null) {
+            $this->logAutoreplyTrace($waNumber, 'SALDO', 'need_provider');
+            $this->sendSaldoAdminText(
+                $waNumber,
+                "Format:\nsaldo iak\nsaldo tokopay\nsaldo ycloud"
+            );
+            return;
+        }
+        $this->logAutoreplyTrace($waNumber, 'SALDO', 'provider=' . $which);
+        if ($this->intentLabMode) {
+            $this->sendSaldoAdminText($waNumber, '[lab] saldo ' . $which);
+            return;
+        }
+        if ($which === 'iak') {
+            $this->replySaldoIak($waNumber);
+            return;
+        }
+        if ($which === 'tokopay') {
+            $this->replySaldoTokopay($waNumber);
+            return;
+        }
+        $this->replySaldoYcloud($waNumber);
+    }
+
+    /** @return 'iak'|'tokopay'|'ycloud'|null */
+    private function saldoProviderFromText(?string $text): ?string
+    {
+        $t = strtolower(trim((string) $text));
+        if ($t === '' || preg_match('/\btarik\b/u', $t)) {
+            return null;
+        }
+        if (preg_match('/\biak\b/u', $t)) {
+            return 'iak';
+        }
+        if (preg_match('/\btoko\s*pay\b|\btokopay\b/u', $t)) {
+            return 'tokopay';
+        }
+        if (preg_match('/\by\s*cloud\b|\bycloud\b/u', $t)) {
+            return 'ycloud';
+        }
+
+        return null;
+    }
+
+    private function sendSaldoAdminText($waNumber, string $text): void
+    {
+        if ($this->intentLabMode) {
+            $this->sendAutoreplyText($waNumber, $text);
+            return;
+        }
+        $this->getWaService()->sendFreeText($waNumber, $text);
+    }
+
+    function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
+    {
+        $msg = trim((string) $textBody);
+        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo iak');
+    }
+
+    private function replySaldoIak($waNumber): void
+    {
         try {
-            // Cek saldo IAK
             $iak = new \App\Models\IAK();
             $response = $iak->check_balance();
-
-            $waService = $this->getWaService();
 
             if (isset($response['data']['balance'])) {
                 $balance = $response['data']['balance'];
@@ -6959,12 +7026,10 @@ class WAReplies
                 $text = "Gagal: " . $message;
             }
 
-            $waService->sendFreeText($waNumber, $text);
-
+            $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
             \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'wa_error', 'IAK');
-            $waService = $this->getWaService();
-            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+            $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
@@ -7045,13 +7110,15 @@ class WAReplies
 
     function handleSaldo_tokopay($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->requireAdminSender($waNumber, 'SALDO_TOKOPAY')) {
-            return;
-        }
+        $msg = trim((string) $textBody);
+        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo tokopay');
+    }
+
+    private function replySaldoTokopay($waNumber): void
+    {
         try {
-            // Cek saldo TokoPay menggunakan endpoint QRIS
             $apiUrl = 'https://api.nalju.com/Laundry/QRIS/balance';
-            
+
             $curl = curl_init();
             curl_setopt_array($curl, [
                 CURLOPT_URL => $apiUrl,
@@ -7066,30 +7133,25 @@ class WAReplies
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_SSL_VERIFYHOST => false,
             ]);
-            
+
             $response = curl_exec($curl);
             $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
             $curlError = curl_error($curl);
             curl_close($curl);
 
-            $waService = $this->getWaService();
-
             if ($curlError) {
-                $text = "Error: Gagal menghubungi API QRIS. " . $curlError;
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendSaldoAdminText($waNumber, "Error: Gagal menghubungi API QRIS. " . $curlError);
                 return;
             }
 
             $data = json_decode($response, true);
 
             if ($httpCode === 200 && isset($data['status']) && $data['status'] === true) {
-                // Handle complex structure with available and held balance
                 if (isset($data['data']['data']['saldo_tersedia'])) {
                     $d = $data['data']['data'];
                     $text = "Tersedia: " . number_format($d['saldo_tersedia'], 0, ',', '.') . "\n";
                     $text .= "Tertahan: " . number_format($d['saldo_tertahan'] ?? 0, 0, ',', '.');
                 } else {
-                    // Fallback to simpler balance structures
                     $balance = null;
                     if (isset($data['data']['balance'])) {
                         $balance = $data['data']['balance'];
@@ -7104,7 +7166,6 @@ class WAReplies
                     if ($balance !== null) {
                         $text = "Saldo TokoPay: Rp " . number_format($balance, 0, ',', '.');
                     } else {
-                        // If still not found, show minimal info or raw for debugging
                         $text = "Saldo TokoPay: Data tidak ditemukan.\n" . json_encode($data);
                     }
                 }
@@ -7113,20 +7174,21 @@ class WAReplies
                 $text = "Gagal mengambil saldo TokoPay: " . $message;
             }
 
-            $waService->sendFreeText($waNumber, $text);
-
+            $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
             \Log::write("handleSaldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
-            $waService = $this->getWaService();
-            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+            $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
     function handleSaldo_ycloud($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->requireAdminSender($waNumber, 'SALDO_YCLOUD')) {
-            return;
-        }
+        $msg = trim((string) $textBody);
+        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo ycloud');
+    }
+
+    private function replySaldoYcloud($waNumber): void
+    {
         try {
             $apiKey = \App\Config\WhatsApp::getApiKey();
             $baseUrl = rtrim(\App\Config\WhatsApp::getBaseUrl(), '/');
@@ -7154,10 +7216,8 @@ class WAReplies
             $curlError = curl_error($curl);
             curl_close($curl);
 
-            $waService = $this->getWaService();
-
             if ($curlError) {
-                $waService->sendFreeText($waNumber, "Error: Gagal menghubungi API YCloud. " . $curlError);
+                $this->sendSaldoAdminText($waNumber, "Error: Gagal menghubungi API YCloud. " . $curlError);
                 return;
             }
 
@@ -7172,12 +7232,10 @@ class WAReplies
                 $text = "Gagal mengambil saldo YCloud: " . $message;
             }
 
-            $waService->sendFreeText($waNumber, $text);
-
+            $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
             \Log::write("handleSaldo_ycloud ERROR: " . $e->getMessage(), 'wa_error', 'YCloud');
-            $waService = $this->getWaService();
-            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+            $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
@@ -8018,6 +8076,17 @@ class WAReplies
                 $intent
             );
             $aiIntentRaw = $intent;
+
+            if (in_array($intent, ['SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD'], true)
+                && isset($keywordConfig['SALDO'])) {
+                $intent = 'SALDO';
+                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap ' . $aiIntentRaw . ' → SALDO';
+            }
+            if ($intent === 'SALDO' && preg_match('/\btarik\b/i', $textBody)
+                && isset($keywordConfig['TARIK_TOKOPAY'])) {
+                $intent = 'TARIK_TOKOPAY';
+                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap SALDO+tarik → TARIK_TOKOPAY';
+            }
 
             // Model kadang mengembalikan label bukan daftar (mis. PERTANYAAN) — sering dari teks prompt. Samakan ke STATUS jika jelas tanya siap laundry/cucian.
             if (!isset($keywordConfig[$intent]) && in_array($intent, ['PERTANYAAN', 'QUESTION', 'TANYA', 'PERTANYAAN_UMUM'], true)) {
