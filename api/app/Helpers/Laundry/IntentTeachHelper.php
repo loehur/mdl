@@ -1053,10 +1053,12 @@ class IntentTeachHelper
      */
     private static function chatCompletions(array $messages, int $maxTokens, bool $jsonMode = false): string
     {
-        $openaiKey = \App\Config\AI::getOpenAIApiKey();
-        $groqKey = \App\Config\AI::getGroqApiKey();
+        $providers = \App\Config\AI::getProvidersInOrder();
         $temperature = 0.2;
         $timeout = max(20, (int) \App\Config\AI::getTimeout());
+        if ($providers === []) {
+            throw new \Exception('No OpenAI or Groq API key');
+        }
 
         $payload = [
             'messages' => $messages,
@@ -1067,44 +1069,28 @@ class IntentTeachHelper
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        if ($openaiKey !== '') {
+        $lastError = null;
+        foreach ($providers as $i => $p) {
+            $data = array_merge($payload, ['model' => $p['model']]);
             try {
-                return self::postChat(
-                    'https://api.openai.com/v1/chat/completions',
-                    $openaiKey,
-                    array_merge($payload, ['model' => \App\Config\AI::getOpenAIModel() ?: 'gpt-4o-mini']),
-                    $timeout
-                );
+                return self::postChat($p['url'], $p['key'], $data, $timeout);
             } catch (\Throwable $e) {
-                if ($groqKey === '') {
-                    throw $e;
+                $lastError = $e;
+                if ($jsonMode && ($p['id'] ?? '') === 'groq') {
+                    try {
+                        unset($data['response_format']);
+                        return self::postChat($p['url'], $p['key'], $data, $timeout);
+                    } catch (\Throwable $e2) {
+                        $lastError = $e2;
+                    }
+                }
+                if (!isset($providers[$i + 1])) {
+                    throw $lastError;
                 }
             }
         }
 
-        if ($groqKey === '') {
-            throw new \Exception('No OpenAI or Groq API key');
-        }
-
-        try {
-            return self::postChat(
-                'https://api.groq.com/openai/v1/chat/completions',
-                $groqKey,
-                array_merge($payload, ['model' => \App\Config\AI::getGroqModel()]),
-                $timeout
-            );
-        } catch (\Throwable $e) {
-            if (!$jsonMode) {
-                throw $e;
-            }
-            unset($payload['response_format']);
-            return self::postChat(
-                'https://api.groq.com/openai/v1/chat/completions',
-                $groqKey,
-                array_merge($payload, ['model' => \App\Config\AI::getGroqModel()]),
-                $timeout
-            );
-        }
+        throw $lastError ?? new \Exception('AI request failed');
     }
 
     private static function postChat(string $url, string $apiKey, array $data, int $timeout): string

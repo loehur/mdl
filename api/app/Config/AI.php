@@ -3,22 +3,16 @@ namespace App\Config;
 
 /**
  * AI Configuration
- * 
+ *
  * SECURITY WARNING:
- * OpenAI API Key telah dipindahkan ke Config/Env.php (gitignored)
- * untuk keamanan. Tambahkan konstanta OPENAI_API_KEY di Env.php
- * 
- * Cara mendapatkan API Key:
- * 1. Buka https://platform.openai.com/api-keys
- * 2. Login dengan OpenAI Account
- * 3. Klik "Create new secret key"
- * 4. Copy API Key
- * 5. Paste di Env.php sebagai konstanta OPENAI_API_KEY
+ * API key dipindahkan ke Config/Env.php (gitignored).
  *
- * Fallback intent (saat OpenAI timeout/error): tambahkan GROQ_API_KEY di Env.php
- * — https://console.groq.com/keys — model default: llama-3.1-8b-instant (override via GROQ_MODEL)
- *
- * Lihat template di bawah untuk cara setup di Env.php
+ * Env.php:
+ *   OPENAI_API_KEY, OPENAI_MODEL
+ *   GROQ_API_KEY, GROQ_MODEL
+ *   AI_PRIORITY = 'groq' | 'openai'
+ *     groq   → Groq dulu, OpenAI cadangan
+ *     openai → OpenAI dulu, Groq cadangan
  */
 
 class AI
@@ -29,7 +23,7 @@ class AI
     private static $openAiApiKey = \Env::OPENAI_API_KEY ?? '';
     private static $openAiModel = \Env::OPENAI_MODEL ?? 'gpt-4o-mini';
 
-    /** Groq OpenAI-compatible API — dipakai jika pemanggilan OpenAI gagal (timeout, DNS, HTTP) */
+    /** Groq OpenAI-compatible API */
     private static $groqDefaultModel = 'llama-3.1-8b-instant';
 
     /**
@@ -38,12 +32,12 @@ class AI
     private static $temperature = 0.1;  // Low temperature untuk konsistensi klasifikasi
     private static $maxTokens = 50;     // Cukup untuk response 1 kata
     private static $timeout = 20;       // Timeout dalam detik (Increased to 20s for stability)
-    
+
     /**
      * Enable/Disable AI Fallback
      */
     private static $aiEnabled = true;  // Set true jika sudah isi API key
-    
+
     /**
      * Get OpenAI API Key
      */
@@ -85,13 +79,81 @@ class AI
     }
 
     /**
+     * Primary provider: groq | openai (default openai agar Env lama tetap sama).
+     */
+    public static function getPriority(): string
+    {
+        $raw = '';
+        if (\defined('Env::AI_PRIORITY')) {
+            $raw = strtolower(trim((string) \Env::AI_PRIORITY));
+        }
+        if (in_array($raw, ['groq', 'openai'], true)) {
+            return $raw;
+        }
+
+        return 'openai';
+    }
+
+    /**
+     * Provider yang punya API key, urut sesuai AI_PRIORITY.
+     *
+     * @return list<array{id:string,label:string,url:string,key:string,model:string}>
+     */
+    public static function getProvidersInOrder(): array
+    {
+        $openai = [
+            'id' => 'openai',
+            'label' => 'OpenAI',
+            'url' => 'https://api.openai.com/v1/chat/completions',
+            'key' => (string) self::getOpenAIApiKey(),
+            'model' => (string) (self::getOpenAIModel() ?: 'gpt-4o-mini'),
+        ];
+        $groq = [
+            'id' => 'groq',
+            'label' => 'Groq',
+            'url' => 'https://api.groq.com/openai/v1/chat/completions',
+            'key' => self::getGroqApiKey(),
+            'model' => self::getGroqModel(),
+        ];
+        $ordered = self::getPriority() === 'groq'
+            ? [$groq, $openai]
+            : [$openai, $groq];
+
+        return array_values(array_filter(
+            $ordered,
+            static function (array $p): bool {
+                return trim($p['key']) !== '';
+            }
+        ));
+    }
+
+    /** Contoh: "Groq primary (OpenAI fallback)" */
+    public static function describePriority(): string
+    {
+        $providers = self::getProvidersInOrder();
+        if ($providers === []) {
+            return 'none';
+        }
+        $primary = $providers[0]['label'];
+        $alts = [];
+        for ($i = 1, $n = count($providers); $i < $n; $i++) {
+            $alts[] = $providers[$i]['label'];
+        }
+        if ($alts === []) {
+            return $primary . ' only';
+        }
+
+        return $primary . ' primary (' . implode('/', $alts) . ' fallback)';
+    }
+
+    /**
      * Get Temperature
      */
     public static function getTemperature()
     {
         return self::$temperature;
     }
-    
+
     /**
      * Get Max Tokens
      */
@@ -99,7 +161,7 @@ class AI
     {
         return self::$maxTokens;
     }
-    
+
     /**
      * Get Timeout
      */
@@ -107,7 +169,7 @@ class AI
     {
         return self::$timeout;
     }
-    
+
     /**
      * Check if AI is enabled
      */
@@ -116,10 +178,7 @@ class AI
         if (!self::$aiEnabled) {
             return false;
         }
-        if (!empty(self::$openAiApiKey)) {
-            return true;
-        }
 
-        return self::getGroqApiKey() !== '';
+        return self::getProvidersInOrder() !== [];
     }
 }

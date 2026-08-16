@@ -5,7 +5,7 @@ namespace App\Helpers\Jaggu_School;
 use App\Config\AI;
 
 /**
- * OpenAI chat completions dengan fallback Groq (sama pola CRM/WA).
+ * Chat completions — urutan Env::AI_PRIORITY (groq|openai).
  */
 class AiClient
 {
@@ -15,54 +15,37 @@ class AiClient
      */
     public static function chat(array $messages, int $maxTokens = 600, float $temperature = 0.7): array
     {
-        $openaiKey = AI::getOpenAIApiKey();
-        $groqKey = AI::getGroqApiKey();
+        $providers = AI::getProvidersInOrder();
         $timeout = max(20, (int) AI::getTimeout());
-
-        if ($openaiKey === '' && $groqKey === '') {
+        if ($providers === []) {
             throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GROQ_API_KEY)');
         }
 
-        $openaiData = [
-            'model' => AI::getOpenAIModel(),
-            'messages' => $messages,
-            'temperature' => $temperature,
-            'max_tokens' => $maxTokens,
-        ];
-
-        if ($openaiKey !== '') {
+        $lastError = null;
+        foreach ($providers as $i => $p) {
             try {
                 $content = self::request(
-                    'https://api.openai.com/v1/chat/completions',
-                    $openaiKey,
-                    $openaiData,
-                    'OpenAI',
+                    $p['url'],
+                    $p['key'],
+                    [
+                        'model' => $p['model'],
+                        'messages' => $messages,
+                        'temperature' => $temperature,
+                        'max_tokens' => $maxTokens,
+                    ],
+                    $p['label'],
                     $timeout
                 );
-                return ['content' => $content, 'provider' => 'openai'];
+                return ['content' => $content, 'provider' => $p['id']];
             } catch (\Throwable $e) {
-                if ($groqKey === '') {
+                $lastError = $e;
+                if (!isset($providers[$i + 1])) {
                     throw $e;
                 }
             }
         }
 
-        $groqData = [
-            'model' => AI::getGroqModel(),
-            'messages' => $messages,
-            'temperature' => $temperature,
-            'max_tokens' => $maxTokens,
-        ];
-
-        $content = self::request(
-            'https://api.groq.com/openai/v1/chat/completions',
-            $groqKey,
-            $groqData,
-            'Groq',
-            $timeout
-        );
-
-        return ['content' => $content, 'provider' => 'groq'];
+        throw $lastError ?? new \RuntimeException('AI request failed');
     }
 
     private static function request(string $url, string $apiKey, array $data, string $label, int $timeout): string

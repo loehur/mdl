@@ -8631,7 +8631,7 @@ class WAReplies
             $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
             $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false. from_block wajib diisi.";
 
-            $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI primary (Groq fallback if key set)');
+            $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', \App\Config\AI::describePriority());
             $response = $this->callOpenAI($prompt, $waNumber);
 
             // Parse JSON Response
@@ -8917,7 +8917,8 @@ class WAReplies
     }
 
     /**
-     * Intent classifier: OpenAI dulu; jika gagal (timeout, dll.) dan GROQ_API_KEY ada → Groq.
+     * Intent classifier: urutan sesuai Env::AI_PRIORITY (groq|openai).
+     * Provider kedua dipakai jika yang pertama gagal (timeout, HTTP, dll.).
      *
      * @param string|null $waNumber Untuk log trace
      */
@@ -8927,64 +8928,58 @@ class WAReplies
             require_once __DIR__ . '/../Config/AI.php';
         }
 
-        $openaiKey = \App\Config\AI::getOpenAIApiKey();
-        $groqKey = \App\Config\AI::getGroqApiKey();
+        $providers = \App\Config\AI::getProvidersInOrder();
         $temperature = \App\Config\AI::getTemperature();
         $timeout = \App\Config\AI::getTimeout();
-
-        if ($openaiKey === '' && $groqKey === '') {
+        if ($providers === []) {
             throw new \Exception('No OpenAI or Groq API key configured');
         }
 
-        $openaiData = [
-            'model' => $model,
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt],
-            ],
-            'temperature' => $temperature,
-            'max_completion_tokens' => 50,
-        ];
-
-        if ($openaiKey !== '') {
+        $lastError = null;
+        foreach ($providers as $i => $p) {
+            $data = [
+                'model' => $p['id'] === 'openai' && is_string($model) && $model !== ''
+                    ? $model
+                    : $p['model'],
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => $temperature,
+            ];
+            if ($p['id'] === 'openai') {
+                $data['max_completion_tokens'] = 50;
+            } else {
+                $data['max_tokens'] = 50;
+            }
             try {
                 return $this->executeOpenAiCompatibleChat(
-                    'https://api.openai.com/v1/chat/completions',
-                    $openaiKey,
-                    $openaiData,
-                    'OpenAI',
+                    $p['url'],
+                    $p['key'],
+                    $data,
+                    $p['label'],
                     $timeout
                 );
             } catch (\Exception $e) {
-                if ($groqKey === '') {
+                $lastError = $e;
+                $next = $providers[$i + 1] ?? null;
+                if ($next === null) {
                     throw $e;
                 }
                 if ($waNumber !== null) {
-                    $this->logAutoreplyTrace($waNumber, 'AI_FALLBACK', 'Groq after OpenAI failed: ' . mb_substr($e->getMessage(), 0, 240));
+                    $this->logAutoreplyTrace(
+                        $waNumber,
+                        'AI_FALLBACK',
+                        $next['label'] . ' after ' . $p['label'] . ' failed: ' . mb_substr($e->getMessage(), 0, 240)
+                    );
                 }
             }
         }
 
-        $groqData = [
-            'model' => \App\Config\AI::getGroqModel(),
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt],
-            ],
-            'temperature' => $temperature,
-            'max_tokens' => 50,
-        ];
-
-        return $this->executeOpenAiCompatibleChat(
-            'https://api.groq.com/openai/v1/chat/completions',
-            $groqKey,
-            $groqData,
-            'Groq',
-            $timeout
-        );
+        throw $lastError ?? new \Exception('AI request failed');
     }
 
     /**
-     * Call OpenAI with messages array (system + user) and custom max_tokens.
-     * Fallback ke Groq jika OpenAI gagal (sama seperti intent classifier).
+     * Chat completions: urutan sesuai Env::AI_PRIORITY (groq|openai).
      *
      * @param array       $messages [['role'=>'system','content'=>...], ['role'=>'user','content'=>...]]
      * @param int         $maxTokens
@@ -8996,56 +8991,46 @@ class WAReplies
         if (!class_exists('\\App\\Config\\AI')) {
             require_once __DIR__ . '/../Config/AI.php';
         }
-        $openaiKey = \App\Config\AI::getOpenAIApiKey();
-        $groqKey = \App\Config\AI::getGroqApiKey();
+        $providers = \App\Config\AI::getProvidersInOrder();
         $temperature = \App\Config\AI::getTemperature();
         $timeout = \App\Config\AI::getTimeout();
-        $model = 'gpt-4o-mini';
-
-        if ($openaiKey === '' && $groqKey === '') {
+        if ($providers === []) {
             throw new \Exception('No OpenAI or Groq API key configured');
         }
 
-        $openaiData = [
-            'model' => $model,
-            'messages' => $messages,
-            'temperature' => $temperature,
-            'max_tokens' => $maxTokens,
-        ];
-
-        if ($openaiKey !== '') {
+        $lastError = null;
+        foreach ($providers as $i => $p) {
+            $data = [
+                'model' => $p['model'],
+                'messages' => $messages,
+                'temperature' => $temperature,
+                'max_tokens' => $maxTokens,
+            ];
             try {
                 return $this->executeOpenAiCompatibleChat(
-                    'https://api.openai.com/v1/chat/completions',
-                    $openaiKey,
-                    $openaiData,
-                    'OpenAI',
+                    $p['url'],
+                    $p['key'],
+                    $data,
+                    $p['label'],
                     $timeout
                 );
             } catch (\Exception $e) {
-                if ($groqKey === '') {
+                $lastError = $e;
+                $next = $providers[$i + 1] ?? null;
+                if ($next === null) {
                     throw $e;
                 }
                 if ($waNumber !== null) {
-                    $this->logAutoreplyTrace($waNumber, 'AI_FALLBACK', 'Groq after OpenAI failed (messages): ' . mb_substr($e->getMessage(), 0, 240));
+                    $this->logAutoreplyTrace(
+                        $waNumber,
+                        'AI_FALLBACK',
+                        $next['label'] . ' after ' . $p['label'] . ' failed (messages): ' . mb_substr($e->getMessage(), 0, 240)
+                    );
                 }
             }
         }
 
-        $groqData = [
-            'model' => \App\Config\AI::getGroqModel(),
-            'messages' => $messages,
-            'temperature' => $temperature,
-            'max_tokens' => $maxTokens,
-        ];
-
-        return $this->executeOpenAiCompatibleChat(
-            'https://api.groq.com/openai/v1/chat/completions',
-            $groqKey,
-            $groqData,
-            'Groq',
-            $timeout
-        );
+        throw $lastError ?? new \Exception('AI request failed');
     }
     
     /**

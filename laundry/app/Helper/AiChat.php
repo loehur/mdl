@@ -1,7 +1,7 @@
 <?php
 
 /**
- * OpenAI chat (fallback Groq) untuk laundry — baca key dari api/app/Config/Env.php.
+ * Chat AI untuk laundry — urutan Env::AI_PRIORITY (groq|openai).
  */
 class AiChat
 {
@@ -10,92 +10,52 @@ class AiChat
      */
     public function chat(array $messages, int $maxTokens = 200, float $temperature = 0.4, int $timeout = 12): string
     {
-        $keys = $this->loadKeys();
-        $openaiKey = $keys['openai'];
-        $groqKey = $keys['groq'];
+        $this->bootAiConfig();
+        $providers = \App\Config\AI::getProvidersInOrder();
         $timeout = max(5, min(60, $timeout));
-
-        if ($openaiKey === '' && $groqKey === '') {
+        if ($providers === []) {
             throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GROQ_API_KEY di api Env.php)');
         }
 
-        if ($openaiKey !== '') {
+        $lastError = null;
+        foreach ($providers as $i => $p) {
             try {
                 return $this->request(
-                    'https://api.openai.com/v1/chat/completions',
-                    $openaiKey,
+                    $p['url'],
+                    $p['key'],
                     [
-                        'model' => $keys['openai_model'] !== '' ? $keys['openai_model'] : 'gpt-4o-mini',
+                        'model' => $p['model'],
                         'messages' => $messages,
                         'temperature' => $temperature,
                         'max_tokens' => $maxTokens,
                     ],
-                    'OpenAI',
+                    $p['label'],
                     $timeout
                 );
             } catch (\Throwable $e) {
-                if ($groqKey === '') {
+                $lastError = $e;
+                if (!isset($providers[$i + 1])) {
                     throw $e;
                 }
             }
         }
 
-        return $this->request(
-            'https://api.groq.com/openai/v1/chat/completions',
-            $groqKey,
-            [
-                'model' => $keys['groq_model'] !== '' ? $keys['groq_model'] : 'llama-3.1-8b-instant',
-                'messages' => $messages,
-                'temperature' => $temperature,
-                'max_tokens' => $maxTokens,
-            ],
-            'Groq',
-            $timeout
-        );
+        throw $lastError ?? new \RuntimeException('AI request failed');
     }
 
-    /**
-     * @return array{openai:string,groq:string,openai_model:string,groq_model:string}
-     */
-    private function loadKeys(): array
+    private function bootAiConfig(): void
     {
-        $out = [
-            'openai' => '',
-            'groq' => '',
-            'openai_model' => 'gpt-4o-mini',
-            'groq_model' => 'llama-3.1-8b-instant',
-        ];
-
         $envPath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR
             . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Env.php';
-        if (!is_file($envPath)) {
-            return $out;
-        }
-
-        if (!class_exists('Env', false)) {
-            // Tangkap BOM/whitespace dari Env.php agar tidak merusak JSON response caller.
+        if (is_file($envPath) && !class_exists('Env', false)) {
             ob_start();
             require_once $envPath;
             ob_end_clean();
         }
-        if (!class_exists('Env', false)) {
-            return $out;
+        if (!class_exists('\\App\\Config\\AI', false)) {
+            require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR
+                . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'AI.php';
         }
-
-        if (\defined('Env::OPENAI_API_KEY')) {
-            $out['openai'] = (string) \Env::OPENAI_API_KEY;
-        }
-        if (\defined('Env::OPENAI_MODEL') && (string) \Env::OPENAI_MODEL !== '') {
-            $out['openai_model'] = (string) \Env::OPENAI_MODEL;
-        }
-        if (\defined('Env::GROQ_API_KEY')) {
-            $out['groq'] = (string) \Env::GROQ_API_KEY;
-        }
-        if (\defined('Env::GROQ_MODEL') && (string) \Env::GROQ_MODEL !== '') {
-            $out['groq_model'] = (string) \Env::GROQ_MODEL;
-        }
-
-        return $out;
     }
 
     private function request(string $url, string $apiKey, array $data, string $label, int $timeout): string
