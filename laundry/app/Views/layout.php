@@ -3571,7 +3571,8 @@ if ($privUi === 100) {
                                 bodyBlock += '<div class="mdl-notif-jam-ask">' + askLabel + '</div>';
                             }
                             if (pesan && taskType !== 'pelanggan_new' && taskType !== 'permintaan'
-                                && taskType !== 'kurir_estimasi' && taskType !== 'kurir_grant') {
+                                && taskType !== 'estimasi' && taskType !== 'kurir_estimasi'
+                                && taskType !== 'kurir_grant') {
                                 bodyBlock +=
                                     '<div class="mdl-notif-req">' +
                                     '<span class="mdl-notif-req__label">Pesan customer</span>' +
@@ -3611,13 +3612,13 @@ if ($privUi === 100) {
                                     '</div>';
                             } else if (taskType === 'estimasi' || taskType === 'kurir_estimasi') {
                                 formFields =
-                                    ((taskType === 'kurir_estimasi')
-                                        ? ('<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
-                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
-                                            '<i class="fas fa-comments"></i> Chat</button>' +
-                                            '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-skip-kurir">Skip</button>' +
-                                            '</div>')
+                                    '<div class="mdl-notif-actions" style="width:100%;margin-bottom:8px">' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
+                                    '<i class="fas fa-comments"></i> Chat</button>' +
+                                    (taskType === 'kurir_estimasi'
+                                        ? '<button type="button" class="mdl-notif-btn mdl-notif-btn--ghost js-notif-skip-kurir">Skip</button>'
                                         : '') +
+                                    '</div>' +
                                     '<div>' +
                                     '<label>Tanggal</label>' +
                                     dateSelectHtml(dateOpts, '', it.prefer_tanggal || it.request_tanggal || '') +
