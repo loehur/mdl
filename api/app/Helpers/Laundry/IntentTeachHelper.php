@@ -387,8 +387,8 @@ class IntentTeachHelper
         }
 
         $openaiKey = \App\Config\AI::getOpenAIApiKey();
-        $geminiKey = \App\Config\AI::getGeminiApiKey();
-        if ($openaiKey === '' && $geminiKey === '') {
+        $deepseekKey = \App\Config\AI::getDeepseekApiKey();
+        if ($openaiKey === '' && $deepseekKey === '') {
             return [
                 'ok' => true,
                 'proposed_prompt' => $currentPrompt,
@@ -488,8 +488,8 @@ class IntentTeachHelper
         }
 
         $openaiKey = \App\Config\AI::getOpenAIApiKey();
-        $geminiKey = \App\Config\AI::getGeminiApiKey();
-        if ($openaiKey === '' && $geminiKey === '') {
+        $deepseekKey = \App\Config\AI::getDeepseekApiKey();
+        if ($openaiKey === '' && $deepseekKey === '') {
             return ['ok' => true, 'ai_valid' => false, 'reason' => 'No AI key'];
         }
 
@@ -1057,7 +1057,7 @@ class IntentTeachHelper
         $temperature = 0.2;
         $timeout = max(20, (int) \App\Config\AI::getTimeout());
         if ($providers === []) {
-            throw new \Exception('No OpenAI or Gemini API key');
+            throw new \Exception('No OpenAI or DeepSeek API key');
         }
 
         $payload = [
@@ -1076,7 +1076,7 @@ class IntentTeachHelper
                 return self::postChat($p['url'], $p['key'], $data, $timeout);
             } catch (\Throwable $e) {
                 $lastError = $e;
-                if ($jsonMode && ($p['id'] ?? '') === 'gemini') {
+                if ($jsonMode && ($p['id'] ?? '') === 'deepseek') {
                     try {
                         unset($data['response_format']);
                         return self::postChat($p['url'], $p['key'], $data, $timeout);

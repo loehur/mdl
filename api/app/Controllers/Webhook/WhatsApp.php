@@ -492,7 +492,7 @@ class WhatsApp extends Controller
                     }
                 }
 
-                // 3) Intent detect + auto-reply (bisa lambat: OpenAI/Gemini)
+                // 3) Intent detect + auto-reply (bisa lambat: OpenAI/DeepSeek)
                 // Gabungkan text + media_url + caption agar pin lokasi / link maps terbaca di kurir flow
                 $processText = trim((string) ($messageText !== '' ? $messageText : ($textBody ?? '')));
                 if (!empty($mediaCaption) && stripos($processText, (string) $mediaCaption) === false) {

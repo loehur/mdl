@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Chat AI untuk laundry — urutan Env::AI_PRIORITY (gemini|openai).
+ * Chat AI untuk laundry — urutan Env::AI_PRIORITY (deepseek|openai).
  */
 class AiChat
 {
@@ -14,7 +14,7 @@ class AiChat
         $providers = \App\Config\AI::getProvidersInOrder();
         $timeout = max(5, min(60, $timeout));
         if ($providers === []) {
-            throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GEMINI_API_KEY di api Env.php)');
+            throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / DEEPSEEK_API_KEY di api Env.php)');
         }
 
         $lastError = null;

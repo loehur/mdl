@@ -9,10 +9,10 @@ namespace App\Config;
  *
  * Env.php:
  *   OPENAI_API_KEY, OPENAI_MODEL
- *   GEMINI_API_KEY, GEMINI_MODEL
- *   AI_PRIORITY = 'gemini' | 'openai'
- *     gemini → Gemini dulu, OpenAI cadangan
- *     openai → OpenAI dulu, Gemini cadangan
+ *   DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+ *   AI_PRIORITY = 'deepseek' | 'openai'
+ *     deepseek → DeepSeek dulu, OpenAI cadangan
+ *     openai   → OpenAI dulu, DeepSeek cadangan
  */
 
 class AI
@@ -23,8 +23,8 @@ class AI
     private static $openAiApiKey = \Env::OPENAI_API_KEY ?? '';
     private static $openAiModel = \Env::OPENAI_MODEL ?? 'gpt-4o-mini';
 
-    /** Gemini OpenAI-compatible API */
-    private static $geminiDefaultModel = 'gemini-2.5-flash';
+    /** DeepSeek OpenAI-compatible API */
+    private static $deepseekDefaultModel = 'deepseek-chat';
 
     /**
      * AI Settings
@@ -55,32 +55,32 @@ class AI
     }
 
     /**
-     * Gemini API key (opsional). Konstanta Env::GEMINI_API_KEY — jika tidak ada, kembalikan string kosong.
+     * DeepSeek API key (opsional). Konstanta Env::DEEPSEEK_API_KEY — jika tidak ada, kembalikan string kosong.
      */
-    public static function getGeminiApiKey(): string
+    public static function getDeepseekApiKey(): string
     {
-        if (!\defined('Env::GEMINI_API_KEY')) {
+        if (!\defined('Env::DEEPSEEK_API_KEY')) {
             return '';
         }
 
-        return (string) \Env::GEMINI_API_KEY;
+        return (string) \Env::DEEPSEEK_API_KEY;
     }
 
     /**
-     * Model Gemini untuk chat completions (OpenAI-compatible).
+     * Model DeepSeek untuk chat completions (OpenAI-compatible).
      */
-    public static function getGeminiModel(): string
+    public static function getDeepseekModel(): string
     {
-        if (\defined('Env::GEMINI_MODEL') && (string) \Env::GEMINI_MODEL !== '') {
-            return (string) \Env::GEMINI_MODEL;
+        if (\defined('Env::DEEPSEEK_MODEL') && (string) \Env::DEEPSEEK_MODEL !== '') {
+            return (string) \Env::DEEPSEEK_MODEL;
         }
 
-        return self::$geminiDefaultModel;
+        return self::$deepseekDefaultModel;
     }
 
     /**
-     * Primary provider: gemini | openai (default openai agar Env lama tetap sama).
-     * Nilai lama 'groq' dipetakan ke 'gemini'.
+     * Primary provider: deepseek | openai (default openai agar Env lama tetap sama).
+     * Nilai lama 'groq' / 'gemini' dipetakan ke 'deepseek'.
      */
     public static function getPriority(): string
     {
@@ -88,10 +88,10 @@ class AI
         if (\defined('Env::AI_PRIORITY')) {
             $raw = strtolower(trim((string) \Env::AI_PRIORITY));
         }
-        if ($raw === 'groq') {
-            $raw = 'gemini';
+        if (in_array($raw, ['groq', 'gemini'], true)) {
+            $raw = 'deepseek';
         }
-        if (in_array($raw, ['gemini', 'openai'], true)) {
+        if (in_array($raw, ['deepseek', 'openai'], true)) {
             return $raw;
         }
 
@@ -112,16 +112,16 @@ class AI
             'key' => (string) self::getOpenAIApiKey(),
             'model' => (string) (self::getOpenAIModel() ?: 'gpt-4o-mini'),
         ];
-        $gemini = [
-            'id' => 'gemini',
-            'label' => 'Gemini',
-            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-            'key' => self::getGeminiApiKey(),
-            'model' => self::getGeminiModel(),
+        $deepseek = [
+            'id' => 'deepseek',
+            'label' => 'DeepSeek',
+            'url' => 'https://api.deepseek.com/chat/completions',
+            'key' => self::getDeepseekApiKey(),
+            'model' => self::getDeepseekModel(),
         ];
-        $ordered = self::getPriority() === 'gemini'
-            ? [$gemini, $openai]
-            : [$openai, $gemini];
+        $ordered = self::getPriority() === 'deepseek'
+            ? [$deepseek, $openai]
+            : [$openai, $deepseek];
 
         return array_values(array_filter(
             $ordered,
@@ -131,7 +131,7 @@ class AI
         ));
     }
 
-    /** Contoh: "Gemini primary (OpenAI fallback)" */
+    /** Contoh: "DeepSeek primary (OpenAI fallback)" */
     public static function describePriority(): string
     {
         $providers = self::getProvidersInOrder();

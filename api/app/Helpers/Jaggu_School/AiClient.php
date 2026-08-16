@@ -5,7 +5,7 @@ namespace App\Helpers\Jaggu_School;
 use App\Config\AI;
 
 /**
- * Chat completions — urutan Env::AI_PRIORITY (gemini|openai).
+ * Chat completions — urutan Env::AI_PRIORITY (deepseek|openai).
  */
 class AiClient
 {
@@ -18,7 +18,7 @@ class AiClient
         $providers = AI::getProvidersInOrder();
         $timeout = max(20, (int) AI::getTimeout());
         if ($providers === []) {
-            throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / GEMINI_API_KEY)');
+            throw new \RuntimeException('AI belum dikonfigurasi (OPENAI_API_KEY / DEEPSEEK_API_KEY)');
         }
 
         $lastError = null;
