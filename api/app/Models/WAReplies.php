@@ -173,11 +173,7 @@ class WAReplies
 
     private function intentVisibleForSender(array $config): bool
     {
-        if ($this->senderPassesIntentGate($config)) {
-            return true;
-        }
-
-        return trim((string) ($config['deny_reply'] ?? '')) !== '';
+        return $this->senderPassesIntentGate($config);
     }
 
     /**
@@ -203,9 +199,9 @@ class WAReplies
     }
 
     /**
-     * Gerbang gagal: kirim deny_reply (jika ada) lalu return hasil process; silent → null (lanjut intent lain).
+     * Gerbang gagal: skip intent (lanjut intent lain), tanpa balasan.
      *
-     * @return object|null
+     * @return object|null|false
      */
     private function gateDenyOrContinue(
         string $handler,
@@ -221,36 +217,8 @@ class WAReplies
         if ($this->senderPassesIntentGate($config)) {
             return null;
         }
-        $deny = trim((string) ($config['deny_reply'] ?? ''));
-        if ($deny === '') {
-            $this->logAutoreplyTrace($waNumber, 'GATE_SKIP', 'handler=' . $handler);
-            return false;
-        }
-        $this->logAutoreplyTrace($waNumber, 'GATE_DENY', 'handler=' . $handler);
-        $this->currentHandler = $handler;
-        $this->intentLabMark($handler, 'gate');
-        $caseVal = $config['case'] ?? null;
-        $notify = $config['notify'] ?? false;
-        if (!$this->intentLabMode) {
-            if (!$this->handlerSkipsAutoreplyRateLimit($handler)
-                && $this->isInAutoreplyCooldown($waNumber, $handler)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'gate_deny_rate_limit handler=' . $handler);
-            } else {
-                $this->sendAutoreplyText($waNumber, $deny);
-                if (!$this->handlerSkipsAutoreplyRateLimit($handler)) {
-                    $this->recordHandlerCooldown($waNumber, $handler);
-                }
-            }
-        }
-        $conversationId = $this->getOrCreateConversationWithCase(
-            $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, $caseVal
-        );
-
-        return (object) [
-            'case' => $caseVal,
-            'notify' => (bool) $notify,
-            'conversation_id' => $conversationId,
-        ];
+        $this->logAutoreplyTrace($waNumber, 'GATE_SKIP', 'handler=' . $handler);
+        return false;
     }
 
     /**

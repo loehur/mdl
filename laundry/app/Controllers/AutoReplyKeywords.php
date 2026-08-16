@@ -176,9 +176,6 @@ class AutoReplyKeywords extends Controller
             $notify = 0;
         }
 
-        $denyReply = trim((string) ($_POST['deny_reply'] ?? ''));
-        $denyReply = $denyReply === '' ? null : $denyReply;
-
         $set = [
             'code' => $code,
             'sort_order' => $sort,
@@ -190,7 +187,6 @@ class AutoReplyKeywords extends Controller
             'is_admin' => $this->postFlag('is_admin'),
             'is_karyawan' => $this->postFlag('is_karyawan'),
             'is_pelanggan' => $this->postFlag('is_pelanggan'),
-            'deny_reply' => $denyReply,
         ];
 
         $up = $this->dbMain()->update('wa_autoreply_intents', $set, "id = $id");
@@ -214,9 +210,6 @@ class AutoReplyKeywords extends Controller
         $max = $this->dbMain()->query_array('SELECT COALESCE(MAX(sort_order),0) AS m FROM wa_autoreply_intents');
         $sort = (int) (($max[0]['m'] ?? 0) + 1);
 
-        $denyReply = trim((string) ($_POST['deny_reply'] ?? ''));
-        $denyReply = $denyReply === '' ? null : $denyReply;
-
         $in = $this->dbMain()->insert('wa_autoreply_intents', [
             'code' => $code,
             'sort_order' => $sort,
@@ -227,7 +220,6 @@ class AutoReplyKeywords extends Controller
             'is_admin' => $this->postFlag('is_admin'),
             'is_karyawan' => $this->postFlag('is_karyawan'),
             'is_pelanggan' => $this->postFlag('is_pelanggan'),
-            'deny_reply' => $denyReply,
             'note' => trim((string) ($_POST['note'] ?? '')) ?: null,
         ]);
 

@@ -63,7 +63,6 @@
                 <th>Case</th>
                 <th>Notify</th>
                 <th>Gerbang</th>
-                <th>Deny</th>
                 <th>Aktif</th>
                 <th></th>
               </tr>
@@ -89,7 +88,6 @@
                     $gates[] = '<span class="ark-badge ark-badge--ok">pelanggan</span>';
                 }
                 $gateHtml = $gates !== [] ? implode(' ', $gates) : '<span class="ark-badge ark-badge--off">publik</span>';
-                $deny = trim((string) ($a['deny_reply'] ?? '')) !== '' ? 'ya' : '—';
                 $active = ((int)$a['is_active'] === 1)
                   ? '<span class="ark-badge ark-badge--ok">on</span>'
                   : '<span class="ark-badge ark-badge--off">off</span>';
@@ -104,7 +102,6 @@
                 echo '<td>' . $case . '</td>';
                 echo '<td>' . $notify . '</td>';
                 echo '<td>' . $gateHtml . '</td>';
-                echo '<td>' . $deny . '</td>';
                 echo '<td>' . $active . '</td>';
                 echo '<td class="text-nowrap">';
                 echo '<a class="btn btn-sm btn-primary" href="' . URL::BASE_URL . 'AutoReplyKeywords/detail/' . $id . '">Edit</a> ';
@@ -148,8 +145,6 @@
               </div>
               <p class="text-muted small mb-0 mt-1">Centang = role yang boleh (OR). Semua kosong = publik.</p>
             </div>
-            <label class="form-label fw-bold mt-3">Deny reply (opsional)</label>
-            <textarea name="deny_reply" class="form-control form-control-sm" rows="3" placeholder="Kosong = diam jika gerbang gagal"></textarea>
           </form>
         </div>
         <div class="modal-footer">

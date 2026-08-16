@@ -96,7 +96,7 @@ class AutoReplyKeywordsLoader
 
         $intents = $db->query(
             "SELECT id, code, case_value, notify, ai_prompt,
-                    is_admin, is_karyawan, is_pelanggan, deny_reply
+                    is_admin, is_karyawan, is_pelanggan
              FROM wa_autoreply_intents
              WHERE is_active = 1
              ORDER BY sort_order ASC, id ASC"
@@ -144,10 +144,6 @@ class AutoReplyKeywordsLoader
             $cfg['is_admin'] = ((int) ($row['is_admin'] ?? 0)) === 1;
             $cfg['is_karyawan'] = ((int) ($row['is_karyawan'] ?? 0)) === 1;
             $cfg['is_pelanggan'] = ((int) ($row['is_pelanggan'] ?? 0)) === 1;
-            $deny = trim((string) ($row['deny_reply'] ?? ''));
-            if ($deny !== '') {
-                $cfg['deny_reply'] = $deny;
-            }
             $out[$code] = $cfg;
         }
 
