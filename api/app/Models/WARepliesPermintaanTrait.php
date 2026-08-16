@@ -159,7 +159,6 @@ trait WARepliesPermintaanTrait
             'LOKASI',
             'MINTA_JEMPUT_ANTAR',
             'ESTIMASI_SELESAI',
-            'AMBIL_LEWAT_TUTUP',
             'JAM_OPERASIONAL',
         ];
         foreach ($breakout as $code) {

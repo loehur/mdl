@@ -3669,7 +3669,7 @@ if ($privUi === 100) {
                         var lastSection = '';
                         items.forEach(function(it) {
                             var taskType = (it.task_type === 'grant' || it.task_type === 'kurir_grant'
-                                || it.task_type === 'kurir_estimasi' || it.task_type === 'ambil_tutup'
+                                || it.task_type === 'kurir_estimasi'
                                 || it.task_type === 'estimasi' || it.task_type === 'pelanggan_new'
                                 || it.task_type === 'permintaan')
                                 ? it.task_type
@@ -3680,9 +3680,7 @@ if ($privUi === 100) {
                                     ? 'Permintaan Pelanggan'
                                     : ((taskType === 'kurir_grant' || taskType === 'kurir_estimasi')
                                     ? 'Kurir jam'
-                                    : (taskType === 'ambil_tutup'
-                                        ? 'Ambil lewat tutup'
-                                        : (taskType === 'grant' ? 'Grant request' : 'Estimasi'))));
+                                    : (taskType === 'grant' ? 'Grant request' : 'Estimasi')));
                             if (section !== lastSection) {
                                 html += '<div class="mdl-notif-section-title">' + escHtml(section) + '</div>';
                                 lastSection = section;
@@ -3701,9 +3699,9 @@ if ($privUi === 100) {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--warn">Update nama</span> ';
                             } else if (taskType === 'permintaan') {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--permintaan">Permintaan</span> ';
-                            } else if (taskType === 'grant' || taskType === 'kurir_grant' || taskType === 'ambil_tutup') {
+                            } else if (taskType === 'grant' || taskType === 'kurir_grant') {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--grant">' +
-                                    (taskType === 'kurir_grant' ? 'Kurir' : (taskType === 'ambil_tutup' ? 'Ambil tutup' : 'Grant')) +
+                                    (taskType === 'kurir_grant' ? 'Kurir' : 'Grant') +
                                   '</span> ';
                             } else if (taskType === 'kurir_estimasi') {
                                 chips = '<span class="mdl-notif-chip mdl-notif-chip--estimasi">Kurir estimasi</span> ';
@@ -3714,7 +3712,7 @@ if ($privUi === 100) {
                                 if (it.jenis) {
                                     chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + escHtml(it.jenis) + '</span>';
                                 }
-                            } else if (taskType !== 'ambil_tutup' && taskType !== 'permintaan') {
+                            } else if (taskType !== 'permintaan') {
                                 chips += '<span class="mdl-notif-chip mdl-notif-chip--fase">' + fase + '</span>';
                             }
 
@@ -3726,7 +3724,7 @@ if ($privUi === 100) {
                                     bodyBlock += '<div class="mdl-notif-req"><span class="mdl-notif-req__label">Nama sementara</span>'
                                         + escHtml(it.nama_saat_ini) + '</div>';
                                 }
-                            } else if ((taskType === 'grant' || taskType === 'kurir_grant' || taskType === 'ambil_tutup')
+                            } else if ((taskType === 'grant' || taskType === 'kurir_grant')
                                 && (it.request_waktu_label || it.request_jam_label)) {
                                 var reqLabel = it.request_waktu_label
                                     ? ('Permintaan selesai ' + escHtml(it.request_waktu_label))
@@ -3739,11 +3737,6 @@ if ($privUi === 100) {
                                     if (it.lokasi_nama) {
                                         reqLabel += ' · ' + escHtml(it.lokasi_nama);
                                     }
-                                } else if (taskType === 'ambil_tutup') {
-                                    reqLabel = 'Mau ambil lewat tutup '
-                                        + (it.request_waktu_label
-                                            ? escHtml(it.request_waktu_label)
-                                            : ('jam ' + escHtml(it.request_jam_label || '')));
                                 }
                                 bodyBlock += '<div class="mdl-notif-jam-ask">' + reqLabel + '</div>';
                             } else if (taskType === 'kurir_estimasi') {
@@ -3837,23 +3830,6 @@ if ($privUi === 100) {
                                     '</div>' +
                                     '<div>' +
                                     '<button type="submit" class="mdl-notif-btn">Kirim estimasi</button>' +
-                                    '</div>';
-                            } else if (taskType === 'ambil_tutup') {
-                                formFields =
-                                    '<div>' +
-                                    '<label>Keputusan</label>' +
-                                    '<select class="js-notif-granted" required>' +
-                                    '<option value="">— pilih —</option>' +
-                                    '<option value="1">Setujui</option>' +
-                                    '<option value="0">Tolak</option>' +
-                                    '</select>' +
-                                    '</div>' +
-                                    '<div class="js-notif-reject-reason-wrap" style="display:none">' +
-                                    '<label>Alasan tolak</label>' +
-                                    '<input type="text" class="js-notif-reject-reason" placeholder="Wajib diisi jika tolak" maxlength="500">' +
-                                    '</div>' +
-                                    '<div>' +
-                                    '<button type="submit" class="mdl-notif-btn">Kirim keputusan</button>' +
                                     '</div>';
                             } else {
                                 // grant + kurir_grant
@@ -3957,15 +3933,14 @@ if ($privUi === 100) {
                         var val = $(this).val();
                         var $wrap = $card.find('.js-notif-alt-jam-wrap');
                         var $reasonWrap = $card.find('.js-notif-reject-reason-wrap');
-                        if (taskType === 'ambil_tutup') {
-                            if (val === '0') $reasonWrap.show();
-                            else $reasonWrap.hide();
-                            return;
-                        }
                         if (val === '0') {
                             $wrap.show();
                         } else {
                             $wrap.hide();
+                        }
+                        if ($reasonWrap.length) {
+                            if (val === '0') $reasonWrap.show();
+                            else $reasonWrap.hide();
                         }
                     });
 
@@ -3991,18 +3966,6 @@ if ($privUi === 100) {
                         } else if (taskType === 'estimasi' || taskType === 'kurir_estimasi') {
                             tgl = $card.find('.js-notif-tgl').val() || '';
                             jam = $card.find('.js-notif-jam').val() || '';
-                        } else if (taskType === 'ambil_tutup') {
-                            if (granted === '') {
-                                if (window.MdlToast) MdlToast.warn('Pilih Setujui / Tolak');
-                                return;
-                            }
-                            if (granted === '0') {
-                                rejectReason = String($card.find('.js-notif-reject-reason').val() || '').trim();
-                                if (rejectReason.length < 3) {
-                                    if (window.MdlToast) MdlToast.warn('Isi alasan tolak');
-                                    return;
-                                }
-                            }
                         } else if (granted === '0') {
                             tgl = $card.find('.js-notif-alt-jam-wrap .js-notif-tgl').val()
                                 || $card.find('.js-notif-tgl').filter(':visible').val() || '';
@@ -4035,11 +3998,6 @@ if ($privUi === 100) {
                         } else if (taskType === 'estimasi' || taskType === 'kurir_estimasi') {
                             payload.estimasi_tanggal = tgl;
                             payload.estimasi_jam = jam;
-                        } else if (taskType === 'ambil_tutup') {
-                            payload.request_granted = granted;
-                            if (granted === '0') {
-                                payload.reject_reason = rejectReason;
-                            }
                         } else {
                             payload.request_granted = granted;
                             if (granted === '0') {
