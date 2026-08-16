@@ -8528,6 +8528,52 @@ class WAReplies
         return false;
     }
 
+    /**
+     * Nama blok === INTENT === yang instruksi AI-nya dipakai untuk menentukan intent.
+     */
+    private function normalizeAiFromBlock($raw, array $keywordConfig, string $fallbackIntent): string
+    {
+        $block = trim(strtoupper((string) $raw));
+        $block = preg_replace('/^===?\s*|\s*===?$/', '', $block) ?? $block;
+        $block = trim($block, " \t\"'");
+        if ($block === 'FALSE') {
+            return 'FALSE';
+        }
+        if ($block !== '' && isset($keywordConfig[$block])) {
+            return $block;
+        }
+
+        $fallback = trim(strtoupper($fallbackIntent));
+        if ($fallback === 'FALSE' || isset($keywordConfig[$fallback])) {
+            return $fallback !== '' ? $fallback : 'FALSE';
+        }
+
+        return $block !== '' ? $block : 'FALSE';
+    }
+
+    private function formatAiParseTrace(
+        string $intent,
+        bool $ask,
+        string $reason,
+        string $fromBlock,
+        string $aiIntentRaw = ''
+    ): string {
+        $parts = [
+            'intent=' . $intent,
+            'ask=' . ($ask ? '1' : '0'),
+            'from_block=' . ($fromBlock !== '' ? $fromBlock : '-'),
+        ];
+        $aiRaw = trim(strtoupper($aiIntentRaw));
+        if ($aiRaw !== '' && $aiRaw !== strtoupper($intent)) {
+            $parts[] = 'ai_intent=' . $aiRaw;
+        }
+        if ($reason !== '') {
+            $parts[] = 'reason=' . $reason;
+        }
+
+        return implode(' ', $parts);
+    }
+
     private function handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig = null)
     {
         try {
@@ -8576,10 +8622,14 @@ class WAReplies
             $prompt .= "Field \"ask\" (boolean, wajib): true jika pesan adalah PERTANYAAN atau PERMINTAAN yang butuh respon CS; false jika hanya info/pemberitahuan/ack/omongan biasa tanpa minta aksi.\n";
             $prompt .= "ask=true: bertanya (ada/tidak ada tanda ?), minta bantuan/cek/info/kabari/tolong/komplain.\n";
             $prompt .= "ask=false: info saja (otw, daftar item tanpa minta aksi), ack singkat (ok/siap/baik), cerita sosial.\n";
+            $prompt .= "Field \"from_block\" (wajib): nama blok === NAMA === yang INSTRUKSINYA kamu pakai untuk menentukan intent.\n";
+            $prompt .= "- Jika intent HARGA karena teks di blok === HARGA === → from_block=HARGA.\n";
+            $prompt .= "- Jika intent HARGA karena blok lain (mis. === BONEKA ===) menulis \"tanya harga boneka → HARGA\" → from_block=BONEKA (bukan HARGA).\n";
+            $prompt .= "- from_block harus PERSIS nama blok di daftar, atau FALSE. Boleh berbeda dari field intent.\n";
             $prompt .= "Pesan: \"{$textBody}\"\n";
             $prompt .= "JAWAB HANYA DENGAN FORMAT JSON SEPERTI INI:\n";
-            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
-            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false.";
+            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"Alasan singkat memilih kategori ini\"}\n";
+            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false. from_block wajib diisi.";
 
             $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', 'OpenAI primary (Groq fallback if key set)');
             $response = $this->callOpenAI($prompt, $waNumber);
@@ -8614,7 +8664,13 @@ class WAReplies
                 }
             }
 
-            $intent = trim(strtoupper($intent));
+            $intent = trim(strtoupper((string) $intent));
+            $fromBlock = $this->normalizeAiFromBlock(
+                $json['from_block'] ?? ($json['fromBlock'] ?? ($json['source_block'] ?? '')),
+                $keywordConfig,
+                $intent
+            );
+            $aiIntentRaw = $intent;
 
             // Model kadang mengembalikan label bukan daftar (mis. PERTANYAAN) — sering dari teks prompt. Samakan ke STATUS jika jelas tanya siap laundry/cucian.
             if (!isset($keywordConfig[$intent]) && in_array($intent, ['PERTANYAAN', 'QUESTION', 'TANYA', 'PERTANYAAN_UMUM'], true)) {
@@ -8755,29 +8811,32 @@ class WAReplies
                 $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap FALSE ask=false → PEMBERITAHUAN';
             }
 
-            // Log: text | intent | ask | reason
+            // Log: text | intent | ask | from_block | reason
+            $parseDetail = $this->formatAiParseTrace($intent, $ask, $reason, $fromBlock, $aiIntentRaw);
             if (class_exists('\Log')) {
-                \Log::write("{$textBody} | {$intent} | ask=" . ($ask ? '1' : '0') . " | {$reason}", 'wa', 'intent');
+                \Log::write("{$textBody} | {$parseDetail}", 'wa', 'intent');
             }
 
             // Check if this is a valid intent from config
             if (isset($keywordConfig[$intent])) {
-                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=' . $intent . ' ask=' . ($ask ? '1' : '0') . ' reason=' . $reason);
+                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', $parseDetail);
                 // Return intent (case will be taken from config in process())
                 // Ensure returning ARRAY as expected by process()
                 return [
                     'intent' => $intent,
                     'ask' => $ask,
-                    'reason' => $reason
+                    'reason' => $reason,
+                    'from_block' => $fromBlock,
                 ];
             }
 
             if ($intent === 'FALSE') {
-                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', 'intent=FALSE ask=' . ($ask ? '1' : '0') . ' reason=' . $reason);
+                $this->logAutoreplyTrace($waNumber, 'AI_PARSE', $parseDetail);
                 return [
                     'intent' => 'FALSE',
                     'ask' => $ask,
-                    'reason' => $reason
+                    'reason' => $reason,
+                    'from_block' => $fromBlock,
                 ];
             }
 
