@@ -11,6 +11,7 @@ $canCekDetail = !empty($data['canCekDetail']);
      data-batal-url="<?= URL::BASE_URL ?>Delivery/batal_customer"
      data-selesai-request-url="<?= URL::BASE_URL ?>Delivery/selesai_request"
      data-batal-request-url="<?= URL::BASE_URL ?>Delivery/batal_request"
+     data-pending-request-url="<?= URL::BASE_URL ?>Delivery/pending_request"
      data-terima-pakai-url="<?= URL::BASE_URL ?>Delivery/terima_pakai"
      data-update-qty-url="<?= URL::BASE_URL ?>Delivery/update_qty"
      data-search-pelanggan-url="<?= URL::BASE_URL ?>Delivery/search_pelanggan"
@@ -296,6 +297,10 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
     #dlv-root .dlv-btn--selesai {
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
+      color: #fff;
+    }
+    #dlv-root .dlv-btn--pending {
+      background: linear-gradient(180deg, var(--dlv-yellow), var(--dlv-yellow-deep));
       color: #fff;
     }
     #dlv-root .dlv-btn--batal {
@@ -1127,6 +1132,31 @@ $canCekDetail = !empty($data['canCekDetail']);
     </div>
   </div>
 
+  <div class="op-modal op-modal--confirm" id="dlvPendingModal" aria-hidden="true">
+    <div class="op-modal__backdrop" data-op-close></div>
+    <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="dlvPendingTitle">
+      <div class="op-modal__head">
+        <div>
+          <h3 id="dlvPendingTitle">Pending Antar</h3>
+          <small id="dlvPendingSub">Request #—</small>
+        </div>
+        <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="op-modal__body">
+        <input type="hidden" id="dlvPendingRequestId" value="">
+        <p class="op-modal__confirm-msg" id="dlvPendingMsg">
+          Request Antar akan keluar dari board. Aktif lagi saat pelanggan chat minta antar.
+        </p>
+      </div>
+      <div class="op-modal__foot">
+        <button type="button" class="dlv-btn dlv-btn--ghost" data-op-close>Tidak</button>
+        <button type="button" class="dlv-btn dlv-btn--pending" id="dlvPendingYes">
+          <i class="fas fa-pause"></i> Ya, Pending
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="op-modal" id="dlvSelesaiModal" aria-hidden="true">
     <div class="op-modal__backdrop" data-op-close></div>
     <div class="op-modal__panel op-modal__panel--selesai" role="dialog" aria-modal="true" aria-labelledby="dlvSelesaiTitle">
@@ -1512,6 +1542,7 @@ $canCekDetail = !empty($data['canCekDetail']);
   var batalUrl = root.getAttribute('data-batal-url') || '';
   var selesaiRequestUrl = root.getAttribute('data-selesai-request-url') || '';
   var batalRequestUrl = root.getAttribute('data-batal-request-url') || '';
+  var pendingRequestUrl = root.getAttribute('data-pending-request-url') || '';
   var terimaPakaiUrl = root.getAttribute('data-terima-pakai-url') || '';
   var updateQtyUrl = root.getAttribute('data-update-qty-url') || '';
   var searchPelangganUrl = root.getAttribute('data-search-pelanggan-url') || '';
@@ -2784,6 +2815,53 @@ $canCekDetail = !empty($data['canCekDetail']);
     loadSalesOptions();
   }
 
+  function openPendingRequest(btn) {
+    var idReq = btn.getAttribute('data-dlv-pending-request') || '';
+    var nama = btn.getAttribute('data-nama') || 'Customer';
+    if (!idReq) {
+      toast('Request tidak valid', 'error');
+      return;
+    }
+    var idEl = document.getElementById('dlvPendingRequestId');
+    if (idEl) idEl.value = idReq;
+    var sub = document.getElementById('dlvPendingSub');
+    if (sub) sub.textContent = nama + ' · Request #' + idReq;
+    openModal('dlvPendingModal');
+  }
+
+  function confirmPendingRequest() {
+    var idReq = (document.getElementById('dlvPendingRequestId') || {}).value || '';
+    if (!idReq || !pendingRequestUrl) {
+      toast('Request tidak valid', 'error');
+      return;
+    }
+    var yesBtn = document.getElementById('dlvPendingYes');
+    if (yesBtn) yesBtn.disabled = true;
+    var fd = new FormData();
+    fd.append('id_request', idReq);
+    fetch(pendingRequestUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || res.status !== 'success') {
+          throw new Error((res && res.message) || 'Gagal pending');
+        }
+        closeModal('dlvPendingModal');
+        toast(res.message || 'Request di-pending', 'ok');
+        loadBoard(true);
+      })
+      .catch(function (err) {
+        toast(err && err.message ? err.message : 'Gagal pending', 'error');
+      })
+      .finally(function () {
+        if (yesBtn) yesBtn.disabled = false;
+      });
+  }
+
   function refreshCustomerEmptyState(body) {
     if (!body) return;
     if (body.querySelector('.dlv-item--customer')) return;
@@ -3533,6 +3611,13 @@ $canCekDetail = !empty($data['canCekDetail']);
       return;
     }
 
+    var pendingReqBtn = e.target.closest('[data-dlv-pending-request]');
+    if (pendingReqBtn && root.contains(pendingReqBtn)) {
+      e.preventDefault();
+      openPendingRequest(pendingReqBtn);
+      return;
+    }
+
     var cekBtn = e.target.closest('[data-dlv-cek]');
     if (cekBtn && root.contains(cekBtn)) {
       e.preventDefault();
@@ -3634,6 +3719,8 @@ $canCekDetail = !empty($data['canCekDetail']);
 
   var confirmYesBtn = document.getElementById('dlvConfirmYes');
   if (confirmYesBtn) confirmYesBtn.addEventListener('click', confirmBatalDelivery);
+  var pendingYesBtn = document.getElementById('dlvPendingYes');
+  if (pendingYesBtn) pendingYesBtn.addEventListener('click', confirmPendingRequest);
 
   var terimaPakaiBtn = document.getElementById('dlvTerimaPakaiBtn');
   if (terimaPakaiBtn) terimaPakaiBtn.addEventListener('click', openTerimaPakaiConfirm);

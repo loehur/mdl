@@ -1733,6 +1733,84 @@ class Delivery extends Controller
    }
 
    /**
+    * Parkir request Antar (sameday) — hilang dari board sampai customer chat minta antar.
+    */
+   public function pending_request()
+   {
+      if (ob_get_length()) {
+         ob_clean();
+      }
+      ob_start();
+      $response = ['status' => 'error', 'message' => 'Unknown error'];
+
+      try {
+         $idRequest = (int) ($_POST['id_request'] ?? 0);
+         if ($idRequest <= 0) {
+            throw new Exception('Request tidak valid');
+         }
+
+         $req = $this->db(0)->get_where_row(
+            'delivery_request',
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan'"
+         );
+         if (!is_array($req) || empty($req['id_request'])) {
+            throw new Exception('Request tidak ditemukan atau sudah tidak berjalan');
+         }
+
+         $jenis = strtolower((string) ($req['jenis'] ?? ''));
+         if ($jenis !== 'antar') {
+            throw new Exception('Pending hanya untuk request Antar');
+         }
+         if (strtolower((string) ($req['layanan'] ?? 'sameday')) === 'instant') {
+            throw new Exception('Request Instant tidak bisa di-pending');
+         }
+
+         $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+         $idCabang = (int) ($this->id_cabang ?? 0);
+         $namaUser = strtoupper((string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? ''));
+
+         $upd = $this->db(0)->update(
+            'delivery_request',
+            ['delivery_status' => 'pending'],
+            'id_request = ' . $idRequest . " AND delivery_status = 'berjalan' AND jenis = 'antar'"
+         );
+         if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+            throw new Exception($upd['error'] ?? 'Gagal pending request');
+         }
+
+         $this->helper('ActivityLog')->write([
+            'modul' => 'delivery',
+            'aksi' => 'pending_request',
+            'id_ref' => (string) $idRequest,
+            'ref' => (string) ($req['phone_tail'] ?? ''),
+            'id_user' => $idUser,
+            'id_cabang' => $idCabang,
+            'nama_karyawan' => $namaUser,
+            'catatan' => 'Pending antar, menunggu chat customer',
+            'meta' => [
+               'id_request' => $idRequest,
+               'jenis' => 'antar',
+               'phone_tail' => $req['phone_tail'] ?? '',
+            ],
+         ]);
+
+         $response = [
+            'status' => 'success',
+            'message' => 'Request Antar di-pending. Aktif lagi saat pelanggan chat minta antar.',
+            'data' => ['id_request' => $idRequest],
+         ];
+      } catch (\Throwable $e) {
+         $response = ['status' => 'error', 'message' => $e->getMessage()];
+      }
+
+      ob_end_clean();
+      if (!headers_sent()) {
+         header('Content-Type: application/json; charset=utf-8');
+      }
+      echo json_encode($response);
+   }
+
+   /**
     * Batalkan delivery customer: tutup case 2 saja (tanpa riwayat).
     * Semua user boleh; wajib karyawan + catatan; dicatat ke activity_log.
     */

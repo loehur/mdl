@@ -4446,6 +4446,87 @@ trait WARepliesKurirTrait
     }
 
     /**
+     * Aktifkan kembali delivery_request Antar yang di-pending dari board Delivery.
+     *
+     * @return int id_request (0 jika tidak ada)
+     */
+    private function kurirReactivatePendingAntar(
+        string $waNumber,
+        array $session,
+        int $idPelanggan,
+        int $preferId = 0
+    ): int {
+        if ($this->kurirJenisLabel($session) !== 'antar') {
+            return 0;
+        }
+        $db = DB::getInstance(1);
+        try {
+            $row = null;
+            if ($preferId > 0) {
+                $row = $db->query(
+                    "SELECT id_request, id_cabang FROM delivery_request
+                     WHERE id_request = ?
+                       AND jenis = 'antar'
+                       AND delivery_status = 'pending'
+                       AND layanan = 'sameday'
+                     LIMIT 1",
+                    [$preferId]
+                )->row();
+            }
+            if (!$row && $idPelanggan > 0) {
+                $row = $db->query(
+                    "SELECT id_request, id_cabang FROM delivery_request
+                     WHERE id_pelanggan = ?
+                       AND jenis = 'antar'
+                       AND delivery_status = 'pending'
+                       AND layanan = 'sameday'
+                     ORDER BY id_request DESC
+                     LIMIT 1",
+                    [$idPelanggan]
+                )->row();
+            }
+            $idRequest = (int) ($row->id_request ?? 0);
+            if ($idRequest <= 0) {
+                return 0;
+            }
+            $db->update(
+                'delivery_request',
+                ['delivery_status' => 'berjalan'],
+                ['id_request' => $idRequest]
+            );
+            $idCabang = (int) ($session['id_cabang'] ?? 0);
+            if ($idCabang <= 0) {
+                $idCabang = (int) ($row->id_cabang ?? 0);
+            }
+            $this->saveKurirSession($waNumber, [
+                'id_request' => $idRequest,
+                'group_notify_label' => '',
+            ]);
+            $notifySession = $session;
+            $notifySession['id_request'] = $idRequest;
+            $notifySession['group_notify_label'] = '';
+            $this->kurirNotifyDeliveryGroupRequestCreated(
+                $waNumber,
+                $idPelanggan,
+                $idCabang,
+                $notifySession
+            );
+            $this->kurirAppendSummary($waNumber, $session, 'reactivate_pending=' . $idRequest);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'MINTA_JEMPUT_ANTAR',
+                'reactivate_pending_antar id=' . $idRequest
+            );
+            return $idRequest;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirReactivatePendingAntar: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return 0;
+        }
+    }
+
+    /**
      * Early activate: buat/reuse delivery_request segera setelah jenis ketahuan.
      * Lokasi/tarif boleh kosong — driver tetap bisa selesaikan; chat bisa melengkapi nanti.
      *
@@ -4458,6 +4539,38 @@ trait WARepliesKurirTrait
         $idCabang = (int) ($session['id_cabang'] ?? 0);
         $jenis = $this->kurirJenisLabel($session);
         $defaultLok = $this->kurirPickDefaultLokasiForEarlyRequest($idPelanggan);
+
+        if ($existingId > 0) {
+            $st = null;
+            try {
+                $st = DB::getInstance(1)->query(
+                    'SELECT delivery_status, jenis FROM delivery_request WHERE id_request = ? LIMIT 1',
+                    [$existingId]
+                )->row();
+            } catch (\Throwable $e) {
+                $st = null;
+            }
+            $stStatus = strtolower((string) ($st->delivery_status ?? ''));
+            $stJenis = strtolower((string) ($st->jenis ?? ''));
+            if ($stStatus === 'pending') {
+                if ($jenis === 'antar' && $stJenis === 'antar') {
+                    $ok = $this->kurirReactivatePendingAntar($waNumber, $session, $idPelanggan, $existingId);
+                    if ($ok > 0) {
+                        return $ok;
+                    }
+                }
+                $this->saveKurirSession($waNumber, ['id_request' => null]);
+                $existingId = 0;
+                $session['id_request'] = 0;
+            }
+        }
+
+        if ($jenis === 'antar' && $existingId <= 0) {
+            $pendingId = $this->kurirReactivatePendingAntar($waNumber, $session, $idPelanggan, 0);
+            if ($pendingId > 0) {
+                return $pendingId;
+            }
+        }
 
         if ($existingId > 0) {
             $this->kurirSyncEarlyRequestJenis($existingId, $jenis, $this->kurirSekalianJemputVal($session));
@@ -4686,6 +4799,17 @@ trait WARepliesKurirTrait
                     'lokasi_longt' => (float) ($session['longt'] ?? 0),
                     'tarif_surcas' => $tarif,
                 ];
+                try {
+                    $prevSt = $db->query(
+                        'SELECT delivery_status FROM delivery_request WHERE id_request = ? LIMIT 1',
+                        [$existingId]
+                    )->row();
+                    if (strtolower((string) ($prevSt->delivery_status ?? '')) === 'pending') {
+                        $set['delivery_status'] = 'berjalan';
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
                 if ($catatan !== '') {
                     $set['catatan_kurir'] = mb_substr($catatan, 0, 150);
                 } else {

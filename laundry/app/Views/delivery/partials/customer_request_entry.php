@@ -156,6 +156,14 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
       <?php } ?>
     </div>
     <div class="dlv-item__actions">
+      <?php if ($canSelesai && $jenis === 'antar' && !$isInstant) { ?>
+        <button type="button"
+                class="dlv-btn dlv-btn--pending"
+                data-dlv-pending-request="<?= $idReq ?>"
+                data-nama="<?= $nama ?>">
+          <i class="fas fa-pause"></i> Pending
+        </button>
+      <?php } ?>
       <?php if ($canSelesai && $jenisOk) { ?>
         <button type="button"
                 class="dlv-btn dlv-btn--selesai"
