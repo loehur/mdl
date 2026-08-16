@@ -7814,7 +7814,7 @@ class WAReplies
 
             // Check if AI is enabled
             if (!\App\Config\AI::isEnabled()) {
-                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'disabled or no API key (OpenAI/Groq)');
+                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'disabled or no API key (OpenAI/Gemini)');
                 return false;
             }
         } catch (\Exception $e) {
@@ -8078,11 +8078,11 @@ class WAReplies
     }
 
     /**
-     * POST chat/completions (format OpenAI). Dipakai OpenAI dan Groq (endpoint kompatibel).
+     * POST chat/completions (format OpenAI). Dipakai OpenAI dan Gemini (endpoint kompatibel).
      *
      * @param string $url      Mis. https://api.openai.com/v1/chat/completions
      * @param array  $data     Body JSON (model, messages, …)
-     * @param string $label    Untuk pesan error (OpenAI / Groq)
+     * @param string $label    Untuk pesan error (OpenAI / Gemini)
      */
     private function executeOpenAiCompatibleChat(string $url, string $apiKey, array $data, string $label, int $timeout): string
     {
@@ -8142,7 +8142,7 @@ class WAReplies
     }
 
     /**
-     * Intent classifier: urutan sesuai Env::AI_PRIORITY (groq|openai).
+     * Intent classifier: urutan sesuai Env::AI_PRIORITY (gemini|openai).
      * Provider kedua dipakai jika yang pertama gagal (timeout, HTTP, dll.).
      *
      * @param string|null $waNumber Untuk log trace
@@ -8157,7 +8157,7 @@ class WAReplies
         $temperature = \App\Config\AI::getTemperature();
         $timeout = \App\Config\AI::getTimeout();
         if ($providers === []) {
-            throw new \Exception('No OpenAI or Groq API key configured');
+            throw new \Exception('No OpenAI or Gemini API key configured');
         }
 
         $lastError = null;
@@ -8204,7 +8204,7 @@ class WAReplies
     }
 
     /**
-     * Chat completions: urutan sesuai Env::AI_PRIORITY (groq|openai).
+     * Chat completions: urutan sesuai Env::AI_PRIORITY (gemini|openai).
      *
      * @param array       $messages [['role'=>'system','content'=>...], ['role'=>'user','content'=>...]]
      * @param int         $maxTokens
@@ -8220,7 +8220,7 @@ class WAReplies
         $temperature = \App\Config\AI::getTemperature();
         $timeout = \App\Config\AI::getTimeout();
         if ($providers === []) {
-            throw new \Exception('No OpenAI or Groq API key configured');
+            throw new \Exception('No OpenAI or Gemini API key configured');
         }
 
         $lastError = null;

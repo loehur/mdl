@@ -90,12 +90,12 @@ class Env
     // -------------------------------------------------------------------------
     const OPENAI_API_KEY = 'sk-...';           // platform.openai.com
     const OPENAI_MODEL = 'gpt-4o-mini';
-    const GROQ_API_KEY = 'change-me-groq-api-key'; // console.groq.com/keys
-    const GROQ_MODEL = 'llama-3.1-8b-instant';
-    // Primary: 'groq' | 'openai'
-    // groq   = Groq dulu, OpenAI cadangan (jika OPENAI_API_KEY terisi)
-    // openai = OpenAI dulu, Groq cadangan (jika GROQ_API_KEY terisi)
-    const AI_PRIORITY = 'groq';
+    const GEMINI_API_KEY = 'change-me-gemini-api-key'; // aistudio.google.com/apikey
+    const GEMINI_MODEL = 'gemini-2.5-flash';
+    // Primary: 'gemini' | 'openai'
+    // gemini = Gemini dulu, OpenAI cadangan (jika OPENAI_API_KEY terisi)
+    // openai = OpenAI dulu, Gemini cadangan (jika GEMINI_API_KEY terisi)
+    const AI_PRIORITY = 'gemini';
 
     // -------------------------------------------------------------------------
     // Payment — TokoPay (QRIS laundry / invoice / salon)

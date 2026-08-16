@@ -9,10 +9,10 @@ namespace App\Config;
  *
  * Env.php:
  *   OPENAI_API_KEY, OPENAI_MODEL
- *   GROQ_API_KEY, GROQ_MODEL
- *   AI_PRIORITY = 'groq' | 'openai'
- *     groq   → Groq dulu, OpenAI cadangan
- *     openai → OpenAI dulu, Groq cadangan
+ *   GEMINI_API_KEY, GEMINI_MODEL
+ *   AI_PRIORITY = 'gemini' | 'openai'
+ *     gemini → Gemini dulu, OpenAI cadangan
+ *     openai → OpenAI dulu, Gemini cadangan
  */
 
 class AI
@@ -23,8 +23,8 @@ class AI
     private static $openAiApiKey = \Env::OPENAI_API_KEY ?? '';
     private static $openAiModel = \Env::OPENAI_MODEL ?? 'gpt-4o-mini';
 
-    /** Groq OpenAI-compatible API */
-    private static $groqDefaultModel = 'llama-3.1-8b-instant';
+    /** Gemini OpenAI-compatible API */
+    private static $geminiDefaultModel = 'gemini-2.5-flash';
 
     /**
      * AI Settings
@@ -55,31 +55,32 @@ class AI
     }
 
     /**
-     * Groq API key (opsional). Konstanta Env::GROQ_API_KEY — jika tidak ada, kembalikan string kosong.
+     * Gemini API key (opsional). Konstanta Env::GEMINI_API_KEY — jika tidak ada, kembalikan string kosong.
      */
-    public static function getGroqApiKey(): string
+    public static function getGeminiApiKey(): string
     {
-        if (!\defined('Env::GROQ_API_KEY')) {
+        if (!\defined('Env::GEMINI_API_KEY')) {
             return '';
         }
 
-        return (string) \Env::GROQ_API_KEY;
+        return (string) \Env::GEMINI_API_KEY;
     }
 
     /**
-     * Model Groq untuk chat completions (OpenAI-compatible).
+     * Model Gemini untuk chat completions (OpenAI-compatible).
      */
-    public static function getGroqModel(): string
+    public static function getGeminiModel(): string
     {
-        if (\defined('Env::GROQ_MODEL') && (string) \Env::GROQ_MODEL !== '') {
-            return (string) \Env::GROQ_MODEL;
+        if (\defined('Env::GEMINI_MODEL') && (string) \Env::GEMINI_MODEL !== '') {
+            return (string) \Env::GEMINI_MODEL;
         }
 
-        return self::$groqDefaultModel;
+        return self::$geminiDefaultModel;
     }
 
     /**
-     * Primary provider: groq | openai (default openai agar Env lama tetap sama).
+     * Primary provider: gemini | openai (default openai agar Env lama tetap sama).
+     * Nilai lama 'groq' dipetakan ke 'gemini'.
      */
     public static function getPriority(): string
     {
@@ -87,7 +88,10 @@ class AI
         if (\defined('Env::AI_PRIORITY')) {
             $raw = strtolower(trim((string) \Env::AI_PRIORITY));
         }
-        if (in_array($raw, ['groq', 'openai'], true)) {
+        if ($raw === 'groq') {
+            $raw = 'gemini';
+        }
+        if (in_array($raw, ['gemini', 'openai'], true)) {
             return $raw;
         }
 
@@ -108,16 +112,16 @@ class AI
             'key' => (string) self::getOpenAIApiKey(),
             'model' => (string) (self::getOpenAIModel() ?: 'gpt-4o-mini'),
         ];
-        $groq = [
-            'id' => 'groq',
-            'label' => 'Groq',
-            'url' => 'https://api.groq.com/openai/v1/chat/completions',
-            'key' => self::getGroqApiKey(),
-            'model' => self::getGroqModel(),
+        $gemini = [
+            'id' => 'gemini',
+            'label' => 'Gemini',
+            'url' => 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            'key' => self::getGeminiApiKey(),
+            'model' => self::getGeminiModel(),
         ];
-        $ordered = self::getPriority() === 'groq'
-            ? [$groq, $openai]
-            : [$openai, $groq];
+        $ordered = self::getPriority() === 'gemini'
+            ? [$gemini, $openai]
+            : [$openai, $gemini];
 
         return array_values(array_filter(
             $ordered,
@@ -127,7 +131,7 @@ class AI
         ));
     }
 
-    /** Contoh: "Groq primary (OpenAI fallback)" */
+    /** Contoh: "Gemini primary (OpenAI fallback)" */
     public static function describePriority(): string
     {
         $providers = self::getProvidersInOrder();
