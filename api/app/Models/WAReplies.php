@@ -7763,7 +7763,8 @@ class WAReplies
         bool $ask,
         string $reason,
         string $fromBlock,
-        string $aiIntentRaw = ''
+        string $aiIntentRaw = '',
+        string $aiReason = ''
     ): string {
         $parts = [
             'intent=' . $intent,
@@ -7774,7 +7775,15 @@ class WAReplies
         if ($aiRaw !== '' && $aiRaw !== strtoupper($intent)) {
             $parts[] = 'ai_intent=' . $aiRaw;
         }
-        if ($reason !== '') {
+        $aiReason = trim(preg_replace('/\s+/', ' ', $aiReason) ?? $aiReason);
+        if ($aiReason !== '') {
+            if (mb_strlen($aiReason) > 160) {
+                $aiReason = mb_substr($aiReason, 0, 160) . '…';
+            }
+            $parts[] = 'ai_reason=' . $aiReason;
+        }
+        $reason = trim(preg_replace('/\s+/', ' ', $reason) ?? $reason);
+        if ($reason !== '' && $reason !== $aiReason) {
             $parts[] = 'reason=' . $reason;
         }
 
@@ -7988,7 +7997,8 @@ class WAReplies
             }
 
             $intent = $json['intent'] ?? 'FALSE';
-            $reason = $json['reason'] ?? '';
+            $aiReason = trim(preg_replace('/\s+/', ' ', (string) ($json['reason'] ?? '')) ?? '');
+            $reason = $aiReason;
             $ask = false;
             if (array_key_exists('ask', $json)) {
                 $rawAsk = $json['ask'];
@@ -8149,7 +8159,7 @@ class WAReplies
             }
 
             // Log: text | intent | ask | from_block | reason
-            $parseDetail = $this->formatAiParseTrace($intent, $ask, $reason, $fromBlock, $aiIntentRaw);
+            $parseDetail = $this->formatAiParseTrace($intent, $ask, $reason, $fromBlock, $aiIntentRaw, $aiReason);
             if (class_exists('\Log')) {
                 \Log::write("{$textBody} | {$parseDetail}", 'wa', 'intent');
             }
