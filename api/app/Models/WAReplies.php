@@ -7020,6 +7020,15 @@ class WAReplies
         $this->getWaService()->sendFreeText($waNumber, $text);
     }
 
+    private function saldoCheckedAtLabel(): string
+    {
+        try {
+            return (new \DateTime('now', new \DateTimeZone('Asia/Jakarta')))->format('d/m/y H:i');
+        } catch (\Throwable $e) {
+            return date('d/m/y H:i');
+        }
+    }
+
     function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
@@ -7034,10 +7043,12 @@ class WAReplies
 
             if (isset($response['data']['balance'])) {
                 $balance = $response['data']['balance'];
-                $text = number_format($balance, 0, ',', '.');
+                $text = "*Saldo IAK*\n"
+                    . "Saldo: Rp " . number_format((float) $balance, 0, ',', '.') . "\n"
+                    . "Cek: " . $this->saldoCheckedAtLabel();
             } else {
                 $message = $response['data']['message'] ?? 'Unknown error';
-                $text = "Gagal: " . $message;
+                $text = "Gagal mengambil saldo IAK: " . $message;
             }
 
             $this->sendSaldoAdminText($waNumber, $text);
@@ -7239,8 +7250,10 @@ class WAReplies
 
             if ($httpCode === 200 && isset($data['amount'])) {
                 $amount = (float) $data['amount'];
-                $currency = $data['currency'] ?? 'USD';
-                $text = number_format($amount, 2, ',', '.') . " {$currency}";
+                $currency = strtoupper(trim((string) ($data['currency'] ?? 'USD')));
+                $text = "*Saldo YCloud*\n"
+                    . "Saldo: " . number_format($amount, 2, ',', '.') . " {$currency}\n"
+                    . "Cek: " . $this->saldoCheckedAtLabel();
             } else {
                 $message = $data['message'] ?? ($data['error']['message'] ?? 'Unknown error');
                 $text = "Gagal mengambil saldo YCloud: " . $message;
