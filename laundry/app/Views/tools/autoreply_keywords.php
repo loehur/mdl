@@ -42,6 +42,9 @@
             <span class="ark-badge ark-badge--ok">Sumber: database</span>
           <?php endif; ?>
           <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addIntentModal">+ Intent</button>
+          <a class="btn btn-sm btn-outline-dark" href="<?= URL::BASE_URL ?>AutoReplyKeywords/downloadAiPrompts">
+            <i class="fas fa-download"></i> Download AI prompt
+          </a>
           <button type="button" class="btn btn-sm btn-outline-success" id="btnCompactAll">Rapikan pattern</button>
           <a class="btn btn-sm btn-outline-primary" href="<?= URL::BASE_URL ?>IntentLab">Intent Lab</a>
         </div>

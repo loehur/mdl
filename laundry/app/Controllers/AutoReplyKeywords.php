@@ -79,6 +79,39 @@ class AutoReplyKeywords extends Controller
         ]);
     }
 
+    /** Unduh seluruh AI prompt yang terisi dalam satu dokumen Markdown. */
+    public function downloadAiPrompts()
+    {
+        $this->session_cek(1);
+
+        $intents = $this->dbMain()->query_array(
+            "SELECT code, ai_prompt
+             FROM wa_autoreply_intents
+             WHERE ai_prompt IS NOT NULL AND TRIM(ai_prompt) <> ''
+             ORDER BY sort_order ASC, id ASC"
+        );
+        if (!is_array($intents)) {
+            $intents = [];
+        }
+
+        $content = "# AI Prompts — Auto Reply Keywords\n\n";
+        $content .= "Dibuat: " . date('Y-m-d H:i:s') . "\n\n";
+        foreach ($intents as $intent) {
+            $code = strtoupper(trim((string) ($intent['code'] ?? '')));
+            $prompt = trim((string) ($intent['ai_prompt'] ?? ''));
+            if ($code === '' || $prompt === '') {
+                continue;
+            }
+            $content .= "=== " . $code . " ===\n\n" . $prompt . "\n\n";
+        }
+
+        $fileName = 'autoreply-ai-prompts-' . date('Ymd-His') . '.md';
+        header('Content-Type: text/markdown; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('X-Content-Type-Options: nosniff');
+        echo "\xEF\xBB\xBF" . $content;
+    }
+
     public function detail($id = 0)
     {
         $this->session_cek(1);
