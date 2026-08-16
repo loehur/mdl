@@ -278,8 +278,8 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|pelanggan_new|permintaan,
-     *       estimasi_jam?, request_granted?, reject_reason?, reject_alt?, permintaan_action?, catatan?,
+     * POST: phone, task_type=estimasi|grant|kurir_grant|kurir_estimasi|pelanggan_new,
+     *       estimasi_jam?, request_granted?, reject_reason?, reject_alt?,
      *       id_karyawan?, nama_pelanggan?, send_wa?
      */
     public function update()
@@ -296,17 +296,12 @@ class Estimasi extends Controller
             $this->echoJson(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'pelanggan_new', 'permintaan'], true)) {
-            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, pelanggan_new, atau permintaan']);
+        if (!in_array($taskType, ['estimasi', 'grant', 'kurir_grant', 'kurir_estimasi', 'pelanggan_new'], true)) {
+            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi, grant, kurir_grant, kurir_estimasi, atau pelanggan_new']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
-
-        if ($taskType === 'permintaan') {
-            $this->updatePermintaanTask($phone, $phoneEsc);
-            return;
-        }
 
         if ($taskType === 'pelanggan_new' || $taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
             $isSkip = strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip'
@@ -1180,7 +1175,7 @@ class Estimasi extends Controller
 
     /**
      * Kartu notif PERMINTAAN: hanya wa_permintaan_session (bukan conversation case 3).
-     * Case 3 ditutup saat penuhi/tolak/hapus.
+     * Kartu hilang sendiri setelah notify_expires_at.
      * @return list<array<string,mixed>>
      */
     private function getOpenPermintaanTasks(): array
@@ -1524,308 +1519,6 @@ class Estimasi extends Controller
         }
     }
 
-    /**
-     * Penuhi / Tolak / Hapus permintaan.
-     * POST: permintaan_action=hapus|fulfill|reject  (atau request_granted=1|0),
-     *       reject_reason?, reject_alt?, catatan? (wajib untuk hapus), id_karyawan?, send_wa?
-     */
-    private function updatePermintaanTask(string $phone, string $phoneEsc): void
-    {
-        @set_time_limit(120);
-
-        $action = strtolower(trim((string) ($_POST['permintaan_action'] ?? '')));
-        if ($action === '' || $action === 'fulfill' || $action === 'reject') {
-            $grantedRaw = $_POST['request_granted'] ?? null;
-            if ($action === 'fulfill') {
-                $grantedRaw = '1';
-            } elseif ($action === 'reject') {
-                $grantedRaw = '0';
-            } elseif ($grantedRaw === null || $grantedRaw === '') {
-                $grantedRaw = '1';
-            }
-            if ((string) $grantedRaw === '0') {
-                $action = 'reject';
-            } else {
-                $action = 'fulfill';
-            }
-        }
-
-        if ($action === 'hapus' || $action === 'delete' || $action === 'batal') {
-            $this->hapusPermintaanTask($phone, $phoneEsc);
-            return;
-        }
-
-        $granted = $action === 'fulfill';
-        $rejectReason = trim((string) ($_POST['reject_reason'] ?? ''));
-        $rejectAlt = trim((string) ($_POST['reject_alt'] ?? $_POST['reject_alternative'] ?? ''));
-
-        if (!$granted) {
-            if (mb_strlen($rejectReason) < 3) {
-                $this->echoJson(['ok' => 0, 'msg' => 'Untuk tolak, isi alasan (wajib)']);
-                return;
-            }
-        }
-
-        $session = $this->findOpenPermintaanSession($phone, $phoneEsc);
-
-        $summary = $this->resolvePermintaanAiSummary(
-            $phone,
-            (string) ($session['summary'] ?? ''),
-            (string) ($session['raw_log'] ?? ''),
-            true
-        );
-        if ($summary === '') {
-            $summary = 'permintaan pelanggan';
-        }
-        $sapaan = $this->resolveSapaanForPhone($phone);
-        $replyText = $this->composePermintaanReplyAi($granted, $summary, $sapaan, $rejectReason, $rejectAlt);
-
-        $status = $granted ? 'fulfilled' : 'rejected';
-        if (is_array($session) && !empty($session['phone'])) {
-            $sessPhoneEsc = $this->db(100)->escape((string) $session['phone']);
-            $up = $this->db(100)->update(
-                'wa_permintaan_session',
-                [
-                    'status' => $status,
-                    'reject_reason' => $granted ? null : $rejectReason,
-                    'reject_alt' => $granted ? null : ($rejectAlt !== '' ? $rejectAlt : null),
-                    'reply_text' => $replyText,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                    'expires_at' => date('Y-m-d H:i:s'),
-                ],
-                "phone = '" . $sessPhoneEsc . "'"
-            );
-            if (!empty($up['errno'])) {
-                $this->echoJson(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update session']);
-                return;
-            }
-            try {
-                $this->db(100)->delete('wa_permintaan_session', "phone = '" . $sessPhoneEsc . "'");
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
-
-        try {
-            $this->closePermintaanCaseQuiet($phone);
-        } catch (\Throwable $e) {
-            // case close gagal tidak boleh gagalkan response setelah state/WA
-        }
-        $this->respondAfterUpdate($phone, $replyText);
-    }
-
-    /**
-     * Hapus permintaan: tutup case 3 + hapus session, tanpa WA. Wajib catatan → activity_log.
-     */
-    private function hapusPermintaanTask(string $phone, string $phoneEsc): void
-    {
-        $catatan = trim((string) ($_POST['catatan'] ?? $_POST['reject_reason'] ?? ''));
-        if ($catatan === '') {
-            $this->echoJson(['ok' => 0, 'msg' => 'Catatan hapus wajib diisi']);
-            return;
-        }
-
-        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
-        $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
-        if ($idKaryawan < 1) {
-            $idKaryawan = $idUser;
-        }
-        $namaKaryawan = '';
-        if ($idKaryawan > 0) {
-            try {
-                $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
-                if (is_array($karyawan)) {
-                    $namaKaryawan = (string) ($karyawan['nama_user'] ?? '');
-                }
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
-        if ($namaKaryawan === '') {
-            $namaKaryawan = (string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? ('#' . $idKaryawan));
-        }
-        $idCabang = $this->currentCabangId();
-
-        $session = $this->findOpenPermintaanSession($phone, $phoneEsc);
-        $summary = trim((string) ($session['summary'] ?? ''));
-        $sessPhone = is_array($session) ? (string) ($session['phone'] ?? '') : '';
-
-        if ($sessPhone !== '') {
-            try {
-                $this->db(100)->delete(
-                    'wa_permintaan_session',
-                    "phone = '" . $this->db(100)->escape($sessPhone) . "'"
-                );
-            } catch (\Throwable $e) {
-                $this->echoJson(['ok' => 0, 'msg' => 'Gagal hapus session']);
-                return;
-            }
-        }
-
-        try {
-            $this->closePermintaanCaseQuiet($phone);
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        $phoneTail = $this->phoneKey($phone);
-
-        $log = $this->helper('ActivityLog')->write([
-            'modul' => 'permintaan',
-            'aksi' => 'hapus',
-            'id_ref' => $phoneTail,
-            'ref' => $phoneTail,
-            'id_karyawan' => $idKaryawan > 0 ? $idKaryawan : null,
-            'nama_karyawan' => strtoupper($namaKaryawan),
-            'id_user' => $idUser > 0 ? $idUser : null,
-            'id_cabang' => $idCabang > 0 ? $idCabang : null,
-            'catatan' => $catatan,
-            'meta' => [
-                'phone' => $phone,
-                'phone_tail' => $phoneTail,
-                'summary' => $summary !== '' ? mb_substr($summary, 0, 300) : null,
-                'closed_case' => 3,
-            ],
-        ]);
-        if (is_array($log) && isset($log['errno']) && (int) $log['errno'] !== 0) {
-            $this->echoJson(['ok' => 0, 'msg' => $log['error'] ?? 'Gagal menyimpan log']);
-            return;
-        }
-
-        $pendingCount = $this->syncNotifTaskCount();
-        $this->echoJson([
-            'ok' => 1,
-            'wa_ok' => 0,
-            'count' => $pendingCount,
-            'msg' => 'Permintaan dihapus',
-        ]);
-    }
-
-    /** @return array<string,mixed>|null */
-    private function findOpenPermintaanSession(string $phone, string $phoneEsc): ?array
-    {
-        try {
-            $session = $this->db(100)->get_where_row(
-                'wa_permintaan_session',
-                "phone = '" . $phoneEsc . "' AND " . $this->permintaanNotifyOpenWhereSql()
-            );
-            if (is_array($session) && !empty($session['phone'])) {
-                return $session;
-            }
-            $nomor = $this->phoneKey($phone);
-            if ($nomor !== '') {
-                $rows = $this->db(100)->query_array(
-                    "SELECT * FROM wa_permintaan_session
-                     WHERE " . $this->permintaanNotifyOpenWhereSql() . "
-                       AND " . $this->phoneLikeSql($nomor, 'phone') . "
-                     LIMIT 1"
-                );
-                if (!empty($rows[0])) {
-                    return $rows[0];
-                }
-            }
-        } catch (\Throwable $e) {
-            return null;
-        }
-        return null;
-    }
-
-    private function composePermintaanReplyAi(
-        bool $granted,
-        string $summary,
-        string $sapaan,
-        string $rejectReason,
-        string $rejectAlt
-    ): string {
-        $fallback = $granted
-            ? "Baik {$sapaan}, permintaannya sudah kami proses ya 😊"
-            : ($rejectAlt !== ''
-                ? "Maaf {$sapaan}, permintaannya belum bisa kami penuhi. Alasan: {$rejectReason}. Alternatif: {$rejectAlt}."
-                : "Maaf {$sapaan}, permintaannya belum bisa kami penuhi. Alasan: {$rejectReason}.");
-
-        try {
-            /** @var AiChat $ai */
-            $ai = $this->helper('AiChat');
-            if ($granted) {
-                $system = "Kamu CS Madinah Laundry. Buat 1 pesan WhatsApp singkat, ramah, Bahasa Indonesia.\n"
-                    . "Konfirmasi bahwa permintaan pelanggan SUDAH DIPENUHI / SELESAI.\n"
-                    . "Wajib: pakai sapaan \"{$sapaan}\", sebutkan isi permintaan secara spesifik agar nyambung.\n"
-                    . "Boleh akhiri dengan emoji senyum. Jangan pakai tanda kutip. Hanya teks balasan saja.";
-                $user = "Isi permintaan: {$summary}\nTulis balasan:";
-            } else {
-                $altNote = $rejectAlt !== ''
-                    ? "Sertakan alternatif yang ditawarkan petugas."
-                    : "JANGAN sebut alternatif (kosong). Cukup maaf + alasan.";
-                $system = "Kamu CS Madinah Laundry. Buat 1 pesan WhatsApp singkat, sopan, Bahasa Indonesia.\n"
-                    . "Tolak permintaan pelanggan dengan permintaan maaf.\n"
-                    . "Wajib: pakai sapaan \"{$sapaan}\", sebutkan permintaan secara spesifik agar nyambung, jelaskan alasan tolak.\n"
-                    . "{$altNote}\n"
-                    . "Jangan pakai tanda kutip. Hanya teks balasan saja.";
-                $user = "Isi permintaan: {$summary}\n"
-                    . "Alasan tolak: {$rejectReason}\n"
-                    . "Alternatif: " . ($rejectAlt !== '' ? $rejectAlt : '(tidak ada)') . "\n"
-                    . "Tulis balasan:";
-            }
-            $text = trim($ai->chat([
-                ['role' => 'system', 'content' => $system],
-                ['role' => 'user', 'content' => $user],
-            ], 120, 0.5));
-            $text = trim($text, " \t\n\r\0\x0B\"'");
-            if ($text === '') {
-                return $fallback;
-            }
-            return mb_substr($text, 0, 900);
-        } catch (\Throwable $e) {
-            return $fallback;
-        }
-    }
-
-    /** Tutup case 3 tanpa echo JSON (dipakai dari updatePermintaanTask). */
-    private function closePermintaanCaseQuiet(string $phone): void
-    {
-        $nomor = $this->phoneKey($phone);
-        if ($nomor === '') {
-            return;
-        }
-
-        $where = $this->waNumberLikeSql($nomor);
-        $row = $this->db(100)->get_where_row('wa_conversations', $where);
-        if (!is_array($row) || empty($row['id'])) {
-            return;
-        }
-
-        $cases = json_decode($row['conv_case'] ?? '[]', true);
-        $updated = false;
-        if (is_array($cases)) {
-            foreach ($cases as &$c) {
-                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? 'open') !== 'closed') {
-                    $c['status'] = 'closed';
-                    unset($c['timestamp']);
-                    $updated = true;
-                }
-            }
-            unset($c);
-        }
-
-        if (!$updated) {
-            return;
-        }
-
-        $this->db(100)->update(
-            'wa_conversations',
-            ['conv_case' => json_encode(array_values($cases))],
-            'id = ' . (int) $row['id']
-        );
-
-        $this->pushToWebSocket([
-            'type' => 'case_resolved',
-            'phone' => $row['wa_number'],
-            'case' => 3,
-            'target_id' => '0',
-            'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system',
-        ]);
-    }
-
     private function conversationHasOpenCase3($convCase): bool
     {
         if ($convCase === null || $convCase === '' || $convCase === '0' || $convCase === '[]') {
@@ -1895,67 +1588,6 @@ class Estimasi extends Controller
         }
 
         return null;
-    }
-
-    private function closePermintaanCase(string $phone): void
-    {
-        $nomor = $this->phoneKey($phone);
-        if ($nomor === '') {
-            echo json_encode(['ok' => 0, 'msg' => 'Nomor tidak valid']);
-            return;
-        }
-
-        $where = $this->waNumberLikeSql($nomor);
-        $row = $this->db(100)->get_where_row('wa_conversations', $where);
-        if (!is_array($row) || empty($row['id'])) {
-            echo json_encode(['ok' => 0, 'msg' => 'Conversation tidak ditemukan']);
-            return;
-        }
-
-        $cases = json_decode($row['conv_case'] ?? '[]', true);
-        $updated = false;
-        if (is_array($cases)) {
-            foreach ($cases as &$c) {
-                if (isset($c['case']) && (int) $c['case'] === 3 && ($c['status'] ?? 'open') !== 'closed') {
-                    $c['status'] = 'closed';
-                    unset($c['timestamp']);
-                    $updated = true;
-                }
-            }
-            unset($c);
-        }
-
-        if (!$updated) {
-            $pendingCount = $this->syncNotifTaskCount();
-            echo json_encode(['ok' => 1, 'count' => $pendingCount, 'msg' => 'Tidak ada case permintaan open', 'wa_ok' => 0]);
-            return;
-        }
-
-        $res = $this->db(100)->update(
-            'wa_conversations',
-            ['conv_case' => json_encode(array_values($cases))],
-            'id = ' . (int) $row['id']
-        );
-        if (!empty($res['errno'])) {
-            echo json_encode(['ok' => 0, 'msg' => 'Gagal update case']);
-            return;
-        }
-
-        $this->pushToWebSocket([
-            'type' => 'case_resolved',
-            'phone' => $row['wa_number'],
-            'case' => 3,
-            'target_id' => '0',
-            'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system',
-        ]);
-
-        $pendingCount = $this->syncNotifTaskCount();
-        echo json_encode([
-            'ok' => 1,
-            'wa_ok' => 0,
-            'count' => $pendingCount,
-            'msg' => 'Permintaan ditandai selesai',
-        ]);
     }
 
     /** Riwayat chat WA (JSON) — data via Helper\WaChatHistory, render via window.MdlWaChat. */
