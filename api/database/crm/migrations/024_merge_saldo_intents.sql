@@ -15,7 +15,7 @@ SELECT
   ), 90),
   NULL,
   NULL,
-  'Perintah admin cek saldo. IAK jika ada kata iak. Tokopay jika tokopay. YCloud jika ycloud. Bukan tarik saldo. Bukan pelanggan.',
+  'Perintah admin cek saldo. IAK jika ada kata iak. Tokopay jika tokopay. YCloud jika ycloud. DeepSeek jika deepseek. Bukan tarik saldo. Bukan pelanggan.',
   1,
   1,
   0,
@@ -46,7 +46,7 @@ LEFT JOIN (
 SET neu.ai_prompt = COALESCE(
   NULLIF(TRIM(neu.ai_prompt), ''),
   NULLIF(TRIM(oldp.prompts), ''),
-  'Perintah admin cek saldo. IAK jika ada kata iak. Tokopay jika tokopay. YCloud jika ycloud. Bukan tarik saldo. Bukan pelanggan.'
+  'Perintah admin cek saldo. IAK jika ada kata iak. Tokopay jika tokopay. YCloud jika ycloud. DeepSeek jika deepseek. Bukan tarik saldo. Bukan pelanggan.'
 )
 WHERE neu.code = 'SALDO';
 

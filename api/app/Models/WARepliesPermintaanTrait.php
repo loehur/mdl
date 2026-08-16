@@ -167,6 +167,7 @@ trait WARepliesPermintaanTrait
             'SALDO_IAK',
             'SALDO_TOKOPAY',
             'SALDO_YCLOUD',
+            'INFO_FONNTE',
         ];
         foreach ($breakout as $code) {
             $patterns = $keywordConfig[$code]['patterns'] ?? [];
