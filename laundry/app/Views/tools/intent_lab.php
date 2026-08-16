@@ -744,7 +744,7 @@
       var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent yang akan dikeluarkan', 'warn'); return; }
-      setLoading(true, 'AI menyusun keluarkan…', 'Cari pattern match + pengecualian prompt');
+      setLoading(true, 'AI merevisi prompt…', 'Susun ulang aturan TRUE/FALSE agar teks keluar dari intent');
       $('#ilBtnProposeUntouch').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
       $untouchMsg.text('');
       $teachBox.removeClass('is-show');

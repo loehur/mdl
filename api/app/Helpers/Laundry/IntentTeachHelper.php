@@ -213,7 +213,7 @@ class IntentTeachHelper
      *   intent?:string,
      *   text?:string,
      *   matching_patterns?:list<array{id:int,pattern:string,note?:string}>,
-     *   prompt_append?:string,
+     *   proposed_prompt?:string,
      *   reason?:string,
      *   has_matching_patterns?:bool,
      *   current_prompt?:string,
@@ -272,10 +272,10 @@ class IntentTeachHelper
                 return $ai;
             }
 
-            $promptAppend = trim((string) ($ai['prompt_append'] ?? ''));
+            $proposedPrompt = trim((string) ($ai['proposed_prompt'] ?? ''));
             $reason = trim((string) ($ai['reason'] ?? ''));
-            if ($promptAppend === '') {
-                $promptAppend = 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |';
+            if ($proposedPrompt === '') {
+                $proposedPrompt = (string) ($intent['ai_prompt'] ?? '');
             }
             $otherCodes = [];
             foreach ($matchingOther as $m) {
@@ -302,11 +302,10 @@ class IntentTeachHelper
                 'text' => $text,
                 'matching_patterns' => $matching,
                 'matching_other_intents' => $otherCodes,
-                'prompt_append' => $promptAppend,
                 'reason' => $reason,
                 'has_matching_patterns' => $matching !== [],
                 'current_prompt' => $currentPrompt,
-                'proposed_prompt' => self::mergePromptDraft($currentPrompt, $promptAppend),
+                'proposed_prompt' => $proposedPrompt,
             ];
         } catch (\Throwable $e) {
             return [
@@ -367,7 +366,7 @@ class IntentTeachHelper
     /**
      * @param list<string> $samplePatterns
      * @param list<array{id:int,pattern:string,note?:string,source_intent?:string}> $matching
-     * @return array{ok:bool,prompt_append?:string,reason?:string,message?:string,error?:string}
+     * @return array{ok:bool,proposed_prompt?:string,reason?:string,message?:string,error?:string}
      */
     private static function askAiForUntouchProposal(
         string $text,
@@ -382,8 +381,8 @@ class IntentTeachHelper
         if (!\App\Config\AI::isEnabled()) {
             return [
                 'ok' => true,
-                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
-                'reason' => 'AI disabled — fallback pengecualian literal.',
+                'proposed_prompt' => $currentPrompt,
+                'reason' => 'AI disabled — prompt tidak diubah.',
             ];
         }
 
@@ -392,8 +391,8 @@ class IntentTeachHelper
         if ($openaiKey === '' && $groqKey === '') {
             return [
                 'ok' => true,
-                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
-                'reason' => 'No AI key — fallback pengecualian literal.',
+                'proposed_prompt' => $currentPrompt,
+                'reason' => 'No AI key — prompt tidak diubah.',
             ];
         }
 
@@ -410,28 +409,30 @@ class IntentTeachHelper
         $patList = $samplePatterns === []
             ? '(belum ada)'
             : implode("\n", array_map(static fn ($p) => '- ' . $p, array_slice($samplePatterns, 0, 10)));
-        $promptExcerpt = mb_substr(trim($currentPrompt), 0, 1800);
-        if ($promptExcerpt === '') {
-            $promptExcerpt = '(kosong)';
+        $promptToRevise = trim($currentPrompt);
+        if ($promptToRevise === '') {
+            $promptToRevise = '(kosong)';
+        } elseif (mb_strlen($promptToRevise) > 8000) {
+            $promptToRevise = mb_substr($promptToRevise, 0, 8000);
         }
 
         $system = "Kamu membantu merawat klasifikasi intent WhatsApp laundry (PHP PCRE + prompt AI).\n"
             . "Tugas: agar pesan customer TIDAK MASUK / KELUAR dari intent target.\n"
             . "Sistem akan menonaktifkan pattern yang match teks ini (jika ada).\n"
             . "Pattern match bisa milik intent LAIN jika Cek Intent hasil remap PHP (mis. ESTIMASI_SELESAI→PERMINTAAN). Tetap sebutkan itu di reason.\n"
-            . "Aturan prompt_append:\n"
-            . "- Satu baris pendek pengecualian untuk ditambahkan ke ai_prompt\n"
-            . "- Format: BUKAN {$intentCode}: | contoh kalimat |\n"
-            . "- Jelaskan singkat bahwa contoh ini bukan intent tersebut\n"
-            . "- Bahasa Indonesia santai seperti chat customer\n"
+            . "Tugas utama: tulis ULANG ai_prompt LENGKAP agar pesan contoh tidak lagi masuk intent target.\n"
+            . "JANGAN hanya menambahkan satu baris pengecualian di akhir prompt.\n"
+            . "Pertahankan seluruh aturan/contoh yang masih relevan; ubah atau tambahkan aturan FALSE pada bagian yang tepat agar batas intent jelas.\n"
+            . "Gunakan struktur yang rapi dan konsisten: TRUE jika: dan FALSE jika:.\n"
+            . "Jangan mengarahkan ke intent lain; untuk kasus yang tidak cocok cukup tulis FALSE.\n"
             . "Balas HANYA JSON valid tanpa markdown:\n"
-            . '{"prompt_append":"BUKAN ...: | ... |","reason":"singkat"}';
+            . '{"proposed_prompt":"isi ai_prompt lengkap hasil revisi","reason":"perubahan inti secara singkat"}';
 
         $user = "Intent yang harus DILEWATI (keluarkan):\n{$intentCode}\n"
             . "Pesan customer:\n\"\"\"\n{$text}\n\"\"\"\n\n"
             . "Pattern aktif yang MATCH teks ini (akan dinonaktifkan):\n{$matchList}\n\n"
             . "Sample pattern aktif intent ini:\n{$patList}\n\n"
-            . "Cuplikan ai_prompt saat ini:\n{$promptExcerpt}\n";
+            . "AI prompt saat ini (revisi seluruh teks ini):\n{$promptToRevise}\n";
 
         $messages = [
             ['role' => 'system', 'content' => $system],
@@ -439,12 +440,12 @@ class IntentTeachHelper
         ];
 
         try {
-            $raw = self::chatCompletions($messages, 400, true);
+            $raw = self::chatCompletions($messages, 2200, true);
         } catch (\Throwable $e) {
             return [
                 'ok' => true,
-                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
-                'reason' => 'AI error — fallback: ' . mb_substr($e->getMessage(), 0, 120),
+                'proposed_prompt' => $currentPrompt,
+                'reason' => 'AI error — prompt tidak diubah: ' . mb_substr($e->getMessage(), 0, 120),
             ];
         }
 
@@ -452,17 +453,17 @@ class IntentTeachHelper
         if ($parsed === null) {
             return [
                 'ok' => true,
-                'prompt_append' => 'BUKAN ' . $intentCode . ': | ' . self::shortExample($text) . ' |',
-                'reason' => 'AI tidak mengembalikan JSON valid — fallback pengecualian.',
+                'proposed_prompt' => $currentPrompt,
+                'reason' => 'AI tidak mengembalikan JSON valid — prompt tidak diubah.',
             ];
         }
 
-        $promptAppend = trim((string) ($parsed['prompt_append'] ?? ''));
+        $proposedPrompt = trim((string) ($parsed['proposed_prompt'] ?? ''));
         $reason = trim((string) ($parsed['reason'] ?? 'Usulan AI keluarkan'));
 
         return [
             'ok' => true,
-            'prompt_append' => $promptAppend,
+            'proposed_prompt' => $proposedPrompt,
             'reason' => $reason,
         ];
     }
