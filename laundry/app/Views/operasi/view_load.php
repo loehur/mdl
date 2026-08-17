@@ -80,22 +80,8 @@ $labeled = false;
     }
     $refIsOverpay = ($dibayarRefGate > $tagihanRefGate);
 
-    // Hapus per item: multi-item, tuntas=0, tidak overpay (boleh sudah ada bayar)
+    // Hapus per item: multi-item + tidak overpay (boleh sudah ada bayar / sudah ada operasi)
     $canDeleteItemFromRef = ($modeView != 2 && $countItem[$ref] > 1 && !$refIsOverpay);
-    if ($canDeleteItemFromRef) {
-      foreach ($c_list as $itemCheck) {
-        if ((int) ($itemCheck['tuntas'] ?? 0) !== 0) {
-          $canDeleteItemFromRef = false;
-          break;
-        }
-        foreach ((array) ($data['operasi'] ?? []) as $operasiCheck) {
-          if (($operasiCheck['id_penjualan'] ?? '') == ($itemCheck['id_penjualan'] ?? '')) {
-            $canDeleteItemFromRef = false;
-            break 2;
-          }
-        }
-      }
-    }
 
     foreach ($c_list as $a) {
       $f18 = $a['id_user'];
@@ -186,6 +172,7 @@ $labeled = false;
             $tuntas = (int) ($a['tuntas'] ?? 0);
             $canEditItem = ($member == 0 && $modeView != 2 && $tuntas === 0);
             $canEditQty = ($modeView != 2 && $tuntas === 0 && !$refIsOverpay);
+            $canDeleteThisItem = ($canDeleteItemFromRef && $tuntas === 0);
             $showMember = "";
             $countMember[$ref] += $member;
 
@@ -462,7 +449,7 @@ $labeled = false;
               ?>
               <td nowrap class='text-center'>
                 <a href='#' class='mb-1 text-secondary' data-print-id='<?= $id ?>'><i class='fas fa-print'></i></a><br>
-                <?php if ($canDeleteItemFromRef) { ?>
+                <?php if ($canDeleteThisItem) { ?>
                   <a href="#" class="hapusItemNota text-danger" data-id="<?= htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') ?>" data-ref="<?= htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') ?>" data-item="<?= htmlspecialchars((string) $kategori, ENT_QUOTES, 'UTF-8') ?>" title="Hapus item" role="button"><i class="fas fa-trash-alt"></i></a><br>
                 <?php } ?>
                 <?php

@@ -597,26 +597,6 @@ class Operasi extends Controller
          return;
       }
 
-      $ids = [];
-      foreach ($items as $item) {
-         if ((int) ($item['tuntas'] ?? 0) !== 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena nota sudah tuntas.']);
-            return;
-         }
-         $ids[] = "'" . $this->db(0)->escape($this->normalizeSaleId($item['id_penjualan'])) . "'";
-      }
-      if (!empty($ids)) {
-         $operationCount = $this->db(0)->count_where('operasi', $this->wCabang . ' AND id_penjualan IN (' . implode(',', $ids) . ')');
-         if (!is_numeric($operationCount)) {
-            echo json_encode(['status' => 'error', 'message' => 'Gagal memeriksa status operasi. Silakan coba lagi.']);
-            return;
-         }
-         if ((int) $operationCount > 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena sudah ada layanan yang diselesaikan pada nota ini.']);
-            return;
-         }
-      }
-
       $update = $this->db(0)->update('sale', ['bin' => 1, 'bin_note' => $note], $this->whereSaleById($idPenjualan) . ' AND bin = 0');
       if (($update['errno'] ?? 1) != 0) {
          $this->model('Log')->write("[Operasi::hapusItem] Gagal hapus item id=$idPenjualan: " . ($update['error'] ?? ''));
