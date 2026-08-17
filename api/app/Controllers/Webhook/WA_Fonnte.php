@@ -43,15 +43,41 @@ class WA_Fonnte extends Controller
 
         $json = file_get_contents('php://input');
         $data = json_decode($json, true);
+        if (! is_array($data) || $data === []) {
+            if (! empty($_POST) && is_array($_POST)) {
+                $data = $_POST;
+            } elseif (is_string($json) && $json !== '') {
+                parse_str($json, $parsed);
+                $data = is_array($parsed) ? $parsed : [];
+            }
+        }
 
-        if (!$data) {
-            \Log::write('WA_Fonnte: Invalid JSON', 'webhook', 'Fonnte');
+        if (! is_array($data) || $data === []) {
+            \Log::write('WA_Fonnte: Invalid JSON body=' . mb_substr((string) $json, 0, 300), 'webhook', 'Fonnte');
             echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
 
             return;
         }
 
-        // Webhook status outbound (API send): update by fonnte_message_id, tanpa insert baru
+        if (class_exists('\\Log')) {
+            \Log::write(
+                'WA_Fonnte inbound keys=' . implode(',', array_keys($data))
+                . ' payload=' . mb_substr(json_encode($data, JSON_UNESCAPED_UNICODE), 0, 500),
+                'webhook',
+                'Fonnte'
+            );
+        }
+
+        // Connect webhook: device + connect/disconnect, bukan status pesan
+        $deviceStatus = strtolower(trim((string) ($data['status'] ?? '')));
+        if (in_array($deviceStatus, ['connect', 'disconnect', 'connected', 'disconnected'], true)
+            && empty($data['id']) && empty($data['stateid']) && empty($data['sender'])) {
+            echo json_encode(['status' => 'ok']);
+
+            return;
+        }
+
+        // Webhook status outbound (API send): update by fonnte_message_id / stateid
         if ($this->isFonnteStatusWebhook($data)) {
             $this->handleFonnteStatusWebhook($data);
             echo json_encode(['status' => 'ok']);
@@ -544,17 +570,24 @@ class WA_Fonnte extends Controller
      */
     private function isFonnteStatusWebhook(array $data): bool
     {
-        $looksInbound = isset($data['sender']) && $data['sender'] !== '';
-        if ($looksInbound) {
+        $hasId = isset($data['id']) && $data['id'] !== '' && $data['id'] !== null;
+        $hasStateId = isset($data['stateid']) && $data['stateid'] !== '' && $data['stateid'] !== null;
+        $hasState = isset($data['state']) && $data['state'] !== '' && $data['state'] !== null;
+        $hasStatus = isset($data['status']) && $data['status'] !== '';
+
+        // state / stateid hanya ada di webhook Message Status (bukan chat masuk)
+        if ($hasStateId || $hasState) {
+            return true;
+        }
+
+        $hasChatBody = (isset($data['message']) && trim((string) $data['message']) !== '')
+            || (isset($data['inboxid']) && $data['inboxid'] !== '' && $data['inboxid'] !== null)
+            || (isset($data['url']) && trim((string) $data['url']) !== '');
+        if ($hasChatBody) {
             return false;
         }
 
-        $hasId = isset($data['id']) && $data['id'] !== '' && $data['id'] !== null;
-        $hasStateId = isset($data['stateid']) && $data['stateid'] !== '' && $data['stateid'] !== null;
-        $hasStatusOrState = (isset($data['status']) && $data['status'] !== '')
-            || (isset($data['state']) && $data['state'] !== '' && $data['state'] !== null);
-
-        return ($hasId || $hasStateId) && $hasStatusOrState;
+        return $hasId && $hasStatus;
     }
 
     /**
@@ -567,6 +600,7 @@ class WA_Fonnte extends Controller
             $ids = is_array($rawId) ? $rawId : [$rawId];
             $rawStatus = isset($data['status']) ? (string) $data['status'] : '';
             $rawState = $data['state'] ?? null;
+            $stateId = trim((string) ($data['stateid'] ?? ''));
 
             if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
                 require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
@@ -581,6 +615,7 @@ class WA_Fonnte extends Controller
             $store = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
             $normalizedStatus = \App\Helpers\CRM\FonnteMessageStore::normalizeFonnteOutboundStatus($rawStatus, $rawState);
 
+            $matched = false;
             foreach ($ids as $id) {
                 $idStr = trim((string) $id);
                 if ($idStr === '') {
@@ -589,8 +624,12 @@ class WA_Fonnte extends Controller
 
                 $row = $store->updateOutgoingByFonnteMessageId($idStr, [
                     'status' => $normalizedStatus,
+                    'fonnte_stateid' => $stateId !== '' ? $stateId : null,
                     'sender_code' => \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY,
                 ]);
+                if ($row) {
+                    $matched = true;
+                }
 
                 if (! $row) {
                     if (class_exists('\Log')) {
@@ -612,6 +651,33 @@ class WA_Fonnte extends Controller
                 }
 
                 $this->pushFonnteStatusUpdate($row, $idStr, $normalizedStatus);
+            }
+
+            // Fonnte sering kirim update delivered/read hanya dengan stateid (tanpa id)
+            if (! $matched && $stateId !== '') {
+                $row = $store->updateOutgoingByFonnteStateId($stateId, [
+                    'status' => $normalizedStatus,
+                    'sender_code' => \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY,
+                ]);
+                if (! $row) {
+                    if (class_exists('\Log')) {
+                        \Log::write(
+                            "WA_Fonnte status: no out row for stateid={$stateId} status={$rawStatus} state=" . (string) $rawState,
+                            'webhook',
+                            'Fonnte'
+                        );
+                    }
+                } else {
+                    $idStr = (string) ($row->fonnte_message_id ?? '');
+                    if (class_exists('\Log')) {
+                        \Log::write(
+                            "WA_Fonnte status: stateid={$stateId} {$rawStatus}/" . (string) $rawState . " -> {$normalizedStatus}",
+                            'webhook',
+                            'Fonnte'
+                        );
+                    }
+                    $this->pushFonnteStatusUpdate($row, $idStr, $normalizedStatus);
+                }
             }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte status webhook: ' . $e->getMessage(), 'webhook', 'Fonnte');

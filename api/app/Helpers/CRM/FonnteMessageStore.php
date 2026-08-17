@@ -237,7 +237,7 @@ class FonnteMessageStore
      * Update outbound by fonnte_message_id (webhook status). Tidak insert baru.
      * Mengisi sender_code=AR bila masih kosong.
      *
-     * @param array{status?:string,state?:string,sender_code?:string} $fields
+     * @param array{status?:string,state?:string,sender_code?:string,fonnte_stateid?:string|null} $fields
      * @return object|null Baris setelah update (untuk push WS), null jika tidak ketemu
      */
     public function updateOutgoingByFonnteMessageId(string $fonnteMessageId, array $fields = [])
@@ -254,13 +254,53 @@ class FonnteMessageStore
             return null;
         }
 
+        return $this->applyOutgoingStatusUpdate($existing, $fields);
+    }
+
+    /**
+     * Update outbound by Fonnte stateid (delivered/read tanpa field id).
+     *
+     * @param array{status?:string,sender_code?:string} $fields
+     * @return object|null
+     */
+    public function updateOutgoingByFonnteStateId(string $stateId, array $fields = [])
+    {
+        $stateId = trim($stateId);
+        if ($stateId === '' || !$this->hasFonnteStateIdColumn()) {
+            return null;
+        }
+
+        $existing = $this->db->get_where('wa_fonnte_messages_out', [
+            'fonnte_stateid' => mb_substr($stateId, 0, 64),
+        ], 1)->row();
+        if (!$existing) {
+            return null;
+        }
+
+        return $this->applyOutgoingStatusUpdate($existing, $fields);
+    }
+
+    /**
+     * @param object $existing
+     * @param array{status?:string,sender_code?:string,fonnte_stateid?:string|null} $fields
+     * @return object|null
+     */
+    private function applyOutgoingStatusUpdate($existing, array $fields)
+    {
         if (!class_exists(SapaanStatsHelper::class)) {
             require_once __DIR__ . '/SapaanStatsHelper.php';
         }
 
         $update = [];
         if (isset($fields['status']) && $fields['status'] !== '') {
-            $update['status'] = mb_substr((string) $fields['status'], 0, 32);
+            $next = mb_substr((string) $fields['status'], 0, 32);
+            $current = (string) ($existing->status ?? '');
+            if ($this->statusRank($next) >= $this->statusRank($current)) {
+                $update['status'] = $next;
+            }
+        }
+        if ($this->hasFonnteStateIdColumn() && !empty($fields['fonnte_stateid'])) {
+            $update['fonnte_stateid'] = mb_substr((string) $fields['fonnte_stateid'], 0, 64);
         }
         if (isset($fields['error_text'])) {
             $update['error_text'] = $fields['error_text'] !== null && $fields['error_text'] !== ''
@@ -276,8 +316,6 @@ class FonnteMessageStore
             if (($existing->source ?? '') === 'autoreply' || ($existing->source ?? '') === '') {
                 $update['source'] = 'autoreply';
             }
-        } elseif (isset($fields['sender_code']) && trim((string) $fields['sender_code']) !== '') {
-            $update['sender_code'] = mb_substr(trim((string) $fields['sender_code']), 0, 32);
         }
 
         if ($update === []) {
@@ -287,7 +325,7 @@ class FonnteMessageStore
         $ok = $this->db->update('wa_fonnte_messages_out', $update, ['id' => (int) $existing->id]);
         if (!$ok && class_exists('\Log')) {
             $err = $this->db->conn()->error ?? 'unknown';
-            \Log::write('FonnteMessageStore: updateOutgoingByFonnteMessageId failed: ' . $err, 'webhook', 'Fonnte');
+            \Log::write('FonnteMessageStore: applyOutgoingStatusUpdate failed: ' . $err, 'webhook', 'Fonnte');
         }
 
         if (!$ok) {
@@ -297,6 +335,44 @@ class FonnteMessageStore
         $row = $this->db->get_where('wa_fonnte_messages_out', ['id' => (int) $existing->id], 1)->row();
 
         return $row ?: null;
+    }
+
+    private function statusRank(string $status): int
+    {
+        $map = [
+            'failed' => -1,
+            'error' => -1,
+            'pending' => 0,
+            'processing' => 0,
+            'waiting' => 0,
+            'sent' => 1,
+            'delivered' => 2,
+            'read' => 3,
+        ];
+
+        return $map[strtolower(trim($status))] ?? 0;
+    }
+
+    private function hasFonnteStateIdColumn(): bool
+    {
+        static $ready = null;
+        if ($ready !== null) {
+            return $ready;
+        }
+        try {
+            $row = $this->db->query(
+                "SELECT 1 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'wa_fonnte_messages_out'
+                   AND COLUMN_NAME = 'fonnte_stateid'
+                 LIMIT 1"
+            )->row();
+            $ready = (bool) $row;
+        } catch (\Throwable $e) {
+            $ready = false;
+        }
+
+        return $ready;
     }
 
     /**
