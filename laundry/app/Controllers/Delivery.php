@@ -2498,7 +2498,8 @@ class Delivery extends Controller
          if ($jenis === 'antar' && !$isInstant) {
             $siapSelesai = $hasLokasi && $siapCount > 0;
          } elseif ($jenis === 'jemput') {
-            $siapSelesai = $siapCount > 0;
+            // Jemput selalu di section "Siap diselesaikan" (badge blokir boleh tetap tampil)
+            $siapSelesai = true;
          }
 
          $rq['has_lokasi'] = $hasLokasi;

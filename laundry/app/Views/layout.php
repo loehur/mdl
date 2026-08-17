@@ -2207,9 +2207,11 @@ if ($privUi === 100) {
                 <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--refresh refresh" href="#" title="Refresh data">
                     <i class="fas fa-sync"></i>
                 </a>
-                <a class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--logout" href="<?= URL::BASE_URL ?>Login/logout" role="button" title="Logout">
+                <button type="button" class="mdl-tbtn mdl-tbtn--icon mdl-tbtn--logout" id="btnLogoutTop"
+                    data-logout-url="<?= URL::BASE_URL ?>Login/logout"
+                    title="Logout" aria-label="Logout">
                     <i class="fas fa-sign-out-alt"></i>
-                </a>
+                </button>
             </div>
         </nav>
 
@@ -2641,6 +2643,25 @@ if ($privUi === 100) {
         </div>
         <?php } ?>
 
+        <div class="mdl-key-modal" id="modalLogoutConfirm" aria-hidden="true">
+            <div class="mdl-key-modal__backdrop" data-logout-close></div>
+            <div class="mdl-key-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalLogoutConfirmLabel">
+                <div class="mdl-key-modal__head">
+                    <h3 id="modalLogoutConfirmLabel"><i class="fas fa-sign-out-alt"></i> Logout</h3>
+                    <button type="button" class="mdl-key-modal__close" data-logout-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="mdl-key-modal__body">
+                    <p>Yakin ingin keluar dari akun ini?</p>
+                </div>
+                <div class="mdl-key-modal__foot">
+                    <button type="button" class="mdl-key-modal__btn" data-logout-close>Batal</button>
+                    <button type="button" class="mdl-key-modal__btn mdl-key-modal__btn--primary" id="btnLogoutConfirm">
+                        <i class="fas fa-sign-out-alt"></i> Ya, Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <span data-bs-dismiss="modal"></span>
         <div class="content-wrapper px-2 pt-2" style="min-width: 0; max-width: 100vw;">
             <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
@@ -2817,6 +2838,39 @@ if ($privUi === 100) {
                         }
                     });
                 });
+
+                (function initLogoutConfirmModal() {
+                    var $btn = $("#btnLogoutTop");
+                    var $modal = $("#modalLogoutConfirm");
+                    if (!$btn.length || !$modal.length) return;
+
+                    var logoutUrl = String($btn.attr("data-logout-url") || "").trim();
+
+                    function openLogoutModal() {
+                        $modal.addClass("is-open").attr("aria-hidden", "false");
+                    }
+
+                    function closeLogoutModal() {
+                        $modal.removeClass("is-open").attr("aria-hidden", "true");
+                    }
+
+                    $btn.on("click", function(e) {
+                        e.preventDefault();
+                        openLogoutModal();
+                    });
+                    $modal.on("click", "[data-logout-close]", function() {
+                        closeLogoutModal();
+                    });
+                    $("#btnLogoutConfirm").on("click", function() {
+                        if (!logoutUrl) return;
+                        window.location.href = logoutUrl;
+                    });
+                    $(document).on("keydown.mdlLogoutModal", function(e) {
+                        if (e.key === "Escape" && $modal.hasClass("is-open")) {
+                            closeLogoutModal();
+                        }
+                    });
+                })();
 
                 (function initAdminKeyModal() {
                     var $keyModal = $("#modalAdminKey");
