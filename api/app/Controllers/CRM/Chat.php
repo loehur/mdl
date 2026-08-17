@@ -237,32 +237,34 @@ class Chat extends Controller
 
     public function getMessages()
     {
-        $phone = $this->query('phone');
-        if (!$phone) $this->error('Phone required');
+        try {
+            $phone = $this->query('phone');
+            if (!$phone) {
+                $this->error('Phone required');
+            }
 
-        // Pagination parameters
-        $offset = (int)($this->query('offset') ?? 0);
-        $limit = (int)($this->query('limit') ?? 20);
-        
-        // Safety: Max 100 per request
-        if ($limit > 100) $limit = 100;
-        if ($offset < 0) $offset = 0;
+            $offset = (int) ($this->query('offset') ?? 0);
+            $limit = (int) ($this->query('limit') ?? 20);
+            if ($limit > 100) {
+                $limit = 100;
+            }
+            if ($offset < 0) {
+                $offset = 0;
+            }
 
-        $db = $this->db(0);
+            $db = $this->db(0);
 
-        $nomor = WaSenderContext::toNomorNasional($phone);
-        if ($nomor === null) {
-            $this->error('Phone required');
-        }
-        $like = '%' . $nomor;
-        $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
+            $nomor = WaSenderContext::toNomorNasional($phone);
+            if ($nomor === null) {
+                $this->error('Phone required');
+            }
+            $like = '%' . $nomor;
+            $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
+            $fetchLimit = $limit + 1;
 
-        // Fetch limit+1 to check if there's more data
-        $fetchLimit = $limit + 1;
+            $includeFonnte = CrmChatMergeHelper::fonnteMessageTablesReady($db);
 
-        $sql = "
-            SELECT * FROM (
-                SELECT * FROM (
+            $ycloudUnion = "
                     (SELECT 
                         id,
                         wamid,
@@ -299,7 +301,9 @@ class Chat extends Controller
                         COALESCE(`private`, 0) as `private`,
                         'Y' as provider
                      FROM wa_messages_out 
-                     WHERE {$phoneExpr} LIKE ?)
+                     WHERE {$phoneExpr} LIKE ?)";
+
+            $fonnteUnion = "
                     UNION ALL
                     (SELECT 
                         id,
@@ -337,51 +341,70 @@ class Chat extends Controller
                         0 as `private`,
                         'F' as provider
                      FROM wa_fonnte_messages_out
-                     WHERE {$phoneExpr} LIKE ?)
+                     WHERE {$phoneExpr} LIKE ?)";
+
+            $sql = "
+            SELECT * FROM (
+                SELECT * FROM (
+                    {$ycloudUnion}
+                    " . ($includeFonnte ? $fonnteUnion : '') . "
                 ) AS combined_msgs
                 ORDER BY time DESC
                 LIMIT ? OFFSET ?
             ) AS latest_msgs
             ORDER BY time ASC
         ";
-        
-        // Use result_array() instead of result() to get arrays directly
-        $messages = $db->query($sql, [$like, $like, $like, $like, $fetchLimit, $offset])->result_array();
-        
-        // Normalize private field to integer (0 or 1) for consistent frontend handling
-        foreach ($messages as &$msg) {
-            // Ensure private field exists and is integer
-            // Handle both array key access and potential null values
-            $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
-            
-            if ($privateValue !== null && $privateValue !== '' && $privateValue !== false) {
-                $msg['private'] = (int)$privateValue;
-            } else {
-                $msg['private'] = 0;
+
+            $params = [$like, $like];
+            if ($includeFonnte) {
+                $params[] = $like;
+                $params[] = $like;
+            }
+            $params[] = $fetchLimit;
+            $params[] = $offset;
+
+            $messages = $db->query($sql, $params)->result_array();
+
+            foreach ($messages as &$msg) {
+                $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
+                if ($privateValue !== null && $privateValue !== '' && $privateValue !== false) {
+                    $msg['private'] = (int) $privateValue;
+                } else {
+                    $msg['private'] = 0;
+                }
+
+                $provider = strtoupper((string) ($msg['provider'] ?? 'Y'));
+                $msg['provider'] = ($provider === 'F') ? 'F' : 'Y';
+                $rawId = $msg['id'] ?? 0;
+                $msg['id'] = $msg['provider'] . '-' . $rawId;
+            }
+            unset($msg);
+
+            $hasMore = count($messages) > $limit;
+            if ($hasMore) {
+                array_shift($messages);
             }
 
-            $provider = strtoupper((string) ($msg['provider'] ?? 'Y'));
-            $msg['provider'] = ($provider === 'F') ? 'F' : 'Y';
-            $rawId = $msg['id'] ?? 0;
-            $msg['id'] = $msg['provider'] . '-' . $rawId;
+            $this->success([
+                'messages' => $messages,
+                'has_more' => $hasMore,
+                'offset' => $offset,
+                'limit' => $limit,
+                'total_returned' => count($messages),
+                'fonnte_merged' => $includeFonnte,
+            ]);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('[getMessages] ' . $e->getMessage(), 'cms', 'chat');
+            }
+            http_response_code(500);
+            echo json_encode([
+                'status' => false,
+                'message' => 'PHP Error in getMessages',
+                'error' => $e->getMessage(),
+            ]);
+            exit;
         }
-        unset($msg); // Break reference
-        
-        // Check if there are more messages
-        $hasMore = count($messages) > $limit;
-        
-        // Trim to actual limit (remove OLDEST message, not newest)
-        if ($hasMore) {
-            array_shift($messages); // Remove first (oldest) element
-        }
-        
-        $this->success([
-            'messages' => $messages,
-            'has_more' => $hasMore,
-            'offset' => $offset,
-            'limit' => $limit,
-            'total_returned' => count($messages)
-        ]);
     }
 
 

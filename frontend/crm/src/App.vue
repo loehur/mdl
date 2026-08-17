@@ -1431,13 +1431,18 @@ const sanitizeMessages = (messages) => {
 // --- Methods ---
 const fetchMessages = async (phone, offset = 0, limit = 20) => {
   try {
-    // Add cache buster
+    const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
+    const safeLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const phoneParam = encodeURIComponent(phone || "");
     const response = await fetch(
-      `${API_BASE}/CRM/Chat/getMessages?phone=${phone}&offset=${offset}&limit=${limit}&_t=${Date.now()}`
+      `${API_BASE}/CRM/Chat/getMessages?phone=${phoneParam}&offset=${safeOffset}&limit=${safeLimit}&_t=${Date.now()}`
     );
     const result = await response.json();
 
-    if (result.status) {
+    if (!response.ok || !result.status) {
+      console.error("getMessages failed:", result?.error || result?.message || response.status);
+      return { messages: [], has_more: false };
+    }
       // Handle both old format (array) and new format (object with messages)
       const messagesData = Array.isArray(result.data) ? result.data : (result.data?.messages || []);
       const hasMore = result.data?.has_more ?? false;
@@ -1483,7 +1488,6 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
         messages: sanitizeMessages(mappedMessages),
         has_more: hasMore
       };
-    }
   } catch (e) {
     console.error("Error loading messages:", e);
   }

@@ -244,6 +244,33 @@ class CrmChatMergeHelper
         return $err === '' && $httpCode > 0 && $httpCode < 400;
     }
 
+    /** Tabel riwayat Fonnte sudah dimigrasi di db CRM (mdl_main). */
+    public static function fonnteMessageTablesReady($db): bool
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        try {
+            foreach (['wa_fonnte_messages_in', 'wa_fonnte_messages_out'] as $table) {
+                $q = $db->query(
+                    'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1',
+                    [$table]
+                );
+                if (!$q || $q->num_rows() === 0) {
+                    $cache = false;
+
+                    return false;
+                }
+            }
+            $cache = true;
+        } catch (\Throwable $e) {
+            $cache = false;
+        }
+
+        return $cache;
+    }
+
     /**
      * @return array{last_message:?string,last_message_time:?string}
      */
