@@ -480,25 +480,25 @@ if (isset($data['data_operasi'])) {
         .main-header.mdl-topbar {
             display: block;
             padding: 8px 10px !important;
-            /* Soft blue (kasir / default) */
-            background: linear-gradient(105deg, #5b8def 0%, #7aa7f5 100%) !important;
-            background-image: linear-gradient(105deg, #5b8def 0%, #7aa7f5 100%) !important;
-            border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+            /* Soft blue (kasir / default) — lebih soft/terang */
+            background: linear-gradient(105deg, #9ec0f8 0%, #c5d9fc 100%) !important;
+            background-image: linear-gradient(105deg, #9ec0f8 0%, #c5d9fc 100%) !important;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
             min-height: 0;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 1px 8px rgba(15, 23, 42, 0.05);
             transition: border-bottom-color .2s ease, border-bottom-width .2s ease, box-shadow .2s ease;
         }
-        /* Priv 100 (admin): soft merah */
+        /* Priv 100 (admin): soft merah — lebih soft/terang */
         body.mode-priv-100 .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #e86a6a 0%, #f08b8b 100%) !important;
-            background-image: linear-gradient(105deg, #e86a6a 0%, #f08b8b 100%) !important;
-            border-bottom-color: rgba(127, 29, 29, 0.18);
+            background: linear-gradient(105deg, #f3a4a4 0%, #f8c4c4 100%) !important;
+            background-image: linear-gradient(105deg, #f3a4a4 0%, #f8c4c4 100%) !important;
+            border-bottom-color: rgba(127, 29, 29, 0.12);
         }
-        /* Priv 12 (kurir): soft cyan */
+        /* Priv 12 (kurir): soft cyan — lebih soft/terang */
         body.mode-priv-12 .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #2eb8cc 0%, #5ccfde 100%) !important;
-            background-image: linear-gradient(105deg, #2eb8cc 0%, #5ccfde 100%) !important;
-            border-bottom-color: rgba(21, 94, 117, 0.18);
+            background: linear-gradient(105deg, #7dd5e4 0%, #b0e8f0 100%) !important;
+            background-image: linear-gradient(105deg, #7dd5e4 0%, #b0e8f0 100%) !important;
+            border-bottom-color: rgba(21, 94, 117, 0.12);
         }
         /* Ada notifikasi: border-bottom merah pekat tebal + berkedip */
         @keyframes mdl-topbar-notif-border {
@@ -611,7 +611,7 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell {
             position: relative;
             border-color: transparent;
-            color: #7f1d1d;
+            color: #ff1a1a;
             background: transparent;
             padding: 0;
             width: 34px;
@@ -620,16 +620,20 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell i {
             font-size: 22px;
             line-height: 1;
-            color: #7f1d1d;
+            color: #ff1a1a;
+            /* Merah solid ngejreng (bukan outline gelap) */
+            -webkit-text-stroke: 0;
+            text-shadow: 0 0 0.5px #ff1a1a, 0 1px 0 rgba(0, 0, 0, 0.12);
         }
         .mdl-tbtn--bell:hover {
             background: transparent;
             border-color: transparent;
-            color: #991b1b;
+            color: #ff0000;
             filter: none;
         }
         .mdl-tbtn--bell:hover i {
-            color: #991b1b;
+            color: #ff0000;
+            text-shadow: 0 0 0.5px #ff0000, 0 1px 0 rgba(0, 0, 0, 0.14);
         }
         .mdl-tbtn--bell:active {
             transform: none;
@@ -637,15 +641,16 @@ if (isset($data['data_operasi'])) {
         @keyframes mdl-bell-blink {
             0%, 100% {
                 opacity: 1;
-                color: #7f1d1d;
+                color: #ff1a1a;
             }
             50% {
-                opacity: 0.35;
-                color: #dc2626;
+                opacity: 0.55;
+                color: #ff3333;
             }
         }
         .mdl-tbtn--bell.has-notif i {
             animation: mdl-bell-blink 0.9s ease-in-out infinite;
+            color: #ff1a1a;
         }
         .mdl-bell-badge {
             position: absolute;
@@ -1321,9 +1326,9 @@ if (isset($data['data_operasi'])) {
         }
 
         body.mode-training .main-header.mdl-topbar {
-            background: linear-gradient(105deg, #e8b03a 0%, #f0c65c 100%) !important;
-            background-image: linear-gradient(105deg, #e8b03a 0%, #f0c65c 100%) !important;
-            border-bottom-color: rgba(146, 64, 14, 0.2);
+            background: linear-gradient(105deg, #f0c86e 0%, #f7dfa0 100%) !important;
+            background-image: linear-gradient(105deg, #f0c86e 0%, #f7dfa0 100%) !important;
+            border-bottom-color: rgba(146, 64, 14, 0.12);
         }
         body.mode-training .main-header.mdl-topbar.has-notif {
             border-bottom-color: #7f1d1d;
