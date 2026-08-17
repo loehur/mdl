@@ -468,9 +468,22 @@ class WAReplies
     }
 
     /**
-     * Handler di AutoReplyKeywords tanpa ai_prompt = regex-only / perintah admin, tanpa cooldown.
+     * Tidak ada reply tanpa cooldown. Dulu: perintah admin / tanpa ai_prompt di-skip.
      */
     private function handlerSkipsAutoreplyRateLimit(string $handler): bool
+    {
+        return false;
+    }
+
+    private function senderIsStaff(): bool
+    {
+        $ctx = $this->senderContext ?? [];
+
+        return !empty($ctx['is_admin']) || !empty($ctx['is_karyawan']);
+    }
+
+    /** Intent gerbang admin/karyawan di DB (SALDO, slip gaji, dll.). */
+    private function intentIsStaffTarget(string $handler): bool
     {
         $h = strtoupper($handler);
         if (in_array($h, ['SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE'], true)) {
@@ -479,20 +492,25 @@ class WAReplies
         if ($this->autoreplyKeywordConfig === null) {
             $this->autoreplyKeywordConfig = $this->loadAutoreplyKeywordConfig();
         }
-        $config = $this->autoreplyKeywordConfig[$handler] ?? null;
+        $config = $this->autoreplyKeywordConfig[$handler]
+            ?? $this->autoreplyKeywordConfig[$h]
+            ?? null;
         if ($config === null) {
             return false;
         }
 
-        return !isset($config['ai_prompt']);
+        return !empty($config['is_admin']) || !empty($config['is_karyawan']);
     }
 
     /**
      * Durasi cooldown per handler (menit). Default 1; jam operasional/tutup = 60;
-     * MINTA_JEMPUT_ANTAR = 1440 (24 jam, sama seperti DEFAULT fallback CS/Admin menunggu).
+     * PEMBUKA = 30. Admin/karyawan (pengirim atau intent staf) selalu 1 menit.
      */
     private function getAutoreplyCooldownMinutes(string $handler): int
     {
+        if ($this->senderIsStaff() || $this->intentIsStaffTarget($handler)) {
+            return 1;
+        }
         $h = strtoupper($handler);
         if ($h === 'PEMBUKA') {
             return self::PEMBUKA_RECENT_CHAT_MINUTES;
@@ -501,7 +519,6 @@ class WAReplies
             return 60;
         }
         if ($h === 'MINTA_JEMPUT_ANTAR' || $h === 'LOKASI' || $h === 'PERMINTAAN') {
-            // Multi-turn session aktif: jangan blok 24 jam
             return 1;
         }
 
@@ -625,12 +642,16 @@ class WAReplies
     /** Sapaan PEMBUKA / sisipan: diam jika percakapan masih hangat. */
     private function pembukaShouldSkipGreeting(string $waNumber): bool
     {
-        return $this->hasRecentOutboundMessage($waNumber, self::PEMBUKA_RECENT_CHAT_MINUTES);
+        $minutes = ($this->senderIsStaff())
+            ? 1
+            : self::PEMBUKA_RECENT_CHAT_MINUTES;
+
+        return $this->hasRecentOutboundMessage($waNumber, $minutes);
     }
 
     /**
      * Intent yang tetap boleh autoreply saat agent manusia baru aktif.
-     * Data/self-service + perintah admin (tanpa ai_prompt).
+     * Data/self-service + perintah admin/karyawan.
      */
     private function isIntentAllowedDuringHumanActive(string $handler): bool
     {
@@ -651,7 +672,7 @@ class WAReplies
             return true;
         }
 
-        return $this->handlerSkipsAutoreplyRateLimit($handler);
+        return $this->intentIsStaffTarget($handler);
     }
 
     /**
@@ -691,6 +712,9 @@ class WAReplies
             return false;
         }
         $cooldownMinutes = $cooldownMinutes ?? $this->getAutoreplyCooldownMinutes($handler);
+        if ($this->senderIsStaff() || $this->intentIsStaffTarget($handler)) {
+            $cooldownMinutes = 1;
+        }
         $db = DB::getInstance(0);
 
         if ($handler === 'DEFAULT') {
@@ -749,6 +773,9 @@ class WAReplies
         }
 
         $cooldownMinutes = $cooldownMinutes ?? $this->getAutoreplyCooldownMinutes($handler);
+        if ($this->senderIsStaff() || $this->intentIsStaffTarget($handler)) {
+            $cooldownMinutes = 1;
+        }
 
         if ($handler === 'DEFAULT') {
             return $this->shouldHandleDefaultUnified($waNumber, $cooldownMinutes);
