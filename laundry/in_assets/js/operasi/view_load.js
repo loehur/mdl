@@ -15,6 +15,9 @@
   $(document).off("click", ".editDurasi");
   $(document).off("change", "#ubahDurasiSelect");
   $(document).off("click", "#btnSimpanDurasi");
+  $(document).off("click", ".editQty");
+  $(document).off("input", "#ubahQtyInput");
+  $(document).off("click", "#btnSimpanQty");
   $(document).off("click", ".editMember");
   $(document).off("click", "#btnSimpanMember");
   $(document).off("click", ".editLayanan");
@@ -2109,6 +2112,204 @@
       error: function () {
         showAlert("Gagal mengubah durasi", "error");
         updateUbahDurasiPreview();
+      },
+      complete: function () {
+        $(".loaderDiv").fadeOut("slow");
+      },
+    });
+  });
+
+  var ubahQtyState = {
+    id: 0,
+    qty: 0,
+    min_order: 0,
+    harga: 0,
+    diskon_qty: 0,
+    diskon_partner: 0,
+    dibayar: 0,
+    current_ref_total: 0,
+    current_item_total: 0,
+    member: 0,
+  };
+
+  function calcUbahQtyPreviewTotals(qty) {
+    if (ubahQtyState.member) {
+      return {
+        itemTotal: ubahQtyState.current_item_total || 0,
+        refTotal: ubahQtyState.current_ref_total || 0,
+      };
+    }
+    var minOrder = ubahQtyState.min_order || 0;
+    var qtyReal = qty < minOrder ? minOrder : qty;
+    var total = (ubahQtyState.harga || 0) * qtyReal;
+    var dq = ubahQtyState.diskon_qty || 0;
+    var dp = ubahQtyState.diskon_partner || 0;
+    if (dq > 0) total -= total * (dq / 100);
+    if (dp > 0) total -= total * (dp / 100);
+    var itemTotal = Math.round(total);
+    var delta = itemTotal - (ubahQtyState.current_item_total || 0);
+    var refTotal = (ubahQtyState.current_ref_total || 0) + delta;
+    return { itemTotal: itemTotal, refTotal: refTotal };
+  }
+
+  function updateUbahQtyPreview() {
+    var raw = String($("#ubahQtyInput").val() || "").replace(",", ".");
+    var qty = parseFloat(raw);
+    $("#ubahQtyAlert").addClass("d-none").text("");
+
+    if (!(qty > 0)) {
+      $("#btnSimpanQty").prop("disabled", true);
+      $("#ubahQtyItemHarga").text("-");
+      $("#ubahQtyRefTotal").text("-");
+      return;
+    }
+
+    var prev = calcUbahQtyPreviewTotals(qty);
+    $("#ubahQtyItemHarga").text("Rp" + formatRp(prev.itemTotal));
+    $("#ubahQtyRefTotal").text("Rp" + formatRp(prev.refTotal));
+
+    if (ubahQtyState.dibayar > 0 && prev.refTotal < ubahQtyState.dibayar) {
+      $("#ubahQtyAlert")
+        .removeClass("d-none")
+        .text(
+          "Total order setelah perubahan kurang dari pembayaran Cek/Berhasil (Rp" +
+            formatRp(ubahQtyState.dibayar) +
+            ")"
+        );
+      $("#btnSimpanQty").prop("disabled", true);
+      return;
+    }
+
+    var same = Math.abs(qty - (ubahQtyState.qty || 0)) < 0.001;
+    $("#btnSimpanQty").prop("disabled", same);
+  }
+
+  function loadUbahQtyInfo(idPenjualan) {
+    ubahQtyState = {
+      id: idPenjualan,
+      qty: 0,
+      min_order: 0,
+      harga: 0,
+      diskon_qty: 0,
+      diskon_partner: 0,
+      dibayar: 0,
+      current_ref_total: 0,
+      current_item_total: 0,
+      member: 0,
+    };
+    $("#ubahQtyLoading").removeClass("d-none");
+    $("#ubahQtyContent").addClass("d-none");
+    $("#ubahQtyAlert").addClass("d-none").text("");
+    $("#btnSimpanQty").prop("disabled", true);
+
+    $.ajax({
+      url: BASE_URL + "Operasi/qty_info",
+      data: { id: idPenjualan },
+      type: "POST",
+      dataType: "json",
+      success: function (res) {
+        $("#ubahQtyLoading").addClass("d-none");
+        if (!res || res.status !== "success") {
+          showAlert((res && res.message) || "Gagal memuat quantity", "error");
+          try {
+            if (window.OpModal) window.OpModal.close("modalUbahQty");
+          } catch (e) {}
+          return;
+        }
+
+        ubahQtyState.id = res.id_penjualan || idPenjualan;
+        ubahQtyState.qty = parseFloat(res.qty) || 0;
+        ubahQtyState.min_order = parseFloat(res.min_order) || 0;
+        ubahQtyState.harga = parseFloat(res.harga) || 0;
+        ubahQtyState.diskon_qty = parseFloat(res.diskon_qty) || 0;
+        ubahQtyState.diskon_partner = parseFloat(res.diskon_partner) || 0;
+        ubahQtyState.dibayar = res.dibayar || 0;
+        ubahQtyState.current_ref_total = res.current_ref_total || 0;
+        ubahQtyState.current_item_total = res.current_item_total || 0;
+        ubahQtyState.member = res.member || 0;
+
+        $("#ubahQtyItem").text("#" + res.id_penjualan + " " + (res.kategori || ""));
+        $("#ubahQtyInfo").text("REF #" + (res.ref || "") + " — qty saat ini " + ubahQtyState.qty);
+        $("#ubahQtySatuan").text(res.satuan || "");
+        $("#ubahQtyInput").val(ubahQtyState.qty);
+
+        if (ubahQtyState.min_order > 0) {
+          $("#ubahQtyMinHint")
+            .removeClass("d-none")
+            .text("Min. order tagihan: " + ubahQtyState.min_order + (res.satuan ? " " + res.satuan : ""));
+        } else {
+          $("#ubahQtyMinHint").addClass("d-none").text("");
+        }
+
+        if (res.dibayar > 0) {
+          $("#ubahQtyBayarInfo").removeClass("d-none");
+          $("#ubahQtyDibayar").text("Rp" + formatRp(res.dibayar));
+        } else {
+          $("#ubahQtyBayarInfo").addClass("d-none");
+        }
+
+        $("#ubahQtyContent").removeClass("d-none");
+        updateUbahQtyPreview();
+        setTimeout(function () {
+          $("#ubahQtyInput").trigger("focus").select();
+        }, 50);
+      },
+      error: function () {
+        $("#ubahQtyLoading").addClass("d-none");
+        showAlert("Gagal memuat quantity", "error");
+        try {
+          if (window.OpModal) window.OpModal.close("modalUbahQty");
+        } catch (e) {}
+      },
+    });
+  }
+
+  $(document).on("click", ".editQty", function (e) {
+    e.preventDefault();
+    var idPenjualan = $(this).attr("data-id");
+    if (!idPenjualan) {
+      return;
+    }
+    loadUbahQtyInfo(idPenjualan);
+  });
+
+  $(document).on("input", "#ubahQtyInput", function () {
+    updateUbahQtyPreview();
+  });
+
+  $(document).on("click", "#btnSimpanQty", function () {
+    var raw = String($("#ubahQtyInput").val() || "").replace(",", ".");
+    var qty = parseFloat(raw);
+    if (!ubahQtyState.id || !(qty > 0)) {
+      return;
+    }
+
+    $("#btnSimpanQty").prop("disabled", true);
+    $.ajax({
+      url: BASE_URL + "Operasi/ubah_qty",
+      data: {
+        id: ubahQtyState.id,
+        qty: qty,
+      },
+      type: "POST",
+      dataType: "json",
+      beforeSend: function () {
+        $(".loaderDiv").fadeIn("fast");
+      },
+      success: function (res) {
+        if (res && res.status === "success") {
+          try {
+            if (window.OpModal) window.OpModal.close("modalUbahQty");
+          } catch (e) {}
+          loadDiv();
+        } else {
+          showAlert((res && res.message) || "Gagal mengubah quantity", "error");
+          updateUbahQtyPreview();
+        }
+      },
+      error: function () {
+        showAlert("Gagal mengubah quantity", "error");
+        updateUbahQtyPreview();
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");

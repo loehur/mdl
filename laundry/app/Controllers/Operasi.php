@@ -1024,6 +1024,139 @@ class Operasi extends Controller
       echo json_encode(['status' => 'success', 'message' => 'Durasi berhasil diubah']);
    }
 
+   /**
+    * Info item untuk modal ubah qty.
+    */
+   public function qty_info()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? $_GET['id'] ?? '');
+      if ($id_penjualan === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         echo json_encode(['status' => 'error', 'message' => 'Order overpay — quantity tidak dapat diubah']);
+         return;
+      }
+
+      $kategori = '';
+      foreach ($this->itemGroup as $ig) {
+         if ($ig['id_item_group'] == $sale['id_item_group']) {
+            $kategori = $ig['item_kategori'];
+         }
+      }
+
+      $satuan = '';
+      foreach ($this->dPenjualan as $l) {
+         if ($l['id_penjualan_jenis'] == $sale['id_penjualan_jenis']) {
+            foreach ($this->dSatuan as $sa) {
+               if ($sa['id_satuan'] == $l['id_satuan']) {
+                  $satuan = $sa['nama_satuan'];
+               }
+            }
+         }
+      }
+
+      $qty = round((float) ($sale['qty'] ?? 0), 2);
+      $minOrder = round((float) ($sale['min_order'] ?? 0), 2);
+
+      echo json_encode([
+         'status' => 'success',
+         'id_penjualan' => $id_penjualan,
+         'ref' => $ref,
+         'kategori' => $kategori,
+         'satuan' => $satuan,
+         'qty' => $qty,
+         'min_order' => $minOrder,
+         'harga' => (float) ($sale['harga'] ?? 0),
+         'diskon_qty' => (float) ($sale['diskon_qty'] ?? 0),
+         'diskon_partner' => (float) ($sale['diskon_partner'] ?? 0),
+         'current_item_total' => $this->calcSaleItemTotal($sale),
+         'current_ref_total' => $currentSubTotal,
+         'dibayar' => $dibayar,
+         'member' => (int) ($sale['member'] ?? 0),
+      ]);
+   }
+
+   /**
+    * Simpan qty baru. Syarat: belum tuntas, tidak overpay, total baru >= dibayar.
+    */
+   public function ubah_qty()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? '');
+      $qtyRaw = str_replace(',', '.', trim((string) ($_POST['qty'] ?? '')));
+      $qty = round((float) $qtyRaw, 2);
+
+      if ($id_penjualan === '' || $qty <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Quantity harus lebih dari 0']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         echo json_encode(['status' => 'error', 'message' => 'Order overpay — quantity tidak dapat diubah']);
+         return;
+      }
+
+      $oldQty = round((float) ($sale['qty'] ?? 0), 2);
+      if (abs($oldQty - $qty) < 0.001) {
+         echo json_encode(['status' => 'error', 'message' => 'Quantity sama dengan yang sekarang']);
+         return;
+      }
+
+      $newSubTotal = $this->getRefSubTotal($ref, [
+         $id_penjualan => ['qty' => $qty],
+      ]);
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
+      }
+
+      $up = $this->db(0)->update(
+         'sale',
+         ['qty' => $qty],
+         $this->whereSaleById($id_penjualan)
+      );
+      if ($up['errno'] != 0) {
+         $this->model('Log')->write("[ubah_qty] Update sale error id=$id_penjualan: " . ($up['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . ($up['error'] ?? 'Unknown error')]);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+      echo json_encode([
+         'status' => 'success',
+         'message' => 'Quantity berhasil diubah',
+         'qty' => $qty,
+         'ref_total' => $newSubTotal,
+      ]);
+   }
+
    public function layanan_options()
    {
       header('Content-Type: application/json');

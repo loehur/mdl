@@ -66,6 +66,43 @@ $labeled = false;
       }
     }
 
+    // Overpay = pembayaran Cek/Berhasil > tagihan (item + surcas) → qty tidak bisa diubah
+    $dibayarRefGate = 0;
+    foreach ((array) ($data['kas'] ?? []) as $byrGate) {
+      if (($byrGate['ref_transaksi'] ?? '') != $ref) {
+        continue;
+      }
+      $stGate = (int) ($byrGate['status_mutasi'] ?? 0);
+      if ($stGate === 2 || $stGate === 3) {
+        $dibayarRefGate += (int) ($byrGate['jumlah'] ?? 0);
+      }
+    }
+    $tagihanRefGate = 0;
+    foreach ($c_list as $itemGate) {
+      if ((int) ($itemGate['member'] ?? 0) !== 0) {
+        continue;
+      }
+      $qGate = round((float) ($itemGate['qty'] ?? 0), 2);
+      $minGate = round((float) ($itemGate['min_order'] ?? 0), 2);
+      $qRealGate = ($qGate < $minGate) ? $minGate : $qGate;
+      $totGate = (float) ($itemGate['harga'] ?? 0) * $qRealGate;
+      $dqGate = (float) ($itemGate['diskon_qty'] ?? 0);
+      $dpGate = (float) ($itemGate['diskon_partner'] ?? 0);
+      if ($dqGate > 0) {
+        $totGate -= $totGate * ($dqGate / 100);
+      }
+      if ($dpGate > 0) {
+        $totGate -= $totGate * ($dpGate / 100);
+      }
+      $tagihanRefGate += (int) round($totGate);
+    }
+    foreach ((array) ($data['surcas'] ?? []) as $scGate) {
+      if (($scGate['no_ref'] ?? '') == $ref) {
+        $tagihanRefGate += (int) ($scGate['jumlah'] ?? 0);
+      }
+    }
+    $refIsOverpay = ($dibayarRefGate > $tagihanRefGate);
+
     foreach ($c_list as $a) {
       $f18 = $a['id_user'];
       $f1 = $a['insertTime'];
@@ -154,6 +191,7 @@ $labeled = false;
             $member = $a['member'];
             $tuntas = (int) ($a['tuntas'] ?? 0);
             $canEditItem = ($member == 0 && $modeView != 2 && $tuntas === 0);
+            $canEditQty = ($modeView != 2 && $tuntas === 0 && !$refIsOverpay);
             $showMember = "";
             $countMember[$ref] += $member;
 
@@ -472,7 +510,16 @@ $labeled = false;
                     echo " <span class='mdl-dlv-badge " . $dlvClass . "' title='" . htmlspecialchars($dlvTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($dlvBadge, ENT_QUOTES, 'UTF-8') . "</span>";
                   }
                 ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
-                <b><?= $show_qty ?></b> <?= $tampilDiskon ?><br><?= $itemList ?>
+                <?php if ($canEditQty) { ?>
+                  <b><span class="editQty" style="cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-style:dotted;"
+                    data-id="<?= htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') ?>"
+                    data-ref="<?= htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') ?>"
+                    data-op-target="#modalUbahQty"
+                    title="Klik untuk ubah quantity"><?= $show_qty ?></span></b>
+                <?php } else { ?>
+                  <b><?= $show_qty ?></b>
+                <?php } ?>
+                <?= $tampilDiskon ?><br><?= $itemList ?>
               </td>
               <td nowrap><?= $list_layanan . $buttonAmbil . $buttonUbahLayanan ?></td>
               <td class='text-right'><?= $show_total_cell ?></td>
@@ -1231,7 +1278,7 @@ $labeled = false;
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {
-      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editMember, .editLayanan, .tambahCas', function(e) {
+      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editQty, .editMember, .editLayanan, .tambahCas', function(e) {
           e.preventDefault();
           var target = $(this).attr('data-op-target');
           if (target && window.OpModal) {

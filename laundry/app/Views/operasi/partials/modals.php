@@ -547,6 +547,47 @@
   </div>
 </div>
 
+<!-- Ubah Quantity -->
+<div class="op-modal" id="modalUbahQty" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="opQtyTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="opQtyTitle">Ubah Quantity</h3>
+        <small>Ganti qty item (belum tuntas, tanpa overpay)</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <div id="ubahQtyLoading" class="op-loading">
+        <i class="fas fa-spinner fa-spin"></i> Memuat...
+      </div>
+      <div id="ubahQtyContent" class="d-none">
+        <p class="op-muted" id="ubahQtyInfo"></p>
+        <div class="op-field"><strong>Item:</strong> <span id="ubahQtyItem"></span></div>
+        <div class="op-field">
+          <label class="op-label" for="ubahQtyInput">Quantity baru</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="number" id="ubahQtyInput" class="op-input" min="0.01" step="0.01" inputmode="decimal" style="flex:1;">
+            <span id="ubahQtySatuan" class="op-muted"></span>
+          </div>
+          <small id="ubahQtyMinHint" class="op-muted d-none" style="display:block;margin-top:4px;"></small>
+        </div>
+        <div class="op-summary">
+          <div>Harga item: <strong id="ubahQtyItemHarga">-</strong></div>
+          <div>Total order: <strong id="ubahQtyRefTotal">-</strong></div>
+          <div id="ubahQtyBayarInfo" class="d-none" style="color:#d97706;margin-top:6px;">Pembayaran Cek/Berhasil: <strong id="ubahQtyDibayar">-</strong></div>
+        </div>
+        <div id="ubahQtyAlert" class="op-alert d-none"></div>
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
+      <button type="button" id="btnSimpanQty" class="op-btn op-btn--primary" disabled>Simpan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Ubah Layanan -->
 <div class="op-modal" id="modalUbahLayanan" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
