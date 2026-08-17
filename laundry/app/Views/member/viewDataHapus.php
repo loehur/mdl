@@ -34,30 +34,33 @@ $statusMutasiLabel = function ($sts) {
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 14px;
-      padding: 12px 14px;
+      gap: 6px;
+      margin-bottom: 8px;
+      padding: 6px 8px;
       border: 1px solid #fcd34d;
       background: linear-gradient(180deg, #fffbeb, #fff);
     }
     #hd-root .hd-toolbar__title {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: 0.84rem;
       font-weight: 900;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     #hd-root .hd-toolbar__title .hd-ico {
-      width: 28px; height: 28px;
+      width: 22px; height: 22px;
+      font-size: 0.72rem;
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--hd-yellow); color: #111;
       border: 1px solid var(--hd-yellow-deep);
     }
     #hd-root .hd-toolbar__meta {
-      font-size: 0.78rem;
+      display: inline;
+      margin-left: 6px;
+      font-size: 0.7rem;
       font-weight: 900;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       text-transform: uppercase;
       color: var(--hd-muted);
     }
@@ -65,10 +68,10 @@ $statusMutasiLabel = function ($sts) {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 4px;
       border: 1px solid transparent;
-      padding: 10px 14px;
-      font-size: 0.9rem;
+      padding: 5px 8px;
+      font-size: 0.78rem;
       font-weight: 900;
       cursor: pointer;
       line-height: 1.1;
@@ -91,16 +94,17 @@ $statusMutasiLabel = function ($sts) {
       border-color: var(--hd-line);
       color: var(--hd-ink);
     }
-    #hd-root .hd-btn--sm { padding: 6px 10px; font-size: 0.78rem; }
+    #hd-root .hd-btn--sm { padding: 3px 6px; font-size: 0.72rem; }
     #hd-root .hd-empty {
       border: 1px solid #86efac;
       background: linear-gradient(180deg, #f0fdf4, #fff);
-      padding: 28px 16px;
+      padding: 14px 10px;
       text-align: center;
       font-weight: 900;
+      font-size: 0.84rem;
     }
-    #hd-root .hd-empty i { color: var(--hd-green); margin-right: 8px; }
-    #hd-root .hd-grid { display: grid; gap: 12px; }
+    #hd-root .hd-empty i { color: var(--hd-green); margin-right: 6px; }
+    #hd-root .hd-grid { display: grid; gap: 6px; }
     #hd-root .hd-card {
       border: 1px solid #fcd34d;
       background: #fff;
@@ -109,64 +113,75 @@ $statusMutasiLabel = function ($sts) {
     #hd-root .hd-card__head {
       display: flex;
       flex-wrap: wrap;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: 12px 14px;
+      gap: 6px;
+      padding: 5px 8px;
       background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
       color: #111;
     }
     #hd-root .hd-card__head h3 {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: 0.82rem;
       font-weight: 900;
       letter-spacing: -0.02em;
+      display: inline;
     }
     #hd-root .hd-card__head small {
-      display: block;
-      margin-top: 2px;
-      font-size: 0.75rem;
+      display: inline;
+      margin-left: 6px;
+      font-size: 0.68rem;
       font-weight: 750;
     }
-    #hd-root .hd-card__body { padding: 12px 14px; }
+    #hd-root .hd-card__body { padding: 5px 8px 6px; }
     #hd-root .hd-meta {
-      font-size: 0.84rem;
+      font-size: 0.72rem;
       font-weight: 750;
       color: var(--hd-muted);
-      margin-bottom: 8px;
+      margin-bottom: 0;
+      line-height: 1.3;
     }
     #hd-root .hd-amount {
-      font-size: 1.05rem;
+      font-size: 0.84rem;
       font-weight: 900;
       color: var(--hd-red-deep);
+      white-space: nowrap;
     }
     #hd-root .hd-pay {
-      margin-top: 10px;
-      padding: 10px 12px;
+      margin-top: 4px;
+      padding: 3px 6px;
       border: 1px solid #fca5a5;
       background: linear-gradient(180deg, #fef2f2, #fff);
     }
     #hd-root .hd-pay__label {
-      font-size: 0.72rem;
+      font-size: 0.65rem;
       font-weight: 900;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       text-transform: uppercase;
       color: var(--hd-muted);
-      margin-bottom: 6px;
+      margin-bottom: 1px;
     }
     #hd-root .hd-pay__row {
       display: flex;
       justify-content: space-between;
-      gap: 8px;
-      font-size: 0.82rem;
+      gap: 6px;
+      font-size: 0.72rem;
       font-weight: 750;
-      padding: 2px 0;
+      padding: 0;
+      line-height: 1.35;
     }
     #hd-root .hd-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 4px;
+      margin-top: 5px;
+    }
+    #hd-root .hd-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
     }
 
     #hdConfirmModal.hd-modal {
@@ -198,8 +213,8 @@ $statusMutasiLabel = function ($sts) {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 10px;
-      padding: 14px 16px;
+      gap: 8px;
+      padding: 10px 12px;
       background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
       color: #fff;
     }
@@ -208,40 +223,38 @@ $statusMutasiLabel = function ($sts) {
     }
     #hdConfirmModal .hd-modal__head h3 {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: 0.84rem;
       font-weight: 900;
     }
     #hdConfirmModal .hd-modal__close {
       border: 0;
       background: rgba(255,255,255,.22);
       color: #fff;
-      width: 32px; height: 32px;
+      width: 28px; height: 28px;
       cursor: pointer;
     }
     #hdConfirmModal .hd-modal__body {
-      padding: 16px;
-      font-size: 0.9rem;
+      padding: 12px;
+      font-size: 0.84rem;
       font-weight: 750;
-      line-height: 1.45;
+      line-height: 1.4;
     }
     #hdConfirmModal .hd-modal__foot {
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
-      padding: 12px 16px 16px;
+      gap: 6px;
+      padding: 8px 12px 12px;
       border-top: 1px solid var(--hd-line);
       background: #f8fafc;
     }
   </style>
 
   <div class="hd-toolbar">
-    <div>
-      <h2 class="hd-toolbar__title">
-        <span class="hd-ico" aria-hidden="true"><i class="fas fa-box-open"></i></span>
-        Antrean Hapus Deposit
-      </h2>
-      <div class="hd-toolbar__meta"><?= (int) $total ?> deposit</div>
-    </div>
+    <h2 class="hd-toolbar__title">
+      <span class="hd-ico" aria-hidden="true"><i class="fas fa-box-open"></i></span>
+      Hapus Deposit
+      <span class="hd-toolbar__meta"><?= (int) $total ?> deposit</span>
+    </h2>
     <?php if ($total > 0) { ?>
       <button type="button" class="hd-btn hd-btn--danger" id="hdBtnHapusSemua">
         <i class="fas fa-trash"></i> Hapus Semua
@@ -334,11 +347,18 @@ $statusMutasiLabel = function ($sts) {
       ?>
         <article class="hd-card" data-id="<?= $id ?>">
           <div class="hd-card__head">
-            <div>
+            <div style="min-width:0;flex:1">
               <h3><?= htmlspecialchars(strtoupper($namaPelanggan !== '' ? $namaPelanggan : 'Pelanggan'), ENT_QUOTES, 'UTF-8') ?></h3>
-              <small>#<?= $id ?> · <?= htmlspecialchars((string) ($z['insertTime'] ?? ''), ENT_QUOTES, 'UTF-8') ?> · CS <?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></small>
+              <small>#<?= $id ?> · <?= htmlspecialchars(substr((string) ($z['insertTime'] ?? ''), 5, 11), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></small>
             </div>
-            <div class="hd-amount" style="color:#111">Rp<?= number_format($harga) ?></div>
+            <span class="hd-amount" style="color:#111">Rp<?= number_format($harga) ?></span>
+            <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>" title="Restore">
+              <i class="fas fa-recycle"></i>
+            </button>
+            <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>" title="Hapus"
+              style="background:linear-gradient(180deg,#dc2626,#b91c1c);border-color:#b91c1c;color:#fff">
+              <i class="fas fa-trash"></i>
+            </button>
           </div>
           <div class="hd-card__body">
             <div class="hd-meta">
@@ -348,7 +368,7 @@ $statusMutasiLabel = function ($sts) {
 
             <?php if (count($payRows) > 0) { ?>
               <div class="hd-pay">
-                <div class="hd-pay__label">Pembayaran terkait<?= $totalBayar > 0 ? ' · terbayar Rp' . number_format($totalBayar) : '' ?></div>
+                <div class="hd-pay__label">Bayar<?= $totalBayar > 0 ? ' · Rp' . number_format($totalBayar) : '' ?></div>
                 <?php foreach ($payRows as $ka) {
                   $notePay = (string) ($ka['note'] ?? '');
                   $label = $statusMutasiLabel($ka['status_mutasi'] ?? '');
@@ -367,15 +387,6 @@ $statusMutasiLabel = function ($sts) {
                 <?php } ?>
               </div>
             <?php } ?>
-
-            <div class="hd-actions">
-              <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>">
-                <i class="fas fa-recycle"></i> Restore
-              </button>
-              <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>">
-                <i class="fas fa-trash"></i> Hapus
-              </button>
-            </div>
           </div>
         </article>
       <?php } ?>
