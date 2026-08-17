@@ -83,8 +83,11 @@ class CrmChatMergeHelper
                 'SELECT last_in_at FROM wa_fonnte_csw WHERE phone IN (?, ?) ORDER BY id DESC LIMIT 1',
                 ['+' . $clean, $clean]
             );
-            if ($q && $q->num_rows() > 0 && !empty($q->row()->last_in_at)) {
-                return (string) $q->row()->last_in_at;
+            if ($q && $q->num_rows() > 0) {
+                $row = $q->row();
+                if ($row && !empty($row->last_in_at)) {
+                    return (string) $row->last_in_at;
+                }
             }
         } catch (\Throwable $e) {
             // ignore
@@ -246,8 +249,8 @@ class CrmChatMergeHelper
      */
     public static function mergeLastMessageMeta($db, string $phone, ?object $conv): array
     {
-        $yMsg = $conv->last_message ?? null;
-        $yTime = $conv->last_message_at ?? null;
+        $yMsg = $conv ? ($conv->last_message ?? null) : null;
+        $yTime = $conv ? ($conv->last_message_at ?? null) : null;
 
         $fonnteConv = null;
         foreach (self::phoneVariants($phone) as $variant) {
