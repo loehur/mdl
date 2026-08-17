@@ -580,13 +580,21 @@ class Operasi extends Controller
          return;
       }
 
-      // Semua pembayaran selain yang gagal (status 4) mengunci perubahan nota.
-      $payments = $this->db(0)->get_where('kas', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '$refEsc'");
-      foreach ((array) $payments as $payment) {
-         if ((int) ($payment['status_mutasi'] ?? 0) !== 4) {
-            echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena nota sudah memiliki pembayaran.']);
-            return;
-         }
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         echo json_encode(['status' => 'error', 'message' => 'Item tidak dapat dihapus karena order overpay.']);
+         return;
+      }
+
+      // Setelah hapus, total baru tidak boleh < pembayaran Cek/Berhasil
+      $newSubTotal = $this->getRefSubTotal($ref, [
+         $idPenjualan => ['member' => 1],
+      ]);
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
       }
 
       $ids = [];

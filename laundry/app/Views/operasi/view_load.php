@@ -43,30 +43,7 @@ $labeled = false;
     $countEndLayananDone[$ref] = 0;
     $countAmbil[$ref] = 0;
 
-    // Hapus satu item hanya tersedia untuk nota yang benar-benar belum diproses.
-    $canDeleteItemFromRef = ($modeView != 2 && $countItem[$ref] > 1);
-    foreach ((array) ($data['kas'] ?? []) as $paymentCheck) {
-      if (($paymentCheck['ref_transaksi'] ?? '') == $ref && (int) ($paymentCheck['status_mutasi'] ?? 0) !== 4) {
-        $canDeleteItemFromRef = false;
-        break;
-      }
-    }
-    if ($canDeleteItemFromRef) {
-      foreach ($c_list as $itemCheck) {
-        if ((int) ($itemCheck['tuntas'] ?? 0) !== 0) {
-          $canDeleteItemFromRef = false;
-          break;
-        }
-        foreach ((array) ($data['operasi'] ?? []) as $operasiCheck) {
-          if (($operasiCheck['id_penjualan'] ?? '') == ($itemCheck['id_penjualan'] ?? '')) {
-            $canDeleteItemFromRef = false;
-            break 2;
-          }
-        }
-      }
-    }
-
-    // Overpay = pembayaran Cek/Berhasil > tagihan (item + surcas) → qty tidak bisa diubah
+    // Overpay = pembayaran Cek/Berhasil > tagihan (item + surcas)
     $dibayarRefGate = 0;
     foreach ((array) ($data['kas'] ?? []) as $byrGate) {
       if (($byrGate['ref_transaksi'] ?? '') != $ref) {
@@ -102,6 +79,23 @@ $labeled = false;
       }
     }
     $refIsOverpay = ($dibayarRefGate > $tagihanRefGate);
+
+    // Hapus per item: multi-item, tuntas=0, tidak overpay (boleh sudah ada bayar)
+    $canDeleteItemFromRef = ($modeView != 2 && $countItem[$ref] > 1 && !$refIsOverpay);
+    if ($canDeleteItemFromRef) {
+      foreach ($c_list as $itemCheck) {
+        if ((int) ($itemCheck['tuntas'] ?? 0) !== 0) {
+          $canDeleteItemFromRef = false;
+          break;
+        }
+        foreach ((array) ($data['operasi'] ?? []) as $operasiCheck) {
+          if (($operasiCheck['id_penjualan'] ?? '') == ($itemCheck['id_penjualan'] ?? '')) {
+            $canDeleteItemFromRef = false;
+            break 2;
+          }
+        }
+      }
+    }
 
     foreach ($c_list as $a) {
       $f18 = $a['id_user'];
@@ -1230,7 +1224,7 @@ $labeled = false;
     <div class="op-modal__head op-modal__head--red">
       <div>
         <h3 id="hapusItemModalTitle">Hapus item dari nota?</h3>
-        <small>Hanya untuk nota belum dibayar / diproses</small>
+        <small>Syarat: belum tuntas, tidak overpay (boleh sudah ada bayar)</small>
       </div>
       <button type="button" class="op-modal__close" data-op-close data-close-hapus-item aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
@@ -1238,7 +1232,7 @@ $labeled = false;
       <p style="margin:0 0 12px;">Item <strong id="hapusItemNama"></strong> akan dihapus dari nota <strong id="hapusItemRef"></strong>.</p>
       <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
         <i class="fas fa-shield-alt"></i>
-        Tindakan ini hanya berlaku karena nota belum dibayar, belum diproses, dan belum tuntas.
+        Total nota setelah hapus tidak boleh lebih kecil dari pembayaran Cek/Berhasil.
       </div>
       <div class="op-field">
         <label class="op-label" for="hapusItemNote">Alasan hapus <span style="color:#dc2626;">*</span></label>
