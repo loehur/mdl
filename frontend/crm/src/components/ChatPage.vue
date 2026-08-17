@@ -184,6 +184,34 @@ const resolveableCases = computed(() => {
   return [];
 });
 
+const canReplyChat = computed(() => {
+  if (!props.activeConversation) return false;
+  if (props.activeConversation.can_reply === true) return true;
+  if (props.activeConversation.can_reply === false) return false;
+  return !!(props.activeConversation.ycloud_open || props.activeConversation.fonnte_open);
+});
+
+const bothChannelsOpen = computed(() => {
+  if (!props.activeConversation) return false;
+  return !!(props.activeConversation.ycloud_open && props.activeConversation.fonnte_open);
+});
+
+const replyChannel = ref("auto");
+
+watch(
+  () => props.activeConversation?.id,
+  () => {
+    const ch = props.activeConversation?.default_reply_channel;
+    replyChannel.value = ch === "fonnte" || ch === "ycloud" ? ch : "ycloud";
+  },
+  { immediate: true }
+);
+
+const providerTag = (msg) => {
+  if (!msg?.provider) return "";
+  return msg.provider === "F" ? "F" : "Y";
+};
+
 // Check if user is admin
 const isAdmin = computed(() => {
   return props.currentUserRole === "admin";
@@ -495,6 +523,7 @@ const sendMessage = async () => {
       quoted_message_id: replyingTo?.wamid || null,
       quoted_message_body: replyingTo?.text || replyingTo?.caption || null,
       sender_code: props.senderCode || localStorage.getItem("cms_chat_sender_code") || "",
+      provider: replyChannel.value === "fonnte" ? "F" : "Y",
     };
 
     props.activeConversation.messages.push(newMsg);
@@ -512,16 +541,19 @@ const sendMessage = async () => {
         body: JSON.stringify({
           phone: props.activeConversation.wa_number, message: text, user_id: props.authId,
           sender_code: props.senderCode, reply_to: replyingTo?.wamid || null,
+          channel: bothChannelsOpen.value ? replyChannel.value : "auto",
         }),
       }).then(r => r.json());
 
       // Use object reference (not find-by-id) — polling/sanitize may change id mid-flight
       if (res.status) {
+        const sentProvider = res.data?.provider === "F" ? "F" : "Y";
         bumpMessageStatus(newMsg, "sent", {
-          ...(res.data?.local_id != null ? { id: res.data.local_id } : {}),
-          ...(res.data?.wamid || res.data?.id
-            ? { wamid: res.data.wamid || res.data.id }
+          ...(res.data?.local_id != null ? { id: sentProvider + "-" + res.data.local_id } : {}),
+          ...(res.data?.wamid || res.data?.id || res.data?.message_id
+            ? { wamid: res.data.wamid || res.data.id || res.data.message_id }
             : {}),
+          provider: sentProvider,
         });
       } else {
         bumpMessageStatus(newMsg, "failed");
@@ -1086,6 +1118,7 @@ onUnmounted(() => {
                                            <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 whitespace-pre-wrap break-words leading-snug']">{{ mediaCaptionText(msg) }}</p>
                                            <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug opacity-80">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px] opacity-70">
+                                              <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
                                            </div>
@@ -1132,6 +1165,7 @@ onUnmounted(() => {
                                            <p v-if="mediaCaptionText(msg) && !shouldHideMessage(msg)" :class="[messageFontClass, 'mb-1 whitespace-pre-wrap break-words leading-snug']">{{ mediaCaptionText(msg) }}</p>
                                            <p v-else-if="mediaCaptionText(msg) && shouldHideMessage(msg)" class="text-xs italic mb-1 leading-snug opacity-80">🔒 Pesan ini bersifat private</p>
                                            <div class="flex justify-end items-center gap-1 text-[10px] opacity-70">
+                                              <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
                                            </div>
@@ -1164,7 +1198,8 @@ onUnmounted(() => {
                                                 preload="metadata"
                                               ></audio>
                                               <p class="text-xs text-[var(--wa-text-secondary)]">Voice message</p>
-                                              <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-0.5 text-[var(--wa-text-tertiary)]">
+                                              <div v-if="msg.time || msg.sender_code || providerTag(msg)" class="flex justify-end items-center gap-1 text-[10px] mt-0.5 text-[var(--wa-text-tertiary)]">
+                                                  <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                                   <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                                   <span>{{ msg.time }}</span>
                                               </div>
@@ -1198,9 +1233,10 @@ onUnmounted(() => {
                                       />
                                       <div v-else class="px-2.5 py-1 text-sm text-[var(--wa-text-tertiary)] italic">Sticker</div>
                                       <div
-                                        v-if="msg.time || msg.sender_code"
+                                        v-if="msg.time || msg.sender_code || providerTag(msg)"
                                         class="flex justify-end items-center gap-1 text-[10px] mt-0.5 px-1 text-[var(--wa-text-tertiary)]"
                                       >
+                                           <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                            <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                            <span>{{ msg.time }}</span>
                                       </div>
@@ -1227,6 +1263,7 @@ onUnmounted(() => {
                                                 </div>
                                            </div>
                                            <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-1 pt-1 border-t border-green-200 dark:border-green-800">
+                                                <span v-if="providerTag(msg)" class="text-[var(--wa-text-tertiary)] opacity-80">~{{ providerTag(msg) }}</span>
                                                 <span v-if="msg.sender_code" class="text-[var(--wa-text-tertiary)]">~{{ msg.sender_code }}</span>
                                                 <span class="text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                            </div>
@@ -1249,6 +1286,7 @@ onUnmounted(() => {
                                                  🔒 Pesan ini bersifat private
                                             </span>
                                             <span class="inline-flex items-center gap-1 ml-2 align-bottom select-none float-right mt-0.5" style="margin-left: 8px;">
+                                                 <span v-if="providerTag(msg)" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-85">~{{ providerTag(msg) }}</span>
                                                  <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-85">~{{ msg.sender_code }}</span>
                                                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
                                                  <!-- Status Icon for outgoing -->
@@ -1302,7 +1340,7 @@ onUnmounted(() => {
 
              <!-- Case 1: CSW Closed - Show Refresh Button -->
              <button
-               v-if="activeConversation.status === 'closed'"
+               v-if="!canReplyChat"
                @click="emit('refresh-active-chat')"
                :disabled="isRefreshingChat"
                class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)] w-full min-h-[46px]"
@@ -1334,6 +1372,7 @@ onUnmounted(() => {
                 </span>
              </button>
 
+             <template v-else>
              <!-- Quick Replies Popup -->
              <div v-if="showQuickReplies" class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl mb-2 max-h-60 overflow-y-auto">
                   <div class="sticky top-0 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] px-3 py-2">
@@ -1358,8 +1397,26 @@ onUnmounted(() => {
                   </div>
              </div>
 
-             <!-- Case 2: Active Chat Input (only when conversation is NOT closed) -->
-             <div v-if="activeConversation.status !== 'closed'" class="flex gap-2 items-end">
+             <!-- Active Chat Input (CSW yCloud and/or Fonnte open) -->
+             <div class="flex flex-col gap-2">
+             <div v-if="bothChannelsOpen" class="flex items-center gap-2 text-xs">
+               <span class="text-[var(--wa-text-tertiary)]">Kirim via:</span>
+               <button
+                 type="button"
+                 @click="replyChannel = 'ycloud'"
+                 class="px-2 py-1 rounded-md border transition-colors"
+                 :class="replyChannel === 'ycloud' ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
+               >~Y</button>
+               <button
+                 type="button"
+                 @click="replyChannel = 'fonnte'"
+                 class="px-2 py-1 rounded-md border transition-colors"
+                 :class="replyChannel === 'fonnte' ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
+               >~F</button>
+             </div>
+             <div v-else-if="activeConversation.fonnte_open && !activeConversation.ycloud_open" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW Fonnte (~F)</div>
+             <div v-else-if="activeConversation.ycloud_open && !activeConversation.fonnte_open" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW yCloud (~Y)</div>
+             <div class="flex gap-2 items-end">
                   <!-- Attachment buttons (left side) -->
                   <div class="flex items-center gap-2">
                        <input type="file" ref="fileInput" @change="selectImage" accept="image/*" class="hidden" />
@@ -1396,6 +1453,8 @@ onUnmounted(() => {
                        </svg>
                   </button>
              </div>
+             </div>
+             </template>
              
          </div>
       </div>

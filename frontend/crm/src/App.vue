@@ -560,6 +560,10 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             .toUpperCase();
           convo.color = getAvatarColor(c.id);
           convo.status = c.status;
+          convo.ycloud_open = !!c.ycloud_open;
+          convo.fonnte_open = !!c.fonnte_open;
+          convo.default_reply_channel = c.default_reply_channel || null;
+          convo.can_reply = c.can_reply ?? (convo.ycloud_open || convo.fonnte_open);
           convo.lastMessage =
             c.last_message || c.last_message_text || "No messages yet";
           convo.lastTime = formatLastTime(c.last_message_time);
@@ -585,6 +589,10 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
               .toUpperCase(),
             color: getAvatarColor(c.id),
             status: c.status,
+            ycloud_open: !!c.ycloud_open,
+            fonnte_open: !!c.fonnte_open,
+            default_reply_channel: c.default_reply_channel || null,
+            can_reply: c.can_reply ?? (!!c.ycloud_open || !!c.fonnte_open),
             lastMessage:
               c.last_message || c.last_message_text || "No messages yet",
             lastTime: formatLastTime(c.last_message_time),
@@ -740,6 +748,10 @@ const loadMoreConversations = async () => {
             .toUpperCase(),
           color: getAvatarColor(c.id),
           status: c.status,
+          ycloud_open: !!c.ycloud_open,
+          fonnte_open: !!c.fonnte_open,
+          default_reply_channel: c.default_reply_channel || null,
+          can_reply: c.can_reply ?? (!!c.ycloud_open || !!c.fonnte_open),
           lastMessage:
             c.last_message || c.last_message_text || "No messages yet",
           lastTime: formatLastTime(c.last_message_time),
@@ -1458,10 +1470,11 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
             : "",
           rawTime: m.time,
           status: normalizeMessageStatus(m.status),
-          private: m.private !== undefined ? (typeof m.private === 'number' ? m.private : parseInt(m.private) || 0) : 0, // Include private field
+          private: m.private !== undefined ? (typeof m.private === 'number' ? m.private : parseInt(m.private) || 0) : 0,
           sender_code: m.sender_code,
           quoted_message_id: m.quoted_message_id || null,
           quoted_message_body: m.quoted_message_body || null,
+          provider: m.provider === "F" ? "F" : "Y",
         };
       });
 
@@ -2124,6 +2137,10 @@ const refreshActiveChat = async () => {
       if (result.status && Array.isArray(conversationsData) && conversationsData.length > 0) {
         const updatedConv = conversationsData[0];
         conversation.status = updatedConv.status;
+        conversation.ycloud_open = !!updatedConv.ycloud_open;
+        conversation.fonnte_open = !!updatedConv.fonnte_open;
+        conversation.default_reply_channel = updatedConv.default_reply_channel || null;
+        conversation.can_reply = updatedConv.can_reply ?? (conversation.ycloud_open || conversation.fonnte_open);
         if (updatedConv.last_message_time) {
           conversation.lastMessageTime = updatedConv.last_message_time;
           conversation.lastTime = formatLastTime(updatedConv.last_message_time);
@@ -3008,6 +3025,10 @@ const handleIncomingMessage = (payload) => {
       initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: payload.status || "open",
+      ycloud_open: messageData.provider !== "F",
+      fonnte_open: messageData.provider === "F",
+      default_reply_channel: messageData.provider === "F" ? "fonnte" : "ycloud",
+      can_reply: true,
       messages: [],
       unread: 0,
     };
@@ -3016,6 +3037,18 @@ const handleIncomingMessage = (payload) => {
     // Inbound message always re-opens CSW (DB already set status=open before WS push)
     if (sender === "customer" || payload.type === "wa_masuk") {
       conversation.status = payload.status || "open";
+      if (messageData.provider === "F") {
+        conversation.fonnte_open = true;
+        conversation.default_reply_channel = conversation.ycloud_open
+          ? conversation.default_reply_channel || "fonnte"
+          : "fonnte";
+      } else {
+        conversation.ycloud_open = true;
+        if (!conversation.fonnte_open) {
+          conversation.default_reply_channel = "ycloud";
+        }
+      }
+      conversation.can_reply = !!(conversation.ycloud_open || conversation.fonnte_open);
     } else if (payload.status) {
       conversation.status = payload.status;
     }
@@ -3095,6 +3128,7 @@ const handleIncomingMessage = (payload) => {
     quoted_message_id: messageData.quoted_message_id || null, // Quote reference
     quoted_message_body: messageData.quoted_message_body || null, // Quote content
     quoted_message_from: messageData.quoted_message_from || null, // Quote sender
+    provider: messageData.provider === "F" ? "F" : "Y",
   };
 
   // Avoid duplicate messages if already present
@@ -3697,6 +3731,7 @@ const connectWebSocket = () => {
                 quoted_message_id: messageData.quoted_message_id || null,
                 quoted_message_body: messageData.quoted_message_body || null,
                 quoted_message_from: messageData.quoted_message_from || null,
+                provider: messageData.provider === "F" ? "F" : (messageData.provider === "Y" ? "Y" : "Y"),
               };
 
               conversation.messages.push(newMsg);
@@ -4232,6 +4267,10 @@ const resumeChatState = async () => {
             .toUpperCase();
           convo.color = getAvatarColor(c.id);
           convo.status = c.status;
+          convo.ycloud_open = !!c.ycloud_open;
+          convo.fonnte_open = !!c.fonnte_open;
+          convo.default_reply_channel = c.default_reply_channel || null;
+          convo.can_reply = c.can_reply ?? (convo.ycloud_open || convo.fonnte_open);
           convo.lastMessage = c.last_message || c.last_message_text || "No messages yet";
           convo.lastTime = formatLastTime(c.last_message_time);
           convo.lastMessageTime = c.last_message_time;

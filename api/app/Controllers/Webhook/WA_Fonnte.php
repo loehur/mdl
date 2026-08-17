@@ -109,7 +109,22 @@ class WA_Fonnte extends Controller
 
         if ($isMediaWithoutCaption) {
             $this->recordFonnteIncoming($waNumber, $timestamp);
-            $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
+            $msgId = $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
+            if ($msgId) {
+                $lastMessage = 'i- 📎 Media';
+                $createdAt = $this->fonnteTimestampToLastInAt($timestamp);
+                $this->pushCrmFonnteInbound(
+                    $waNumber,
+                    $customerCtx,
+                    $lastMessage,
+                    $createdAt,
+                    (int) $msgId,
+                    $inboxid,
+                    '',
+                    'image',
+                    $url !== '' ? (string) $url : null
+                );
+            }
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
 
             return;
@@ -161,12 +176,27 @@ class WA_Fonnte extends Controller
 
             // CSW Fonnte harus ter-commit dulu; baru simpan chat + handle intent.
             $this->recordFonnteIncoming($waNumber, $timestamp);
-            $this->saveFonnteIncomingMessage($waNumber, $data, $messageText, $messageStore, $customerCtx);
+            $savedMsgId = $this->saveFonnteIncomingMessage($waNumber, $data, $messageText, $messageStore, $customerCtx);
             if ($messageStore->lastIncomingWasDuplicate()) {
                 \Log::write('WA_Fonnte: skip process duplicate inboxid=' . (string) ($inboxid ?? ''), 'webhook', 'Fonnte');
                 echo json_encode(['status' => 'ok', 'reply' => $replyText, 'duplicate' => true]);
 
                 return;
+            }
+
+            if ($savedMsgId) {
+                $createdAt = $this->fonnteTimestampToLastInAt($timestamp);
+                $this->pushCrmFonnteInbound(
+                    $waNumber,
+                    $customerCtx,
+                    $lastMessage,
+                    $createdAt,
+                    (int) $savedMsgId,
+                    $inboxid,
+                    $messageText,
+                    'text',
+                    null
+                );
             }
 
             $replies = new \App\Models\WAReplies();
@@ -200,6 +230,18 @@ class WA_Fonnte extends Controller
                     self::DEFAULT_FALLBACK_COOLDOWN_MINUTES
                 );
             }
+
+            $currentCase = $processResult->case ?? null;
+            if ($currentCase !== null && (int) $currentCase !== 0) {
+                $this->pushCrmFonnteCaseUpdated(
+                    $waNumber,
+                    (int) $currentCase,
+                    $assigned_user_id,
+                    $code,
+                    $cust_id,
+                    $processResult->notify ?? false
+                );
+            }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte WAReplies: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 'webhook', 'Fonnte');
         }
@@ -212,8 +254,9 @@ class WA_Fonnte extends Controller
      *
      * @param \App\Helpers\CRM\FonnteMessageStore|null $store
      * @param array{contact_name?:string,assigned_user_id?:int|string|null,code?:string|null,cust_id?:int|string|null} $customerCtx
+     * @return int|null
      */
-    private function saveFonnteIncomingMessage(string $waNumber, array $data, string $messageText, $store = null, array $customerCtx = []): void
+    private function saveFonnteIncomingMessage(string $waNumber, array $data, string $messageText, $store = null, array $customerCtx = []): ?int
     {
         try {
             if ($store === null) {
@@ -222,10 +265,111 @@ class WA_Fonnte extends Controller
                 }
                 $store = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
             }
-            $store->saveIncoming($waNumber, $data, $messageText, $customerCtx);
+
+            return $store->saveIncoming($waNumber, $data, $messageText, $customerCtx);
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte: save incoming message failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
+
+            return null;
         }
+    }
+
+    /**
+     * Push inbound Fonnte ke CRM (WS only, OneSignal selalu false).
+     *
+     * @param array{contact_name?:?string,assigned_user_id?:int|string|null,code?:?string,cust_id?:int|string|null} $customerCtx
+     */
+    private function pushCrmFonnteInbound(
+        string $waNumber,
+        array $customerCtx,
+        string $lastMessage,
+        string $createdAt,
+        int $msgId,
+        $inboxid,
+        string $messageText,
+        string $messageType,
+        ?string $mediaUrl
+    ): void {
+        if (! class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+        $db = $this->db(0);
+        $conversationId = \App\Helpers\CRM\CrmChatMergeHelper::ensureShellFromFonnte(
+            $db,
+            $waNumber,
+            $customerCtx,
+            $lastMessage,
+            $createdAt
+        );
+
+        \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
+            'type' => 'wa_masuk',
+            'conversation_id' => $conversationId,
+            'phone' => $waNumber,
+            'contact_name' => $customerCtx['contact_name'] ?? null,
+            'case' => null,
+            'active_cases' => [],
+            'notify' => false,
+            'assignment_user_id' => $customerCtx['assigned_user_id'] ?? null,
+            'status' => 'open',
+            'target_id' => '0',
+            'kode_cabang' => $customerCtx['code'] ?? '00',
+            'cust_id' => $customerCtx['cust_id'] ?? null,
+            'message' => [
+                'id' => 'F-' . $msgId,
+                'wamid' => ($inboxid !== null && is_numeric($inboxid)) ? (string) (int) $inboxid : null,
+                'text' => $messageText,
+                'type' => $messageType,
+                'media_url' => $mediaUrl,
+                'time' => $createdAt,
+                'sender' => 'customer',
+                'provider' => 'F',
+            ],
+        ]);
+    }
+
+    private function pushCrmFonnteCaseUpdated(
+        string $waNumber,
+        int $case,
+        $assignedUserId,
+        ?string $code,
+        $custId,
+        bool $intentNotify
+    ): void {
+        if (! class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+        $db = $this->db(0);
+        $conv = \App\Helpers\CRM\CrmChatMergeHelper::findWaConversation($db, $waNumber);
+        $activeCases = [];
+        if ($conv && !empty($conv->conv_case)) {
+            $decoded = json_decode((string) $conv->conv_case, true);
+            if (is_array($decoded)) {
+                $list = isset($decoded[0]) ? $decoded : [$decoded];
+                foreach ($list as $c) {
+                    if (isset($c['case'], $c['status']) && $c['status'] === 'open') {
+                        $activeCases[] = (int) $c['case'];
+                    }
+                }
+            }
+        }
+        if ($activeCases === []) {
+            $activeCases = [$case];
+        }
+
+        \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
+            'type' => 'case_updated',
+            'phone' => $waNumber,
+            'conversation_id' => $conv ? (int) ($conv->id ?? 0) : 0,
+            'case' => $case,
+            'active_cases' => $activeCases,
+            'notify' => false,
+            'assignment_user_id' => $assignedUserId,
+            'target_id' => '0',
+            'kode_cabang' => $code ?? '00',
+            'cust_id' => $custId,
+        ]);
+        unset($intentNotify);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Controllers\CRM;
 
 use App\Core\Controller;
+use App\Helpers\CRM\CrmChatMergeHelper;
 use App\Helpers\CRM\WaSenderContext;
 
 class Chat extends Controller
@@ -156,6 +157,22 @@ class Chat extends Controller
                 $conv->case_status = null;
                 $conv->case_history = []; // New field for full history
 
+                $mergedLast = CrmChatMergeHelper::mergeLastMessageMeta($db, (string) ($conv->wa_number ?? ''), $conv);
+                if (!empty($mergedLast['last_message'])) {
+                    $conv->last_message = $mergedLast['last_message'];
+                }
+                if (!empty($mergedLast['last_message_time'])) {
+                    $conv->last_message_time = $mergedLast['last_message_time'];
+                }
+
+                $csw = CrmChatMergeHelper::getCswStatus($db, (string) ($conv->wa_number ?? ''));
+                $conv->ycloud_open = $csw['ycloud_open'];
+                $conv->fonnte_open = $csw['fonnte_open'];
+                $conv->last_in_at_ycloud = $csw['last_in_at_ycloud'];
+                $conv->last_in_at_fonnte = $csw['last_in_at_fonnte'];
+                $conv->default_reply_channel = $csw['default_reply_channel'];
+                $conv->can_reply = $csw['can_reply'];
+
                 // Check if 'conv_case' column exists and has content
                 if (isset($conv->conv_case)) {
                     // If JSON
@@ -260,7 +277,8 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         NULL as sender_code,
-                        0 as `private`
+                        0 as `private`,
+                        'Y' as provider
                      FROM wa_messages_in 
                      WHERE {$phoneExpr} LIKE ?)
                     UNION ALL
@@ -278,8 +296,47 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         sender_code,
-                        COALESCE(`private`, 0) as `private`
+                        COALESCE(`private`, 0) as `private`,
+                        'Y' as provider
                      FROM wa_messages_out 
+                     WHERE {$phoneExpr} LIKE ?)
+                    UNION ALL
+                    (SELECT 
+                        id,
+                        CAST(inboxid AS CHAR) as wamid,
+                        text,
+                        type,
+                        'customer' as sender,
+                        created_at as time,
+                        NULL as status,
+                        NULL as media_id,
+                        media_url,
+                        NULL as caption,
+                        NULL as quoted_message_id,
+                        NULL as quoted_message_body,
+                        NULL as sender_code,
+                        0 as `private`,
+                        'F' as provider
+                     FROM wa_fonnte_messages_in
+                     WHERE {$phoneExpr} LIKE ?)
+                    UNION ALL
+                    (SELECT 
+                        id,
+                        fonnte_message_id as wamid,
+                        COALESCE(text, '') as text,
+                        type,
+                        'me' as sender,
+                        created_at as time,
+                        status,
+                        NULL as media_id,
+                        media_url,
+                        NULL as caption,
+                        CAST(reply_inboxid AS CHAR) as quoted_message_id,
+                        NULL as quoted_message_body,
+                        sender_code,
+                        0 as `private`,
+                        'F' as provider
+                     FROM wa_fonnte_messages_out
                      WHERE {$phoneExpr} LIKE ?)
                 ) AS combined_msgs
                 ORDER BY time DESC
@@ -289,7 +346,7 @@ class Chat extends Controller
         ";
         
         // Use result_array() instead of result() to get arrays directly
-        $messages = $db->query($sql, [$like, $like, $fetchLimit, $offset])->result_array();
+        $messages = $db->query($sql, [$like, $like, $like, $like, $fetchLimit, $offset])->result_array();
         
         // Normalize private field to integer (0 or 1) for consistent frontend handling
         foreach ($messages as &$msg) {
@@ -302,7 +359,11 @@ class Chat extends Controller
             } else {
                 $msg['private'] = 0;
             }
-            
+
+            $provider = strtoupper((string) ($msg['provider'] ?? 'Y'));
+            $msg['provider'] = ($provider === 'F') ? 'F' : 'Y';
+            $rawId = $msg['id'] ?? 0;
+            $msg['id'] = $msg['provider'] . '-' . $rawId;
         }
         unset($msg); // Break reference
         
@@ -330,63 +391,166 @@ class Chat extends Controller
         $body = $this->getBody();
         $phone = $body['phone'] ?? null;
         $message = $body['message'] ?? null;
-        $replyTo = $body['reply_to'] ?? null; // WAMID of message being replied to
+        $replyTo = $body['reply_to'] ?? null; // WAMID / inboxid
+        $channelReq = $body['channel'] ?? 'auto';
 
         if (!$phone || !$message) $this->error('Missing required fields (phone, message)');
 
         $db = $this->db(0);
-        
-        // 1. Get Conversation Info (using phone)
-        $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
-        // We do not strict check here if conv exists, as we are sending to phone directly. 
-        // But for broadcast 'contact_name', it is useful.
 
-        // 2. Send Message using Helper
-        if (!class_exists('\App\Helpers\CRM\WhatsAppService')) {
-            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
         }
-        
-        $wa = new \App\Helpers\CRM\WhatsAppService();
-        
+
+        $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
+        $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
+        if ($channel === null) {
+            $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text.', 400);
+        }
+
         $senderCode = $body['sender_code'] ?? null;
-        
         if (!$senderCode && isset($body['user_id'])) {
             $senderCode = $this->resolveSenderCode($db, $body['user_id']);
         }
-        
-        // Fallback to session code
         if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
             $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
         }
 
-        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode); // Pass senderCode
+        if ($channel === 'fonnte') {
+            $this->replyViaFonnte($db, $phone, $message, $replyTo, $senderCode);
+            return;
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WhatsAppService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
+        }
+
+        $wa = new \App\Helpers\CRM\WhatsAppService();
+        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode);
 
         if ($res['success']) {
-            // Update quoted_message_id in wa_messages_out if reply_to provided
             if ($replyTo && isset($res['local_id'])) {
                 $db->update('wa_messages_out', [
-                    'quoted_message_id' => $replyTo
+                    'quoted_message_id' => $replyTo,
                 ], ['id' => $res['local_id']]);
             }
-            
-            // Update conversation last_message and last_message_at using wa_number
-            $db->update('wa_conversations', [
-                'last_message' => 'o- ' . mb_substr($message, 0, 50),
-                'last_message_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
-            ], ['wa_number' => $phone]);
+
+            $conv = CrmChatMergeHelper::findWaConversation($db, (string) $phone);
+            if ($conv && !empty($conv->wa_number)) {
+                $db->update('wa_conversations', [
+                    'last_message' => 'o- ' . mb_substr($message, 0, 50),
+                    'last_message_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['wa_number' => $conv->wa_number]);
+            }
 
             $data = $res['data'];
-            $data['local_id'] = $res['local_id'] ?? null; // Attach local DB ID
-            
-            // WS broadcast already done inside WhatsAppService::saveOutboundMessage.
-            // Do NOT broadcast again here — causes duplicate bubbles for the sender.
-            // Sapaan stats: dicatat di WhatsAppService::saveOutboundMessage (human only).
-            
+            $data['local_id'] = $res['local_id'] ?? null;
+            $data['channel'] = 'ycloud';
+            $data['provider'] = 'Y';
+
             $this->success($data, 'Reply sent');
         } else {
             $this->error('Failed to send WhatsApp: ' . ($res['error'] ?? 'Unknown error'), 500);
         }
+    }
+
+    /**
+     * Balasan CRM via Fonnte (CSW Fonnte terbuka).
+     */
+    private function replyViaFonnte($db, string $phone, string $message, $replyTo, ?string $senderCode): void
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
+        }
+
+        $fonnte = new \App\Helpers\CRM\FonnteService();
+        $options = [];
+        if ($replyTo !== null && $replyTo !== '' && is_numeric($replyTo)) {
+            $options['inboxid'] = (int) $replyTo;
+        }
+        $result = $fonnte->sendMessage($phone, $message, $options);
+        if (empty($result['success'])) {
+            $this->error('Failed to send via Fonnte: ' . ($result['error'] ?? 'Unknown error'), 500);
+        }
+
+        $waNumber = CrmChatMergeHelper::normalizeWaNumber($phone);
+        $code = ($senderCode !== null && trim($senderCode) !== '')
+            ? trim($senderCode)
+            : \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+        $isHuman = \App\Helpers\CRM\SapaanStatsHelper::isHumanSenderCode($code);
+
+        $store = new \App\Helpers\CRM\FonnteMessageStore($db);
+        $fonnteId = $result['data']['id'][0] ?? ($result['data']['requestid'] ?? null);
+        $localId = $store->saveOutgoing($waNumber, $message, [
+            'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+            'reply_inboxid' => !empty($options['inboxid']) ? (int) $options['inboxid'] : null,
+            'source' => $isHuman ? 'human' : 'autoreply',
+            'sender_code' => $code,
+            'status' => 'sent',
+        ]);
+
+        if ($isHuman) {
+            try {
+                \App\Helpers\CRM\SapaanStatsHelper::recordStatsIfHuman($db, $waNumber, $message, $code);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $conv = CrmChatMergeHelper::findWaConversation($db, $phone);
+        $conversationId = 0;
+        $kodeCabang = '00';
+        $custId = null;
+        $assignedUserId = null;
+        if ($conv) {
+            $conversationId = (int) ($conv->id ?? 0);
+            $kodeCabang = $conv->code ?? '00';
+            $custId = $conv->cust_id ?? null;
+            $assignedUserId = $conv->assigned_user_id ?? null;
+            $db->update('wa_conversations', [
+                'last_message' => 'o- ' . mb_substr($message, 0, 50),
+                'last_message_at' => $now,
+                'updated_at' => $now,
+            ], ['wa_number' => $conv->wa_number]);
+        }
+
+        CrmChatMergeHelper::pushWebSocket([
+            'type' => 'agent_message_sent',
+            'target_id' => '0',
+            'notify' => false,
+            'conversation_id' => $conversationId,
+            'phone' => $waNumber,
+            'contact_name' => $conv->contact_name ?? null,
+            'kode_cabang' => $kodeCabang,
+            'cust_id' => $custId,
+            'assignment_user_id' => $assignedUserId,
+            'message' => [
+                'id' => $localId !== null ? ('F-' . $localId) : null,
+                'wamid' => $fonnteId !== null ? (string) $fonnteId : null,
+                'text' => $message,
+                'type' => 'text',
+                'sender_code' => $code,
+                'quoted_message_id' => !empty($options['inboxid']) ? (string) $options['inboxid'] : null,
+                'time' => $now,
+                'status' => 'sent',
+                'provider' => 'F',
+            ],
+        ]);
+
+        $this->success([
+            'local_id' => $localId,
+            'message_id' => $fonnteId,
+            'channel' => 'fonnte',
+            'provider' => 'F',
+        ], 'Reply sent via Fonnte');
     }
     public function markRead()
     {
