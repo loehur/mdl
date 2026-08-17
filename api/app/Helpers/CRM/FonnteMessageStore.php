@@ -296,6 +296,7 @@ class FonnteMessageStore
                     $update['contact_name'] = $contactName;
                 }
                 $this->db->update('wa_fonnte_conversations', $update, ['phone' => $phone]);
+                $this->clearAssignedUserIdIfKaryawan($phone);
 
                 return;
             }
@@ -305,7 +306,11 @@ class FonnteMessageStore
                 'contact_name' => ($contactName !== null && $contactName !== '') ? $contactName : ($this->customerContext['contact_name'] ?? null),
                 'created_at' => $fields['updated_at'] ?? date('Y-m-d H:i:s'),
             ], $assignmentFields, $fields);
+            if (!empty($this->customerContext['is_karyawan'])) {
+                unset($insert['assigned_user_id']);
+            }
             $this->db->insert('wa_fonnte_conversations', $insert);
+            $this->clearAssignedUserIdIfKaryawan($phone);
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write('FonnteMessageStore: wa_fonnte_conversations upsert failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
@@ -319,9 +324,11 @@ class FonnteMessageStore
     private function assignmentFieldsFromContext(): array
     {
         $fields = [];
-        $assigned = $this->customerContext['assigned_user_id'] ?? null;
-        if ($assigned !== null && $assigned !== '') {
-            $fields['assigned_user_id'] = (int) $assigned;
+        if (empty($this->customerContext['is_karyawan'])) {
+            $assigned = $this->customerContext['assigned_user_id'] ?? null;
+            if ($assigned !== null && $assigned !== '') {
+                $fields['assigned_user_id'] = (int) $assigned;
+            }
         }
         $code = $this->customerContext['code'] ?? null;
         if ($code !== null && $code !== '') {
@@ -333,6 +340,23 @@ class FonnteMessageStore
         }
 
         return $fields;
+    }
+
+    private function clearAssignedUserIdIfKaryawan(string $phone): void
+    {
+        if (empty($this->customerContext['is_karyawan']) || $phone === '') {
+            return;
+        }
+        try {
+            $this->db->query(
+                'UPDATE wa_fonnte_conversations SET assigned_user_id = NULL WHERE phone = ? LIMIT 1',
+                [$phone]
+            );
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('FonnteMessageStore: clear assigned_user_id failed: ' . $e->getMessage(), 'webhook', 'Fonnte');
+            }
+        }
     }
 
     private function pickContactName(string $webhookName): ?string

@@ -2136,8 +2136,10 @@ class WAReplies
                 $contactName = $ctxName !== '' ? $ctxName : $contactName;
                 $this->currentContactName = $contactName;
             }
-            if ($assigned_user_id === null || $assigned_user_id === '') {
-                $assigned_user_id = $ctx['assigned_user_id'] ?? $assigned_user_id;
+            if (!empty($ctx['is_karyawan'])) {
+                $assigned_user_id = null;
+            } elseif ($assigned_user_id === null || $assigned_user_id === '') {
+                $assigned_user_id = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($ctx);
             }
             if ($code === null || $code === '') {
                 $code = $ctx['code'] ?? $code;
@@ -8814,6 +8816,25 @@ class WAReplies
         ], ['wa_number' => $conv->wa_number]);
     }
 
+    /** Hapus assignment CSW jika pengirim adalah karyawan (SQL NULL). */
+    private function clearAssignedUserIdIfKaryawan($db, $convId): void
+    {
+        if (empty($this->senderContext['is_karyawan'])) {
+            return;
+        }
+        $convId = (int) $convId;
+        if ($convId <= 0) {
+            return;
+        }
+        try {
+            $db->query('UPDATE wa_conversations SET assigned_user_id = NULL WHERE id = ? LIMIT 1', [$convId]);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('clearAssignedUserIdIfKaryawan: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
     public function getOrCreateConversationWithCase($db, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $cust_id = null, $lastMessage = null, $case = null)
     {
         if ($this->intentLabMode) {
@@ -8826,6 +8847,7 @@ class WAReplies
             $conv = $this->findExistingWaConversationRow($db, $waNumber);
             if ($conv) {
                 $convId = (int) ($conv->id ?? 0);
+                $this->clearAssignedUserIdIfKaryawan($db, $convId);
                 // Fonnte: jangan rewrite last_message/status, tapi case CRM (simbol kuning) tetap boleh
                 if ($convId > 0 && $case !== null && (int) $case !== 0) {
                     try {
@@ -8865,6 +8887,9 @@ class WAReplies
             }
             if ($cust_id !== null && $cust_id !== '') {
                 $updateData['cust_id'] = $cust_id;
+            }
+            if (!empty($this->senderContext['is_karyawan'])) {
+                unset($updateData['assigned_user_id']);
             }
             
             // Only update case if not null and not 0 (Append to existing list)
@@ -8945,7 +8970,9 @@ class WAReplies
             }
 
             $db->update('wa_conversations', $updateData, ['wa_number' => $conv->wa_number]);
-            return $conv->id ?? 0;
+            $convId = (int) ($conv->id ?? 0);
+            $this->clearAssignedUserIdIfKaryawan($db, $convId);
+            return $convId;
         }
 
         // Create new conversation
@@ -8962,6 +8989,9 @@ class WAReplies
             'updated_at' => date('Y-m-d H:i:s'),
             'last_message' => $lastMessage,
         ];
+        if (!empty($this->senderContext['is_karyawan'])) {
+            unset($convData['assigned_user_id']);
+        }
         
         // Only set case if not null and not 0
         if ($case !== null && (int)$case !== 0) {

@@ -95,13 +95,15 @@ class WA_Fonnte extends Controller
             require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
         }
         $senderCtx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+        $isKaryawan = !empty($senderCtx['is_karyawan']);
         $customerCtx = [
             'contact_name' => $senderCtx['contact_name'] ?: ($name !== null && $name !== '' ? (string) $name : null),
-            'assigned_user_id' => $senderCtx['assigned_user_id'],
+            'assigned_user_id' => $isKaryawan ? null : \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtx),
             'code' => $senderCtx['code'],
             'cust_id' => $senderCtx['cust_id'] ?: null,
+            'is_karyawan' => $isKaryawan,
         ];
-        if ($customerCtx['assigned_user_id'] === null) {
+        if (!$isKaryawan && $customerCtx['assigned_user_id'] === null) {
             $customerCtx = $this->mergeAssignmentFromExistingConversations($waNumber, $customerCtx);
         }
 
@@ -262,7 +264,18 @@ class WA_Fonnte extends Controller
         }
 
         if ($ctx['assigned_user_id'] === null) {
-            $ctx = $this->mergeAssignmentFromExistingConversations($waNumber, $ctx);
+            $senderIsKaryawan = false;
+            try {
+                if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+                }
+                $senderIsKaryawan = \App\Helpers\CRM\WaSenderContext::isKaryawanNumber($waNumber);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+            if (!$senderIsKaryawan) {
+                $ctx = $this->mergeAssignmentFromExistingConversations($waNumber, $ctx);
+            }
         }
 
         return $ctx;

@@ -44,6 +44,11 @@ class WaSenderContext
         self::fillKaryawan($db1, $nomor, $ctx);
         self::fillPelanggan($db1, $nomor, $ctx);
 
+        // Karyawan (meski juga pelanggan) tidak di-assign ke CSW cabang.
+        if (!empty($ctx['is_karyawan'])) {
+            $ctx['assigned_user_id'] = null;
+        }
+
         return $ctx;
     }
 
@@ -254,7 +259,6 @@ class WaSenderContext
             $idCabang = (int) $byId[$primaryId]['id_cabang'];
         }
         if ($idCabang > 0) {
-            $ctx['assigned_user_id'] = $idCabang;
             try {
                 $cabang = $db1->query(
                     'SELECT kode_cabang FROM cabang WHERE id_cabang = ? LIMIT 1',
@@ -266,6 +270,42 @@ class WaSenderContext
             } catch (\Throwable $e) {
                 // ignore
             }
+            // Jangan assign CSW dari cabang pelanggan jika pengirim adalah karyawan.
+            if (empty($ctx['is_karyawan'])) {
+                $ctx['assigned_user_id'] = $idCabang;
+            }
         }
+    }
+
+    /** Assignment CSW: hanya pelanggan murni, bukan karyawan. */
+    public static function cswAssignedUserId(array $ctx): ?int
+    {
+        if (!empty($ctx['is_karyawan'])) {
+            return null;
+        }
+        $id = $ctx['assigned_user_id'] ?? null;
+        if ($id === null || $id === '') {
+            return null;
+        }
+
+        return (int) $id;
+    }
+
+    /** Cek karyawan saja (tanpa lookup pelanggan) — untuk hot-path webhook. */
+    public static function isKaryawanNumber(string $waNumber): bool
+    {
+        $nomor = self::toNomorNasional($waNumber);
+        if ($nomor === null) {
+            return false;
+        }
+        $ctx = self::empty();
+        try {
+            $db1 = DB::getInstance(1);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        self::fillKaryawan($db1, $nomor, $ctx);
+
+        return !empty($ctx['is_karyawan']);
     }
 }

@@ -330,6 +330,12 @@ class WhatsApp extends Controller
                     $contact_name = $existingQuick->contact_name;
                 }
             }
+            if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+            }
+            if (\App\Helpers\CRM\WaSenderContext::isKaryawanNumber($waNumber)) {
+                $assigned_user_id = null;
+            }
         } catch (\Throwable $e) {
             // ignore — push tetap jalan
         }
@@ -433,9 +439,18 @@ class WhatsApp extends Controller
                 $replies->setSenderContext($senderCtx);
                 $isPelanggan = !empty($senderCtx['is_pelanggan']);
                 $isKaryawan = !empty($senderCtx['is_karyawan']);
+                if ($isKaryawan) {
+                    $assigned_user_id = null;
+                }
                 if ($isPelanggan || $isKaryawan) {
-                    if ($isPelanggan) {
-                        $assigned_user_id = $senderCtx['assigned_user_id'] ?? $assigned_user_id;
+                    if ($isPelanggan && !$isKaryawan) {
+                        $fromCtx = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtx);
+                        if ($fromCtx !== null) {
+                            $assigned_user_id = $fromCtx;
+                        }
+                        $code = $senderCtx['code'] ?? $code;
+                        $cust_id = $senderCtx['cust_id'] ?? $cust_id;
+                    } elseif ($isPelanggan) {
                         $code = $senderCtx['code'] ?? $code;
                         $cust_id = $senderCtx['cust_id'] ?? $cust_id;
                     }
@@ -1013,7 +1028,7 @@ class WhatsApp extends Controller
         $return = new \stdClass();
         $return->customer_name = $ctx['contact_name'];
         $return->cust_id = $ctx['cust_id'] ?: $ctx['id_pelanggan'];
-        $return->assigned_user_id = $ctx['assigned_user_id'];
+        $return->assigned_user_id = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($ctx);
         $return->code = $ctx['code'];
 
         return $return;

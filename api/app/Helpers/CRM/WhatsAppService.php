@@ -1267,7 +1267,7 @@ class WhatsAppService
 
             return [
                 'contact_name' => $ctx['contact_name'],
-                'assigned_user_id' => $ctx['assigned_user_id'],
+                'assigned_user_id' => \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($ctx),
                 'code' => $ctx['code'],
                 'cust_id' => $ctx['cust_id'] ?: $ctx['id_pelanggan'],
             ];
