@@ -2441,11 +2441,11 @@ class WAReplies
                         $handler = 'PERMINTAAN';
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
-                    // MINTA_JEMPUT_ANTAR: jenis jemput + ada order aktif = abaikan (bukan minta kurir jemput)
+                    // MINTA_JEMPUT_ANTAR: jenis jemput + order aktif (tuntas=0,bin=0,id_user_ambil=0) = abaikan
                     if ($handler === 'MINTA_JEMPUT_ANTAR'
                         && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
                     ) {
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→jemput_has_active_sale');
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→jemput_has_antarable_sale');
                         continue;
                     }
                     // PENUTUP yang bukan closing ketat → PEMBERITAHUAN (info/otw/item/jadwal/janji bayar)
@@ -2941,15 +2941,15 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? true;
             }
 
-            // Jenis jemput + ada order aktif = bukan MINTA kurir (setelah semua remap ke MINTA)
+            // Jenis jemput + order aktif (tuntas=0,bin=0,id_user_ambil=0) = bukan MINTA jemput
             if ($aiIntent === 'MINTA_JEMPUT_ANTAR'
                 && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
             ) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_jemput_has_active_sale');
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_jemput_has_antarable_sale');
                 if ($this->isHumanAgentRecentlyActive($waNumber)) {
                     return $this->silentExitHumanActive(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
-                        'ai_reject_minta_jemput_has_active_sale'
+                        'ai_reject_minta_jemput_has_antarable_sale'
                     );
                 }
                 $conversationId = $this->getOrCreateConversationWithCase(

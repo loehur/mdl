@@ -321,12 +321,12 @@ trait WARepliesKurirTrait
             if (!$jenis) {
                 $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
-            // Jemput + ada order aktif → bukan MINTA kurir jemput: diam, jangan buka state
-            if ($jenis === 'jemput' && $this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            // Jemput + order aktif (tuntas=0, bin=0, id_user_ambil=0) → bukan MINTA jemput: diam, jangan buka state
+            if ($jenis === 'jemput' && $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
                     'MINTA_JEMPUT_ANTAR',
-                    'jemput_ignored_has_active_sale (no reply, no session)'
+                    'jemput_ignored_has_antarable_sale (no reply, no session)'
                 );
                 return false;
             }
@@ -396,12 +396,12 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * True jika flow kurir akan jadi jenis jemput padahal pelanggan masih punya order aktif.
-     * Bukan MINTA_JEMPUT_ANTAR: jangan buka session / jangan balas.
+     * True jika flow kurir akan jadi jenis jemput padahal ada order aktif
+     * (tuntas=0, bin=0, id_user_ambil=0). Bukan MINTA jemput: jangan buka session / jangan balas.
      */
     private function kurirJemputBlockedByActiveSale(string $phoneIn, string $waNumber, string $msg): bool
     {
-        if (!$this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+        if (!$this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
             return false;
         }
         $resolved = $this->kurirResolveJenisState($msg, null);
@@ -1049,14 +1049,14 @@ trait WARepliesKurirTrait
             return false;
         }
 
-        // Jangan switch ke jemput jika pelanggan masih punya order aktif
+        // Jangan switch ke jemput jika ada order aktif (tuntas=0, bin=0, id_user_ambil=0)
         if ($jenis === 'jemput' && $prevJenis !== 'jemput') {
             $phoneIn = $this->normalizePhoneNumber($waNumber);
-            if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            if ($this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
                     'MINTA_JEMPUT_ANTAR',
-                    'jenis_followup_jemput_ignored_has_active_sale'
+                    'jenis_followup_jemput_ignored_has_antarable_sale'
                 );
                 return false;
             }
@@ -1451,11 +1451,11 @@ trait WARepliesKurirTrait
             ) {
                 return true;
             }
-            if ($jenis === 'jemput' && $this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            if ($jenis === 'jemput' && $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
                     'MINTA_JEMPUT_ANTAR',
-                    'ask_jenis_jemput_ignored_has_active_sale→clear'
+                    'ask_jenis_jemput_ignored_has_antarable_sale→clear'
                 );
                 $this->clearKurirSession($waNumber);
                 return false;
