@@ -93,6 +93,9 @@ class FonnteMessageStore
             'member' => $member !== '' ? mb_substr($member, 0, 64) : null,
             'created_at' => $createdAt,
         ];
+        if (CrmChatMergeHelper::fonnteInboundStatusReady($this->db)) {
+            $row['status'] = 'received';
+        }
 
         $msgId = $this->db->insert('wa_fonnte_messages_in', $row);
         if (!$msgId) {
@@ -124,7 +127,12 @@ class FonnteMessageStore
      */
     public function saveOutgoing(string $waNumber, string $text, array $meta = []): ?int
     {
-        if ($waNumber === '' || trim($text) === '') {
+        if ($waNumber === '') {
+            return null;
+        }
+        $hasText = trim($text) !== '';
+        $hasMedia = !empty($meta['media_url']);
+        if (!$hasText && !$hasMedia) {
             return null;
         }
 

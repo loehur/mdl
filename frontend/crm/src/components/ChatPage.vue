@@ -104,6 +104,7 @@ const replyToMessage = ref(null);
 const showImagePreview = ref(false);
 const imagePreview = ref("");
 const selectedImage = ref(null);
+const selectedMediaKind = ref("image"); // image | video
 const isUploadingImage = ref(false);
 const imageCaption = ref("");
 
@@ -184,11 +185,15 @@ const resolveableCases = computed(() => {
   return [];
 });
 
-const canReplyChat = computed(() => {
+const cswOpen = computed(() => {
   if (!props.activeConversation) return false;
   if (props.activeConversation.can_reply === true) return true;
   if (props.activeConversation.can_reply === false) return false;
   return !!(props.activeConversation.ycloud_open || props.activeConversation.fonnte_open);
+});
+
+const canReplyChat = computed(() => {
+  return props.currentUserRole === "admin" && cswOpen.value;
 });
 
 const bothChannelsOpen = computed(() => {
@@ -512,7 +517,7 @@ const bumpMessageStatus = (msg, status, patch = {}) => {
 
 const sendMessage = async () => {
   const text = messageInput.value.trim();
-  if (!text) return;
+  if (!text || !canReplyChat.value) return;
   if (props.activeConversation) {
     const tempId = Date.now();
     const replyingTo = replyToMessage.value;
@@ -584,37 +589,53 @@ const handleMessageKeydown = (e) => {
 // Minimal version for length, assume compressImage similar to before
 const sendImage = async () => {
     if(isUploadingImage.value || !selectedImage.value || !props.activeConversation) return;
+    if (!canReplyChat.value) return;
     isUploadingImage.value = true;
     const caption = imageCaption.value.trim();
+    const isVideo = selectedMediaKind.value === "video";
     showImagePreview.value = false;
 
     const tempId = Date.now();
+    const sentProvider = replyChannel.value === "fonnte" ? "F" : "Y";
     const newMsg = {
-      id: tempId, text: caption || "", type: "image", media_url: imagePreview.value,
-      sender: "me", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-      sender_code: props.senderCode, rawTime: formatLocalDateTime(), status: "pending",
+      id: tempId,
+      text: caption || "",
+      type: isVideo ? "video" : "image",
+      media_url: imagePreview.value,
+      sender: "me",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+      rawTime: formatLocalDateTime(),
+      sender_code: props.senderCode,
+      status: "pending",
+      provider: sentProvider,
     };
     props.activeConversation.messages.push(newMsg);
-    props.activeConversation.lastMessage = "You: 📷 Image";
+    props.activeConversation.lastMessage = isVideo ? "You: 🎥 Video" : "You: 📷 Image";
     scrollToBottom({ force: true });
 
-    // FormData upload
     try {
         const formData = new FormData();
-        formData.append("image", selectedImage.value);
+        const field = isVideo ? "video" : "image";
+        formData.append(field, selectedImage.value);
         formData.append("phone", props.activeConversation.wa_number);
         formData.append("user_id", props.authId);
         formData.append("sender_code", props.senderCode);
+        formData.append("channel", bothChannelsOpen.value ? replyChannel.value : "auto");
         if(caption) formData.append("caption", caption);
 
-        const res = await fetch(`${props.API_BASE}/CRM/Chat/sendImage`, { method: "POST", body: formData }).then(r => r.json());
+        const endpoint = isVideo ? "sendVideo" : "sendImage";
+        const res = await fetch(`${props.API_BASE}/CRM/Chat/${endpoint}`, { method: "POST", body: formData }).then(r => r.json());
         if (res.status) {
+            const provider = res.data?.provider === "F" ? "F" : "Y";
+            const localId = res.data?.local_id;
             bumpMessageStatus(newMsg, "sent", {
-              ...(res.data?.local_id != null ? { id: res.data.local_id } : {}),
+              ...(localId != null ? { id: provider + "-" + localId } : {}),
               ...(res.data?.media_url ? { media_url: res.data.media_url } : {}),
-              ...(res.data?.wamid || res.data?.id
-                ? { wamid: res.data.wamid || res.data.id }
+              ...(res.data?.wamid || res.data?.message_id || res.data?.id
+                ? { wamid: res.data.wamid || res.data.message_id || res.data.id }
                 : {}),
+              provider,
+              type: isVideo ? "video" : "image",
             });
         } else {
             bumpMessageStatus(newMsg, "failed");
@@ -625,7 +646,9 @@ const sendImage = async () => {
     }
     finally {
         isUploadingImage.value = false;
-        selectedImage.value = null; imagePreview.value = "";
+        selectedImage.value = null;
+        selectedMediaKind.value = "image";
+        imagePreview.value = "";
     }
 };
 
@@ -636,7 +659,7 @@ const openImagePicker = async () => {
 const selectImage = async (event) => {
     const file = event.target.files[0];
     if (file) {
-        // Simple preview without compression for brevity (can add back if needed)
+        selectedMediaKind.value = String(file.type || "").startsWith("video/") ? "video" : "image";
         const reader = new FileReader();
         reader.onload = (e) => {
             imagePreview.value = e.target.result;
@@ -648,7 +671,13 @@ const selectImage = async (event) => {
     event.target.value = "";
 };
 
-const cancelImage = () => { selectedImage.value = null; imagePreview.value = ""; showImagePreview.value = false; imageCaption.value = ""; };
+const cancelImage = () => {
+    selectedImage.value = null;
+    selectedMediaKind.value = "image";
+    imagePreview.value = "";
+    showImagePreview.value = false;
+    imageCaption.value = "";
+};
 
 // Textarea Resize
 const autoResizeTextarea = () => {
@@ -717,7 +746,11 @@ const scrollToMessage = (idOrMsg) => {
     const el = document.getElementById("msg-" + id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 };
-const setReplyTo = (m) => { replyToMessage.value = m; nextTick(() => messageTextarea.value?.focus()); };
+const setReplyTo = (m) => {
+  if (!isAdmin.value) return;
+  replyToMessage.value = m;
+  nextTick(() => messageTextarea.value?.focus());
+};
 const cancelReply = () => replyToMessage.value = null;
 
 /** Buka modal pesan quoted reply lengkap + scroll ke pesan jika ditemukan */
@@ -1058,7 +1091,7 @@ onUnmounted(() => {
                         <div class="flex max-w-[85%] md:max-w-[70%] items-center gap-1" :class="msg.sender === 'me' ? 'self-end' : 'self-start'">
                              <!-- Reply Button - LEFT side for OUTGOING messages -->
                              <button 
-                               v-if="msg.sender === 'me'"
+                               v-if="isAdmin && msg.sender === 'me'"
                                @click="setReplyTo(msg)" 
                                class="opacity-40 hover:opacity-100 active:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-[var(--wa-hover)] active:bg-[var(--wa-hover)] text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)] active:text-[var(--wa-accent-green)] flex-shrink-0"
                                title="Reply"
@@ -1303,7 +1336,7 @@ onUnmounted(() => {
 
                              <!-- Reply Button - RIGHT side for INCOMING messages -->
                              <button 
-                               v-if="msg.sender !== 'me'"
+                               v-if="isAdmin && msg.sender !== 'me'"
                                @click="setReplyTo(msg)" 
                                class="opacity-40 hover:opacity-100 active:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-[var(--wa-hover)] active:bg-[var(--wa-hover)] text-[var(--wa-text-tertiary)] hover:text-[var(--wa-accent-green)] active:text-[var(--wa-accent-green)] flex-shrink-0"
                                title="Reply"
@@ -1321,7 +1354,8 @@ onUnmounted(() => {
          <div class="p-3 md:p-4 mt-2 bg-[var(--wa-header-bg)] border-t border-[var(--wa-border)] z-30">
              <!-- Preview/Reply Panels -->
              <div v-if="showImagePreview" class="bg-[var(--wa-bg-panel)] p-4 rounded-xl shadow-lg mb-2 relative border">
-                  <img :src="imagePreview" class="h-48 object-cover rounded-lg mx-auto border" />
+                  <img v-if="selectedMediaKind === 'image'" :src="imagePreview" class="h-48 object-cover rounded-lg mx-auto border" />
+                  <video v-else :src="imagePreview" class="h-48 max-w-full object-contain rounded-lg mx-auto border bg-black" controls playsinline preload="metadata"></video>
                   <button @click="cancelImage" class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1">X</button>
                   <div class="mt-2 flex gap-2">
                       <input v-model="imageCaption" type="text" placeholder="Caption..." class="flex-1 bg-[var(--wa-bg-secondary)] border px-3 py-2 rounded-lg text-sm" />
@@ -1340,7 +1374,7 @@ onUnmounted(() => {
 
              <!-- Case 1: CSW Closed - Show Refresh Button -->
              <button
-               v-if="!canReplyChat"
+               v-if="!cswOpen"
                @click="emit('refresh-active-chat')"
                :disabled="isRefreshingChat"
                class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)] w-full min-h-[46px]"
@@ -1371,6 +1405,17 @@ onUnmounted(() => {
                   {{ isRefreshingChat ? 'Refreshing Chat...' : 'CSW Closed - Refresh' }}
                 </span>
              </button>
+
+             <!-- Case 2: CSW open tapi bukan admin -->
+             <div
+               v-else-if="!isAdmin"
+               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)] w-full min-h-[46px]"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-text-tertiary)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span class="text-[var(--wa-text-secondary)] text-sm font-medium">Hanya admin yang dapat membalas chat</span>
+             </div>
 
              <template v-else>
              <!-- Quick Replies Popup -->
@@ -1419,7 +1464,7 @@ onUnmounted(() => {
              <div class="flex gap-2 items-end">
                   <!-- Attachment buttons (left side) -->
                   <div class="flex items-center gap-2">
-                       <input type="file" ref="fileInput" @change="selectImage" accept="image/*" class="hidden" />
+                       <input type="file" ref="fileInput" @change="selectImage" accept="image/*,video/mp4,video/3gpp,video/webm,video/quicktime" class="hidden" />
                        <!-- Emoji Button with Picker -->
                        <div class="relative">
                             <button @click.stop="showEmojiPicker = !showEmojiPicker" class="p-3 rounded-full bg-[var(--wa-bg-tertiary)] text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] transition-all">

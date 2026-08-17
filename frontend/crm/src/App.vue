@@ -1260,6 +1260,11 @@ const mediaTypeLastMessageLabel = (type) => {
   return labels[type] || (type ? `[${type}]` : "");
 };
 
+const isMediaMessage = (m) =>
+  ["image", "video", "audio", "document", "sticker"].includes(m?.type);
+
+const isProviderPrefixedId = (id) => /^[FY]-\d+$/.test(String(id || ""));
+
 // --- Helper: Centralized Message Sanitizer ---
 // Aggressively cleans duplicates based on ID, WAMID, and Fuzzy Content/Time
 const sanitizeMessages = (messages) => {
@@ -1303,7 +1308,6 @@ const sanitizeMessages = (messages) => {
     // Fuzzy Check (The "Healer")
     // IMPORTANT: Never merge inbound media messages (customer images) — each is a separate bubble.
     // Outgoing optimistic bubbles (pending/temp id) MUST merge with the server copy.
-    const isMediaMessage = (m) => ['image', 'video', 'audio', 'document', 'sticker'].includes(m?.type);
     const isTempId = (id) => /^\d{13,}$/.test(String(id || "")); // Date.now() style
     const isOptimistic = (m) =>
       m?.status === "pending" || isTempId(m?.id) || String(m?.media_url || "").startsWith("data:");
@@ -1382,9 +1386,17 @@ const sanitizeMessages = (messages) => {
       } else {
         const existingIdIsInt = /^\d+$/.test(String(existing.id));
         const msgIdIsInt = /^\d+$/.test(String(msg.id));
-        if (msgIdIsInt && !existingIdIsInt) {
+        const existingHasProvider = isProviderPrefixedId(existing.id);
+        const msgHasProvider = isProviderPrefixedId(msg.id);
+        if (msgHasProvider && !existingHasProvider) {
+          existing.id = msg.id;
+        } else if (msgIdIsInt && !existingIdIsInt && !existingHasProvider) {
           existing.id = msg.id;
         }
+      }
+
+      if (msg.provider && !existing.provider) {
+        existing.provider = msg.provider;
       }
 
       if (msg.wamid && !existing.wamid) {
@@ -3144,6 +3156,22 @@ const handleIncomingMessage = (payload) => {
     // Wamid match
     if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid))
       return true;
+
+    // Outgoing media echo: same provider + type + close time
+    if (
+      m.sender === "me" &&
+      newMsg.sender === "me" &&
+      isMediaMessage(m) &&
+      isMediaMessage(newMsg) &&
+      m.type === newMsg.type &&
+      (m.provider || "Y") === (newMsg.provider || "Y")
+    ) {
+      const time1 = new Date(m.rawTime || m.time).getTime();
+      const time2 = new Date(newMsg.rawTime || newMsg.time).getTime();
+      if (!isNaN(time1) && !isNaN(time2) && Math.abs(time1 - time2) < 15000) {
+        return true;
+      }
+    }
 
     // Fuzzy match: same sender + same NORMALIZED text + close timestamp
     const normalize = (str) =>

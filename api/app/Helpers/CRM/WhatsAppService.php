@@ -1249,6 +1249,69 @@ class WhatsAppService
     }
 
     /**
+     * Send video message via yCloud API.
+     *
+     * @param string $to Phone number
+     * @param string $videoUrl Public URL to the video
+     * @param string $caption Optional caption
+     * @return array Response with success status and data
+     */
+    public function sendVideo($to, $videoUrl, $caption = '', $senderCode = null)
+    {
+        $payload = [
+            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'to' => $this->formatPhoneNumber($to),
+            'type' => 'video',
+            'video' => [
+                'link' => $videoUrl,
+            ],
+        ];
+
+        if ($caption) {
+            $payload['video']['caption'] = $caption;
+        }
+
+        try {
+            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', $caption ?: null, null, $senderCode);
+
+            if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {
+                $data = $response['data'];
+
+                if (isset($data['id']) || isset($data['message_id'])) {
+                    return [
+                        'success' => true,
+                        'data' => [
+                            'id' => $data['id'] ?? $data['message_id'] ?? null,
+                            'wamid' => $data['wamid'] ?? null,
+                            'status' => $data['status'] ?? 'sent',
+                        ],
+                        'local_id' => $response['local_id'] ?? null,
+                    ];
+                }
+            }
+
+            if (class_exists('\Log')) {
+                \Log::write('sendVideo FAILED - response: ' . json_encode($response), 'wa_error', 'SendVideo');
+            }
+
+            return [
+                'success' => false,
+                'error' => $response['error'] ?? 'Failed to send video',
+                'httpCode' => $response['http_code'] ?? 500,
+            ];
+        } catch (\Exception $e) {
+            if (class_exists('\Log')) {
+                \Log::write('sendVideo EXCEPTION: ' . $e->getMessage(), 'wa_error', 'SendVideo');
+            }
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Get user data (contact_name, code) from laundry database
      */
     private function getUserData($waNumber)

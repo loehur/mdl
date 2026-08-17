@@ -271,6 +271,125 @@ class CrmChatMergeHelper
         return $cache;
     }
 
+    /** Kolom status di wa_fonnte_messages_in (migration 027). */
+    public static function fonnteInboundStatusReady($db): bool
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        if (!self::fonnteMessageTablesReady($db)) {
+            $cache = false;
+
+            return false;
+        }
+        try {
+            $q = $db->query(
+                'SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1',
+                ['wa_fonnte_messages_in', 'status']
+            );
+            $cache = $q && $q->num_rows() > 0;
+        } catch (\Throwable $e) {
+            $cache = false;
+        }
+
+        return $cache;
+    }
+
+    /**
+     * Placeholder IN (?,?) untuk phoneVariants.
+     *
+     * @return array{0:string,1:string[]}
+     */
+    public static function phoneInClause(string $phone): array
+    {
+        $variants = self::phoneVariants($phone);
+        if ($variants === []) {
+            return ['', []];
+        }
+
+        return [implode(',', array_fill(0, count($variants), '?')), $variants];
+    }
+
+    /** Unread yCloud (wa_messages_in) + Fonnte (status=received). */
+    public static function countUnreadForPhone($db, string $phone): int
+    {
+        [$inSql, $variants] = self::phoneInClause($phone);
+        if ($inSql === '') {
+            return 0;
+        }
+
+        $total = 0;
+        try {
+            $q = $db->query(
+                "SELECT COUNT(*) AS c FROM wa_messages_in WHERE phone IN ({$inSql}) AND (status != 'read' OR status IS NULL)",
+                $variants
+            );
+            if ($q && $q->num_rows() > 0) {
+                $total += (int) ($q->row()->c ?? 0);
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        if (self::fonnteInboundStatusReady($db)) {
+            try {
+                $q = $db->query(
+                    "SELECT COUNT(*) AS c FROM wa_fonnte_messages_in WHERE phone IN ({$inSql}) AND status = 'received'",
+                    $variants
+                );
+                if ($q && $q->num_rows() > 0) {
+                    $total += (int) ($q->row()->c ?? 0);
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        return $total;
+    }
+
+    /** Tandai semua inbound Fonnte untuk nomor ini sebagai read. */
+    public static function markFonnteInboundRead($db, string $phone): int
+    {
+        if (!self::fonnteInboundStatusReady($db)) {
+            return 0;
+        }
+        [$inSql, $variants] = self::phoneInClause($phone);
+        if ($inSql === '') {
+            return 0;
+        }
+        try {
+            $db->query(
+                "UPDATE wa_fonnte_messages_in SET status = 'read' WHERE phone IN ({$inSql}) AND status = 'received'",
+                $variants
+            );
+
+            return (int) $db->affected_rows();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /** Tandai semua inbound yCloud untuk nomor ini sebagai read (semua varian phone). */
+    public static function markYcloudInboundRead($db, string $phone): int
+    {
+        [$inSql, $variants] = self::phoneInClause($phone);
+        if ($inSql === '') {
+            return 0;
+        }
+        try {
+            $db->query(
+                "UPDATE wa_messages_in SET status = 'read' WHERE phone IN ({$inSql})",
+                $variants
+            );
+
+            return (int) $db->affected_rows();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     /**
      * @return array{last_message:?string,last_message_time:?string}
      */

@@ -111,7 +111,8 @@ class WA_Fonnte extends Controller
             $this->recordFonnteIncoming($waNumber, $timestamp);
             $msgId = $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
             if ($msgId) {
-                $lastMessage = 'i- 📎 Media';
+                $meta = $this->getFonnteInboundMeta((int) $msgId);
+                $lastMessage = $this->fonnteInboundLastMessagePreview($meta['type'], $meta['text']);
                 $createdAt = $this->fonnteTimestampToLastInAt($timestamp);
                 $this->pushCrmFonnteInbound(
                     $waNumber,
@@ -120,9 +121,9 @@ class WA_Fonnte extends Controller
                     $createdAt,
                     (int) $msgId,
                     $inboxid,
-                    '',
-                    'image',
-                    $url !== '' ? (string) $url : null
+                    $meta['text'],
+                    $meta['type'],
+                    $meta['media_url']
                 );
             }
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
@@ -185,7 +186,10 @@ class WA_Fonnte extends Controller
             }
 
             if ($savedMsgId) {
+                $meta = $this->getFonnteInboundMeta((int) $savedMsgId);
                 $createdAt = $this->fonnteTimestampToLastInAt($timestamp);
+                $pushText = $meta['text'] !== '' ? $meta['text'] : $messageText;
+                $pushType = $meta['type'] !== 'text' || ! empty($meta['media_url']) ? $meta['type'] : 'text';
                 $this->pushCrmFonnteInbound(
                     $waNumber,
                     $customerCtx,
@@ -193,9 +197,9 @@ class WA_Fonnte extends Controller
                     $createdAt,
                     (int) $savedMsgId,
                     $inboxid,
-                    $messageText,
-                    'text',
-                    null
+                    $pushText,
+                    $pushType,
+                    $meta['media_url']
                 );
             }
 
@@ -272,6 +276,43 @@ class WA_Fonnte extends Controller
 
             return null;
         }
+    }
+
+    /**
+     * @return array{type:string,text:string,media_url:?string}
+     */
+    private function getFonnteInboundMeta(int $msgId): array
+    {
+        try {
+            $row = $this->db(0)->get_where('wa_fonnte_messages_in', ['id' => $msgId])->row();
+            if (! $row) {
+                return ['type' => 'text', 'text' => '', 'media_url' => null];
+            }
+
+            return [
+                'type' => (string) ($row->type ?? 'text'),
+                'text' => (string) ($row->text ?? ''),
+                'media_url' => ! empty($row->media_url) ? (string) $row->media_url : null,
+            ];
+        } catch (\Throwable $e) {
+            return ['type' => 'text', 'text' => '', 'media_url' => null];
+        }
+    }
+
+    private function fonnteInboundLastMessagePreview(string $type, string $text): string
+    {
+        if ($text !== '') {
+            return 'i- ' . mb_substr($text, 0, 50);
+        }
+        $labels = [
+            'video' => 'i- 🎥 Video',
+            'image' => 'i- 🖼 Gambar',
+            'audio' => 'i- 🎤 Audio',
+            'location' => 'i- 📍 Lokasi',
+            'sticker' => 'i- 🎨 Sticker',
+        ];
+
+        return $labels[$type] ?? 'i- 📎 Media';
     }
 
     /**

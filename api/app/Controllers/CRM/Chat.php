@@ -115,12 +115,7 @@ class Chat extends Controller
                     c.contact_name, 
                     c.status,
                     c.conv_case,
-                    (
-                        SELECT COUNT(*) 
-                        FROM wa_messages_in m 
-                        WHERE m.phone = c.wa_number 
-                        AND (m.status != 'read' OR m.status IS NULL)
-                    ) as unread_count,
+                    0 as unread_count,
                     c.last_message as last_message,
                     c.last_message_at as last_message_time,
                     c.assigned_user_id,
@@ -172,6 +167,7 @@ class Chat extends Controller
                 $conv->last_in_at_fonnte = $csw['last_in_at_fonnte'];
                 $conv->default_reply_channel = $csw['default_reply_channel'];
                 $conv->can_reply = $csw['can_reply'];
+                $conv->unread_count = CrmChatMergeHelper::countUnreadForPhone($db, (string) ($conv->wa_number ?? ''));
 
                 // Check if 'conv_case' column exists and has content
                 if (isset($conv->conv_case)) {
@@ -420,6 +416,7 @@ class Chat extends Controller
         if (!$phone || !$message) $this->error('Missing required fields (phone, message)');
 
         $db = $this->db(0);
+        $this->assertAdminCanReply($db, $body['user_id'] ?? null);
 
         if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
             require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
@@ -588,12 +585,25 @@ class Chat extends Controller
         if(!$phone) $this->error('Phone required');
         
         $db = $this->db(0);
-        
-        // 1. Get WAMIDs for API Sync
-        $unreads = $db->query("SELECT wamid FROM wa_messages_in WHERE phone = ? AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL", [$phone])->result_array();
-        
-        // 2. Direct Query Update ALL messages
-        $db->query("UPDATE wa_messages_in SET status = 'read' WHERE phone = ?", [$phone]);
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+
+        [$inSql, $variants] = CrmChatMergeHelper::phoneInClause((string) $phone);
+        if ($inSql === '') {
+            $this->error('Phone required');
+        }
+
+        // 1. Get WAMIDs for yCloud API sync (semua varian nomor)
+        $unreads = $db->query(
+            "SELECT wamid FROM wa_messages_in WHERE phone IN ({$inSql}) AND (status != 'read' OR status IS NULL) AND wamid IS NOT NULL",
+            $variants
+        )->result_array();
+
+        // 2. Mark read lokal (yCloud + Fonnte)
+        CrmChatMergeHelper::markYcloudInboundRead($db, (string) $phone);
+        CrmChatMergeHelper::markFonnteInboundRead($db, (string) $phone);
         
         // ALWAYS Push WS to sync status (Broadcast to ALL via target_id='0')
         $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
@@ -1160,20 +1170,32 @@ class Chat extends Controller
             $phone = $body['phone'] ?? null;
             $userId = $body['user_id'] ?? null;
             $caption = $body['caption'] ?? '';
+            $channelReq = $body['channel'] ?? 'auto';
             
             if (!$phone) {
                 $this->error('Missing phone number');
             }
             
             $db = $this->db(0);
-            
-            // Get conversation details
-            $conversation = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
-            if (!$conversation) {
-                $this->error('Conversation not found');
+            $this->assertAdminCanReply($db, $body['user_id'] ?? null);
+
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
             }
-            
-            $waNumber = $phone; // Alias
+
+            $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
+            $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
+            if ($channel === null) {
+                $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send image.', 400);
+            }
+
+            $senderCode = $body['sender_code'] ?? null;
+            if (!$senderCode && $userId) {
+                $senderCode = $this->resolveSenderCode($db, $userId);
+            }
+            if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
+                $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
+            }
             
             // Upload image to server
             $uploaded = $this->uploadImageFile($_FILES['image']);
@@ -1182,26 +1204,25 @@ class Chat extends Controller
             }
             
             $mediaUrl = $uploaded['url'];
+
+            if ($channel === 'fonnte') {
+                $this->sendMediaViaFonnte($db, (string) $phone, $mediaUrl, (string) $caption, $senderCode, $uploaded['path'] ?? null, 'image');
+                return;
+            }
+
+            $conv = CrmChatMergeHelper::findWaConversation($db, (string) $phone);
+            if (!$conv) {
+                $this->error('Conversation not found');
+            }
+            $waNumber = $conv->wa_number;
             
-            // Send via WhatsApp Service
+            // Send via WhatsApp Service (yCloud)
             if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
                 require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
             }
             
             try {
                 $waService = new \App\Helpers\CRM\WhatsAppService();
-                
-                $senderCode = $body['sender_code'] ?? null;
-                
-                if (!$senderCode && $userId) {
-                    $senderCode = $this->resolveSenderCode($db, $userId);
-                }
-                
-                // Fallback to session code
-                if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
-                    $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
-                }
-                
                 $result = $waService->sendImage($waNumber, $mediaUrl, $caption, $senderCode);
                 
             } catch (\Throwable $e) {
@@ -1259,7 +1280,9 @@ class Chat extends Controller
                 $this->success([
                     'local_id' => $msgId,
                     'media_url' => $mediaUrl,
-                    'wamid' => $result['data']['wamid'] ?? null
+                    'wamid' => $result['data']['wamid'] ?? null,
+                    'channel' => 'ycloud',
+                    'provider' => 'Y',
                 ], 'Image sent successfully');
             } else {
                 $this->error($result['error'] ?? 'Failed to send image', 500);
@@ -1270,7 +1293,249 @@ class Chat extends Controller
             $this->error('Server error: ' . $e->getMessage(), 500);
         }
     }
-    
+
+    /**
+     * Send Video via WhatsApp (yCloud / Fonnte).
+     */
+    public function sendVideo()
+    {
+        try {
+            if (!isset($_FILES['video']) || $_FILES['video']['error'] !== UPLOAD_ERR_OK) {
+                $this->error('No video uploaded or upload error');
+            }
+
+            $body = $_POST;
+            $phone = $body['phone'] ?? null;
+            $userId = $body['user_id'] ?? null;
+            $caption = $body['caption'] ?? '';
+            $channelReq = $body['channel'] ?? 'auto';
+
+            if (!$phone) {
+                $this->error('Missing phone number');
+            }
+
+            $db = $this->db(0);
+            $this->assertAdminCanReply($db, $body['user_id'] ?? null);
+
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+            }
+
+            $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
+            $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
+            if ($channel === null) {
+                $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send video.', 400);
+            }
+
+            $senderCode = $body['sender_code'] ?? null;
+            if (!$senderCode && $userId) {
+                $senderCode = $this->resolveSenderCode($db, $userId);
+            }
+            if (!$senderCode && isset($_SESSION['mdl_crm_session']['user']['code'])) {
+                $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
+            }
+
+            $uploaded = $this->uploadVideoFile($_FILES['video']);
+            if (!$uploaded['success']) {
+                $this->error($uploaded['error']);
+            }
+
+            $mediaUrl = $uploaded['url'];
+
+            if ($channel === 'fonnte') {
+                $this->sendMediaViaFonnte($db, (string) $phone, $mediaUrl, (string) $caption, $senderCode, $uploaded['path'] ?? null, 'video');
+                return;
+            }
+
+            $conv = CrmChatMergeHelper::findWaConversation($db, (string) $phone);
+            if (!$conv) {
+                $this->error('Conversation not found');
+            }
+            $waNumber = $conv->wa_number;
+
+            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
+            }
+
+            try {
+                $waService = new \App\Helpers\CRM\WhatsAppService();
+                $result = $waService->sendVideo($waNumber, $mediaUrl, $caption, $senderCode);
+            } catch (\Throwable $e) {
+                \Log::write('CRITICAL ERROR calling sendVideo: ' . $e->getMessage(), 'cms_error', 'Chat');
+                $this->error('WhatsApp API error: ' . $e->getMessage(), 500);
+            }
+
+            if ($result['success']) {
+                $isPrivate = false;
+                try {
+                    $isPrivate = \EnvHelper::textContainsPrivateWord($caption ?? '');
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+
+                $messageData = [
+                    'phone' => $waNumber,
+                    'type' => 'video',
+                    'content' => $caption,
+                    'media_url' => $mediaUrl,
+                    'message_id' => $result['data']['id'] ?? null,
+                    'wamid' => $result['data']['wamid'] ?? null,
+                    'status' => 'sent',
+                    'private' => $isPrivate ? 1 : 0,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ];
+
+                $msgId = $result['local_id'] ?? null;
+                if (!$msgId) {
+                    $msgId = $db->insert('wa_messages_out', $messageData);
+                } else {
+                    $db->update('wa_messages_out', ['status' => 'sent', 'type' => 'video', 'media_url' => $mediaUrl], ['id' => $msgId]);
+                }
+
+                $lastMsgDisplay = $isPrivate ? 'o- 🔒 _Private Chat_' : 'o- 🎥 Video';
+                $db->update('wa_conversations', [
+                    'last_message' => $lastMsgDisplay,
+                    'last_message_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['wa_number' => $waNumber]);
+
+                $this->success([
+                    'local_id' => $msgId,
+                    'media_url' => $mediaUrl,
+                    'wamid' => $result['data']['wamid'] ?? null,
+                    'channel' => 'ycloud',
+                    'provider' => 'Y',
+                ], 'Video sent successfully');
+            } else {
+                $this->error($result['error'] ?? 'Failed to send video', 500);
+            }
+        } catch (\Exception $e) {
+            \Log::write('sendVideo ERROR: ' . $e->getMessage(), 'cms_error', 'Chat');
+            $this->error('Server error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Kirim media (gambar/video) via Fonnte (CSW Fonnte terbuka).
+     */
+    private function sendMediaViaFonnte($db, string $phone, string $mediaUrl, string $caption, ?string $senderCode, ?string $localPath, string $mediaType = 'image'): void
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
+        }
+
+        $mediaType = $mediaType === 'video' ? 'video' : 'image';
+        $defaultExt = $mediaType === 'video' ? 'video.mp4' : 'image.jpg';
+        $filename = null;
+        if ($localPath && is_file($localPath)) {
+            $filename = basename($localPath);
+        } elseif ($mediaUrl !== '') {
+            $filename = basename(parse_url($mediaUrl, PHP_URL_PATH) ?: $defaultExt);
+        }
+
+        $fonnte = new \App\Helpers\CRM\FonnteService();
+        $options = ['url' => $mediaUrl];
+        if ($filename) {
+            $options['filename'] = $filename;
+        }
+
+        $messageText = $caption !== '' ? $caption : ' ';
+        $result = $fonnte->sendMessage($phone, $messageText, $options);
+        if (empty($result['success'])) {
+            $label = $mediaType === 'video' ? 'video' : 'image';
+            $this->error('Failed to send ' . $label . ' via Fonnte: ' . ($result['error'] ?? 'Unknown error'), 500);
+        }
+
+        $waNumber = CrmChatMergeHelper::normalizeWaNumber($phone);
+        $code = ($senderCode !== null && trim($senderCode) !== '')
+            ? trim($senderCode)
+            : \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+        $isHuman = \App\Helpers\CRM\SapaanStatsHelper::isHumanSenderCode($code);
+
+        $statsFallback = $mediaType === 'video' ? '🎥 Video' : '📷 Image';
+        $lastPreview = $mediaType === 'video' ? 'o- 🎥 Video' : 'o- 📷 Image';
+
+        $store = new \App\Helpers\CRM\FonnteMessageStore($db);
+        $fonnteId = $result['data']['id'][0] ?? ($result['data']['requestid'] ?? null);
+        $localId = $store->saveOutgoing($waNumber, trim($caption), [
+            'type' => $mediaType,
+            'media_url' => $mediaUrl,
+            'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+            'source' => $isHuman ? 'human' : 'autoreply',
+            'sender_code' => $code,
+            'status' => 'sent',
+        ]);
+
+        if ($isHuman) {
+            try {
+                \App\Helpers\CRM\SapaanStatsHelper::recordStatsIfHuman(
+                    $db,
+                    $waNumber,
+                    trim($caption) !== '' ? trim($caption) : $statsFallback,
+                    $code
+                );
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $conv = CrmChatMergeHelper::findWaConversation($db, $phone);
+        $conversationId = 0;
+        $kodeCabang = '00';
+        $custId = null;
+        $assignedUserId = null;
+        if ($conv) {
+            $conversationId = (int) ($conv->id ?? 0);
+            $kodeCabang = $conv->code ?? '00';
+            $custId = $conv->cust_id ?? null;
+            $assignedUserId = $conv->assigned_user_id ?? null;
+            $db->update('wa_conversations', [
+                'last_message' => $lastPreview,
+                'last_message_at' => $now,
+                'updated_at' => $now,
+            ], ['wa_number' => $conv->wa_number]);
+        }
+
+        CrmChatMergeHelper::pushWebSocket([
+            'type' => 'agent_message_sent',
+            'target_id' => '0',
+            'notify' => false,
+            'conversation_id' => $conversationId,
+            'phone' => $waNumber,
+            'contact_name' => $conv->contact_name ?? null,
+            'kode_cabang' => $kodeCabang,
+            'cust_id' => $custId,
+            'assignment_user_id' => $assignedUserId,
+            'message' => [
+                'id' => $localId !== null ? ('F-' . $localId) : null,
+                'wamid' => $fonnteId !== null ? (string) $fonnteId : null,
+                'text' => $caption,
+                'type' => $mediaType,
+                'media_url' => $mediaUrl,
+                'sender_code' => $code,
+                'time' => $now,
+                'status' => 'sent',
+                'provider' => 'F',
+            ],
+        ]);
+
+        $successMsg = $mediaType === 'video' ? 'Video sent via Fonnte' : 'Image sent via Fonnte';
+        $this->success([
+            'local_id' => $localId,
+            'media_url' => $mediaUrl,
+            'message_id' => $fonnteId,
+            'channel' => 'fonnte',
+            'provider' => 'F',
+        ], $successMsg);
+    }
+
     /**
      * Upload image file to server
      */
@@ -1313,6 +1578,47 @@ class Chat extends Controller
                 'url' => $url
             ];
             
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Upload video file to server (max 16MB — limit WA).
+     */
+    private function uploadVideoFile($file)
+    {
+        try {
+            if ($file['size'] > 16 * 1024 * 1024) {
+                return ['success' => false, 'error' => 'File too large (max 16MB)'];
+            }
+
+            $allowedTypes = ['video/mp4', 'video/3gpp', 'video/webm', 'video/quicktime'];
+            $mime = (string) ($file['type'] ?? '');
+            if (!in_array($mime, $allowedTypes, true)) {
+                return ['success' => false, 'error' => 'Invalid video type'];
+            }
+
+            $uploadDir = __DIR__ . '/../../../uploads/wa_media/' . date('Y/m/');
+            if (!file_exists($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'mp4';
+            $filename = uniqid('vid_') . '_' . time() . '.' . $ext;
+            $uploadPath = $uploadDir . $filename;
+
+            if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                return ['success' => false, 'error' => 'Failed to save file'];
+            }
+
+            $url = 'https://api.nalju.com/uploads/wa_media/' . date('Y/m/') . $filename;
+
+            return [
+                'success' => true,
+                'path' => $uploadPath,
+                'url' => $url,
+            ];
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -1420,6 +1726,37 @@ class Chat extends Controller
         }
 
         return null;
+    }
+
+    private function isAdminUser($db, $userId): bool
+    {
+        if ($userId === null || $userId === '') {
+            $sessionUser = $_SESSION['mdl_crm_session']['user'] ?? null;
+            if (is_array($sessionUser)) {
+                if (strtolower((string) ($sessionUser['role'] ?? '')) === 'admin') {
+                    return true;
+                }
+                $userId = $sessionUser['username'] ?? null;
+            }
+        }
+
+        if ($userId === null || $userId === '') {
+            return false;
+        }
+
+        $userRecord = $db
+            ->where('LOWER(username)', strtolower((string) $userId))
+            ->get('crm_users')
+            ->row();
+
+        return $userRecord && strtolower((string) ($userRecord->role ?? '')) === 'admin';
+    }
+
+    private function assertAdminCanReply($db, $userId = null): void
+    {
+        if (!$this->isAdminUser($db, $userId)) {
+            $this->error('Hanya admin yang dapat membalas chat', 403);
+        }
     }
 
 }
