@@ -1952,8 +1952,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     <p class="kurir-hint" id="kurirHint">
       Operasi selalu menulis surcas ke nota (wajib pilih item dan pengisi surcas).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
-      Antar tanpa penyelesai → request (Pending = parkir di luar board).
-      Jika penyelesai antar terisi, Pending diabaikan (selesai langsung).
+      Antar tanpa penyelesai → request (default pending di luar board).
+      Centang “Langsung antar saat selesai” agar masuk board; jika penyelesai antar terisi, antar langsung selesai.
       Pengisi surcas terpisah dari penyelesai delivery.
       Item terikat request dengan tarif tidak bisa diubah nominal surcas-nya.
     </p>
@@ -1966,10 +1966,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         <option value="jemput_antar">Jemput &amp; Antar</option>
       </select>
     </div>
-    <label class="kurir-pending" id="kurirPendingWrap" hidden>
-      <input type="checkbox" id="kurirPending" checked>
+    <label class="kurir-pending" id="kurirLangsungAntarWrap" hidden>
+      <input type="checkbox" id="kurirLangsungAntar">
       <span>
-        <strong>Pending</strong> — request Antar parkir (tidak di board) sampai pelanggan chat minta antar.
+        <strong>Langsung antar saat selesai</strong> — masuk board Delivery.
+        Tidak dicentang = pending (parkir sampai pelanggan chat minta antar).
         Diabaikan jika penyelesai antar terisi.
       </span>
     </label>
@@ -2193,8 +2194,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   function syncPendingUi() {
     var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
-    var wrap = document.getElementById('kurirPendingWrap');
-    var cb = document.getElementById('kurirPending');
+    var wrap = document.getElementById('kurirLangsungAntarWrap');
+    var cb = document.getElementById('kurirLangsungAntar');
     if (!wrap || !cb) return;
     var show = jenis === 'antar' || jenis === 'jemput_antar';
     var wasHidden = wrap.hidden;
@@ -2203,8 +2204,17 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     wrap.classList.toggle('is-ignored', ignore);
     cb.disabled = ignore;
     if (show && wasHidden) {
-      cb.checked = true;
+      // Default: tidak dicentang = pending
+      cb.checked = false;
     }
+  }
+
+  /** true = pending (parkir); false = langsung ke board / selesai */
+  function wantPendingAntar() {
+    var cb = document.getElementById('kurirLangsungAntar');
+    if (!cb || cb.disabled) return false;
+    // Tidak dicentang = pending
+    return !cb.checked;
   }
 
   function syncSubmitLabel() {
@@ -2212,11 +2222,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var lab = document.getElementById('kurirSubmitLabel');
     if (!lab) return;
     if (jenis === 'jemput_antar') {
-      lab.textContent = (function () {
-        var pendingCb = document.getElementById('kurirPending');
-        var pendingOn = pendingCb && pendingCb.checked;
-        return pendingOn ? 'Selesai Jemput + Request Antar Pending' : 'Selesai Jemput + Request Antar';
-      })();
+      lab.textContent = wantPendingAntar()
+        ? 'Selesai Jemput + Request Antar Pending'
+        : 'Selesai Jemput + Request Antar';
       return;
     }
     if (jenis === 'jemput') {
@@ -2233,14 +2241,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       return;
     }
     var hasKaryawan = currentPenyelesai() > 0;
-    var pendingOn = false;
-    var pendingCb = document.getElementById('kurirPending');
-    if (pendingCb && !pendingCb.disabled && pendingCb.checked) pendingOn = true;
     if (hasKaryawan) {
       lab.textContent = 'Selesai Sekarang';
       return;
     }
-    lab.textContent = pendingOn ? 'Buat Request Pending' : 'Buat Request';
+    lab.textContent = wantPendingAntar() ? 'Buat Request Pending' : 'Buat Request';
   }
 
   function lockedTarifFromChecked(attr, terikatAttr) {
@@ -2436,7 +2441,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     syncPendingUi();
     syncSubmitLabel();
   });
-  var pendingEl = root.querySelector('#kurirPending');
+  var pendingEl = root.querySelector('#kurirLangsungAntar');
   if (pendingEl) pendingEl.addEventListener('change', syncSubmitLabel);
 
   root.querySelectorAll('.kurir-surcas-tarif-btn').forEach(function (btn) {
@@ -2525,8 +2530,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (jenis === 'antar' || jenis === 'jemput_antar') {
       var a = document.getElementById('kurirSurcasAntar').value;
       if (a !== '') fd.append('jumlah_surcas_antar', a);
-      var pendingCb = document.getElementById('kurirPending');
-      var wantPending = pendingCb && !pendingCb.disabled && pendingCb.checked;
+      var wantPending = wantPendingAntar();
       // Antar + penyelesai terisi → pending diabaikan (server juga mengabaikan)
       if (jenis === 'antar' && idKaryawan > 0) wantPending = false;
       fd.append('pending', wantPending ? '1' : '0');
