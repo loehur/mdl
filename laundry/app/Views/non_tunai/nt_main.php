@@ -1,12 +1,13 @@
 <?php
 if (count($data['cek']) == 0) { ?>
-  <div class="text-center py-5">
-    <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
-    <h5 class="text-muted">Semua transaksi sudah dikonfirmasi</h5>
+  <div class="aa-empty">
+    <i class="fas fa-check-circle"></i>
+    Semua transaksi non-tunai sudah dikonfirmasi
   </div>
 <?php } else { ?>
 
-<div class="list-group mb-5">
+<div class="aa-section-title">Menunggu konfirmasi</div>
+<div class="aa-grid" style="grid-template-columns: 1fr;">
   <?php foreach ($data['cek'] as $a) {
     $id = $a['ref_finance'];
     $f1 = $a['ref_finance'];
@@ -73,22 +74,18 @@ if (count($data['cek']) == 0) { ?>
       $invoiceTitle = 'Jualan #' . $refTransaksi;
     }
   ?>
-  <div class="list-group-item list-group-item-action px-3 py-2">
-    <div class="d-flex justify-content-between align-items-center">
-      <!-- Left: Info -->
-      <div class="flex-grow-1">
+  <div class="aa-card aa-card--pending nt-row">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+      <div class="flex-grow-1" style="min-width:0">
         <a href="#" class="text-decoration-none nt-invoice-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
-          <strong class="text-dark"><?= strtoupper($pelanggan) ?></strong>
-          <i class="fas fa-expand-alt small text-muted ms-1" title="Lihat tagihan"></i>
+          <div class="aa-card__title" style="margin:0"><?= strtoupper($pelanggan) ?> <i class="fas fa-expand-alt small" title="Lihat tagihan"></i></div>
         </a>
-        <div class="small text-muted">
-          <?php if ($tglBayar !== '') { ?><span class="text-nowrap"><i class="far fa-clock me-1"></i><?= $tglBayar ?></span> • <?php } ?><?= $jenis_bill ?> • <?= strtoupper($f2) ?> • <?= $karyawan ?>
+        <div class="aa-card__meta" style="margin:4px 0 0">
+          <?php if ($tglBayar !== '') { ?><span class="text-nowrap"><i class="far fa-clock me-1"></i><?= $tglBayar ?></span> · <?php } ?><?= $jenis_bill ?> · <?= strtoupper($f2) ?> · <?= $karyawan ?>
         </div>
       </div>
-      
-      <!-- Right: Amount & Actions -->
-      <div class="d-flex align-items-center gap-2">
-        <span class="fw-bold text-primary me-2"><?= number_format($f4) ?></span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="aa-card__amount" style="margin:0"><?= number_format($f4) ?></span>
         <?php if ($hp !== '') { ?>
         <button type="button"
           class="nt-chat-btn nChat"
@@ -99,10 +96,10 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-comments"></i>
         </button>
         <?php } ?>
-        <button class="btn btn-outline-danger btn-sm nTolak" data-id="<?= $id ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
+        <button class="aa-btn aa-btn--danger nTolak" data-id="<?= $id ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
           <i class="fas fa-times"></i>
         </button>
-        <button class="btn btn-success btn-sm nTerima" data-id="<?= $id ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/3">
+        <button class="aa-btn aa-btn--ok nTerima" data-id="<?= $id ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/3">
           <i class="fas fa-check"></i>
         </button>
       </div>
@@ -286,7 +283,7 @@ if (count($data['cek']) == 0) { ?>
           return;
         }
         ntToast('Transaksi ditolak', 'ok');
-        btn.closest('.list-group-item').fadeOut(200, function() {
+        btn.closest('.nt-row, .list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {
             location.reload(true);
@@ -317,7 +314,7 @@ if (count($data['cek']) == 0) { ?>
           return;
         }
         ntToast('Transaksi dikonfirmasi', 'ok');
-        btn.closest('.list-group-item').fadeOut(200, function() {
+        btn.closest('.nt-row, .list-group-item').fadeOut(200, function() {
           $(this).remove();
           if ($('.nTolak').length === 0 && $('.nTerima').length === 0) {
             location.reload(true);

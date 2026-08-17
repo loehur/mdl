@@ -13,6 +13,7 @@ Referensi implementasi yang sudah sesuai tema:
 - Riwayat chat WA (shared) → Helper `WaChatHistory` + JS `in_assets/js/mdl-wa-chat.js` (`window.MdlWaChat`) + CSS `.mdl-wa-chat` di `layout.php` (Delivery + Notifikasi permintaan)
 - Antrian view → `laundry/app/Views/antrian/view_content.php` + `form.php` (warna token; layout/spacing dipertahankan)
 - Login → `laundry/app/Views/login.php`
+- Admin Approval → `laundry/app/Views/admin_approval/admin_approval_main.php` (`#aa-root`) + tab AJAX (Setoran / NonTunai / HapusOrder / HapusDeposit / Pengeluaran)
 - Absen → `laundry/app/Views/Absen/form.php` (`#absen-root`) + `content.php`
 - Operan → `laundry/app/Views/operan/form.php` (`#operan-root`) + `content.php`
 - Tiket → `laundry/app/Views/tiket/form.php` (`#tiket-root`) + `view_load.php`
