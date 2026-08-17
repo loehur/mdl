@@ -1876,6 +1876,31 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     color: #fff;
   }
   #offcanvasKurir .kurir-btn:disabled { opacity: 0.55; cursor: wait; }
+  #offcanvasKurir .kurir-pending {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid #fdba74;
+    background: #fff7ed;
+    font-weight: 700;
+    color: #9a3412;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  #offcanvasKurir .kurir-pending input {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+  #offcanvasKurir .kurir-pending.is-ignored {
+    opacity: 0.55;
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+  }
   #offcanvasKurir .kurir-surcas-input-row {
     display: flex;
     gap: 6px;
@@ -1927,7 +1952,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     <p class="kurir-hint" id="kurirHint">
       Operasi selalu menulis surcas ke nota (wajib pilih item dan pengisi surcas).
       Jemput / Jemput &amp; Antar wajib penyelesai jemput.
-      Antar tanpa penyelesai → request di board; Delivery tinggal isi penyelesai.
+      Antar tanpa penyelesai → request (Pending = parkir di luar board).
+      Jika penyelesai antar terisi, Pending diabaikan (selesai langsung).
       Pengisi surcas terpisah dari penyelesai delivery.
       Item terikat request dengan tarif tidak bisa diubah nominal surcas-nya.
     </p>
@@ -1940,6 +1966,13 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         <option value="jemput_antar">Jemput &amp; Antar</option>
       </select>
     </div>
+    <label class="kurir-pending" id="kurirPendingWrap" hidden>
+      <input type="checkbox" id="kurirPending" checked>
+      <span>
+        <strong>Pending</strong> — request Antar parkir (tidak di board) sampai pelanggan chat minta antar.
+        Diabaikan jika penyelesai antar terisi.
+      </span>
+    </label>
     <div class="kurir-field" id="kurirSurcasJemputWrap" hidden>
       <label class="kurir-label" for="kurirSurcasJemput">Surcas Penjemputan</label>
       <div class="kurir-surcas-input-row">
@@ -2153,8 +2186,25 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
 
     loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
+    syncPendingUi();
     syncSubmitLabel();
     syncSurcasLock();
+  }
+
+  function syncPendingUi() {
+    var jenis = String(document.getElementById('kurirJenis').value || '').toLowerCase();
+    var wrap = document.getElementById('kurirPendingWrap');
+    var cb = document.getElementById('kurirPending');
+    if (!wrap || !cb) return;
+    var show = jenis === 'antar' || jenis === 'jemput_antar';
+    var wasHidden = wrap.hidden;
+    wrap.hidden = !show;
+    var ignore = jenis === 'antar' && currentPenyelesai() > 0;
+    wrap.classList.toggle('is-ignored', ignore);
+    cb.disabled = ignore;
+    if (show && wasHidden) {
+      cb.checked = true;
+    }
   }
 
   function syncSubmitLabel() {
@@ -2162,7 +2212,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var lab = document.getElementById('kurirSubmitLabel');
     if (!lab) return;
     if (jenis === 'jemput_antar') {
-      lab.textContent = 'Selesai Jemput + Request Antar';
+      lab.textContent = (function () {
+        var pendingCb = document.getElementById('kurirPending');
+        var pendingOn = pendingCb && pendingCb.checked;
+        return pendingOn ? 'Selesai Jemput + Request Antar Pending' : 'Selesai Jemput + Request Antar';
+      })();
       return;
     }
     if (jenis === 'jemput') {
@@ -2179,7 +2233,14 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       return;
     }
     var hasKaryawan = currentPenyelesai() > 0;
-    lab.textContent = hasKaryawan ? 'Selesai Sekarang' : 'Buat Request';
+    var pendingOn = false;
+    var pendingCb = document.getElementById('kurirPending');
+    if (pendingCb && !pendingCb.disabled && pendingCb.checked) pendingOn = true;
+    if (hasKaryawan) {
+      lab.textContent = 'Selesai Sekarang';
+      return;
+    }
+    lab.textContent = pendingOn ? 'Buat Request Pending' : 'Buat Request';
   }
 
   function lockedTarifFromChecked(attr, terikatAttr) {
@@ -2371,7 +2432,12 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var jenisEl = root.querySelector('#kurirJenis');
   if (jenisEl) jenisEl.addEventListener('change', syncJenisUi);
   var karyEl = root.querySelector('#kurirKaryawan');
-  if (karyEl) karyEl.addEventListener('change', syncSubmitLabel);
+  if (karyEl) karyEl.addEventListener('change', function () {
+    syncPendingUi();
+    syncSubmitLabel();
+  });
+  var pendingEl = root.querySelector('#kurirPending');
+  if (pendingEl) pendingEl.addEventListener('change', syncSubmitLabel);
 
   root.querySelectorAll('.kurir-surcas-tarif-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -2459,6 +2525,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (jenis === 'antar' || jenis === 'jemput_antar') {
       var a = document.getElementById('kurirSurcasAntar').value;
       if (a !== '') fd.append('jumlah_surcas_antar', a);
+      var pendingCb = document.getElementById('kurirPending');
+      var wantPending = pendingCb && !pendingCb.disabled && pendingCb.checked;
+      // Antar + penyelesai terisi → pending diabaikan (server juga mengabaikan)
+      if (jenis === 'antar' && idKaryawan > 0) wantPending = false;
+      fd.append('pending', wantPending ? '1' : '0');
     }
 
     btn.disabled = true;

@@ -652,6 +652,7 @@ class Delivery extends Controller
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
          $idPengisiSurcas = (int) ($_POST['id_pengisi_surcas'] ?? 0);
+         $wantPendingAntar = in_array((string) ($_POST['pending'] ?? '0'), ['1', 'true', 'on', 'yes'], true);
 
          $idsRaw = $_POST['ids'] ?? [];
          if (!is_array($idsRaw)) {
@@ -779,6 +780,7 @@ class Delivery extends Controller
 
             $idAntar = 0;
             $antarBound = false;
+            $antarPending = false;
             $surcasAntar = null;
             if ($jenis === 'jemput_antar') {
                $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
@@ -791,10 +793,12 @@ class Delivery extends Controller
                   $phoneTail,
                   $jumlahAntar,
                   $idReqJemput,
-                  'Antar kembali setelah jemput Operasi (Kurir)'
+                  'Antar kembali setelah jemput Operasi (Kurir)',
+                  $wantPendingAntar
                );
                $idAntar = (int) ($antarRes['id_request'] ?? 0);
                $antarBound = !empty($antarRes['bound']);
+               $antarPending = !empty($antarRes['pending']);
                if ($idAntar <= 0) {
                   throw new Exception('Gagal memastikan request antar kembali');
                }
@@ -809,6 +813,9 @@ class Delivery extends Controller
                $msg .= $antarBound
                   ? " · Request Antar #$idAntar diikat"
                   : " + Request Antar kembali #$idAntar";
+               if ($antarPending) {
+                  $msg .= ' (pending)';
+               }
                $msg .= !empty($surcasAntar['skipped'])
                   ? ' · Surcas antar sudah ada pada item (dilewati)'
                   : ' · Surcas antar ditambahkan ke nota';
@@ -827,6 +834,7 @@ class Delivery extends Controller
                   'id_request_jemput' => $idReqJemput > 0 ? $idReqJemput : null,
                   'id_request_antar' => $idAntar > 0 ? $idAntar : null,
                   'antar_bound' => $antarBound,
+                  'antar_pending' => $antarPending,
                ],
             ];
          } elseif ($jenis === 'antar') {
@@ -881,14 +889,18 @@ class Delivery extends Controller
                ];
             } elseif ($idKaryawan <= 0) {
             // ===== Antar: request (buat atau ikat) + surcas ke nota =====
-            $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+            // Pending hanya jika penyelesai kosong; default dari checkbox Operasi.
+            $asPending = $wantPendingAntar;
+            $reqAntar = $this->findAntarRequestForOperasiBind($idPelanggan);
             $idRequest = (int) ($reqAntar['id_request'] ?? 0);
             $bound = false;
+            $statusTarget = $asPending ? 'pending' : 'berjalan';
 
             if ($idRequest > 0) {
                $bound = true;
                $updSet = [
                   'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
+                  'delivery_status' => $statusTarget,
                ];
                $existingTarif = $reqAntar['tarif_surcas'] ?? null;
                if ($existingTarif === null || $existingTarif === '') {
@@ -911,7 +923,7 @@ class Delivery extends Controller
                   'sumber' => 'customer',
                   'jenis' => 'antar',
                   'layanan' => 'sameday',
-                  'delivery_status' => 'berjalan',
+                  'delivery_status' => $statusTarget,
                   'id_pelanggan' => $idPelanggan,
                   'phone_tail' => $phoneTail,
                   'id_cabang' => $idCabang,
@@ -940,7 +952,10 @@ class Delivery extends Controller
 
             $msg = $bound
                ? 'Request antar #' . $idRequest . ' diikat dari Operasi'
-               : 'Request antar #' . $idRequest . ' masuk board Delivery';
+               : 'Request antar #' . $idRequest . ($asPending ? ' dibuat (pending)' : ' masuk board Delivery');
+            if ($bound && $asPending) {
+               $msg .= ' (pending)';
+            }
             $msg .= !empty($surcasAntar['skipped'])
                ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan ke nota';
@@ -954,6 +969,7 @@ class Delivery extends Controller
                   'jenis' => 'antar',
                   'phone_tail' => $phoneTail,
                   'bound' => $bound,
+                  'pending' => $asPending,
                   'surcas_antar' => $surcasAntar,
                ],
             ];
@@ -3843,19 +3859,49 @@ class Delivery extends Controller
     * Pastikan ada request antar: ikat yang aktif atau buat baru.
     * @return array{id_request:int,bound:bool}
     */
+   /**
+    * Request Antar sameday untuk diikat dari Operasi: aktif dulu, lalu pending.
+    */
+   private function findAntarRequestForOperasiBind(int $idPelanggan): ?array
+   {
+      $active = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+      if (is_array($active) && !empty($active['id_request'])) {
+         return $active;
+      }
+      $idPelanggan = (int) $idPelanggan;
+      if ($idPelanggan <= 0) {
+         return null;
+      }
+      $row = $this->db(0)->get_where_row(
+         'delivery_request',
+         'id_pelanggan = ' . $idPelanggan
+            . " AND jenis = 'antar'"
+            . " AND delivery_status = 'pending'"
+            . " AND layanan = 'sameday'"
+            . ' ORDER BY id_request DESC'
+      );
+      if (!is_array($row) || empty($row['id_request'])) {
+         return null;
+      }
+      return $row;
+   }
+
    private function ensureAntarRequestBound(
       int $idPelanggan,
       int $idCabang,
       string $phoneTail,
       int $tarifSurcas,
       int $fromJemputId,
-      string $catatan
+      string $catatan,
+      bool $asPending = false
    ): array {
-      $existing = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+      $existing = $this->findAntarRequestForOperasiBind($idPelanggan);
+      $statusTarget = $asPending ? 'pending' : 'berjalan';
       if (is_array($existing) && !empty($existing['id_request'])) {
          $idRequest = (int) $existing['id_request'];
          $updSet = [
             'catatan_kurir' => mb_substr($catatan !== '' ? $catatan : 'Diikat dari Operasi (Kurir)', 0, 150),
+            'delivery_status' => $statusTarget,
          ];
          $existingTarif = $existing['tarif_surcas'] ?? null;
          if ($existingTarif === null || $existingTarif === '') {
@@ -3872,7 +3918,7 @@ class Delivery extends Controller
          if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
             throw new Exception($upd['error'] ?? 'Gagal mengikat request antar');
          }
-         return ['id_request' => $idRequest, 'bound' => true];
+         return ['id_request' => $idRequest, 'bound' => true, 'pending' => $asPending];
       }
 
       $seed = array_merge([
@@ -3880,7 +3926,7 @@ class Delivery extends Controller
          'id_cabang' => $idCabang,
          'phone_tail' => $phoneTail,
       ], $this->defaultLokasiFieldsForRequest($idPelanggan));
-      $idNew = $this->createAntarKembaliRequest($seed, $tarifSurcas, $fromJemputId);
+      $idNew = $this->createAntarKembaliRequest($seed, $tarifSurcas, $fromJemputId, $asPending);
       if ($idNew <= 0) {
          throw new Exception('Gagal membuat request antar kembali');
       }
@@ -3891,14 +3937,14 @@ class Delivery extends Controller
             'id_request = ' . $idNew
          );
       }
-      return ['id_request' => $idNew, 'bound' => false];
+      return ['id_request' => $idNew, 'bound' => false, 'pending' => $asPending];
    }
 
    /**
     * Buat delivery_request Antar baru (menunggu laundry selesai) dari request jemput.
     * @return int id_request baru
     */
-   private function createAntarKembaliRequest(array $jemputReq, int $tarifSurcas, int $fromJemputId): int
+   private function createAntarKembaliRequest(array $jemputReq, int $tarifSurcas, int $fromJemputId, bool $asPending = false): int
    {
       $idPelanggan = (int) ($jemputReq['id_pelanggan'] ?? 0);
       $idCabang = (int) ($jemputReq['id_cabang'] ?? 0);
@@ -3926,7 +3972,7 @@ class Delivery extends Controller
          'sumber' => 'customer',
          'jenis' => 'antar',
          'layanan' => 'sameday',
-         'delivery_status' => 'berjalan',
+         'delivery_status' => $asPending ? 'pending' : 'berjalan',
          'id_pelanggan' => $idPelanggan,
          'phone_tail' => $phoneTail,
          'id_cabang' => $idCabang,

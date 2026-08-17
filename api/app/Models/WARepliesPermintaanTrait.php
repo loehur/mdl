@@ -47,6 +47,9 @@ trait WARepliesPermintaanTrait
 
     private function savePermintaanSession(string $waNumber, array $data): void
     {
+        if ($this->intentLabMode) {
+            return;
+        }
         $phone = $this->normalizePhoneNumber($waNumber);
         if (!$phone) {
             return;

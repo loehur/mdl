@@ -55,6 +55,9 @@ trait WARepliesKurirTrait
 
     private function saveKurirSession(string $waNumber, array $data): void
     {
+        if ($this->intentLabMode) {
+            return;
+        }
         $phone = $this->normalizePhoneNumber($waNumber);
         if (!$phone) {
             return;
@@ -318,6 +321,15 @@ trait WARepliesKurirTrait
             if (!$jenis) {
                 $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
             }
+            // Jemput + ada order aktif → bukan MINTA kurir jemput: diam, jangan buka state
+            if ($jenis === 'jemput' && $this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'MINTA_JEMPUT_ANTAR',
+                    'jemput_ignored_has_active_sale (no reply, no session)'
+                );
+                return false;
+            }
             $sekalianJemput = ($jenis === 'antar') ? (int) $resolved['sekalian_jemput'] : 0;
             // Antar: wajib ada sale belum tuntas + belum ambil (bin=0) sebelum lokasi / early activate
             if ($jenis === 'antar') {
@@ -381,6 +393,24 @@ trait WARepliesKurirTrait
     private function kurirInferJenisWhenAmbiguous(string $phoneIn, string $waNumber): string
     {
         return $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber) ? 'antar' : 'jemput';
+    }
+
+    /**
+     * True jika flow kurir akan jadi jenis jemput padahal pelanggan masih punya order aktif.
+     * Bukan MINTA_JEMPUT_ANTAR: jangan buka session / jangan balas.
+     */
+    private function kurirJemputBlockedByActiveSale(string $phoneIn, string $waNumber, string $msg): bool
+    {
+        if (!$this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+            return false;
+        }
+        $resolved = $this->kurirResolveJenisState($msg, null);
+        $jenis = $resolved['jenis'] ?? null;
+        if (!$jenis) {
+            $jenis = $this->kurirInferJenisWhenAmbiguous($phoneIn, $waNumber);
+        }
+
+        return $jenis === 'jemput';
     }
 
     /**
@@ -1019,6 +1049,19 @@ trait WARepliesKurirTrait
             return false;
         }
 
+        // Jangan switch ke jemput jika pelanggan masih punya order aktif
+        if ($jenis === 'jemput' && $prevJenis !== 'jemput') {
+            $phoneIn = $this->normalizePhoneNumber($waNumber);
+            if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'MINTA_JEMPUT_ANTAR',
+                    'jenis_followup_jemput_ignored_has_active_sale'
+                );
+                return false;
+            }
+        }
+
         $set = ['jenis' => $jenis, 'sekalian_jemput' => $sekalian];
         $this->saveKurirSession($waNumber, $set);
         $session['jenis'] = $jenis;
@@ -1407,6 +1450,15 @@ trait WARepliesKurirTrait
                 && !$this->kurirAllowAntarOrReject($waNumber, (int) ($session['id_pelanggan'] ?? 0), $sapaan)
             ) {
                 return true;
+            }
+            if ($jenis === 'jemput' && $this->pelangganHasActiveSale($phoneIn, $waNumber)) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'MINTA_JEMPUT_ANTAR',
+                    'ask_jenis_jemput_ignored_has_active_sale→clear'
+                );
+                $this->clearKurirSession($waNumber);
+                return false;
             }
             $layananPref = $this->detectKurirLayanan($msg);
             $resolved = $this->kurirResolveJenisState($msg, $session);

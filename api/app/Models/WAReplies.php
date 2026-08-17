@@ -2162,6 +2162,8 @@ class WAReplies
             }
         }
 
+        // Intent Lab = klasifikasi teks saja; jangan pakai session nomor lab (bikin source kosong / menyesatkan)
+        if (!$this->intentLabMode) {
         // Session PERMINTAAN aktif: standby rangkum AI (tanpa autoreply), case 3
         if ($this->getPermintaanSession($waNumber) !== null
             && !$this->messageBreaksPermintaanSession($textBodyToCheck, $fullKeywordConfig)) {
@@ -2308,6 +2310,7 @@ class WAReplies
                 // fall through ke regex/AI intent lain
             }
         }
+        } // end !$intentLabMode session followups
 
         // "masih/msh/msih bisa/bs terima kain?" atau "masih nerima ga klo gosok aj?" -> konfirmasi ke petugas + jam operasional (PRIORITAS)
         // BEDA dengan "masih buka?" yang jawab "masih buka kak/bang"
@@ -2437,6 +2440,13 @@ class WAReplies
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'MINTA_JEMPUT_ANTAR→PERMINTAAN ambil_pakaian_dulu');
                         $handler = 'PERMINTAAN';
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
+                    }
+                    // MINTA_JEMPUT_ANTAR: jenis jemput + ada order aktif = abaikan (bukan minta kurir jemput)
+                    if ($handler === 'MINTA_JEMPUT_ANTAR'
+                        && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'MINTA_JEMPUT_ANTAR→jemput_has_active_sale');
+                        continue;
                     }
                     // PENUTUP yang bukan closing ketat → PEMBERITAHUAN (info/otw/item/jadwal/janji bayar)
                     if ($handler === 'PENUTUP' && $this->messageIsNonStrictPenutup($textBodyToCheck)) {
@@ -2929,6 +2939,28 @@ class WAReplies
                 $aiIntent = 'MINTA_JEMPUT_ANTAR';
                 $aiCase = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['case'] ?? 2;
                 $aiNotify = $fullKeywordConfig['MINTA_JEMPUT_ANTAR']['notify'] ?? true;
+            }
+
+            // Jenis jemput + ada order aktif = bukan MINTA kurir (setelah semua remap ke MINTA)
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR'
+                && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_minta_jemput_has_active_sale');
+                if ($this->isHumanAgentRecentlyActive($waNumber)) {
+                    return $this->silentExitHumanActive(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                        'ai_reject_minta_jemput_has_active_sale'
+                    );
+                }
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 4
+                );
+                return (object) [
+                    'case' => 4,
+                    'notify' => true,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
             }
 
             // Rate limit passed - create conversation with AI case
@@ -4711,6 +4743,9 @@ class WAReplies
      */
     private function saveEstimasiSession(string $waNumber, array $data): void
     {
+        if ($this->intentLabMode) {
+            return;
+        }
         $phone = $this->normalizePhoneNumber($waNumber);
         if (!$phone) {
             return;
