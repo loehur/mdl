@@ -48,24 +48,20 @@ class Delivery extends Controller
       $transfers = $this->getPendingCabangTransfers();
       $customerRequests = $this->getPendingCustomerRequests();
       $customerRequestsSiap = [];
-      $customerRequestsBelum = [];
       foreach ($customerRequests as $rq) {
          if (!empty($rq['siap_selesai'])) {
             $customerRequestsSiap[] = $rq;
-         } else {
-            $customerRequestsBelum[] = $rq;
          }
       }
 
       return [
          'html_customer' => $this->renderViewPartial('delivery/partials/board_customer_body', [
             'customerRequestsSiap' => $customerRequestsSiap,
-            'customerRequestsBelum' => $customerRequestsBelum,
          ]),
          'html_cabang' => $this->renderViewPartial('delivery/partials/board_cabang_body', [
             'transfers' => $transfers,
          ]),
-         'count_customer' => count($customerRequests),
+         'count_customer' => count($customerRequestsSiap),
          'count_cabang' => count($transfers),
       ];
    }
@@ -2498,7 +2494,7 @@ class Delivery extends Controller
          if ($jenis === 'antar' && !$isInstant) {
             $siapSelesai = $hasLokasi && $siapCount > 0;
          } elseif ($jenis === 'jemput') {
-            // Jemput selalu di section "Siap diselesaikan" (badge blokir boleh tetap tampil)
+            // Jemput selalu dianggap siap tampil di board customer
             $siapSelesai = true;
          }
 
