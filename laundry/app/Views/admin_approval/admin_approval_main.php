@@ -38,6 +38,10 @@ foreach ($tabs as $key => $_meta) {
       font-family: 'fontku', 'Segoe UI', sans-serif;
       color: var(--aa-ink);
     }
+    #aa-root[data-mode="HapusOrder"],
+    #aa-root[data-mode="HapusDeposit"] {
+      max-width: 980px;
+    }
     #aa-root,
     #aa-root .btn,
     #aa-root button,

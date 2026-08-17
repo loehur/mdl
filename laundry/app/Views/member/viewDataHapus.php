@@ -27,40 +27,41 @@ $statusMutasiLabel = function ($sts) {
       --hd-red-deep: #b91c1c;
       color: var(--hd-ink);
       font-family: 'fontku', 'Segoe UI', sans-serif;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
-    #hd-root, #hd-root * { border-radius: 0 !important; }
+    #hd-root, #hd-root * { border-radius: 0 !important; box-sizing: border-box; }
     #hd-root .hd-toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
-      margin-bottom: 8px;
-      padding: 6px 8px;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 10px 12px;
       border: 1px solid #fcd34d;
       background: linear-gradient(180deg, #fffbeb, #fff);
     }
     #hd-root .hd-toolbar__title {
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
       display: flex;
       align-items: center;
-      gap: 6px;
+      flex-wrap: wrap;
+      gap: 8px;
     }
     #hd-root .hd-toolbar__title .hd-ico {
-      width: 22px; height: 22px;
-      font-size: 0.72rem;
+      width: 28px; height: 28px;
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--hd-yellow); color: #111;
       border: 1px solid var(--hd-yellow-deep);
     }
     #hd-root .hd-toolbar__meta {
-      display: inline;
-      margin-left: 6px;
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       font-weight: 900;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--hd-muted);
     }
@@ -68,10 +69,10 @@ $statusMutasiLabel = function ($sts) {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 6px;
       border: 1px solid transparent;
-      padding: 5px 8px;
-      font-size: 0.78rem;
+      padding: 8px 12px;
+      font-size: 0.84rem;
       font-weight: 900;
       cursor: pointer;
       line-height: 1.1;
@@ -94,94 +95,105 @@ $statusMutasiLabel = function ($sts) {
       border-color: var(--hd-line);
       color: var(--hd-ink);
     }
-    #hd-root .hd-btn--sm { padding: 3px 6px; font-size: 0.72rem; }
+    #hd-root .hd-btn--sm { padding: 6px 10px; font-size: 0.78rem; }
     #hd-root .hd-empty {
       border: 1px solid #86efac;
       background: linear-gradient(180deg, #f0fdf4, #fff);
-      padding: 14px 10px;
+      padding: 24px 14px;
       text-align: center;
       font-weight: 900;
-      font-size: 0.84rem;
+      font-size: 0.9rem;
     }
-    #hd-root .hd-empty i { color: var(--hd-green); margin-right: 6px; }
-    #hd-root .hd-grid { display: grid; gap: 6px; }
+    #hd-root .hd-empty i { color: var(--hd-green); margin-right: 8px; }
+    #hd-root .hd-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      width: 100%;
+    }
+    @media (min-width: 980px) {
+      #hd-root .hd-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1100px) {
+      #hd-root .hd-grid {
+        grid-template-columns: repeat(auto-fill, 460px);
+      }
+      #hd-root .hd-card { width: 460px; max-width: 100%; }
+    }
     #hd-root .hd-card {
       border: 1px solid #fcd34d;
       background: #fff;
       overflow: hidden;
+      min-width: 0;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
     }
     #hd-root .hd-card__head {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 6px;
-      padding: 5px 8px;
+      gap: 8px;
+      padding: 10px 12px;
       background: linear-gradient(105deg, #d97706 0%, #f59e0b 100%);
       color: #111;
     }
     #hd-root .hd-card__head h3 {
       margin: 0;
-      font-size: 0.82rem;
+      font-size: 0.92rem;
       font-weight: 900;
       letter-spacing: -0.02em;
-      display: inline;
     }
     #hd-root .hd-card__head small {
-      display: inline;
-      margin-left: 6px;
-      font-size: 0.68rem;
-      font-weight: 750;
-    }
-    #hd-root .hd-card__body { padding: 5px 8px 6px; }
-    #hd-root .hd-meta {
+      display: block;
+      margin-top: 2px;
       font-size: 0.72rem;
       font-weight: 750;
+    }
+    #hd-root .hd-card__body { padding: 10px 12px; }
+    #hd-root .hd-meta {
+      font-size: 0.82rem;
+      font-weight: 750;
       color: var(--hd-muted);
-      margin-bottom: 0;
-      line-height: 1.3;
+      margin-bottom: 8px;
+      line-height: 1.4;
     }
     #hd-root .hd-amount {
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
-      color: var(--hd-red-deep);
+      color: #111;
       white-space: nowrap;
     }
     #hd-root .hd-pay {
-      margin-top: 4px;
-      padding: 3px 6px;
+      margin-top: 0;
+      margin-bottom: 8px;
+      padding: 8px 10px;
       border: 1px solid #fca5a5;
       background: linear-gradient(180deg, #fef2f2, #fff);
     }
     #hd-root .hd-pay__label {
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       font-weight: 900;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--hd-muted);
-      margin-bottom: 1px;
+      margin-bottom: 4px;
     }
     #hd-root .hd-pay__row {
       display: flex;
       justify-content: space-between;
-      gap: 6px;
-      font-size: 0.72rem;
+      gap: 8px;
+      font-size: 0.8rem;
       font-weight: 750;
-      padding: 0;
-      line-height: 1.35;
+      padding: 1px 0;
+      line-height: 1.4;
     }
     #hd-root .hd-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 5px;
-    }
-    #hd-root .hd-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
+      margin-top: 4px;
     }
 
     #hdConfirmModal.hd-modal {
@@ -213,8 +225,8 @@ $statusMutasiLabel = function ($sts) {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 8px;
-      padding: 10px 12px;
+      gap: 10px;
+      padding: 12px 14px;
       background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
       color: #fff;
     }
@@ -223,27 +235,27 @@ $statusMutasiLabel = function ($sts) {
     }
     #hdConfirmModal .hd-modal__head h3 {
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
     }
     #hdConfirmModal .hd-modal__close {
       border: 0;
       background: rgba(255,255,255,.22);
       color: #fff;
-      width: 28px; height: 28px;
+      width: 32px; height: 32px;
       cursor: pointer;
     }
     #hdConfirmModal .hd-modal__body {
-      padding: 12px;
-      font-size: 0.84rem;
+      padding: 14px 16px;
+      font-size: 0.9rem;
       font-weight: 750;
-      line-height: 1.4;
+      line-height: 1.45;
     }
     #hdConfirmModal .hd-modal__foot {
       display: flex;
       justify-content: flex-end;
-      gap: 6px;
-      padding: 8px 12px 12px;
+      gap: 8px;
+      padding: 10px 14px 14px;
       border-top: 1px solid var(--hd-line);
       background: #f8fafc;
     }
@@ -349,16 +361,9 @@ $statusMutasiLabel = function ($sts) {
           <div class="hd-card__head">
             <div style="min-width:0;flex:1">
               <h3><?= htmlspecialchars(strtoupper($namaPelanggan !== '' ? $namaPelanggan : 'Pelanggan'), ENT_QUOTES, 'UTF-8') ?></h3>
-              <small>#<?= $id ?> · <?= htmlspecialchars(substr((string) ($z['insertTime'] ?? ''), 5, 11), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></small>
+              <small>#<?= $id ?> · <?= htmlspecialchars(substr((string) ($z['insertTime'] ?? ''), 5, 11), ENT_QUOTES, 'UTF-8') ?> · CS <?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></small>
             </div>
-            <span class="hd-amount" style="color:#111">Rp<?= number_format($harga) ?></span>
-            <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>" title="Restore">
-              <i class="fas fa-recycle"></i>
-            </button>
-            <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>" title="Hapus"
-              style="background:linear-gradient(180deg,#dc2626,#b91c1c);border-color:#b91c1c;color:#fff">
-              <i class="fas fa-trash"></i>
-            </button>
+            <span class="hd-amount">Rp<?= number_format($harga) ?></span>
           </div>
           <div class="hd-card__body">
             <div class="hd-meta">
@@ -368,7 +373,7 @@ $statusMutasiLabel = function ($sts) {
 
             <?php if (count($payRows) > 0) { ?>
               <div class="hd-pay">
-                <div class="hd-pay__label">Bayar<?= $totalBayar > 0 ? ' · Rp' . number_format($totalBayar) : '' ?></div>
+                <div class="hd-pay__label">Pembayaran<?= $totalBayar > 0 ? ' · Rp' . number_format($totalBayar) : '' ?></div>
                 <?php foreach ($payRows as $ka) {
                   $notePay = (string) ($ka['note'] ?? '');
                   $label = $statusMutasiLabel($ka['status_mutasi'] ?? '');
@@ -387,6 +392,15 @@ $statusMutasiLabel = function ($sts) {
                 <?php } ?>
               </div>
             <?php } ?>
+
+            <div class="hd-actions">
+              <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>">
+                <i class="fas fa-recycle"></i> Restore
+              </button>
+              <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>">
+                <i class="fas fa-trash"></i> Hapus
+              </button>
+            </div>
           </div>
         </article>
       <?php } ?>

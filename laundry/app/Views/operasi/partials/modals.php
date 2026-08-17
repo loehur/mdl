@@ -1990,14 +1990,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
   <div class="offcanvas-body">
-    <p class="kurir-hint" id="kurirHint">
-      Operasi selalu menulis surcas ke nota (wajib pilih item dan pengisi surcas).
-      Jemput / Jemput &amp; Antar wajib penyelesai jemput.
-      Antar tanpa penyelesai → request (default pending di luar board).
-      Centang “Langsung antar saat selesai” agar masuk board; jika penyelesai antar terisi, antar langsung selesai.
-      Pengisi surcas terpisah dari penyelesai delivery.
-      Item terikat request dengan tarif tidak bisa diubah nominal surcas-nya.
-    </p>
     <div class="kurir-field">
       <label class="kurir-label" for="kurirJenis">Jenis</label>
       <select id="kurirJenis" class="form-control">
@@ -2009,11 +2001,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     </div>
     <label class="kurir-pending" id="kurirLangsungAntarWrap" hidden>
       <input type="checkbox" id="kurirLangsungAntar">
-      <span>
-        <strong>Langsung antar saat selesai</strong> — masuk board Delivery.
-        Tidak dicentang = pending (parkir sampai pelanggan chat minta antar).
-        Diabaikan jika penyelesai antar terisi.
-      </span>
+      <span>Langsung antar saat selesai.</span>
     </label>
     <div class="kurir-field" id="kurirSurcasJemputWrap" hidden>
       <label class="kurir-label" for="kurirSurcasJemput">Surcas Penjemputan</label>

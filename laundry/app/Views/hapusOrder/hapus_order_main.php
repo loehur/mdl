@@ -88,40 +88,41 @@ $totalRef = count($byRef);
       --ho-red-deep: #b91c1c;
       color: var(--ho-ink);
       font-family: 'fontku', 'Segoe UI', sans-serif;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
-    #ho-root, #ho-root * { border-radius: 0 !important; }
+    #ho-root, #ho-root * { border-radius: 0 !important; box-sizing: border-box; }
     #ho-root .ho-toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
-      margin-bottom: 8px;
-      padding: 6px 8px;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 10px 12px;
       border: 1px solid #fca5a5;
       background: linear-gradient(180deg, #fef2f2, #fff);
     }
     #ho-root .ho-toolbar__title {
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
       display: flex;
       align-items: center;
-      gap: 6px;
+      flex-wrap: wrap;
+      gap: 8px;
       color: var(--ho-ink);
     }
     #ho-root .ho-toolbar__title .ho-ico {
-      width: 22px; height: 22px;
-      font-size: 0.72rem;
+      width: 28px; height: 28px;
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--ho-red); color: #fff; border: 1px solid var(--ho-red-deep);
     }
     #ho-root .ho-toolbar__meta {
-      display: inline;
-      margin-left: 6px;
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       font-weight: 900;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--ho-muted);
     }
@@ -129,10 +130,10 @@ $totalRef = count($byRef);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 6px;
       border: 1px solid transparent;
-      padding: 5px 8px;
-      font-size: 0.78rem;
+      padding: 8px 12px;
+      font-size: 0.84rem;
       font-weight: 900;
       cursor: pointer;
       line-height: 1.1;
@@ -158,161 +159,179 @@ $totalRef = count($byRef);
       color: var(--ho-ink);
     }
     #ho-root .ho-btn--ghost:hover { border-color: var(--ho-ink); }
-    #ho-root .ho-btn--sm { padding: 3px 6px; font-size: 0.72rem; }
+    #ho-root .ho-btn--sm { padding: 6px 10px; font-size: 0.78rem; }
     #ho-root .ho-btn--icon {
-      width: 24px; height: 24px; padding: 0;
+      width: 30px; height: 30px; padding: 0;
     }
     #ho-root .ho-empty {
       border: 1px solid #86efac;
       background: linear-gradient(180deg, #f0fdf4, #fff);
-      padding: 14px 10px;
+      padding: 24px 14px;
       text-align: center;
       font-weight: 900;
-      font-size: 0.84rem;
+      font-size: 0.9rem;
       color: var(--ho-ink);
     }
-    #ho-root .ho-empty i { color: var(--ho-green); margin-right: 6px; }
-    #ho-root .ho-grid { display: grid; gap: 6px; }
+    #ho-root .ho-empty i { color: var(--ho-green); margin-right: 8px; }
+    #ho-root .ho-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      width: 100%;
+    }
+    @media (min-width: 980px) {
+      #ho-root .ho-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1100px) {
+      #ho-root .ho-grid {
+        grid-template-columns: repeat(auto-fill, 460px);
+      }
+      #ho-root .ho-card { width: 460px; max-width: 100%; }
+    }
     #ho-root .ho-card {
       border: 1px solid #fca5a5;
       background: #fff;
       padding: 0;
       overflow: hidden;
+      min-width: 0;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
     }
     #ho-root .ho-card__head {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 6px;
-      padding: 5px 8px;
+      gap: 8px;
+      padding: 10px 12px;
       border-bottom: 1px solid #fecaca;
       background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
       color: #fff;
     }
     #ho-root .ho-card__head h3 {
       margin: 0;
-      font-size: 0.82rem;
+      font-size: 0.92rem;
       font-weight: 900;
       letter-spacing: -0.02em;
       text-shadow: 0 1px 0 rgba(0,0,0,.18);
-      display: inline;
     }
     #ho-root .ho-card__head small {
-      display: inline;
-      margin-left: 6px;
-      font-size: 0.68rem;
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
       font-weight: 750;
       opacity: .92;
     }
-    #ho-root .ho-card__body { padding: 6px 8px; background: #fff; }
+    #ho-root .ho-card__body { padding: 10px 12px; background: #fff; }
     #ho-root .ho-alasan {
       display: inline-block;
-      margin-bottom: 4px;
-      padding: 2px 6px;
+      margin-bottom: 8px;
+      padding: 4px 8px;
       border: 1px solid #fca5a5;
       background: #fef2f2;
       color: var(--ho-red-deep);
       font-weight: 900;
-      font-size: 0.72rem;
+      font-size: 0.78rem;
     }
     #ho-root .ho-pay {
-      margin-bottom: 4px;
-      padding: 4px 6px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
       border: 1px solid #fcd34d;
       background: linear-gradient(180deg, #fffbeb, #fff);
     }
     #ho-root .ho-pay__label {
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       font-weight: 900;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--ho-muted);
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
     #ho-root .ho-pay__row {
       display: flex;
       justify-content: space-between;
-      gap: 6px;
-      font-size: 0.72rem;
+      gap: 8px;
+      font-size: 0.8rem;
       font-weight: 750;
-      padding: 0;
-      line-height: 1.35;
+      padding: 1px 0;
+      line-height: 1.4;
     }
     #ho-root .ho-item {
       border: 1px solid #93c5fd;
-      padding: 4px 6px;
-      margin-bottom: 4px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
       background: linear-gradient(180deg, #eff6ff, #fff);
     }
     #ho-root .ho-item:last-child { margin-bottom: 0; }
     #ho-root .ho-item__top {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 4px;
+      gap: 8px;
     }
     #ho-root .ho-item__title {
-      font-size: 0.78rem;
+      font-size: 0.88rem;
       font-weight: 900;
       color: var(--ho-ink);
-      line-height: 1.25;
-    }
-    #ho-root .ho-item__meta {
-      font-size: 0.7rem;
-      font-weight: 750;
-      color: var(--ho-muted);
-      margin-top: 0;
       line-height: 1.3;
     }
-    #ho-root .ho-item__price {
+    #ho-root .ho-item__meta {
       font-size: 0.78rem;
+      font-weight: 750;
+      color: var(--ho-muted);
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+    #ho-root .ho-item__price {
+      font-size: 0.88rem;
       font-weight: 900;
       color: var(--ho-red-deep);
       white-space: nowrap;
     }
     #ho-root .ho-item__side {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 6px;
       flex-shrink: 0;
     }
     #ho-root .ho-ops {
-      margin-top: 4px;
-      padding-top: 4px;
+      margin-top: 8px;
+      padding-top: 8px;
       border-top: 1px dashed #93c5fd;
     }
     #ho-root .ho-ops__label {
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       font-weight: 900;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--ho-muted);
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
     #ho-root .ho-op {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
-      padding: 2px 5px;
-      margin-bottom: 2px;
+      gap: 8px;
+      padding: 5px 8px;
+      margin-bottom: 4px;
       border: 1px solid #86efac;
       background: linear-gradient(180deg, #f0fdf4, #fff);
-      font-size: 0.72rem;
+      font-size: 0.8rem;
       font-weight: 750;
-      line-height: 1.3;
+      line-height: 1.35;
     }
     #ho-root .ho-op:last-child { margin-bottom: 0; }
     #ho-root .ho-chip {
       display: inline-block;
-      padding: 0 4px;
+      padding: 1px 6px;
       border: 1px solid var(--ho-line);
       background: #fff;
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       font-weight: 900;
-      margin: 1px 1px 0 0;
+      margin: 2px 2px 0 0;
       line-height: 1.4;
     }
     #ho-root .ho-chip--warn {
@@ -325,18 +344,17 @@ $totalRef = count($byRef);
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 4px;
-      margin-top: 4px;
-      padding-top: 4px;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
       border-top: 1px solid var(--ho-line);
     }
     #ho-root .ho-foot__total {
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
       color: var(--ho-red-deep);
     }
 
-    /* Confirm modal (UI theme, no browser confirm) */
     #hoConfirmModal.ho-modal {
       position: fixed;
       inset: 0;
@@ -366,8 +384,8 @@ $totalRef = count($byRef);
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 8px;
-      padding: 10px 12px;
+      gap: 10px;
+      padding: 12px 14px;
       background: linear-gradient(105deg, #b91c1c 0%, #dc2626 100%);
       color: #fff;
     }
@@ -376,7 +394,7 @@ $totalRef = count($byRef);
     }
     #hoConfirmModal .ho-modal__head h3 {
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.95rem;
       font-weight: 900;
       letter-spacing: -0.02em;
       text-shadow: 0 1px 0 rgba(0,0,0,.18);
@@ -385,22 +403,22 @@ $totalRef = count($byRef);
       border: 0;
       background: rgba(255,255,255,.22);
       color: #fff;
-      width: 28px; height: 28px;
+      width: 32px; height: 32px;
       cursor: pointer;
       flex: 0 0 auto;
     }
     #hoConfirmModal .ho-modal__body {
-      padding: 12px;
-      font-size: 0.84rem;
+      padding: 14px 16px;
+      font-size: 0.9rem;
       font-weight: 750;
       color: var(--ho-ink);
-      line-height: 1.4;
+      line-height: 1.45;
     }
     #hoConfirmModal .ho-modal__foot {
       display: flex;
       justify-content: flex-end;
-      gap: 6px;
-      padding: 8px 12px 12px;
+      gap: 8px;
+      padding: 10px 14px 14px;
       border-top: 1px solid var(--ho-line);
       background: #f8fafc;
     }
@@ -601,14 +619,13 @@ $totalRef = count($byRef);
               <div class="ho-item" data-id="<?= $id ?>">
                 <div class="ho-item__top">
                   <div style="min-width:0;flex:1">
-                    <div class="ho-item__title">#<?= $id ?> <?= htmlspecialchars($penjualan . ' ' . $kategori, ENT_QUOTES, 'UTF-8') ?>
-                      <span class="ho-item__meta" style="display:inline;margin-left:4px"><?= htmlspecialchars(trim($durasi . ' · ' . $showQty . ($showDiskon !== '' ? ' · ' . $showDiskon : '')), ENT_QUOTES, 'UTF-8') ?></span>
-                    </div>
+                    <div class="ho-item__title">#<?= $id ?> <?= htmlspecialchars($penjualan . ' ' . $kategori, ENT_QUOTES, 'UTF-8') ?></div>
+                    <div class="ho-item__meta"><?= htmlspecialchars(trim($durasi . ' · ' . $showQty . ($showDiskon !== '' ? ' · Diskon ' . $showDiskon : '')), ENT_QUOTES, 'UTF-8') ?></div>
                     <?php if ($itemListHtml !== '') { ?>
-                      <div><?= $itemListHtml ?></div>
+                      <div style="margin-top:4px"><?= $itemListHtml ?></div>
                     <?php } ?>
                     <?php if (count($layananPending) > 0) { ?>
-                      <div class="ho-item__meta">Belum: <?= htmlspecialchars(implode(', ', $layananPending), ENT_QUOTES, 'UTF-8') ?></div>
+                      <div class="ho-item__meta" style="margin-top:2px">Belum selesai: <?= htmlspecialchars(implode(', ', $layananPending), ENT_QUOTES, 'UTF-8') ?></div>
                     <?php } ?>
                   </div>
                   <div class="ho-item__side">
@@ -617,7 +634,7 @@ $totalRef = count($byRef);
                       class="ho-btn ho-btn--danger ho-btn--sm ho-btn-hapus-item"
                       data-id="<?= $id ?>"
                       <?= $hasOps ? 'disabled title="Hapus penyelesai dulu"' : '' ?>>
-                      <i class="fas fa-trash"></i>
+                      <i class="fas fa-trash"></i> Hapus
                     </button>
                   </div>
                 </div>
