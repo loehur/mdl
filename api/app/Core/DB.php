@@ -32,7 +32,8 @@ class DB extends \DBC
             throw new \Exception('Database connection failed: (' . $this->mysqli->connect_errno . ') ' . $this->mysqli->connect_error);
         }
 
-        $this->mysqli->set_charset("utf8mb4");
+        $this->mysqli->set_charset('utf8mb4');
+        $this->mysqli->query("SET collation_connection = 'utf8mb4_unicode_ci'");
     }
 
     public static function getInstance($db = 0)
