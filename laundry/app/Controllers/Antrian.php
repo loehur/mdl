@@ -472,6 +472,17 @@ class Antrian extends Controller
          $this->model('Log')->write("[operasi] WARNING: Rak kosong, skip notifReadySend for: " . $penjualan);
       }
 
+      // Semua item terikat request Antar non-pending sudah selesai → notif group Delivery
+      if ($isEndLayanan) {
+         try {
+            $this->helper('FonnteService');
+            $this->helper('DeliverySiapGroupNotify');
+            DeliverySiapGroupNotify::maybeNotify($this->db(0), $this->model('Log'), (int) $penjualan);
+         } catch (\Throwable $e) {
+            $this->model('Log')->write('[operasi] DeliverySiapGroupNotify: ' . $e->getMessage());
+         }
+      }
+
       echo 0;
    }
 
