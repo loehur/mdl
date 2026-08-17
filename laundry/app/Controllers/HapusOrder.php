@@ -16,6 +16,9 @@ class HapusOrder extends Controller
 
       $where = $wc . " AND id_pelanggan <> 0 AND bin = 1 ORDER BY id_penjualan DESC LIMIT 50";
       $data_main = $db->get_where('sale', $where);
+      if (!is_array($data_main)) {
+         $data_main = [];
+      }
 
       $operasi = [];
       $kas = [];
@@ -32,6 +35,20 @@ class HapusOrder extends Controller
          if (count($ids) > 0) {
             $idIn = implode(',', $ids);
             $operasi = $db->get_where('operasi', $wc . " AND id_penjualan IN ($idIn)");
+            if (!is_array($operasi)) {
+               $operasi = [];
+            }
+            $idEscList = [];
+            foreach ($ids as $sid) {
+               $idEscList[] = "'" . $db->escape((string) $sid) . "'";
+            }
+            $notifSelesai = $db->get_where(
+               'notif',
+               $wc . ' AND tipe = 2 AND no_ref IN (' . implode(',', $idEscList) . ')'
+            );
+            if (!is_array($notifSelesai)) {
+               $notifSelesai = [];
+            }
          }
 
          if (count($refs) > 0) {
@@ -42,6 +59,15 @@ class HapusOrder extends Controller
             $kas = $db->get_where('kas', $wc . " AND jenis_transaksi = 1 AND ref_transaksi IN ($refIn)");
             $surcas = $db->get_where('surcas', $wc . " AND no_ref IN ($refIn)");
             $notifBon = $db->get_where('notif', $wc . " AND tipe = 1 AND no_ref IN ($refIn)");
+            if (!is_array($kas)) {
+               $kas = [];
+            }
+            if (!is_array($surcas)) {
+               $surcas = [];
+            }
+            if (!is_array($notifBon)) {
+               $notifBon = [];
+            }
          }
       }
 
@@ -51,80 +77,296 @@ class HapusOrder extends Controller
          'kas' => $kas,
          'surcas' => $surcas,
          'notif_bon' => $notifBon,
-         'notif_selesai' => $notifSelesai
+         'notif_selesai' => $notifSelesai,
       ]);
    }
 
+   /**
+    * Hapus semua item bin=1 di antrean.
+    * Urutan: pembayaran (kas) → terkait (notif/surcas) → layanan (operasi/notif selesai) → sale.
+    * Jika hapus pembayaran gagal (QRIS paid/pending/dll) → hentikan, layanan tidak dihapus.
+    */
+   public function hapusSemua()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $db = $this->db(0);
+      $wc = $this->wCabang;
+      $rows = $db->get_where('sale', $wc . ' AND id_pelanggan <> 0 AND bin = 1');
+      if (!is_array($rows) || count($rows) === 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Tidak ada order yang diantrekan hapus']);
+         return;
+      }
+
+      $ids = [];
+      $refs = [];
+      foreach ($rows as $r) {
+         $id = (int) ($r['id_penjualan'] ?? 0);
+         if ($id > 0) {
+            $ids[$id] = $id;
+         }
+         $ref = trim((string) ($r['no_ref'] ?? ''));
+         if ($ref !== '') {
+            $refs[$ref] = $ref;
+         }
+      }
+
+      // 1) Pembayaran dulu — gagal = stop
+      foreach ($refs as $ref) {
+         $refEsc = $db->escape($ref);
+         $whereKas = $wc . " AND ref_transaksi = '" . $refEsc . "' AND jenis_transaksi = 1";
+         $kasResult = $this->deleteKasSafe($whereKas, false);
+         if (empty($kasResult['ok'])) {
+            echo json_encode([
+               'status' => 'error',
+               'message' => $kasResult['msg'] !== ''
+                  ? $kasResult['msg']
+                  : ('Gagal hapus pembayaran REF #' . $ref),
+            ]);
+            return;
+         }
+         $keptPaid = (int) ($kasResult['kept_paid'] ?? 0);
+         $keptPending = (int) ($kasResult['kept_pending'] ?? 0);
+         $keptUnknown = (int) ($kasResult['kept_unknown'] ?? 0);
+         $keptLunas = (int) ($kasResult['kept_lunas'] ?? 0);
+         $kept = $keptPaid + $keptPending + $keptUnknown + $keptLunas;
+         $action = (string) ($kasResult['action'] ?? '');
+         if ($kept > 0 || in_array($action, ['paid', 'blocked', 'lunas', 'partial'], true)) {
+            $msg = trim((string) ($kasResult['msg'] ?? ''));
+            if ($msg === '') {
+               if ($keptPaid > 0 || $keptLunas > 0 || $action === 'paid' || $action === 'lunas') {
+                  $msg = 'Pembayaran QRIS sudah berhasil — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+               } elseif ($keptPending > 0) {
+                  $msg = 'Pembayaran QRIS masih pending — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+               } else {
+                  $msg = 'Pembayaran tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+               }
+            } elseif (stripos($msg, 'layanan') === false) {
+               $msg .= ' Layanan tidak dihapus.';
+            }
+            echo json_encode(['status' => 'error', 'message' => $msg]);
+            return;
+         }
+      }
+
+      // 2) Related non-layanan (notif bon + surcas)
+      foreach ($refs as $ref) {
+         $refEsc = $db->escape($ref);
+         $db->delete('notif', $wc . " AND no_ref = '" . $refEsc . "' AND tipe = 1");
+         $db->delete('surcas', $wc . " AND no_ref = '" . $refEsc . "' AND transaksi_jenis = 1");
+      }
+
+      // 3) Layanan (operasi + notif selesai)
+      foreach ($ids as $id) {
+         $idEsc = $db->escape((string) $id);
+         $db->delete('operasi', $wc . " AND id_penjualan = '" . $idEsc . "'");
+         $db->delete('notif', $wc . " AND no_ref = '" . $idEsc . "' AND tipe = 2");
+      }
+
+      // 4) Hapus permanen sale
+      foreach ($ids as $id) {
+         $del = $db->delete('sale', $wc . ' AND id_penjualan = ' . (int) $id . ' AND bin = 1');
+         if (isset($del['errno']) && (int) $del['errno'] !== 0) {
+            echo json_encode([
+               'status' => 'error',
+               'message' => 'Gagal hapus item #' . $id . ': ' . ($del['error'] ?? ''),
+            ]);
+            return;
+         }
+      }
+
+      $this->model('Log')->write('[HapusOrder::hapusSemua] hapus ' . count($ids) . ' item, ' . count($refs) . ' ref');
+      echo json_encode([
+         'status' => 'success',
+         'message' => 'Berhasil hapus ' . count($ids) . ' item',
+      ]);
+   }
+
+   /**
+    * Hapus permanen satu item (bin=1).
+    * Syarat: tidak ada penyelesai di item ini; nota aktif (bin=0) tidak overpay.
+    */
+   public function hapusItemPermanent()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $id = (int) ($_POST['id'] ?? 0);
+      if ($id <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'ID item tidak valid']);
+         return;
+      }
+
+      $db = $this->db(0);
+      $wc = $this->wCabang;
+      $sale = $db->get_where_row('sale', $wc . ' AND id_penjualan = ' . $id . ' AND bin = 1');
+      if (!is_array($sale) || empty($sale['id_penjualan'])) {
+         echo json_encode(['status' => 'error', 'message' => 'Item tidak ditemukan di antrean hapus']);
+         return;
+      }
+
+      $idEsc = $db->escape((string) $id);
+      $opCount = (int) ($db->count_where('operasi', $wc . " AND id_penjualan = '" . $idEsc . "'") ?? 0);
+      if ($opCount > 0) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => 'Hapus penyelesai item ini dulu sebelum menghapus item',
+         ]);
+         return;
+      }
+
+      $ref = trim((string) ($sale['no_ref'] ?? ''));
+      if ($ref !== '') {
+         $dibayar = $this->sumDibayarRef($ref);
+         $tagihanAktif = $this->sumTagihanRefBin0($ref);
+         if ($dibayar > $tagihanAktif) {
+            echo json_encode([
+               'status' => 'error',
+               'message' => 'Nota overpay (bayar Rp' . number_format($dibayar)
+                  . ' > tagihan aktif Rp' . number_format($tagihanAktif) . ') — item tidak bisa dihapus',
+            ]);
+            return;
+         }
+      }
+
+      $db->delete('notif', $wc . " AND no_ref = '" . $idEsc . "' AND tipe = 2");
+      $del = $db->delete('sale', $wc . ' AND id_penjualan = ' . $id . ' AND bin = 1');
+      if (isset($del['errno']) && (int) $del['errno'] !== 0) {
+         echo json_encode(['status' => 'error', 'message' => $del['error'] ?? 'Gagal hapus item']);
+         return;
+      }
+
+      $this->model('Log')->write('[HapusOrder::hapusItemPermanent] id=' . $id . ' ref=' . $ref);
+      echo json_encode(['status' => 'success', 'message' => 'Item #' . $id . ' dihapus permanen']);
+   }
+
+   /**
+    * Hapus satu baris penyelesai (operasi) dari antrean HapusOrder.
+    */
+   public function hapusOperasi()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $idOperasi = trim((string) ($_POST['id_operasi'] ?? ''));
+      if ($idOperasi === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID operasi tidak valid']);
+         return;
+      }
+
+      $db = $this->db(0);
+      $wc = $this->wCabang;
+      $idEsc = $db->escape($idOperasi);
+      $row = $db->get_where_row('operasi', $wc . " AND id_operasi = '" . $idEsc . "'");
+      if (!is_array($row) || empty($row['id_operasi'])) {
+         echo json_encode(['status' => 'error', 'message' => 'Penyelesai tidak ditemukan']);
+         return;
+      }
+
+      $idPenjualan = trim((string) ($row['id_penjualan'] ?? ''));
+      $del = $db->delete('operasi', $wc . " AND id_operasi = '" . $idEsc . "'");
+      if (isset($del['errno']) && (int) $del['errno'] !== 0) {
+         echo json_encode(['status' => 'error', 'message' => $del['error'] ?? 'Gagal hapus penyelesai']);
+         return;
+      }
+
+      if ($idPenjualan !== '') {
+         $saleEsc = $db->escape($idPenjualan);
+         $left = (int) ($db->count_where('operasi', $wc . " AND id_penjualan = '" . $saleEsc . "'") ?? 0);
+         if ($left === 0) {
+            $db->delete('notif', $wc . " AND no_ref = '" . $saleEsc . "' AND tipe = 2");
+         }
+      }
+
+      $this->model('Log')->write('[HapusOrder::hapusOperasi] id_operasi=' . $idOperasi);
+      echo json_encode(['status' => 'success', 'message' => 'Penyelesai dihapus']);
+   }
+
+   public function restoreRef()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $ref = trim((string) ($_POST['ref'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'REF tidak valid']);
+         return;
+      }
+      $refEsc = $this->db(0)->escape($ref);
+      $up = $this->db(0)->update(
+         'sale',
+         ['bin' => 0],
+         $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 1"
+      );
+      if (isset($up['errno']) && (int) $up['errno'] !== 0) {
+         echo json_encode(['status' => 'error', 'message' => $up['error'] ?? 'Gagal restore']);
+         return;
+      }
+      echo json_encode(['status' => 'success', 'message' => 'REF #' . $ref . ' dikembalikan ke Operasi']);
+   }
+
+   /** @deprecated diganti hapusSemua — tetap ada untuk kompatibilitas singkat */
    public function hapusRelated()
    {
-      $transaksi = $_POST['transaksi'];
-
-      if (isset($_POST['dataRef'])) {
-         $dataRef = unserialize($_POST['dataRef']);
-         foreach ($dataRef as $a) {
-
-            //KAS (QRIS paid/pending/unknown tidak dihapus)
-            $where = $this->wCabang . " AND ref_transaksi = '" . $this->db(0)->escape($a) . "' AND jenis_transaksi = " . (int) $transaksi;
-            $this->deleteKasSafe($where, false);
-
-            //NOTIF_BON
-            $where = $this->wCabang . " AND no_ref = '" . $a . "' AND tipe = 1";
-            $this->db(0)->delete('notif', $where);
-
-            //SURCHARGE
-            $where2 = $this->wCabang . " AND no_ref = '" . $a . "' AND transaksi_jenis = 1";
-            $this->db(0)->delete('surcas', $where2);
-         }
-      }
-      if (isset($_POST['dataID']) && $transaksi <> 3) {
-         $dataID = unserialize($_POST['dataID']);
-         foreach ($dataID as $a) {
-            $where = $this->wCabang . " AND id_penjualan = '" . $a . "'";
-            $this->db(0)->delete('operasi', $where);
-
-            //NOTIF
-            $where = $this->wCabang . " AND no_ref = '" . $a . "' AND tipe = 2";
-            $this->db(0)->delete('notif', $where);
-         }
-      }
+      $this->hapusSemua();
    }
+
+   /** @deprecated diganti hapusSemua */
    public function hapusID()
    {
-      $kolomID =  $_POST['kolomID'];
-      $table = $_POST['table'];
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['status' => 'error', 'message' => 'Gunakan Hapus Semua (alur baru)']);
+   }
 
-      switch ($table) {
-         case 'sale':
-            if (isset($_POST['dataID'])) {
-               $dataID = unserialize($_POST['dataID']);
-               foreach ($dataID as $a) {
-                  $where = $this->wCabang . " AND " . $kolomID . " = '" . $a. "'";
-                  $del = $this->db(0)->delete($table, $where);
-                  if ($del['errno'] <> 0) {
-                     echo $del['error'];
-                     exit();
-                  }
-               }
-            }
-            echo 0;
-            break;
-         case 'member':
-            if (isset($_POST['dataID'])) {
-               $dataID = unserialize($_POST['dataID']);
-               foreach ($dataID as $a) {
-                  $where = $this->wCabang . " AND " . $kolomID . " = " . $a;
-                  $del = $this->db(0)->delete($table, $where);
-                  if ($del['errno'] <> 0) {
-                     echo $del['error'];
-                     exit();
-                  }
-               }
-            }
-            echo 0;
-            break;
-         default:
-            echo "No Table selected";
-            break;
+   private function sumDibayarRef(string $ref): int
+   {
+      $refEsc = $this->db(0)->escape($ref);
+      $kas = $this->db(0)->get_where(
+         'kas',
+         $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '" . $refEsc . "'"
+      );
+      if (!is_array($kas)) {
+         return 0;
       }
+      $sum = 0;
+      foreach ($kas as $ka) {
+         $st = (int) ($ka['status_mutasi'] ?? 0);
+         if ($st === 2 || $st === 3) {
+            $sum += (int) ($ka['jumlah'] ?? 0);
+         }
+      }
+      return $sum;
+   }
+
+   private function sumTagihanRefBin0(string $ref): int
+   {
+      $refEsc = $this->db(0)->escape($ref);
+      $sales = $this->db(0)->get_where(
+         'sale',
+         $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 0"
+      );
+      if (!is_array($sales)) {
+         $sales = [];
+      }
+      $sub = 0;
+      foreach ($sales as $s) {
+         if ((int) ($s['member'] ?? 0) !== 0) {
+            continue;
+         }
+         $qty = round((float) ($s['qty'] ?? 0), 2);
+         $min = round((float) ($s['min_order'] ?? 0), 2);
+         $qtyReal = ($qty < $min) ? $min : $qty;
+         $total = (float) ($s['harga'] ?? 0) * $qtyReal;
+         $dq = (float) ($s['diskon_qty'] ?? 0);
+         $dp = (float) ($s['diskon_partner'] ?? 0);
+         if ($dq > 0) {
+            $total -= $total * ($dq / 100);
+         }
+         if ($dp > 0) {
+            $total -= $total * ($dp / 100);
+         }
+         $sub += (int) round($total);
+      }
+      $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref = '" . $refEsc . "'");
+      if (is_array($surcas)) {
+         foreach ($surcas as $sc) {
+            $sub += (int) ($sc['jumlah'] ?? 0);
+         }
+      }
+      return (int) round($sub);
    }
 }

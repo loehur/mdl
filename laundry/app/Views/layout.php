@@ -611,7 +611,7 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell {
             position: relative;
             border-color: transparent;
-            color: #ff1a1a;
+            color: #94a3b8;
             background: transparent;
             padding: 0;
             width: 34px;
@@ -620,37 +620,37 @@ if (isset($data['data_operasi'])) {
         .mdl-tbtn--bell i {
             font-size: 22px;
             line-height: 1;
-            color: #ff1a1a;
-            /* Merah solid ngejreng (bukan outline gelap) */
+            color: #94a3b8;
             -webkit-text-stroke: 0;
-            text-shadow: 0 0 0.5px #ff1a1a, 0 1px 0 rgba(0, 0, 0, 0.12);
+            text-shadow: none;
+            animation: none;
         }
         .mdl-tbtn--bell:hover {
             background: transparent;
             border-color: transparent;
-            color: #ff0000;
+            color: #64748b;
             filter: none;
         }
         .mdl-tbtn--bell:hover i {
-            color: #ff0000;
-            text-shadow: 0 0 0.5px #ff0000, 0 1px 0 rgba(0, 0, 0, 0.14);
+            color: #64748b;
+            text-shadow: none;
         }
         .mdl-tbtn--bell:active {
             transform: none;
         }
-        @keyframes mdl-bell-blink {
-            0%, 100% {
-                opacity: 1;
-                color: #ff1a1a;
-            }
-            50% {
-                opacity: 0.55;
-                color: #ff3333;
-            }
+        /* Ada notifikasi: merah solid ngejreng, tanpa kedip */
+        .mdl-tbtn--bell.has-notif {
+            color: #ff1a1a;
         }
         .mdl-tbtn--bell.has-notif i {
-            animation: mdl-bell-blink 0.9s ease-in-out infinite;
+            animation: none;
             color: #ff1a1a;
+            text-shadow: 0 0 0.5px #ff1a1a, 0 1px 0 rgba(0, 0, 0, 0.12);
+        }
+        .mdl-tbtn--bell.has-notif:hover,
+        .mdl-tbtn--bell.has-notif:hover i {
+            color: #ff0000;
+            text-shadow: 0 0 0.5px #ff0000, 0 1px 0 rgba(0, 0, 0, 0.14);
         }
         .mdl-bell-badge {
             position: absolute;
