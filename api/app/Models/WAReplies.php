@@ -73,8 +73,14 @@ class WAReplies
     /** Cache per process(): null = belum dicek, bool = hasil isHumanAgentRecentlyActive */
     private $humanActiveCache = null;
 
+    /** True jika PEMBUKA skip kirim sapaan (outbound masih hangat) — jangan catat cooldown. */
+    private $pembukaSkippedGreeting = false;
+
     /** Idle agent manusia (menit) sebelum AI kembali boleh balas intent sosial */
     private const HUMAN_ACTIVE_IDLE_MINUTES = 60;
+
+    /** PEMBUKA: cooldown handler + jeda sapaan jika ada outbound terakhir */
+    private const PEMBUKA_RECENT_CHAT_MINUTES = 30;
 
     /** TTL session ESTIMASI_SELESAI (menit) */
     private const ESTIMASI_SESSION_TTL_MINUTES = 60;
@@ -488,6 +494,9 @@ class WAReplies
     private function getAutoreplyCooldownMinutes(string $handler): int
     {
         $h = strtoupper($handler);
+        if ($h === 'PEMBUKA') {
+            return self::PEMBUKA_RECENT_CHAT_MINUTES;
+        }
         if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
             return 60;
         }
@@ -573,6 +582,50 @@ class WAReplies
             $local,
             $waNumber,
         ]));
+    }
+
+    /**
+     * Ada pesan keluar (autoreply atau manusia) dalam N menit terakhir — yCloud + Fonnte.
+     */
+    private function hasRecentOutboundMessage(string $waNumber, int $minutes): bool
+    {
+        if ($this->intentLabMode || $minutes <= 0) {
+            return false;
+        }
+        $phones = $this->waMessagesOutPhoneVariants($waNumber);
+        if ($phones === []) {
+            return false;
+        }
+        $db = DB::getInstance(0);
+        $placeholders = implode(',', array_fill(0, count($phones), '?'));
+        $params = array_merge(array_values($phones), [$minutes]);
+        $tables = ['wa_messages_out', 'wa_fonnte_messages_out'];
+        foreach ($tables as $table) {
+            try {
+                $res = $db->query(
+                    "SELECT id FROM {$table}
+                     WHERE phone IN ({$placeholders})
+                       AND created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                     LIMIT 1",
+                    $params
+                );
+                if ($res && $res->num_rows() > 0) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write("hasRecentOutboundMessage {$table}: " . $e->getMessage(), 'wa_error', 'Autoreply');
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** Sapaan PEMBUKA / sisipan: diam jika percakapan masih hangat. */
+    private function pembukaShouldSkipGreeting(string $waNumber): bool
+    {
+        return $this->hasRecentOutboundMessage($waNumber, self::PEMBUKA_RECENT_CHAT_MINUTES);
     }
 
     /**
@@ -1390,6 +1443,12 @@ class WAReplies
         return true;
     }
 
+    /** PEMBUKA skip sapaan karena chat masih hangat — jangan catat cooldown 30 menit. */
+    private function pembukaSkippedGreetingCooldown(string $handler): bool
+    {
+        return strtoupper($handler) === 'PEMBUKA' && $this->pembukaSkippedGreeting;
+    }
+
     /**
      * Kalimat pendek ambigu (mis. closed order, order closed): tetap intent PENUTUP tapi jangan dibalas AI.
      * @return bool True jika pesan ambigu dan tidak boleh dibalas
@@ -2001,6 +2060,10 @@ class WAReplies
         if (!$this->isOperatingHours()) {
             return false;
         }
+        if ($this->pembukaShouldSkipGreeting($waNumber)) {
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'greeting_first_skip_recent_outbound');
+            return false;
+        }
         $textLower = strtolower(trim($textBody ?? ''));
         if (mb_strlen($textLower) < 10) {
             return false;
@@ -2035,6 +2098,7 @@ class WAReplies
         }
         $this->currentContactName = $contactName;
         $this->humanActiveCache = null;
+        $this->pembukaSkippedGreeting = false;
         if (!$this->intentLabMode) {
             $ctx = $this->ensureSenderContext((string) $waNumber);
             $ctxName = trim((string) ($ctx['contact_name'] ?? ''));
@@ -2639,7 +2703,8 @@ class WAReplies
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
                         $this->$methodName($phoneIn, $waNumber, $textBody);
                         if (!$this->handlerSkipsAutoreplyRateLimit($handler)
-                            && !$this->penutupLainnyaSkipsCooldown($handler, $textBody)) {
+                            && !$this->penutupLainnyaSkipsCooldown($handler, $textBody)
+                            && !$this->pembukaSkippedGreetingCooldown($handler)) {
                             $this->recordHandlerCooldown($waNumber, $handler);
                         }
                         $this->logAutoreplyTrace($waNumber, 'DONE', 'regex_ok handler=' . $handler);
@@ -3068,7 +3133,8 @@ class WAReplies
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
                 $this->$methodName($phoneIn, $waNumber, $textBody);
                 if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
-                    && !$this->penutupLainnyaSkipsCooldown($aiIntent, $textBody)) {
+                    && !$this->penutupLainnyaSkipsCooldown($aiIntent, $textBody)
+                    && !$this->pembukaSkippedGreetingCooldown($aiIntent)) {
                     $this->recordHandlerCooldown($waNumber, $aiIntent);
                 }
                 $this->logAutoreplyTrace($waNumber, 'DONE', 'ai_ok intent=' . $aiIntent);
@@ -3436,6 +3502,15 @@ class WAReplies
         $contactName = $ctx['contactName'];
         $sapaan = $ctx['sapaan'];
 
+        if ($this->pembukaShouldSkipGreeting($waNumber)) {
+            $this->pembukaSkippedGreeting = true;
+            $this->logAutoreplyTrace($waNumber, 'EXIT', 'pembuka_skip_recent_outbound');
+            if ($hasOtherIntent) {
+                $this->pembukaTryRunOtherIntent($phoneIn, $waNumber, $textBody);
+            }
+            return;
+        }
+
         // Regex quick path: pesan singkat (P, ., 1-2 huruf) -> singkat & santai
         if ($len <= 2 || preg_match('/^[\.\,\!\?\-\s]+$/u', $textStripped)) {
             $haloShort = [
@@ -3458,18 +3533,7 @@ class WAReplies
             if ($this->autoReplyProvider === 'B' && ($res['success'] ?? false)) {
                 usleep(450000);
             }
-            $keywordConfig = $this->loadAutoreplyKeywordConfig();
-            unset($keywordConfig['PEMBUKA']);
-            $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
-            if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
-                $aiIntent = strtoupper($aiResult['intent']);
-                $handlerName = ucwords(strtolower($aiIntent), '_');
-                $methodName = 'handle' . $handlerName;
-                if (method_exists($this, $methodName) && $methodName !== 'handlePembuka') {
-                    $this->currentHandler = $aiIntent;
-                    $this->$methodName($phoneIn, $waNumber, $textBody);
-                }
-            }
+            $this->pembukaTryRunOtherIntent($phoneIn, $waNumber, $textBody);
             return;
         }
 
@@ -3543,6 +3607,23 @@ class WAReplies
         }
 
         return $out ?? $text;
+    }
+
+    /** Sapaan + intent lain: jalankan handler berikutnya tanpa mengulang PEMBUKA. */
+    private function pembukaTryRunOtherIntent($phoneIn, string $waNumber, string $textBody): void
+    {
+        $keywordConfig = $this->loadAutoreplyKeywordConfig();
+        unset($keywordConfig['PEMBUKA']);
+        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+        if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
+            $aiIntent = strtoupper($aiResult['intent']);
+            $handlerName = ucwords(strtolower($aiIntent), '_');
+            $methodName = 'handle' . $handlerName;
+            if (method_exists($this, $methodName) && $methodName !== 'handlePembuka') {
+                $this->currentHandler = $aiIntent;
+                $this->$methodName($phoneIn, $waNumber, $textBody);
+            }
+        }
     }
 
     /**
