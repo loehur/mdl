@@ -235,22 +235,23 @@ class FonnteMessageStore
 
     /**
      * Update outbound by fonnte_message_id (webhook status). Tidak insert baru.
-     * Mengisi sender_code=AR bila masih kosong (pesan API/autoreply).
+     * Mengisi sender_code=AR bila masih kosong.
      *
      * @param array{status?:string,state?:string,sender_code?:string} $fields
+     * @return object|null Baris setelah update (untuk push WS), null jika tidak ketemu
      */
-    public function updateOutgoingByFonnteMessageId(string $fonnteMessageId, array $fields = []): bool
+    public function updateOutgoingByFonnteMessageId(string $fonnteMessageId, array $fields = [])
     {
         $fonnteMessageId = trim($fonnteMessageId);
         if ($fonnteMessageId === '') {
-            return false;
+            return null;
         }
 
         $existing = $this->db->get_where('wa_fonnte_messages_out', [
             'fonnte_message_id' => mb_substr($fonnteMessageId, 0, 64),
         ], 1)->row();
         if (!$existing) {
-            return false;
+            return null;
         }
 
         if (!class_exists(SapaanStatsHelper::class)) {
@@ -280,7 +281,7 @@ class FonnteMessageStore
         }
 
         if ($update === []) {
-            return true;
+            return $existing;
         }
 
         $ok = $this->db->update('wa_fonnte_messages_out', $update, ['id' => (int) $existing->id]);
@@ -289,7 +290,65 @@ class FonnteMessageStore
             \Log::write('FonnteMessageStore: updateOutgoingByFonnteMessageId failed: ' . $err, 'webhook', 'Fonnte');
         }
 
-        return (bool) $ok;
+        if (!$ok) {
+            return null;
+        }
+
+        $row = $this->db->get_where('wa_fonnte_messages_out', ['id' => (int) $existing->id], 1)->row();
+
+        return $row ?: null;
+    }
+
+    /**
+     * Map status/state webhook Fonnte ke sent|delivered|read|pending|failed.
+     * Fonnte: status = pipeline kirim (sent/processing/…); state = receipt WA (delivered/read).
+     */
+    public static function normalizeFonnteOutboundStatus(?string $status, $state = null): string
+    {
+        $statusStr = strtolower(trim((string) ($status ?? '')));
+        $stateRaw = $state;
+        $stateStr = is_scalar($stateRaw) ? strtolower(trim((string) $stateRaw)) : '';
+
+        if (in_array($stateStr, ['read', 'readed', 'seen', '3'], true)) {
+            return 'read';
+        }
+        if (in_array($stateStr, ['delivered', 'delivery', 'received', '2'], true)) {
+            return 'delivered';
+        }
+        if (in_array($stateStr, ['sent', '1'], true)) {
+            return 'sent';
+        }
+
+        if (in_array($statusStr, ['read'], true)) {
+            return 'read';
+        }
+        if (in_array($statusStr, ['delivered'], true)) {
+            return 'delivered';
+        }
+        if (in_array($statusStr, ['sent', 'success'], true)) {
+            return 'sent';
+        }
+        if (in_array($statusStr, ['processing', 'pending', 'waiting'], true)) {
+            return 'pending';
+        }
+        if (in_array($statusStr, ['invalid', 'failed', 'expired', 'url unreachable'], true)) {
+            return 'failed';
+        }
+
+        if ($stateStr !== '' && is_numeric($stateStr)) {
+            $n = (int) $stateStr;
+            if ($n >= 3) {
+                return 'read';
+            }
+            if ($n === 2) {
+                return 'delivered';
+            }
+            if ($n === 1) {
+                return 'sent';
+            }
+        }
+
+        return $statusStr !== '' ? $statusStr : 'sent';
     }
 
     private function touchConversationInbound(string $phone, ?string $contactName, string $messageText, string $type, string $createdAt): void

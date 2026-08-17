@@ -544,24 +544,29 @@ class WA_Fonnte extends Controller
      */
     private function isFonnteStatusWebhook(array $data): bool
     {
-        $hasId = isset($data['id']) && $data['id'] !== '' && $data['id'] !== null;
-        $hasStatusOrState = (isset($data['status']) && $data['status'] !== '')
-            || (isset($data['state']) && $data['state'] !== '')
-            || (isset($data['stateid']) && $data['stateid'] !== '');
         $looksInbound = isset($data['sender']) && $data['sender'] !== '';
+        if ($looksInbound) {
+            return false;
+        }
 
-        return $hasId && $hasStatusOrState && !$looksInbound;
+        $hasId = isset($data['id']) && $data['id'] !== '' && $data['id'] !== null;
+        $hasStateId = isset($data['stateid']) && $data['stateid'] !== '' && $data['stateid'] !== null;
+        $hasStatusOrState = (isset($data['status']) && $data['status'] !== '')
+            || (isset($data['state']) && $data['state'] !== '' && $data['state'] !== null);
+
+        return ($hasId || $hasStateId) && $hasStatusOrState;
     }
 
     /**
-     * Update wa_fonnte_messages_out by fonnte_message_id; set sender_code=AR bila kosong.
+     * Update wa_fonnte_messages_out by fonnte_message_id; push status_update ke CRM WS.
      */
     private function handleFonnteStatusWebhook(array $data): void
     {
         try {
             $rawId = $data['id'] ?? null;
             $ids = is_array($rawId) ? $rawId : [$rawId];
-            $status = isset($data['status']) ? (string) $data['status'] : (isset($data['state']) ? (string) $data['state'] : '');
+            $rawStatus = isset($data['status']) ? (string) $data['status'] : '';
+            $rawState = $data['state'] ?? null;
 
             if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
                 require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
@@ -569,24 +574,76 @@ class WA_Fonnte extends Controller
             if (! class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
                 require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
             }
+            if (! class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+            }
 
             $store = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
+            $normalizedStatus = \App\Helpers\CRM\FonnteMessageStore::normalizeFonnteOutboundStatus($rawStatus, $rawState);
+
             foreach ($ids as $id) {
                 $idStr = trim((string) $id);
                 if ($idStr === '') {
                     continue;
                 }
-                $ok = $store->updateOutgoingByFonnteMessageId($idStr, [
-                    'status' => $status !== '' ? $status : 'sent',
+
+                $row = $store->updateOutgoingByFonnteMessageId($idStr, [
+                    'status' => $normalizedStatus,
                     'sender_code' => \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY,
                 ]);
-                if (!$ok && class_exists('\Log')) {
-                    \Log::write("WA_Fonnte status: no out row for fonnte_message_id={$idStr}", 'webhook', 'Fonnte');
+
+                if (! $row) {
+                    if (class_exists('\Log')) {
+                        \Log::write(
+                            "WA_Fonnte status: no out row for fonnte_message_id={$idStr} status={$rawStatus} state=" . (string) $rawState,
+                            'webhook',
+                            'Fonnte'
+                        );
+                    }
+                    continue;
                 }
+
+                if (class_exists('\Log')) {
+                    \Log::write(
+                        "WA_Fonnte status: id={$idStr} {$rawStatus}/" . (string) $rawState . " -> {$normalizedStatus}",
+                        'webhook',
+                        'Fonnte'
+                    );
+                }
+
+                $this->pushFonnteStatusUpdate($row, $idStr, $normalizedStatus);
             }
         } catch (\Throwable $e) {
             \Log::write('WA_Fonnte status webhook: ' . $e->getMessage(), 'webhook', 'Fonnte');
         }
+    }
+
+    /**
+     * @param object $row wa_fonnte_messages_out row
+     */
+    private function pushFonnteStatusUpdate($row, string $fonnteMessageId, string $status): void
+    {
+        $phone = (string) ($row->phone ?? '');
+        if ($phone === '') {
+            return;
+        }
+
+        $db = $this->db(0);
+        $conv = \App\Helpers\CRM\CrmChatMergeHelper::findWaConversation($db, $phone);
+        $localId = (int) ($row->id ?? 0);
+
+        \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
+            'type' => 'status_update',
+            'phone' => $phone,
+            'conversation_id' => $conv ? (int) ($conv->id ?? 0) : 0,
+            'target_id' => '0',
+            'message' => [
+                'id' => $localId > 0 ? ('F-' . $localId) : null,
+                'wamid' => $fonnteMessageId,
+                'status' => $status,
+                'provider' => 'F',
+            ],
+        ]);
     }
 
     /**

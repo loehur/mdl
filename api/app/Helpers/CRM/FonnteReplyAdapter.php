@@ -56,7 +56,15 @@ class FonnteReplyAdapter
         }
         $res = $this->fonnte->sendMessage($to, $message, $options);
 
-        $fonnteId = $res['data']['id'][0] ?? ('fonnte_' . time());
+        $rawId = $res['data']['id'] ?? null;
+        $fonnteId = null;
+        if (is_array($rawId) && isset($rawId[0]) && $rawId[0] !== '') {
+            $fonnteId = $rawId[0];
+        } elseif (is_scalar($rawId) && trim((string) $rawId) !== '') {
+            $fonnteId = $rawId;
+        } else {
+            $fonnteId = $res['data']['requestid'] ?? null;
+        }
         $waNumber = $this->normalizePhoneForStore($to);
 
         // Default AR = autoreply/bot; human harus kirim sender_code eksplisit (bukan AR).
