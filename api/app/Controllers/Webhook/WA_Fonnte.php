@@ -160,6 +160,12 @@ class WA_Fonnte extends Controller
             // CSW Fonnte harus ter-commit dulu; baru simpan chat + handle intent.
             $this->recordFonnteIncoming($waNumber, $timestamp);
             $this->saveFonnteIncomingMessage($waNumber, $data, $messageText, $messageStore, $customerCtx);
+            if ($messageStore->lastIncomingWasDuplicate()) {
+                \Log::write('WA_Fonnte: skip process duplicate inboxid=' . (string) ($inboxid ?? ''), 'webhook', 'Fonnte');
+                echo json_encode(['status' => 'ok', 'reply' => $replyText, 'duplicate' => true]);
+
+                return;
+            }
 
             $replies = new \App\Models\WAReplies();
             $fonnteAdapter = new \App\Helpers\CRM\FonnteReplyAdapter($inboxid, $messageStore);
@@ -167,6 +173,9 @@ class WA_Fonnte extends Controller
             $replies->setSkipConversationPersist(true);
             $replies->setAutoReplyProvider('B');
             $replies->setSenderContext($senderCtx);
+            if ($inboxid !== null && is_numeric($inboxid) && (int) $inboxid > 0) {
+                $replies->setInboundReplyToMessageId((int) $inboxid);
+            }
 
             $processResult = $replies->process(
                 $phoneIn,

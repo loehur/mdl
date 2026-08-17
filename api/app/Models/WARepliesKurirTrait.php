@@ -1149,12 +1149,15 @@ trait WARepliesKurirTrait
 
     private function kurirNotifyDeliveryGroupIfLabelChanged(string $waNumber, array $session): void
     {
-        $prev = trim((string) ($session['group_notify_label'] ?? ''));
-        if ($prev === '') {
+        $prev = $this->kurirParseGroupNotifyClaim((string) ($session['group_notify_label'] ?? ''));
+        if ($prev['label'] === '') {
             return;
         }
         $label = $this->kurirGroupJenisDisplay($session);
-        if ($label === $prev) {
+        $idRequest = (int) ($session['id_request'] ?? 0);
+        $sameLabel = strcasecmp($label, $prev['label']) === 0;
+        $sameRequest = $prev['id'] === 0 || $idRequest <= 0 || $prev['id'] === $idRequest;
+        if ($sameLabel && $sameRequest) {
             return;
         }
         $this->kurirNotifyDeliveryGroupRequestCreated(
@@ -1163,6 +1166,108 @@ trait WARepliesKurirTrait
             (int) ($session['id_cabang'] ?? 0),
             $session
         );
+    }
+
+    /** Klaim notif grup: `{id_request}|{Antar}` — VARCHAR(32). */
+    private function kurirGroupNotifyClaimKey(int $idRequest, string $label): string
+    {
+        $label = trim($label);
+        if ($idRequest > 0) {
+            return mb_substr($idRequest . '|' . $label, 0, 32);
+        }
+
+        return mb_substr($label, 0, 32);
+    }
+
+    /**
+     * @return array{id:int,label:string}
+     */
+    private function kurirParseGroupNotifyClaim(string $stored): array
+    {
+        $stored = trim($stored);
+        if ($stored === '') {
+            return ['id' => 0, 'label' => ''];
+        }
+        if (preg_match('/^(\d+)[|:]+(.+)$/', $stored, $m)) {
+            return ['id' => (int) $m[1], 'label' => trim((string) $m[2])];
+        }
+
+        return ['id' => 0, 'label' => $stored];
+    }
+
+    /**
+     * Klaim atomik sebelum kirim. True = proses ini yang boleh kirim.
+     *
+     * @return array{claimed:bool,is_update:bool,prev:string}
+     */
+    private function kurirClaimDeliveryGroupNotify(string $waNumber, string $claimKey, int $idRequest, string $jenisLabel): array
+    {
+        $out = ['claimed' => false, 'is_update' => false, 'prev' => ''];
+        $phone = $this->normalizePhoneNumber($waNumber);
+        if ($phone === '' || $claimKey === '') {
+            return $out;
+        }
+        try {
+            $raw = $this->getKurirSessionRaw($phone);
+            if (!$raw) {
+                return $out;
+            }
+            $prev = trim((string) ($raw['group_notify_label'] ?? ''));
+            $out['prev'] = $prev;
+            $parsed = $this->kurirParseGroupNotifyClaim($prev);
+            $sameLabel = $parsed['label'] !== ''
+                && strcasecmp($parsed['label'], $jenisLabel) === 0;
+            $sameRequest = $parsed['id'] === 0 || $idRequest <= 0 || $parsed['id'] === $idRequest;
+            // Label sama untuk request yang sama → jangan kirim ulang.
+            // Label beda (mis. Jemput → Antar & Jemput / sekalian antar) → tetap klaim & kirim.
+            if ($prev === $claimKey || ($sameLabel && $sameRequest)) {
+                return $out;
+            }
+            $out['is_update'] = $parsed['label'] !== '' && !$sameLabel;
+
+            $stmt = DB::getInstance(0)->conn()->prepare(
+                'UPDATE wa_kurir_session
+                 SET group_notify_label = ?
+                 WHERE phone = ?
+                   AND (group_notify_label IS NULL OR group_notify_label <> ?)'
+            );
+            if (!$stmt) {
+                return $out;
+            }
+            $stmt->bind_param('sss', $claimKey, $phone, $claimKey);
+            $ok = $stmt->execute();
+            $n = (int) $stmt->affected_rows;
+            $stmt->close();
+            if (!$ok || $n < 1) {
+                return $out;
+            }
+            $out['claimed'] = true;
+            return $out;
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('kurirClaimDeliveryGroupNotify: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            return ['claimed' => false, 'is_update' => false, 'prev' => ''];
+        }
+    }
+
+    private function kurirReleaseDeliveryGroupNotifyClaim(string $waNumber, string $claimKey, string $prev): void
+    {
+        $phone = $this->normalizePhoneNumber($waNumber);
+        if ($phone === '' || $claimKey === '') {
+            return;
+        }
+        try {
+            $prevVal = $prev === '' ? null : $prev;
+            DB::getInstance(0)->query(
+                'UPDATE wa_kurir_session
+                 SET group_notify_label = ?
+                 WHERE phone = ? AND group_notify_label = ?',
+                [$prevVal, $phone, $claimKey]
+            );
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
 
     /**
@@ -1246,13 +1351,8 @@ trait WARepliesKurirTrait
         if (preg_match('/^\s*2\s*[.)]?\s*$/u', $t) || preg_match('/^\s*dua\s*$/iu', $t)) {
             return 'instant';
         }
-        // Instant dulu (lebih spesifik)
-        if ($this->kurirLooksWantFast($msg)
-            || preg_match(
-                '/\b(gosend|go\s*send|grab|gojek|gofood|grabexpress|instant|instan|kilat|maxim|paxel|lalamove|borzo|deliveree)\b/iu',
-                $t
-            )
-        ) {
+        // Instant hanya jika sebut Gosend / Gojek / Grab (bukan "sekarang/cepat")
+        if ($this->kurirLooksWantFast($msg)) {
             return 'instant';
         }
         // Sameday
@@ -1267,7 +1367,7 @@ trait WARepliesKurirTrait
             && preg_match('/\b(sameday|same|hari|besok|biasa|kurir)\b/iu', $t)) {
             return 'sameday';
         }
-        if (preg_match('/\b(pilih\s*)?2\b/u', $t) && preg_match('/\b(instant|instan|grab|gojek|gosend|cepat)\b/iu', $t)) {
+        if (preg_match('/\b(pilih\s*)?2\b/u', $t) && $this->kurirLooksWantFast($t)) {
             return 'instant';
         }
         return null;
@@ -2013,17 +2113,17 @@ trait WARepliesKurirTrait
             || $this->kurirLooksButuhEstimasi($msg, $session);
     }
 
+    /**
+     * Instant 3PL: hanya Gosend / Gojek / Grab.
+     * "sekarang / cepat / segera / kilat" = sameday, bukan instant.
+     */
     private function kurirLooksWantFast(string $msg): bool
     {
         if ($this->kurirLooksCancel($msg)) {
             return false;
         }
-        // "sekarang/skrg" saja terlalu ambigu (sering ikut kalimat batal/pulang)
         return (bool) preg_match(
-            '/\b(segera|cepat|cepet|instant|instan|gojek|grab|gosend|go\s*send|kilat|buru(-?buru)?|langsung\s*aja)\b/iu',
-            $msg
-        ) || (bool) preg_match(
-            '/\b(sekarang|skrg)\b.*\b(antar|anter|jemput|kurir|kirim|ambil)\b|\b(antar|anter|jemput|kurir|kirim|ambil)\b.*\b(sekarang|skrg)\b/iu',
+            '/\b(gosend|go\s*-?\s*send|grabexpress|grab\s*express|grab|gojek|go\s*-?\s*jek)\b/iu',
             $msg
         );
     }
@@ -2402,7 +2502,7 @@ trait WARepliesKurirTrait
 
     /**
      * Setelah lokasi lengkap: default sameday (tanpa tanya 1/2).
-     * Instant hanya jika customer eksplisit minta cepat/grab/gosend/sekarang.
+     * Instant hanya jika customer eksplisit minta Gosend / Gojek / Grab.
      */
     private function kurirAfterLokasiReady(
         string $waNumber,
@@ -4556,11 +4656,9 @@ trait WARepliesKurirTrait
             }
             $this->saveKurirSession($waNumber, [
                 'id_request' => $idRequest,
-                'group_notify_label' => '',
             ]);
             $notifySession = $session;
             $notifySession['id_request'] = $idRequest;
-            $notifySession['group_notify_label'] = '';
             $this->kurirNotifyDeliveryGroupRequestCreated(
                 $waNumber,
                 $idPelanggan,
@@ -4982,11 +5080,18 @@ trait WARepliesKurirTrait
     ): void {
         try {
             $jenisLabel = $this->kurirGroupJenisDisplay($session);
-            $prevLabel = trim((string) ($session['group_notify_label'] ?? ''));
-            if ($prevLabel !== '' && $prevLabel === $jenisLabel) {
+            $idRequest = (int) ($session['id_request'] ?? 0);
+            $claimKey = $this->kurirGroupNotifyClaimKey($idRequest, $jenisLabel);
+            $claim = $this->kurirClaimDeliveryGroupNotify($waNumber, $claimKey, $idRequest, $jenisLabel);
+            if (empty($claim['claimed'])) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'MINTA_JEMPUT_ANTAR',
+                    'notify_delivery_group skip already_claimed key=' . $claimKey
+                );
                 return;
             }
-            $isUpdate = $prevLabel !== '';
+            $isUpdate = !empty($claim['is_update']);
 
             $nama = '';
             if ($idPelanggan > 0) {
@@ -5029,15 +5134,32 @@ trait WARepliesKurirTrait
             }
             $driverG = \App\Config\Fonnte::getDriverGroupId();
             if ($driverG === '') {
+                $this->kurirReleaseDeliveryGroupNotifyClaim(
+                    $waNumber,
+                    $claimKey,
+                    (string) ($claim['prev'] ?? '')
+                );
                 return;
             }
             $fonnte = new \App\Helpers\CRM\FonnteService();
-            $fonnte->sendToGroup($driverG, $text);
-            $this->saveKurirSession($waNumber, ['group_notify_label' => $jenisLabel]);
+            $send = $fonnte->sendToGroup($driverG, $text, ['delay' => '0']);
+            if (empty($send['success'])) {
+                $this->kurirReleaseDeliveryGroupNotifyClaim(
+                    $waNumber,
+                    $claimKey,
+                    (string) ($claim['prev'] ?? '')
+                );
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'MINTA_JEMPUT_ANTAR',
+                    'notify_delivery_group fail ' . ($send['error'] ?? 'unknown')
+                );
+                return;
+            }
             $this->logAutoreplyTrace(
                 $waNumber,
                 'MINTA_JEMPUT_ANTAR',
-                'notify_delivery_group ok label=' . $jenisLabel . ($isUpdate ? ' update=1' : '')
+                'notify_delivery_group ok key=' . $claimKey . ($isUpdate ? ' update=1' : '')
             );
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -5242,7 +5364,12 @@ trait WARepliesKurirTrait
         return \App\Helpers\CRM\WaSenderContext::key($waNumber);
     }
 
-    private function kurirEligibleSaleIds(int $idPelanggan, bool $requireSelesai): array
+    /**
+     * @param int[] $exceptRequestIds item yang sudah terikat request ini tetap eligible
+     *        (upgrade sameday milik sendiri → Instant)
+     * @return int[]
+     */
+    private function kurirEligibleSaleIds(int $idPelanggan, bool $requireSelesai, array $exceptRequestIds = []): array
     {
         $selesaiClause = '';
         if ($requireSelesai) {
@@ -5252,6 +5379,17 @@ trait WARepliesKurirTrait
               WHERE n.tipe = 2
                 AND n.no_ref = CAST(s.id_penjualan AS CHAR)
             )";
+        }
+        $except = [];
+        foreach ($exceptRequestIds as $rid) {
+            $rid = (int) $rid;
+            if ($rid > 0) {
+                $except[$rid] = $rid;
+            }
+        }
+        $exceptSql = '';
+        if (!empty($except)) {
+            $exceptSql = ' AND drq.id_request NOT IN (' . implode(',', $except) . ')';
         }
         try {
             $rows = DB::getInstance(1)->query(
@@ -5272,6 +5410,7 @@ trait WARepliesKurirTrait
                      WHERE dri.id_penjualan = s.id_penjualan
                        AND drq.jenis = 'antar'
                        AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')
+                       {$exceptSql}
                    )
                    {$selesaiClause}
                  ORDER BY s.insertTime DESC
@@ -5286,6 +5425,89 @@ trait WARepliesKurirTrait
         }
     }
 
+    /** Request sameday antar milik pelanggan yang itemnya boleh dipakai Instant. */
+    private function kurirOwnSamedayAntarRequestIds(int $idPelanggan, array $session = []): array
+    {
+        $ids = [];
+        $sid = (int) ($session['id_request'] ?? 0);
+        if ($sid > 0) {
+            $ids[$sid] = $sid;
+        }
+        if ($idPelanggan <= 0) {
+            return array_values($ids);
+        }
+        try {
+            $rows = DB::getInstance(1)->query(
+                "SELECT id_request FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND jenis = 'antar'
+                   AND layanan = 'sameday'
+                   AND delivery_status IN ('berjalan','pending')
+                 ORDER BY id_request DESC
+                 LIMIT 20",
+                [$idPelanggan]
+            )->result_array();
+            foreach (is_array($rows) ? $rows : [] as $r) {
+                $id = (int) ($r['id_request'] ?? 0);
+                if ($id > 0) {
+                    $ids[$id] = $id;
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+        return array_values($ids);
+    }
+
+    private function kurirInstantAntarRejectMsg(string $sapaan, int $idPelanggan, array $exceptRequestIds): string
+    {
+        $unfinished = $this->kurirEligibleSaleIds($idPelanggan, false, $exceptRequestIds);
+        if (!empty($unfinished)) {
+            return "Mohon maaf {$sapaan}, laundry belum selesai, order kurir instan belum dapat dilakukan.";
+        }
+        return "Mohon maaf {$sapaan}, belum ada item yang bisa diantar Instant saat ini.";
+    }
+
+    /** Request sameday yang itemnya pindah ke Instant: lepas dari board. */
+    private function kurirParkSamedayAfterInstantUpgrade(array $exceptRequestIds): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $db = DB::getInstance(1);
+        foreach ($exceptRequestIds as $rid) {
+            $rid = (int) $rid;
+            if ($rid <= 0) {
+                continue;
+            }
+            try {
+                $row = $db->query(
+                    "SELECT id_request FROM delivery_request
+                     WHERE id_request = ?
+                       AND jenis = 'antar'
+                       AND layanan = 'sameday'
+                       AND delivery_status IN ('berjalan','pending')
+                     LIMIT 1",
+                    [$rid]
+                )->row();
+                if (!$row) {
+                    continue;
+                }
+                $db->update(
+                    'delivery_request',
+                    [
+                        'delivery_status' => 'batal',
+                        'catatan_batal' => 'Upgrade Instant via WA',
+                        'selesaiTime' => $now,
+                    ],
+                    ['id_request' => $rid]
+                );
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write('kurirParkSamedayAfterInstantUpgrade: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+                }
+            }
+        }
+    }
+
     private function kurirStartInstant(string $waNumber, string $sapaan, array $session, string $msg): void
     {
         if (!$this->isOperatingHours()) {
@@ -5296,11 +5518,12 @@ trait WARepliesKurirTrait
         $jenis = $this->kurirJenisLabel($session);
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         if ($jenis === 'antar') {
-            $ids = $this->kurirEligibleSaleIds($idPelanggan, true);
+            $exceptIds = $this->kurirOwnSamedayAntarRequestIds($idPelanggan, $session);
+            $ids = $this->kurirEligibleSaleIds($idPelanggan, true, $exceptIds);
             if (empty($ids)) {
                 $this->sendAutoreplyText(
                     $waNumber,
-                    "Mohon maaf {$sapaan}, laundry belum selesai, order kurir instan belum dapat dilakukan."
+                    $this->kurirInstantAntarRejectMsg($sapaan, $idPelanggan, $exceptIds)
                 );
                 return;
             }
@@ -5489,10 +5712,15 @@ trait WARepliesKurirTrait
         }
 
         $itemIds = [];
+        $exceptIds = [];
         if ($jenis === 'antar') {
-            $itemIds = $this->kurirEligibleSaleIds($idPelanggan, true);
+            $exceptIds = $this->kurirOwnSamedayAntarRequestIds($idPelanggan, $session);
+            $itemIds = $this->kurirEligibleSaleIds($idPelanggan, true, $exceptIds);
             if (empty($itemIds)) {
-                $this->sendAutoreplyText($waNumber, 'Maaf, laundry belum selesai untuk Instant antar.');
+                $this->sendAutoreplyText(
+                    $waNumber,
+                    $this->kurirInstantAntarRejectMsg($this->getSapaanForGreeting($waNumber), $idPelanggan, $exceptIds)
+                );
                 return false;
             }
         }
@@ -5557,6 +5785,7 @@ trait WARepliesKurirTrait
                 ['payment_ref_finance' => $refFinance],
                 ['id_request' => $idRequest]
             );
+            $this->kurirParkSamedayAfterInstantUpgrade($exceptIds);
             return true;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -5798,8 +6027,9 @@ trait WARepliesKurirTrait
             . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (agree/confirm/agree_alt), BUKAN cancel. "
             . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
             . "Jam 1-6 tanpa 'pagi' biasanya sore (jam 3=15). Tanya 'jam berapa' tanpa angka tetap want_jam. "
-            . "Jika minta cepat/gojek/grab/gosend/instant/sekarang → want_instant (langsung, jangan tanya sameday lagi). "
-            . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta instant. "
+            . "want_instant HANYA jika customer sebut Gosend / Gojek / Grab (ojek online). "
+            . "Minta antar/jemput SEKARANG / cepat / segera / kilat / hari ini = tetap sameday, BUKAN want_instant. "
+            . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta gosend/gojek/grab. "
             . "Typo anter/antr/dianter/diantr = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
             . "Di step wait_continue_alt: JANGAN tawarkan instant/grab/gojek. "
@@ -6077,8 +6307,12 @@ trait WARepliesKurirTrait
             case 'pick_layanan':
                 $pickMsg = $msg;
                 $slotLayanan = strtolower((string) ($slots['layanan'] ?? ''));
-                if (in_array($slotLayanan, ['sameday', 'instant'], true)) {
-                    $pickMsg = $slotLayanan;
+                if ($slotLayanan === 'sameday') {
+                    $pickMsg = 'sameday';
+                } elseif ($slotLayanan === 'instant'
+                    && ($this->kurirLooksWantFast($msg) || $this->detectKurirLayanan($msg) === 'instant')
+                ) {
+                    $pickMsg = 'instant';
                 }
                 $this->kurirHandleAskLayanan($waNumber, $sapaan, $session, $pickMsg);
                 $this->kurirAppendSummary($waNumber, $session, $note);
@@ -6131,6 +6365,11 @@ trait WARepliesKurirTrait
                 $step = (string) ($session['step'] ?? '');
                 if ($step === 'wait_continue_alt') {
                     $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
+                    $this->kurirAppendSummary($waNumber, $session, $note);
+                    return;
+                }
+                if (!$this->kurirLooksWantFast($msg)) {
+                    $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'want_instant_ignored_not_gosend_gojek_grab');
                     $this->kurirAppendSummary($waNumber, $session, $note);
                     return;
                 }

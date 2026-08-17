@@ -381,6 +381,7 @@ class WhatsApp extends Controller
                 }
 
                 $replies = new \App\Models\WAReplies();
+                $replies->setInboundReplyToMessageId($wamid ?: $messageId);
 
                 // 1) Open CSW + push WS segera (mirip WaDesk) — intent/AI belakangan
                 $conversationId = (int) $replies->getOrCreateConversationWithCase(

@@ -13,6 +13,9 @@ class FonnteMessageStore
     /** @var array{contact_name?:string,assigned_user_id?:int|string|null,code?:string|null,cust_id?:int|string|null} */
     private $customerContext = [];
 
+    /** True jika saveIncoming terakhir ketemu inboxid yang sudah tersimpan. */
+    private $lastIncomingDuplicate = false;
+
     public function __construct($db)
     {
         $this->db = $db;
@@ -27,6 +30,14 @@ class FonnteMessageStore
     }
 
     /**
+     * True jika saveIncoming terakhir adalah inboxid yang sudah ada.
+     */
+    public function lastIncomingWasDuplicate(): bool
+    {
+        return $this->lastIncomingDuplicate;
+    }
+
+    /**
      * Simpan pesan masuk dari webhook Fonnte.
      *
      * @param array{contact_name?:string,assigned_user_id?:int|string|null,code?:string|null,cust_id?:int|string|null} $context
@@ -34,6 +45,7 @@ class FonnteMessageStore
      */
     public function saveIncoming(string $waNumber, array $webhook, string $messageText, array $context = []): ?int
     {
+        $this->lastIncomingDuplicate = false;
         if ($waNumber === '') {
             return null;
         }
@@ -49,6 +61,7 @@ class FonnteMessageStore
         if ($inboxid !== null && $inboxid > 0) {
             $dupe = $this->db->get_where('wa_fonnte_messages_in', ['inboxid' => $inboxid])->row();
             if ($dupe) {
+                $this->lastIncomingDuplicate = true;
                 return (int) ($dupe->id ?? 0) ?: null;
             }
         }
@@ -83,6 +96,13 @@ class FonnteMessageStore
 
         $msgId = $this->db->insert('wa_fonnte_messages_in', $row);
         if (!$msgId) {
+            if ($inboxid !== null && $inboxid > 0) {
+                $dupe = $this->db->get_where('wa_fonnte_messages_in', ['inboxid' => $inboxid])->row();
+                if ($dupe) {
+                    $this->lastIncomingDuplicate = true;
+                    return (int) ($dupe->id ?? 0) ?: null;
+                }
+            }
             if (class_exists('\Log')) {
                 $err = $this->db->conn()->error ?? 'unknown';
                 \Log::write('FonnteMessageStore: insert wa_fonnte_messages_in failed: ' . $err, 'webhook', 'Fonnte');

@@ -45,8 +45,14 @@ class FonnteReplyAdapter
         }
 
         $options = [];
-        if ($this->inboxid) {
-            $options['inboxid'] = (int) $this->inboxid;
+        $inbox = null;
+        if ($replyToMessageId !== null && is_numeric($replyToMessageId) && (int) $replyToMessageId > 0) {
+            $inbox = (int) $replyToMessageId;
+        } elseif ($this->inboxid && is_numeric($this->inboxid) && (int) $this->inboxid > 0) {
+            $inbox = (int) $this->inboxid;
+        }
+        if ($inbox) {
+            $options['inboxid'] = $inbox;
         }
         $res = $this->fonnte->sendMessage($to, $message, $options);
 
@@ -62,7 +68,7 @@ class FonnteReplyAdapter
         if ($this->messageStore !== null) {
             $this->messageStore->saveOutgoing($waNumber, (string) $message, [
                 'fonnte_message_id' => is_scalar($fonnteId) ? (string) $fonnteId : null,
-                'reply_inboxid' => $this->inboxid ? (int) $this->inboxid : null,
+                'reply_inboxid' => $inbox,
                 'source' => $isHuman ? 'human' : 'autoreply',
                 'sender_code' => $code,
                 'handler' => $this->handler,

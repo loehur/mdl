@@ -126,7 +126,7 @@ User memberikan PENUTUP — HANYA 3 jenis berikut (selain itu = FALSE):
 
 (1b) Ack + tunggu kabar PASIF + terima kasih = PENUTUP: | Oke kk, di tunggu kbr ny dn trima ksih byk | oke kak ditunggu kabarnya dan terima kasih banyak |
 
-(2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening |
+(2) Info pelunasan / sudah bayar / bukti transfer: | sudah transfer | sudah bayar | sudah lunas | lunas ya kak | berikut bukti bayar | bukti transfer | info pelunasan | telah berhasil mengirimkan ke rekening | Uda saya bayar ka barusan | udah saya bayar | saya sudah bayar barusan |
 
 (3) Ack singkat MURNI — SELURUH pesan hanya: | ok | okk | okkk | oke | baik | sip | siap | ok kak | okkk kk | siap kk | ok siap | iya | ya | gpp | (opsional sapaan kak/kk/bang/min). TANPA kalimat tambahan.
 

@@ -40,6 +40,12 @@ class WAReplies
     private $customSender = null;
 
     /**
+     * ID pesan masuk yang sedang dijawab (yCloud wamid / Fonnte inboxid) untuk quote-reply.
+     * @var string|null
+     */
+    private $inboundReplyToId = null;
+
+    /**
      * Jika true: tidak INSERT/UPDATE wa_conversations (webhook Fonnte — CSW Fonnte di wa_fonnte_csw saja).
      */
     private $skipConversationPersist = false;
@@ -93,6 +99,24 @@ class WAReplies
     public function setAutoReplyProvider(string $provider): void
     {
         $this->autoReplyProvider = ($provider === 'B') ? 'B' : 'A';
+    }
+
+    /**
+     * Pasang ID pesan masuk agar semua autoreply jadi quote-reply ke chat itu.
+     * yCloud: wamid (fallback id). Fonnte: inboxid.
+     */
+    public function setInboundReplyToMessageId($id): void
+    {
+        if ($id === null) {
+            $this->inboundReplyToId = null;
+            return;
+        }
+        $id = trim((string) $id);
+        if ($id === '' || $id === '0') {
+            $this->inboundReplyToId = null;
+            return;
+        }
+        $this->inboundReplyToId = $id;
     }
 
     /** @var array|null Hasil WaSenderContext::resolve() */
@@ -340,6 +364,26 @@ class WAReplies
     }
 
     /**
+     * Kirim teks ke customer sebagai quote-reply ke pesan masuk yang sedang diproses.
+     */
+    private function sendQuotedFreeText($waNumber, $text, $senderCode = null): array
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
+        }
+        $code = ($senderCode !== null && trim((string) $senderCode) !== '')
+            ? trim((string) $senderCode)
+            : \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+
+        return $this->getWaService()->sendFreeText(
+            $waNumber,
+            $text,
+            $this->inboundReplyToId,
+            $code
+        );
+    }
+
+    /**
      * Kirim autoreply via WA; push WebSocket hanya untuk yCloud (bukan Fonnte).
      * @param string $waNumber
      * @param string $text
@@ -355,12 +399,7 @@ class WAReplies
         if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
             require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
         }
-        $res = $this->getWaService()->sendFreeText(
-            $waNumber,
-            $text,
-            null,
-            \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY
-        );
+        $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             // Jangan push WS di sini untuk yCloud: WhatsAppService::saveOutboundMessage
             // sudah broadcast agent_message_sent (id = DB). Push kedua pakai id provider
@@ -1334,38 +1373,21 @@ class WAReplies
     }
 
     /**
-     * True jika pesan mengandung ok/oke sebagai kata (bukan sekadar substring di tengah kata lain).
+     * PENUTUP lainnya (ok/siap/sticker) tidak dibalas — jangan cooldown, biar thanks/bayar berikutnya tetap bisa.
      */
-    private function penutupMessageContainsOkToken(string $text): bool
+    private function penutupLainnyaSkipsCooldown(string $handler, string $textBody): bool
     {
-        $t = strtolower(trim($text));
-        if ($t === '') {
+        if (strtoupper($handler) !== 'PENUTUP') {
+            return false;
+        }
+        if ($this->messageLooksLikePaymentConfirmationPenutup($textBody)) {
+            return false;
+        }
+        if ($this->messageLooksLikeThanksPenutup($textBody)) {
             return false;
         }
 
-        return (bool) preg_match('/\b' . $this->penutupOkTokenPattern() . '\b/i', $t);
-    }
-
-    /**
-     * Ack PENUTUP tanpa mengulang ok/oke — hanya Baik + sapaan + emote soft.
-     */
-    private function getRandomPenutupAckNoOk(string $sapaan)
-    {
-        return $this->pickRandomFromList($this->expandPenutupRepliesWithSoftSmiles([
-            'Baik {sapaan}',
-        ], $sapaan));
-    }
-
-    /**
-     * Pilih balasan ack (lainnya): hindari mengulang ok/oke jika user baru saja menulis ok/oke.
-     */
-    private function pickPenutupAckReply(string $sapaan, string $textBody): string
-    {
-        if ($this->penutupMessageContainsOkToken($textBody)) {
-            return $this->getRandomPenutupAckNoOk($sapaan);
-        }
-
-        return $this->getRandomSiapReply($sapaan);
+        return true;
     }
 
     /**
@@ -1434,6 +1456,7 @@ class WAReplies
 
     /**
      * Konfirmasi pembayaran/transfer/lunas — tetap PENUTUP meski pesan panjang (bukti + nominal + terima kasih).
+     * Termasuk typo: uda/udah + saya bayar + barusan.
      */
     private function messageLooksLikePaymentConfirmationPenutup(?string $text): bool
     {
@@ -1441,13 +1464,7 @@ class WAReplies
             return false;
         }
         $t = mb_strtolower($text);
-        if (preg_match(
-            '/telah\s+berhasil\s+mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim|'
-            . 'udah\s+transfer|udah\s+bayar|udh\s+tf|udh\s+transfer|sdh\s+transfer|sdh\s+bayar|'
-            . 'sudah\s+lunas|udah\s+lunas|udh\s+lunas|sdh\s+lunas|'
-            . '\b(info\s+)?pelunasan\b|\blunas\s+bayar\b/iu',
-            $t
-        )) {
+        if (preg_match($this->paymentAlreadyDoneRegex(), $t)) {
             return true;
         }
         if (preg_match(
@@ -1460,14 +1477,32 @@ class WAReplies
             return true;
         }
         // Trailing ellipsis/emoji/punctuation OK: "Lunas ya kak...🙏"
-        if (preg_match('/^\s*lunas(\s+ya)?(\s+(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
+        if (preg_match('/^\s*lunas(\s+ya)?(\s+(kak|kk|ka|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
             return true;
         }
-        if (preg_match('/^\s*(sudah|udah|udh|sdh)\s+lunas(\s+(ya\s*)?(kak|kk|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
+        if (preg_match('/^\s*(sudah|udah|udh|sdh|uda|dah)\s+lunas(\s+(ya\s*)?(kak|kk|ka|bang|min|mbak|pak|bu))?\s*[^\p{L}\p{N}]*$/iu', $t)) {
             return true;
         }
 
         return false;
+    }
+
+    /** Regex: sudah/uda/udah + (saya) + bayar/transfer/lunas, atau bayar barusan. */
+    private function paymentAlreadyDoneRegex(): string
+    {
+        $already = '(sudah|udah|udh|sdh|uda|dah)';
+        $pay = '(bayar|byr|transfer|tf|trf|lunas)';
+        $subj = '(saya|aku|sy|kami|kita|gue)';
+
+        return '/'
+            . 'telah\s+berhasil\s+mengirimkan'
+            . '|' . $already . '\s+(?:' . $subj . '\s+)?' . $pay
+            . '|' . $subj . '\s+' . $already . '\s+' . $pay
+            . '|' . $already . '\s+(?:' . $subj . '\s+)?(kirim|mengirim)'
+            . '|\b' . $subj . '\s+' . $pay . '\b.{0,32}\b(barusan|baru\s*saja|tadi)\b'
+            . '|\b(barusan|baru\s*saja)\b.{0,32}\b' . $pay . '\b'
+            . '|\b(info\s+)?pelunasan\b|\blunas\s+bayar\b'
+            . '/iu';
     }
 
     /**
@@ -1690,11 +1725,7 @@ class WAReplies
             return false;
         }
         $t = mb_strtolower($text);
-        if (preg_match(
-            '/telah\s+berhasil\s+mengirimkan|sudah\s+transfer|sudah\s+bayar|sudah\s+kirim|sudah\s+mengirim|'
-            . 'udah\s+transfer|udah\s+bayar|udh\s+tf|udh\s+transfer|sdh\s+transfer|sdh\s+bayar/iu',
-            $t
-        )) {
+        if (preg_match($this->paymentAlreadyDoneRegex(), $t)) {
             return false;
         }
         if (preg_match(
@@ -1878,7 +1909,7 @@ class WAReplies
         if ($linkSuffix !== null && $linkSuffix !== '') {
             $text .= "\n" . $linkSuffix;
         }
-        $res = $waService->sendFreeText($waNumber, $text);
+        $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
@@ -2342,8 +2373,12 @@ class WAReplies
                 if (preg_match($pattern, $textBodyToCheck)) {
                     $regexSourceHandler = $handler;
                     // REKENING pattern match tapi pesan konfirmasi pembayaran (sudah transfer) = PENUTUP, skip REKENING
-                    if ($handler === 'REKENING' && preg_match('/(telah berhasil mengirimkan|sudah transfer|sudah bayar|sudah kirim|sudah mengirim)/i', $textBodyToCheck)) {
+                    if ($handler === 'REKENING' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
                         continue;
+                    }
+                    if ($handler !== 'PENUTUP' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP payment_confirm');
+                        $handler = 'PENUTUP';
                     }
                     // "cek qris ..." = intent admin CEK_QRIS, bukan minta rekening/QRIS pelanggan
                     if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
@@ -2603,7 +2638,8 @@ class WAReplies
                         }
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
                         $this->$methodName($phoneIn, $waNumber, $textBody);
-                        if (!$this->handlerSkipsAutoreplyRateLimit($handler)) {
+                        if (!$this->handlerSkipsAutoreplyRateLimit($handler)
+                            && !$this->penutupLainnyaSkipsCooldown($handler, $textBody)) {
                             $this->recordHandlerCooldown($waNumber, $handler);
                         }
                         $this->logAutoreplyTrace($waNumber, 'DONE', 'regex_ok handler=' . $handler);
@@ -2645,6 +2681,17 @@ class WAReplies
         // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
         // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+
+        if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
+            if (!is_array($aiResult)) {
+                $aiResult = [];
+            }
+            $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
+            if ($prevAi !== 'PENUTUP') {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP payment_confirm was=' . $prevAi);
+            }
+            $aiResult['intent'] = 'PENUTUP';
+        }
 
         // Check if AI successfully detected a valid intent
         if ($aiResult && is_array($aiResult) && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
@@ -3020,7 +3067,8 @@ class WAReplies
                 }
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
                 $this->$methodName($phoneIn, $waNumber, $textBody);
-                if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)) {
+                if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
+                    && !$this->penutupLainnyaSkipsCooldown($aiIntent, $textBody)) {
                     $this->recordHandlerCooldown($waNumber, $aiIntent);
                 }
                 $this->logAutoreplyTrace($waNumber, 'DONE', 'ai_ok intent=' . $aiIntent);
@@ -3142,7 +3190,7 @@ class WAReplies
                     $isInserted = $db1->insert('notif', $insertData);
 
                     if ($isInserted !== false) {
-                        $res = $waService->sendFreeText($waNumber, $responseData['text']);
+                        $res = $this->sendQuotedFreeText($waNumber, $responseData['text']);
 
                         $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                         $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
@@ -3212,7 +3260,7 @@ class WAReplies
                 }
 
                 // Send message (Free text is allowed now since customer just messaged us)
-                $res = $waService->sendFreeText($waNumber, $notif['text']);
+                $res = $this->sendQuotedFreeText($waNumber, $notif['text']);
 
                 $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
@@ -3288,7 +3336,7 @@ class WAReplies
             $rekeningBody . "\n\n" .
             "Terima kasih 😊";
 
-        $res = $waService->sendFreeText($waNumber, $text);
+        $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
@@ -3498,8 +3546,8 @@ class WAReplies
     }
 
     /**
-     * Handle intent PENUTUP — 3 subtype, masing-masing list random + emote senyum soft:
-     * (1) terima kasih (2) sudah bayar/lunas (3) ack/lainnya.
+     * Handle intent PENUTUP — balas hanya (1) terima kasih (2) sudah bayar/lunas.
+     * Subtype lainnya (ok/siap/sticker/emoji) → tidak balas.
      * Di luar jam operasional → tidak balas.
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
@@ -3514,23 +3562,7 @@ class WAReplies
             }
         }
 
-        $textLower = trim(strtolower($textBody ?? ''));
         $textTrimmed = trim($textBody ?? '');
-
-        // Reaction / emoji / sticker → emote soft random (PENUTUP lainnya)
-        if (preg_match('/^reacted\s*:?\s*.+$/i', $textTrimmed)) {
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
-            return;
-        }
-        if (mb_strlen($textTrimmed) <= 6 && preg_match('/^[^\p{L}\p{N}]+$/u', $textTrimmed) && $textTrimmed !== '') {
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
-            return;
-        }
-        if ($this->messageLooksLikeStickerPenutup($textBody)) {
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_sticker');
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
-            return;
-        }
 
         $ctx = $this->getGreetingContext($waNumber);
         $sapaan = $ctx['sapaan'];
@@ -3549,16 +3581,8 @@ class WAReplies
             return;
         }
 
-        // (3) Lainnya: gpp → emote soft saja
-        if (preg_match('/^(gpp|gak\s*apa\s*apa|ga\s*apa\s*apa)(\s+(kak|bang|pak|bu))?\s*[.\s]*$/i', $textLower)) {
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_emoji');
-            $this->sendAutoreplyText($waNumber, $this->pickPenutupSoftSmile());
-            return;
-        }
-
-        // (3) Lainnya: ok/baik/siap / fallback ack
-        $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=other_ack');
-        $this->sendAutoreplyText($waNumber, $this->pickPenutupAckReply($sapaan, $textBody));
+        // (3) Lainnya: ok/siap/sticker/emoji/ack — tidak balas
+        $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_subtype=other_no_reply len=' . mb_strlen($textTrimmed));
     }
 
     /**
@@ -3645,7 +3669,7 @@ class WAReplies
             $catatan = "\n\n_Catatan:_\n- Pembayaran dimuka/deposit\n- Kuota berlaku selamanya\n- Kuota tidak dapat direfund";
             $text .= $catatan;
 
-            $res = $waService->sendFreeText($waNumber, $text);
+            $res = $this->sendQuotedFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -3956,14 +3980,14 @@ class WAReplies
             $text = trim($answer);
             if (empty($text)) {
                 $fallback = "Mohon maaf, saya belum bisa menampilkan harga saat ini.\nBoleh sebutkan itemnya (mis. pakaian harian, bedcover, sepatu, gorden) agar saya bantu cek harga?";
-                $res = $waService->sendFreeText($waNumber, $fallback);
+                $res = $this->sendQuotedFreeText($waNumber, $fallback);
                 if ($res['success']) {
                     $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                 }
                 return;
             }
 
-            $res = $waService->sendFreeText($waNumber, $text);
+            $res = $this->sendQuotedFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -3972,7 +3996,7 @@ class WAReplies
                 \Log::write("handleHarga ERROR: " . $e->getMessage(), 'wa_error', 'Harga');
             }
             $fallback = "Mohon maaf, sistem sedang sibuk saat cek harga.\nSilakan kirim lagi dengan item yang dicari (contoh: setrika, bedcover, sepatu, gorden).";
-            $res = $waService->sendFreeText($waNumber, $fallback);
+            $res = $this->sendQuotedFreeText($waNumber, $fallback);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -4295,7 +4319,7 @@ class WAReplies
         // Ada rincian tagihan — selalu kirim (tanpa cek pola tegas)
         $text = "*" . $nama_pelanggan . "*\nRincian Tagihan:\n\n" . implode("\n\n", $lines) . "\n\n*Total Tagihan: Rp " . number_format($totalTagihan, 0, ',', '.') . "*\n" . $link;
         $this->logAutoreplyTrace($waNumber, 'TAGIHAN_SEND', 'rincian blocks=' . count($lines));
-        $res = $waService->sendFreeText($waNumber, $text);
+        $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
         }
@@ -5584,7 +5608,7 @@ class WAReplies
                 }
 
                 // Send message (Free text is allowed now since customer just messaged us)
-                $res = $waService->sendFreeText($waNumber, $notif['text']);
+                $res = $this->sendQuotedFreeText($waNumber, $notif['text']);
 
                 $status = ($res['success'] ?? false) ? 'sent' : 'failed';
                 $msgId = $res['data']['id'] ?? ($res['data']['message_id'] ?? null);
@@ -5740,7 +5764,7 @@ class WAReplies
 
                     $statusText = implode("\n\n", $statusBlocks);
                     $text = "*" . $nama_pelanggan . ",*\n" . rtrim($list_link) . "\n\n" . $statusText;
-                    $res = $waService->sendFreeText($waNumber, $text);
+                    $res = $this->sendQuotedFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
                     }
@@ -6031,7 +6055,7 @@ class WAReplies
 
             if (empty($conditions)) {
                 $text = "Tidak ada reminder yang ditemukan.";
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendQuotedFreeText($waNumber, $text);
                 return;
             }
 
@@ -6045,7 +6069,7 @@ class WAReplies
                 // Keep error log for critical failures
                 \Log::write("handleReminder - Query ERROR: " . $qe->getMessage(), 'wa_error', 'Reminder');
                 $text = "Tidak ada reminder yang ditemukan.";
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendQuotedFreeText($waNumber, $text);
                 return;
             }
 
@@ -6084,18 +6108,18 @@ class WAReplies
             // Send all reminders to the requesting user
             if (!empty($reminders)) {
                 $combined_text = implode("\n\n", $reminders);
-                $res = $waService->sendFreeText($waNumber, $combined_text);
+                $res = $this->sendQuotedFreeText($waNumber, $combined_text);
             } else {
                 // No reminders found
                 $text = "Tidak ada reminder yang ditemukan untuk nomor Anda.";
-                $res = $waService->sendFreeText($waNumber, $text);
+                $res = $this->sendQuotedFreeText($waNumber, $text);
             }
         } catch (\Exception $e) {
             \Log::write("handleReminder ERROR: " . $e->getMessage(), 'wa_error', 'Reminder');
             // Still try to send error message to user
             try {
                 $waService = $this->getWaService();
-                $waService->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data reminder.");
+                $this->sendQuotedFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data reminder.");
             } catch (\Exception $e2) {
                 // Ignore
             }
@@ -6147,7 +6171,7 @@ class WAReplies
             $text = "*Access Key* Anda: *" . $current . "*\n\n";
             $text .= "Jika Anda mencurigai key diketahui orang lain, ketik *key new* untuk generate key baru.";
 
-            $waService->sendFreeText($waNumber, $text);
+            $this->sendQuotedFreeText($waNumber, $text);
         } catch (\Throwable $e) {
             \Log::write("handleKey ERROR: " . $e->getMessage(), 'wa_error', 'AccessKey');
         }
@@ -6192,9 +6216,9 @@ class WAReplies
 
             $waService = $this->getWaService();
             if (strlen($text) > 0) {
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendQuotedFreeText($waNumber, $text);
             } else {
-                $waService->sendFreeText($waNumber, "Semua kas cabang di bawah Rp1.000.000");
+                $this->sendQuotedFreeText($waNumber, "Semua kas cabang di bawah Rp1.000.000");
             }
         } catch (\Throwable $e) {
             \Log::write("handleKas_laundry ERROR: " . $e->getMessage(), 'wa_error', 'Kas');
@@ -6256,12 +6280,12 @@ class WAReplies
 
         $waService = $this->getWaService();
         if (!$found) {
-            $waService->sendFreeText($waNumber, "Maaf, data karyawan tidak ditemukan.");
+            $this->sendQuotedFreeText($waNumber, "Maaf, data karyawan tidak ditemukan.");
             return;
         }
 
         $text = $this->formatKaryawanReply($found, $db0);
-        $waService->sendFreeText($waNumber, $text);
+        $this->sendQuotedFreeText($waNumber, $text);
     }
 
     /**
@@ -6323,7 +6347,7 @@ class WAReplies
                     $waService = $this->getWaService();
                 }
                 if ($waService) {
-                    $waService->sendFreeText($waNumber, $msg);
+                    $this->sendQuotedFreeText($waNumber, $msg);
                 }
             } catch (\Throwable $ex) {
                 \Log::write("handleSlip_gaji: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'SlipGaji');
@@ -6455,7 +6479,7 @@ class WAReplies
             }
 
             if (empty($gajiResults)) {
-                $waService->sendFreeText($waNumber, "Belum ada data untuk periode " . $date . ".\nSilakan tunggu penetapan gaji.");
+                $this->sendQuotedFreeText($waNumber, "Belum ada data untuk periode " . $date . ".\nSilakan tunggu penetapan gaji.");
                 return;
             }
 
@@ -6512,7 +6536,7 @@ class WAReplies
             }
 
             // Kirim pesan
-            $res = $waService->sendFreeText($waNumber, $text);
+            $res = $this->sendQuotedFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -6539,7 +6563,7 @@ class WAReplies
                     $waService = $this->getWaService();
                 }
                 if ($waService) {
-                    $waService->sendFreeText($waNumber, $msg);
+                    $this->sendQuotedFreeText($waNumber, $msg);
                 }
             } catch (\Throwable $ex) {
                 \Log::write("handleGaji_cash: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'GajiCash');
@@ -6573,7 +6597,7 @@ class WAReplies
             )->result_array();
 
             if (empty($cashPayrolls)) {
-                $waService->sendFreeText($waNumber, "Tidak ada data gaji cash untuk periode " . $period);
+                $this->sendQuotedFreeText($waNumber, "Tidak ada data gaji cash untuk periode " . $period);
                 return;
             }
 
@@ -6614,7 +6638,7 @@ class WAReplies
             $text .= "*Total Cash:* Rp" . number_format($total, 0, ',', '.') . "\n";
             $text .= "*Jumlah:* " . $count . " orang";
 
-            $res = $waService->sendFreeText($waNumber, $text);
+            $res = $this->sendQuotedFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -6640,7 +6664,7 @@ class WAReplies
                     $waService = $this->getWaService();
                 }
                 if ($waService) {
-                    $waService->sendFreeText($waNumber, $msg);
+                    $this->sendQuotedFreeText($waNumber, $msg);
                 }
             } catch (\Throwable $ex) {
                 \Log::write("handleGaji_tf: Failed to send error message - " . $ex->getMessage(), 'wa_error', 'GajiTf');
@@ -6670,7 +6694,7 @@ class WAReplies
             )->result_array();
 
             if (empty($tfPayrolls)) {
-                $waService->sendFreeText($waNumber, "Tidak ada data gaji transfer untuk periode " . $period);
+                $this->sendQuotedFreeText($waNumber, "Tidak ada data gaji transfer untuk periode " . $period);
                 return;
             }
 
@@ -6718,7 +6742,7 @@ class WAReplies
             $text .= "*Total Transfer:* Rp" . number_format($total, 0, ',', '.') . "\n";
             $text .= "*Jumlah:* " . $count . " orang";
 
-            $res = $waService->sendFreeText($waNumber, $text);
+            $res = $this->sendQuotedFreeText($waNumber, $text);
             if ($res['success']) {
                 $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             }
@@ -6750,7 +6774,7 @@ class WAReplies
                     $db = DB::getInstance(1);
                 }
         } else {
-            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+            $this->sendQuotedFreeText($waNumber, "Bisnis tidak ditemukan.");
             return;
         }
 
@@ -6771,7 +6795,7 @@ class WAReplies
             }
 
             if (!$pre_list || count($pre_list) == 0) {
-                $waService->sendFreeText($waNumber, "Data token untuk $bisnis tidak ditemukan.");
+                $this->sendQuotedFreeText($waNumber, "Data token untuk $bisnis tidak ditemukan.");
                 return;
             }
 
@@ -6791,14 +6815,14 @@ class WAReplies
             }
 
             $text = $text . "Ketik _Token {bisnis} {id}_ untuk beli. Contoh: *_Token ".$item['bisnis']. " " . $item['pre_id']. "_*";
-            $waService->sendFreeText($waNumber, $text);
+            $this->sendQuotedFreeText($waNumber, $text);
         } else {
             $this->logAutoreplyTrace($waNumber, 'CEK_TOKEN', 'no_karyawan bisnis=' . $bisnis);
         }
         
         } catch (\Throwable $e) {
             \Log::write("handleCek_token ERROR: " . $e->getMessage(), 'wa_error', 'Token');
-            $waService->sendFreeText($waNumber, "Terjadi kesalahan sistem.");
+            $this->sendQuotedFreeText($waNumber, "Terjadi kesalahan sistem.");
         }
     }
 
@@ -6821,7 +6845,7 @@ class WAReplies
                 $db = DB::getInstance(1);
             }
         } else {
-            $waService->sendFreeText($waNumber, "Bisnis tidak ditemukan.");
+            $this->sendQuotedFreeText($waNumber, "Bisnis tidak ditemukan.");
             return;
         }
 
@@ -6838,7 +6862,7 @@ class WAReplies
             )->row_array();
 
             if (!$pre_list) {
-                $waService->sendFreeText($waNumber, "Token id: $pre_id tidak ditemukan.");
+                $this->sendQuotedFreeText($waNumber, "Token id: $pre_id tidak ditemukan.");
                 return;
             }
 
@@ -6857,7 +6881,7 @@ class WAReplies
             $total_pakai = $akan_dipakai + $pakai_bulan_ini;
 
             if ($total_pakai > $limit) {
-                $waService->sendFreeText($waNumber, "GAGAL - SUDAH MENCAPAI LIMIT BULANAN");
+                $this->sendQuotedFreeText($waNumber, "GAGAL - SUDAH MENCAPAI LIMIT BULANAN");
                 return;
             }
 
@@ -6887,7 +6911,7 @@ class WAReplies
                     . "SN: " . ($d['sn'] ?? '-') . "\n"
                     . "Harga: *" . ($d['price'] ?? '-') . "*\n"
                     . "Pesan: " . ($d['message'] ?? '-');
-                $waService->sendFreeText($waNumber, $msg);
+                $this->sendQuotedFreeText($waNumber, $msg);
                 return;
             }
 
@@ -6949,7 +6973,7 @@ class WAReplies
                             . "Harga: *" . ($du['price'] ?? '-') . "*\n"
                             . "Pesan: " . ($du['message'] ?? '-');
                         $db0->delete('prepaid', ['ref_id' => $ref_id]);
-                        $waService->sendFreeText($waNumber, $msgDup);
+                        $this->sendQuotedFreeText($waNumber, $msgDup);
                         return;
                     }
 
@@ -6976,7 +7000,7 @@ class WAReplies
                 $text = "ERROR: Gagal insert ke database";
             }
 
-            $waService->sendFreeText($waNumber, $text);
+            $this->sendQuotedFreeText($waNumber, $text);
         } else {
             $this->logAutoreplyTrace($waNumber, 'BELI_TOKEN', 'no_karyawan');
         }
@@ -7052,7 +7076,7 @@ class WAReplies
             $this->sendAutoreplyText($waNumber, $text);
             return;
         }
-        $this->getWaService()->sendFreeText($waNumber, $text);
+        $this->sendQuotedFreeText($waNumber, $text);
     }
 
     private function saldoCheckedAtLabel(): string
@@ -7109,20 +7133,20 @@ class WAReplies
         }
         try {
             if (!preg_match('/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i', trim($textBody), $m)) {
-                $this->getWaService()->sendFreeText($waNumber, $this->cekQrisFormatHelpMessage());
+                $this->sendQuotedFreeText($waNumber, $this->cekQrisFormatHelpMessage());
                 return;
             }
 
             $period = $m[1] . '.' . $m[2];
             $jumlah = (int) $m[3];
             if ($jumlah <= 0) {
-                $this->getWaService()->sendFreeText($waNumber, "Nominal tidak valid.\n\n" . $this->cekQrisFormatHelpMessage());
+                $this->sendQuotedFreeText($waNumber, "Nominal tidak valid.\n\n" . $this->cekQrisFormatHelpMessage());
                 return;
             }
 
             $bulan = (int) $m[1];
             if ($bulan < 1 || $bulan > 12) {
-                $this->getWaService()->sendFreeText($waNumber, "Bulan tidak valid (gunakan 01–12).\n\n" . $this->cekQrisFormatHelpMessage());
+                $this->sendQuotedFreeText($waNumber, "Bulan tidak valid (gunakan 01–12).\n\n" . $this->cekQrisFormatHelpMessage());
                 return;
             }
 
@@ -7139,7 +7163,7 @@ class WAReplies
             $waService = $this->getWaService();
 
             if (empty($rows)) {
-                $waService->sendFreeText(
+                $this->sendQuotedFreeText(
                     $waNumber,
                     "Tidak ada data QRIS untuk periode {$period} dengan nominal Rp" . number_format($jumlah, 0, ',', '.') . "."
                 );
@@ -7156,12 +7180,12 @@ class WAReplies
                 $lines[] = "{$tgl}\nRp{$nominal} ({$state})\n{$link}";
             }
 
-            $waService->sendFreeText($waNumber, implode("\n\n", $lines));
+            $this->sendQuotedFreeText($waNumber, implode("\n\n", $lines));
 
         } catch (\Throwable $e) {
             \Log::write("handleCek_qris ERROR: " . $e->getMessage(), 'wa_error', 'CekQris');
             try {
-                $this->getWaService()->sendFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data QRIS.");
+                $this->sendQuotedFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data QRIS.");
             } catch (\Throwable $e2) {
                 // ignore
             }
@@ -7440,7 +7464,7 @@ class WAReplies
             // Validate amount
             if ($amount < 10000) {
                 $text = "Gagal: Minimal penarikan Rp 10.000";
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendQuotedFreeText($waNumber, $text);
                 return;
             }
 
@@ -7473,7 +7497,7 @@ class WAReplies
 
             if ($curlError) {
                 $text = "Error: Gagal menghubungi API QRIS. " . $curlError;
-                $waService->sendFreeText($waNumber, $text);
+                $this->sendQuotedFreeText($waNumber, $text);
                 return;
             }
 
@@ -7506,12 +7530,12 @@ class WAReplies
                 $replyText = "❌ *Gagal Penarikan Saldo*\n\n" . ($errorMsg ?: 'Terjadi kesalahan. Silakan coba lagi atau hubungi customer service.');
             }
 
-            $waService->sendFreeText($waNumber, $replyText);
+            $this->sendQuotedFreeText($waNumber, $replyText);
 
         } catch (\Throwable $e) {
             \Log::write("handleTarik_saldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
             $waService = $this->getWaService();
-            $waService->sendFreeText($waNumber, "Error: " . $e->getMessage());
+            $this->sendQuotedFreeText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
@@ -8245,6 +8269,14 @@ class WAReplies
                 && $this->messageLooksLikeEstimasiSelesai($textBody)) {
                 $intent = 'ESTIMASI_SELESAI';
                 $reason = 'remap kapan/jam berapa siap → ESTIMASI_SELESAI';
+            }
+
+            // FALSE padahal konfirmasi sudah bayar/lunas → PENUTUP
+            if (($intent === 'FALSE' || $intent === 'PEMBERITAHUAN' || $intent === 'REKENING')
+                && $this->messageLooksLikePaymentConfirmationPenutup($textBody)
+            ) {
+                $intent = 'PENUTUP';
+                $reason = 'remap konfirmasi sudah bayar → PENUTUP';
             }
 
             // FALSE padahal jelas tanya berat order (berapa/brp kilo atau kg) — samakan ke TAGIHAN (bukan tanya harga per kg)
