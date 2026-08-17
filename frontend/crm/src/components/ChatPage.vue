@@ -1136,7 +1136,8 @@ onUnmounted(() => {
                                                 </div>
                                            </div>
                                       </div>
-                                      <img v-else :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
+                                      <img v-else-if="msg.media_url || msg.media_id" :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
+                                      <div v-else class="px-3 py-4 text-sm text-[var(--wa-text-tertiary)] italic bg-[var(--wa-bg-secondary)] rounded-lg">📷 Gambar tidak tersedia</div>
                                       <div
                                         v-if="mediaCaptionText(msg) || msg.time"
                                         class="absolute bottom-0 inset-x-0 px-2.5 py-2"

@@ -65,16 +65,24 @@ class WA_Fonnte extends Controller
         $name = $data['name'] ?? null;
         $timestamp = $data['timestamp'] ?? null;
         $inboxid = $data['inboxid'] ?? null;
-        $url = $data['url'] ?? null;
-        $filename = $data['filename'] ?? null;
         // Pin lokasi WhatsApp: Fonnte kirim "latitude,longitude" di field location (bukan di message)
         $location = trim((string) ($data['location'] ?? ''));
+
+        if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        }
+        $attachment = \App\Helpers\CRM\FonnteMessageStore::extractAttachmentFields($data);
+        $url = $attachment['url'];
+        $extension = $attachment['extension'];
 
         $replyText = '';
 
         $rawText = trim((string) ($message ?? $text ?? ''));
-        // Gambar/file/voice dari Fonnte biasanya punya url; tanpa caption = anggap panjang teks 0 (tidak intent AI, tidak DEFAULT_FALLBACK_REPLY_FONNTE)
-        $isMediaWithoutCaption = ($rawText === '' && ! empty($url) && $location === '');
+        $isMediaPlaceholder = \App\Helpers\CRM\FonnteMessageStore::isMediaPlaceholder($rawText);
+        // Gambar/file/voice: url dari webhook (paket super/advanced/ultra) atau placeholder "non-text message"
+        $isMediaWithoutCaption = ($rawText === '' || $isMediaPlaceholder)
+            && ($url !== '' || $extension !== '' || $isMediaPlaceholder)
+            && $location === '';
 
         if ($rawText === '' && empty($url) && $location === '') {
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
@@ -108,6 +116,13 @@ class WA_Fonnte extends Controller
         }
 
         if ($isMediaWithoutCaption) {
+            if ($isMediaPlaceholder && $url === '' && class_exists('\\Log')) {
+                \Log::write(
+                    'WA_Fonnte: media placeholder without url inboxid=' . (string) ($inboxid ?? '') . ' ext=' . $extension,
+                    'webhook',
+                    'Fonnte'
+                );
+            }
             $this->recordFonnteIncoming($waNumber, $timestamp);
             $msgId = $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
             if ($msgId) {

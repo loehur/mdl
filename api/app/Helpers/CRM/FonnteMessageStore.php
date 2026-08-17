@@ -7,6 +7,13 @@ namespace App\Helpers\CRM;
  */
 class FonnteMessageStore
 {
+    /** Placeholder teks dari Fonnte saat pesan media tanpa caption (bukan teks user). */
+    private const MEDIA_PLACEHOLDER_TEXTS = [
+        'non-text message',
+        'non text message',
+        'nontext message',
+    ];
+
     /** @var object */
     private $db;
 
@@ -66,18 +73,33 @@ class FonnteMessageStore
             }
         }
 
-        $url = trim((string) ($webhook['url'] ?? ''));
-        $filename = trim((string) ($webhook['filename'] ?? ''));
-        $extension = trim((string) ($webhook['extension'] ?? ''));
+        $attachment = self::extractAttachmentFields($webhook);
+        $url = $attachment['url'];
+        $filename = $attachment['filename'];
+        $extension = $attachment['extension'];
         $location = trim((string) ($webhook['location'] ?? ''));
         $name = trim((string) ($webhook['name'] ?? ''));
         $device = trim((string) ($webhook['device'] ?? ''));
         $member = trim((string) ($webhook['member'] ?? ''));
 
+        if (self::isMediaPlaceholder($messageText)) {
+            $messageText = '';
+            $wasMediaPlaceholder = true;
+        } else {
+            $wasMediaPlaceholder = false;
+        }
+
         $contactName = $this->pickContactName($name);
 
-        $type = $this->detectIncomingType($messageText, $url, $location, $extension);
+        $type = $this->detectIncomingType($messageText, $url, $location, $extension, $wasMediaPlaceholder);
         $createdAt = $this->timestampToDatetime($webhook['timestamp'] ?? null);
+
+        if ($url !== '') {
+            $persistedUrl = $this->downloadAndPersistMedia($url, $extension, $filename, $inboxid);
+            if ($persistedUrl !== null) {
+                $url = $persistedUrl;
+            }
+        }
 
         $row = [
             'phone' => $waNumber,
@@ -398,38 +420,150 @@ class FonnteMessageStore
         return $prefix . $label;
     }
 
-    private function detectIncomingType(string $messageText, string $url, string $location, string $extension): string
+    /**
+     * @return array{url:string,filename:string,extension:string}
+     */
+    public static function extractAttachmentFields(array $webhook): array
+    {
+        $url = '';
+        foreach (['url', 'Url', 'URL', 'media_url', 'attachment', 'file', 'link'] as $key) {
+            $candidate = trim((string) ($webhook[$key] ?? ''));
+            if ($candidate !== '' && preg_match('#^https?://#i', $candidate)) {
+                $url = $candidate;
+                break;
+            }
+        }
+
+        $filename = trim((string) ($webhook['filename'] ?? $webhook['Filename'] ?? ''));
+        $extension = trim((string) ($webhook['extension'] ?? $webhook['Extension'] ?? ''));
+
+        return [
+            'url' => $url,
+            'filename' => $filename,
+            'extension' => $extension,
+        ];
+    }
+
+    public static function isMediaPlaceholder(string $text): bool
+    {
+        $normalized = strtolower(trim($text));
+
+        return in_array($normalized, self::MEDIA_PLACEHOLDER_TEXTS, true);
+    }
+
+    private function detectIncomingType(string $messageText, string $url, string $location, string $extension, bool $wasMediaPlaceholder = false): string
     {
         if ($location !== '' && preg_match('/^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/', $location)) {
             return 'location';
         }
-        if ($url === '') {
-            return 'text';
-        }
 
         $ext = strtolower(ltrim($extension, '.'));
-        if ($ext === '') {
+        if ($ext === '' && $url !== '') {
             $pathExt = pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
             $ext = strtolower((string) $pathExt);
         }
 
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+        if ($url !== '' || $ext !== '' || $wasMediaPlaceholder) {
+            return $this->typeFromExtension($ext, $messageText, $url !== '');
+        }
+
+        return 'text';
+    }
+
+    private function typeFromExtension(string $ext, string $messageText, bool $hasUrl): string
+    {
+        if ($ext === '') {
             return 'image';
+        }
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'], true)) {
+            return 'image';
+        }
+        if ($ext === 'webp') {
+            return $messageText === '' && $hasUrl ? 'sticker' : 'image';
         }
         if (in_array($ext, ['mp3', 'ogg', 'opus', 'm4a', 'aac', 'wav'], true)) {
             return 'audio';
         }
-        if (in_array($ext, ['mp4', 'mov', 'avi', 'mkv'], true)) {
+        if (in_array($ext, ['mp4', 'mov', 'avi', 'mkv', '3gp'], true)) {
             return 'video';
-        }
-        if ($ext === 'webp' && $messageText === '') {
-            return 'sticker';
         }
         if (in_array($ext, ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar'], true)) {
             return 'document';
         }
 
         return 'media';
+    }
+
+    /**
+     * Unduh attachment Fonnte ke storage lokal (URL Fonnte bisa expire).
+     */
+    private function downloadAndPersistMedia(string $sourceUrl, string $extension, string $filename, $inboxid): ?string
+    {
+        $sourceUrl = trim($sourceUrl);
+        if ($sourceUrl === '' || ! preg_match('#^https?://#i', $sourceUrl)) {
+            return null;
+        }
+
+        $mediaData = @file_get_contents($sourceUrl);
+        if ($mediaData === false || $mediaData === '') {
+            $ch = curl_init($sourceUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'MdL-Backend/1.0');
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            $mediaData = curl_exec($ch);
+            curl_close($ch);
+        }
+
+        if ($mediaData === false || $mediaData === '') {
+            if (class_exists('\Log')) {
+                \Log::write(
+                    'FonnteMessageStore: media download failed inboxid=' . (string) ($inboxid ?? '') . ' url=' . mb_substr($sourceUrl, 0, 120),
+                    'webhook',
+                    'Fonnte'
+                );
+            }
+
+            return null;
+        }
+
+        $ext = strtolower(ltrim($extension, '.'));
+        if ($ext === '') {
+            $pathExt = pathinfo(parse_url($sourceUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION);
+            $ext = strtolower((string) $pathExt);
+        }
+        if ($ext === '' && $filename !== '') {
+            $ext = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+        }
+        if ($ext === '') {
+            $ext = 'bin';
+        }
+
+        $relativePath = '/uploads/whatsapp/' . date('Y/m');
+        $baseDir = __DIR__ . '/../../../uploads/whatsapp/' . date('Y/m');
+        if (! is_dir($baseDir)) {
+            @mkdir($baseDir, 0755, true);
+        }
+
+        $prefix = $inboxid !== null && (int) $inboxid > 0 ? 'fonnte_' . (int) $inboxid : 'fonnte_' . uniqid();
+        $saveFilename = $prefix . '.' . $ext;
+        $savePath = $baseDir . '/' . $saveFilename;
+
+        if (@file_put_contents($savePath, $mediaData) === false) {
+            if (class_exists('\Log')) {
+                \Log::write('FonnteMessageStore: media save failed path=' . $savePath, 'webhook', 'Fonnte');
+            }
+
+            return null;
+        }
+
+        $baseUrl = 'https://api.nalju.com';
+        if (class_exists('\App\Config\Env') && defined('\App\Config\Env::BASE_URL')) {
+            $baseUrl = rtrim(\App\Config\Env::BASE_URL, '/');
+        }
+
+        return $baseUrl . $relativePath . '/' . $saveFilename;
     }
 
     private function timestampToDatetime($timestamp): string
