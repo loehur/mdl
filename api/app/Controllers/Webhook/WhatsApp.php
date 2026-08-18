@@ -403,6 +403,7 @@ class WhatsApp extends Controller
 
                 // Broadcast cepat ke UI — tanpa OneSignal (notify=false).
                 // Push HP baru dikirim setelah intent jika notify=true.
+                // id harus Y-{db} agar cocok getMessages; tanpa itu polling CRM dobelkan bubble.
                 $this->pushIncomingToWebSocket([
                     'type' => 'wa_masuk',
                     'conversation_id' => $conversationId,
@@ -414,7 +415,8 @@ class WhatsApp extends Controller
                     'assignment_user_id' => $assigned_user_id,
                     'status' => 'open',
                     'message' => [
-                        'id' => $msgId,
+                        'id' => 'Y-' . $msgId,
+                        'wamid' => $wamid ?: $messageId,
                         'text' => $textBody,
                         'type' => $messageType,
                         'media_id' => $mediaId,
@@ -425,6 +427,7 @@ class WhatsApp extends Controller
                         'quoted_message_from' => $quotedMessageFrom,
                         'time' => date('Y-m-d H:i:s'),
                         'sender' => 'customer',
+                        'provider' => 'Y',
                     ],
                     'target_id' => '0',
                     'kode_cabang' => $code,
@@ -576,7 +579,7 @@ class WhatsApp extends Controller
                 }
 
                 // OneSignal hanya jika intent meminta notify=true (sama seperti perilaku lama).
-                // Pakai message id yang sama → CRM UI anggap duplikat, tidak dobel bubble.
+                // Pakai message id yang sama (Y-{db}) → CRM UI anggap duplikat, tidak dobel bubble.
                 if ($notify) {
                     $this->pushIncomingToWebSocket([
                         'type' => 'wa_masuk',
@@ -589,7 +592,8 @@ class WhatsApp extends Controller
                         'assignment_user_id' => $assigned_user_id,
                         'status' => 'open',
                         'message' => [
-                            'id' => $msgId,
+                            'id' => 'Y-' . $msgId,
+                            'wamid' => $wamid ?: $messageId,
                             'text' => $textBody,
                             'type' => $messageType,
                             'media_id' => $mediaId,
@@ -600,6 +604,7 @@ class WhatsApp extends Controller
                             'quoted_message_from' => $quotedMessageFrom,
                             'time' => date('Y-m-d H:i:s'),
                             'sender' => 'customer',
+                            'provider' => 'Y',
                         ],
                         'target_id' => '0',
                         'kode_cabang' => $code,

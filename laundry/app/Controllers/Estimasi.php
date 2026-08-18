@@ -153,93 +153,18 @@ class Estimasi extends Controller
                 // kolom / tabel belum ada
             }
 
-            // Kurir jam grant (wa_kurir_session)
-            try {
-                $kurirRows = $this->db(100)->query_array(
-                    'SELECT phone, id_pelanggan, id_cabang, jenis, lokasi_nama, lokasi_detail,
-                            request_text, request_tanggal, request_jam, request_granted,
-                            butuh_estimasi, estimasi_tanggal, estimasi_jam,
-                            summary, updated_at, expires_at
-                     FROM wa_kurir_session
-                     WHERE expires_at > NOW()
-                       AND id_cabang = ' . (int) $this->currentCabangId() . '
-                       AND (
-                         (butuh_estimasi = 1 AND (estimasi_jam IS NULL OR estimasi_jam = \'\'))
-                         OR (request_jam IS NOT NULL AND request_granted IS NULL AND (butuh_estimasi IS NULL OR butuh_estimasi = 0))
-                       )
-                     ORDER BY updated_at DESC
-                     LIMIT 50'
-                );
-                if (!is_array($kurirRows)) {
-                    $kurirRows = [];
-                }
-                foreach ($kurirRows as $row) {
-                    $phone = (string) ($row['phone'] ?? '');
-                    $pelanggan = $this->resolvePelangganByPhone($phone);
-                    $reqJam = $row['request_jam'] ?? null;
-                    $reqTgl = $row['request_tanggal'] ?? null;
-                    $jenis = (string) ($row['jenis'] ?? 'jemput');
-                    $butuhEst = (int) ($row['butuh_estimasi'] ?? 0) === 1
-                        && ($row['estimasi_jam'] === null || $row['estimasi_jam'] === '');
-                    if ($butuhEst) {
-                        $items[] = [
-                            'task_type' => 'kurir_estimasi',
-                            'task_id' => 'kurir_estimasi:' . $phone,
-                            'phone' => $phone,
-                            'phone_display' => $this->displayPhone($phone),
-                            'id_penjualan' => null,
-                            'jenis' => $jenis,
-                            'lokasi_nama' => $row['lokasi_nama'] ?? '',
-                            'lokasi_detail' => $row['lokasi_detail'] ?? '',
-                            'customer_message' => trim((string) ($row['request_text'] ?? '')),
-                            'request_text' => $row['request_text'] ?? '',
-                            'request_tanggal' => $reqTgl,
-                            'prefer_tanggal' => $reqTgl,
-                            'date_options' => $this->estimasiDateOptions(),
-                            'updated_at' => $row['updated_at'] ?? null,
-                            'expires_at' => $row['expires_at'] ?? null,
-                            'nama' => $pelanggan['nama'] ?? '',
-                        ];
-                        continue;
-                    }
-                    $items[] = [
-                        'task_type' => 'kurir_grant',
-                        'task_id' => 'kurir_grant:' . $phone,
-                        'phone' => $phone,
-                        'phone_display' => $this->displayPhone($phone),
-                        'id_penjualan' => null,
-                        'jenis' => $jenis,
-                        'lokasi_nama' => $row['lokasi_nama'] ?? '',
-                        'lokasi_detail' => $row['lokasi_detail'] ?? '',
-                        'customer_message' => trim((string) ($row['request_text'] ?? '')),
-                        'request_text' => $row['request_text'] ?? '',
-                        'request_tanggal' => $reqTgl,
-                        'request_jam' => $reqJam,
-                        'request_jam_label' => $this->formatEstimasiJamLabelFromDb($reqJam),
-                        'request_waktu_label' => $this->formatRequestWaktuLabel($reqTgl, (float) $reqJam),
-                        'date_options' => $this->estimasiDateOptions(),
-                        'updated_at' => $row['updated_at'] ?? null,
-                        'expires_at' => $row['expires_at'] ?? null,
-                        'nama' => $pelanggan['nama'] ?? '',
-                    ];
-                }
-            } catch (\Throwable $e) {
-                // tabel belum ada / skip
-            }
-
             // Permintaan pelanggan — hanya wa_permintaan_session
             foreach ($this->getOpenPermintaanTasks() as $permItem) {
                 $items[] = $permItem;
             }
 
-            // Pelanggan baru dulu, lalu permintaan, estimasi, lalu grant / kurir
+            // Pelanggan baru dulu, lalu permintaan, estimasi
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
                     if ($t === 'pelanggan_new') return -1;
                     if ($t === 'permintaan') return 0;
-                    if ($t === 'estimasi' || $t === 'kurir_estimasi') return 1;
-                    if ($t === 'grant' || $t === 'kurir_grant') return 2;
-                    return 3;
+                    if ($t === 'estimasi') return 1;
+                    return 2;
                 };
                 $wa = $rank($a['task_type'] ?? '');
                 $wb = $rank($b['task_type'] ?? '');
@@ -257,9 +182,8 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|kurir_grant|kurir_estimasi|pelanggan_new,
-     *       estimasi_jam?, request_granted?, reject_reason?, reject_alt?,
-     *       id_karyawan?, nama_pelanggan?, send_wa?
+     * POST: phone, task_type=estimasi|pelanggan_new,
+     *       estimasi_jam?, id_karyawan?, nama_pelanggan?, send_wa?
      */
     public function update()
     {
@@ -275,41 +199,23 @@ class Estimasi extends Controller
             $this->echoJson(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'kurir_grant', 'kurir_estimasi', 'pelanggan_new'], true)) {
-            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi, kurir_grant, kurir_estimasi, atau pelanggan_new']);
+        if (!in_array($taskType, ['estimasi', 'pelanggan_new'], true)) {
+            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi atau pelanggan_new']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
 
-        if ($taskType === 'pelanggan_new' || $taskType === 'kurir_grant' || $taskType === 'kurir_estimasi') {
-            $isSkip = strtolower(trim((string) ($_POST['kurir_action'] ?? ''))) === 'skip'
-                && ($taskType === 'kurir_grant' || $taskType === 'kurir_estimasi');
+        if ($taskType === 'pelanggan_new') {
             $session = $this->db(100)->get_where_row(
                 'wa_kurir_session',
-                $isSkip
-                    ? ("phone = '" . $phoneEsc . "'")
-                    : ("phone = '" . $phoneEsc . "' AND expires_at > NOW()")
+                "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
             );
-            if ($isSkip) {
-                if (!is_array($session) || empty($session['phone'])) {
-                    $this->echoJson(['ok' => 1, 'wa_ok' => 0, 'count' => $this->syncNotifTaskCount(), 'msg' => 'Notifikasi di-skip']);
-                    return;
-                }
-                $this->skipKurirJamTask($phone, $phoneEsc, $session, $taskType);
-                return;
-            }
             if (!is_array($session) || empty($session['phone'])) {
                 echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
                 return;
             }
-            if ($taskType === 'pelanggan_new') {
-                $this->updatePelangganNewTask($phone, $phoneEsc, $session);
-            } elseif ($taskType === 'kurir_estimasi') {
-                $this->updateKurirEstimasiTask($phone, $phoneEsc, $session);
-            } else {
-                $this->updateKurirGrantTask($phone, $phoneEsc, $session);
-            }
+            $this->updatePelangganNewTask($phone, $phoneEsc, $session);
             return;
         }
 
@@ -447,245 +353,6 @@ class Estimasi extends Controller
         ]);
     }
 
-    /**
-     * Hilangkan notifikasi kurir estimasi / request waktu tanpa kirim WA.
-     */
-    private function skipKurirJamTask(string $phone, string $phoneEsc, array $session, string $taskType): void
-    {
-        $summary = trim((string) ($session['summary'] ?? ''));
-        $summary .= ($summary !== '' ? ' | ' : '') . 'skip_' . $taskType;
-        $step = (string) ($session['step'] ?? '');
-        if ($step === 'wait_driver_jam') {
-            $step = 'request_aktif';
-        }
-
-        $set = [
-            'summary' => mb_substr($summary, 0, 800),
-            'updated_at' => date('Y-m-d H:i:s'),
-            'step' => $step !== '' ? $step : 'request_aktif',
-        ];
-        if ($taskType === 'kurir_estimasi') {
-            $set['butuh_estimasi'] = 0;
-        } else {
-            $set['request_granted'] = 2;
-        }
-
-        $up = $this->db(100)->update(
-            'wa_kurir_session',
-            $set,
-            "phone = '" . $phoneEsc . "'"
-        );
-        if (!empty($up['errno'])) {
-            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal skip']);
-            return;
-        }
-
-        $pendingCount = $this->syncNotifTaskCount();
-        echo json_encode([
-            'ok' => 1,
-            'wa_ok' => 0,
-            'count' => $pendingCount,
-            'msg' => 'Notifikasi di-skip',
-        ]);
-    }
-
-    private function updateKurirEstimasiTask(string $phone, string $phoneEsc, array $session): void
-    {
-        if ((int) ($session['butuh_estimasi'] ?? 0) !== 1
-            || ($session['estimasi_jam'] !== null && $session['estimasi_jam'] !== '')
-        ) {
-            echo json_encode(['ok' => 0, 'msg' => 'Task kurir estimasi sudah tidak pending']);
-            return;
-        }
-
-        $parsed = $this->parseEstimasiTanggalJamFromPost();
-        if ($parsed === null) {
-            echo json_encode(['ok' => 0, 'msg' => 'Tanggal (hari ini–lusa) dan jam wajib diisi']);
-            return;
-        }
-
-        $waktuLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
-        $sapaan = $this->resolveSapaanForPhone($phone);
-        $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
-        $noun = $jenis === 'antar' ? 'pengantaran' : 'penjemputan';
-        $replyText = "Baik {$sapaan}, perkiraan {$noun} *{$waktuLabel}* ya {$sapaan} 😊";
-
-        $summary = trim((string) ($session['summary'] ?? ''));
-        $summary .= ($summary !== '' ? ' | ' : '')
-            . 'Petugas isi kurir estimasi=' . $parsed['tanggal'] . ' ' . $this->formatEstimasiJamLabel($parsed['jam']);
-
-        $set = [
-            'estimasi_tanggal' => $parsed['tanggal'],
-            'estimasi_jam' => $parsed['jam'],
-            'butuh_estimasi' => 0,
-            'step' => 'request_aktif',
-            'summary' => mb_substr($summary, 0, 500),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $existingId = (int) ($session['id_request'] ?? 0);
-        if ($existingId > 0) {
-            $jamLabel = $this->formatEstimasiJamLabel($parsed['jam']);
-            $catatan = mb_substr("Perkiraan {$noun} {$jamLabel} tanggal {$parsed['tanggal']}", 0, 150);
-            $upd = $this->db(0)->update(
-                'delivery_request',
-                ['catatan_kurir' => $catatan],
-                'id_request = ' . $existingId . " AND delivery_status = 'berjalan'"
-            );
-            if (!empty($upd['errno'])) {
-                echo json_encode(['ok' => 0, 'msg' => $upd['error'] ?? 'Gagal update delivery_request']);
-                return;
-            }
-        }
-
-        $up = $this->db(100)->update(
-            'wa_kurir_session',
-            $set,
-            "phone = '" . $phoneEsc . "'"
-        );
-        if (!empty($up['errno'])) {
-            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update']);
-            return;
-        }
-
-        $this->respondAfterUpdate($phone, $replyText);
-    }
-
-    private function updateKurirGrantTask(string $phone, string $phoneEsc, array $session): void
-    {
-        $requestJam = $session['request_jam'] ?? null;
-        if ($requestJam === null || $requestJam === ''
-            || !($session['request_granted'] === null || $session['request_granted'] === '')) {
-            echo json_encode(['ok' => 0, 'msg' => 'Task kurir grant sudah tidak pending']);
-            return;
-        }
-
-        $grantedRaw = $_POST['request_granted'] ?? '';
-        if ($grantedRaw === '' || $grantedRaw === null) {
-            echo json_encode(['ok' => 0, 'msg' => 'Pilih Setujui atau Tolak']);
-            return;
-        }
-        $requestGranted = ((int) $grantedRaw === 1) ? 1 : 0;
-        $sapaan = $this->resolveSapaanForPhone($phone);
-        $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
-        $noun = $jenis === 'antar' ? 'pengantaran' : 'penjemputan';
-
-        $set = [
-            'request_granted' => $requestGranted,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ];
-
-        if ($requestGranted === 1) {
-            $reqTgl = $session['request_tanggal'] ?? date('Y-m-d');
-            $jamLabel = $this->formatEstimasiJamLabelFromDb($requestJam);
-            $replyText = "Baik {$sapaan}, driver telah mengonfirmasi, akan dilakukan {$noun} perkiraan jam {$jamLabel}, terima kasih 😊";
-            $set['step'] = 'request_aktif';
-            $existingId = (int) ($session['id_request'] ?? 0);
-            if ($existingId > 0) {
-                $catatan = mb_substr("Minta jam {$jamLabel} tanggal {$reqTgl}", 0, 150);
-                $upd = $this->db(0)->update(
-                    'delivery_request',
-                    ['catatan_kurir' => $catatan],
-                    'id_request = ' . $existingId . " AND delivery_status = 'berjalan'"
-                );
-                if (!empty($upd['errno'])) {
-                    echo json_encode(['ok' => 0, 'msg' => $upd['error'] ?? 'Gagal update delivery_request']);
-                    return;
-                }
-            } else {
-                $newId = $this->insertKurirSamedayFromSession($session, (string) $reqTgl, (float) $requestJam);
-                if ($newId === false || $newId <= 0) {
-                    echo json_encode(['ok' => 0, 'msg' => 'Gagal membuat delivery_request']);
-                    return;
-                }
-                $set['id_request'] = $newId;
-            }
-        } else {
-            $parsed = $this->parseEstimasiTanggalJamFromPost();
-            if ($parsed === null) {
-                echo json_encode(['ok' => 0, 'msg' => 'Untuk tolak, isi tanggal & jam alternatif']);
-                return;
-            }
-            $set['driver_alt_tanggal'] = $parsed['tanggal'];
-            $set['driver_alt_jam'] = $parsed['jam'];
-            $set['step'] = 'wait_continue_alt';
-            $reqLabel = $this->formatEstimasiJamLabelFromDb($requestJam) ?: '';
-            $altJamLabel = $this->formatEstimasiJamLabel((float) $parsed['jam']);
-            $hariReq = $this->labelHariIniAtauBesok($session['request_tanggal'] ?? null);
-            $hariAlt = $this->labelHariIniAtauBesok($parsed['tanggal']);
-            $replyText = "Maaf {$sapaan}, driver {$hariReq} belum bisa lakukan {$noun} pada jam {$reqLabel}, "
-                . "driver baru bisa jemput/antar {$hariAlt} perkiraan jam {$altJamLabel}.";
-        }
-
-        $up = $this->db(100)->update(
-            'wa_kurir_session',
-            $set,
-            "phone = '" . $phoneEsc . "'"
-        );
-        if (!empty($up['errno'])) {
-            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update']);
-            return;
-        }
-
-        $this->respondAfterUpdate($phone, $replyText);
-    }
-
-    /** @return int|false id_request baru, atau false */
-    private function insertKurirSamedayFromSession(array $session, string $tgl, float $jam)
-    {
-        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
-        $idCabang = (int) ($session['id_cabang'] ?? 0);
-        $idLokasi = (int) ($session['id_lokasi'] ?? 0);
-        $jenis = (($session['jenis'] ?? '') === 'antar') ? 'antar' : 'jemput';
-        if ($idPelanggan <= 0 || $idCabang <= 0 || $idLokasi <= 0) {
-            return false;
-        }
-        $lok = $this->db(0)->get_where_row(
-            'pelanggan_lokasi',
-            'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . $idPelanggan
-        );
-        if (!is_array($lok) || empty($lok['id_lokasi'])) {
-            return false;
-        }
-        $pel = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
-        $phoneTail = $this->phoneKey($pel['nomor_pelanggan'] ?? '');
-        if (strlen($phoneTail) < 8) {
-            return false;
-        }
-
-        $cab = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
-        $calc = $this->helper('AntarTarif')->tarifFromCoords(
-            (float) ($cab['latt'] ?? 0),
-            (float) ($cab['long'] ?? 0),
-            (float) ($lok['latt'] ?? 0),
-            (float) ($lok['longt'] ?? 0)
-        );
-        $jamLabel = $this->formatEstimasiJamLabel($jam);
-        $catatan = mb_substr("Minta jam {$jamLabel} tanggal {$tgl}", 0, 150);
-        $now = date('Y-m-d H:i:s');
-        $ins = $this->db(0)->insert('delivery_request', [
-            'sumber' => 'customer',
-            'jenis' => $jenis,
-            'layanan' => 'sameday',
-            'delivery_status' => 'berjalan',
-            'id_pelanggan' => $idPelanggan,
-            'phone_tail' => $phoneTail,
-            'id_cabang' => $idCabang,
-            'id_lokasi' => $idLokasi,
-            'lokasi_nama' => (string) ($lok['nama'] ?? $session['lokasi_nama'] ?? ''),
-            'lokasi_detail' => (string) ($lok['detail'] ?? $session['lokasi_detail'] ?? ''),
-            'lokasi_latt' => (float) ($lok['latt'] ?? 0),
-            'lokasi_longt' => (float) ($lok['longt'] ?? 0),
-            'insertTime' => $now,
-            'tarif_surcas' => (int) $calc['tarif'],
-            'catatan_kurir' => $catatan,
-        ]);
-        if (!empty($ins['errno']) || (int) ($ins['insert_id'] ?? 0) <= 0) {
-            return false;
-        }
-        return (int) $ins['insert_id'];
-    }
-
     private function respondAfterUpdate(string $phone, string $replyText): void
     {
         $sendWa = !isset($_POST['send_wa']) || (int) $_POST['send_wa'] === 1;
@@ -798,15 +465,6 @@ class Estimasi extends Controller
                  WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId
             );
             $n = (int) ($rows[0]['c'] ?? 0);
-            $kurirRows = $this->db(100)->query_array(
-                'SELECT COUNT(*) AS c FROM wa_kurir_session
-                 WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId . '
-                   AND (
-                     (butuh_estimasi = 1 AND (estimasi_jam IS NULL OR estimasi_jam = \'\'))
-                     OR (request_jam IS NOT NULL AND request_granted IS NULL AND (butuh_estimasi IS NULL OR butuh_estimasi = 0))
-                   )'
-            );
-            $n += (int) ($kurirRows[0]['c'] ?? 0);
             try {
                 $newNamaRows = $this->db(100)->query_array(
                     'SELECT COUNT(*) AS c FROM wa_kurir_session

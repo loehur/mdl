@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Sapaan customer untuk balasan petugas (Estimasi / grant kurir).
+ * Sapaan customer untuk balasan petugas (Estimasi).
  * Urutan sama autoreply: sapaan_stats (CRM) → regex nama kontak → kak.
  */
 class SapaanGreeting

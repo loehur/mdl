@@ -1265,6 +1265,35 @@ const isMediaMessage = (m) =>
 
 const isProviderPrefixedId = (id) => /^[FY]-\d+$/.test(String(id || ""));
 
+/** YCloud WS historically sent numeric DB id; getMessages sends Y-{id} / F-{id}. */
+const resolveMessageProvider = (provider, id) => {
+  if (provider === "F" || provider === "Y") return provider;
+  const s = String(id || "");
+  if (s.startsWith("F-")) return "F";
+  if (s.startsWith("Y-")) return "Y";
+  return "Y";
+};
+
+const canonicalMessageId = (id, provider) => {
+  const s = String(id ?? "").trim();
+  if (!s) return "";
+  if (isProviderPrefixedId(s)) return s;
+  // Optimistic Date.now() ids must stay unprefixed
+  if (/^\d{13,}$/.test(s)) return s;
+  if (/^\d+$/.test(s)) {
+    return `${resolveMessageProvider(provider, s)}-${s}`;
+  }
+  return s;
+};
+
+const messageIdsMatch = (aId, bId, aProvider, bProvider) => {
+  if (aId == null || bId == null || aId === "" || bId === "") return false;
+  if (String(aId) === String(bId)) return true;
+  const ca = canonicalMessageId(aId, aProvider);
+  const cb = canonicalMessageId(bId, bProvider);
+  return !!(ca && cb && ca === cb);
+};
+
 // --- Helper: Centralized Message Sanitizer ---
 // Aggressively cleans duplicates based on ID, WAMID, and Fuzzy Content/Time
 const sanitizeMessages = (messages) => {
@@ -1288,7 +1317,7 @@ const sanitizeMessages = (messages) => {
 
   messages.forEach((msg) => {
     // Create multiple keys to check for duplicates
-    const idKey = String(msg.id);
+    const idKey = canonicalMessageId(msg.id, msg.provider) || String(msg.id);
     const wamidKey = msg.wamid ? String(msg.wamid) : null;
 
     // Check for existing by ID
@@ -1427,10 +1456,14 @@ const sanitizeMessages = (messages) => {
         existing.status = normalizeMessageStatus(msg.status);
       }
 
+      uniqueMap.set(idKey, existing);
       uniqueMap.set(String(existing.id), existing);
       if (existing.wamid) uniqueMap.set(existing.wamid, existing);
     } else {
-      // New message
+      // New message — normalize numeric DB id to Y-/F- so Vue :key matches REST
+      if (idKey && String(msg.id) !== idKey && isProviderPrefixedId(idKey)) {
+        msg.id = idKey;
+      }
       result.push(msg);
       uniqueMap.set(idKey, msg);
       if (wamidKey) uniqueMap.set(wamidKey, msg);
@@ -2005,7 +2038,7 @@ const syncActiveChatMessages = async (chat, { forceScroll = false } = {}) => {
     if (serverMsg.sender !== "me") continue;
     const local = chat.messages.find(
       (m) =>
-        m.id == serverMsg.id ||
+        messageIdsMatch(m.id, serverMsg.id, m.provider, serverMsg.provider) ||
         (m.wamid && serverMsg.wamid && m.wamid == serverMsg.wamid)
     );
     if (local && shouldApplyMessageStatus(local.status, serverMsg.status)) {
@@ -2952,7 +2985,8 @@ const handleIncomingMessage = (payload) => {
       // Find message by local id, wamid, or message_id
       const msgIndex = conversation.messages.findIndex(
         (m) =>
-          (message.id != null && m.id == message.id) ||
+          (message.id != null &&
+            messageIdsMatch(m.id, message.id, m.provider, message.provider)) ||
           (message.wamid && m.wamid && m.wamid == message.wamid) ||
           (message.wamid && m.message_id && m.message_id == message.wamid) ||
           (message.id != null && m.wamid && m.wamid == message.id)
@@ -3120,8 +3154,9 @@ const handleIncomingMessage = (payload) => {
     }
   }
 
+  const msgProvider = messageData.provider === "F" ? "F" : "Y";
   const newMsg = {
-    id: messageData.id || Date.now(),
+    id: canonicalMessageId(messageData.id, msgProvider) || Date.now(),
     wamid: messageData.wamid, // WhatsApp Message ID
     text: displayText, // Use the safe display text
     type: type,
@@ -3144,14 +3179,14 @@ const handleIncomingMessage = (payload) => {
     quoted_message_id: messageData.quoted_message_id || null, // Quote reference
     quoted_message_body: messageData.quoted_message_body || null, // Quote content
     quoted_message_from: messageData.quoted_message_from || null, // Quote sender
-    provider: messageData.provider === "F" ? "F" : "Y",
+    provider: msgProvider,
   };
 
   // Avoid duplicate messages if already present
   // Enhanced check: ID match OR (same sender + same text + within 2 seconds)
   const isDuplicate = conversation.messages.find((m) => {
-    // Exact ID match (string comparison for safety)
-    if (String(m.id) === String(newMsg.id)) return true;
+    // Exact ID match — also Y-123 vs 123 (WS numeric vs REST prefixed)
+    if (messageIdsMatch(m.id, newMsg.id, m.provider, newMsg.provider)) return true;
 
     // Wamid match
     if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid))
@@ -3560,7 +3595,12 @@ const connectWebSocket = () => {
             // Enhanced duplicate check: ID, wamid, OR media_url for images
             let existingMessage = conversation.messages.find(
               (m) =>
-                m.id == messageData.id ||
+                messageIdsMatch(
+                  m.id,
+                  messageData.id,
+                  m.provider,
+                  messageData.provider
+                ) ||
                 (m.wamid &&
                   messageData.wamid &&
                   m.wamid == messageData.wamid) ||
@@ -3609,7 +3649,11 @@ const connectWebSocket = () => {
 
             if (existingMessage) {
               // Update existing message (from optimistic UI after API response)
-              existingMessage.id = messageData.id;
+              const canonId = canonicalMessageId(
+                messageData.id,
+                messageData.provider
+              );
+              if (canonId) existingMessage.id = canonId;
               existingMessage.wamid = messageData.wamid;
               if (shouldApplyMessageStatus(existingMessage.status, messageData.status || "sent")) {
                 existingMessage.status = normalizeMessageStatus(messageData.status || "sent");
@@ -3659,7 +3703,9 @@ const connectWebSocket = () => {
                 );
 
                 // Update IDs to server values
-                pendingMatch.id = messageData.id;
+                pendingMatch.id =
+                  canonicalMessageId(messageData.id, messageData.provider) ||
+                  messageData.id;
                 if (messageData.wamid) pendingMatch.wamid = messageData.wamid;
                 if (shouldApplyMessageStatus(pendingMatch.status, messageData.status || "sent")) {
                   pendingMatch.status = normalizeMessageStatus(messageData.status || "sent");
@@ -3709,11 +3755,15 @@ const connectWebSocket = () => {
                 break;
               }
               if (echoMatch) {
-                const echoIdNum = /^\d+$/.test(String(echoMatch.id));
-                const newIdNum = /^\d+$/.test(String(messageData.id));
-                if (newIdNum && !echoIdNum) echoMatch.id = messageData.id;
-                else if (messageData.id != null && echoMatch.id == null)
-                  echoMatch.id = messageData.id;
+                const canonEchoId = canonicalMessageId(
+                  messageData.id,
+                  messageData.provider
+                );
+                if (canonEchoId && !isProviderPrefixedId(echoMatch.id)) {
+                  echoMatch.id = canonEchoId;
+                } else if (messageData.id != null && echoMatch.id == null) {
+                  echoMatch.id = canonEchoId || messageData.id;
+                }
                 if (messageData.wamid && !echoMatch.wamid)
                   echoMatch.wamid = messageData.wamid;
                 if (
@@ -3745,8 +3795,12 @@ const connectWebSocket = () => {
               }
 
               // Add new message (from another agent/device / system outbound)
+              const outProvider =
+                messageData.provider === "F" ? "F" : "Y";
               const newMsg = {
-                id: messageData.id,
+                id:
+                  canonicalMessageId(messageData.id, outProvider) ||
+                  messageData.id,
                 wamid: messageData.wamid,
                 text: messageData.text,
                 type: messageData.type || "text",
@@ -3763,7 +3817,7 @@ const connectWebSocket = () => {
                 quoted_message_id: messageData.quoted_message_id || null,
                 quoted_message_body: messageData.quoted_message_body || null,
                 quoted_message_from: messageData.quoted_message_from || null,
-                provider: messageData.provider === "F" ? "F" : (messageData.provider === "Y" ? "Y" : "Y"),
+                provider: outProvider,
               };
 
               conversation.messages.push(newMsg);

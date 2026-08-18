@@ -88,16 +88,7 @@ trait WARepliesKurirTrait
             $merge('latt'),
             $merge('longt'),
             $merge('tarif'),
-            $merge('request_text'),
-            $merge('request_tanggal'),
-            $merge('request_jam'),
-            $merge('request_granted'),
-            $merge('butuh_estimasi', 0),
-            $merge('estimasi_tanggal'),
-            $merge('estimasi_jam'),
             $merge('butuh_update_nama', 0),
-            $merge('driver_alt_tanggal'),
-            $merge('driver_alt_jam'),
             $merge('courier_company'),
             $merge('courier_type'),
             $merge('courier_name'),
@@ -114,22 +105,17 @@ trait WARepliesKurirTrait
             DB::getInstance(0)->query(
                 'INSERT INTO wa_kurir_session
                   (phone, id_pelanggan, id_cabang, jenis, sekalian_jemput, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
-                   latt, longt, tarif, request_text, request_tanggal, request_jam, request_granted,
-                   butuh_estimasi, estimasi_tanggal, estimasi_jam, butuh_update_nama,
-                   driver_alt_tanggal, driver_alt_jam, courier_company, courier_type, courier_name,
+                   latt, longt, tarif, butuh_update_nama,
+                   courier_company, courier_type, courier_name,
                    ongkir, rates_json, id_request, summary, group_notify_label, updated_at, expires_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON DUPLICATE KEY UPDATE
                    id_pelanggan=VALUES(id_pelanggan), id_cabang=VALUES(id_cabang), jenis=VALUES(jenis),
                    sekalian_jemput=VALUES(sekalian_jemput),
                    layanan=VALUES(layanan), step=VALUES(step), id_lokasi=VALUES(id_lokasi),
                    lokasi_nama=VALUES(lokasi_nama), lokasi_detail=VALUES(lokasi_detail),
                    latt=VALUES(latt), longt=VALUES(longt), tarif=VALUES(tarif),
-                   request_text=VALUES(request_text), request_tanggal=VALUES(request_tanggal),
-                   request_jam=VALUES(request_jam), request_granted=VALUES(request_granted),
-                   butuh_estimasi=VALUES(butuh_estimasi), estimasi_tanggal=VALUES(estimasi_tanggal),
-                   estimasi_jam=VALUES(estimasi_jam), butuh_update_nama=VALUES(butuh_update_nama),
-                   driver_alt_tanggal=VALUES(driver_alt_tanggal), driver_alt_jam=VALUES(driver_alt_jam),
+                   butuh_update_nama=VALUES(butuh_update_nama),
                    courier_company=VALUES(courier_company), courier_type=VALUES(courier_type),
                    courier_name=VALUES(courier_name), ongkir=VALUES(ongkir), rates_json=VALUES(rates_json),
                    id_request=VALUES(id_request), summary=VALUES(summary),
@@ -171,15 +157,6 @@ trait WARepliesKurirTrait
             $merge('latt'),
             $merge('longt'),
             $merge('tarif'),
-            $merge('request_text'),
-            $merge('request_tanggal'),
-            $merge('request_jam'),
-            $merge('request_granted'),
-            $merge('butuh_estimasi', 0),
-            $merge('estimasi_tanggal'),
-            $merge('estimasi_jam'),
-            $merge('driver_alt_tanggal'),
-            $merge('driver_alt_jam'),
             $merge('courier_company'),
             $merge('courier_type'),
             $merge('courier_name'),
@@ -194,21 +171,14 @@ trait WARepliesKurirTrait
             DB::getInstance(0)->query(
                 'INSERT INTO wa_kurir_session
                   (phone, id_pelanggan, id_cabang, jenis, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
-                   latt, longt, tarif, request_text, request_tanggal, request_jam, request_granted,
-                   butuh_estimasi, estimasi_tanggal, estimasi_jam,
-                   driver_alt_tanggal, driver_alt_jam, courier_company, courier_type, courier_name,
+                   latt, longt, tarif, courier_company, courier_type, courier_name,
                    ongkir, rates_json, id_request, summary, updated_at, expires_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON DUPLICATE KEY UPDATE
                    id_pelanggan=VALUES(id_pelanggan), id_cabang=VALUES(id_cabang), jenis=VALUES(jenis),
                    layanan=VALUES(layanan), step=VALUES(step), id_lokasi=VALUES(id_lokasi),
                    lokasi_nama=VALUES(lokasi_nama), lokasi_detail=VALUES(lokasi_detail),
                    latt=VALUES(latt), longt=VALUES(longt), tarif=VALUES(tarif),
-                   request_text=VALUES(request_text), request_tanggal=VALUES(request_tanggal),
-                   request_jam=VALUES(request_jam), request_granted=VALUES(request_granted),
-                   butuh_estimasi=VALUES(butuh_estimasi), estimasi_tanggal=VALUES(estimasi_tanggal),
-                   estimasi_jam=VALUES(estimasi_jam),
-                   driver_alt_tanggal=VALUES(driver_alt_tanggal), driver_alt_jam=VALUES(driver_alt_jam),
                    courier_company=VALUES(courier_company), courier_type=VALUES(courier_type),
                    courier_name=VALUES(courier_name), ongkir=VALUES(ongkir), rates_json=VALUES(rates_json),
                    id_request=VALUES(id_request), summary=VALUES(summary),
@@ -331,7 +301,7 @@ trait WARepliesKurirTrait
                 return false;
             }
             $sekalianJemput = ($jenis === 'antar') ? (int) $resolved['sekalian_jemput'] : 0;
-            // Antar: wajib ada sale belum tuntas + belum ambil (bin=0) sebelum lokasi / early activate
+            // Antar: wajib ada sale belum tuntas + belum ambil (bin=0) sebelum lokasi
             if ($jenis === 'antar') {
                 $sapaan = $this->getSapaanForGreeting($waNumber);
                 if (!$this->kurirAllowAntarOrReject($waNumber, $idPelanggan, $sapaan)) {
@@ -366,19 +336,12 @@ trait WARepliesKurirTrait
                 $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
             }
             $session = $this->getKurirSession($waNumber) ?: [];
-            // Early activate: board Delivery langsung dapat Jemput/Antar (lokasi boleh menyusul)
-            $this->kurirEarlyActivateRequest($waNumber, $session);
-            $session = $this->getKurirSession($waNumber) ?: $session;
 
             $sapaan = $this->getSapaanForGreeting($waNumber);
             // Chat langsung minta grab/gosend di luar jam → tolak sekali, lanjut sameday
             if ($outsideHours && $this->kurirLooksWantFast($msg)) {
                 $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
             }
-
-            // Request waktu / butuh estimasi di pesan pertama: simpan + ack driver dulu, baru state lokasi
-            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
-            $session = $this->getKurirSession($waNumber) ?: $session;
 
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             return true;
@@ -1068,8 +1031,6 @@ trait WARepliesKurirTrait
         $session['sekalian_jemput'] = $sekalian;
         $note = 'jenis=' . $jenis . ($sekalian ? ' | sekalian_jemput=1' : '');
         $this->kurirAppendSummary($waNumber, $session, $note);
-        $this->kurirEarlyActivateRequest($waNumber, $session);
-        $session = $this->getKurirSession($waNumber) ?: $session;
         $this->kurirNotifyDeliveryGroupIfLabelChanged($waNumber, $session);
 
         return true;
@@ -1127,24 +1088,6 @@ trait WARepliesKurirTrait
         }
 
         return "*{$nama}- {$kode}*";
-    }
-
-    /** hari ini jam 14:00 / besok jam 10:00 / 15/08 jam 14:00 */
-    private function kurirGroupWaktuLabel(string $tgl, float $jam): string
-    {
-        $jamLabel = $this->formatKurirJamLabel($jam);
-        $today = date('Y-m-d');
-        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-        if ($tgl === $today) {
-            $hari = 'hari ini';
-        } elseif ($tgl === $tomorrow) {
-            $hari = 'besok';
-        } else {
-            $ts = strtotime($tgl);
-            $hari = $ts ? date('d/m', $ts) : $tgl;
-        }
-
-        return "{$hari} jam {$jamLabel}";
     }
 
     private function kurirNotifyDeliveryGroupIfLabelChanged(string $waNumber, array $session): void
@@ -1389,6 +1332,18 @@ trait WARepliesKurirTrait
         $step = (string) ($session['step'] ?? 'ask_jenis');
         $sapaan = $this->getSapaanForGreeting($waNumber);
 
+        // Session lama grant/estimasi jam: lanjut lokasi atau request aktif, tanpa act jam
+        if (in_array($step, ['wait_driver_jam', 'ask_jam_ampm', 'wait_continue_alt'], true)) {
+            $newStep = !empty($session['id_request']) ? 'request_aktif' : (
+                in_array($step, ['ask_jam_ampm', 'wait_continue_alt'], true) && !empty($session['id_lokasi'])
+                    ? 'confirm_lokasi'
+                    : 'lokasi_check'
+            );
+            $this->saveKurirSession($waNumber, ['step' => $newStep]);
+            $session['step'] = $newStep;
+            $step = $newStep;
+        }
+
         // Hard: batal selalu prioritas
         if ($this->kurirLooksCancel($msg)) {
             $this->kurirCancelAndReply($waNumber, $sapaan, $session);
@@ -1423,37 +1378,9 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        // Request waktu / butuh estimasi: ack driver dulu, baru lanjut state
-        if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg)) {
-            $session = $this->getKurirSession($waNumber) ?: $session;
-            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
-                return true;
-            }
-            if ($step === 'confirm_lokasi') {
-                if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
-                    $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
-                    return true;
-                }
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Baik {$sapaan}, jamnya kami catat. Lokasinya sudah benar? "
-                    . "Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
-                );
-                return true;
-            }
-            if (in_array($step, ['ask_shareloc', 'new_ask_shareloc', 'pick_lokasi'], true)) {
-                return true;
-            }
-            if ($step === 'lokasi_check') {
-                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
-                return true;
-            }
-            return true;
-        }
-
         if ($jenisChanged) {
             $disp = $this->kurirGroupJenisDisplay($session);
-            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+            if (in_array($step, ['request_aktif'], true)) {
                 $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami catat *{$disp}* ya.");
                 return true;
             }
@@ -1490,12 +1417,6 @@ trait WARepliesKurirTrait
             }
         }
 
-        // Hard: klarifikasi pagi/malam untuk jam 7–9
-        if ($step === 'ask_jam_ampm') {
-            $this->kurirHandleAskJamAmpm($waNumber, $sapaan, $session, $msg);
-            return true;
-        }
-
         // Hard: pilih angka di pick_lokasi / instant_pick / ask_layanan / delete_lokasi
         if ($step === 'pick_lokasi' && preg_match('/^\s*(\d{1,2})\s*$/u', trim($msg))) {
             $this->kurirHandlePickLokasi($waNumber, $sapaan, $session, $msg);
@@ -1518,10 +1439,10 @@ trait WARepliesKurirTrait
         if ($this->kurirLooksWantDeleteLokasi($msg)
             && in_array($step, [
                 'lokasi_check', 'pick_lokasi', 'confirm_lokasi', 'ask_layanan',
-                'request_aktif', 'wait_driver_jam', 'instant_confirm', 'instant_pick',
+                'request_aktif', 'instant_confirm', 'instant_pick',
             ], true)
         ) {
-            if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)
+            if (in_array($step, ['request_aktif'], true)
                 && !$this->kurirLooksHardDeleteLokasi($msg)
             ) {
                 $this->sendAutoreplyText(
@@ -1574,8 +1495,6 @@ trait WARepliesKurirTrait
             $this->saveKurirSession($waNumber, $set);
             $session = $this->getKurirSession($waNumber) ?: $session;
             $session['jenis'] = $jenis;
-            $this->kurirEarlyActivateRequest($waNumber, $session);
-            $session = $this->getKurirSession($waNumber) ?: $session;
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             $this->kurirAppendSummary($waNumber, $session, 'jenis=' . $jenis);
             return true;
@@ -1589,7 +1508,7 @@ trait WARepliesKurirTrait
 
         // Request sudah jadi: jangan telan semua chat sebagai perkiraan jam driver.
         // Hanya jam kunjungan kurir / instant; alamat masih bisa di-update; selain itu lepas ke intent lain.
-        if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+        if (in_array($step, ['request_aktif'], true)) {
             if ($this->kurirLooksWantFast($msg)) {
                 if (!$this->isOperatingHours()) {
                     $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
@@ -1612,7 +1531,7 @@ trait WARepliesKurirTrait
             // Override AI salah: "ya sudah gak pa2" / gpp ≠ batal
             $act = (string) ($decision['action'] ?? '');
             if ($this->kurirLooksNoProblemAck($msg) && in_array($act, ['cancel', 'refuse_alt'], true)) {
-                $decision['action'] = ($step === 'wait_continue_alt') ? 'agree_alt' : 'confirm';
+                $decision['action'] = 'confirm';
                 $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'override_no_problem_ack→' . $decision['action']);
             }
             if (in_array($act, ['confirm', 'other_lokasi', 'pick_lokasi', 'noop_ack'], true)
@@ -1633,14 +1552,6 @@ trait WARepliesKurirTrait
                 );
                 $this->kurirAppendSummary($waNumber, $session, 'confirm_blocked_not_agree');
                 return true;
-            }
-            // wait_continue_alt: hanya batal eksplisit; selain itu lanjut jam alternatif (jangan unrelated/instant)
-            if ($step === 'wait_continue_alt') {
-                if ($this->kurirLooksCancel($msg)) {
-                    $decision['action'] = 'cancel';
-                } else {
-                    $decision['action'] = 'agree_alt';
-                }
             }
             if (($decision['action'] ?? '') === 'unrelated') {
                 // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
@@ -1742,9 +1653,6 @@ trait WARepliesKurirTrait
             case 'delete_lokasi':
                 $this->kurirHandleDeleteLokasiPick($waNumber, $sapaan, $session, $msg);
                 break;
-            case 'ask_jam_ampm':
-                $this->kurirHandleAskJamAmpm($waNumber, $sapaan, $session, $msg);
-                break;
             case 'ask_layanan':
                 $this->kurirHandleAskLayanan($waNumber, $sapaan, $session, $msg);
                 break;
@@ -1754,15 +1662,6 @@ trait WARepliesKurirTrait
             case 'terms_setuju':
             case 'request_aktif':
                 $this->kurirHandleRequestAktif($waNumber, $sapaan, $session, $msg);
-                break;
-            case 'wait_driver_jam':
-                $this->sendAutoreplyText(
-                    $waNumber,
-                    "Sebentar ya {$sapaan}, kami masih menunggu konfirmasi driver."
-                );
-                break;
-            case 'wait_continue_alt':
-                $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
                 break;
             case 'instant_confirm':
             case 'instant_pick':
@@ -1796,8 +1695,8 @@ trait WARepliesKurirTrait
     {
         $noun = ucfirst($this->kurirJenisNoun($session));
 
-        return "Baik {$sapaan}, {$noun} akan diproses dalam 1×24 jam sesuai antrian delivery ya {$sapaan}. "
-            . "Kirimkan *shareloc* untuk melanjutkan.";
+        return "{$noun} akan diproses dalam 1×24 jam sesuai antrian delivery. "
+            . "Kirimkan shareloc untuk melanjutkan.";
     }
 
     private function kurirLooksAgree(string $msg, ?array $session = null): bool
@@ -1817,7 +1716,6 @@ trait WARepliesKurirTrait
             || $this->kurirLooksRefuse($msg)
             || $this->kurirLooksWantOtherLokasi($msg)
             || $this->kurirLooksWantDeleteLokasi($msg)
-            || $this->kurirLooksWantJam($msg, $session)
             || $this->kurirLooksWantFast($msg)
         ) {
             return false;
@@ -1879,7 +1777,7 @@ trait WARepliesKurirTrait
 
     private function kurirStepAllowsLokasiUpdate(string $step): bool
     {
-        return in_array($step, ['confirm_lokasi', 'pick_lokasi', 'request_aktif', 'wait_driver_jam'], true);
+        return in_array($step, ['confirm_lokasi', 'pick_lokasi', 'request_aktif'], true);
     }
 
     private function kurirLooksHardDeleteLokasi(string $msg): bool
@@ -2354,105 +2252,6 @@ trait WARepliesKurirTrait
         } catch (\Throwable $e) {
             return null;
         }
-    }
-
-    /**
-     * Prefill lokasi early request: 1 lokasi langsung; >1 ambil dari delivery selesai terakhir.
-     * @return array|null baris pelanggan_lokasi
-     */
-    private function kurirPickDefaultLokasiForEarlyRequest(int $idPelanggan): ?array
-    {
-        $list = $this->kurirListLokasi($idPelanggan);
-        if ($list === []) {
-            return null;
-        }
-        if (count($list) === 1) {
-            return $list[0];
-        }
-
-        $lastOk = $this->kurirLastSuccessfulDeliveryRequest($idPelanggan);
-        if ($lastOk === null) {
-            return null;
-        }
-        $targetId = (int) ($lastOk['id_lokasi'] ?? 0);
-        if ($targetId <= 0) {
-            return null;
-        }
-        foreach ($list as $lok) {
-            if ((int) ($lok['id_lokasi'] ?? 0) === $targetId) {
-                return $lok;
-            }
-        }
-
-        return null;
-    }
-
-    /** @return array{id_lokasi:int,lokasi_nama:string,lokasi_detail:string,lokasi_latt:float,lokasi_longt:float} */
-    private function kurirLokasiFieldsForDeliveryRequest(array $lok): array
-    {
-        return [
-            'id_lokasi' => (int) ($lok['id_lokasi'] ?? 0),
-            'lokasi_nama' => (string) ($lok['nama'] ?? ''),
-            'lokasi_detail' => (string) ($lok['detail'] ?? ''),
-            'lokasi_latt' => (float) ($lok['latt'] ?? 0),
-            'lokasi_longt' => (float) ($lok['longt'] ?? 0),
-        ];
-    }
-
-    /** @return array<string,mixed> patch untuk wa_kurir_session */
-    private function kurirSessionPatchFromLokasi(array $lok, int $idCabang): array
-    {
-        $patch = [
-            'id_lokasi' => (int) ($lok['id_lokasi'] ?? 0),
-            'lokasi_nama' => (string) ($lok['nama'] ?? ''),
-            'lokasi_detail' => (string) ($lok['detail'] ?? ''),
-            'latt' => (float) ($lok['latt'] ?? 0),
-            'longt' => (float) ($lok['longt'] ?? 0),
-        ];
-        $latt = $patch['latt'];
-        $longt = $patch['longt'];
-        if ($idCabang > 0 && abs($latt) > 0.0001 && abs($longt) > 0.0001) {
-            $cab = $this->kurirCabangCoords($idCabang);
-            $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
-            $patch['tarif'] = (int) $calc['tarif'];
-        }
-
-        return $patch;
-    }
-
-    private function kurirEarlyApplyLokasiToRequestAndSession(
-        string $waNumber,
-        int $idRequest,
-        int $idCabang,
-        array $lok
-    ): void {
-        $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
-        if ($idRequest <= 0 || $idLokasi <= 0) {
-            return;
-        }
-        try {
-            $db = DB::getInstance(1);
-            $set = $this->kurirLokasiFieldsForDeliveryRequest($lok);
-            $latt = $set['lokasi_latt'];
-            $longt = $set['lokasi_longt'];
-            if ($idCabang > 0 && abs($latt) > 0.0001 && abs($longt) > 0.0001) {
-                $cab = $this->kurirCabangCoords($idCabang);
-                $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
-                $set['tarif_surcas'] = (int) $calc['tarif'];
-            }
-            $db->update('delivery_request', $set, ['id_request' => $idRequest]);
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('kurirEarlyApplyLokasi: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-            }
-        }
-
-        $this->saveKurirSession($waNumber, $this->kurirSessionPatchFromLokasi($lok, $idCabang));
-        $this->logAutoreplyTrace(
-            $waNumber,
-            'KURIR',
-            'early_lokasi_prefill id_request=' . $idRequest . ' id_lokasi=' . $idLokasi
-        );
     }
 
     /**
@@ -3682,20 +3481,6 @@ trait WARepliesKurirTrait
             $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
             return;
         }
-        if ($this->kurirLooksWantJam($msg, $session)) {
-            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
-            $session = $this->getKurirSession($waNumber) ?: $session;
-            if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
-                $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
-                return;
-            }
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik {$sapaan}, jamnya kami catat. Lokasinya sudah benar? "
-                . "Balas *ya* untuk lanjut, atau sebut alamat yang benar / kirim shareloc."
-            );
-            return;
-        }
         if ($this->kurirLooksExplicitConfirmAgree($msg, $session)) {
             $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
             return;
@@ -4029,11 +3814,11 @@ trait WARepliesKurirTrait
 
     /**
      * Setelah lokasi+ongkir dikonfirmasi: insert delivery_request + info (tanpa tanya setuju lagi).
-     * Session tetap aktif (request_aktif) untuk jam khusus / batal.
+     * Session tetap aktif (request_aktif) untuk update alamat / batal.
      */
     private function kurirAcceptLokasiAndCreateRequest(string $waNumber, string $sapaan, array $session): bool
     {
-        $ok = $this->kurirInsertSamedayRequest($waNumber, $session, null);
+        $ok = $this->kurirInsertSamedayRequest($waNumber, $session);
         if (!$ok) {
             return false;
         }
@@ -4050,7 +3835,7 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Request sudah jalan — siap jam khusus, instant, atau batal.
+     * Request sudah jalan — update alamat, instant, atau batal.
      */
     private function kurirHandleRequestAktif(string $waNumber, string $sapaan, array $session, string $msg): void
     {
@@ -4072,487 +3857,16 @@ trait WARepliesKurirTrait
             return;
         }
 
-        $wantJam = $this->kurirLooksWantJam($msg, $session);
-        if ($wantJam) {
-            $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
-            return;
-        }
-
         // Request sudah dikonfirmasi — jangan kirim ack berulang.
         $this->logAutoreplyTrace($waNumber, 'KURIR', 'request_aktif_silent');
     }
 
-    /**
-     * Simpan request waktu / butuh estimasi. Ack driver dulu.
-     * Fonnte hanya sekali: jika sudah pending, cukup update session.
-     * Tidak menimpa step lokasi (shareloc/pilih/konfirmasi).
-     *
-     * @return bool true = intent jam tertangkap
-     */
-    private function kurirTryCaptureJamIntent(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        ?array $waktuOverride = null
-    ): bool {
-        $waktu = $waktuOverride;
-        if ($waktu === null) {
-            $waktu = $this->parseEstimasiRequestWaktu($msg);
-        }
-
-        if ($waktuOverride === null
-            && preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $ampmM)
-            && preg_match('/\b(pagi|malam)\b/iu', $msg)
-        ) {
-            $rawH = (int) $ampmM[1];
-            $ampmWord = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
-            $synthetic = "jam {$rawH} {$ampmWord}";
-            $prev = (string) ($session['request_text'] ?? '');
-            if (preg_match('/\b(besok|bsk|hari\s*ini|lusa)\b/iu', $prev, $dayM)) {
-                $synthetic .= ' ' . $dayM[0];
-            }
-            $parsedAmpm = $this->parseEstimasiRequestWaktu($synthetic);
-            if ($this->estimasiWaktuIsResolved($parsedAmpm)) {
-                $waktu = $parsedAmpm;
-                $waktuOverride = $parsedAmpm;
-            }
-        }
-
-        $forceResolved = $waktuOverride !== null && $this->estimasiWaktuIsResolved($waktuOverride);
-        $isRequest = $forceResolved || $this->kurirLooksRequestWaktu($msg, $session);
-        $isEst = !$isRequest && $this->kurirLooksButuhEstimasi($msg, $session);
-        if (!$isRequest && !$isEst) {
-            return false;
-        }
-
-        if ($isRequest && is_array($waktu) && !empty($waktu['ask_ampm']) && !$this->estimasiWaktuIsResolved($waktu)) {
-            $rawH = (int) ($waktu['raw_hour'] ?? 0);
-            $tgl = $waktu['tanggal'] ?? date('Y-m-d');
-            $keepStep = $this->kurirShouldKeepLokasiStep($session);
-            $set = [
-                'request_text' => $msg,
-                'request_tanggal' => $tgl,
-                'request_jam' => null,
-                'request_granted' => null,
-                'summary' => mb_substr(
-                    trim((string) ($session['summary'] ?? '') . ' | ask_ampm hour=' . $rawH),
-                    0,
-                    800
-                ),
-            ];
-            if (!$keepStep) {
-                $set['step'] = 'ask_jam_ampm';
-            }
-            $this->saveKurirSession($waNumber, $set);
-            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
-            return true;
-        }
-
-        $alreadyPending = $this->kurirJamPendingInSession($session);
-        $keepStep = $this->kurirShouldKeepLokasiStep($session);
-
-        if ($isRequest) {
-            if ($waktu === null || !$this->estimasiWaktuIsResolved($waktu)) {
-                $waktu = $this->parseEstimasiRequestWaktu($msg);
-            }
-            if (!$this->estimasiWaktuIsResolved($waktu)) {
-                return false;
-            }
-            $tgl = $waktu['tanggal'] ?? date('Y-m-d');
-            $jam = $waktu['jam'];
-            $today = date('Y-m-d');
-            if ($tgl === $today && $this->kurirIsJamAfterNightCutoff(isset($jam) ? (float) $jam : null)) {
-                $this->kurirReplyHardCutScheduleTomorrow($waNumber, $sapaan, $session);
-                return true;
-            }
-            $set = [
-                'request_text' => $msg,
-                'request_tanggal' => $tgl,
-                'request_jam' => $jam,
-                'request_granted' => null,
-                'butuh_estimasi' => 0,
-                'estimasi_tanggal' => null,
-                'estimasi_jam' => null,
-                'driver_alt_tanggal' => null,
-                'driver_alt_jam' => null,
-            ];
-            if (!$keepStep) {
-                $set['step'] = 'wait_driver_jam';
-            }
-            $this->saveKurirSession($waNumber, $set);
-            $this->kurirSendJamDriverAck($waNumber, $sapaan, (string) $tgl);
-            if (!$alreadyPending) {
-                $this->kurirForwardJamToGroups($waNumber, $session, $msg, (string) $tgl, (float) $jam);
-            } else {
-                $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_request_update_skip_fonnte');
-            }
-            return true;
-        }
-
-        $tglHint = $this->kurirPreferTanggalFromMsg($msg) ?: date('Y-m-d');
-        $set = [
-            'request_text' => $msg,
-            'request_tanggal' => $tglHint,
-            'request_jam' => null,
-            'request_granted' => null,
-            'butuh_estimasi' => 1,
-            'estimasi_tanggal' => null,
-            'estimasi_jam' => null,
-            'driver_alt_tanggal' => null,
-            'driver_alt_jam' => null,
-        ];
-        if (!$keepStep) {
-            $set['step'] = 'wait_driver_jam';
-        }
-        $this->saveKurirSession($waNumber, $set);
-        $this->kurirSendJamDriverAck($waNumber, $sapaan, (string) $tglHint);
-        if (!$alreadyPending) {
-            $this->kurirForwardJamEstimasiToGroups($waNumber, $session, $msg, (string) $tglHint);
-        } else {
-            $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_estimasi_update_skip_fonnte');
-        }
-        return true;
-    }
-
-    private function kurirJamPendingInSession(array $session): bool
-    {
-        $butuh = !empty($session['butuh_estimasi'])
-            && ($session['estimasi_jam'] === null || $session['estimasi_jam'] === '');
-        $req = $session['request_jam'] !== null && $session['request_jam'] !== ''
-            && ($session['request_granted'] === null || $session['request_granted'] === '');
-
-        return $butuh || $req;
-    }
-
-    private function kurirShouldKeepLokasiStep(array $session): bool
-    {
-        $step = (string) ($session['step'] ?? '');
-
-        return in_array($step, [
-            'lokasi_check', 'ask_shareloc', 'new_ask_shareloc', 'pick_lokasi',
-            'confirm_lokasi', 'ask_layanan', 'wait_lokasi', 'ask_jenis',
-        ], true);
-    }
-
-    private function kurirSendJamDriverAck(string $waNumber, string $sapaan, string $tgl): void
-    {
-        $today = date('Y-m-d');
-        if ($tgl === $today && $this->kurirIsPastSamedayJamCutoff()) {
-            if ($this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirPastCutoffAlternatifAck($sapaan));
-            } else {
-                $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-            }
-            return;
-        }
-        if (!$this->isOperatingHours()) {
-            $this->sendAutoreplyText($waNumber, $this->kurirEscalateOutsideHoursAck($sapaan));
-            return;
-        }
-        $emoji = $this->pickPenutupSoftSmile();
-        $this->sendAutoreplyText($waNumber, "Baik {$sapaan}, kami tanyakan dulu ke driver ya {$emoji}");
-    }
-
-    /**
-     * Customer minta jam: spesifik → grant (atau cutoff), "jam berapa" → butuh estimasi petugas.
-     */
-    private function kurirProcessJamIntent(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        ?array $waktuOverride = null
-    ): void {
-        if ($this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg, $waktuOverride)) {
-            return;
-        }
-        $this->logAutoreplyTrace($waNumber, 'KURIR', 'jam_intent_unresolved_no_escalate');
-    }
-
-    private function kurirLooksAskJamBerapa(string $msg): bool
-    {
-        return (bool) preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $msg)
-            || (bool) preg_match('/\b(kapan|kira[\s\-]*kira)\b.{0,40}\b(dijemput|diantar|jemput|antar)\b/iu', $msg)
-            || (bool) preg_match('/\b(dijemput|diantar|jemput|antar)\b.{0,40}\b(jam\s*)?(brp|berapa|kapan)\b/iu', $msg);
-    }
-
-    private function kurirPreferTanggalFromMsg(string $msg): ?string
-    {
-        if (preg_match('/\b(besok|bsk)\b/iu', $msg)) {
-            return date('Y-m-d', strtotime('+1 day'));
-        }
-        if (preg_match('/\blusa\b/iu', $msg)) {
-            return date('Y-m-d', strtotime('+2 day'));
-        }
-        if (preg_match('/\b(hari\s*ini|hr\s*ini)\b/iu', $msg)) {
-            return date('Y-m-d');
-        }
-        return null;
-    }
-
-    /** ≥16:00: soft-ack "petugas alternatif" untuk request jam HARI INI (tetap escalate). */
-    private function kurirIsPastSamedayJamCutoff(): bool
-    {
-        return ((int) date('G')) >= 16;
-    }
-
-    private function kurirHandleAskJamAmpm(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg
-    ): void {
-        if ($this->kurirLooksCancel($msg)) {
-            $this->kurirCancelAndReply($waNumber, $sapaan, $session);
-            return;
-        }
-        if (!preg_match('/\b(pagi|malam)\b/iu', $msg)) {
-            $rawH = 8;
-            if (preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $m)) {
-                $rawH = (int) $m[1];
-            }
-            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
-            return;
-        }
-        $rawH = 8;
-        if (preg_match('/ask_ampm hour=(\d{1,2})/', (string) ($session['summary'] ?? ''), $m)) {
-            $rawH = (int) $m[1];
-        } elseif (preg_match('/\bjam\s*(\d{1,2})\b/iu', (string) ($session['request_text'] ?? ''), $m2)) {
-            $rawH = (int) $m2[1];
-        }
-        $ampm = preg_match('/\bmalam\b/iu', $msg) ? 'malam' : 'pagi';
-        $synthetic = "jam {$rawH} {$ampm}";
-        $prev = (string) ($session['request_text'] ?? '');
-        if (preg_match('/\b(besok|bsk|hari\s*ini|lusa)\b/iu', $prev, $dayM)) {
-            $synthetic .= ' ' . $dayM[0];
-        }
-        $waktu = $this->parseEstimasiRequestWaktu($synthetic);
-        if (!$this->estimasiWaktuIsResolved($waktu)) {
-            $this->replyAskJamPagiMalam($waNumber, $sapaan, $rawH);
-            return;
-        }
-        $this->kurirTryCaptureJamIntent(
-            $waNumber,
-            $sapaan,
-            $session,
-            $prev !== '' ? $prev : $synthetic,
-            $waktu
-        );
-    }
-
-    /**
-     * "Jam berapa jemput/antar?" → bell kurir_estimasi (petugas isi tanggal+jam).
-     */
-    private function kurirEscalateJamEstimasi(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        ?string $preferTgl
-    ): void {
-        $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg);
-    }
-
-    /**
-     * Soft-ack ≥16:00 (hari ini, jam permintaan ≤20) — HANYA saat jam operasional.
-     * <17:00 = dekat jam pulang; ≥17:00 = sudah pulang.
-     */
-    private function kurirPastCutoffAlternatifAck(string $sapaan): string
-    {
-        if (((int) date('G')) >= 17) {
-            return "Maaf {$sapaan}, Abang driver sudah pulang. "
-                . "Kami coba tanyakan dulu ke petugas alternatif ya {$sapaan}.";
-        }
-
-        return "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
-            . "Kami coba tanyakan dulu ke petugas alternatif ya {$sapaan}.";
-    }
-
-    /** Ack escalate di luar jam operasional (task tetap pending untuk petugas). */
-    private function kurirEscalateOutsideHoursAck(string $sapaan): string
-    {
-        return "Baik {$sapaan}, saat ini di luar jam operasional. "
-            . "Kami catat dulu dan tanyakan ke petugas di jam operasional berikutnya ya {$sapaan}.";
-    }
 
     /** Tolak Grab/Gojek/instant di luar jam operasional. */
     private function kurirRejectInstantOutsideHoursAck(string $sapaan): string
     {
         return "Maaf {$sapaan}, layanan *Grab/Gojek/instant* tidak tersedia di luar jam operasional. "
             . "Silakan gunakan kurir *sameday* atau hubungi kami lagi saat jam buka ya {$sapaan}.";
-    }
-
-    /** Jam permintaan hari ini > 20:00 → hard-cut, jadwalkan besok (tanpa escalate). */
-    private function kurirIsJamAfterNightCutoff(?float $jam): bool
-    {
-        return $jam !== null && (float) $jam > 20.0;
-    }
-
-    /**
-     * Hard-cut: tidak escalate, balas jadwalkan besok.
-     * Teks ikut jam sekarang (≥17 = sudah pulang, else dekat jam pulang).
-     */
-    private function kurirReplyHardCutScheduleTomorrow(
-        string $waNumber,
-        string $sapaan,
-        array $session
-    ): void {
-        $noun = $this->kurirJenisNoun($session);
-        $this->saveKurirSession($waNumber, [
-            'step' => 'request_aktif',
-            'butuh_estimasi' => 0,
-            'request_jam' => null,
-            'request_granted' => null,
-            'estimasi_tanggal' => null,
-            'estimasi_jam' => null,
-        ]);
-        if (((int) date('G')) >= 17) {
-            $text = "Maaf {$sapaan}, Abang driver sudah pulang. "
-                . "Kami jadwalkan {$noun} *besok* ya {$sapaan}.";
-        } else {
-            $text = "Maaf {$sapaan}, Abang driver sudah tinggal menyelesaikan sisa rute terakhir dan dekat jam pulang. "
-                . "Kami jadwalkan {$noun} *besok* ya {$sapaan}.";
-        }
-        $this->sendAutoreplyText($waNumber, $text);
-    }
-
-    private function kurirForwardJamEstimasiToGroups(
-        string $waNumber,
-        array $session,
-        string $msg,
-        string $tglHint
-    ): void {
-        $tag = $this->kurirGroupCustomerStarTag($waNumber, $session);
-        $jenis = $this->kurirJenisLabel($session);
-        $groupText = "{$tag} minta perkiraan {$jenis}.";
-
-        try {
-            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
-            }
-            if (!class_exists('\\App\\Config\\Fonnte')) {
-                require_once __DIR__ . '/../Config/Fonnte.php';
-            }
-            $fonnte = new \App\Helpers\CRM\FonnteService();
-            $driverG = \App\Config\Fonnte::getDriverGroupId();
-            $fonnte->sendToGroup($driverG, $groupText);
-            $cabangG = $this->resolveEstimasiFonnteGroupId(
-                isset($session['id_cabang']) ? (int) $session['id_cabang'] : null
-            );
-            if ($cabangG !== '' && $cabangG !== $driverG) {
-                $fonnte->sendToGroup($cabangG, $groupText);
-            }
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('kurirForwardJamEstimasiToGroups: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-            }
-        }
-    }
-
-    private function kurirEscalateJamRequest(
-        string $waNumber,
-        string $sapaan,
-        array $session,
-        string $msg,
-        array $waktu
-    ): void {
-        $this->kurirTryCaptureJamIntent($waNumber, $sapaan, $session, $msg, $waktu);
-    }
-
-    private function kurirForwardJamToGroups(
-        string $waNumber,
-        array $session,
-        string $msg,
-        string $tgl,
-        float $jam
-    ): void {
-        $tag = $this->kurirGroupCustomerStarTag($waNumber, $session);
-        $jenis = $this->kurirJenisLabel($session);
-        $waktu = $this->kurirGroupWaktuLabel($tgl, $jam);
-        $groupText = "{$tag} minta {$jenis} {$waktu}.";
-
-        try {
-            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
-            }
-            if (!class_exists('\\App\\Config\\Fonnte')) {
-                require_once __DIR__ . '/../Config/Fonnte.php';
-            }
-            $driverG = \App\Config\Fonnte::getDriverGroupId();
-            if ($driverG === '') {
-                return;
-            }
-            $fonnte = new \App\Helpers\CRM\FonnteService();
-            $fonnte->sendToGroup($driverG, $groupText);
-            $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'forward_jam_delivery_group ok');
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('kurirForwardJamToGroups: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-            }
-        }
-    }
-
-    private function formatKurirJamLabel(float $jam): string
-    {
-        $h = (int) floor($jam);
-        $frac = $jam - $h;
-        $m = (int) round($frac * 100);
-        if ($m > 59) {
-            $m = (int) round(($frac * 60));
-        }
-        return sprintf('%02d:%02d', $h, $m);
-    }
-
-    private function kurirHandleContinueAlt(string $waNumber, string $sapaan, array $session, string $msg): void
-    {
-        // Batal hanya frasa jelas (batal/cancel/gak jadi/jemput sendiri) — selain itu = lanjut jam alternatif
-        if ($this->kurirLooksCancel($msg)) {
-            $this->kurirCancelDeliveryRequest($session);
-            $id = (int) ($session['id_pelanggan'] ?? 0);
-            $this->sendAutoreplyText(
-                $waNumber,
-                "Baik {$sapaan}, permintaan dibatalkan. 🙏\n"
-                . "Untuk pesan antar/jemput bisa juga via link berikut:\n"
-                . "https://ml.nalju.com/J/kurir/{$id}"
-            );
-            $this->clearKurirSession($waNumber);
-            return;
-        }
-
-        $alt = [
-            'tanggal' => $session['driver_alt_tanggal'] ?? date('Y-m-d'),
-            'jam' => $session['driver_alt_jam'] ?? null,
-        ];
-        if (!empty($session['id_request'])) {
-            $this->kurirUpdateRequestCatatanJam($session, $alt);
-        } else {
-            $this->kurirInsertSamedayRequest($waNumber, $session, $alt);
-        }
-        $this->sendAutoreplyText(
-            $waNumber,
-            "Baik {$sapaan}, permintaan " . $this->kurirJenisLabel($session)
-            . " kami lanjutkan sesuai jam alternatif driver. Terima kasih 😊"
-        );
-        $this->saveKurirSession($waNumber, [
-            'step' => 'request_aktif',
-            'request_granted' => 1,
-        ]);
-    }
-
-    private function kurirContinueAltReprompt(string $sapaan, array $session): string
-    {
-        $jenis = $this->kurirJenisLabel($session);
-        $altTgl = (string) ($session['driver_alt_tanggal'] ?? '');
-        $altJam = $session['driver_alt_jam'] ?? null;
-        $altPart = '';
-        if ($altJam !== null && $altJam !== '') {
-            $altPart = ' jam alternatif ' . $this->formatKurirJamLabel((float) $altJam);
-            if ($altTgl !== '') {
-                $altPart .= " ({$altTgl})";
-            }
-        }
-        return "Apakah permintaan {$jenis} tetap dilanjutkan{$altPart} {$sapaan}?";
     }
 
     private function kurirCancelDeliveryRequest(array $session): void
@@ -4578,49 +3892,22 @@ trait WARepliesKurirTrait
         }
     }
 
-    private function kurirUpdateRequestCatatanJam(array $session, array $jamMeta): void
-    {
-        $idRequest = (int) ($session['id_request'] ?? 0);
-        if ($idRequest <= 0 || empty($jamMeta['jam'])) {
-            return;
-        }
-        $tgl = $jamMeta['tanggal'] ?? date('Y-m-d');
-        $catatan = mb_substr(
-            'Minta jam ' . $this->formatKurirJamLabel((float) $jamMeta['jam']) . " tanggal {$tgl}",
-            0,
-            150
-        );
-        try {
-            DB::getInstance(1)->update(
-                'delivery_request',
-                ['catatan_kurir' => $catatan],
-                ['id_request' => $idRequest]
-            );
-        } catch (\Throwable $e) {
-            // ignore
-        }
-    }
-
     /**
-     * Aktifkan kembali delivery_request Antar yang di-pending dari board Delivery.
+     * Cari delivery_request Antar pending (dari board Delivery) untuk di-reuse saat lokasi lengkap.
      *
      * @return int id_request (0 jika tidak ada)
      */
-    private function kurirReactivatePendingAntar(
-        string $waNumber,
-        array $session,
-        int $idPelanggan,
-        int $preferId = 0
-    ): int {
-        if ($this->kurirJenisLabel($session) !== 'antar') {
+    private function kurirFindPendingAntarRequest(int $idPelanggan, int $preferId = 0): int
+    {
+        if ($idPelanggan <= 0 && $preferId <= 0) {
             return 0;
         }
-        $db = DB::getInstance(1);
         try {
+            $db = DB::getInstance(1);
             $row = null;
             if ($preferId > 0) {
                 $row = $db->query(
-                    "SELECT id_request, id_cabang FROM delivery_request
+                    "SELECT id_request FROM delivery_request
                      WHERE id_request = ?
                        AND jenis = 'antar'
                        AND delivery_status = 'pending'
@@ -4631,7 +3918,7 @@ trait WARepliesKurirTrait
             }
             if (!$row && $idPelanggan > 0) {
                 $row = $db->query(
-                    "SELECT id_request, id_cabang FROM delivery_request
+                    "SELECT id_request FROM delivery_request
                      WHERE id_pelanggan = ?
                        AND jenis = 'antar'
                        AND delivery_status = 'pending'
@@ -4641,240 +3928,18 @@ trait WARepliesKurirTrait
                     [$idPelanggan]
                 )->row();
             }
-            $idRequest = (int) ($row->id_request ?? 0);
-            if ($idRequest <= 0) {
-                return 0;
-            }
-            $db->update(
-                'delivery_request',
-                ['delivery_status' => 'berjalan'],
-                ['id_request' => $idRequest]
-            );
-            $idCabang = (int) ($session['id_cabang'] ?? 0);
-            if ($idCabang <= 0) {
-                $idCabang = (int) ($row->id_cabang ?? 0);
-            }
-            $this->saveKurirSession($waNumber, [
-                'id_request' => $idRequest,
-            ]);
-            $notifySession = $session;
-            $notifySession['id_request'] = $idRequest;
-            $this->kurirNotifyDeliveryGroupRequestCreated(
-                $waNumber,
-                $idPelanggan,
-                $idCabang,
-                $notifySession
-            );
-            $this->kurirAppendSummary($waNumber, $session, 'reactivate_pending=' . $idRequest);
-            $this->logAutoreplyTrace(
-                $waNumber,
-                'MINTA_JEMPUT_ANTAR',
-                'reactivate_pending_antar id=' . $idRequest
-            );
-            return $idRequest;
+
+            return (int) ($row->id_request ?? 0);
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
-                \Log::write('kurirReactivatePendingAntar: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+                \Log::write('kurirFindPendingAntarRequest: ' . $e->getMessage(), 'wa_error', 'Autoreply');
             }
+
             return 0;
         }
     }
 
-    /**
-     * Early activate: buat/reuse delivery_request segera setelah jenis ketahuan.
-     * Lokasi/tarif boleh kosong — driver tetap bisa selesaikan; chat bisa melengkapi nanti.
-     *
-     * @return int id_request (0 jika gagal)
-     */
-    private function kurirEarlyActivateRequest(string $waNumber, array $session): int
-    {
-        $existingId = (int) ($session['id_request'] ?? 0);
-        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
-        $idCabang = (int) ($session['id_cabang'] ?? 0);
-        $jenis = $this->kurirJenisLabel($session);
-        $defaultLok = $this->kurirPickDefaultLokasiForEarlyRequest($idPelanggan);
-
-        if ($existingId > 0) {
-            $st = null;
-            try {
-                $st = DB::getInstance(1)->query(
-                    'SELECT delivery_status, jenis FROM delivery_request WHERE id_request = ? LIMIT 1',
-                    [$existingId]
-                )->row();
-            } catch (\Throwable $e) {
-                $st = null;
-            }
-            $stStatus = strtolower((string) ($st->delivery_status ?? ''));
-            $stJenis = strtolower((string) ($st->jenis ?? ''));
-            if ($stStatus === 'pending') {
-                if ($jenis === 'antar' && $stJenis === 'antar') {
-                    $ok = $this->kurirReactivatePendingAntar($waNumber, $session, $idPelanggan, $existingId);
-                    if ($ok > 0) {
-                        return $ok;
-                    }
-                }
-                $this->saveKurirSession($waNumber, ['id_request' => null]);
-                $existingId = 0;
-                $session['id_request'] = 0;
-            }
-        }
-
-        if ($jenis === 'antar' && $existingId <= 0) {
-            $pendingId = $this->kurirReactivatePendingAntar($waNumber, $session, $idPelanggan, 0);
-            if ($pendingId > 0) {
-                return $pendingId;
-            }
-        }
-
-        if ($existingId > 0) {
-            $this->kurirSyncEarlyRequestJenis($existingId, $jenis, $this->kurirSekalianJemputVal($session));
-            if ($defaultLok !== null && (int) ($session['id_lokasi'] ?? 0) <= 0) {
-                $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $existingId, $idCabang, $defaultLok);
-            }
-            return $existingId;
-        }
-
-        if ($idPelanggan <= 0 || $idCabang <= 0) {
-            return 0;
-        }
-
-        $phoneTail = $this->kurirPhoneTail($idPelanggan, $waNumber);
-        if (strlen($phoneTail) < 8) {
-            return 0;
-        }
-
-        $db = DB::getInstance(1);
-        try {
-            // Reuse request berjalan jenis sama (hindari dobel di board)
-            $row = $db->query(
-                "SELECT id_request, id_lokasi FROM delivery_request
-                 WHERE id_pelanggan = ?
-                   AND jenis = ?
-                   AND delivery_status IN ('berjalan','menunggu_pembayaran')
-                   AND layanan = 'sameday'
-                 ORDER BY
-                   CASE WHEN COALESCE(id_lokasi, 0) = 0 THEN 0 ELSE 1 END,
-                   id_request DESC
-                 LIMIT 1",
-                [$idPelanggan, $jenis]
-            )->row();
-            $reuseId = (int) ($row->id_request ?? 0);
-            if ($reuseId > 0) {
-                $this->saveKurirSession($waNumber, ['id_request' => $reuseId]);
-                $this->kurirSyncEarlyRequestJenis($reuseId, $jenis, $this->kurirSekalianJemputVal($session));
-                if ($defaultLok !== null && (int) ($row->id_lokasi ?? 0) <= 0) {
-                    $this->kurirEarlyApplyLokasiToRequestAndSession($waNumber, $reuseId, $idCabang, $defaultLok);
-                }
-                $this->kurirAppendSummary($waNumber, $session, 'early_reuse=' . $reuseId . '/' . $jenis);
-                return $reuseId;
-            }
-
-            $now = date('Y-m-d H:i:s');
-            $insData = [
-                'sumber' => 'customer',
-                'jenis' => $jenis,
-                'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
-                'layanan' => 'sameday',
-                'delivery_status' => 'berjalan',
-                'id_pelanggan' => $idPelanggan,
-                'phone_tail' => $phoneTail,
-                'id_cabang' => $idCabang,
-                'id_lokasi' => 0,
-                'lokasi_nama' => '',
-                'lokasi_detail' => '',
-                'lokasi_latt' => 0,
-                'lokasi_longt' => 0,
-                'insertTime' => $now,
-                'catatan_kurir' => 'Early activate chat (lokasi menyusul)',
-            ];
-            if ($defaultLok !== null) {
-                $insData = array_merge($insData, $this->kurirLokasiFieldsForDeliveryRequest($defaultLok));
-                $insData['catatan_kurir'] = 'Early activate chat';
-                $latt = (float) ($defaultLok['latt'] ?? 0);
-                $longt = (float) ($defaultLok['longt'] ?? 0);
-                if (abs($latt) > 0.0001 && abs($longt) > 0.0001) {
-                    $cab = $this->kurirCabangCoords($idCabang);
-                    $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
-                    $insData['tarif_surcas'] = (int) $calc['tarif'];
-                }
-            }
-            $idRequest = $db->insert('delivery_request', $insData);
-            $idRequest = $idRequest ? (int) $idRequest : 0;
-            if ($idRequest <= 0) {
-                throw new \RuntimeException('early_insert_id empty');
-            }
-
-            // Antar: tautkan item eligible bila ada (opsional — driver tetap bisa pilih saat selesai)
-            if ($jenis === 'antar') {
-                $eligibleIds = $this->kurirEligibleSaleIds($idPelanggan, false);
-                foreach ($eligibleIds as $idSale) {
-                    $sale = $db->query(
-                        'SELECT no_ref FROM sale WHERE id_penjualan = ? LIMIT 1',
-                        [$idSale]
-                    )->row();
-                    $db->insert('delivery_request_item', [
-                        'id_request' => $idRequest,
-                        'id_penjualan' => $idSale,
-                        'no_ref' => (string) ($sale->no_ref ?? ''),
-                    ]);
-                }
-            }
-
-            $this->saveKurirSession($waNumber, ['id_request' => $idRequest]);
-            if ($defaultLok !== null) {
-                $this->saveKurirSession($waNumber, $this->kurirSessionPatchFromLokasi($defaultLok, $idCabang));
-            }
-            $this->kurirAppendSummary($waNumber, $session, 'early_activate=' . $idRequest . '/' . $jenis);
-            return $idRequest;
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('kurirEarlyActivateRequest: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-            }
-            return 0;
-        }
-    }
-
-    private function kurirSyncEarlyRequestJenis(int $idRequest, string $jenis, int $sekalianJemput = 0): void
-    {
-        if ($idRequest <= 0 || !in_array($jenis, ['antar', 'jemput'], true)) {
-            return;
-        }
-        $sekalianJemput = ($jenis === 'antar' && $sekalianJemput) ? 1 : 0;
-        try {
-            $db = DB::getInstance(1);
-            $row = $db->query(
-                'SELECT jenis, sekalian_jemput FROM delivery_request WHERE id_request = ? LIMIT 1',
-                [$idRequest]
-            )->row();
-            $set = [];
-            if ($row && strtolower((string) ($row->jenis ?? '')) !== $jenis) {
-                $set['jenis'] = $jenis;
-            }
-            $prevSekalian = (int) ($row->sekalian_jemput ?? 0);
-            if ($row && $prevSekalian !== $sekalianJemput) {
-                $set['sekalian_jemput'] = $sekalianJemput;
-            }
-            if ($set !== []) {
-                $db->update('delivery_request', $set, ['id_request' => $idRequest]);
-            }
-        } catch (\Throwable $e) {
-            // Kolom sekalian_jemput mungkin belum ada — coba jenis saja
-            try {
-                DB::getInstance(1)->update(
-                    'delivery_request',
-                    ['jenis' => $jenis],
-                    ['id_request' => $idRequest]
-                );
-            } catch (\Throwable $e2) {
-                // ignore
-            }
-        }
-    }
-
-    /**
-     * @param array|null $jamMeta ['tanggal'=>,'jam'=>] for catatan
-     */
-    private function kurirInsertSamedayRequest(string $waNumber, array $session, ?array $jamMeta): bool
+    private function kurirInsertSamedayRequest(string $waNumber, array $session): bool
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $idCabang = (int) ($session['id_cabang'] ?? 0);
@@ -4882,7 +3947,15 @@ trait WARepliesKurirTrait
         $jenis = $this->kurirJenisLabel($session);
         $existingId = (int) ($session['id_request'] ?? 0);
 
-        // Early request sudah ada: lengkapi lokasi/tarif (lokasi wajib untuk update final dari chat)
+        // Reuse delivery_request Antar pending (dari board) saat lokasi sudah lengkap
+        if ($existingId <= 0 && $jenis === 'antar') {
+            $pendingId = $this->kurirFindPendingAntarRequest($idPelanggan);
+            if ($pendingId > 0) {
+                $existingId = $pendingId;
+            }
+        }
+
+        // Request sudah ada (reuse pending): lengkapi lokasi/tarif
         if ($existingId > 0) {
             if ($idPelanggan <= 0 || $idCabang <= 0) {
                 $this->sendAutoreplyText($waNumber, 'Maaf, data cabang belum lengkap. Silakan ulangi permintaan.');
@@ -4906,7 +3979,7 @@ trait WARepliesKurirTrait
         $eligibleIds = [];
         if ($jenis === 'antar') {
             $eligibleIds = $this->kurirEligibleSaleIds($idPelanggan, false);
-            // Early request: boleh kosong (driver pilih item saat selesai). Insert baru tetap butuh item.
+            // Reuse pending: item boleh sudah ada di request. Insert baru tetap butuh item.
             if (empty($eligibleIds) && $existingId <= 0) {
                 $this->sendAutoreplyText(
                     $waNumber,
@@ -4918,13 +3991,6 @@ trait WARepliesKurirTrait
         }
 
         $catatan = '';
-        if ($jamMeta && !empty($jamMeta['jam'])) {
-            $tgl = $jamMeta['tanggal'] ?? date('Y-m-d');
-            $catatan = 'Minta jam ' . $this->formatKurirJamLabel((float) $jamMeta['jam']) . " tanggal {$tgl}";
-        } elseif (!empty($session['request_jam']) && (int) ($session['request_granted'] ?? 0) === 1) {
-            $tgl = $session['request_tanggal'] ?? date('Y-m-d');
-            $catatan = 'Minta jam ' . $this->formatKurirJamLabel((float) $session['request_jam']) . " tanggal {$tgl}";
-        }
 
         $tarif = (int) ($session['tarif'] ?? 0);
         if ($tarif <= 0 && $idLokasi > 0) {
@@ -5819,7 +4885,7 @@ trait WARepliesKurirTrait
                 $actions = array_merge($common, ['confirm']); // confirm = pilih jenis via slots later → treat as clarify if no jenis
                 break;
             case 'lokasi_check':
-                $actions = array_merge($common, ['other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant', 'want_jam']);
+                $actions = array_merge($common, ['other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
                 break;
             case 'ask_shareloc':
                 $actions = array_merge($common, ['ask_shareloc']);
@@ -5832,7 +4898,7 @@ trait WARepliesKurirTrait
                 $actions = array_merge($common, ['pick_layanan', 'want_instant', 'confirm', 'other_lokasi', 'delete_lokasi']);
                 break;
             case 'confirm_lokasi':
-                $actions = array_merge($common, ['confirm', 'update_detail', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_jam', 'want_instant']);
+                $actions = array_merge($common, ['confirm', 'update_detail', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
                 break;
             case 'pick_lokasi':
                 $actions = array_merge($common, ['pick_lokasi', 'update_detail', 'other_lokasi', 'delete_lokasi', 'ask_shareloc', 'want_instant']);
@@ -5842,16 +4908,7 @@ trait WARepliesKurirTrait
                 break;
             case 'terms_setuju':
             case 'request_aktif':
-                $actions = array_merge($common, ['want_jam', 'want_instant', 'noop_ack', 'delete_lokasi', 'update_detail']);
-                break;
-            case 'wait_driver_jam':
-                $actions = array_merge($common, ['noop_ack', 'want_jam', 'update_detail']);
-                break;
-            case 'ask_jam_ampm':
-                $actions = array_merge($common, ['want_jam', 'confirm']);
-                break;
-            case 'wait_continue_alt':
-                $actions = array_merge($common, ['agree_alt', 'refuse_alt']);
+                $actions = array_merge($common, ['want_instant', 'noop_ack', 'delete_lokasi', 'update_detail']);
                 break;
             case 'instant_confirm':
                 $actions = array_merge($common, ['confirm', 'refuse_alt', 'other_lokasi', 'delete_lokasi']);
@@ -5860,7 +4917,7 @@ trait WARepliesKurirTrait
                 $actions = array_merge($common, ['pick_lokasi', 'other_lokasi', 'delete_lokasi']);
                 break;
             default:
-                $actions = array_merge($common, ['noop_ack', 'other_lokasi', 'delete_lokasi', 'want_jam', 'want_instant', 'confirm', 'pick_layanan']);
+                $actions = array_merge($common, ['noop_ack', 'other_lokasi', 'delete_lokasi', 'want_instant', 'confirm', 'pick_layanan']);
                 break;
         }
 
@@ -5891,10 +4948,6 @@ trait WARepliesKurirTrait
         $lines[] = '- lokasi_detail: ' . ($session['lokasi_detail'] ?? '-');
         $lines[] = '- tarif: ' . ($session['tarif'] ?? '-');
         $lines[] = '- id_request: ' . ($session['id_request'] ?? '-');
-        $lines[] = '- request_jam: ' . ($session['request_jam'] ?? '-');
-        $lines[] = '- request_tanggal: ' . ($session['request_tanggal'] ?? '-');
-        $lines[] = '- driver_alt_jam: ' . ($session['driver_alt_jam'] ?? '-');
-        $lines[] = '- driver_alt_tanggal: ' . ($session['driver_alt_tanggal'] ?? '-');
         $sumTxt = trim((string) ($session['summary'] ?? ''));
         $lines[] = '- summary: ' . ($sumTxt !== '' ? $sumTxt : '(kosong)');
 
@@ -6022,19 +5075,16 @@ trait WARepliesKurirTrait
             . "Jangan confirm hanya karena ada kata 'ya' di kalimat panjang. "
             . "Jika customer mengoreksi/klarifikasi alamat (saya kos di X, bukan nomor itu, pindah kos, detail salah) "
             . "→ update_detail (JANGAN confirm). Update nama+detail lokasi yang sama, lalu konfirmasi ulang. "
-            . "Di step request_aktif / wait_driver_jam: koreksi alamat atau shareloc baru → update_detail (request tetap berjalan). "
+            . "Di step request_aktif: koreksi alamat atau shareloc baru → update_detail (request tetap berjalan). "
             . "Jika batal/gak jadi/gk jd/cancel/gak usah → cancel. "
-            . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (agree/confirm/agree_alt), BUKAN cancel. "
-            . "Jika minta jam tertentu → want_jam (isi slots.jam/tanggal jika ada). "
-            . "Jam 1-6 tanpa 'pagi' biasanya sore (jam 3=15). Tanya 'jam berapa' tanpa angka tetap want_jam. "
+            . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (confirm), BUKAN cancel. "
+            . "Jangan tangani permintaan jam / estimasi waktu kurir (kapan diantar, jam berapa jemput). Itu unrelated. "
             . "want_instant HANYA jika customer sebut Gosend / Gojek / Grab (ojek online). "
             . "Minta antar/jemput SEKARANG / cepat / segera / kilat / hari ini = tetap sameday, BUKAN want_instant. "
             . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta gosend/gojek/grab. "
             . "Typo anter/antr/dianter/diantr = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
-            . "Di step wait_continue_alt: JANGAN tawarkan instant/grab/gojek. "
             . "Batal HANYA jika jelas: batal / cancel / gak jadi / gk jd / gak usah / saya jemput sendiri / antar sendiri. "
-            . "Selain itu (ya, oke, gpp, gapapa, ok, atau jawaban bebas) → agree_alt (lanjut jam alternatif driver). "
             . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
             . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
@@ -6042,10 +5092,9 @@ trait WARepliesKurirTrait
             . "Sistem infer kategori: Rumah/Kos/Mess/Asrama/Kantor/Penginapan/Toko (default Rumah jika tidak jelas). "
             . "Toko = studio/toko/warung/swalayan/kedai/minimarket/kios/cafe/sejenisnya. "
             . "Jika jawaban lengkap (kos azzahra kamar 2, rumah pagar kuning, toko sebelah Indomaret, mess BPK, hotel titip lobby) → confirm/lanjut tanpa tanya ulang. "
-            . "Jika topik lain (estimasi siap, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
-            . "Di step request_aktif / wait_driver_jam: HANYA want_jam jika ada kata jemput/antar sesuai jenis session "
-            . "PLUS (jam angka = request waktu, ATAU kapan/jam berapa/pagi/siang/sore/malam = butuh estimasi). "
-            . "'antar kembali' / 'selambatnya' / tanpa kata jemput/antar → unrelated. Jangan want_jam default. "
+            . "Jika topik lain (estimasi siap, jam antar/jemput, bill, harga, status, salam penutup, dll) → unrelated (jangan balas sebagai kurir). "
+            . "Di step request_aktif: tanya jam/kapan antar-jemput → unrelated. "
+            . "'antar kembali' / 'selambatnya' / tanpa kata jemput/antar → unrelated. "
             . "Di step ask_shareloc: jika sudah pernah minta shareloc, JANGAN minta lagi (action noop / diam). "
             . "Hanya minta shareloc sekali; tunggu pin/link tanpa mengulang pertanyaan. "
             . "Field reply: kalimat WhatsApp singkat (boleh kosong). "
@@ -6233,7 +5282,7 @@ trait WARepliesKurirTrait
                     $this->kurirAppendSummary($waNumber, $session, $note);
                     return;
                 }
-                if (in_array($step, ['request_aktif', 'wait_driver_jam'], true)) {
+                if (in_array($step, ['request_aktif'], true)) {
                     return;
                 }
                 $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
@@ -6319,55 +5368,12 @@ trait WARepliesKurirTrait
                 return;
 
             case 'want_jam':
-                if (!$this->kurirLooksWantJam($msg, $session)
-                    && !preg_match('/ask_ampm hour=/', (string) ($session['summary'] ?? ''))
-                ) {
-                    $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'want_jam_ignored_no_jenis_or_jam');
-                    $this->kurirAppendSummary($waNumber, $session, $note);
-                    return;
-                }
-                $waktu = null;
-                if (!empty($slots['jam'])) {
-                    $jamRaw = (float) $slots['jam'];
-                    $h = (int) floor($jamRaw);
-                    $min = (int) round(($jamRaw - $h) * 100);
-                    if ($min > 59) {
-                        $min = (int) round(($jamRaw - $h) * 60);
-                    }
-                    $tgl = !empty($slots['tanggal']) ? (string) $slots['tanggal'] : date('Y-m-d');
-                    $norm = $this->normalizeLaundryCustomerJam($h, $min, $msg);
-                    if (!empty($norm['ask_ampm'])) {
-                        $waktu = [
-                            'jam' => null,
-                            'tanggal' => $tgl,
-                            'ask_ampm' => true,
-                            'raw_hour' => $h,
-                            'raw_min' => $min,
-                        ];
-                    } else {
-                        $waktu = ['jam' => (float) $norm['jam'], 'tanggal' => $tgl];
-                    }
-                }
-                if ($waktu === null) {
-                    $waktu = $this->parseEstimasiRequestWaktu($msg);
-                }
-                $step = (string) ($session['step'] ?? '');
-                // Ack driver dulu, baru konfirmasi lokasi/antrian
-                $this->kurirProcessJamIntent($waNumber, $sapaan, $session, $msg, $waktu);
-                if ($step === 'confirm_lokasi') {
-                    $session = $this->getKurirSession($waNumber) ?: $session;
-                    $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
-                }
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'want_jam_ignored');
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 
             case 'want_instant':
                 $step = (string) ($session['step'] ?? '');
-                if ($step === 'wait_continue_alt') {
-                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
-                    $this->kurirAppendSummary($waNumber, $session, $note);
-                    return;
-                }
                 if (!$this->kurirLooksWantFast($msg)) {
                     $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'want_instant_ignored_not_gosend_gojek_grab');
                     $this->kurirAppendSummary($waNumber, $session, $note);
@@ -6378,15 +5384,13 @@ trait WARepliesKurirTrait
                 return;
 
             case 'agree_alt':
-                $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg !== '' ? $msg : 'ya');
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'agree_alt_ignored');
                 $this->kurirAppendSummary($waNumber, $session, $note);
                 return;
 
             case 'refuse_alt':
                 $step = (string) ($session['step'] ?? '');
-                if ($step === 'wait_continue_alt') {
-                    $this->kurirHandleContinueAlt($waNumber, $sapaan, $session, $msg);
-                } elseif (in_array($step, ['instant_confirm', 'instant_pick'], true)) {
+                if (in_array($step, ['instant_confirm', 'instant_pick'], true)) {
                     $this->kurirHandleInstantChoice($waNumber, $sapaan, $session, 'tidak');
                 } else {
                     $this->kurirCancelAndReply($waNumber, $sapaan, $session);
