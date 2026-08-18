@@ -5,7 +5,6 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import LoginModal from "./components/LoginModal.vue";
 import ChatPage from "./components/ChatPage.vue";
 import ConversationList from "./components/ConversationList.vue";
-import ApprovalModal from "./components/ApprovalModal.vue";
 import { getDeviceId } from "./utils/deviceId.js";
 
 /** Debounce reconnect when visibility + Capacitor resume both fire */
@@ -23,7 +22,6 @@ const scheduleResumeReconnect = (delayMs = 400) => {
       isReconnecting.value = false;
       return;
     }
-    console.log("🔄 Debounced resume reconnect...");
     connectWebSocket();
   }, delayMs);
 };
@@ -54,7 +52,6 @@ import {
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
   showChatMenu, showResolveMenu, showSettingsModal, showCustomerInfoModal,
-  showApprovalModal, approvalCustId, approvalCustomerName,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -154,7 +151,6 @@ const getOptimalInterval = () => {
     return 120000; // 120s - Very Idle
   }
 };
-
 
 
 // Computed: Filtered Quick Replies based on search query
@@ -619,16 +615,12 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
         );
         
         if (conversation) {
-          console.log('✅ Restoring chat after conversations loaded:', chatIdToRestore);
           selectChat(conversation.id);
         } else {
-          console.log('⚠️ Could not restore chat - conversation not found:', chatIdToRestore);
-          
           // Reset to home view
           activeChatId.value = null;
           showMobileChat.value = false;
           navStore.reset();
-          console.log('🏠 Navigation reset to home');
         }
       }
 
@@ -944,7 +936,6 @@ const resetPollingTimer = () => {
         // Check if interval needs adjustment based on activity
         const optimalInterval = getOptimalInterval();
         if (optimalInterval !== currentPollingInterval.value) {
-          console.log(`🔄 Adjusting polling: ${currentPollingInterval.value/1000}s → ${optimalInterval/1000}s`);
           currentPollingInterval.value = optimalInterval;
           // Restart timer with new interval
           clearInterval(refreshInterval.value);
@@ -1495,16 +1486,6 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
       const hasMore = result.data?.has_more ?? false;
       
       const mappedMessages = messagesData.map((m) => {
-        // Debug: Log messages with private field
-        if (m.private !== undefined && m.private !== null) {
-          console.log('[fetchMessages] Message with private:', {
-            id: m.id,
-            private: m.private,
-            type: typeof m.private,
-            text: (m.text || m.caption)?.substring(0, 50)
-          });
-        }
-        
         return {
           id: m.id,
           wamid: m.wamid,
@@ -2005,7 +1986,6 @@ const selectChat = async (id, isRefresh = false) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: chat.wa_number })
       });
-      console.log(`✅ Updated last_message_at for chat at position ${chatPosition + 1}`);
     } catch (error) {
       console.error('Failed to update last_message_at:', error);
     }
@@ -2095,11 +2075,6 @@ const startChatPolling = (phone) => {
 
     const idleTime = Date.now() - lastActivityTime.value;
     if (idleTime > CHAT_POLL_IDLE_MS) {
-      console.log(
-        "⏸️ Chat polling paused - user idle for",
-        Math.round(idleTime / 1000),
-        "seconds"
-      );
       stopChatPolling({ reason: "idle" }); // bar jadi warna idle; gerak mouse untuk aktif lagi
       return;
     }
@@ -2349,7 +2324,6 @@ watch(lastActivityTime, () => {
 
     // Only restart if user is not idle
     if (idleTime < CHAT_POLL_IDLE_MS) {
-      console.log('▶️ Restarting chat polling - user active again');
       isChatPollIdlePaused.value = false;
       startChatPolling(chatPollingPhone.value);
     }
@@ -3018,15 +2992,7 @@ const handleIncomingMessage = (payload) => {
           }
 
           messageUpdateTrigger.value++;
-          console.log(`✅ Status updated: ${currentStatus} → ${newStatus}`);
         }
-      } else {
-        console.log("⚠️ status_update: message not found in local list", {
-          id: message.id,
-          wamid: message.wamid,
-          status: message.status,
-          phone,
-        });
       }
     }
     return;
@@ -3416,7 +3382,6 @@ const connectWebSocket = () => {
           // 🔄 AUTO-SYNC: Refresh conversations after reconnect to catch missed messages
           // Only do this on RECONNECT (not first connect) to avoid duplicate fetch
           if (wasReconnecting) {
-            console.log("📡 Reconnected! Syncing missed messages...");
             // Small delay to ensure connection is stable
             setTimeout(() => {
               fetchConversations();
@@ -3525,15 +3490,6 @@ const connectWebSocket = () => {
           const conversationId = payload.conversation_id;
           const messageData = payload.message;
           const senderId = payload.sender_id;
-
-          // DEBUG: Log all agent messages for troubleshooting
-          console.log("[WS] agent_message_sent:", {
-            conversation: conversationId,
-            sender: senderId,
-            myId: authId.value,
-            text: messageData.text,
-            match: senderId == authId.value,
-          });
 
           let conversation = conversations.value.find(
             (c) =>
@@ -3705,11 +3661,6 @@ const connectWebSocket = () => {
               }
 
               if (pendingMatch) {
-                console.log(
-                  "Matched duplicate (Fuzzy Refined):",
-                  pendingMatch.id
-                );
-
                 // Update IDs to server values
                 pendingMatch.id =
                   canonicalMessageId(messageData.id, messageData.provider) ||
@@ -3890,17 +3841,10 @@ const connectWebSocket = () => {
       if (socket.value && ws !== socket.value) return;
 
       if (isConnected.value) {
-        console.log(
-          "WebSocket disconnected, code:",
-          event.code,
-          "reason:",
-          event.reason
-        );
         isConnected.value = false;
 
         // Same-device reclaim on server — this socket was replaced; ignore if stale
         if (event.code === 4000) {
-          console.log("Socket replaced by same device reconnect — ignoring");
           return;
         }
 
@@ -3980,9 +3924,6 @@ const connectWebSocket = () => {
           );
 
           connectionError.value = `Reconnecting...`;
-          console.log(
-            `Auto-reconnecting in ${delay}ms (attempt ${reconnectAttempts.value})`
-          );
 
           setTimeout(() => {
             if (authId.value && !isConnected.value) {
@@ -4008,7 +3949,6 @@ const connectWebSocket = () => {
         // IMPORTANT: Handle 1008 (duplicate connection) the same way as when isConnected was true
         // This happens when server rejects BEFORE sending welcome message
         if (event.code === 4000) {
-          console.log("Socket replaced by same device (pre-welcome) — ignoring");
           return;
         }
 
@@ -4085,9 +4025,6 @@ const connectWebSocket = () => {
           const statusMsg = `Reconnecting...`;
           msg = statusMsg;
           connectionError.value = statusMsg; // FORCE UPDATE UI
-          console.log(
-            `Reconnect attempt ${reconnectAttempts.value} in ${delay}ms`
-          );
 
           setTimeout(() => {
             if (authId.value && !isConnected.value) {
@@ -4249,7 +4186,6 @@ const resumeChatState = async () => {
     
     // If not found, try to fetch it specifically (for search results that aren't in first 20)
     if (!chat) {
-      console.log(`Chat id ${id} not in current list, fetching specifically...`);
       const fetchedChat = await fetchConversationById(id);
       
       if (fetchedChat) {
@@ -4401,7 +4337,6 @@ const resumeChatState = async () => {
     
     // If not found, try to fetch it
     if (!chat) {
-      console.log(`Active chat id ${activeChatId.value} not in list, fetching...`);
       const fetchedChat = await fetchConversationById(activeChatId.value);
       
       if (!fetchedChat) {
@@ -4454,7 +4389,6 @@ watch(searchQuery, (newQuery) => {
     // Fetch default 20 conversations (reset from search results)
     fetchConversations(0, 20, '');
     
-    console.log('🔍 Search cleared - reset to home with 20 conversations');
     return;
   }
   
@@ -4483,7 +4417,6 @@ onMounted(() => {
   // Set pending restore chat ID - will be processed after conversations are fetched
   if (restoredState.current === 'chat' && restoredState.chatId) {
     pendingRestoreChatId.value = restoredState.chatId;
-    console.log('📌 Pending chat restore:', restoredState.chatId);
   } else {
     // Start at root (conversation list)
     activeChatId.value = null;
@@ -4529,7 +4462,6 @@ onMounted(() => {
       !isReconnecting.value &&
       !authId.value
     ) {
-      console.log("⚠️ Loading timeout - forcing login prompt");
       showLoginPrompt.value = true;
     }
   }, 5000);
@@ -4541,7 +4473,6 @@ onMounted(() => {
   // Keep socket alive in background when possible; only reconnect if dead on resume.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      console.log("👁️ App became VISIBLE - checking connection...");
 
       // Clear search query on resume
       searchQuery.value = "";
@@ -4551,7 +4482,6 @@ onMounted(() => {
 
       // Check if socket is dead or not connected
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-        console.log("🔌 Socket disconnected, scheduling resume reconnect...");
 
         reconnectAttempts.value = 0;
         reconnectDelay.value = 3000;
@@ -4560,7 +4490,6 @@ onMounted(() => {
 
         scheduleResumeReconnect(500);
       } else {
-        console.log("✅ Socket already connected, no reconnect needed");
       }
 
       // Refresh data to ensure sync
@@ -4569,19 +4498,16 @@ onMounted(() => {
       });
     } else if (document.visibilityState === "hidden") {
       // Do NOT force-disconnect — keeps session stable and avoids false "device locked"/duplicate logout
-      console.log("🙈 App became HIDDEN - keeping WebSocket alive");
     }
   });
 
   // --- ANDROID WEBVIEW RESUME HANDLER ---
   window.addEventListener("androidResume", () => {
-    console.log("📱 Android Resume event received");
 
     searchQuery.value = "";
     resumeTimestamp.value = Date.now();
 
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-      console.log("Socket disconnected, scheduling reconnect from Android resume...");
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
@@ -4610,33 +4536,26 @@ onMounted(() => {
    * 4. Exit app (if at root)
    */
   window.__ANDROID_BACK = () => {
-    console.log('🔙 __ANDROID_BACK triggered');
-    
     // Priority 0: Close Internal Browser
     if (showInternalBrowser.value) {
-      console.log('🌐 Closing internal browser');
       closeInternalBrowser();
       return 'internal_browser_closed';
     }
     
     // Priority 1: Close Image Lightbox
     if (showImageLightbox.value) {
-      console.log('🖼️ Closing image lightbox');
       closeImageLightbox();
       return 'lightbox_closed';
     }
     
     // Priority 2: Close Settings Modal
     if (showSettingsModal.value) {
-      console.log('⚙️ Closing settings modal');
       showSettingsModal.value = false;
       return 'settings_closed';
     }
     
     // Priority 3: Navigate back from chat to list
     if (navStore.current === 'chat' || showMobileChat.value) {
-      console.log('📱 Navigating from chat to home');
-      
       // Use backToMenu() for smooth slide animation
       backToMenu(true);
       
@@ -4644,7 +4563,6 @@ onMounted(() => {
     }
     
     // Priority 4: Exit app (at root)
-    console.log('🚪 Exiting app');
     
     // Call Android bridge to close app
     if (window.Android && window.Android.exitApp) {
@@ -4680,7 +4598,6 @@ onMounted(() => {
         
         // ✅ CRITICAL: Fetch messages if not loaded
         if (!conversation.messages || conversation.messages.length === 0) {
-          console.log('📥 Fetching messages for restored chat:', conversation.wa_number);
           fetchMessages(conversation.wa_number).then((result) => {
             conversation.messages = result.messages;
             conversation.hasMoreMessages = result.has_more;
@@ -4688,7 +4605,6 @@ onMounted(() => {
             nextTick(() => scrollToBottom({ force: true }));
           });
         } else {
-          console.log('✅ Messages already loaded, scrolling to bottom');
           nextTick(() => scrollToBottom({ force: true }));
         }
       } else {
@@ -4709,7 +4625,6 @@ onMounted(() => {
   // --- EXPOSE GLOBAL FUNCTION FOR ANDROID ---
   // Android WebView can call: window.triggerReconnect()
   window.triggerReconnect = () => {
-    console.log("📱 triggerReconnect called from Android");
 
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
       reconnectAttempts.value = 0;
@@ -4741,23 +4656,19 @@ onMounted(() => {
   // --- PAGE HIDE HANDLER ---
   // Save state AND cleanup socket when page is hidden
   window.addEventListener("pagehide", () => {
-    console.log("📦 Page hiding - saving state and cleaning up socket");
     persistChatState();
     
     // Properly close socket to prevent reconnect issues
     if (socket.value) {
-      console.log("🔌 Closing socket due to page hide");
       forceDisconnect();
     }
   });
 
   window.addEventListener("beforeunload", () => {
-    console.log("📦 Page unloading - saving state and cleaning up socket");
     persistChatState();
     
     // Properly close socket
     if (socket.value) {
-      console.log("🔌 Closing socket due to page unload");
       forceDisconnect();
     }
   });
@@ -4774,7 +4685,6 @@ onMounted(() => {
 
   window.addEventListener("popstate", (event) => {
     if (showMobileChat.value) {
-      console.log("🔙 Android Back: Closing chat overlay");
       showMobileChat.value = false;
       activeChatId.value = null;
       localStorage.removeItem("active_chat_id");
@@ -4782,12 +4692,10 @@ onMounted(() => {
     } else if (window.innerWidth < 768) {
       const now = Date.now();
       if (now - lastBackPressTime < 2000) {
-        console.log("🔙 Android Back: Exiting app");
         return;
       }
       
       lastBackPressTime = now;
-      console.log("🔙 Android Back: Press again to exit");
       showExitToast.value = true;
       setTimeout(() => {
         showExitToast.value = false;
@@ -4808,7 +4716,6 @@ onMounted(() => {
   // Initialize notification sound
   initNotificationSound();
   loadNotificationSoundSetting();
-
 
 
   const storedId = localStorage.getItem("cms_chat_id");
@@ -4851,7 +4758,6 @@ onMounted(() => {
   else if (storedId && storedExpiry && now >= parseInt(storedExpiry)) {
     // Force uppercase for OneSignal compatibility
     const uppercaseId = storedId.toUpperCase();
-    console.log("Session expired. ID found, please reconnect.");
     authId.value = uppercaseId; // Keep the ID for convenience (uppercase)
     showLoginPrompt.value = true;
   }
@@ -4883,26 +4789,15 @@ onMounted(() => {
 // ⭐ Global function for Android native to call when notification is clicked
 if (typeof window !== "undefined") {
   window.openChatByPhone = (phone, retryCount = 0) => {
-    console.log(
-      `📲 openChatByPhone called from Android: ${phone} (retry: ${retryCount})`
-    );
-
     if (!phone) {
-      console.log("❌ openChatByPhone: No phone provided");
       return;
     }
 
     // Normalize phone number for matching
     const cleanPhone = String(phone).replace(/\D/g, "");
-    console.log(
-      `📲 Cleaned phone: ${cleanPhone}, Conversations loaded: ${conversations.value.length}`
-    );
 
     // If conversations not loaded yet, retry with exponential backoff
     if (conversations.value.length === 0 && retryCount < 10) {
-      console.log(
-        `⏳ Conversations not loaded, setting pendingTargetPhone and retrying in 500ms...`
-      );
       pendingTargetPhone.value = cleanPhone;
 
       setTimeout(() => {
@@ -4918,16 +4813,11 @@ if (typeof window !== "undefined") {
     });
 
     if (target) {
-      console.log("✅ Found conversation:", target.name, target.id);
       pendingTargetPhone.value = null; // Clear pending
 
       // Use selectChat to properly load messages from API
       selectChat(target.id);
     } else {
-      console.log(
-        "⚠️ Conversation not found, setting pending target:",
-        cleanPhone
-      );
       // Store for later (will be handled when fetchConversations completes)
       pendingTargetPhone.value = cleanPhone;
 
@@ -4936,17 +4826,6 @@ if (typeof window !== "undefined") {
         fetchConversations();
       }
     }
-  };
-
-  // Also expose a debug function
-  window.debugChatState = () => {
-    console.log("=== DEBUG CHAT STATE ===");
-    console.log("Conversations count:", conversations.value.length);
-    console.log("pendingTargetPhone:", pendingTargetPhone.value);
-    console.log("activeChatId:", activeChatId.value);
-    console.log("isConnected:", isConnected.value);
-    console.log("showMobileChat:", showMobileChat.value);
-    console.log("========================");
   };
 }
 
@@ -4958,19 +4837,11 @@ App.addListener("backButton", () => {
 
 // Handle App State Change (Capacitor) - Resume from background/sleep
 App.addListener("appStateChange", ({ isActive }) => {
-  console.log(
-    "Capacitor App State Changed:",
-    isActive ? "ACTIVE" : "BACKGROUND"
-  );
-
   if (isActive) {
     resumeTimestamp.value = Date.now();
     searchQuery.value = "";
 
     if (!socket.value || socket.value.readyState !== WebSocket.OPEN) {
-      console.log(
-        "App resumed (Capacitor), socket disconnected, scheduling reconnect..."
-      );
       reconnectAttempts.value = 0;
       reconnectDelay.value = 3000;
       isReconnecting.value = true;
@@ -4990,7 +4861,6 @@ window.onAndroidBackPressed = () => {
 
 // Helper to re-expose back handler (called from Android onResume if handler seems dead)
 window.__reExposeBackHandler = () => {
-  console.log("📱 __reExposeBackHandler called - re-exposing handlers");
   
   // Re-assign the back handler (in case it was garbage collected after long sleep)
   window.onAndroidBackPressed = () => {
@@ -5009,7 +4879,6 @@ window.__reExposeBackHandler = () => {
     showMobileChat.value = false;
   }
   
-  console.log("✅ Handler re-exposed and state restored");
   return true;
 };
 
@@ -5019,32 +4888,20 @@ window.__reExposeBackHandler = () => {
 // Uses Pinia Navigation Store for reliable state management
 // Handles app sleep/resume gracefully via localStorage persistence
 function handleBackButtonPress() {
-  console.log("🔙 Android Back Button Pressed");
-  console.log("📊 State:", {
-    browser: showInternalBrowser.value,
-    lightbox: showImageLightbox.value,
-    settings: showSettingsModal.value,
-    chat: showMobileChat.value,
-    chatId: activeChatId.value,
-  });
-
   // Priority 0: Close Internal Browser
   if (showInternalBrowser.value) {
-    console.log("✅ Closing internal browser");
     closeInternalBrowser();
     return "internal_browser_closed";
   }
 
   // Priority 1: Close Image Lightbox
   if (showImageLightbox.value) {
-    console.log("✅ Closing lightbox");
     closeImageLightbox();
     return "lightbox_closed";
   }
 
   // Priority 2: Close Settings Modal
   if (showSettingsModal.value) {
-    console.log("✅ Closing settings");
     showSettingsModal.value = false;
     return "settings_closed";
   }
@@ -5054,8 +4911,6 @@ function handleBackButtonPress() {
   
   // Check if user is in a child view (chat)
   if (isMobile && (showMobileChat.value || activeChatId.value)) {
-    console.log("✅ In chat view, navigating back to list");
-    
     // Update Pinia state
     navStore.reset();
     
@@ -5067,8 +4922,6 @@ function handleBackButtonPress() {
 
   // Priority 4: Check navigation state for fallback (after app sleep)
   if (navStore.current === 'chat') {
-    console.log("✅ Pinia store shows chat active, going back");
-    
     // Update both Pinia and Vue state
     navStore.reset();
     activeChatId.value = null;
@@ -5080,10 +4933,8 @@ function handleBackButtonPress() {
   // Priority 5: Double-press to exit (at root)
   const timeNow = Date.now();
   if (timeNow - lastBackPress < 2000) {
-    console.log("🚪 Double press detected, exiting app");
     return "should_exit";
   } else {
-    console.log("⏱️ First press, showing exit toast");
     lastBackPress = timeNow;
     showExitToast.value = true;
     setTimeout(() => {
@@ -5209,7 +5060,6 @@ const normalizeExternalUrl = (url) => {
 const openExternalBrowser = (url) => {
   const normalizedUrl = normalizeExternalUrl(url);
   persistChatState();
-  console.log("🔗 Opening external browser:", normalizedUrl);
 
   // Android WebView app: buka lewat Intent native
   if (window.Android && typeof window.Android.openUrl === "function") {
@@ -5255,7 +5105,6 @@ const closeInternalBrowser = () => {
 
 const handleInternalBrowserLoad = () => {
   isInternalBrowserLoading.value = false;
-  console.log('✅ Internal browser loaded successfully');
 };
 
 const handleInternalBrowserError = (e) => {
@@ -5289,7 +5138,6 @@ const handleLinkClick = (e) => {
     // External link - save state before navigating
     if (link.href.startsWith("http://") || link.href.startsWith("https://")) {
       persistChatState();
-      console.log("📎 External link clicked, saving chat state");
     }
   }
 };
@@ -5426,7 +5274,6 @@ const handleLinkClick = (e) => {
       @open-image-lightbox="openImageLightbox"
       @refresh-active-chat="refreshActiveChat"
       @open-internal-browser="openExternalBrowser"
-      @open-approval="(custId) => { approvalCustId = custId; approvalCustomerName = activeConversation?.name ?? ''; showApprovalModal = true; }"
     />
 
     <!-- Exit Toast -->
@@ -5838,27 +5685,15 @@ const handleLinkClick = (e) => {
             <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
               >ID Pelanggan</label
             >
-            <a
-              :href="'https://ml.nalju.com/I/' + activeConversation.cust_id"
-              target="_blank"
-              rel="noopener"
-              class="text-base font-bold text-[var(--wa-accent-green)] hover:underline"
+            <p
+              class="text-base font-bold text-[var(--wa-text-primary)]"
             >
               #{{ activeConversation.cust_id }}
-            </a>
+            </p>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Approval Modal (List Pembayaran NonTunai) -->
-    <ApprovalModal
-      :show="showApprovalModal"
-      :cust-id="approvalCustId"
-      :customer-name="approvalCustomerName"
-      :api-base="API_BASE"
-      @close="showApprovalModal = false; approvalCustId = null; approvalCustomerName = ''"
-    />
 
     <!-- Internal Browser (for nalju.com links) -->
     <div

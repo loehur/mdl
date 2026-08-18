@@ -35,8 +35,6 @@ export const useNavigationStore = defineStore('navigation', {
       } else {
         localStorage.removeItem('NAV_CHAT_ID')
       }
-      
-      console.log('📍 Navigation state saved:', view, chatId)
     },
 
     /**
@@ -45,7 +43,6 @@ export const useNavigationStore = defineStore('navigation', {
      */
     restore() {
       if (this.hydrated) {
-        console.log('⏭️ Already hydrated, skipping restore')
         return { current: this.current, chatId: this.activeChatId }
       }
 
@@ -55,7 +52,6 @@ export const useNavigationStore = defineStore('navigation', {
       if (savedView) {
         this.current = savedView
         this.activeChatId = savedChatId ? parseInt(savedChatId) : null
-        console.log('🔄 Navigation state restored:', savedView, savedChatId)
       }
       
       this.hydrated = true
@@ -68,7 +64,6 @@ export const useNavigationStore = defineStore('navigation', {
      */
     reset() {
       this.setView('home', null)
-      console.log('🏠 Navigation reset to home')
     }
   }
 })

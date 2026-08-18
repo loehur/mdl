@@ -91,7 +91,6 @@ const emit = defineEmits([
   "trigger-connect", // If we need to reconnect
   "load-more-messages", // For infinite scroll
   "open-internal-browser", // Open URL in internal browser (ml.nalju.com)
-  "open-approval", // Tampilkan list pembayaran (cust_id)
 ]);
 
 // --- LOCAL STATE ---
@@ -222,53 +221,14 @@ const isAdmin = computed(() => {
   return props.currentUserRole === "admin";
 });
 
-// Check if message is private (flexible check for string "1" or integer 1)
 const isPrivateMessage = (msg) => {
-  if (!msg) {
-    console.log('[Private Check] ❌ No message object');
-    return false;
-  }
-  
-  // Debug logging - log ALL messages to see what we're getting
+  if (!msg) return false;
   const privateVal = msg.private;
-  
-  // Only log if message contains sensitive keywords or has private field
-  const hasSensitiveKeyword = msg.text && (
-    msg.text.toLowerCase().includes('kode otp') || 
-    msg.text.toLowerCase().includes('salary slip')
-  );
-  
-  if (hasSensitiveKeyword || privateVal !== undefined) {
-    console.log('[Private Check]', {
-      id: msg.id,
-      private: privateVal,
-      type: typeof privateVal,
-      hasPrivate: 'private' in msg,
-      keys: Object.keys(msg).slice(0, 10), // First 10 keys only
-      text: msg.text?.substring(0, 50)
-    });
-  }
-  
-  // Check if private field exists and is truthy
-  if (privateVal === undefined || privateVal === null) {
-    if (hasSensitiveKeyword) {
-      console.log('[Private Check] ⚠️ No private field found for sensitive message ID:', msg.id);
-    }
-    return false;
-  }
-  
-  // Check various formats: 1, "1", true, etc.
-  const isPrivate = privateVal == 1 || 
-                    privateVal === 1 || 
-                    parseInt(privateVal) === 1 || 
-                    String(privateVal) === '1' ||
-                    privateVal === true;
-  
-  if (isPrivate) {
-    console.log('[Private Check] ✅ Message is PRIVATE - ID:', msg.id, 'Value:', privateVal, 'Type:', typeof privateVal);
-  }
-  
-  return isPrivate;
+  if (privateVal === undefined || privateVal === null) return false;
+  return privateVal == 1 ||
+    privateVal === true ||
+    parseInt(privateVal, 10) === 1 ||
+    String(privateVal) === "1";
 };
 
 // Check if message should be hidden (private and not admin)
@@ -349,14 +309,6 @@ const showCustomerInfo = () => {
     showCustomerInfoModal.value = true;
 };
 
-const openInvoice = () => {
-    if (props.activeConversation?.cust_id) {
-        const url = `https://ml.nalju.com/I/${props.activeConversation.cust_id}`;
-        emit('open-internal-browser', url); // App wires this to external browser
-        showCustomerInfoModal.value = false;
-    }
-};
-
 const handleBubbleLinkClick = (e) => {
     const link = e.target.closest("a[href]");
     if (!link || !link.href) return;
@@ -371,13 +323,6 @@ const handleBubbleLinkClick = (e) => {
         }
     } catch (_) {
         // ignore invalid URL
-    }
-};
-
-const openApproval = () => {
-    if (props.activeConversation?.cust_id) {
-        showCustomerInfoModal.value = false;
-        emit('open-approval', props.activeConversation.cust_id);
     }
 };
 
@@ -1512,6 +1457,7 @@ onUnmounted(() => {
       </div>
 
      <!-- Quoted Message Detail Modal -->
+    <Teleport to="body">
     <div v-if="showQuotedMessageModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4" @click="closeQuotedMessageDetail">
         <div v-if="quotedMessageToShow" class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col" @click.stop>
             <div class="flex justify-between items-center p-4 border-b border-[var(--wa-border)]">
@@ -1567,25 +1513,6 @@ onUnmounted(() => {
                           <button @click="copyPhoneNumber" class="text-[var(--wa-accent-green)] text-sm font-bold">{{ copiedPhone ? 'Copied!' : 'Copy' }}</button>
                       </div>
                  </div>
-                 <div class="flex gap-3">
-                   <button
-                     @click="openInvoice"
-                     :disabled="!activeConversation?.cust_id"
-                     class="flex-1 py-3 px-4 font-bold rounded-xl transition-opacity"
-                     :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-green)] text-black hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
-                   >
-                     Invoice
-                   </button>
-                   <button
-                     v-if="currentUserRole === 'admin'"
-                     @click="openApproval"
-                     :disabled="!activeConversation?.cust_id"
-                     class="flex-1 py-3 px-4 font-bold rounded-xl transition-opacity"
-                     :class="activeConversation?.cust_id ? 'bg-[var(--wa-accent-blue)] text-white hover:opacity-90 cursor-pointer' : 'bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-tertiary)] cursor-not-allowed opacity-60'"
-                   >
-                     Approval
-                   </button>
-                 </div>
                  <div class="flex items-center justify-between gap-3 bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
                    <span class="text-sm font-medium text-[var(--wa-text-primary)]">Partner</span>
                    <label class="relative inline-flex cursor-pointer items-center" :class="{ 'pointer-events-none opacity-50': isUpdatingPartner }">
@@ -1602,6 +1529,7 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
+    </Teleport>
     </main>
 </template>
 
