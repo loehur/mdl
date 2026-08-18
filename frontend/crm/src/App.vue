@@ -1339,7 +1339,8 @@ const sanitizeMessages = (messages) => {
     // Outgoing optimistic bubbles (pending/temp id) MUST merge with the server copy.
     const isTempId = (id) => /^\d{13,}$/.test(String(id || "")); // Date.now() style
     const isOptimistic = (m) =>
-      m?.status === "pending" || isTempId(m?.id) || String(m?.media_url || "").startsWith("data:");
+      m?.sender === "me" &&
+      (m?.status === "pending" || isTempId(m?.id) || String(m?.media_url || "").startsWith("data:"));
 
     if (!existing) {
       const normalize = (str) =>
@@ -1356,6 +1357,7 @@ const sanitizeMessages = (messages) => {
       for (let i = result.length - 1; i >= 0 && i >= result.length - 15; i--) {
         const cand = result[i];
         if (cand.sender !== msg.sender) continue;
+        if ((cand.provider || "Y") !== (msg.provider || "Y")) continue;
 
         const candOptimistic = isOptimistic(cand);
         const bothReal = !msgOptimistic && !candOptimistic;
@@ -3188,8 +3190,13 @@ const handleIncomingMessage = (payload) => {
     // Exact ID match — also Y-123 vs 123 (WS numeric vs REST prefixed)
     if (messageIdsMatch(m.id, newMsg.id, m.provider, newMsg.provider)) return true;
 
-    // Wamid match
-    if (m.wamid && newMsg.wamid && String(m.wamid) === String(newMsg.wamid))
+    // Wamid match (same channel only — Fonnte inboxid vs yCloud wamid must not collide)
+    if (
+      m.wamid &&
+      newMsg.wamid &&
+      String(m.wamid) === String(newMsg.wamid) &&
+      (m.provider || "Y") === (newMsg.provider || "Y")
+    )
       return true;
 
     // Outgoing media echo: same provider + type + close time
@@ -3216,6 +3223,7 @@ const handleIncomingMessage = (payload) => {
 
     if (
       m.sender === newMsg.sender &&
+      (m.provider || "Y") === (newMsg.provider || "Y") &&
       normalize(m.text) === normalize(newMsg.text)
     ) {
       // Check if timestamps are within 5 seconds of each other

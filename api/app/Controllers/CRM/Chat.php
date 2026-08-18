@@ -259,6 +259,9 @@ class Chat extends Controller
             $fetchLimit = $limit + 1;
 
             $includeFonnte = CrmChatMergeHelper::fonnteMessageTablesReady($db);
+            $fonnteInStatusSql = CrmChatMergeHelper::fonnteInboundStatusReady($db)
+                ? "COALESCE(status, 'received') as status"
+                : "'received' as status";
 
             $ycloudUnion = "
                     (SELECT 
@@ -308,7 +311,7 @@ class Chat extends Controller
                         type,
                         'customer' as sender,
                         created_at as time,
-                        NULL as status,
+                        {$fonnteInStatusSql},
                         NULL as media_id,
                         media_url,
                         NULL as caption,
