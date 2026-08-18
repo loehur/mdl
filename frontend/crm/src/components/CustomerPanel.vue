@@ -560,11 +560,11 @@ onUnmounted(() => {
         <section>
           <button
             type="button"
-            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-40 disabled:cursor-not-allowed"
+            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
             :disabled="!custId"
             @click="openDeliveryRequest"
           >
-            Buat Delivery Request
+            Delivery Request
           </button>
           <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
             Customer belum terhubung ke data laundry.
@@ -716,7 +716,7 @@ onUnmounted(() => {
             </button>
             <button
               type="button"
-              class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-50"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
               :disabled="!canSaveLokasi"
               @click="saveLokasi"
             >
@@ -778,7 +778,7 @@ onUnmounted(() => {
         @click.stop
       >
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Buat Delivery Request</h3>
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Delivery Request</h3>
           <button
             type="button"
             class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
@@ -798,7 +798,7 @@ onUnmounted(() => {
             type="button"
             class="w-full py-2.5 rounded-xl text-sm font-bold border"
             :class="deliveryJenis === opt.id
-              ? 'bg-[var(--wa-accent-green)] text-black border-transparent'
+              ? 'bg-[var(--wa-accent-green)] text-white border-transparent'
               : 'bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border-[var(--wa-border)]'"
             @click="deliveryJenis = opt.id"
           >
@@ -838,7 +838,7 @@ onUnmounted(() => {
           </button>
           <button
             type="button"
-            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-50"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
             :disabled="submittingDelivery || !deliveryJenis || !deliveryLokasiId"
             @click="submitDeliveryRequest"
           >

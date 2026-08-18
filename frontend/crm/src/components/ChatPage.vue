@@ -1262,7 +1262,7 @@ onUnmounted(() => {
                   <button @click="cancelImage" class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1">X</button>
                   <div class="mt-2 flex gap-2">
                       <input v-model="imageCaption" type="text" placeholder="Caption..." class="flex-1 bg-[var(--wa-bg-secondary)] border px-3 py-2 rounded-lg text-sm" />
-                      <button @click="sendImage" :disabled="isUploadingImage" class="bg-[var(--wa-accent-green)] text-black px-4 rounded-lg text-sm font-bold">{{ isUploadingImage ? '...' : 'Send' }}</button>
+                      <button @click="sendImage" :disabled="isUploadingImage" class="bg-[var(--wa-accent-green)] text-white px-4 rounded-lg text-sm font-bold">{{ isUploadingImage ? '...' : 'Send' }}</button>
                   </div>
              </div>
 
@@ -1395,7 +1395,7 @@ onUnmounted(() => {
                        <textarea ref="messageTextarea" v-model="messageInput" @input="autoResizeTextarea" @keydown="handleMessageKeydown" :placeholder="isConnected ? 'Ketik pesan...' : 'Menghubungkan...'" :disabled="!isConnected" class="flex-1 bg-transparent py-3 px-4 text-sm focus:outline-none max-h-[150px] overflow-y-auto resize-none text-[var(--wa-text-primary)] disabled:cursor-not-allowed" rows="1"></textarea>
                   </div>
                   <!-- Send Button -->
-                  <button @click="sendMessage" :disabled="!isConnected" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-black shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button @click="sendMessage" :disabled="!isConnected" class="p-3 bg-[var(--wa-accent-green)] rounded-full text-white shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                        </svg>

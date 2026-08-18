@@ -227,7 +227,7 @@ const parseEmoji = (text) => {
           :class="conversationFilter === 'unread' ? 'bg-[var(--wa-filter-active-bg)] text-[var(--wa-filter-active-text)] border-transparent' : 'bg-[var(--wa-filter-inactive-bg)] text-[var(--wa-filter-inactive-text)] border-[var(--wa-filter-inactive-border)] hover:bg-[var(--wa-hover)]'"
         >
           <span>Unread</span>
-          <span v-if="totalUnreadCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'unread' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-[var(--wa-accent-green)] text-black'">{{ totalUnreadCount }}</span>
+          <span v-if="totalUnreadCount > 0" class="text-xs font-bold min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center" :class="conversationFilter === 'unread' ? 'bg-black/10 text-[var(--wa-filter-active-text)]' : 'bg-[var(--wa-accent-green)] text-white'">{{ totalUnreadCount }}</span>
         </button>
 
         <!-- Case count badges (per case type) -->
@@ -315,7 +315,7 @@ const parseEmoji = (text) => {
 
           <div class="flex justify-between items-center">
             <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-medium text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
-            <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-black text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
+            <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-white text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
         </div>
       </div>
