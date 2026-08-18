@@ -683,7 +683,34 @@ $labeled = false;
             <td class='text-center'><span class='d-none'><?= $nama_pelanggan ?></span><?= $buttonHapus ?></td>
 
             <?php
-            if ($lunas[$ref] == true && $countEndLayananDone[$ref] == $countItem[$ref] && $countAmbil[$ref] == $countItem[$ref] && $modeView <> 2) {
+            $needJemput = false;
+            $needAntar = false;
+            foreach ((array) ($data['surcas'] ?? []) as $scaTuntas) {
+              if (($scaTuntas['no_ref'] ?? '') != $ref) {
+                continue;
+              }
+              $jidTuntas = (int) ($scaTuntas['id_jenis_surcas'] ?? 0);
+              if ($jidTuntas === 3) {
+                $needJemput = true;
+              } elseif ($jidTuntas === 2) {
+                $needAntar = true;
+              }
+            }
+            $hasDlvJ = false;
+            $hasDlvA = false;
+            foreach ($c_list as $itemDlv) {
+              $sidDlv = (string) ($itemDlv['id_penjualan'] ?? '');
+              $badgeDlv = $data['delivery_badge'][$sidDlv] ?? ($data['delivery_badge'][$itemDlv['id_penjualan'] ?? ''] ?? '');
+              if (strpos((string) $badgeDlv, 'J') !== false) {
+                $hasDlvJ = true;
+              }
+              if (strpos((string) $badgeDlv, 'A') !== false) {
+                $hasDlvA = true;
+              }
+            }
+            $deliverySelesai = (!$needJemput || $hasDlvJ) && (!$needAntar || $hasDlvA);
+
+            if ($lunas[$ref] == true && $countEndLayananDone[$ref] == $countItem[$ref] && $countAmbil[$ref] == $countItem[$ref] && $modeView <> 2 && $deliverySelesai) {
               array_push($arrTuntas, $ref);
             }
 
@@ -691,6 +718,16 @@ $labeled = false;
               echo "<td nowrap colspan='3' class='text-right'><span class='showLunas" . $ref . "'></span><b> " . number_format($subTotal) . "</b><br>";
             } else {
               echo "<td nowrap colspan='3' class='text-right'><b><i class='fas fa-check-circle text-success'></i> " . number_format($subTotal) . "</b><br>";
+              if (!$deliverySelesai && $countEndLayananDone[$ref] == $countItem[$ref] && $countAmbil[$ref] == $countItem[$ref] && $modeView <> 2) {
+                $tunggu = [];
+                if ($needJemput && !$hasDlvJ) {
+                  $tunggu[] = 'jemput';
+                }
+                if ($needAntar && !$hasDlvA) {
+                  $tunggu[] = 'antar';
+                }
+                echo "<small class='text-warning'>Menunggu delivery " . htmlspecialchars(implode('/', $tunggu), ENT_QUOTES, 'UTF-8') . " selesai</small><br>";
+              }
             }
             ?>
             </td>

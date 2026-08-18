@@ -236,6 +236,7 @@ export const showChatMenu = ref(false);
 export const showResolveMenu = ref(false);
 export const showSettingsModal = ref(false);
 export const showCustomerPanel = ref(false);
+export const showAddLokasiModal = ref(false);
 export const showImageLightbox = ref(false);
 export const lightboxImageUrl = ref("");
 export const showQuickReplies = ref(false);

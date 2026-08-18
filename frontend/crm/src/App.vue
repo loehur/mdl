@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4487,6 +4487,11 @@ onMounted(() => {
       return 'settings_closed';
     }
 
+    if (showAddLokasiModal.value) {
+      showAddLokasiModal.value = false;
+      return 'add_lokasi_closed';
+    }
+
     if (showCustomerPanel.value) {
       showCustomerPanel.value = false;
       return 'customer_panel_closed';
@@ -4842,6 +4847,11 @@ function handleBackButtonPress() {
   if (showSettingsModal.value) {
     showSettingsModal.value = false;
     return "settings_closed";
+  }
+
+  if (showAddLokasiModal.value) {
+    showAddLokasiModal.value = false;
+    return "add_lokasi_closed";
   }
 
   if (showCustomerPanel.value) {

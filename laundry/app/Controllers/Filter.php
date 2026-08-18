@@ -194,6 +194,10 @@ class Filter extends Controller
 
    public function tuntasOrder($ref)
    {
+      if (!$this->refDeliverySelesaiUntukTuntas($ref)) {
+         return;
+      }
+
       $set = [
          'tuntas' => 1,
          'tuntasTime' => $GLOBALS['now'] ?? date('Y-m-d H:i:s'),

@@ -158,6 +158,116 @@ class Controller extends URL
     }
 
     /**
+     * Ada surcas jemput (3) / antar (2)? Delivery jenis itu harus sudah selesai
+     * (riwayat ada, request tidak masih berjalan) sebelum ref boleh dituntaskan.
+     */
+    protected function refDeliverySelesaiUntukTuntas($ref): bool
+    {
+        $ref = trim((string) $ref);
+        if ($ref === '') {
+            return true;
+        }
+
+        $this->helper('AntarTarif');
+        $jenisAntar = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
+        $jenisJemput = (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+
+        $db = $this->db(0);
+        $refSql = "'" . $db->escape($ref) . "'";
+        $surcas = $db->get_where(
+            'surcas',
+            $this->wCabang . " AND transaksi_jenis = 1 AND no_ref = $refSql"
+            . " AND id_jenis_surcas IN ($jenisAntar, $jenisJemput)"
+        );
+        if (!is_array($surcas) || $surcas === []) {
+            return true;
+        }
+
+        $needJemput = false;
+        $needAntar = false;
+        $reqIds = [];
+        foreach ($surcas as $sc) {
+            $jid = (int) ($sc['id_jenis_surcas'] ?? 0);
+            if ($jid === $jenisJemput) {
+                $needJemput = true;
+            } elseif ($jid === $jenisAntar) {
+                $needAntar = true;
+            }
+            $rid = (int) ($sc['id_delivery_request'] ?? 0);
+            if ($rid > 0) {
+                $reqIds[$rid] = $rid;
+            }
+        }
+
+        if ($reqIds !== []) {
+            $reqIn = implode(',', $reqIds);
+            $aktif = $db->count_where(
+                'delivery_request',
+                "id_request IN ($reqIn) AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
+            );
+            if ((int) $aktif > 0) {
+                return false;
+            }
+        }
+
+        $sales = $db->get_where('sale', $this->wCabang . " AND no_ref = $refSql AND bin = 0");
+        $saleIds = [];
+        foreach ((array) $sales as $s) {
+            $sid = (int) ($s['id_penjualan'] ?? 0);
+            if ($sid > 0) {
+                $saleIds[$sid] = $sid;
+            }
+        }
+        if ($saleIds === []) {
+            return !$needJemput && !$needAntar;
+        }
+        $idsIn = implode(',', $saleIds);
+
+        $hasJ = false;
+        $hasA = false;
+        $riwayat = $db->get_where('delivery_riwayat', "id_penjualan IN ($idsIn)");
+        foreach ((array) $riwayat as $dr) {
+            $jenis = strtolower((string) ($dr['jenis'] ?? ''));
+            if ($jenis === 'jemput') {
+                $hasJ = true;
+            } elseif ($jenis === 'antar') {
+                $hasA = true;
+            }
+        }
+        if ($needJemput && !$hasJ) {
+            return false;
+        }
+        if ($needAntar && !$hasA) {
+            return false;
+        }
+
+        try {
+            $rows = $db->query_array(
+                "SELECT drq.jenis
+                 FROM delivery_request_item dri
+                 INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
+                 WHERE dri.id_penjualan IN ($idsIn)
+                   AND drq.delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
+            );
+            if (is_array($rows)) {
+                foreach ($rows as $row) {
+                    $j = strtolower((string) ($row['jenis'] ?? ''));
+                    if ($needJemput && $j === 'jemput') {
+                        return false;
+                    }
+                    if ($needAntar && $j === 'antar') {
+                        return false;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // tabel request belum ada — cukup cek riwayat
+        }
+
+        return true;
+    }
+
+    /**
      * Qty / min order: tampil maks. 2 desimal; bilangan bulat dari DB tanpa ".00" / ",00".
      */
     public function fmtDecMax2($v)

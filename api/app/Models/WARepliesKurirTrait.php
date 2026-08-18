@@ -1045,7 +1045,7 @@ trait WARepliesKurirTrait
         return (($session['jenis'] ?? '') === 'antar') ? 'Antar' : 'Jemput';
     }
 
-    /** Tag grup Fonnte: *PAK SAYFUL- SB* */
+    /** Tag grup Fonnte: *BUNGA MONA* - MW */
     private function kurirGroupCustomerStarTag(string $waNumber, array $session): string
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
@@ -1087,7 +1087,7 @@ trait WARepliesKurirTrait
             $kode = (string) ($idCabang > 0 ? $idCabang : '-');
         }
 
-        return "*{$nama}- {$kode}*";
+        return "*{$nama}* - {$kode}";
     }
 
     private function kurirNotifyDeliveryGroupIfLabelChanged(string $waNumber, array $session): void
@@ -4132,11 +4132,16 @@ trait WARepliesKurirTrait
     }
 
     /**
-     * Notif singkat ke group delivery Fonnte saat request antar/jemput berhasil.
-     * Contoh:
-     * ANDI - TG
-     * *Antar*
-     * Jika label berubah setelah terkirim: *Antar & Jemput* + (update)
+     * Notif ke group delivery Fonnte saat request antar/jemput berhasil.
+     * Contoh antar:
+     * *BUNGA MONA*
+     * -MW -ANTAR
+     * Blok A kamar 12 dekat pos satpam
+     *
+     * Contoh antar + sekalian jemput:
+     * *BUNGA MONA*
+     * -MW -ANTAR -JEMPUT
+     * Blok A kamar 12 dekat pos satpam
      */
     private function kurirNotifyDeliveryGroupRequestCreated(
         string $waNumber,
@@ -4187,10 +4192,24 @@ trait WARepliesKurirTrait
                 $kode = (string) ($idCabang > 0 ? $idCabang : '-');
             }
 
-            $text = "{$nama} - {$kode}\n*{$jenisLabel}*";
-            if ($isUpdate) {
-                $text .= "\n(update)";
+            $kode = mb_strtoupper($kode, 'UTF-8');
+            $jenisUpper = mb_strtoupper($jenisLabel, 'UTF-8');
+            if (!empty($session['sekalian_jemput'])) {
+                $jenisUpper = 'ANTAR -JEMPUT';
             }
+
+            $detail = trim((string) ($session['lokasi_detail'] ?? ''));
+            $lines = [
+                "*{$nama}*",
+                "-{$kode} -{$jenisUpper}",
+            ];
+            if ($detail !== '') {
+                $lines[] = $detail;
+            }
+            if ($isUpdate) {
+                $lines[] = '(update)';
+            }
+            $text = implode("\n", $lines);
 
             if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
                 require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';

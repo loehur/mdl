@@ -557,6 +557,9 @@ class Antrian extends Controller
 
    public function tuntasOrder($ref)
    {
+      if (!$this->refDeliverySelesaiUntukTuntas($ref)) {
+         return;
+      }
 
       $set = ['tuntas' => 1, 'tuntasTime' => $GLOBALS['now'] ?? date('Y-m-d H:i:s')];
       $where = $this->wCabang . " AND no_ref = " . $ref;

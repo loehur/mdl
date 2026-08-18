@@ -1671,60 +1671,28 @@ class J extends Controller
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
 
-      $nama = trim((string) ($_POST['nama'] ?? ''));
-      $detail = trim((string) ($_POST['detail'] ?? ''));
-      $latt = (float) ($_POST['latt'] ?? 0);
-      $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
-
-      if ($nama === '') {
-         echo json_encode(['ok' => false, 'message' => 'Nama lokasi wajib diisi']);
-         return;
-      }
-      if (strlen($nama) > 50) {
-         echo json_encode(['ok' => false, 'message' => 'Nama lokasi terlalu panjang']);
-         return;
-      }
-      if ($detail === '') {
-         echo json_encode(['ok' => false, 'message' => 'Detail alamat wajib diisi']);
-         return;
-      }
-      if (strlen($detail) > 255) {
-         echo json_encode(['ok' => false, 'message' => 'Detail alamat terlalu panjang']);
-         return;
-      }
-      if ($latt < -90 || $latt > 90 || $longt < -180 || $longt > 180 || ($latt == 0.0 && $longt == 0.0)) {
-         echo json_encode(['ok' => false, 'message' => 'Titik peta belum valid. Geser/klik peta dulu.']);
-         return;
-      }
-
-      $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
-      $ins = $this->db(0)->insert('pelanggan_lokasi', [
+      $this->helper('PelangganLokasiApi');
+      $res = PelangganLokasiApi::add([
          'id_pelanggan' => (int) $pelanggan,
-         'nama' => $nama,
-         'detail' => $detail,
-         'latt' => round($latt, 7),
-         'longt' => round($longt, 7),
-         'insertTime' => $now,
+         'nama' => trim((string) ($_POST['nama'] ?? '')),
+         'detail' => trim((string) ($_POST['detail'] ?? '')),
+         'latt' => (float) ($_POST['latt'] ?? 0),
+         'longt' => (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0)),
       ]);
-      if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-         echo json_encode(['ok' => false, 'message' => $ins['error'] ?? 'Gagal menyimpan lokasi']);
-         return;
-      }
-      $idLokasi = (int) ($ins['insert_id'] ?? 0);
-      if ($idLokasi <= 0) {
-         echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan lokasi']);
+      if (empty($res['ok'])) {
+         echo json_encode(['ok' => false, 'message' => $res['message'] ?? 'Gagal menyimpan lokasi']);
          return;
       }
 
       echo json_encode([
          'ok' => true,
          'message' => 'Lokasi ditambahkan',
-         'lokasi' => [
-            'id_lokasi' => $idLokasi,
-            'nama' => $nama,
-            'detail' => $detail,
-            'latt' => round($latt, 7),
-            'longt' => round($longt, 7),
+         'lokasi' => $res['lokasi'] ?? [
+            'id_lokasi' => (int) ($res['id_lokasi'] ?? 0),
+            'nama' => trim((string) ($_POST['nama'] ?? '')),
+            'detail' => trim((string) ($_POST['detail'] ?? '')),
+            'latt' => (float) ($res['latt'] ?? 0),
+            'longt' => (float) ($res['longt'] ?? 0),
          ],
          'list' => $this->listPelangganLokasi($pelanggan),
       ], JSON_UNESCAPED_UNICODE);
@@ -1742,63 +1710,29 @@ class J extends Controller
       $latt = (float) ($_POST['latt'] ?? 0);
       $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
 
-      if ($idLokasi <= 0) {
-         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak valid']);
-         return;
-      }
-      $row = $this->db(0)->get_where_row(
-         'pelanggan_lokasi',
-         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
-      );
-      if (!is_array($row) || empty($row['id_lokasi'])) {
-         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
-         return;
-      }
-      if ($nama === '') {
-         echo json_encode(['ok' => false, 'message' => 'Nama lokasi wajib diisi']);
-         return;
-      }
-      if (strlen($nama) > 50) {
-         echo json_encode(['ok' => false, 'message' => 'Nama lokasi terlalu panjang']);
-         return;
-      }
-      if ($detail === '') {
-         echo json_encode(['ok' => false, 'message' => 'Detail alamat wajib diisi']);
-         return;
-      }
-      if (strlen($detail) > 255) {
-         echo json_encode(['ok' => false, 'message' => 'Detail alamat terlalu panjang']);
-         return;
-      }
-      if ($latt < -90 || $latt > 90 || $longt < -180 || $longt > 180 || ($latt == 0.0 && $longt == 0.0)) {
-         echo json_encode(['ok' => false, 'message' => 'Titik peta belum valid. Geser/klik peta dulu.']);
-         return;
-      }
-
-      $upd = $this->db(0)->update(
-         'pelanggan_lokasi',
-         [
-            'nama' => $nama,
-            'detail' => $detail,
-            'latt' => round($latt, 7),
-            'longt' => round($longt, 7),
-         ],
-         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
-      );
-      if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
-         echo json_encode(['ok' => false, 'message' => $upd['error'] ?? 'Gagal mengubah lokasi']);
+      $this->helper('PelangganLokasiApi');
+      $res = PelangganLokasiApi::update([
+         'id_pelanggan' => (int) $pelanggan,
+         'id_lokasi' => $idLokasi,
+         'nama' => $nama,
+         'detail' => $detail,
+         'latt' => $latt,
+         'longt' => $longt,
+      ]);
+      if (empty($res['ok'])) {
+         echo json_encode(['ok' => false, 'message' => $res['message'] ?? 'Gagal mengubah lokasi']);
          return;
       }
 
       echo json_encode([
          'ok' => true,
          'message' => 'Lokasi diperbarui',
-         'lokasi' => [
+         'lokasi' => $res['lokasi'] ?? [
             'id_lokasi' => $idLokasi,
             'nama' => $nama,
             'detail' => $detail,
-            'latt' => round($latt, 7),
-            'longt' => round($longt, 7),
+            'latt' => (float) ($res['latt'] ?? $latt),
+            'longt' => (float) ($res['longt'] ?? $longt),
          ],
          'list' => $this->listPelangganLokasi($pelanggan),
       ], JSON_UNESCAPED_UNICODE);
@@ -1811,39 +1745,10 @@ class J extends Controller
       $pelanggan = $this->bootCustomer($pelanggan);
 
       $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
-      if ($idLokasi <= 0) {
-         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak valid']);
-         return;
-      }
-      $row = $this->db(0)->get_where_row(
-         'pelanggan_lokasi',
-         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
-      );
-      if (!is_array($row) || empty($row['id_lokasi'])) {
-         echo json_encode(['ok' => false, 'message' => 'Lokasi tidak ditemukan']);
-         return;
-      }
-
-      $aktif = (int) ($this->db(0)->count_where(
-         'delivery_request',
-         'id_pelanggan = ' . (int) $pelanggan
-            . ' AND id_lokasi = ' . $idLokasi
-            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
-      ) ?? 0);
-      if ($aktif > 0) {
-         echo json_encode([
-            'ok' => false,
-            'message' => 'Lokasi tidak bisa dihapus karena masih ada permintaan kurir aktif.',
-         ]);
-         return;
-      }
-
-      $del = $this->db(0)->delete(
-         'pelanggan_lokasi',
-         'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . (int) $pelanggan
-      );
-      if (is_array($del) && isset($del['errno']) && (int) $del['errno'] !== 0) {
-         echo json_encode(['ok' => false, 'message' => $del['error'] ?? 'Gagal menghapus lokasi']);
+      $this->helper('PelangganLokasiApi');
+      $res = PelangganLokasiApi::delete((int) $pelanggan, $idLokasi);
+      if (empty($res['ok'])) {
+         echo json_encode(['ok' => false, 'message' => $res['message'] ?? 'Gagal menghapus lokasi']);
          return;
       }
 
@@ -2673,12 +2578,17 @@ class J extends Controller
 
    private function listPelangganLokasi(int $pelanggan): array
    {
-      $rows = $this->db(0)->get_where(
-         'pelanggan_lokasi',
-         'id_pelanggan = ' . (int) $pelanggan . ' ORDER BY insertTime DESC, id_lokasi DESC'
-      );
-      if (!is_array($rows)) {
-         return [];
+      $this->helper('PelangganLokasiApi');
+      $api = PelangganLokasiApi::list($pelanggan);
+      $rows = [];
+      if (!empty($api['ok']) && is_array($api['items'] ?? null)) {
+         $rows = $api['items'];
+      } else {
+         $local = $this->db(0)->get_where(
+            'pelanggan_lokasi',
+            'id_pelanggan = ' . (int) $pelanggan . ' ORDER BY insertTime DESC, id_lokasi DESC'
+         );
+         $rows = is_array($local) ? $local : [];
       }
 
       $jemputBerjalan = [];
