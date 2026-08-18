@@ -649,6 +649,93 @@ class Operasi extends Controller
       echo json_encode(['status' => 'success', 'message' => 'Item berhasil dihapus.']);
    }
 
+   /**
+    * Hapus surcas Antar/Jemput dari nota Operasi.
+    * Syarat: belum tuntas, tidak terikat delivery_request, tidak overpay.
+    */
+   public function hapusSurcasKurir()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $idSurcas = (int) ($_POST['id_surcas'] ?? 0);
+      $note = trim((string) ($_POST['note'] ?? ''));
+      if ($idSurcas <= 0 || $note === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas dan alasan hapus wajib diisi.']);
+         return;
+      }
+
+      $this->helper('AntarTarif');
+      $jenisAntar = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
+      $jenisJemput = (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+
+      $sc = $this->db(0)->get_where_row('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+      if (!$sc || !is_array($sc)) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas tidak ditemukan.']);
+         return;
+      }
+
+      $jenisId = (int) ($sc['id_jenis_surcas'] ?? 0);
+      if ($jenisId !== $jenisAntar && $jenisId !== $jenisJemput) {
+         echo json_encode(['status' => 'error', 'message' => 'Hanya surcas Antar/Jemput yang dapat dihapus dari Operasi.']);
+         return;
+      }
+
+      if ((int) ($sc['id_delivery_request'] ?? 0) > 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas terikat delivery request — tidak dapat dihapus.']);
+         return;
+      }
+
+      $ref = trim((string) ($sc['no_ref'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Nota surcas tidak valid.']);
+         return;
+      }
+      $refEsc = $this->db(0)->escape($ref);
+
+      $sales = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
+      if (!is_array($sales) || empty($sales)) {
+         echo json_encode(['status' => 'error', 'message' => 'Nota tidak ditemukan atau sudah dihapus.']);
+         return;
+      }
+
+      $err = $this->validateOrderModifiable($sales[0]);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas tidak dapat dihapus karena order overpay.']);
+         return;
+      }
+
+      $newSubTotal = $this->getRefSubTotal($ref, [], [$idSurcas]);
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
+      }
+
+      try {
+         $this->db(0)->delete('surcas_item', 'id_surcas = ' . $idSurcas);
+      } catch (\Throwable $e) {
+         // tabel surcas_item opsional
+      }
+
+      $del = $this->db(0)->delete('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+      if (($del['errno'] ?? 1) != 0) {
+         $this->model('Log')->write("[Operasi::hapusSurcasKurir] Gagal hapus id=$idSurcas: " . ($del['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal menghapus surcas. Silakan coba lagi.']);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+      $this->model('Log')->write("[Operasi::hapusSurcasKurir] Surcas id=$idSurcas (jenis=$jenisId) dari nota $ref dihapus. Alasan: $note");
+      echo json_encode(['status' => 'success', 'message' => 'Surcas berhasil dihapus.']);
+   }
+
    public function bayarMulti($karyawan, $idPelanggan, $metode = 2, $note = "")
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];
@@ -1393,7 +1480,7 @@ class Operasi extends Controller
       return (int) round($total);
    }
 
-   private function getRefSubTotal($ref, $saleOverrides = [])
+   private function getRefSubTotal($ref, $saleOverrides = [], $excludeSurcasIds = [])
    {
       $refEsc = $this->db(0)->escape($ref);
       $sales = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
@@ -1404,6 +1491,14 @@ class Operasi extends Controller
       $normalizedOverrides = [];
       foreach ($saleOverrides as $oid => $override) {
          $normalizedOverrides[$this->normalizeSaleId($oid)] = $override;
+      }
+
+      $excludeSurcas = [];
+      foreach ($excludeSurcasIds as $sid) {
+         $sid = (int) $sid;
+         if ($sid > 0) {
+            $excludeSurcas[$sid] = true;
+         }
       }
 
       $subTotal = 0;
@@ -1418,6 +1513,10 @@ class Operasi extends Controller
       $surcasList = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref = '$refEsc'");
       if (is_array($surcasList)) {
          foreach ($surcasList as $sc) {
+            $sid = (int) ($sc['id_surcas'] ?? 0);
+            if ($sid > 0 && isset($excludeSurcas[$sid])) {
+               continue;
+            }
             $subTotal += (int) ($sc['jumlah'] ?? 0);
          }
       }

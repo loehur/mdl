@@ -667,8 +667,28 @@ $labeled = false;
                 }
                 $tglCas = "<b><i class='fas fa-check-circle text-success'></i> " . $userCas . "</b> Input <span style='white-space: pre;'>" . date('d/m H:i', strtotime($sca['insertTime'])) . "</span><br>";
               }
+
+              $boundDeliveryReq = (int) ($sca['id_delivery_request'] ?? 0) > 0;
+              $refTuntas = (int) ($first_item['tuntas'] ?? 0) !== 0;
+              $canHapusSurcasKurir = (
+                $jenisDlvCas !== ''
+                && !$boundDeliveryReq
+                && !$refIsOverpay
+                && !$refTuntas
+                && $modeView != 2
+              );
+              $btnHapusSurcas = '';
+              if ($canHapusSurcasKurir) {
+                $btnHapusSurcas = "<a href='#' class='hapusSurcasKurir text-danger'"
+                  . " data-id='" . (int) $id_surcas . "'"
+                  . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
+                  . " data-nama='" . htmlspecialchars((string) ($surcasNya ?? 'Surcas'), ENT_QUOTES, 'UTF-8') . "'"
+                  . " title='Hapus surcas " . htmlspecialchars($labelDlvCas ?? $jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
+                  . " role='button'><i class='fas fa-trash-alt'></i></a> ";
+              }
+
               echo "<tr>
-              <td></td>
+              <td>" . $btnHapusSurcas . "</td>
               <td>" . $surcasNya . "</td>
               <td>" . $tglCas . "</td>
               <td align='right'>" . number_format($jumlahCas) . "</td>
@@ -1295,6 +1315,35 @@ $labeled = false;
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-hapus-item>Batal</button>
       <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiHapusItem"><i class="fas fa-trash-alt"></i> Hapus item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal konfirmasi hapus surcas Antar/Jemput -->
+<div class="op-modal" id="modalHapusSurcasKurir" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close data-close-hapus-surcas></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="hapusSurcasModalTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h3 id="hapusSurcasModalTitle">Hapus surcas dari nota?</h3>
+        <small>Syarat: belum tuntas, tidak terikat delivery request, tidak overpay</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close data-close-hapus-surcas aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <p style="margin:0 0 12px;">Surcas <strong id="hapusSurcasNama"></strong> akan dihapus dari nota <strong id="hapusSurcasRef"></strong>.</p>
+      <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
+        <i class="fas fa-shield-alt"></i>
+        Total nota setelah hapus tidak boleh lebih kecil dari pembayaran Cek/Berhasil.
+      </div>
+      <div class="op-field">
+        <label class="op-label" for="hapusSurcasNote">Alasan hapus <span style="color:#dc2626;">*</span></label>
+        <input type="text" id="hapusSurcasNote" class="op-input" autocomplete="off" maxlength="255" placeholder="Contoh: salah input surcas antar">
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-hapus-surcas>Batal</button>
+      <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiHapusSurcas"><i class="fas fa-trash-alt"></i> Hapus surcas</button>
     </div>
   </div>
 </div>

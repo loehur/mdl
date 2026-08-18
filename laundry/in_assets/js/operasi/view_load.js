@@ -1451,6 +1451,87 @@
   });
   // --- Akhir hapus satu item dari nota ---
 
+  function tutupModalHapusSurcas() {
+    if (window.OpModal) window.OpModal.close('modalHapusSurcasKurir');
+    else $('#modalHapusSurcasKurir').removeClass('is-open').attr('aria-hidden', 'true');
+  }
+
+  function bukaModalHapusSurcas(id, ref, nama) {
+    var $modal = $('#modalHapusSurcasKurir');
+    if ($modal.length === 0) {
+      console.error('Modal #modalHapusSurcasKurir tidak ditemukan!');
+      return;
+    }
+    $('#hapusSurcasNama').text(nama || ('S' + id));
+    $('#hapusSurcasRef').text('#' + ref);
+    $('#hapusSurcasNote').val('').css('border-color', '');
+    $('#btnKonfirmasiHapusSurcas').attr('data-id', id);
+    if (window.OpModal) window.OpModal.open('modalHapusSurcasKurir', { static: true });
+    else $modal.addClass('is-open').attr('aria-hidden', 'false');
+    setTimeout(function () { $('#hapusSurcasNote').focus(); }, 100);
+  }
+
+  $(document).on('click', '.hapusSurcasKurir', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var $button = $(this);
+    bukaModalHapusSurcas(
+      $button.attr('data-id'),
+      $button.attr('data-ref'),
+      $button.attr('data-nama')
+    );
+  });
+
+  $(document).on('click', '[data-close-hapus-surcas]', function (e) {
+    e.preventDefault();
+    tutupModalHapusSurcas();
+  });
+
+  $(document).on('click', '#btnKonfirmasiHapusSurcas', function () {
+    var $button = $(this);
+    var id = $button.attr('data-id');
+    var note = $('#hapusSurcasNote').val().trim();
+    if (!id) {
+      alert('Surcas tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+      return;
+    }
+    if (!note) {
+      $('#hapusSurcasNote').css('border-color', '#dc2626').focus();
+      return;
+    }
+
+    var original = $button.html();
+    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menghapus...');
+    $.ajax({
+      url: BASE_URL + 'Operasi/hapusSurcasKurir',
+      method: 'POST',
+      dataType: 'json',
+      data: { id_surcas: id, note: note },
+      success: function (response) {
+        if (response && response.status === 'success') {
+          tutupModalHapusSurcas();
+          loadDiv();
+          return;
+        }
+        alert((response && response.message) || 'Surcas tidak dapat dihapus.');
+      },
+      error: function (xhr) {
+        var msg = 'Gagal menghapus surcas. Periksa koneksi lalu coba lagi.';
+        try {
+          var parsed = JSON.parse(xhr.responseText);
+          if (parsed && parsed.message) {
+            msg = parsed.message;
+          }
+        } catch (err) { }
+        alert(msg);
+      },
+      complete: function () {
+        $button.prop('disabled', false).html(original);
+      }
+    });
+  });
+  // --- Akhir hapus surcas Antar/Jemput ---
+
   $("a.ambil").on("click", function (e) {
     e.preventDefault();
     window.idNya = $(this).attr("data-id");
