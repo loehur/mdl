@@ -630,14 +630,42 @@ $labeled = false;
                 }
               }
 
-              $userCas = "?";
-              if (isset($this->userAll[$sca['id_user']]['nama_user'])) {
-                $userCas = $this->userAll[$sca['id_user']]['nama_user'];
-              }
-
               $id_surcas = $sca['id_surcas'];
               $jumlahCas = $sca['jumlah'];
-              $tglCas = "<b><i class='fas fa-check-circle text-success'></i> " . $userCas . "</b> Input <span style='white-space: pre;'>" . date('d/m H:i', strtotime($sca['insertTime'])) . "</span><br>";
+              $jidCas = (int) ($sca['id_jenis_surcas'] ?? 0);
+              $jenisDlvCas = $jidCas === 3 ? 'jemput' : ($jidCas === 2 ? 'antar' : '');
+
+              if ($jenisDlvCas !== '') {
+                $doneCas = null;
+                if (isset($data['delivery_done'][$ref][$jenisDlvCas]) && is_array($data['delivery_done'][$ref][$jenisDlvCas])) {
+                  $doneCas = $data['delivery_done'][$ref][$jenisDlvCas];
+                } elseif (isset($data['delivery_done'][(string) $ref][$jenisDlvCas]) && is_array($data['delivery_done'][(string) $ref][$jenisDlvCas])) {
+                  $doneCas = $data['delivery_done'][(string) $ref][$jenisDlvCas];
+                }
+                $doneIdsCas = (is_array($doneCas) && isset($doneCas['ids']) && is_array($doneCas['ids'])) ? $doneCas['ids'] : [];
+                $allDlvDone = ($countItem[$ref] ?? 0) > 0 && count($doneIdsCas) >= (int) $countItem[$ref];
+                $labelDlvCas = $jenisDlvCas === 'jemput' ? 'Jemput' : 'Antar';
+                if ($allDlvDone) {
+                  $namaDlvCas = htmlspecialchars((string) ($doneCas['nama'] ?? 'Crew'), ENT_QUOTES, 'UTF-8');
+                  $timeDlvCas = (string) ($doneCas['time'] ?? '');
+                  $timeShowCas = $timeDlvCas !== '' ? date('d/m H:i', strtotime($timeDlvCas)) : '';
+                  $tglCas = "<b><i class='fas fa-check-circle text-success'></i> " . $namaDlvCas . "</b> " . $labelDlvCas
+                    . ($timeShowCas !== '' ? " <span style='white-space: pre;'>" . $timeShowCas . "</span>" : '')
+                    . "<br>";
+                } else {
+                  $tglCas = "<a href='#' class='selesaiKurirSurcas text-dark'"
+                    . " data-jenis='" . htmlspecialchars($jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
+                    . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
+                    . " data-jumlah='" . htmlspecialchars((string) $jumlahCas, ENT_QUOTES, 'UTF-8') . "'"
+                    . "><i class='far fa-circle'></i> " . $labelDlvCas . "</a><br>";
+                }
+              } else {
+                $userCas = "?";
+                if (isset($this->userAll[$sca['id_user']]['nama_user'])) {
+                  $userCas = $this->userAll[$sca['id_user']]['nama_user'];
+                }
+                $tglCas = "<b><i class='fas fa-check-circle text-success'></i> " . $userCas . "</b> Input <span style='white-space: pre;'>" . date('d/m H:i', strtotime($sca['insertTime'])) . "</span><br>";
+              }
               echo "<tr>
               <td></td>
               <td>" . $surcasNya . "</td>
@@ -1302,6 +1330,18 @@ $labeled = false;
           if (target && window.OpModal) {
               window.OpModal.open(target.replace(/^#/, ''));
           }
+      });
+      $(document).off('click.selesaiKurirSurcas').on('click.selesaiKurirSurcas', 'a.selesaiKurirSurcas', function(e) {
+          e.preventDefault();
+          if (typeof window.openKurirDelivery !== 'function') {
+              if (window.MdlToast) MdlToast.warn('Panel Kurir belum siap');
+              return;
+          }
+          window.openKurirDelivery(
+              $(this).attr('data-jenis') || '',
+              $(this).attr('data-ref') || '',
+              $(this).attr('data-jumlah')
+          );
       });
   });
 </script>

@@ -2087,6 +2087,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var kurirSelectize = null;
   var kurirPengisiSelectize = null;
   var tarifLoading = false;
+  var prefillNoRef = '';
+  var prefillJumlah = '';
+  var forceComplete = false;
 
   function currentPelanggan() {
     var fromRoot = parseInt(root.getAttribute('data-id-pelanggan') || '0', 10) || 0;
@@ -2210,9 +2213,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         : 'Item Jemput (wajib — surcas ke nota)';
     }
     if (karyLabel) {
-      karyLabel.textContent = (isJemput || isCombo)
-        ? 'Penyelesai Jemput (wajib)'
-        : 'Penyelesai Antar (opsional)';
+      karyLabel.textContent = forceComplete
+        ? 'Penyelesai (wajib)'
+        : ((isJemput || isCombo)
+          ? 'Penyelesai Jemput (wajib)'
+          : 'Penyelesai Antar (opsional)');
     }
 
     loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
@@ -2226,7 +2231,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var wrap = document.getElementById('kurirLangsungAntarWrap');
     var cb = document.getElementById('kurirLangsungAntar');
     if (!wrap || !cb) return;
-    var show = jenis === 'antar' || jenis === 'jemput_antar';
+    var show = !forceComplete && (jenis === 'antar' || jenis === 'jemput_antar');
     var wasHidden = wrap.hidden;
     wrap.hidden = !show;
     var ignore = jenis === 'antar' && currentPenyelesai() > 0;
@@ -2240,6 +2245,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   /** true = pending (parkir); false = langsung ke board / selesai */
   function wantPendingAntar() {
+    if (forceComplete) return false;
     var cb = document.getElementById('kurirLangsungAntar');
     if (!cb || cb.disabled) return false;
     // Tidak dicentang = pending
@@ -2258,6 +2264,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
     if (jenis === 'jemput') {
       lab.textContent = 'Selesai Jemput';
+      return;
+    }
+    if (forceComplete) {
+      lab.textContent = 'Selesai Sekarang';
       return;
     }
     var checked = root.querySelectorAll('input[name="kurir_ids"]:checked');
@@ -2400,8 +2410,31 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         syncSurcasLock();
       });
     });
+    applyPrefillRef();
     syncSubmitLabel();
     syncSurcasLock();
+  }
+
+  function applyPrefillRef() {
+    if (!prefillNoRef) return;
+    var want = String(prefillNoRef);
+    root.querySelectorAll('.kurir-group').forEach(function (g) {
+      var match = String(g.getAttribute('data-no-ref') || '') === want;
+      g.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
+        cb.checked = match && !cb.disabled;
+      });
+    });
+    if (prefillJumlah !== '' && prefillJumlah != null) {
+      var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+      if (jenis === 'jemput' || jenis === 'jemput_antar') {
+        var jIn = document.getElementById('kurirSurcasJemput');
+        if (jIn && !jIn.readOnly) jIn.value = String(prefillJumlah);
+      }
+      if (jenis === 'antar' || jenis === 'jemput_antar') {
+        var aIn = document.getElementById('kurirSurcasAntar');
+        if (aIn && !aIn.readOnly) aIn.value = String(prefillJumlah);
+      }
+    }
   }
 
   function loadSales(jenis) {
@@ -2462,6 +2495,13 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     initSelectize();
     syncSubmitLabel();
   });
+  root.addEventListener('hidden.bs.offcanvas', function () {
+    prefillNoRef = '';
+    prefillJumlah = '';
+    forceComplete = false;
+    var sel = document.getElementById('kurirJenis');
+    if (sel) sel.disabled = false;
+  });
 
   var jenisEl = root.querySelector('#kurirJenis');
   if (jenisEl) jenisEl.addEventListener('change', syncJenisUi);
@@ -2491,6 +2531,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var idPengisiSurcas = currentPengisiSurcas();
     if (idPengisiSurcas <= 0) {
       toast('Wajib pilih pengisi surcas', 'warn');
+      return;
+    }
+    if (forceComplete && idKaryawan <= 0) {
+      toast('Wajib pilih penyelesai', 'warn');
       return;
     }
 
@@ -2582,5 +2626,25 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       .catch(function () { toast('Gagal menyimpan', 'error'); })
       .finally(function () { btn.disabled = false; });
   });
+
+  window.openKurirDelivery = function (jenis, noRef, jumlah) {
+    jenis = String(jenis || '').toLowerCase();
+    if (jenis !== 'jemput' && jenis !== 'antar') {
+      toast('Jenis delivery tidak valid', 'warn');
+      return;
+    }
+    forceComplete = true;
+    prefillNoRef = String(noRef || '');
+    prefillJumlah = (jumlah === 0 || jumlah) ? String(jumlah) : '';
+    var sel = document.getElementById('kurirJenis');
+    if (sel) {
+      sel.value = jenis;
+      sel.disabled = true;
+    }
+    syncJenisUi();
+    if (window.bootstrap && bootstrap.Offcanvas) {
+      bootstrap.Offcanvas.getOrCreateInstance(root).show();
+    }
+  };
 })();
 </script>

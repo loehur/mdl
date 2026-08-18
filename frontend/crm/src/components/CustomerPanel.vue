@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -16,13 +16,37 @@ const lokasiItems = ref([]);
 const lokasiLoading = ref(false);
 const lokasiError = ref("");
 const savingLokasi = ref(false);
+const deletingLokasi = ref(false);
 const resolvingMaps = ref(false);
+const formIdLokasi = ref(0);
 const formNama = ref("");
 const formDetail = ref("");
 const formGmaps = ref("");
 const formLatt = ref(null);
 const formLongt = ref(null);
 const formMsg = ref("");
+const deleteTarget = ref(null);
+const deleteMsg = ref("");
+const deliveryJenis = ref("");
+const deliveryLokasiId = ref(0);
+const deliveryFormMsg = ref("");
+const deliveryResultMsg = ref("");
+const deliveryResultOk = ref(false);
+const submittingDelivery = ref(false);
+
+const deliveryJenisOptions = [
+  { id: "jemput", label: "Jemput" },
+  { id: "antar", label: "Antar" },
+  { id: "antar_jemput", label: "Antar & Jemput" },
+];
+
+const isEditLokasi = computed(() => formIdLokasi.value > 0);
+const canSaveLokasi = computed(() => {
+  if (savingLokasi.value) return false;
+  if (!formNama.value.trim() || !formDetail.value.trim()) return false;
+  if (isEditLokasi.value) return formLatt.value != null && formLongt.value != null;
+  return !!(formGmaps.value.trim() || (formLatt.value != null && formLongt.value != null));
+});
 
 const custId = computed(() => Number(props.conversation?.cust_id) || 0);
 
@@ -155,6 +179,7 @@ const onPartnerToggle = async (e) => {
 };
 
 const resetAddLokasiForm = () => {
+  formIdLokasi.value = 0;
   formNama.value = "";
   formDetail.value = "";
   formGmaps.value = "";
@@ -172,6 +197,81 @@ const openAddLokasi = () => {
   if (!custId.value) return;
   resetAddLokasiForm();
   showAddLokasiModal.value = true;
+};
+
+const openEditLokasi = (loc) => {
+  if (!custId.value || !loc?.id_lokasi) return;
+  resetAddLokasiForm();
+  formIdLokasi.value = Number(loc.id_lokasi) || 0;
+  formNama.value = loc.nama || "";
+  formDetail.value = loc.detail || "";
+  formLatt.value = loc.latt != null ? loc.latt : null;
+  formLongt.value = loc.longt != null ? loc.longt : null;
+  showAddLokasiModal.value = true;
+};
+
+const closeDeleteLokasi = () => {
+  showDeleteLokasiModal.value = false;
+  deleteTarget.value = null;
+  deleteMsg.value = "";
+};
+
+const openDeleteLokasi = (loc) => {
+  if (!custId.value || !loc?.id_lokasi) return;
+  deleteMsg.value = "";
+  deleteTarget.value = loc;
+  showDeleteLokasiModal.value = true;
+};
+
+const resetDeliveryForm = () => {
+  deliveryJenis.value = "";
+  deliveryLokasiId.value = 0;
+  deliveryFormMsg.value = "";
+};
+
+const closeDeliveryRequest = () => {
+  showDeliveryRequestModal.value = false;
+  resetDeliveryForm();
+};
+
+const openDeliveryRequest = () => {
+  if (!custId.value) return;
+  resetDeliveryForm();
+  deliveryResultMsg.value = "";
+  deliveryResultOk.value = false;
+  if (custId.value && !lokasiItems.value.length && !lokasiLoading.value) {
+    loadLokasi();
+  }
+  showDeliveryRequestModal.value = true;
+};
+
+const submitDeliveryRequest = async () => {
+  if (!custId.value || !deliveryJenis.value || !deliveryLokasiId.value || submittingDelivery.value) return;
+  submittingDelivery.value = true;
+  deliveryFormMsg.value = "";
+  try {
+    const res = await fetch(`${props.apiBase}/Laundry/DeliveryRequest/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cust_id: custId.value,
+        jenis: deliveryJenis.value,
+        id_lokasi: deliveryLokasiId.value,
+        wa_number: props.conversation?.wa_number || "",
+      }),
+    }).then((r) => r.json());
+    if (!res?.ok && !res?.status) {
+      deliveryFormMsg.value = res?.message || "Gagal membuat permintaan";
+      return;
+    }
+    deliveryResultOk.value = true;
+    deliveryResultMsg.value = res?.message || "Permintaan terkirim.";
+    closeDeliveryRequest();
+  } catch (_) {
+    deliveryFormMsg.value = "Gagal membuat permintaan";
+  } finally {
+    submittingDelivery.value = false;
+  }
 };
 
 const loadLokasi = async () => {
@@ -203,8 +303,10 @@ const loadLokasi = async () => {
 const resolveGmaps = async () => {
   const url = formGmaps.value.trim();
   if (!url) {
-    formLatt.value = null;
-    formLongt.value = null;
+    if (!isEditLokasi.value) {
+      formLatt.value = null;
+      formLongt.value = null;
+    }
     return;
   }
   resolvingMaps.value = true;
@@ -216,8 +318,10 @@ const resolveGmaps = async () => {
       body: JSON.stringify({ url }),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {
-      formLatt.value = null;
-      formLongt.value = null;
+      if (!isEditLokasi.value) {
+        formLatt.value = null;
+        formLongt.value = null;
+      }
       formMsg.value = res?.message || "Gagal membaca koordinat dari URL";
       return;
     }
@@ -230,32 +334,46 @@ const resolveGmaps = async () => {
   }
 };
 
+const applyLokasiItems = (res) => {
+  if (Array.isArray(res?.items)) {
+    lokasiItems.value = res.items;
+    return;
+  }
+  return loadLokasi();
+};
+
 const saveLokasi = async () => {
-  if (!custId.value || savingLokasi.value) return;
+  if (!custId.value || !canSaveLokasi.value) return;
   savingLokasi.value = true;
   formMsg.value = "";
   try {
-    const res = await fetch(`${props.apiBase}/Laundry/PelangganLokasi/add`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cust_id: custId.value,
-        nama: formNama.value.trim(),
-        detail: formDetail.value.trim(),
-        gmaps_url: formGmaps.value.trim(),
-        latt: formLatt.value,
-        longt: formLongt.value,
-      }),
-    }).then((r) => r.json());
+    const isEdit = isEditLokasi.value;
+    const payload = {
+      cust_id: custId.value,
+      nama: formNama.value.trim(),
+      detail: formDetail.value.trim(),
+    };
+    const gmaps = formGmaps.value.trim();
+    if (gmaps) payload.gmaps_url = gmaps;
+    if (formLatt.value != null && formLongt.value != null) {
+      payload.latt = formLatt.value;
+      payload.longt = formLongt.value;
+    }
+    if (isEdit) payload.id_lokasi = formIdLokasi.value;
+
+    const res = await fetch(
+      `${props.apiBase}/Laundry/PelangganLokasi/${isEdit ? "update" : "add"}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    ).then((r) => r.json());
     if (!res?.ok && !res?.status) {
       formMsg.value = res?.message || "Gagal menyimpan lokasi";
       return;
     }
-    if (Array.isArray(res.items)) {
-      lokasiItems.value = res.items;
-    } else {
-      await loadLokasi();
-    }
+    await applyLokasiItems(res);
     closeAddLokasi();
   } catch (_) {
     formMsg.value = "Gagal menyimpan lokasi";
@@ -264,10 +382,47 @@ const saveLokasi = async () => {
   }
 };
 
+const confirmDeleteLokasi = async () => {
+  const loc = deleteTarget.value;
+  if (!custId.value || !loc?.id_lokasi || deletingLokasi.value) return;
+  deletingLokasi.value = true;
+  deleteMsg.value = "";
+  try {
+    const res = await fetch(`${props.apiBase}/Laundry/PelangganLokasi/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cust_id: custId.value,
+        id_lokasi: loc.id_lokasi,
+      }),
+    }).then((r) => r.json());
+    if (!res?.ok && !res?.status) {
+      deleteMsg.value = res?.message || "Gagal menghapus lokasi";
+      return;
+    }
+    await applyLokasiItems(res);
+    closeDeleteLokasi();
+  } catch (_) {
+    deleteMsg.value = "Gagal menghapus lokasi";
+  } finally {
+    deletingLokasi.value = false;
+  }
+};
+
 const onKeydown = (e) => {
   if (e.key !== "Escape") return;
+  if (showDeleteLokasiModal.value) {
+    closeDeleteLokasi();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showAddLokasiModal.value) {
     closeAddLokasi();
+    e.stopImmediatePropagation();
+    return;
+  }
+  if (showDeliveryRequestModal.value) {
+    closeDeliveryRequest();
     e.stopImmediatePropagation();
     return;
   }
@@ -281,6 +436,10 @@ watch(
   () => {
     copiedPhone.value = false;
     closeAddLokasi();
+    closeDeleteLokasi();
+    closeDeliveryRequest();
+    deliveryResultMsg.value = "";
+    deliveryResultOk.value = false;
   }
 );
 
@@ -288,11 +447,24 @@ watch(showAddLokasiModal, (open) => {
   if (!open) resetAddLokasiForm();
 });
 
+watch(showDeleteLokasiModal, (open) => {
+  if (!open) {
+    deleteTarget.value = null;
+    deleteMsg.value = "";
+  }
+});
+
+watch(showDeliveryRequestModal, (open) => {
+  if (!open) resetDeliveryForm();
+});
+
 watch(
   [() => showCustomerPanel.value, custId],
   ([open, id]) => {
     if (!open) {
       closeAddLokasi();
+      closeDeleteLokasi();
+      closeDeliveryRequest();
       lokasiItems.value = [];
       lokasiError.value = "";
       return;
@@ -386,6 +558,27 @@ onUnmounted(() => {
         </section>
 
         <section>
+          <button
+            type="button"
+            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="!custId"
+            @click="openDeliveryRequest"
+          >
+            Buat Delivery Request
+          </button>
+          <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+            Customer belum terhubung ke data laundry.
+          </p>
+          <p
+            v-else-if="deliveryResultMsg"
+            class="text-xs mt-2"
+            :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ deliveryResultMsg }}
+          </p>
+        </section>
+
+        <section>
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Lokasi</h3>
             <button
@@ -425,6 +618,22 @@ onUnmounted(() => {
                 </a>
               </div>
               <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 break-words">{{ loc.detail }}</p>
+              <div class="flex items-center gap-3 mt-2">
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-[var(--wa-accent-green)]"
+                  @click="openEditLokasi(loc)"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-red-400"
+                  @click="openDeleteLokasi(loc)"
+                >
+                  Hapus
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -444,7 +653,9 @@ onUnmounted(() => {
         @click.stop
       >
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Tambah Lokasi</h3>
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">
+            {{ isEditLokasi ? "Edit Lokasi" : "Tambah Lokasi" }}
+          </h3>
           <button
             type="button"
             class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
@@ -490,6 +701,9 @@ onUnmounted(() => {
             <p v-else-if="formLatt != null && formLongt != null" class="text-[11px] text-[var(--wa-accent-green)] mt-1 font-mono">
               {{ formLatt }}, {{ formLongt }}
             </p>
+            <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+              {{ isEditLokasi ? "Isi ulang URL hanya jika ingin mengubah titik." : "Wajib. Koordinat diambil dari URL." }}
+            </p>
           </div>
           <p v-if="formMsg" class="text-xs text-red-400">{{ formMsg }}</p>
           <div class="flex gap-2 pt-1">
@@ -503,12 +717,133 @@ onUnmounted(() => {
             <button
               type="button"
               class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-50"
-              :disabled="savingLokasi || !formNama.trim() || !formDetail.trim() || (!formGmaps.trim() && formLatt == null)"
+              :disabled="!canSaveLokasi"
               @click="saveLokasi"
             >
               {{ savingLokasi ? "Menyimpan…" : "Simpan" }}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="showDeleteLokasiModal"
+      class="fixed inset-0 z-[710] flex items-center justify-center p-4"
+      @click="closeDeleteLokasi"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Hapus Lokasi</h3>
+        <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+          Hapus lokasi
+          <span class="text-[var(--wa-text-primary)] font-medium">{{ deleteTarget?.nama || "" }}</span>?
+        </p>
+        <p v-if="deleteMsg" class="text-xs text-red-400 mt-2">{{ deleteMsg }}</p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            @click="closeDeleteLokasi"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
+            :disabled="deletingLokasi"
+            @click="confirmDeleteLokasi"
+          >
+            {{ deletingLokasi ? "Menghapus…" : "Hapus" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="showDeliveryRequestModal"
+      class="fixed inset-0 z-[700] flex items-center justify-center p-4"
+      @click="closeDeliveryRequest"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5 max-h-[90vh] overflow-y-auto"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Buat Delivery Request</h3>
+          <button
+            type="button"
+            class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
+            @click="closeDeliveryRequest"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Jenis</p>
+        <div class="grid grid-cols-1 gap-2 mb-4">
+          <button
+            v-for="opt in deliveryJenisOptions"
+            :key="opt.id"
+            type="button"
+            class="w-full py-2.5 rounded-xl text-sm font-bold border"
+            :class="deliveryJenis === opt.id
+              ? 'bg-[var(--wa-accent-green)] text-black border-transparent'
+              : 'bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border-[var(--wa-border)]'"
+            @click="deliveryJenis = opt.id"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+
+        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Lokasi</p>
+        <p v-if="lokasiLoading" class="text-xs text-[var(--wa-text-tertiary)] mb-3">Memuat lokasi…</p>
+        <p v-else-if="!lokasiItems.length" class="text-xs text-[var(--wa-text-tertiary)] mb-3">
+          Belum ada lokasi. Tambah lokasi dulu di Customer Panel.
+        </p>
+        <div v-else class="space-y-2 mb-3 max-h-48 overflow-y-auto">
+          <button
+            v-for="loc in lokasiItems"
+            :key="'dr-' + loc.id_lokasi"
+            type="button"
+            class="w-full text-left rounded-xl p-3 border"
+            :class="deliveryLokasiId === loc.id_lokasi
+              ? 'border-[var(--wa-accent-green)] bg-[var(--wa-bg-secondary)]'
+              : 'border-[var(--wa-border)] bg-[var(--wa-bg-secondary)]'"
+            @click="deliveryLokasiId = loc.id_lokasi"
+          >
+            <p class="text-sm font-medium text-[var(--wa-text-primary)] truncate">{{ loc.nama }}</p>
+            <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 break-words">{{ loc.detail }}</p>
+          </button>
+        </div>
+
+        <p v-if="deliveryFormMsg" class="text-xs text-red-400 mb-3">{{ deliveryFormMsg }}</p>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            @click="closeDeliveryRequest"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-black disabled:opacity-50"
+            :disabled="submittingDelivery || !deliveryJenis || !deliveryLokasiId"
+            @click="submitDeliveryRequest"
+          >
+            {{ submittingDelivery ? "Mengirim…" : "Kirim" }}
+          </button>
         </div>
       </div>
     </div>

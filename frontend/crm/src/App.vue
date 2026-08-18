@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4487,9 +4487,19 @@ onMounted(() => {
       return 'settings_closed';
     }
 
+    if (showDeleteLokasiModal.value) {
+      showDeleteLokasiModal.value = false;
+      return 'delete_lokasi_closed';
+    }
+
     if (showAddLokasiModal.value) {
       showAddLokasiModal.value = false;
       return 'add_lokasi_closed';
+    }
+
+    if (showDeliveryRequestModal.value) {
+      showDeliveryRequestModal.value = false;
+      return 'delivery_request_closed';
     }
 
     if (showCustomerPanel.value) {
@@ -4849,9 +4859,19 @@ function handleBackButtonPress() {
     return "settings_closed";
   }
 
+  if (showDeleteLokasiModal.value) {
+    showDeleteLokasiModal.value = false;
+    return "delete_lokasi_closed";
+  }
+
   if (showAddLokasiModal.value) {
     showAddLokasiModal.value = false;
     return "add_lokasi_closed";
+  }
+
+  if (showDeliveryRequestModal.value) {
+    showDeliveryRequestModal.value = false;
+    return "delivery_request_closed";
   }
 
   if (showCustomerPanel.value) {

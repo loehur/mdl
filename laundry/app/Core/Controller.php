@@ -158,6 +158,120 @@ class Controller extends URL
     }
 
     /**
+     * Cek ulang di server: ref boleh dituntaskan hanya jika semua item cabang ini
+     * lunas, layanan terakhir selesai, sudah diambil, dan delivery jemput/antar selesai.
+     */
+    protected function refEligibleTuntas($ref): bool
+    {
+        $ref = trim((string) $ref);
+        if ($ref === '') {
+            return false;
+        }
+
+        $db = $this->db(0);
+        $refSql = "'" . $db->escape($ref) . "'";
+        $sales = $db->get_where('sale', $this->wCabang . " AND no_ref = $refSql AND bin = 0");
+        if (!is_array($sales) || $sales === []) {
+            $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: sale tidak ada");
+            return false;
+        }
+
+        $pending = 0;
+        $saleIds = [];
+        $subTotal = 0;
+        foreach ($sales as $s) {
+            $sid = (int) ($s['id_penjualan'] ?? 0);
+            if ($sid <= 0) {
+                $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: id_penjualan tidak valid");
+                return false;
+            }
+            $saleIds[$sid] = $sid;
+            if ((int) ($s['tuntas'] ?? 0) === 0) {
+                $pending++;
+            }
+            if ((int) ($s['id_user_ambil'] ?? 0) <= 0) {
+                $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: item #$sid belum ambil");
+                return false;
+            }
+            $subTotal += $this->saleItemSubtotal($s);
+        }
+        if ($pending < 1) {
+            return false;
+        }
+
+        $idsIn = implode(',', $saleIds);
+        $ops = $db->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($idsIn)");
+        $opsMap = [];
+        foreach ((array) $ops as $o) {
+            $oid = (int) ($o['id_penjualan'] ?? 0);
+            $jenis = (string) ($o['jenis_operasi'] ?? '');
+            if ($oid > 0 && $jenis !== '') {
+                $opsMap[$oid][$jenis] = true;
+            }
+        }
+        foreach ($sales as $s) {
+            $sid = (int) ($s['id_penjualan'] ?? 0);
+            $list = @unserialize($s['list_layanan'] ?? '', ['allowed_classes' => false]);
+            if (!is_array($list) || $list === []) {
+                $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: item #$sid list_layanan tidak valid");
+                return false;
+            }
+            $endLayanan = (string) end($list);
+            if ($endLayanan === '' || empty($opsMap[$sid][$endLayanan])) {
+                $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: item #$sid layanan terakhir belum selesai");
+                return false;
+            }
+        }
+
+        $surcas = $db->get_where('surcas', $this->wCabang . " AND no_ref = $refSql");
+        foreach ((array) $surcas as $sc) {
+            $subTotal += (int) ($sc['jumlah'] ?? 0);
+        }
+
+        $kas = $db->get_where(
+            'kas',
+            $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = $refSql"
+        );
+        $totalBayar = 0;
+        foreach ((array) $kas as $ka) {
+            if ((int) ($ka['status_mutasi'] ?? 0) === 3) {
+                $totalBayar += (int) ($ka['jumlah'] ?? 0);
+            }
+        }
+        if (((int) round($subTotal) - $totalBayar) >= 1) {
+            $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: belum lunas");
+            return false;
+        }
+
+        if (!$this->refDeliverySelesaiUntukTuntas($ref)) {
+            $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: delivery jemput/antar belum selesai");
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function saleItemSubtotal(array $sale): int
+    {
+        if ((int) ($sale['member'] ?? 0) !== 0) {
+            return 0;
+        }
+        $qty = round((float) ($sale['qty'] ?? 0), 2);
+        $minOrder = round((float) ($sale['min_order'] ?? 0), 2);
+        $qtyReal = ($qty < $minOrder) ? $minOrder : $qty;
+        $total = (float) ($sale['harga'] ?? 0) * $qtyReal;
+        $diskonQty = (float) ($sale['diskon_qty'] ?? 0);
+        $diskonPartner = (float) ($sale['diskon_partner'] ?? 0);
+        if ($diskonQty > 0) {
+            $total -= $total * ($diskonQty / 100);
+        }
+        if ($diskonPartner > 0) {
+            $total -= $total * ($diskonPartner / 100);
+        }
+        return (int) round($total);
+    }
+
+    /**
      * Ada surcas jemput (3) / antar (2)? Delivery jenis itu harus sudah selesai
      * (riwayat ada, request tidak masih berjalan) sebelum ref boleh dituntaskan.
      */

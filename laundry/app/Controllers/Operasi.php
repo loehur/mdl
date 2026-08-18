@@ -76,6 +76,8 @@ class Operasi extends Controller
       // Batch queries for sale-related data
       $operasi = $notifSelesai = $kas = $notifBon = $surcas = [];
       $delivery_badge = [];
+      $delivery_done = [];
+      $deliveryRows = [];
       if (!empty($sale_ids)) {
          $ids_in = "'" . implode("','", $sale_ids) . "'";
          $operasi = $this->db(0)->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($ids_in)");
@@ -108,6 +110,43 @@ class Operasi extends Controller
                $delivery_badge[$sid] = 'J';
             } elseif ($hasA) {
                $delivery_badge[$sid] = 'A';
+            }
+         }
+      }
+      if (!empty($sale_ids) && !empty($deliveryRows)) {
+         $saleIdToRef = [];
+         foreach ($data_main2 as $key_ref => $dm_group) {
+            foreach ((array) $dm_group as $dm) {
+               $saleIdToRef[(string) ($dm['id_penjualan'] ?? '')] = (string) $key_ref;
+            }
+         }
+         foreach ((array) $deliveryRows as $dr) {
+            $sid = (string) ($dr['id_penjualan'] ?? '');
+            $jenis = strtolower((string) ($dr['jenis'] ?? ''));
+            if ($sid === '' || !in_array($jenis, ['jemput', 'antar'], true)) {
+               continue;
+            }
+            $refKey = $saleIdToRef[$sid] ?? (string) ($dr['no_ref'] ?? '');
+            if ($refKey === '') {
+               continue;
+            }
+            $time = (string) ($dr['insertTime'] ?? '');
+            $nama = strtoupper(trim((string) ($dr['nama_karyawan'] ?? '')));
+            if ($nama === '') {
+               $idKar = (int) ($dr['id_karyawan'] ?? $dr['id_user'] ?? 0);
+               $nama = $idKar > 0 ? ('#' . $idKar) : 'Crew';
+            }
+            if (!isset($delivery_done[$refKey][$jenis])) {
+               $delivery_done[$refKey][$jenis] = [
+                  'nama' => $nama,
+                  'time' => $time,
+                  'ids' => [],
+               ];
+            }
+            $delivery_done[$refKey][$jenis]['ids'][$sid] = true;
+            if (strcmp($time, (string) ($delivery_done[$refKey][$jenis]['time'] ?? '')) >= 0) {
+               $delivery_done[$refKey][$jenis]['time'] = $time;
+               $delivery_done[$refKey][$jenis]['nama'] = $nama;
             }
          }
       }
@@ -185,6 +224,7 @@ class Operasi extends Controller
          'data_member' => $data_member, 'kas_member' => $kas_member, 'saldoTunai' => $topup - $topup_out - $usage,
          'users' => $this->db(0)->get('user', 'id_user'), 'finance_history' => $finance_history,
          'delivery_badge' => $delivery_badge,
+         'delivery_done' => $delivery_done,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
       ]);
    }

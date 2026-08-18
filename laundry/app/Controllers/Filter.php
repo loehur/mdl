@@ -194,16 +194,19 @@ class Filter extends Controller
 
    public function tuntasOrder($ref)
    {
-      if (!$this->refDeliverySelesaiUntukTuntas($ref)) {
+      $ref = trim((string) $ref);
+      if ($ref === '' || !$this->refEligibleTuntas($ref)) {
          return;
       }
 
+      $db = $this->db(0);
+      $refSql = "'" . $db->escape($ref) . "'";
       $set = [
          'tuntas' => 1,
          'tuntasTime' => $GLOBALS['now'] ?? date('Y-m-d H:i:s'),
       ];
-      $where = $this->wCabang . " AND no_ref = " . $ref;
-      $this->db(0)->update('sale', $set, $where);
+      $where = $this->wCabang . " AND no_ref = $refSql AND bin = 0 AND tuntas = 0";
+      $db->update('sale', $set, $where);
       $this->hapusKasPembayaranPengecekanOrder($ref);
    }
 
