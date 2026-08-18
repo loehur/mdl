@@ -2411,6 +2411,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   function setPengisiLocked(idUser) {
     idUser = parseInt(idUser, 10) || 0;
+    var prefillId = parseInt(prefillPengisi, 10) || 0;
+    if (idUser <= 0 && forceComplete && prefillId > 0) {
+      idUser = prefillId;
+    }
     var sel = root.querySelector('#kurirPengisiSurcas');
     var hint = document.getElementById('kurirPengisiSurcasHint');
     if (idUser <= 0) {
@@ -2424,9 +2428,14 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       }
       return;
     }
+    var optText = String(idUser);
+    if (sel) {
+      var opt = sel.querySelector('option[value="' + idUser + '"]');
+      if (opt && opt.textContent) optText = opt.textContent.trim();
+    }
     if (kurirPengisiSelectize) {
       if (!kurirPengisiSelectize.options[String(idUser)]) {
-        kurirPengisiSelectize.addOption({ value: String(idUser), text: idUser + '-PENGISI' });
+        kurirPengisiSelectize.addOption({ value: String(idUser), text: optText });
       }
       kurirPengisiSelectize.setValue(String(idUser), true);
       if (typeof kurirPengisiSelectize.lock === 'function') {
@@ -2438,7 +2447,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
     if (hint) {
       hint.style.display = 'block';
-      hint.textContent = 'Sudah ada di nota, tidak bisa diubah';
+      hint.textContent = forceComplete
+        ? 'Pengisi surcas sudah tercatat — otomatis terisi, tidak bisa diubah'
+        : 'Sudah ada di nota, tidak bisa diubah';
     }
   }
 
@@ -2514,10 +2525,26 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     );
 
     var pengisiId = parseInt(prefillPengisi, 10) || 0;
-    if (pengisiId <= 0) {
-      pengisiId = existJ.user || existA.user || 0;
+    var existUser = 0;
+    if (isJemput) {
+      existUser = existJ.user || 0;
+    } else if (isAntar) {
+      existUser = existA.user || 0;
+    } else if (isCombo) {
+      existUser = existJ.user || existA.user || 0;
     }
-    setPengisiLocked(pengisiId > 0 ? pengisiId : 0);
+    if (pengisiId <= 0) {
+      pengisiId = existUser;
+    }
+    var lockPengisi = pengisiId > 0 && (
+      (forceComplete && (parseInt(prefillPengisi, 10) > 0 || existUser > 0))
+      || (!forceComplete && (existJ.user > 0 || existA.user > 0))
+    );
+    if (lockPengisi) {
+      setPengisiLocked(pengisiId);
+    } else {
+      setPengisiLocked(0);
+    }
   }
 
   function renderSales(orders) {
@@ -2729,6 +2756,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       var $pengisi = jQuery(elPengisi);
       if (elPengisi.selectize) kurirPengisiSelectize = elPengisi.selectize;
       else kurirPengisiSelectize = $pengisi.selectize({ allowEmptyOption: true })[0].selectize;
+      if (forceComplete && (parseInt(prefillPengisi, 10) || 0) > 0) {
+        setPengisiLocked(parseInt(prefillPengisi, 10));
+      }
     }
   }
 
@@ -2903,6 +2933,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (sel) {
       sel.value = jenis;
       sel.disabled = true;
+    }
+    if (prefillPengisi > 0) {
+      setPengisiLocked(prefillPengisi);
     }
     syncJenisUi();
     if (window.bootstrap && bootstrap.Offcanvas) {

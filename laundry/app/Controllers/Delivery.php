@@ -487,6 +487,16 @@ class Delivery extends Controller
          if ($idPengisiSurcas <= 0) {
             throw new Exception('Wajib pilih pengisi surcas');
          }
+         if ($preferSurcasId > 0) {
+            $scPengisi = $this->db(0)->get_where_row('surcas', 'id_surcas = ' . $preferSurcasId);
+            $existingPengisi = (int) ($scPengisi['id_user'] ?? 0);
+            if ($existingPengisi > 0) {
+               if ($idPengisiSurcas !== $existingPengisi) {
+                  throw new Exception('Pengisi surcas sudah tercatat di nota, tidak bisa diubah');
+               }
+               $idPengisiSurcas = $existingPengisi;
+            }
+         }
          $pengisi = $this->db(0)->get_where_row('user', 'id_user = ' . $idPengisiSurcas . ' AND en = 1');
          if (!$pengisi) {
             throw new Exception('Pengisi surcas tidak ditemukan');
