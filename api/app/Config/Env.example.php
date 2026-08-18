@@ -74,9 +74,15 @@ class Env
     ];
 
     // -------------------------------------------------------------------------
-    // WhatsApp — Fonnte
+    // WhatsApp — Fonnte (self-hosted node/fonnte_server)
     // -------------------------------------------------------------------------
     const FONNTE_TOKEN = 'change-me-fonnte-token';
+    // API Baileys lokal (POST /send, /device). Production VPS: http://127.0.0.1:3025
+    const FONNTE_BASE_URL = 'http://127.0.0.1:3025';
+    // Referensi webhook (fonnte_server → PHP). Set di node/fonnte_server/.env WEBHOOK_URL
+    // Dev XAMPP: http://localhost/mdl/api/Webhook/WA_Fonnte
+    // Production: https://api.nalju.com/Webhook/WA_Fonnte
+    const FONNTE_WEBHOOK_URL = 'http://localhost/mdl/api/Webhook/WA_Fonnte';
 
     // -------------------------------------------------------------------------
     // WaDesk

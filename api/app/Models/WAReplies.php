@@ -1591,6 +1591,7 @@ class WAReplies
 
         return (bool) preg_match(
             '/\b('
+            . 'makasi|'                             // eksplisit: makasi (tanpa h)
             . 'ma*ka*(s|c)(i|e)+h?|'               // makasih, makasi, makaci, makaseh, ...
             . 'te*ri*ma*ka*si*h|'                   // terimakasih / trimakasih (satu kata)
             . '(trima|terima)\s+(kasih|ksih|ksh)|' // trima ksih / terima kasih
@@ -2461,6 +2462,13 @@ class WAReplies
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP payment_confirm');
                         $handler = 'PENUTUP';
                     }
+                    if ($handler !== 'PENUTUP'
+                        && $this->messageLooksLikeThanksPenutup($textBodyToCheck)
+                        && !$this->messageLooksLikeQuestion($textBody)
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP thanks');
+                        $handler = 'PENUTUP';
+                    }
                     // "cek qris ..." = intent admin CEK_QRIS, bukan minta rekening/QRIS pelanggan
                     if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
                         continue;
@@ -2613,6 +2621,13 @@ class WAReplies
                         $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'ESTIMASI_SELESAI→request_waktu_selesai');
                         continue;
                     }
+                    // Semua item aktif sudah selesai → jangan handle ESTIMASI
+                    if ($handler === 'ESTIMASI_SELESAI'
+                        && $this->estimasiAllActiveItemsSelesai($phoneIn, $waNumber)
+                    ) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'ESTIMASI_SELESAI→all_items_selesai');
+                        continue;
+                    }
 
                     // Human agent aktif: hanya intent data/self-service (dan admin) yang boleh balas
                     if ($this->isHumanAgentRecentlyActive($waNumber)
@@ -2733,7 +2748,11 @@ class WAReplies
         }
 
         // Short message (likely not a real query) - still create conversation!
-        if ($messageLength >= 0 && $messageLength <= 7) {
+        // Kecuali ucapan terima kasih pendek (makasi, thanks, thx) → tetap PENUTUP
+        if ($messageLength >= 0 && $messageLength <= 7
+            && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)
+            && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
+        ) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'short_message_no_regex len=' . $messageLength . ' (no AI)');
             $this->intentLabMark('NONE', 'short');
             $conversationId = $this->getOrCreateConversationWithCase(
@@ -2759,6 +2778,17 @@ class WAReplies
             $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
             if ($prevAi !== 'PENUTUP') {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP payment_confirm was=' . $prevAi);
+            }
+            $aiResult['intent'] = 'PENUTUP';
+        } elseif ($this->messageLooksLikeThanksPenutup($textBodyToCheck)
+            && !$this->messageLooksLikeQuestion($textBody)
+        ) {
+            if (!is_array($aiResult)) {
+                $aiResult = [];
+            }
+            $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
+            if ($prevAi !== 'PENUTUP') {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP thanks was=' . $prevAi);
             }
             $aiResult['intent'] = 'PENUTUP';
         }
@@ -2935,6 +2965,28 @@ class WAReplies
                         $aiNotify = true;
                     }
                 }
+            }
+
+            // Semua item aktif sudah selesai → abaikan ESTIMASI (jangan escalate)
+            if ($aiIntent === 'ESTIMASI_SELESAI'
+                && $this->estimasiAllActiveItemsSelesai($phoneIn, $waNumber)
+            ) {
+                $this->logAutoreplyTrace($waNumber, 'AI_SKIP', 'ESTIMASI_SELESAI all_items_selesai');
+                if ($this->isHumanAgentRecentlyActive($waNumber)) {
+                    return $this->silentExitHumanActive(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                        'ai_skip_estimasi_all_items_selesai'
+                    );
+                }
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => false,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
             }
 
             // JAM_OPERASIONAL AI salah: "bs jmpt baju?" / "bisa jemput?" tanpa "masih" = MINTA_JEMPUT_ANTAR (bukan tanya jam buka)
@@ -4706,6 +4758,12 @@ class WAReplies
             return true;
         }
 
+        if ($this->estimasiAllActiveItemsSelesai($phoneIn, $waNumber)) {
+            $this->clearEstimasiSession($waNumber);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'skip_all_items_selesai');
+            return false;
+        }
+
         $session = $this->getEstimasiSession($waNumber);
         if ($session !== null) {
             return $this->handleEstimasiSelesaiFollowUp($phoneIn, $waNumber, $textBody, $session);
@@ -4997,6 +5055,13 @@ class WAReplies
         ];
     }
 
+    /** True jika ada sale aktif dan semuanya sudah fase selesai (notif tipe 2 + letak). */
+    private function estimasiAllActiveItemsSelesai(string $phoneIn, string $waNumber): bool
+    {
+        $focus = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
+        return $focus !== null && ($focus['fase'] ?? '') === 'selesai';
+    }
+
     private function formatEstimasiDeadlineLabel(int $deadlineTs, int $hari = 0): string
     {
         $deadlineDate = date('Y-m-d', $deadlineTs);
@@ -5041,17 +5106,7 @@ class WAReplies
         }
 
         if ($fase === 'selesai') {
-            $this->saveEstimasiSession($waNumber, [
-                'id_penjualan' => $id,
-                'id_cabang' => $idCabang,
-                'fase_proses' => $fase,
-                'butuh_estimasi' => 0,
-                'estimasi_tanggal' => null,
-                'estimasi_jam' => null,
-                'summary' => "Customer tanya estimasi; #{$id} sudah selesai",
-            ]);
-            $this->escalateEstimasiToPetugas($waNumber, $idCabang);
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_selesai id={$id}");
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', "first_hit_skip_selesai id={$id}");
             return;
         }
 
@@ -5350,6 +5405,11 @@ class WAReplies
                 $idCabang = (int) $fresh['id_cabang'];
             }
         }
+        if (($fase ?? '') === 'selesai') {
+            $this->clearEstimasiSession($waNumber);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'followup_skip_all_items_selesai');
+            return false;
+        }
         if ($idCabang !== null && $idCabang <= 0) {
             $idCabang = null;
         }
@@ -5386,8 +5446,11 @@ class WAReplies
         if (preg_match('/\b(jam|kapan|siap|selesai|estimasi|jemput|antar|plastik|gosok|cuci|setrika|kg|kilo)\b/iu', $t)) {
             return false;
         }
+        if ($this->messageLooksLikeThanksPenutup($t) && mb_strlen($t) <= 40) {
+            return true;
+        }
         return (bool) preg_match(
-            '/\b(makasih|thanks|thank\s*you|trims|trima*kasih|trimakasih|terima\s*kasih|mksh|mksih|trima\s*ksih|trmksh|sip|oke+y*|ok|baik|noted|sudah)\b/iu',
+            '/\b(sip|oke+y*|ok|baik|noted|sudah)\b/iu',
             $t
         ) && mb_strlen($t) <= 40;
     }
@@ -8315,6 +8378,15 @@ class WAReplies
             ) {
                 $intent = 'PENUTUP';
                 $reason = 'remap konfirmasi sudah bayar → PENUTUP';
+            }
+
+            // FALSE padahal ucapan terima kasih (makasi, makasih, thanks, ...) → PENUTUP
+            if ($intent === 'FALSE'
+                && $this->messageLooksLikeThanksPenutup($textBody)
+                && !$this->messageLooksLikeQuestion($textBody)
+            ) {
+                $intent = 'PENUTUP';
+                $reason = 'remap ucapan terima kasih → PENUTUP';
             }
 
             // FALSE padahal jelas tanya berat order (berapa/brp kilo atau kg) — samakan ke TAGIHAN (bukan tanya harga per kg)

@@ -28,7 +28,7 @@ class Fonnte extends Controller
         echo json_encode([
             'ok' => true,
             'name' => 'Fonnte API',
-            'endpoints' => ['sendGroup', 'groups'],
+            'endpoints' => ['sendGroup', 'groups', 'status', 'qr', 'logout'],
         ], JSON_UNESCAPED_UNICODE);
     }
 
@@ -128,6 +128,145 @@ class Fonnte extends Controller
                 'message' => $e->getMessage(),
                 'error' => $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * GET /Laundry/Fonnte/status — health + device fonnte_server
+     */
+    public function status()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        if (!$this->verifyAccess()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'message' => 'Access denied'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService', false)) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
+            }
+            if (!class_exists('\\App\\Config\\Fonnte', false)) {
+                require_once __DIR__ . '/../../Config/Fonnte.php';
+            }
+
+            $fonnte = new FonnteService();
+            $health = $fonnte->getGatewayHealth();
+            $device = $fonnte->getGatewayDevice();
+
+            $wa = is_array($health['data']['whatsapp'] ?? null) ? $health['data']['whatsapp'] : [];
+            $dev = is_array($device['data'] ?? null) ? $device['data'] : [];
+            $connected = !empty($wa['connected']) || !empty($dev['connected']) || !empty($dev['status']);
+
+            echo json_encode([
+                'ok' => $health['success'] || $device['success'],
+                'connected' => $connected,
+                'state' => $wa['state'] ?? ($dev['state'] ?? 'unknown'),
+                'device' => $dev['device'] ?? ($health['data']['device'] ?? ''),
+                'package' => $dev['package'] ?? 'self-hosted-baileys',
+                'webhook' => !empty($health['data']['webhook']),
+                'gateway' => \App\Config\Fonnte::getBaseUrl(),
+                'health' => $health['data'] ?? null,
+                'device_profile' => $dev ?: null,
+                'error' => $health['error'] ?? $device['error'] ?? null,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * GET /Laundry/Fonnte/qr
+     */
+    public function qr()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        if (!$this->verifyAccess()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'message' => 'Access denied'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService', false)) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
+            }
+
+            $fonnte = new FonnteService();
+            $res = $fonnte->getGatewayQr();
+            $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+
+            if (!empty($data['connected'])) {
+                echo json_encode([
+                    'ok' => true,
+                    'connected' => true,
+                    'device' => $data['device'] ?? '',
+                    'message' => 'Sudah terhubung',
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            if (empty($data['qr'])) {
+                http_response_code(404);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => $data['message'] ?? ($res['error'] ?? 'QR belum tersedia'),
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode([
+                'ok' => true,
+                'qr' => $data['qr'],
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * POST /Laundry/Fonnte/logout — reset sesi Baileys
+     */
+    public function logout()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        if (!$this->isPost()) {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'message' => 'Method not allowed'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        if (!$this->verifyAccess()) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'message' => 'Access denied'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService', false)) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
+            }
+
+            $fonnte = new FonnteService();
+            $res = $fonnte->gatewayLogout();
+            $ok = !empty($res['success']);
+
+            if (!$ok) {
+                http_response_code(502);
+            }
+
+            echo json_encode([
+                'ok' => $ok,
+                'message' => $ok
+                    ? ($res['data']['message'] ?? 'Sesi direset — scan QR baru')
+                    : ($res['error'] ?? 'Gagal reset sesi'),
+                'data' => $res['data'] ?? null,
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         }
     }
 

@@ -4,18 +4,31 @@ namespace App\Config;
 
 /**
  * Fonnte WhatsApp API Configuration
- * @see https://docs.fonnte.com/api-send-message/
+ * Self-hosted: node/fonnte_server (Baileys). Legacy cloud: https://api.fonnte.com
+ *
+ * @see node/fonnte_server/README.md
  */
 class Fonnte
 {
+    /** Default lokal — sama PORT node/fonnte_server */
+    private const DEFAULT_BASE_URL = 'http://127.0.0.1:3025';
+
     private static $config = null;
 
     public static function getConfig()
     {
         if (self::$config === null) {
+            $baseUrl = self::DEFAULT_BASE_URL;
+            if (defined('Env::FONNTE_BASE_URL')) {
+                $fromEnv = trim((string) constant('Env::FONNTE_BASE_URL'));
+                if ($fromEnv !== '') {
+                    $baseUrl = rtrim($fromEnv, '/');
+                }
+            }
+
             self::$config = [
                 'token' => defined('Env::FONNTE_TOKEN') ? (string) constant('Env::FONNTE_TOKEN') : '',
-                'base_url' => 'https://api.fonnte.com',
+                'base_url' => $baseUrl,
                 'country_code' => '62', // Default Indonesia
             ];
         }

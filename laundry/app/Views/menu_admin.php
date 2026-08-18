@@ -117,6 +117,11 @@ $menu[1] = [
                 'c' => '@AutoReplyKeywords',
                 'title' => 'Auto Reply Keywords',
                 'txt' => 'Auto Reply Keywords'
+            ],
+            [
+                'c' => '@WaGateway',
+                'title' => 'WhatsApp',
+                'txt' => 'WhatsApp'
             ]
         ]
     ],

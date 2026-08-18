@@ -236,4 +236,96 @@ class FonnteService
 
         return $decoded;
     }
+
+    /**
+     * GET gateway fonnte_server (/health)
+     * @return array{success:bool,data:?array,error:?string}
+     */
+    public function getGatewayHealth(): array
+    {
+        return $this->gatewayRequest('GET', '/health');
+    }
+
+    /**
+     * POST gateway /device
+     */
+    public function getGatewayDevice(): array
+    {
+        return $this->gatewayRequest('POST', '/device');
+    }
+
+    /**
+     * GET gateway /qr
+     */
+    public function getGatewayQr(): array
+    {
+        return $this->gatewayRequest('GET', '/qr');
+    }
+
+    /**
+     * POST gateway /logout — reset sesi WA
+     */
+    public function gatewayLogout(): array
+    {
+        return $this->gatewayRequest('POST', '/logout');
+    }
+
+    /**
+     * @return array{success:bool,data:?array,error:?string,http_code?:int}
+     */
+    private function gatewayRequest(string $method, string $path): array
+    {
+        if (empty($this->token)) {
+            return ['success' => false, 'data' => null, 'error' => 'Fonnte token not configured'];
+        }
+
+        $url = Fonnte::getBaseUrl() . $path;
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => strtoupper($method),
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: ' . $this->token,
+                'Accept: application/json',
+            ],
+        ]);
+
+        $raw = curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($curlError) {
+            return ['success' => false, 'data' => null, 'error' => 'Gateway unreachable: ' . $curlError, 'http_code' => 0];
+        }
+
+        $decoded = json_decode((string) $raw, true);
+        if (!is_array($decoded)) {
+            return [
+                'success' => false,
+                'data' => null,
+                'error' => 'Invalid gateway response',
+                'http_code' => $httpCode,
+            ];
+        }
+
+        $ok = $httpCode >= 200 && $httpCode < 300;
+        if (!$ok && $httpCode === 404 && isset($decoded['message'])) {
+            return ['success' => true, 'data' => $decoded, 'error' => null, 'http_code' => $httpCode];
+        }
+
+        return [
+            'success' => $ok,
+            'data' => $decoded,
+            'error' => $ok ? null : ($decoded['reason'] ?? $decoded['message'] ?? 'HTTP ' . $httpCode),
+            'http_code' => $httpCode,
+        ];
+    }
 }
