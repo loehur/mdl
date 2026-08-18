@@ -287,7 +287,7 @@ const isCaseOpen = (caseId) => {
 
 // --- HANDLERS ---
 const showCustomerInfo = () => {
-    showCustomerPanel.value = true;
+    showCustomerPanel.value = !showCustomerPanel.value;
 };
 
 const handleBubbleLinkClick = (e) => {
@@ -852,7 +852,7 @@ onUnmounted(() => {
     <!-- Main Chat Area -->
     <main
       data-chat-panel
-      class="flex flex-col bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
+      class="flex flex-row bg-[var(--wa-bg-chat)] h-full overflow-x-hidden"
       :class="{
         'fixed inset-0 z-50 w-full chat-panel-mobile':
           showMobileChat && windowWidth < 768,
@@ -869,6 +869,7 @@ onUnmounted(() => {
         transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }"
     >
+      <div class="flex-1 min-w-0 h-full relative flex flex-col overflow-x-hidden">
       <!-- Background Pattern -->
       <div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9IndhLWJnIiB4PSIwIiB5PSIwIiB3aWR0aD0iODAiIGhlaWdodD0iODAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0wIDIwIEwgMjAgMCBMIDQwIDIwIEwgNjAgMCBMIDgwIDIwIiBzdHJva2U9IiNhZWJhYzEiIHN0cm9rZS13aWR0aD0iMC41IiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3dhLWJnKSIvPjwvc3ZnPg=='); background-size: 80px 80px;"></div>
 
@@ -1450,11 +1451,13 @@ onUnmounted(() => {
         </div>
     </div>
     </Teleport>
+      </div>
 
     <CustomerPanel
       :conversation="activeConversation"
       :auth-id="authId"
       :api-base="API_BASE"
+      :is-mobile="windowWidth < 768"
     />
     </main>
 </template>
