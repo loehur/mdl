@@ -136,13 +136,24 @@
     #wa-gateway-root #wg-qr-box {
       min-width: 280px;
       min-height: 280px;
-      display: inline-block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 12px;
     }
-    #wa-gateway-root #wg-qr-box img,
-    #wa-gateway-root #wg-qr-box canvas {
+    #wa-gateway-root #wg-qr-box .wg-qr-placeholder {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--wg-muted);
+      line-height: 1.45;
+      max-width: 260px;
+    }
+    #wa-gateway-root #wg-qr-box img {
       display: block;
-      max-width: 100%;
-      height: auto;
+      width: 280px;
+      height: 280px;
+      image-rendering: pixelated;
     }
     #wa-gateway-root .wg-hint {
       font-size: 0.82rem;
@@ -225,16 +236,14 @@
       <div class="wg-qr-wrap">
         <div id="wg-qr-box"></div>
       </div>
-      <p class="wg-hint">QR diperbarui otomatis setiap 5 detik selama belum terhubung.</p>
+      <p class="wg-hint" id="wg-qr-hint">QR diperbarui otomatis setiap 5 detik selama belum terhubung.</p>
     </div>
   </div>
 </div>
 
-<script src="<?= URL::IN_ASSETS; ?>js/qrcode.min.js?v=1"></script>
 <script>
 (function () {
   var statusUrl = '<?= URL::BASE_URL; ?>WaGateway/status';
-  var qrUrl = '<?= URL::BASE_URL; ?>WaGateway/qr';
   var logoutUrl = '<?= URL::BASE_URL; ?>WaGateway/logout';
 
   var pollTimer = null;
@@ -245,6 +254,7 @@
   var $webhook = $('#wg-webhook');
   var $error = $('#wg-error');
   var $qrPanel = $('#wg-qr-panel');
+  var $qrHint = $('#wg-qr-hint');
   var $connected = $('#wg-connected');
   var $connectedDevice = $('#wg-connected-device');
 
@@ -269,10 +279,15 @@
     $badge.addClass('wg-badge--err').text('Offline');
   }
 
+  function setQrPlaceholder(msg) {
+    var box = document.getElementById('wg-qr-box');
+    if (!box) return;
+    box.innerHTML = '<div class="wg-qr-placeholder">' + msg + '</div>';
+  }
+
   function renderQr(qrString) {
-    if (!qrString) return;
-    if (typeof QRCode === 'undefined') {
-      showError('Library QR tidak termuat. Muat ulang halaman.');
+    if (!qrString) {
+      setQrPlaceholder('Menunggu QR dari server…');
       return;
     }
     if (qrString === lastQrRendered) return;
@@ -282,47 +297,17 @@
     if (!box) return;
     box.innerHTML = '';
 
-    try {
-      new QRCode(box, {
-        text: qrString,
-        width: 280,
-        height: 280,
-        colorDark: '#0f172a',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-      });
-      showError('');
-    } catch (err) {
-      showError('Gagal render QR: ' + (err.message || err));
-    }
-  }
-
-  function loadQr() {
-    $.ajax({
-      url: qrUrl,
-      method: 'GET',
-      dataType: 'json',
-      timeout: 20000
-    }).done(function (res) {
-      if (res && res.connected) {
-        $qrPanel.addClass('hidden');
-        return;
-      }
-      if (res && res.qr) {
-        $qrPanel.removeClass('hidden');
-        renderQr(res.qr);
-        showError('');
-      }
-    }).fail(function (xhr) {
-      var msg = 'QR belum siap — tunggu fonnte_server generate QR';
-      try {
-        var j = xhr.responseJSON;
-        if (j && j.message) msg = j.message;
-      } catch (e) {}
-      if (xhr.status && xhr.status !== 404) {
-        showError(msg);
-      }
-    });
+    var img = document.createElement('img');
+    img.width = 280;
+    img.height = 280;
+    img.alt = 'WhatsApp QR Login';
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=1&data='
+      + encodeURIComponent(qrString);
+    img.onerror = function () {
+      setQrPlaceholder('Gagal render QR. Klik Logout / Scan ulang lalu Refresh.');
+    };
+    box.appendChild(img);
+    showError('');
   }
 
   function refreshStatus() {
@@ -330,7 +315,8 @@
       url: statusUrl,
       method: 'GET',
       dataType: 'json',
-      timeout: 25000
+      timeout: 25000,
+      cache: false
     }).done(function (res) {
       if (!res || !res.ok) {
         setBadge('close', false);
@@ -338,11 +324,10 @@
         showError((res && res.message) || (res && res.error) || 'Gateway tidak merespons');
         $connected.addClass('hidden');
         $qrPanel.removeClass('hidden');
-        loadQr();
+        setQrPlaceholder('Gateway offline atau fonnte_server belum jalan.');
         return;
       }
 
-      showError('');
       var connected = !!res.connected;
       var state = res.state || 'unknown';
       setBadge(state, connected);
@@ -351,19 +336,40 @@
       $webhook.text(res.webhook ? 'Aktif' : 'Tidak dikonfigurasi');
 
       if (connected) {
+        showError('');
         $connected.removeClass('hidden');
         $qrPanel.addClass('hidden');
         $connectedDevice.text(res.device ? ('Nomor: ' + res.device) : '');
         stopPoll();
-      } else {
-        $connected.addClass('hidden');
-        $qrPanel.removeClass('hidden');
-        loadQr();
-        startPoll();
+        return;
       }
-    }).fail(function () {
+
+      $connected.addClass('hidden');
+      $qrPanel.removeClass('hidden');
+
+      if (res.qr) {
+        $qrHint.text('Scan QR dengan WhatsApp → Perangkat Tertaut → Tautkan perangkat.');
+        renderQr(res.qr);
+        showError('');
+      } else {
+        lastQrRendered = '';
+        var hint = res.qr_hint || 'QR belum tersedia. Klik Logout / Scan ulang jika tidak muncul.';
+        $qrHint.text(hint);
+        setQrPlaceholder(hint);
+        if (state === 'connecting') {
+          showError('');
+        }
+      }
+
+      startPoll();
+    }).fail(function (xhr) {
       setBadge('close', false);
-      showError('Gagal memuat status. Pastikan fonnte_server & API berjalan.');
+      var msg = 'Gagal memuat status. Pastikan fonnte_server & API berjalan.';
+      try {
+        if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+      } catch (e) {}
+      showError(msg);
+      setQrPlaceholder(msg);
     });
   }
 
@@ -421,7 +427,6 @@
   }
 
   refreshStatus();
-  startPoll();
 
   $(window).on('beforeunload', stopPoll);
 })();

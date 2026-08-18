@@ -159,14 +159,39 @@ class Fonnte extends Controller
             $dev = is_array($device['data'] ?? null) ? $device['data'] : [];
             $connected = !empty($wa['connected']) || !empty($dev['connected']) || !empty($dev['status']);
 
+            $qr = null;
+            if (!empty($health['data']['qr'])) {
+                $qr = (string) $health['data']['qr'];
+            }
+            if ($qr === null || $qr === '') {
+                $qrRes = $fonnte->getGatewayQr();
+                $qrData = is_array($qrRes['data'] ?? null) ? $qrRes['data'] : [];
+                if (!empty($qrData['qr'])) {
+                    $qr = (string) $qrData['qr'];
+                }
+            }
+
+            $state = $wa['state'] ?? ($dev['state'] ?? 'unknown');
+            $qrHint = null;
+            if (!$connected && ($qr === null || $qr === '')) {
+                if ($state === 'connecting') {
+                    $qrHint = 'Sedang menghubungkan sesi lama. Jika QR tidak muncul dalam 30 detik, klik Logout / Scan ulang.';
+                } else {
+                    $qrHint = 'QR belum tersedia. Pastikan fonnte_server jalan, lalu klik Logout / Scan ulang.';
+                }
+            }
+
             echo json_encode([
                 'ok' => $health['success'] || $device['success'],
                 'connected' => $connected,
-                'state' => $wa['state'] ?? ($dev['state'] ?? 'unknown'),
+                'state' => $state,
                 'device' => $dev['device'] ?? ($health['data']['device'] ?? ''),
                 'package' => $dev['package'] ?? 'self-hosted-baileys',
                 'webhook' => !empty($health['data']['webhook']),
                 'gateway' => \App\Config\Fonnte::getBaseUrl(),
+                'qr' => ($qr !== null && $qr !== '') ? $qr : null,
+                'has_qr' => ($qr !== null && $qr !== ''),
+                'qr_hint' => $qrHint,
                 'health' => $health['data'] ?? null,
                 'device_profile' => $dev ?: null,
                 'error' => $health['error'] ?? $device['error'] ?? null,

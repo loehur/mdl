@@ -96,12 +96,17 @@ function mountFonnteRoutes(app) {
 
   app.get('/health', (_req, res) => {
     const conn = getConnectionState();
+    const qr = getLastQr();
     res.json({
       ok: true,
       service: 'fonnte_server',
-      whatsapp: conn,
+      whatsapp: {
+        ...conn,
+        has_qr: Boolean(qr),
+      },
       device: getDeviceNumber(),
       webhook: Boolean(process.env.WEBHOOK_URL),
+      qr: qr || null,
     });
   });
 
