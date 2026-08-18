@@ -2048,6 +2048,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           </optgroup>
         <?php } ?>
       </select>
+      <small id="kurirPenyelesaiHint" class="kurir-hint" style="margin:4px 0 0;display:none"></small>
     </div>
     <div class="kurir-field" id="kurirPengisiSurcasWrap">
       <label class="kurir-label" for="kurirPengisiSurcas">Pengisi Surcas (wajib)</label>
@@ -2223,9 +2224,53 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
 
     loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
+    syncPenyelesaiLock();
+    syncSurcasLock();
+  }
+
+  function hasCheckedBelumSelesai() {
+    var found = false;
+    root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+      if (cb.getAttribute('data-belum-selesai') === '1') found = true;
+    });
+    return found;
+  }
+
+  /** Antar: penyelesai dikunci jika ada item terpilih yang belum selesai laundry. Jemput tidak terpengaruh. */
+  function syncPenyelesaiLock() {
+    var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+    var hint = document.getElementById('kurirPenyelesaiHint');
+    var sel = root.querySelector('#kurirKaryawan');
+    var lock = jenis === 'antar' && hasCheckedBelumSelesai();
+
+    if (lock) {
+      if (kurirSelectize) {
+        kurirSelectize.setValue('', true);
+        if (typeof kurirSelectize.lock === 'function') kurirSelectize.lock();
+      } else if (sel) {
+        sel.value = '';
+        sel.disabled = true;
+      }
+      if (hint) {
+        hint.style.display = 'block';
+        hint.textContent = 'Ada item belum selesai laundry — kosongkan item itu atau selesaikan tanpa penyelesai (request/pending).';
+      }
+      syncPendingUi();
+      syncSubmitLabel();
+      return;
+    }
+
+    if (kurirSelectize) {
+      if (typeof kurirSelectize.unlock === 'function') kurirSelectize.unlock();
+    } else if (sel) {
+      sel.disabled = false;
+    }
+    if (hint) {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    }
     syncPendingUi();
     syncSubmitLabel();
-    syncSurcasLock();
   }
 
   function syncPendingUi() {
@@ -2532,13 +2577,13 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           cb.checked = true;
           return;
         }
-        syncSubmitLabel();
+        syncPenyelesaiLock();
         syncSurcasLock();
       });
     });
     applyPrefillRef();
     lockBoundCheckboxes();
-    syncSubmitLabel();
+    syncPenyelesaiLock();
     syncSurcasLock();
   }
 
@@ -2623,6 +2668,19 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       });
   }
 
+  function onKaryawanChange() {
+    if (String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase() === 'antar'
+        && hasCheckedBelumSelesai() && currentPenyelesai() > 0) {
+      if (kurirSelectize) kurirSelectize.setValue('', true);
+      else {
+        var karySel = root.querySelector('#kurirKaryawan');
+        if (karySel) karySel.value = '';
+      }
+      toast('Item belum selesai laundry — penyelesai antar tidak bisa diisi', 'warn');
+    }
+    syncPenyelesaiLock();
+  }
+
   function initSelectize() {
     if (typeof jQuery === 'undefined' || !jQuery.fn.selectize) return;
     var el = root.querySelector('#kurirKaryawan');
@@ -2633,7 +2691,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       if (kurirSelectize && typeof kurirSelectize.off === 'function') {
         kurirSelectize.off('change');
       }
-      if (kurirSelectize) kurirSelectize.on('change', syncSubmitLabel);
+      if (kurirSelectize) kurirSelectize.on('change', onKaryawanChange);
     }
     var elPengisi = root.querySelector('#kurirPengisiSurcas');
     if (elPengisi) {
@@ -2645,8 +2703,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   root.addEventListener('shown.bs.offcanvas', function () {
     initSelectize();
+    syncPenyelesaiLock();
     syncSurcasLock();
-    syncSubmitLabel();
   });
   root.addEventListener('hidden.bs.offcanvas', function () {
     prefillNoRef = '';
@@ -2656,6 +2714,17 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var sel = document.getElementById('kurirJenis');
     if (sel) sel.disabled = false;
     unlockPengisi();
+    if (kurirSelectize && typeof kurirSelectize.unlock === 'function') {
+      kurirSelectize.unlock();
+    } else {
+      var karySel = root.querySelector('#kurirKaryawan');
+      if (karySel) karySel.disabled = false;
+    }
+    var penHint = document.getElementById('kurirPenyelesaiHint');
+    if (penHint) {
+      penHint.style.display = 'none';
+      penHint.textContent = '';
+    }
     setSurcasLocked('kurirSurcasJemput', null, 'kurirSurcasJemputHint', '', '');
     setSurcasLocked('kurirSurcasAntar', null, 'kurirSurcasAntarHint', '', '');
   });
@@ -2663,10 +2732,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var jenisEl = root.querySelector('#kurirJenis');
   if (jenisEl) jenisEl.addEventListener('change', syncJenisUi);
   var karyEl = root.querySelector('#kurirKaryawan');
-  if (karyEl) karyEl.addEventListener('change', function () {
-    syncPendingUi();
-    syncSubmitLabel();
-  });
+  if (karyEl) karyEl.addEventListener('change', onKaryawanChange);
   var pendingEl = root.querySelector('#kurirLangsungAntar');
   if (pendingEl) pendingEl.addEventListener('change', syncSubmitLabel);
 

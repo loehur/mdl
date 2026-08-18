@@ -965,6 +965,8 @@ class Delivery extends Controller
             ];
          } else {
             // ===== Antar: selesai langsung (ikat request jika ada) =====
+            $this->rejectAntarPenyelesaiIfBelumSelesai($ids);
+
             $jumlahAntarSelesai = $tarifSurcas;
 
             $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -987,6 +989,10 @@ class Delivery extends Controller
                $now,
                $idReqAntar
             );
+
+            if ($inserted <= 0) {
+               throw new Exception('Tidak ada item antar yang bisa diselesaikan — semua item mungkin belum selesai laundry');
+            }
 
             $surcasAntar = $this->upsertSurcasPengantaran(
                $idCabang,
@@ -2299,7 +2305,15 @@ class Delivery extends Controller
             continue;
          }
          $idReq = (int) ($rq['id_request'] ?? 0);
-         foreach ($eligibleByRequest[$idReq] ?? [] as $sid) {
+         $boundIds = $rq['prefill_ids'] ?? [];
+         if (!is_array($boundIds)) {
+            $boundIds = [];
+         }
+         $boundIds = array_values(array_filter(array_map('intval', $boundIds)));
+         $idsForSelesai = !empty($boundIds)
+            ? $boundIds
+            : ($eligibleByRequest[$idReq] ?? []);
+         foreach ($idsForSelesai as $sid) {
             $allAntarIdsForSelesai[$sid] = $sid;
          }
       }
@@ -2319,7 +2333,15 @@ class Delivery extends Controller
 
          $siapCount = 0;
          $belumCount = 0;
-         foreach ($eligibleByRequest[$idReq] ?? [] as $sid) {
+         $boundIds = $rq['prefill_ids'] ?? [];
+         if (!is_array($boundIds)) {
+            $boundIds = [];
+         }
+         $boundIds = array_values(array_filter(array_map('intval', $boundIds)));
+         $idsToCount = !empty($boundIds)
+            ? $boundIds
+            : ($eligibleByRequest[$idReq] ?? []);
+         foreach ($idsToCount as $sid) {
             if ($jenis === 'antar' && !isset($selesaiSet[$sid])) {
                $belumCount++;
             } else {
@@ -2333,6 +2355,8 @@ class Delivery extends Controller
             $blockHint = 'Instant · track only';
          } elseif ($jenis === 'antar' && !$isInstant && !$hasLokasi) {
             $blockHint = 'Lokasi belum lengkap';
+         } elseif ($jenis === 'antar' && empty($boundIds)) {
+            $blockHint = 'Belum ada item terikat';
          } elseif ($siapCount <= 0) {
             // Semua item belum selesai laundry — belum bisa diselesaikan
             $blockHint = $belumCount > 0 ? 'Laundry belum selesai' : 'Belum ada item siap';
@@ -2342,8 +2366,8 @@ class Delivery extends Controller
          }
 
          if ($jenis === 'antar' && !$isInstant) {
-            // Bisa diselesaikan asal lokasi lengkap dan ada minimal 1 item siap
-            $siapSelesai = $hasLokasi && $siapCount > 0;
+            // Bisa diselesaikan asal lokasi lengkap, ada item terikat, dan minimal 1 siap
+            $siapSelesai = $hasLokasi && !empty($boundIds) && $siapCount > 0;
          } elseif ($jenis === 'jemput') {
             // Jemput selalu dianggap siap tampil di board customer
             $siapSelesai = true;
@@ -2662,6 +2686,27 @@ class Delivery extends Controller
          return null;
       }
       return (int) $binding['tarif_surcas'];
+   }
+
+   /**
+    * Antar + penyelesai: semua item terpilih harus sudah selesai laundry.
+    * @param int[] $ids
+    * @throws Exception
+    */
+   private function rejectAntarPenyelesaiIfBelumSelesai(array $ids): void
+   {
+      if (empty($ids)) {
+         return;
+      }
+      $selesaiSet = $this->saleIdsWithLaundrySelesai($ids);
+      foreach ($ids as $id) {
+         $id = (int) $id;
+         if ($id > 0 && !isset($selesaiSet[$id])) {
+            throw new Exception(
+               'Item #' . $id . ' belum selesai laundry. Kosongkan penyelesai untuk buat request, atau pilih item yang sudah selesai.'
+            );
+         }
+      }
    }
 
    /**

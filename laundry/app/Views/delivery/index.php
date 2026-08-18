@@ -2044,6 +2044,11 @@ $canCekDetail = !empty($data['canCekDetail']);
       return !!(it.belum_selesai === true || it.belum_selesai === 1 || it.belum_selesai === '1');
     }
 
+    var prefillSet = {};
+    (prefillIds || []).forEach(function (id) {
+      if (id > 0) prefillSet[id] = true;
+    });
+
     function renderItem(it, belum) {
       var status = Number(it.tuntas) === 1 ? 'Tuntas' : 'Proses';
       var member = Number(it.member) === 1 ? ' · Member' : '';
@@ -2053,6 +2058,9 @@ $canCekDetail = !empty($data['canCekDetail']);
       if (hasJemput) surcasMeta += ' · surcas jemput';
       if (hasAntar) surcasMeta += ' · surcas antar';
       var checked = '';
+      if (!belum && prefillSet[parseInt(it.id, 10) || 0]) {
+        checked = ' checked';
+      }
       if (belum) {
         return '<label class="dlv-sales-item is-locked" data-belum-selesai="1">' +
           '<input type="checkbox" disabled tabindex="-1">' +
@@ -2146,10 +2154,14 @@ $canCekDetail = !empty($data['canCekDetail']);
           var input = document.getElementById('dlvSurcasJemputJumlah');
           if (input) delete input.dataset.userEdited;
           syncSurcasJemputUi();
+          syncSurcasAntarUi();
         }
       });
     });
-    if (name === 'ids[]') syncSurcasJemputUi();
+    if (name === 'ids[]') {
+      syncSurcasJemputUi();
+      syncSurcasAntarUi();
+    }
   }
 
   function loadSalesOptions() {
