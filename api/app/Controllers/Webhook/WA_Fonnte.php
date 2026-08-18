@@ -149,8 +149,19 @@ class WA_Fonnte extends Controller
                     'Fonnte'
                 );
             }
+            if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+            }
+            $messageStore = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
+            $messageStore->setCustomerContext($customerCtx);
             $this->recordFonnteIncoming($waNumber, $timestamp);
-            $msgId = $this->saveFonnteIncomingMessage($waNumber, $data, '', null, $customerCtx);
+            $msgId = $this->saveFonnteIncomingMessage($waNumber, $data, '', $messageStore, $customerCtx);
+            if ($messageStore->lastIncomingWasDuplicate()) {
+                \Log::write('WA_Fonnte: skip duplicate media inboxid=' . (string) ($inboxid ?? ''), 'webhook', 'Fonnte');
+                echo json_encode(['status' => 'ok', 'reply' => $replyText, 'duplicate' => true]);
+
+                return;
+            }
             if ($msgId) {
                 $meta = $this->getFonnteInboundMeta((int) $msgId);
                 $lastMessage = $this->fonnteInboundLastMessagePreview($meta['type'], $meta['text']);

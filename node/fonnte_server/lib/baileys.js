@@ -30,6 +30,71 @@ let sockGeneration = 0;
 /** @type {Map<string, { resolve: Function, reject: Function, timer: NodeJS.Timeout }>} */
 const pendingOutStatus = new Map();
 
+const SEEN_INBOUND_FILE = path.join(AUTH_DIR, 'seen_inbound_keys.json');
+const SEEN_INBOUND_MAX = 10000;
+/** @type {Set<string>} */
+const seenInboundKeys = new Set();
+let seenInboundLoaded = false;
+let seenInboundDirty = false;
+
+function loadSeenInboundKeys() {
+  if (seenInboundLoaded) return;
+  seenInboundLoaded = true;
+  try {
+    if (fs.existsSync(SEEN_INBOUND_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(SEEN_INBOUND_FILE, 'utf8'));
+      if (Array.isArray(raw)) {
+        for (const k of raw) {
+          if (typeof k === 'string' && k) seenInboundKeys.add(k);
+        }
+      }
+    }
+  } catch (_) {
+    // ignore corrupt cache
+  }
+}
+
+function persistSeenInboundKeys() {
+  if (!seenInboundDirty) return;
+  seenInboundDirty = false;
+  try {
+    ensureAuthDir();
+    const arr = Array.from(seenInboundKeys).slice(-SEEN_INBOUND_MAX);
+    fs.writeFileSync(SEEN_INBOUND_FILE, JSON.stringify(arr));
+  } catch (err) {
+    console.error('[baileys] persist seen inbound keys failed:', err.message || err);
+  }
+}
+
+/** Dedup key: remoteJid + WA message id (stable across Baileys upsert retries). */
+function inboundDedupKey(msg) {
+  const id = msg?.key?.id;
+  const jid = msg?.key?.remoteJid;
+  if (!id || !jid) return null;
+  return `${jid}|${id}`;
+}
+
+/** Returns true if this inbound was already processed. */
+function markInboundSeen(msg) {
+  loadSeenInboundKeys();
+  const key = inboundDedupKey(msg);
+  if (!key) return false;
+  if (seenInboundKeys.has(key)) return true;
+  seenInboundKeys.add(key);
+  if (seenInboundKeys.size > SEEN_INBOUND_MAX) {
+    const trim = seenInboundKeys.size - SEEN_INBOUND_MAX;
+    const iter = seenInboundKeys.values();
+    for (let i = 0; i < trim; i++) {
+      const next = iter.next();
+      if (next.done) break;
+      seenInboundKeys.delete(next.value);
+    }
+  }
+  seenInboundDirty = true;
+  persistSeenInboundKeys();
+  return false;
+}
+
 function ensureAuthDir() {
   if (!fs.existsSync(AUTH_DIR)) {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
@@ -255,12 +320,15 @@ async function buildInboundPayload(msg) {
   const device = getDeviceNumber();
   const senderLidStr = String(senderLid || '');
 
+  const waMessageId = msg.key?.id ? String(msg.key.id) : '';
+
   return {
     choices: [],
     device,
     extension,
     filename,
     inboxid,
+    wa_message_id: waMessageId || undefined,
     isforwarded: Boolean(msg.message?.extendedTextMessage?.contextInfo?.isForwarded),
     isgroup: isGroup,
     location,
@@ -291,13 +359,19 @@ async function handleIncomingMessages({ messages, type }) {
     try {
       const payload = await buildInboundPayload(msg);
       if (!payload) continue;
+      if (markInboundSeen(msg)) {
+        console.log('[inbound] skip duplicate wamid=', msg.key?.id);
+        continue;
+      }
       console.log(
         '[inbound]',
         payload.sender,
         payload.type,
         payload.message?.slice(0, 60) || '(media)',
         'inboxid=',
-        payload.inboxid
+        payload.inboxid,
+        'wamid=',
+        payload.wa_message_id || '-'
       );
       await postWebhook(payload);
     } catch (err) {

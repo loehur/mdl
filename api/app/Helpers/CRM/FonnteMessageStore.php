@@ -65,6 +65,19 @@ class FonnteMessageStore
             ? (int) $webhook['inboxid']
             : null;
 
+        $waMessageId = trim((string) ($webhook['wa_message_id'] ?? ''));
+        if ($waMessageId === '' && ! empty($webhook['wamid'])) {
+            $waMessageId = trim((string) $webhook['wamid']);
+        }
+
+        if ($waMessageId !== '' && $this->hasWaMessageIdColumn()) {
+            $dupe = $this->db->get_where('wa_fonnte_messages_in', ['wa_message_id' => $waMessageId])->row();
+            if ($dupe) {
+                $this->lastIncomingDuplicate = true;
+                return (int) ($dupe->id ?? 0) ?: null;
+            }
+        }
+
         if ($inboxid !== null && $inboxid > 0) {
             $dupe = $this->db->get_where('wa_fonnte_messages_in', ['inboxid' => $inboxid])->row();
             if ($dupe) {
@@ -118,9 +131,19 @@ class FonnteMessageStore
         if (CrmChatMergeHelper::fonnteInboundStatusReady($this->db)) {
             $row['status'] = 'received';
         }
+        if ($waMessageId !== '' && $this->hasWaMessageIdColumn()) {
+            $row['wa_message_id'] = mb_substr($waMessageId, 0, 128);
+        }
 
         $msgId = $this->db->insert('wa_fonnte_messages_in', $row);
         if (!$msgId) {
+            if ($waMessageId !== '' && $this->hasWaMessageIdColumn()) {
+                $dupe = $this->db->get_where('wa_fonnte_messages_in', ['wa_message_id' => $waMessageId])->row();
+                if ($dupe) {
+                    $this->lastIncomingDuplicate = true;
+                    return (int) ($dupe->id ?? 0) ?: null;
+                }
+            }
             if ($inboxid !== null && $inboxid > 0) {
                 $dupe = $this->db->get_where('wa_fonnte_messages_in', ['inboxid' => $inboxid])->row();
                 if ($dupe) {
@@ -372,6 +395,28 @@ class FonnteMessageStore
                  WHERE TABLE_SCHEMA = DATABASE()
                    AND TABLE_NAME = 'wa_fonnte_messages_out'
                    AND COLUMN_NAME = 'fonnte_stateid'
+                 LIMIT 1"
+            )->row();
+            $ready = (bool) $row;
+        } catch (\Throwable $e) {
+            $ready = false;
+        }
+
+        return $ready;
+    }
+
+    private function hasWaMessageIdColumn(): bool
+    {
+        static $ready = null;
+        if ($ready !== null) {
+            return $ready;
+        }
+        try {
+            $row = $this->db->query(
+                "SELECT 1 FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'wa_fonnte_messages_in'
+                   AND COLUMN_NAME = 'wa_message_id'
                  LIMIT 1"
             )->row();
             $ready = (bool) $row;
