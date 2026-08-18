@@ -8,12 +8,14 @@ use App\Core\DB;
 require_once __DIR__ . '/WARepliesKurirTrait.php';
 require_once __DIR__ . '/WARepliesLokasiTrait.php';
 require_once __DIR__ . '/WARepliesPermintaanTrait.php';
+require_once __DIR__ . '/WARepliesHargaTrait.php';
 
 class WAReplies
 {
     use WARepliesKurirTrait;
     use WARepliesLokasiTrait;
     use WARepliesPermintaanTrait;
+    use WARepliesHargaTrait;
 
     private $waService = null;
     private $noRegisterTextVariations = [
@@ -662,8 +664,6 @@ class WAReplies
             'TAGIHAN',
             'NOTA',
             'HARGA',
-            'HARGA_PAKET',
-            'HARGA_PAKET_D',
             'JAM_OPERASIONAL',
             'JAM_TUTUP',
             'JAM_BUKA',
@@ -2326,6 +2326,28 @@ class WAReplies
             }
         }
 
+        // Session HARGA aktif: follow-up parameter (durasi, paket, layanan, dll.)
+        $hargaSessionEarly = $this->getHargaSession($waNumber);
+        if ($hargaSessionEarly !== null) {
+            if (!$this->messageBreaksHargaSession($textBodyToCheck, $fullKeywordConfig)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_followup→HARGA');
+                $this->currentHandler = 'HARGA';
+                $this->handleHarga($phoneIn, $waNumber, $textBody);
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
+                    $fullKeywordConfig['HARGA']['case'] ?? null
+                );
+                $this->logAutoreplyTrace($waNumber, 'DONE', 'harga_session_followup_ok');
+                return (object) [
+                    'case' => $fullKeywordConfig['HARGA']['case'] ?? null,
+                    'notify' => (bool) ($fullKeywordConfig['HARGA']['notify'] ?? false),
+                    'conversation_id' => $conversationId,
+                ];
+            }
+            $this->clearHargaSession($waNumber);
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_cleared→other_intent');
+        }
+
         // Session LOKASI aktif: lengkapi alamat (kecuali intent jelas lain / jemput-antar)
         try {
             if ($this->getLokasiSession($waNumber) !== null
@@ -2527,13 +2549,14 @@ class WAReplies
                         $handler = 'PERMINTAAN';
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
-                    // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput (paket -D) = HARGA_PAKET_D lewat AI, bukan minta kurir
-                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
+                    // MINTA_JEMPUT_ANTAR: tanya harga paket/member + antar/jemput = HARGA (bukan minta kurir)
+                    if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
                         continue;
                     }
-                    // HARGA_PAKET regex: paket + antar/jemput = HARGA_PAKET_D (dicek lebih dulu di config)
-                    if ($handler === 'HARGA_PAKET' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
-                        continue;
+                    // Legacy intent HARGA_PAKET(_D) → unified HARGA
+                    if (in_array($handler, ['HARGA_PAKET', 'HARGA_PAKET_D'], true)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→HARGA unified');
+                        $handler = 'HARGA';
                     }
                     // MINTA_JEMPUT_ANTAR: "kalau/klo ... antar/jemput" = hipotetis, bukan minta kurir
                     if ($handler === 'MINTA_JEMPUT_ANTAR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
@@ -2834,28 +2857,20 @@ class WAReplies
             $aiCase = $fullKeywordConfig[$aiIntent]['case'] ?? null;
             $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
 
-            // AI salah: tanya harga paket + antar/jemput (paket -D) = HARGA_PAKET_D, bukan minta kurir
-            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→HARGA_PAKET_D');
-                $aiIntent = 'HARGA_PAKET_D';
-                $aiCase = $fullKeywordConfig['HARGA_PAKET_D']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['HARGA_PAKET_D']['notify'] ?? false;
+            // AI salah: tanya harga (termasuk paket + antar/jemput) = HARGA unified, bukan minta kurir
+            if ($aiIntent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_minta_jemput→HARGA delivery_question');
+                $aiIntent = 'HARGA';
+                $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
             }
 
-            // AI salah: HARGA_PAKET padahal tanya paket + antar/jemput
-            if ($aiIntent === 'HARGA_PAKET' && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_harga_paket→HARGA_PAKET_D');
-                $aiIntent = 'HARGA_PAKET_D';
-                $aiCase = $fullKeywordConfig['HARGA_PAKET_D']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['HARGA_PAKET_D']['notify'] ?? false;
-            }
-
-            // AI salah: HARGA_PAKET_D padahal tanpa antar/jemput
-            if ($aiIntent === 'HARGA_PAKET_D' && !$this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_harga_paket_d→HARGA_PAKET');
-                $aiIntent = 'HARGA_PAKET';
-                $aiCase = $fullKeywordConfig['HARGA_PAKET']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['HARGA_PAKET']['notify'] ?? false;
+            // Legacy HARGA_PAKET / HARGA_PAKET_D → unified HARGA
+            if (in_array($aiIntent, ['HARGA_PAKET', 'HARGA_PAKET_D'], true)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_' . $aiIntent . '→HARGA unified');
+                $aiIntent = 'HARGA';
+                $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
             }
 
             // AI salah: "kalau/klo ... antar/jemput" = hipotetis (bukan minta kurir) → biarkan CS (FALSE + ask)
@@ -3698,164 +3713,6 @@ class WAReplies
     }
 
     /**
-     * Handle intent HARGA_PAKET - harga paket/member/langganan (tanpa varian antar-jemput).
-     */
-    private function handleHarga_Paket($phoneIn, $waNumber, $textBody = '')
-    {
-        $this->runHargaPaketAutoreply($phoneIn, $waNumber, $textBody, false);
-    }
-
-    /**
-     * Handle intent HARGA_PAKET_D - harga paket/member yang include antar-jemput (data -D/-d saja).
-     */
-    private function handleHarga_Paket_D($phoneIn, $waNumber, $textBody = '')
-    {
-        $this->runHargaPaketAutoreply($phoneIn, $waNumber, $textBody, true);
-    }
-
-    /**
-     * Autoreply harga paket via AI. $deliveryOnlyPakets: false = tanpa -D/-d, true = hanya -D/-d.
-     */
-    private function runHargaPaketAutoreply($phoneIn, $waNumber, $textBody, $deliveryOnlyPakets)
-    {
-        $waService = $this->getWaService();
-        $logTag = $deliveryOnlyPakets ? 'HargaPaketD' : 'HargaPaket';
-
-        $priceDataText = $this->loadHargaPaketDataForAI($deliveryOnlyPakets);
-        if (empty($priceDataText)) {
-            return;
-        }
-
-        try {
-            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                return;
-            }
-
-            if ($deliveryOnlyPakets) {
-                $systemExtra = "\n\nPENTING - PAKET ANTAR/JEMPUT (DELIVERY):\n- Customer menanyakan harga paket yang INCLUDE antar-jemput/delivery.\n- Data di bawah HANYA berisi paket varian antar-jemput. Setiap judul sudah berformat 'Paket ... + Antar Jemput'.\n- Tampilkan SEMUA paket di data sesuai urutan. JANGAN menawarkan atau menampilkan paket tanpa antar/jemput.\n- Pertahankan judul '+ Antar Jemput' saat menjawab.";
-                $dataLabel = 'DATA HARGA PAKET/MEMBER + ANTAR JEMPUT (hanya varian include antar-jemput)';
-            } else {
-                $systemExtra = "\n\nPENTING - TANPA ANTAR/JEMPUT:\n- Data di bawah adalah paket standar (tanpa layanan antar-jemput). JANGAN menawarkan atau menyebut harga paket include antar/jemput kecuali customer minta.";
-                $dataLabel = 'DATA HARGA PAKET/MEMBER LAUNDRY (paket bulanan = paket member = paket kuota - tanpa antar/jemput)';
-            }
-
-            $messages = [
-                [
-                    'role' => 'system',
-                    'content' => "Kamu adalah asisten harga paket/member laundry. Jawab HANYA berdasarkan data yang diberikan.\n\nPENTING - PAKET BULANAN = PAKET MEMBER = HARGA PAKET (SAMA):\n- 'Paket bulanan', 'paket member', 'harga paket', 'ada paket?', 'langganan' = SEMUA merujuk ke data yang sama. Data di bawah adalah paket kuota/deposit.\n- JANGAN PERNAH jawab 'kami tidak punya paket bulanan' atau 'tidak ada paket bulanan'. SELALU tampilkan data paket yang ada.\n\nPENTING - FILTER LAYANAN:\n- 'Cuci + Setrika' = cuci DAN setrika, 'Setrika' = setrika saja.\n- Jika customer tanya 'cuci setrika': TAMPILKAN HANYA paket 'Cuci + Setrika'. JANGAN tampilkan 'Setrika' saja.\n- Jika customer tanya 'setrika saja': tampilkan HANYA paket 'Setrika' saja.\n- Jika customer tanya 'paket bulanan?', 'ada paket?', 'harga paket?', 'harga member?' (tanpa spesifikasi layanan): tampilkan SEMUA data namun ringkas." . $systemExtra . "\n\nURUTAN & FORMAT: Data SUDAH diurutkan. JANGAN ubah urutan. Format: *bold*, _italic_, emoji secukupnya, line break, tutup ramah. Jangan pakai tanda === atau garis pemisah serupa di sekitar judul paket."
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "{$dataLabel}:\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data. JANGAN bilang tidak punya paket bulanan - tampilkan data paket. Jika tanya layanan spesifik (cuci setrika, setrika saja), filter paket yang match saja."
-                ]
-            ];
-
-            $answer = $this->executeOpenAIRequestWithMessages($messages, 600);
-            $text = trim($answer);
-            if (empty($text)) {
-                return;
-            }
-
-            $catatan = "\n\n_Catatan:_\n- Pembayaran dimuka/deposit\n- Kuota berlaku selamanya\n- Kuota tidak dapat direfund";
-            $text .= $catatan;
-
-            $res = $this->sendQuotedFreeText($waNumber, $text);
-            if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-            }
-        } catch (\Exception $e) {
-            if (class_exists('\Log')) {
-                \Log::write("runHargaPaketAutoreply ERROR: " . $e->getMessage(), 'wa_error', $logTag);
-            }
-        }
-    }
-
-    /**
-     * Pertanyaan harga paket/member/langganan sekaligus antar-jemput/delivery → hanya data paket -D/-d.
-     * Dipakai agar regex MINTA_JEMPUT_ANTAR tidak mengalahkan jalur AI HARGA_PAKET_D.
-     *
-     * @param string $textLower lowercase, tanpa formatter WA
-     */
-    private function messageIsHargaPaketAntarJemputCombinedQuestion($textLower)
-    {
-        $t = (string) $textLower;
-        if ($t === '') {
-            return false;
-        }
-        if (!preg_match('/\b(paket|member|langganan|deposit)\b/u', $t)) {
-            return false;
-        }
-        if (!preg_match('/\b(antar|jemput|dijemput|diantar|antar\s*jemput|jemput\s*antar|ongkir|ongkos|kurir|pickup|pick\s*up|include|delivery|deliveri)\b/u', $t)) {
-            return false;
-        }
-        // Instruksi kurir saja (bukan tanya harga paket)
-        if (preg_match('/\b(tolong|minta|bantu)\s+(di)?(jemput|antar)\b/i', $t)
-            && !preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa|paket|member)\b/u', $t)) {
-            return false;
-        }
-        if (preg_match('/\b(harga|berapa|biaya|daftar|tarif|rate|brp|brpa)\b/u', $t)) {
-            return true;
-        }
-        // Tanpa kata harga eksplisit: "paket member antar jemput", "paket laundry antar jemput"
-        if (preg_match('/\b(paket|member|langganan|deposit)\b/u', $t)
-            && preg_match('/\b(antar|jemput|antar\s*jemput|jemput\s*antar|delivery|include)\b/u', $t)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Nama paket (kategori | layanan | durasi) memakai penanda delivery -D/-d di durasi.
-     */
-    private function hargaPaketNamaIsDeliveryVariant($nama)
-    {
-        return (bool) preg_match('/-(?:D|d)\b/i', (string) $nama);
-    }
-
-    /**
-     * Judul tampilan untuk paket delivery: "Paket {kategori} | {layanan} | {durasi} + Antar Jemput"
-     */
-    private function formatHargaPaketDeliveryDisplayTitle($nama)
-    {
-        $nama = trim((string) $nama);
-        $parts = array_map('trim', explode('|', $nama));
-        if (count($parts) >= 3) {
-            $durasi = preg_replace('/-(?:D|d)\b/i', '', $parts[2]);
-            $durasi = trim($durasi);
-
-            return 'Paket ' . $parts[0] . ' | ' . $parts[1] . ' | ' . $durasi . ' + Antar Jemput';
-        }
-
-        $base = preg_replace('/-(?:D|d)\b/i', '', $nama);
-
-        return 'Paket ' . trim($base) . ' + Antar Jemput';
-    }
-
-    /**
-     * Tanya ongkos/ongkir sekaligus durasi proses (hari) atau jenis layanan (regular/ekspres/kilat) → HARGA, bukan minta kurir.
-     *
-     * @param string $text asli atau lowercase
-     */
-    private function messageIsHargaOngkosByDurasiAtauLayanan($text)
-    {
-        $t = (string) $text;
-        if ($t === '') {
-            return false;
-        }
-        if (!preg_match('/\b(ongkos|ongkir|ong\s*kos|ong\s*kir)\b/iu', $t)) {
-            return false;
-        }
-        if (!preg_match('/\b(brp|brpa|brapa|berapa|harga|biaya|tarif)\b/iu', $t)) {
-            return false;
-        }
-        $hasDurasi = (bool) preg_match('/\b(sehari|se\s*hari|satu\s*hari|dua\s*hari|tiga\s*hari|\d{1,2}\s*hari)\b/iu', $t);
-        $hasTier = (bool) preg_match('/\b(regular|reguler|ekspres|ekspress|express|kilat)\b/iu', $t);
-
-        return $hasDurasi || $hasTier;
-    }
-
-    /**
      * Pertanyaan ongkir/ongkos antar-jemput saja — belum minta kurir (→ FALSE/CS, bukan MINTA_JEMPUT_ANTAR).
      * Contoh: "udah sm ongkir ni kak?", "brp ongkirnya?", "berapa ongkos antar?"
      *
@@ -3921,353 +3778,6 @@ class WAReplies
             return true;
         }
         return false;
-    }
-
-    /**
-     * Load harga paket dari db(1) - format untuk AI
-     * Urut by id_harga (nama paket), qty.
-     *
-     * @param bool $deliveryOnlyPakets true = HANYA paket -D/-d (antar/jemput), judul + Antar Jemput
-     */
-    private function loadHargaPaketDataForAI($deliveryOnlyPakets = false)
-    {
-        $db = DB::getInstance(1);
-
-        $itemGroup = [];
-        foreach ($db->query("SELECT id_item_group, item_kategori FROM item_group")->result_array() as $r) {
-            $itemGroup[$r['id_item_group']] = $r['item_kategori'] ?? '';
-        }
-        $penjualan = [];
-        foreach ($db->query("SELECT id_penjualan_jenis, penjualan_jenis, id_satuan FROM penjualan_jenis")->result_array() as $r) {
-            $penjualan[$r['id_penjualan_jenis']] = ['nama' => $r['penjualan_jenis'] ?? '', 'id_satuan' => (int) ($r['id_satuan'] ?? 0)];
-        }
-        $satuan = [];
-        foreach ($db->query("SELECT id_satuan, nama_satuan FROM satuan")->result_array() as $r) {
-            $satuan[$r['id_satuan']] = $r['nama_satuan'] ?? '';
-        }
-        $durasi = [];
-        foreach ($db->query("SELECT id_durasi, durasi FROM durasi")->result_array() as $r) {
-            $durasi[$r['id_durasi']] = $r['durasi'] ?? '';
-        }
-        $layanan = [];
-        foreach ($db->query("SELECT id_layanan, layanan FROM layanan")->result_array() as $r) {
-            $layanan[$r['id_layanan']] = $r['layanan'] ?? '';
-        }
-
-        $rows = $db->query(
-            "SELECT hp.id_harga, hp.qty, hp.harga 
-             FROM harga_paket hp 
-             INNER JOIN harga h ON hp.id_harga = h.id_harga 
-             ORDER BY hp.id_harga ASC, hp.qty ASC"
-        )->result_array();
-
-        if (empty($rows)) {
-            return '';
-        }
-
-        $hargaCache = [];
-        /** @var array<string, array{unit: string, rows: string[], has_d: bool}> $groups */
-        $groups = [];
-        $order = [];
-
-        foreach ($rows as $r) {
-            $idHarga = (int) ($r['id_harga'] ?? 0);
-            $qty = (int) ($r['qty'] ?? 0);
-            $harga = (int) ($r['harga'] ?? 0);
-
-            if (!isset($hargaCache[$idHarga])) {
-                $hRows = $db->query("SELECT id_item_group, id_penjualan_jenis, list_layanan, id_durasi FROM harga WHERE id_harga = " . (int) $idHarga)->result_array();
-                if (empty($hRows)) {
-                    continue;
-                }
-                $h = $hRows[0];
-                $kategori = $itemGroup[$h['id_item_group'] ?? 0] ?? 'Item';
-                $listL = @unserialize($h['list_layanan'] ?? '');
-                $layananParts = [];
-                if (is_array($listL)) {
-                    foreach ($listL as $lid) {
-                        if (!empty($layanan[$lid])) {
-                            $layananParts[] = $layanan[$lid];
-                        }
-                    }
-                }
-                $layananStr = !empty($layananParts) ? implode(' + ', $layananParts) : '-';
-                $durasiStr = $durasi[$h['id_durasi'] ?? 0] ?? '';
-                $pj = $penjualan[$h['id_penjualan_jenis'] ?? 0] ?? null;
-                $idSatuan = $pj['id_satuan'] ?? 0;
-                $unit = $satuan[$idSatuan] ?? '';
-                $hargaCache[$idHarga] = ['nama' => "{$kategori} | {$layananStr} | {$durasiStr}", 'unit' => $unit];
-            }
-
-            $cache = $hargaCache[$idHarga];
-            $nama = $cache['nama'];
-            $unit = $cache['unit'];
-
-            $isDelivery = $this->hargaPaketNamaIsDeliveryVariant($nama);
-            if ($deliveryOnlyPakets) {
-                if (!$isDelivery) {
-                    continue;
-                }
-            } elseif ($isDelivery) {
-                continue;
-            }
-
-            if (!isset($groups[$nama])) {
-                $groups[$nama] = ['unit' => $unit, 'rows' => []];
-                $order[] = $nama;
-            }
-
-            $qtyUnit = $qty . $unit;
-            $groups[$nama]['rows'][] = "  {$qtyUnit}: Rp " . number_format($harga, 0, ',', '.');
-        }
-
-        $lines = [];
-        foreach ($order as $nama) {
-            $g = $groups[$nama];
-            $unit = $g['unit'];
-            $judul = $deliveryOnlyPakets
-                ? $this->formatHargaPaketDeliveryDisplayTitle($nama)
-                : strtoupper($nama);
-            $lines[] = "\n\n" . $judul . " ({$unit})";
-            foreach ($g['rows'] as $rowLine) {
-                $lines[] = $rowLine;
-            }
-        }
-
-        return trim(implode("\n", $lines));
-    }
-
-    /**
-     * Handle intent HARGA - ambil list harga dari db(1), AI jawab pertanyaan harga berdasarkan data
-     * Sumber data: sama dengan view SetHarga (harga, item_group, layanan, durasi, penjualan_jenis, satuan)
-     */
-    private function handleHarga($phoneIn, $waNumber, $textBody = '')
-    {
-        $waService = $this->getWaService();
-
-        $priceDataText = $this->loadHargaDataForAI($textBody, 20);
-        if (empty($priceDataText)) {
-            return; // Tidak ada data, CS yang akan membalas manual
-        }
-
-        try {
-            if (!class_exists('\\App\\Config\\AI') || !\App\Config\AI::isEnabled()) {
-                return; // AI tidak aktif, CS yang akan membalas manual
-            }
-
-            $messages = [
-                [
-                    'role' => 'system',
-                    'content' => "Kamu adalah asisten harga laundry. Jawab HANYA berdasarkan data harga yang diberikan.\n\nPENTING - URUTAN: Item dalam data SUDAH diurutkan by sort (paling sering dipakai). Baris PERTAMA = nomor 1, baris kedua = 2, dst. JANGAN ubah urutan, JANGAN sort ulang by harga. Tampilkan sesuai urutan yang diberikan.\n\n- Jika pertanyaan JELAS/SPESIFIK: jawab fokus pada yang ditanya.\n- Jika pertanyaan BELUM JELAS: tampilkan 3 harga teratas = BARIS PERTAMA dari data (jangan urutkan ulang by harga).\n\nFORMAT WHATSAPP agar menarik:\n- Gunakan *teks* untuk bold (judul, nominal)\n- Gunakan _teks_ untuk italic (penekanan)\n- Boleh gunakan emoji secukupnya (📋 ✨ 💰) untuk mempercantik\n- Beri line break antar item agar mudah dibaca\n- WAKTU: Data sudah berformat 'X Hari' atau 'Y Jam' atau 'X Hari Y Jam'. Tampilkan persis seperti di data (jangan ubah ke format 1h 0j)\n- Tutup dengan kalimat ramah dan ajakan bertanya lebih lanjut"
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "DATA HARGA LAUNDRY (urutan SUDAH BENAR - baris pertama = sort tertinggi/paling populer, JANGAN sort ulang by harga):\n\n" . $priceDataText . "\n\n---\n\nPertanyaan customer: " . $textBody . "\n\nJawab berdasarkan data di atas. Jika tidak spesifik, tampilkan 3 BARIS PERTAMA sesuai urutan data (jangan ubah urutan)."
-                ]
-            ];
-
-            $answer = $this->executeOpenAIRequestWithMessages($messages, 400);
-            $text = trim($answer);
-            if (empty($text)) {
-                $fallback = "Mohon maaf, saya belum bisa menampilkan harga saat ini.\nBoleh sebutkan itemnya (mis. pakaian harian, bedcover, sepatu, gorden) agar saya bantu cek harga?";
-                $res = $this->sendQuotedFreeText($waNumber, $fallback);
-                if ($res['success']) {
-                    $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-                }
-                return;
-            }
-
-            $res = $this->sendQuotedFreeText($waNumber, $text);
-            if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-            }
-        } catch (\Exception $e) {
-            if (class_exists('\Log')) {
-                \Log::write("handleHarga ERROR: " . $e->getMessage(), 'wa_error', 'Harga');
-            }
-            $fallback = "Mohon maaf, sistem sedang sibuk saat cek harga.\nSilakan kirim lagi dengan item yang dicari (contoh: setrika, bedcover, sepatu, gorden).";
-            $res = $this->sendQuotedFreeText($waNumber, $fallback);
-            if ($res['success']) {
-                $this->pushToWebSocket($this->buildWsPayload($waNumber, $fallback, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
-            }
-            return;
-        }
-    }
-
-    /**
-     * Load harga data dari db(1) - format sama SetHarga view
-     * Return: text untuk context AI
-     */
-    private function loadHargaDataForAI(string $questionText = '', int $maxRows = 20)
-    {
-        $db = DB::getInstance(1);
-
-        $itemGroup = [];
-        foreach ($db->query("SELECT id_item_group, item_kategori FROM item_group")->result_array() as $r) {
-            $itemGroup[$r['id_item_group']] = $r['item_kategori'] ?? '';
-        }
-        $penjualan = [];
-        foreach ($db->query("SELECT id_penjualan_jenis, penjualan_jenis, id_satuan FROM penjualan_jenis")->result_array() as $r) {
-            $penjualan[$r['id_penjualan_jenis']] = ['nama' => $r['penjualan_jenis'] ?? '', 'id_satuan' => (int) ($r['id_satuan'] ?? 0)];
-        }
-        $satuan = [];
-        foreach ($db->query("SELECT id_satuan, nama_satuan FROM satuan")->result_array() as $r) {
-            $satuan[$r['id_satuan']] = $r['nama_satuan'] ?? '';
-        }
-        $durasi = [];
-        foreach ($db->query("SELECT id_durasi, durasi FROM durasi")->result_array() as $r) {
-            $durasi[$r['id_durasi']] = $r['durasi'] ?? '';
-        }
-        $layanan = [];
-        foreach ($db->query("SELECT id_layanan, layanan FROM layanan")->result_array() as $r) {
-            $layanan[$r['id_layanan']] = $r['layanan'] ?? '';
-        }
-
-        $rows = $db->query(
-            "SELECT h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi, h.harga, h.min_order, h.hari, h.jam, h.sort 
-             FROM harga h 
-             INNER JOIN durasi d ON h.id_durasi = d.id_durasi 
-             WHERE h.is_active = 1 AND d.durasi IN ('Reguler', 'Ekspres', 'Kilat') 
-             ORDER BY h.sort DESC, h.id_penjualan_jenis, h.id_item_group, h.list_layanan, h.id_durasi"
-        )->result_array();
-
-        if (empty($rows)) {
-            return '';
-        }
-
-        $questionLower = mb_strtolower(trim($questionText));
-        $specialItemPattern = '/\b(gorden|gor?d?en|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
-        $mentionsSpecialItem = (bool) preg_match($specialItemPattern, $questionLower);
-        $keywords = [];
-        if ($questionLower !== '') {
-            if (preg_match('/\b(reguler\s*[-]?\s*d)\b/iu', $questionLower)) {
-                $keywords[] = 'reguler-d';
-            }
-            if (preg_match('/\b(ekspres\s*[-]?\s*d)\b/iu', $questionLower)) {
-                $keywords[] = 'ekspres-d';
-            }
-            if (preg_match('/\b(kilat\s*[-]?\s*d)\b/iu', $questionLower)) {
-                $keywords[] = 'kilat-d';
-            }
-            if (preg_match('/\b(setrika|strika|gosok)\b/iu', $questionLower)) {
-                $keywords[] = 'setrika';
-                $keywords[] = 'strika';
-                $keywords[] = 'gosok';
-            }
-
-            preg_match_all('/[a-z0-9\-]{3,}/iu', $questionLower, $m);
-            $tokens = $m[0] ?? [];
-            $stopwords = [
-                'harga', 'berapa', 'brp', 'kak', 'bang', 'pak', 'bu', 'mau', 'saya', 'aku', 'yang',
-                'untuk', 'dan', 'atau', 'ini', 'itu', 'ada', 'bisa', 'tolong', 'info', 'dong', 'ya',
-                'laundry', 'cuci'
-            ];
-            foreach ($tokens as $token) {
-                if (!in_array($token, $stopwords, true)) {
-                    $keywords[] = $token;
-                }
-            }
-        }
-        $keywords = array_values(array_unique($keywords));
-
-        $enrichedRows = [];
-        foreach ($rows as $r) {
-            $idPj = $r['id_penjualan_jenis'];
-            $pj = $penjualan[$idPj] ?? null;
-            $namaJenis = $pj ? $pj['nama'] : 'Layanan';
-            $idSatuan = $pj ? $pj['id_satuan'] : 0;
-            $unit = $satuan[$idSatuan] ?? '';
-
-            $kategori = $itemGroup[$r['id_item_group']] ?? 'Item';
-            $listL = @unserialize($r['list_layanan'] ?? '');
-            $layananParts = [];
-            if (is_array($listL)) {
-                foreach ($listL as $lid) {
-                    if (!empty($layanan[$lid])) {
-                        $layananParts[] = $layanan[$lid];
-                    }
-                }
-            }
-            $layananStr = !empty($layananParts) ? implode(' + ', $layananParts) : '-';
-            $durasiStr = $durasi[$r['id_durasi']] ?? '';
-            $harga = (int) ($r['harga'] ?? 0);
-            $minOrder = (int) ($r['min_order'] ?? 0);
-            $hari = (int) ($r['hari'] ?? 0);
-            $jam = (int) ($r['jam'] ?? 0);
-
-            $line = "{$kategori} | {$layananStr} | {$durasiStr} | Rp " . number_format($harga, 0, ',', '.') . "/{$unit}";
-            if ($minOrder > 0) {
-                $line .= " | Min order: {$minOrder}{$unit}";
-            }
-            if ($hari > 0 || $jam > 0) {
-                $waktuParts = [];
-                if ($hari > 0) $waktuParts[] = $hari . ' Hari';
-                if ($jam > 0) $waktuParts[] = $jam . ' Jam';
-                $line .= ' | Waktu: ' . implode(' ', $waktuParts);
-            }
-
-            $searchBlob = mb_strtolower(implode(' ', [
-                (string) $kategori,
-                (string) $namaJenis,
-                (string) $layananStr,
-                (string) $durasiStr,
-                (string) $line,
-            ]));
-
-            $matchScore = 0;
-            foreach ($keywords as $kw) {
-                if ($kw !== '' && mb_strpos($searchBlob, $kw) !== false) {
-                    $matchScore++;
-                }
-            }
-
-            $enrichedRows[] = [
-                'kategori' => $kategori,
-                'namaJenis' => $namaJenis,
-                'unit' => $unit,
-                'line' => $line,
-                'score' => $matchScore,
-            ];
-        }
-
-        $defaultRows = $enrichedRows;
-        // Jika item khusus tidak disebut, anggap user menanyakan "pakaian harian".
-        if (!$mentionsSpecialItem) {
-            $pakaianHarianRows = array_values(array_filter($enrichedRows, function ($row) {
-                $kategori = mb_strtolower((string) ($row['kategori'] ?? ''));
-                return mb_strpos($kategori, 'pakaian') !== false && mb_strpos($kategori, 'harian') !== false;
-            }));
-            if (!empty($pakaianHarianRows)) {
-                $defaultRows = $pakaianHarianRows;
-            }
-        }
-
-        if (!empty($keywords)) {
-            $filtered = array_values(array_filter($defaultRows, function ($row) {
-                return (int) ($row['score'] ?? 0) > 0;
-            }));
-        } else {
-            $filtered = [];
-        }
-
-        // Jika tidak ada match keyword, fallback ke data terpopuler (urutan default query).
-        $selectedRows = !empty($filtered) ? $filtered : $defaultRows;
-        $selectedRows = array_slice($selectedRows, 0, max(1, (int) $maxRows));
-
-        $lines = [];
-        $currentJenis = '';
-        $lineNum = 0;
-        foreach ($selectedRows as $row) {
-            $lineNum++;
-            if ($row['namaJenis'] !== $currentJenis) {
-                $currentJenis = $row['namaJenis'];
-                $lines[] = "\n=== " . strtoupper($row['namaJenis']) . " (per " . $row['unit'] . ") ===";
-            }
-            $prefix = "{$lineNum}. ";
-            $lines[] = $prefix . $row['line'];
-        }
-
-        return trim(implode("\n", $lines));
     }
 
     private function handleTagihan($phoneIn, $waNumber, $textBody = '')
@@ -4795,8 +4305,6 @@ class WAReplies
             'NOTA',
             'STATUS',
             'HARGA',
-            'HARGA_PAKET',
-            'HARGA_PAKET_D',
             'PEMBUKA',
             'PENUTUP',
             'JAM_OPERASIONAL',
@@ -8466,33 +7974,19 @@ class WAReplies
                 $reason = 'remap pertanyaan ongkir/ongkos → FALSE (bukan minta kurir)';
             }
 
+            // Legacy HARGA_PAKET(_D) dari AI lama → unified HARGA
+            if (in_array($intent, ['HARGA_PAKET', 'HARGA_PAKET_D'], true)) {
+                $legacyIntent = $intent;
+                $intent = 'HARGA';
+                $reason = 'remap legacy ' . $legacyIntent . ' → HARGA unified';
+            }
+
             $textBodyForPaketCheck = mb_strtolower(preg_replace('/[*_~`]/', '', (string) $textBody), 'UTF-8');
 
-            // HARGA_PAKET / HARGA_PAKET_D + antar/jemput ↔ pisah intent delivery
-            if ($intent === 'HARGA_PAKET' && isset($keywordConfig['HARGA_PAKET_D'])
-                && $this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyForPaketCheck)) {
-                $intent = 'HARGA_PAKET_D';
-                $reason = 'remap HARGA_PAKET + antar/jemput → HARGA_PAKET_D';
-            }
-            if ($intent === 'HARGA_PAKET_D' && !$this->messageIsHargaPaketAntarJemputCombinedQuestion($textBodyForPaketCheck)) {
-                $intent = 'HARGA_PAKET';
-                $reason = 'remap HARGA_PAKET_D tanpa antar/jemput → HARGA_PAKET';
-            }
-
-            // AI kadang salah pilih HARGA_PAKET(_D) untuk tanya harga layanan biasa (mis. "cek harga setrika").
-            foreach (['HARGA_PAKET', 'HARGA_PAKET_D'] as $paketIntent) {
-                if ($intent !== $paketIntent || !isset($keywordConfig['HARGA'])) {
-                    continue;
-                }
-                $hasPaketContext = (bool) preg_match('/\b(paket|member|langganan|deposit|bulanan)\b/iu', $textBody);
-                $looksLikeRegularHargaQuestion = (bool) (
-                    preg_match('/\b(harga|biaya|tarif|berapa|brp|brapa)\b/iu', $textBody)
-                    && preg_match('/\b(setrika|strika|gosok|cuci|laundry|loundry|londri|kilo|kg|reguler|regular|ekspres|kilat)\b/iu', $textBody)
-                );
-                if (!$hasPaketContext && ($looksLikeRegularHargaQuestion || $this->messageLooksLikePricelistRequest($textBody))) {
-                    $intent = 'HARGA';
-                    $reason = 'remap ' . $paketIntent . ' tanpa kata paket/member → HARGA';
-                }
+            // MINTA + tanya harga paket/antar → HARGA
+            if ($intent === 'MINTA_JEMPUT_ANTAR' && $this->messageIsHargaDeliveryQuestion($textBodyForPaketCheck)) {
+                $intent = 'HARGA';
+                $reason = 'remap minta + harga delivery → HARGA';
             }
 
             // Log: text | intent | ask | from_block | reason

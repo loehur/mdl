@@ -240,7 +240,7 @@ trait WARepliesKurirTrait
         // Jangan include PEMBUKA/PENUTUP: "ya"/"ok"/"iya" saat konfirmasi lokasi/layanan
         // harus tetap di session kurir, bukan dibalas sapaan/ack penutup.
         $breakout = [
-            'TAGIHAN', 'NOTA', 'STATUS', 'HARGA', 'HARGA_PAKET', 'HARGA_PAKET_D',
+            'TAGIHAN', 'NOTA', 'STATUS', 'HARGA',
             'REMINDER', 'KEY', 'JAM_OPERASIONAL',
             'KARYAWAN', 'KAS_LAUNDRY', 'CEK_TOKEN',
             'CEK_QRIS', 'SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'TARIK_TOKOPAY',
@@ -2464,30 +2464,38 @@ trait WARepliesKurirTrait
             'layanan' => 'sameday',
         ]);
 
-        // Ongkir gratis / 0, atau riwayat sameday lokasi+tarif sama → skip konfirmasi, langsung create
+        // Ongkir gratis / repeat lokasi+tarif sama → tetap konfirmasi, tapi jangan tampilkan ongkir lagi
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $lastOk = $this->kurirLastSuccessfulSamedayRequest($idPelanggan);
-        $skipGratis = $tarif <= 0;
-        $skipSame = $lastOk !== null
-            && (int) ($lastOk['id_lokasi'] ?? 0) === $idLokasi
-            && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif
-            && mb_strtolower(trim((string) ($lastOk['lokasi_detail'] ?? ''))) === mb_strtolower(trim($detail));
-        if (!$forceAsk && ($skipGratis || $skipSame)) {
+        $hideOngkir = !$forceAsk && (
+            $tarif <= 0
+            || (
+                $lastOk !== null
+                && (int) ($lastOk['id_lokasi'] ?? 0) === $idLokasi
+                && (int) ($lastOk['tarif_surcas'] ?? 0) === $tarif
+                && mb_strtolower(trim((string) ($lastOk['lokasi_detail'] ?? ''))) === mb_strtolower(trim($detail))
+            )
+        );
+
+        $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
+        if ($hideOngkir) {
             $this->logAutoreplyTrace(
                 $waNumber,
                 'KURIR',
-                $skipGratis
-                    ? "skip_confirm ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}"
-                    : "skip_confirm same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
+                $tarif <= 0
+                    ? "confirm_no_ongkir ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}"
+                    : "confirm_no_ongkir same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
             );
-            $this->kurirAcceptLokasiAndCreateRequest($waNumber, $sapaan, $session);
+            $this->sendAutoreplyText(
+                $waNumber,
+                "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}? Balas *ya* untuk lanjut."
+            );
             return;
         }
 
-        $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
         $this->sendAutoreplyText(
             $waNumber,
-            "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}? Ongkir {$tarifRp}. Balas ya untuk lanjut."
+            "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}? Ongkir {$tarifRp}. Balas *ya* untuk lanjut."
         );
     }
 

@@ -159,8 +159,6 @@ trait WARepliesPermintaanTrait
             'NOTA',
             'STATUS',
             'HARGA',
-            'HARGA_PAKET',
-            'HARGA_PAKET_D',
             'REKENING',
             'LOKASI',
             'MINTA_JEMPUT_ANTAR',
