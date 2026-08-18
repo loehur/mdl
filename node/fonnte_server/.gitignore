@@ -2,5 +2,6 @@ node_modules/
 .env
 auth/
 media/
-data/
+data/*
+!data/lid_phone_map.json
 *.log

@@ -808,19 +808,38 @@ class WA_Fonnte extends Controller
             }
         }
 
+        $mode = strtolower(trim((string) ($data['mode'] ?? '')));
+        $isLid = ($mode === 'lid') || ($senderLid !== '' && stripos($senderLid, '@lid') !== false);
+
+        if ($isLid && $senderLid !== '') {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteLidMap')) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteLidMap.php';
+            }
+            $mapped = \App\Helpers\CRM\FonnteLidMap::phoneDigitsForLid($senderLid);
+            if ($mapped !== null && $mapped !== '') {
+                return $mapped;
+            }
+        }
+
         $sender = trim((string) ($data['sender'] ?? ''));
         if ($sender === '') {
             return null;
         }
-
-        $mode = strtolower(trim((string) ($data['mode'] ?? '')));
-        $isLid = ($mode === 'lid') || ($senderLid !== '' && stripos($senderLid, '@lid') !== false);
 
         if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
             require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
         }
 
         if ($isLid && !\App\Helpers\CRM\WaSenderContext::looksLikeIndonesianMobile($sender)) {
+            if ($senderLid !== '') {
+                if (!class_exists('\\App\\Helpers\\CRM\\FonnteLidMap')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/FonnteLidMap.php';
+                }
+                $mapped = \App\Helpers\CRM\FonnteLidMap::phoneDigitsForLid($senderLid);
+                if ($mapped !== null && $mapped !== '') {
+                    return $mapped;
+                }
+            }
             $lidDigits = preg_replace('/[^0-9]/', '', $senderLid !== '' ? explode('@', $senderLid)[0] : $sender);
             if ($lidDigits !== '') {
                 return 'lid:' . $lidDigits;

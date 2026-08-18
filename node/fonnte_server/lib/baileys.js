@@ -92,14 +92,24 @@ function resolveSenderJid(msg) {
 
   if (isBroadcastJid(senderJid)) return null;
 
-  // Baileys ≥6.7 kadang menyertakan senderPn di key
-  const senderPn = msg.key?.senderPn || msg.key?.sender_pn;
-  if (senderPn && (isLidJid(senderJid) || isLidJid(remoteJid))) {
-    const lidRef = isLidJid(remoteJid) ? remoteJid : senderJid;
-    if (isLidJid(lidRef)) setLidPhone(lidRef, senderPn);
-    senderJid = String(senderPn);
+  // Baileys 6.7.19+ — sender_pn dari server WA (sama seperti Fonnte cloud)
+  const senderPn = msg.key?.senderPn || msg.key?.sender_pn
+    || msg.key?.participantPn || msg.key?.participant_pn;
+  const senderLidKey = msg.key?.senderLid || msg.key?.sender_lid
+    || msg.key?.participantLid || msg.key?.participant_lid;
+
+  if (senderPn) {
+    const pn = String(senderPn);
+    const lidRef = senderLidKey
+      || (isLidJid(remoteJid) ? remoteJid : '')
+      || (isLidJid(senderJid) ? senderJid : '');
+    if (lidRef && isLidJid(lidRef)) setLidPhone(lidRef, pn);
+    if (isLidJid(senderJid) || isLidJid(remoteJid) || !looksLikeMobileDigits(jidToSender(senderJid))) {
+      senderJid = pn;
+    }
   } else if (isLidJid(senderJid) || (!isGroup && isLidJid(remoteJid))) {
-    const lidRef = isLidJid(senderJid) ? senderJid : remoteJid;
+    const lidRef = senderLidKey
+      || (isLidJid(remoteJid) ? remoteJid : senderJid);
     const mapped = getPhoneJidForLid(lidRef);
     if (mapped) senderJid = mapped;
   }
@@ -125,9 +135,10 @@ async function buildInboundPayload(msg) {
   let sender = jidToSender(senderJid);
   if (!sender && !isGroup) return null;
 
-  const senderLidRaw = isLidJid(remoteJid)
-    ? remoteJid
-    : (isLidJid(msg.key?.participant || '') ? (msg.key?.participant || '') : '');
+  const senderLidRaw = msg.key?.senderLid || msg.key?.sender_lid
+    || msg.key?.participantLid || msg.key?.participant_lid
+    || (isLidJid(remoteJid) ? remoteJid : '')
+    || (isLidJid(msg.key?.participant || '') ? (msg.key?.participant || '') : '');
   const senderLid = senderLidRaw || (isLidJid(senderJid) ? senderJid : '');
   const resolvedPn = looksLikeMobileDigits(sender) ? sender : '';
   const pushName = msg.pushName || msg.verifiedBizName || '';
