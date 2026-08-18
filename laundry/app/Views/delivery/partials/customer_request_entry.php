@@ -17,7 +17,6 @@ $dateRawR = $rq['insertTime'] ?? '';
 $dateLblR = $dateRawR !== '' ? date('d/m/y H:i', strtotime($dateRawR)) : '-';
 $pillClass = $jenis === 'antar' ? 'dlv-jenis-pill--antar' : ($jenis === 'jemput' ? 'dlv-jenis-pill--jemput' : '');
 $jenisIcon = $jenis === 'jemput' ? 'fa-hand-holding' : 'fa-truck';
-$sekalianJemput = $jenis === 'antar' && (int) ($rq['sekalian_jemput'] ?? 0) === 1;
 $lokNama = trim((string) ($rq['lokasi_nama'] ?? ''));
 $lokDetail = trim((string) ($rq['lokasi_detail'] ?? ''));
 $lokLatt = $rq['lokasi_latt'] ?? null;
@@ -69,8 +68,7 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
        data-source="customer"
        data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
        data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
-       data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-       data-sekalian-jemput="<?= $sekalianJemput ? '1' : '0' ?>">
+       data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>">
     <div class="dlv-item__text">
       <p class="dlv-item__title">
         <?php if ($jenisOk) { ?>
@@ -78,12 +76,6 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
             <i class="fas <?= $jenisIcon ?>" aria-hidden="true"></i>
             <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
           </span>
-          <?php if ($sekalianJemput) { ?>
-            <span class="dlv-jenis-pill dlv-jenis-pill--sekalian">
-              <i class="fas fa-plus" aria-hidden="true"></i>
-              Sekalian Jemput
-            </span>
-          <?php } ?>
         <?php } ?>
         <?php if ($isInstant) { ?>
           <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
@@ -176,7 +168,6 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
                 data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
                 data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
                 data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-                data-sekalian-jemput="<?= $sekalianJemput ? '1' : '0' ?>"
                 data-nama="<?= $nama ?>">
           <i class="fas fa-check"></i> Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
         </button>
@@ -192,7 +183,6 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
                 data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
                 data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
                 data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-                data-sekalian-jemput="<?= $sekalianJemput ? '1' : '0' ?>"
                 data-nama="<?= $nama ?>">
           <i class="fas fa-check"></i> Selesai
         </button>

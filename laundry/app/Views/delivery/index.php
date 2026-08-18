@@ -862,7 +862,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
     #dlv-root .dlv-jenis-pill--antar { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
     #dlv-root .dlv-jenis-pill--jemput { border-color: #fcd34d; background: #fffbeb; color: #b45309; }
-    #dlv-root .dlv-jenis-pill--sekalian { border-color: #86efac; background: #f0fdf4; color: #15803d; }
     #dlv-root .dlv-jenis-locked {
       display: flex;
       flex-direction: column;
@@ -875,22 +874,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       font-size: 0.8rem;
       padding: 4px 10px;
     }
-    #dlv-root .dlv-sekalian {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 12px;
-      padding: 10px 12px;
-      border: 1px solid var(--dlv-line);
-      background: #f8fafc;
-      font-weight: 800;
-      cursor: pointer;
-      user-select: none;
-    }
-    #dlv-root .dlv-sekalian[hidden] { display: none !important; }
-    #dlv-root .dlv-sekalian input { margin: 0; }
-    #dlv-root .dlv-sekalian-wrap { margin-top: 8px; }
-    #dlv-root .dlv-sekalian-wrap[hidden] { display: none !important; }
     #dlv-root .dlv-item__lokasi {
       margin-top: 4px;
       color: #0f172a;
@@ -1241,28 +1224,6 @@ $canCekDetail = !empty($data['canCekDetail']);
               <i class="fas fa-info-circle me-1"></i>
               Wajib diisi. Isi nominal, atau 0 untuk gratis.
             </p>
-          </div>
-
-          <div id="dlvAntarKembaliBlock" hidden>
-            <label class="dlv-sekalian" id="dlvAntarKembaliRow">
-              <input type="checkbox" id="dlvAntarKembaliCheck" value="1">
-              <span>Request Antar kembali?</span>
-            </label>
-            <p class="dlv-hint mt-1 mb-0">
-              <i class="fas fa-info-circle me-1"></i>
-              Setelah jemput selesai, request <strong>Antar</strong> baru dibuat (pakai Surcas Pengantaran di atas).
-            </p>
-          </div>
-
-          <label class="dlv-sekalian" id="dlvSekalianRow" hidden>
-            <input type="checkbox" id="dlvSekalianCheck" value="1">
-            <span id="dlvSekalianLabel">Sekalian Jemput?</span>
-          </label>
-          <div class="dlv-sekalian-wrap" id="dlvSekalianWrap" hidden>
-            <label class="dlv-field-label">Item sekalian</label>
-            <div class="dlv-sales-box" id="dlvSekalianSales">
-              <div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>
-            </div>
           </div>
         </div>
         <div class="op-modal__foot op-modal__foot--selesai">
@@ -1884,16 +1845,10 @@ $canCekDetail = !empty($data['canCekDetail']);
     var reqEl = document.getElementById('dlvSelesaiRequestId');
     var layananEl = document.getElementById('dlvSelesaiLayanan');
     var prefillEl = document.getElementById('dlvSelesaiPrefill');
-    var sekalianCheck = document.getElementById('dlvSekalianCheck');
-    var sekalianRow = document.getElementById('dlvSekalianRow');
-    var sekalianWrap = document.getElementById('dlvSekalianWrap');
-    var sekalianSales = document.getElementById('dlvSekalianSales');
     var surcasRow = document.getElementById('dlvSurcasJemputRow');
     var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
     var surcasHint = document.getElementById('dlvSurcasJemputHint');
     var batalBtn = document.getElementById('dlvSelesaiBatal');
-    var antarKembaliBlock = document.getElementById('dlvAntarKembaliBlock');
-    var antarKembaliCheck = document.getElementById('dlvAntarKembaliCheck');
     var surcasAntarRow = document.getElementById('dlvSurcasAntarRow');
     var surcasAntarJumlah = document.getElementById('dlvSurcasAntarJumlah');
     var surcasBoundEl = document.getElementById('dlvSelesaiSurcasBound');
@@ -1913,10 +1868,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (prefillEl) prefillEl.value = '';
     if (batalBtn) batalBtn.hidden = false;
     if (box) box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
-    if (sekalianCheck) sekalianCheck.checked = false;
-    if (sekalianRow) sekalianRow.hidden = true;
-    if (sekalianWrap) sekalianWrap.hidden = true;
-    if (sekalianSales) sekalianSales.innerHTML = '<div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>';
     if (surcasRow) surcasRow.hidden = true;
     if (surcasJumlah) {
       surcasJumlah.value = '';
@@ -1929,8 +1880,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (surcasHint) {
       surcasHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Isi nominal, atau 0 untuk gratis.';
     }
-    if (antarKembaliBlock) antarKembaliBlock.hidden = true;
-    if (antarKembaliCheck) antarKembaliCheck.checked = false;
     if (surcasAntarRow) surcasAntarRow.hidden = true;
     if (surcasAntarJumlah) {
       surcasAntarJumlah.value = '';
@@ -1943,11 +1892,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (antarHint) {
       antarHint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi. Isi nominal, atau 0 untuk gratis.';
     }
-    var antarKembaliCheckReset = document.getElementById('dlvAntarKembaliCheck');
-    if (antarKembaliCheckReset) {
-      antarKembaliCheckReset.checked = false;
-      antarKembaliCheckReset.disabled = false;
-    }
     window._dlvSurcasByRef = { jemput: {}, antar: {} };
     if (karyawanSelectize) {
       karyawanSelectize.clear(true);
@@ -1955,23 +1899,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       var sel = document.getElementById('dlvSelesaiKaryawan');
       if (sel) sel.value = '';
     }
-  }
-
-  function syncAntarKembaliUi() {
-    var block = document.getElementById('dlvAntarKembaliBlock');
-    var check = document.getElementById('dlvAntarKembaliCheck');
-    var jenis = getSelesaiJenis();
-    var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-    if (!block) return;
-
-    var show = jenis === 'jemput' && layanan !== 'instant';
-    if (check) check.disabled = false;
-    if (!show) {
-      block.hidden = true;
-      if (check) check.checked = false;
-      return;
-    }
-    block.hidden = false;
   }
 
   function isSelesaiSurcasBound() {
@@ -1995,11 +1922,9 @@ $canCekDetail = !empty($data['canCekDetail']);
     var hint = document.getElementById('dlvSurcasAntarHint');
     var jenis = getSelesaiJenis();
     var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-    var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
     if (!row || !input) return;
 
-    // Tampil saat Antar, atau Jemput + Request Antar kembali
-    var show = layanan !== 'instant' && (jenis === 'antar' || (jenis === 'jemput' && antarKembaliOn));
+    var show = layanan !== 'instant' && jenis === 'antar';
     if (!show) {
       row.hidden = true;
       input.required = false;
@@ -2040,11 +1965,7 @@ $canCekDetail = !empty($data['canCekDetail']);
     }
 
     if (hint) {
-      if (jenis === 'antar') {
-        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi untuk selesai Antar. Isi 0 untuk gratis.';
-      } else {
-        hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi untuk Request Antar kembali. Isi 0 untuk gratis.';
-      }
+      hint.innerHTML = '<i class="fas fa-info-circle me-1"></i>Wajib diisi untuk selesai Antar. Isi 0 untuk gratis.';
     }
   }
 
@@ -2062,7 +1983,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       input.required = false;
       input.readOnly = false;
       delete input.dataset.surcasLocked;
-      syncAntarKembaliUi();
       syncSurcasAntarUi();
       return;
     }
@@ -2079,7 +1999,6 @@ $canCekDetail = !empty($data['canCekDetail']);
 
     if (isSelesaiSurcasBound() || allBound) {
       lockHideSurcasRow(row, input, null);
-      syncAntarKembaliUi();
       syncSurcasAntarUi();
       return;
     }
@@ -2105,97 +2024,7 @@ $canCekDetail = !empty($data['canCekDetail']);
       }
     }
 
-    syncAntarKembaliUi();
     syncSurcasAntarUi();
-  }
-
-  function updateSekalianUi() {
-    var jenis = getSelesaiJenis();
-    var layanan = (document.getElementById('dlvSelesaiLayanan') || {}).value || 'sameday';
-    var row = document.getElementById('dlvSekalianRow');
-    var label = document.getElementById('dlvSekalianLabel');
-    var check = document.getElementById('dlvSekalianCheck');
-    var wrap = document.getElementById('dlvSekalianWrap');
-    var sales = document.getElementById('dlvSekalianSales');
-    var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
-    if (!row || !label) return;
-    // Antar kembali = antar nanti; jangan campur dengan sekalian antar sekarang
-    if (!jenis || layanan === 'instant' || (jenis === 'jemput' && antarKembaliOn)) {
-      row.hidden = true;
-      if (check) check.checked = false;
-      if (wrap) wrap.hidden = true;
-      return;
-    }
-    row.hidden = false;
-    label.textContent = jenis === 'antar' ? 'Sekalian Jemput?' : 'Sekalian Antar?';
-    if (check && !check.checked) {
-      if (wrap) wrap.hidden = true;
-      if (sales) sales.innerHTML = '<div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>';
-    }
-  }
-
-  /** Item utama vs sekalian tidak boleh sama (satu id_penjualan). */
-  function syncExclusiveSalesSelection(changedName) {
-    var mainBox = document.getElementById('dlvSelesaiSales');
-    var sekBox = document.getElementById('dlvSekalianSales');
-    if (!mainBox || !sekBox) return;
-
-    var mainChecked = {};
-    var sekChecked = {};
-    mainBox.querySelectorAll('input[name="ids[]"]:checked').forEach(function (cb) {
-      mainChecked[String(cb.value)] = true;
-    });
-    sekBox.querySelectorAll('input[name="ids_sekalian[]"]:checked').forEach(function (cb) {
-      sekChecked[String(cb.value)] = true;
-    });
-
-    // Jika baru dicentang di satu sisi, uncheck sisi lain
-    if (changedName === 'ids[]') {
-      sekBox.querySelectorAll('input[name="ids_sekalian[]"]').forEach(function (cb) {
-        if (mainChecked[String(cb.value)] && cb.checked) cb.checked = false;
-      });
-    } else if (changedName === 'ids_sekalian[]') {
-      mainBox.querySelectorAll('input[name="ids[]"]').forEach(function (cb) {
-        if (sekChecked[String(cb.value)] && cb.checked) cb.checked = false;
-      });
-    }
-
-    // Refresh maps setelah uncheck
-    mainChecked = {};
-    sekChecked = {};
-    mainBox.querySelectorAll('input[name="ids[]"]:checked').forEach(function (cb) {
-      mainChecked[String(cb.value)] = true;
-    });
-    sekBox.querySelectorAll('input[name="ids_sekalian[]"]:checked').forEach(function (cb) {
-      sekChecked[String(cb.value)] = true;
-    });
-
-    mainBox.querySelectorAll('input[name="ids[]"]').forEach(function (cb) {
-      var label = cb.closest('.dlv-sales-item');
-      if (label && label.getAttribute('data-belum-selesai') === '1') {
-        cb.disabled = true;
-        label.classList.add('is-locked');
-        return;
-      }
-      var locked = !!sekChecked[String(cb.value)];
-      cb.disabled = locked;
-      if (label) label.classList.toggle('is-locked', locked);
-    });
-    sekBox.querySelectorAll('input[name="ids_sekalian[]"]').forEach(function (cb) {
-      var label = cb.closest('.dlv-sales-item');
-      if (label && label.getAttribute('data-belum-selesai') === '1') {
-        cb.disabled = true;
-        label.classList.add('is-locked');
-        return;
-      }
-      var locked = !!mainChecked[String(cb.value)];
-      cb.disabled = locked;
-      if (label) label.classList.toggle('is-locked', locked);
-    });
-  }
-
-  function oppositeJenis(jenis) {
-    return jenis === 'antar' ? 'jemput' : (jenis === 'jemput' ? 'antar' : '');
   }
 
   function renderSalesOptions(orders, boxEl, inputName, prefillIds) {
@@ -2318,10 +2147,8 @@ $canCekDetail = !empty($data['canCekDetail']);
           if (input) delete input.dataset.userEdited;
           syncSurcasJemputUi();
         }
-        syncExclusiveSalesSelection(name);
       });
     });
-    syncExclusiveSalesSelection(name);
     if (name === 'ids[]') syncSurcasJemputUi();
   }
 
@@ -2335,7 +2162,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       ? prefillRaw.split(',').map(function (s) { return parseInt(s, 10); }).filter(function (n) { return n > 0; })
       : [];
     if (!box) return;
-    updateSekalianUi();
     if (!phone || !jenis) {
       box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis terlebih dahulu</div>';
       return;
@@ -2354,44 +2180,6 @@ $canCekDetail = !empty($data['canCekDetail']);
           return;
         }
         renderSalesOptions((res.data && res.data.orders) || [], box, 'ids[]', prefillIds);
-      })
-      .catch(function () {
-        box.innerHTML = '<div class="dlv-sales-empty">Gagal memuat item</div>';
-      });
-
-    var sekalianCheck = document.getElementById('dlvSekalianCheck');
-    if (sekalianCheck && sekalianCheck.checked) {
-      loadSekalianSalesOptions();
-    }
-  }
-
-  function loadSekalianSalesOptions() {
-    var phone = (document.getElementById('dlvSelesaiPhone') || {}).value || '';
-    var jenis = getSelesaiJenis();
-    var box = document.getElementById('dlvSekalianSales');
-    var wrap = document.getElementById('dlvSekalianWrap');
-    var reqId = (document.getElementById('dlvSelesaiRequestId') || {}).value || '';
-    var lawan = oppositeJenis(jenis);
-    if (!box || !wrap) return;
-    if (!phone || !lawan) {
-      box.innerHTML = '<div class="dlv-sales-empty">Pilih jenis utama dulu</div>';
-      return;
-    }
-    wrap.hidden = false;
-    box.innerHTML = '<div class="dlv-sales-empty"><i class="fas fa-spinner fa-spin me-1"></i>Memuat…</div>';
-    var url = salesOptionsUrl + encodeURIComponent(phone) + '?jenis=' + encodeURIComponent(lawan);
-    if (reqId) url += '&id_request=' + encodeURIComponent(reqId);
-    fetch(url, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      credentials: 'same-origin'
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res || res.status !== 'success') {
-          box.innerHTML = '<div class="dlv-sales-empty">' + escapeHtml((res && res.message) || 'Gagal memuat item') + '</div>';
-          return;
-        }
-        renderSalesOptions((res.data && res.data.orders) || [], box, 'ids_sekalian[]', []);
       })
       .catch(function () {
         box.innerHTML = '<div class="dlv-sales-empty">Gagal memuat item</div>';
@@ -2740,11 +2528,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     var tarif = btn.getAttribute('data-tarif-surcas') || '';
     var nama = btn.getAttribute('data-nama') || 'Customer';
     var surcasBound = btn.getAttribute('data-surcas-bound') === '1';
-    var sekalianJemput = btn.getAttribute('data-sekalian-jemput') === '1';
-    if (!sekalianJemput) {
-      var hostSk = btn.closest('[data-sekalian-jemput]');
-      if (hostSk) sekalianJemput = hostSk.getAttribute('data-sekalian-jemput') === '1';
-    }
     ensureKaryawanSelectize();
     resetSelesaiForm();
     document.getElementById('dlvSelesaiMode').value = 'request';
@@ -2763,10 +2546,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     var layananEl = document.getElementById('dlvSelesaiLayanan');
     if (layananEl) layananEl.value = layanan;
     setJenisLocked(jenis);
-    if (sekalianJemput && jenis === 'antar' && layanan !== 'instant') {
-      var sk = document.getElementById('dlvSekalianCheck');
-      if (sk) sk.checked = true;
-    }
     var surcasJumlah = document.getElementById('dlvSurcasJemputJumlah');
     if (surcasJumlah) {
       surcasJumlah.setAttribute('data-tarif-fixed', tarif || '0');
@@ -2781,14 +2560,12 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (title) title.textContent = layanan === 'instant' ? 'Selesai Instant Jemput' : 'Selesai Request Customer';
 
     var batalBtn = document.getElementById('dlvSelesaiBatal');
-    var sekalianRow = document.getElementById('dlvSekalianRow');
     if (layanan === 'instant' || surcasBound) {
       if (batalBtn) batalBtn.hidden = true;
     } else if (batalBtn) {
       batalBtn.hidden = false;
     }
     if (layanan === 'instant') {
-      if (sekalianRow) sekalianRow.hidden = true;
       if (surcasJumlah) {
         surcasJumlah.removeAttribute('data-tarif-fixed');
         surcasJumlah.value = '';
@@ -2800,17 +2577,12 @@ $canCekDetail = !empty($data['canCekDetail']);
 
     openModal('dlvSelesaiModal');
     syncSurcasJemputUi();
-    syncAntarKembaliUi();
     syncSurcasAntarUi();
-    updateSekalianUi();
     if (layanan === 'instant') {
       var surcasRow2 = document.getElementById('dlvSurcasJemputRow');
       if (surcasRow2) surcasRow2.hidden = true;
       var surcasAntar2 = document.getElementById('dlvSurcasAntarRow');
       if (surcasAntar2) surcasAntar2.hidden = true;
-      if (sekalianRow) sekalianRow.hidden = true;
-      var antarBlock = document.getElementById('dlvAntarKembaliBlock');
-      if (antarBlock) antarBlock.hidden = true;
     }
     loadSalesOptions();
   }
@@ -2945,30 +2717,12 @@ $canCekDetail = !empty($data['canCekDetail']);
       idKaryawan = sel ? sel.value : '';
     }
     var checks = root.querySelectorAll('#dlvSelesaiSales input[name="ids[]"]:checked');
-    var sekalianOn = !!(document.getElementById('dlvSekalianCheck') || {}).checked;
-    var checksSekalian = root.querySelectorAll('#dlvSekalianSales input[name="ids_sekalian[]"]:checked');
 
     if (mode === 'crm' && !phone) { toast('Nomor tidak valid', 'error'); return; }
     if (mode === 'request' && !idRequest) { toast('Request tidak valid', 'error'); return; }
     if (!jenis) { toast('Pilih jenis jemput/antar', 'warn'); return; }
     if (!idKaryawan) { toast('Pilih karyawan yang menyelesaikan', 'warn'); return; }
     if (!checks.length) { toast('Pilih minimal satu item', 'warn'); return; }
-    if (sekalianOn && !checksSekalian.length) {
-      toast('Sekalian aktif: pilih minimal satu item lawan jenis', 'warn');
-      return;
-    }
-    if (sekalianOn) {
-      var overlap = false;
-      var mainMap = {};
-      Array.prototype.forEach.call(checks, function (cb) { mainMap[String(cb.value)] = true; });
-      Array.prototype.forEach.call(checksSekalian, function (cb) {
-        if (mainMap[String(cb.value)]) overlap = true;
-      });
-      if (overlap) {
-        toast('Item jemput dan antar tidak boleh sama', 'warn');
-        return;
-      }
-    }
     if (jenis === 'jemput') {
       var jemputInput = document.getElementById('dlvSurcasJemputJumlah');
       var jemputLocked = jemputInput && jemputInput.dataset.surcasLocked === '1';
@@ -2981,17 +2735,8 @@ $canCekDetail = !empty($data['canCekDetail']);
         }
       }
     }
-    var antarKembaliOn = !!(document.getElementById('dlvAntarKembaliCheck') || {}).checked;
-    var needSurcasAntar = jenis === 'antar' || (jenis === 'jemput' && antarKembaliOn);
+    var needSurcasAntar = jenis === 'antar';
     if (needSurcasAntar) {
-      if (antarKembaliOn && jenis !== 'jemput') {
-        toast('Request Antar kembali hanya untuk selesai Jemput', 'warn');
-        return;
-      }
-      if (antarKembaliOn && sekalianOn) {
-        toast('Pilih salah satu: Sekalian Antar atau Request Antar kembali', 'warn');
-        return;
-      }
       var antarInput = document.getElementById('dlvSurcasAntarJumlah');
       var antarLocked = antarInput && antarInput.dataset.surcasLocked === '1';
       if (!antarLocked) {
@@ -3010,12 +2755,6 @@ $canCekDetail = !empty($data['canCekDetail']);
     Array.prototype.forEach.call(checks, function (cb) {
       fd.append('ids[]', cb.value);
     });
-    if (sekalianOn) {
-      fd.append('sekalian', '1');
-      Array.prototype.forEach.call(checksSekalian, function (cb) {
-        fd.append('ids_sekalian[]', cb.value);
-      });
-    }
     if (jenis === 'jemput') {
       fd.append(
         'jumlah_surcas_jemput',
@@ -3023,7 +2762,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       );
     }
     if (needSurcasAntar) {
-      if (antarKembaliOn) fd.append('antar_kembali', '1');
       fd.append(
         'jumlah_surcas_antar',
         String(parseInt((document.getElementById('dlvSurcasAntarJumlah') || {}).value || '0', 10) || 0)
@@ -3054,10 +2792,6 @@ $canCekDetail = !empty($data['canCekDetail']);
         }
         toast(res.message || 'Delivery selesai', 'success');
         closeModal('dlvSelesaiModal');
-        if (res.data && res.data.antar_kembali_id) {
-          loadBoard(true);
-          return;
-        }
         if (mode === 'request') removeRequestItem(idRequest, { crmClosed: !!(res.data && res.data.crm_closed) });
         else removeCustomerItem(phone);
       })
@@ -3671,45 +3405,6 @@ $canCekDetail = !empty($data['canCekDetail']);
       if (target) fillDlvSurcasFromTarif(target, btn);
     });
   });
-
-  var sekalianCheck = document.getElementById('dlvSekalianCheck');
-  if (sekalianCheck) {
-    sekalianCheck.addEventListener('change', function () {
-      if (this.checked) {
-        var ak = document.getElementById('dlvAntarKembaliCheck');
-        if (ak && ak.checked) {
-          ak.checked = false;
-          syncAntarKembaliUi();
-          syncSurcasAntarUi();
-        }
-      }
-      var wrap = document.getElementById('dlvSekalianWrap');
-      if (!this.checked) {
-        if (wrap) wrap.hidden = true;
-        var sales = document.getElementById('dlvSekalianSales');
-        if (sales) sales.innerHTML = '<div class="dlv-sales-empty">Centang sekalian untuk memuat item</div>';
-        return;
-      }
-      loadSekalianSalesOptions();
-    });
-  }
-
-  var antarKembaliCheck = document.getElementById('dlvAntarKembaliCheck');
-  if (antarKembaliCheck) {
-    antarKembaliCheck.addEventListener('change', function () {
-      if (this.checked) {
-        var sk = document.getElementById('dlvSekalianCheck');
-        if (sk && sk.checked) {
-          sk.checked = false;
-          var wrap = document.getElementById('dlvSekalianWrap');
-          if (wrap) wrap.hidden = true;
-        }
-      }
-      syncAntarKembaliUi();
-      syncSurcasAntarUi();
-      updateSekalianUi();
-    });
-  }
 
   var selesaiForm = document.getElementById('dlvSelesaiForm');
   if (selesaiForm) selesaiForm.addEventListener('submit', submitSelesai);

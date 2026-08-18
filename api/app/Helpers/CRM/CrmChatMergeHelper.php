@@ -207,17 +207,28 @@ class CrmChatMergeHelper
         if ($conv) {
             $convId = (int) ($conv->id ?? 0);
             $existingAt = (string) ($conv->last_message_at ?? '');
+            $update = [
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
             if ($lastMessageAt !== '' && ($existingAt === '' || $lastMessageAt >= $existingAt)) {
-                $update = [
-                    'last_message' => $lastMessage,
-                    'last_message_at' => $lastMessageAt,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ];
-                if (!empty($ctx['contact_name'])) {
-                    $update['contact_name'] = $ctx['contact_name'];
-                }
-                $db->update('wa_conversations', $update, ['id' => $convId]);
+                $update['last_message'] = $lastMessage;
+                $update['last_message_at'] = $lastMessageAt;
             }
+            if (!empty($ctx['contact_name'])) {
+                $update['contact_name'] = $ctx['contact_name'];
+            }
+            if (!empty($ctx['is_karyawan'])) {
+                $update['assigned_user_id'] = null;
+            } elseif (!empty($ctx['assigned_user_id'])) {
+                $update['assigned_user_id'] = (int) $ctx['assigned_user_id'];
+            }
+            if (!empty($ctx['code'])) {
+                $update['code'] = mb_substr((string) $ctx['code'], 0, 16);
+            }
+            if (!empty($ctx['cust_id'])) {
+                $update['cust_id'] = (int) $ctx['cust_id'];
+            }
+            $db->update('wa_conversations', $update, ['id' => $convId]);
             self::rememberConversationAliases($db, $convId, $phone, $hints, 'fonnte');
 
             return $convId;

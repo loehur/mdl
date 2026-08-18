@@ -47,21 +47,15 @@ class Delivery extends Controller
    {
       $transfers = $this->getPendingCabangTransfers();
       $customerRequests = $this->getPendingCustomerRequests();
-      $customerRequestsSiap = [];
-      foreach ($customerRequests as $rq) {
-         if (!empty($rq['siap_selesai'])) {
-            $customerRequestsSiap[] = $rq;
-         }
-      }
 
       return [
          'html_customer' => $this->renderViewPartial('delivery/partials/board_customer_body', [
-            'customerRequestsSiap' => $customerRequestsSiap,
+            'customerRequestsSiap' => $customerRequests,
          ]),
          'html_cabang' => $this->renderViewPartial('delivery/partials/board_cabang_body', [
             'transfers' => $transfers,
          ]),
-         'count_customer' => count($customerRequestsSiap),
+         'count_customer' => count($customerRequests),
          'count_cabang' => count($transfers),
       ];
    }
@@ -1189,20 +1183,6 @@ class Delivery extends Controller
          }
          $ids = array_values($ids);
 
-         $sekalian = (int) ($_POST['sekalian'] ?? 0) === 1;
-         $idsSekalianRaw = $_POST['ids_sekalian'] ?? [];
-         if (!is_array($idsSekalianRaw)) {
-            $idsSekalianRaw = [$idsSekalianRaw];
-         }
-         $idsSekalian = [];
-         foreach ($idsSekalianRaw as $id) {
-            $id = (int) $id;
-            if ($id > 0) {
-               $idsSekalian[$id] = $id;
-            }
-         }
-         $idsSekalian = array_values($idsSekalian);
-
          if (strlen($phoneTail) < 8) {
             throw new Exception('Nomor tidak valid');
          }
@@ -1214,15 +1194,6 @@ class Delivery extends Controller
          }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
-         }
-         if ($sekalian && empty($idsSekalian)) {
-            throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
-         }
-         if ($sekalian) {
-            $overlap = array_intersect($ids, $idsSekalian);
-            if (!empty($overlap)) {
-               throw new Exception('Item jemput dan antar tidak boleh sama');
-            }
          }
 
          $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -1260,11 +1231,6 @@ class Delivery extends Controller
          $surcasJemput = null;
          $surcasAntar = null;
 
-         $antarKembali = (int) ($_POST['antar_kembali'] ?? 0) === 1 && $jenis === 'jemput';
-         if ($antarKembali && $sekalian) {
-            throw new Exception('Pilih salah satu: Sekalian Antar atau Request Antar kembali');
-         }
-
          if ($jenis === 'jemput') {
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
             $surcasJemput = $this->upsertSurcasPenjemputan(
@@ -1287,47 +1253,9 @@ class Delivery extends Controller
             );
          }
 
-         $insertedSekalian = 0;
-         $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
-         if ($sekalian) {
-            $insertedSekalian = $this->insertDeliveryRiwayatBatch(
-               $phoneTail,
-               $pelangganIds,
-               $jenisSekalian,
-               $idsSekalian,
-               $idKaryawan,
-               $namaKaryawan,
-               $idCabang,
-               $now
-            );
-         }
-
-         $antarKembaliId = 0;
-         if ($antarKembali) {
-            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
-            $surcasAntar = $this->upsertSurcasPengantaran(
-               $idCabang,
-               $ids,
-               $jumlahAntar,
-               $idKaryawan,
-               0
-            );
-            $seed = $this->buildCrmAntarKembaliSeed($pelangganIds, $phoneTail, $idCabang);
-            $antarKembaliId = $this->createAntarKembaliRequest($seed, $jumlahAntar, 0);
-            if ($antarKembaliId <= 0) {
-               throw new Exception('Gagal membuat request Antar kembali');
-            }
-         }
-
-         // Jika Antar kembali dibuat, biarkan case CRM terbuka sampai request Antar selesai
-         $crmClosed = $antarKembaliId > 0
-            ? $this->maybeCloseCrmCase2ByPhoneTail($phoneTail, $idKaryawan)
-            : $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
+         $crmClosed = $this->closeCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
          $msg = "Delivery $jenis selesai ($inserted item)";
-         if ($sekalian) {
-            $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
-         }
          if (is_array($surcasJemput)) {
             $msg .= !empty($surcasJemput['skipped'])
                ? ' · Surcas jemput sudah ada pada item (dilewati)'
@@ -1337,9 +1265,6 @@ class Delivery extends Controller
             $msg .= !empty($surcasAntar['skipped'])
                ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan';
-         }
-         if ($antarKembaliId > 0) {
-            $msg .= " + Request Antar kembali #$antarKembaliId";
          }
          if ($crmClosed) {
             $msg .= '. Case CRM ikut ditutup.';
@@ -1352,11 +1277,8 @@ class Delivery extends Controller
                'phone_tail' => $phoneTail,
                'jenis' => $jenis,
                'count' => $inserted,
-               'sekalian' => $sekalian ? $jenisSekalian : null,
-               'count_sekalian' => $insertedSekalian,
                'surcas_jemput' => $surcasJemput,
                'surcas_antar' => $surcasAntar,
-               'antar_kembali_id' => $antarKembaliId > 0 ? $antarKembaliId : null,
                'crm_closed' => $crmClosed,
             ],
          ];
@@ -1373,7 +1295,7 @@ class Delivery extends Controller
 
    /**
     * Selesaikan request customer (delivery_request berjalan).
-    * Wajib karyawan + item utama; opsional sekalian lawan jenis.
+    * Wajib karyawan + item utama.
     */
    public function selesai_request()
    {
@@ -1399,20 +1321,6 @@ class Delivery extends Controller
          }
          $ids = array_values($ids);
 
-         $sekalian = (int) ($_POST['sekalian'] ?? 0) === 1;
-         $idsSekalianRaw = $_POST['ids_sekalian'] ?? [];
-         if (!is_array($idsSekalianRaw)) {
-            $idsSekalianRaw = [$idsSekalianRaw];
-         }
-         $idsSekalian = [];
-         foreach ($idsSekalianRaw as $id) {
-            $id = (int) $id;
-            if ($id > 0) {
-               $idsSekalian[$id] = $id;
-            }
-         }
-         $idsSekalian = array_values($idsSekalian);
-
          if ($idRequest <= 0) {
             throw new Exception('Request tidak valid');
          }
@@ -1421,15 +1329,6 @@ class Delivery extends Controller
          }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
-         }
-         if ($sekalian && empty($idsSekalian)) {
-            throw new Exception('Sekalian aktif: pilih minimal satu item lawan jenis');
-         }
-         if ($sekalian) {
-            $overlap = array_intersect($ids, $idsSekalian);
-            if (!empty($overlap)) {
-               throw new Exception('Item jemput dan antar tidak boleh sama');
-            }
          }
 
          $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
@@ -1456,9 +1355,6 @@ class Delivery extends Controller
             if ($jenis !== 'jemput') {
                throw new Exception('Instant Antar selesai otomatis dari Biteship (tidak via Delivery)');
             }
-            // Instant Jemput: riwayat saja, tanpa surcas / sekalian
-            $sekalian = false;
-            $idsSekalian = [];
          }
 
          $phoneTail = $this->phoneKey($req['phone_tail'] ?? '');
@@ -1492,13 +1388,6 @@ class Delivery extends Controller
          $surcasJemput = null;
          $surcasAntar = null;
 
-         $antarKembali = (int) ($_POST['antar_kembali'] ?? 0) === 1
-            && $jenis === 'jemput'
-            && $layanan !== 'instant';
-         if ($antarKembali && $sekalian) {
-            throw new Exception('Pilih salah satu: Sekalian Antar atau Request Antar kembali');
-         }
-
          if ($jenis === 'jemput' && $layanan !== 'instant') {
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
             if ($jumlahSurcas < 0) {
@@ -1527,22 +1416,6 @@ class Delivery extends Controller
             );
          }
 
-         $insertedSekalian = 0;
-         $jenisSekalian = $jenis === 'antar' ? 'jemput' : 'antar';
-         if ($sekalian) {
-            $insertedSekalian = $this->insertDeliveryRiwayatBatch(
-               $phoneTail,
-               $pelangganIds,
-               $jenisSekalian,
-               $idsSekalian,
-               $idKaryawan,
-               $namaKaryawan,
-               $idCabang,
-               $now,
-               $idRequest
-            );
-         }
-
          $upd = $this->db(0)->update(
             'delivery_request',
             [
@@ -1557,32 +1430,10 @@ class Delivery extends Controller
             throw new Exception($upd['error'] ?? 'Gagal memperbarui status request');
          }
 
-         $antarKembaliId = 0;
-         if ($antarKembali) {
-            $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
-            if ($jumlahAntar < 0) {
-               $jumlahAntar = (int) ($req['tarif_surcas'] ?? -1);
-            }
-            $surcasAntar = $this->upsertSurcasPengantaran(
-               $idCabang,
-               $ids,
-               $jumlahAntar,
-               $idKaryawan,
-               $idRequest
-            );
-            $antarKembaliId = $this->createAntarKembaliRequest($req, max(0, $jumlahAntar), $idRequest);
-            if ($antarKembaliId <= 0) {
-               throw new Exception('Gagal membuat request Antar kembali');
-            }
-         }
-
          // Tutup case CRM 2 hanya jika semua request portal customer ini sudah selesai
          $crmClosed = $this->maybeCloseCrmCase2ByPhoneTail($phoneTail, $idKaryawan);
 
          $msg = "Request $jenis selesai ($inserted item)";
-         if ($sekalian) {
-            $msg .= " + sekalian $jenisSekalian ($insertedSekalian item)";
-         }
          if (is_array($surcasJemput)) {
             $msg .= !empty($surcasJemput['skipped'])
                ? ' · Surcas jemput sudah ada pada item (dilewati)'
@@ -1592,9 +1443,6 @@ class Delivery extends Controller
             $msg .= !empty($surcasAntar['skipped'])
                ? ' · Surcas antar sudah ada pada item (dilewati)'
                : ' · Surcas antar ditambahkan';
-         }
-         if ($antarKembaliId > 0) {
-            $msg .= " + Request Antar kembali #$antarKembaliId";
          }
          if ($crmClosed) {
             $msg .= '. Case CRM ikut ditutup.';
@@ -1608,11 +1456,8 @@ class Delivery extends Controller
                'phone_tail' => $phoneTail,
                'jenis' => $jenis,
                'count' => $inserted,
-               'sekalian' => $sekalian ? $jenisSekalian : null,
-               'count_sekalian' => $insertedSekalian,
                'surcas_jemput' => $surcasJemput,
                'surcas_antar' => $surcasAntar,
-               'antar_kembali_id' => $antarKembaliId > 0 ? $antarKembaliId : null,
                'crm_closed' => $crmClosed,
             ],
          ];
@@ -2409,7 +2254,6 @@ class Delivery extends Controller
             'phone_display' => $phoneDisplay,
             'id_pelanggan' => (int) ($row['id_pelanggan'] ?? 0),
             'jenis' => $jenis,
-            'sekalian_jemput' => (int) ($row['sekalian_jemput'] ?? 0) === 1 ? 1 : 0,
             'layanan' => (string) ($row['layanan'] ?? 'sameday'),
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
             'insertTime' => $row['insertTime'] ?? '',
@@ -3699,47 +3543,6 @@ class Delivery extends Controller
          $idDeliveryRequest,
          'Pengantaran'
       );
-   }
-
-   /**
-    * Seed delivery_request Antar dari selesai CRM (bukan portal request).
-    * Ambil lokasi terakhir pelanggan bila ada.
-    *
-    * @param int[] $pelangganIds
-    */
-   private function buildCrmAntarKembaliSeed(array $pelangganIds, string $phoneTail, int $idCabang): array
-   {
-      $safe = [];
-      foreach ($pelangganIds as $id) {
-         $id = (int) $id;
-         if ($id > 0) {
-            $safe[$id] = $id;
-         }
-      }
-      $safe = array_values($safe);
-      $idPelanggan = (int) ($safe[0] ?? 0);
-      $lokasi = null;
-      foreach ($safe as $pid) {
-         $found = $this->pickDefaultLokasiForRequest((int) $pid);
-         if ($found !== null) {
-            $lokasi = $found;
-            $idPelanggan = (int) ($found['id_pelanggan'] ?? $pid);
-            break;
-         }
-      }
-      if ($idPelanggan <= 0) {
-         throw new Exception('Pelanggan tidak ditemukan untuk Request Antar kembali');
-      }
-      return [
-         'id_pelanggan' => $idPelanggan,
-         'id_cabang' => $idCabang,
-         'phone_tail' => $phoneTail,
-         'id_lokasi' => (int) ($lokasi['id_lokasi'] ?? 0),
-         'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
-         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
-         'lokasi_latt' => isset($lokasi['latt']) ? (float) $lokasi['latt'] : 0,
-         'lokasi_longt' => isset($lokasi['longt']) ? (float) $lokasi['longt'] : 0,
-      ];
    }
 
    /**
