@@ -3136,6 +3136,8 @@ class Delivery extends Controller
                'items' => [],
                'surcas_penjemputan' => null,
                'surcas_pengantaran' => null,
+               'surcas_penjemputan_user' => null,
+               'surcas_pengantaran_user' => null,
             ];
          }
          $qty = round((float) ($a['qty'] ?? 0), 2);
@@ -3277,10 +3279,17 @@ class Delivery extends Controller
                   }
                   $jid = (int) ($sc['id_jenis_surcas'] ?? 0);
                   $amt = (int) ($sc['jumlah'] ?? 0);
+                  $uid = (int) ($sc['id_user'] ?? 0);
                   if ($jid === AntarTarif::SURCAS_JENIS_PENJEMPUTAN) {
                      $orders[$r]['surcas_penjemputan'] = $amt;
+                     if ($uid > 0) {
+                        $orders[$r]['surcas_penjemputan_user'] = $uid;
+                     }
                   } elseif ($jid === AntarTarif::SURCAS_JENIS_PENGANTARAN) {
                      $orders[$r]['surcas_pengantaran'] = $amt;
+                     if ($uid > 0) {
+                        $orders[$r]['surcas_pengantaran_user'] = $uid;
+                     }
                   }
                }
             }

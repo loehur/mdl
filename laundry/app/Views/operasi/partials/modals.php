@@ -2066,6 +2066,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           </optgroup>
         <?php } ?>
       </select>
+      <small id="kurirPengisiSurcasHint" class="kurir-hint" style="margin:4px 0 0;display:none"></small>
     </div>
     <div class="kurir-actions">
       <button type="button" class="kurir-btn kurir-btn--ghost" data-bs-dismiss="offcanvas">Batal</button>
@@ -2089,6 +2090,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var tarifLoading = false;
   var prefillNoRef = '';
   var prefillJumlah = '';
+  var prefillPengisi = 0;
   var forceComplete = false;
 
   function currentPelanggan() {
@@ -2333,6 +2335,85 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
   }
 
+  function existingSurcasFromGroups(jenis) {
+    var out = { jumlah: null, user: 0 };
+    var amtAttr = jenis === 'jemput' ? 'data-surcas-jemput' : 'data-surcas-antar';
+    var userAttr = jenis === 'jemput' ? 'data-surcas-jemput-user' : 'data-surcas-antar-user';
+    var groups = [];
+    if (prefillNoRef) {
+      root.querySelectorAll('.kurir-group').forEach(function (g) {
+        if (String(g.getAttribute('data-no-ref') || '') === String(prefillNoRef)) groups.push(g);
+      });
+    }
+    if (!groups.length) {
+      root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+        var g = cb.closest('.kurir-group');
+        if (g && groups.indexOf(g) < 0) groups.push(g);
+      });
+    }
+    groups.forEach(function (g) {
+      var raw = g.getAttribute(amtAttr);
+      if (raw !== null && raw !== '' && out.jumlah === null) {
+        var n = parseInt(raw, 10);
+        if (!isNaN(n) && n >= 0) out.jumlah = n;
+      }
+      var uid = parseInt(g.getAttribute(userAttr) || '0', 10) || 0;
+      if (uid > 0 && out.user <= 0) out.user = uid;
+    });
+    return out;
+  }
+
+  function setPengisiLocked(idUser) {
+    idUser = parseInt(idUser, 10) || 0;
+    var sel = root.querySelector('#kurirPengisiSurcas');
+    var hint = document.getElementById('kurirPengisiSurcasHint');
+    if (idUser <= 0) {
+      if (kurirPengisiSelectize && typeof kurirPengisiSelectize.unlock === 'function') {
+        kurirPengisiSelectize.unlock();
+      }
+      if (sel) sel.disabled = false;
+      if (hint) {
+        hint.style.display = 'none';
+        hint.textContent = '';
+      }
+      return;
+    }
+    if (kurirPengisiSelectize) {
+      if (!kurirPengisiSelectize.options[String(idUser)]) {
+        kurirPengisiSelectize.addOption({ value: String(idUser), text: idUser + '-PENGISI' });
+      }
+      kurirPengisiSelectize.setValue(String(idUser), true);
+      if (typeof kurirPengisiSelectize.lock === 'function') {
+        kurirPengisiSelectize.lock();
+      }
+    } else if (sel) {
+      sel.value = String(idUser);
+      sel.disabled = true;
+    }
+    if (hint) {
+      hint.style.display = 'block';
+      hint.textContent = 'Sudah ada di nota, tidak bisa diubah';
+    }
+  }
+
+  function unlockPengisi() {
+    var sel = root.querySelector('#kurirPengisiSurcas');
+    var hint = document.getElementById('kurirPengisiSurcasHint');
+    if (kurirPengisiSelectize) {
+      if (typeof kurirPengisiSelectize.unlock === 'function') {
+        kurirPengisiSelectize.unlock();
+      }
+      kurirPengisiSelectize.setValue('', true);
+    } else if (sel) {
+      sel.disabled = false;
+      sel.value = '';
+    }
+    if (hint) {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    }
+  }
+
   function syncSurcasLock() {
     var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
     var isJemput = jenis === 'jemput';
@@ -2345,11 +2426,34 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       ? lockedTarifFromChecked('data-tarif-surcas', 'data-terikat')
       : (isCombo ? lockedTarifFromChecked('data-tarif-surcas-antar', 'data-terikat-antar') : null);
 
+    var existJ = (isJemput || isCombo) ? existingSurcasFromGroups('jemput') : { jumlah: null, user: 0 };
+    var existA = (isAntar || isCombo) ? existingSurcasFromGroups('antar') : { jumlah: null, user: 0 };
+    if (forceComplete && prefillJumlah !== '') {
+      var nPref = parseInt(prefillJumlah, 10);
+      if (!isNaN(nPref) && nPref >= 0) {
+        if (isJemput && existJ.jumlah === null) existJ.jumlah = nPref;
+        if (isAntar && existA.jumlah === null) existA.jumlah = nPref;
+      }
+    }
+    if (lockJemput === null && existJ.jumlah !== null) lockJemput = existJ.jumlah;
+    if (lockAntar === null && existA.jumlah !== null) lockAntar = existA.jumlah;
+
+    var hintJ = lockJemput === null
+      ? ''
+      : (existJ.jumlah !== null
+        ? 'Sudah ada di nota, tidak bisa diubah'
+        : ('Terkunci dari tarif request Rp' + Number(lockJemput).toLocaleString('id-ID')));
+    var hintA = lockAntar === null
+      ? ''
+      : (existA.jumlah !== null
+        ? 'Sudah ada di nota, tidak bisa diubah'
+        : ('Terkunci dari tarif request Rp' + Number(lockAntar).toLocaleString('id-ID')));
+
     setSurcasLocked(
       'kurirSurcasJemput',
       lockJemput,
       'kurirSurcasJemputHint',
-      lockJemput === null ? '' : ('Terkunci dari tarif request Rp' + Number(lockJemput).toLocaleString('id-ID')),
+      hintJ,
       ''
     );
     var antarUnlocked = isCombo
@@ -2359,9 +2463,15 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       'kurirSurcasAntar',
       lockAntar,
       'kurirSurcasAntarHint',
-      lockAntar === null ? '' : ('Terkunci dari tarif request Rp' + Number(lockAntar).toLocaleString('id-ID')),
+      hintA,
       (isAntar || isCombo) ? antarUnlocked : ''
     );
+
+    var pengisiId = parseInt(prefillPengisi, 10) || 0;
+    if (pengisiId <= 0) {
+      pengisiId = existJ.user || existA.user || 0;
+    }
+    setPengisiLocked(pengisiId > 0 ? pengisiId : 0);
   }
 
   function renderSales(orders) {
@@ -2380,12 +2490,14 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         var terikatAntar = !!it.terikat_antar;
         var tarif = (it.tarif_surcas === 0 || it.tarif_surcas) ? String(it.tarif_surcas) : '';
         var tarifAntar = (it.tarif_surcas_antar === 0 || it.tarif_surcas_antar) ? String(it.tarif_surcas_antar) : '';
+        var boundJemput = !!it.surcas_jemput;
+        var boundAntar = !!it.surcas_antar;
         var meta = '#' + it.id + (it.member ? ' · member' : '')
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
           + (terikat && !delivered ? ' · terikat request' : '')
           + (tarif !== '' && terikat ? ' · tarif Rp' + Number(tarif).toLocaleString('id-ID') : '')
-          + (!!it.surcas_jemput ? ' · surcas jemput' : '')
-          + (!!it.surcas_antar ? ' · surcas antar' : '')
+          + (boundJemput ? ' · surcas jemput' : '')
+          + (boundAntar ? ' · surcas antar' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
         return '<label class="kurir-item">' +
           '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
@@ -2393,6 +2505,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           (delivered ? ' data-sudah-delivered="1"' : '') +
           (terikat ? ' data-terikat="1"' : '') +
           (terikatAntar ? ' data-terikat-antar="1"' : '') +
+          (boundJemput ? ' data-surcas-jemput="1"' : '') +
+          (boundAntar ? ' data-surcas-antar="1"' : '') +
           (tarif !== '' ? ' data-tarif-surcas="' + esc(tarif) + '"' : '') +
           (tarifAntar !== '' ? ' data-tarif-surcas-antar="' + esc(tarifAntar) + '"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
@@ -2401,18 +2515,55 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       var scHint = '';
       if (ord.surcas_penjemputan != null) scHint += ' · jemput Rp' + Number(ord.surcas_penjemputan).toLocaleString('id-ID');
       if (ord.surcas_pengantaran != null) scHint += ' · antar Rp' + Number(ord.surcas_pengantaran).toLocaleString('id-ID');
-      return '<div class="kurir-group" data-no-ref="' + esc(ord.no_ref) + '">' +
+      var jemputAmt = (ord.surcas_penjemputan === 0 || ord.surcas_penjemputan) ? String(ord.surcas_penjemputan) : '';
+      var antarAmt = (ord.surcas_pengantaran === 0 || ord.surcas_pengantaran) ? String(ord.surcas_pengantaran) : '';
+      var jemputUser = parseInt(ord.surcas_penjemputan_user || 0, 10) || 0;
+      var antarUser = parseInt(ord.surcas_pengantaran_user || 0, 10) || 0;
+      return '<div class="kurir-group" data-no-ref="' + esc(ord.no_ref) + '"' +
+        (jemputAmt !== '' ? ' data-surcas-jemput="' + esc(jemputAmt) + '"' : '') +
+        (jemputUser > 0 ? ' data-surcas-jemput-user="' + jemputUser + '"' : '') +
+        (antarAmt !== '' ? ' data-surcas-antar="' + esc(antarAmt) + '"' : '') +
+        (antarUser > 0 ? ' data-surcas-antar-user="' + antarUser + '"' : '') + '>' +
         '<div class="kurir-group-head">#' + esc(ord.no_ref) + esc(scHint) + '</div>' + items + '</div>';
     }).join('');
     box.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
+        if (cb.getAttribute('data-bound') === '1') {
+          cb.checked = true;
+          return;
+        }
         syncSubmitLabel();
         syncSurcasLock();
       });
     });
     applyPrefillRef();
+    lockBoundCheckboxes();
     syncSubmitLabel();
     syncSurcasLock();
+  }
+
+  function lockBoundCheckboxes() {
+    var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+    var lockJemput = jenis === 'jemput' || jenis === 'jemput_antar';
+    var lockAntar = jenis === 'antar' || jenis === 'jemput_antar';
+    root.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
+      var bound = false;
+      if (lockJemput && (cb.getAttribute('data-surcas-jemput') === '1' || cb.getAttribute('data-terikat') === '1')) {
+        bound = true;
+      }
+      if (lockAntar && (cb.getAttribute('data-surcas-antar') === '1' || (jenis === 'antar' && cb.getAttribute('data-terikat') === '1'))) {
+        bound = true;
+      }
+      if (jenis === 'jemput_antar' && cb.getAttribute('data-terikat-antar') === '1') {
+        bound = true;
+      }
+      if (!bound) return;
+      cb.checked = true;
+      cb.disabled = true;
+      cb.setAttribute('data-bound', '1');
+      var lab = cb.closest('.kurir-item');
+      if (lab) lab.classList.add('is-locked');
+    });
   }
 
   function applyPrefillRef() {
@@ -2421,18 +2572,19 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     root.querySelectorAll('.kurir-group').forEach(function (g) {
       var match = String(g.getAttribute('data-no-ref') || '') === want;
       g.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
-        cb.checked = match && !cb.disabled;
+        if (cb.getAttribute('data-bound') === '1' || cb.disabled) return;
+        cb.checked = match;
       });
     });
     if (prefillJumlah !== '' && prefillJumlah != null) {
       var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
       if (jenis === 'jemput' || jenis === 'jemput_antar') {
         var jIn = document.getElementById('kurirSurcasJemput');
-        if (jIn && !jIn.readOnly) jIn.value = String(prefillJumlah);
+        if (jIn) jIn.value = String(prefillJumlah);
       }
       if (jenis === 'antar' || jenis === 'jemput_antar') {
         var aIn = document.getElementById('kurirSurcasAntar');
-        if (aIn && !aIn.readOnly) aIn.value = String(prefillJumlah);
+        if (aIn) aIn.value = String(prefillJumlah);
       }
     }
   }
@@ -2493,14 +2645,19 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   root.addEventListener('shown.bs.offcanvas', function () {
     initSelectize();
+    syncSurcasLock();
     syncSubmitLabel();
   });
   root.addEventListener('hidden.bs.offcanvas', function () {
     prefillNoRef = '';
     prefillJumlah = '';
+    prefillPengisi = 0;
     forceComplete = false;
     var sel = document.getElementById('kurirJenis');
     if (sel) sel.disabled = false;
+    unlockPengisi();
+    setSurcasLocked('kurirSurcasJemput', null, 'kurirSurcasJemputHint', '', '');
+    setSurcasLocked('kurirSurcasAntar', null, 'kurirSurcasAntarHint', '', '');
   });
 
   var jenisEl = root.querySelector('#kurirJenis');
@@ -2627,7 +2784,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       .finally(function () { btn.disabled = false; });
   });
 
-  window.openKurirDelivery = function (jenis, noRef, jumlah) {
+  window.openKurirDelivery = function (jenis, noRef, jumlah, pengisi) {
     jenis = String(jenis || '').toLowerCase();
     if (jenis !== 'jemput' && jenis !== 'antar') {
       toast('Jenis delivery tidak valid', 'warn');
@@ -2636,6 +2793,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     forceComplete = true;
     prefillNoRef = String(noRef || '');
     prefillJumlah = (jumlah === 0 || jumlah) ? String(jumlah) : '';
+    prefillPengisi = parseInt(pengisi, 10) || 0;
     var sel = document.getElementById('kurirJenis');
     if (sel) {
       sel.value = jenis;

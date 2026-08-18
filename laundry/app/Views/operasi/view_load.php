@@ -657,6 +657,7 @@ $labeled = false;
                     . " data-jenis='" . htmlspecialchars($jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-jumlah='" . htmlspecialchars((string) $jumlahCas, ENT_QUOTES, 'UTF-8') . "'"
+                    . " data-pengisi='" . htmlspecialchars((string) ((int) ($sca['id_user'] ?? 0)), ENT_QUOTES, 'UTF-8') . "'"
                     . "><i class='far fa-circle'></i> " . $labelDlvCas . "</a><br>";
                 }
               } else {
@@ -1340,7 +1341,8 @@ $labeled = false;
           window.openKurirDelivery(
               $(this).attr('data-jenis') || '',
               $(this).attr('data-ref') || '',
-              $(this).attr('data-jumlah')
+              $(this).attr('data-jumlah'),
+              $(this).attr('data-pengisi')
           );
       });
   });
