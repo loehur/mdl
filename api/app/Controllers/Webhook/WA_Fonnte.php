@@ -77,6 +77,14 @@ class WA_Fonnte extends Controller
             return;
         }
 
+        // Pesan keluar dari HP (Baileys fromMe) — simpan outbound, bukan inbound
+        if ($this->isFonnteDeviceOutboundWebhook($data)) {
+            $this->handleFonnteDeviceOutboundWebhook($data);
+            echo json_encode(['status' => 'ok', 'outbound' => true]);
+
+            return;
+        }
+
         // Webhook status outbound (API send): update by fonnte_message_id / stateid
         if ($this->isFonnteStatusWebhook($data)) {
             $this->handleFonnteStatusWebhook($data);
@@ -604,6 +612,120 @@ class WA_Fonnte extends Controller
             $phone0,
             substr($clean, 2),
         ])));
+    }
+
+    /**
+     * Payload Baileys fromMe (kirim dari HP device).
+     */
+    private function isFonnteDeviceOutboundWebhook(array $data): bool
+    {
+        if (!empty($data['from_me'])) {
+            return true;
+        }
+
+        return strtolower(trim((string) ($data['direction'] ?? ''))) === 'out';
+    }
+
+    /**
+     * Simpan chat keluar dari HP ke wa_fonnte_messages_out + push CRM.
+     */
+    private function handleFonnteDeviceOutboundWebhook(array $data): void
+    {
+        if (! class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        }
+        if (! class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+
+        $sender = $this->resolveInboundSender($data);
+        $waNumber = $this->normalizeWaNumber($sender);
+        if (! $waNumber) {
+            $waNumber = $this->normalizeWaNumber($data['target'] ?? $data['pengirim'] ?? '');
+        }
+        if (! $waNumber) {
+            \Log::write('WA_Fonnte device-out: no target phone', 'webhook', 'Fonnte');
+
+            return;
+        }
+
+        $attachment = \App\Helpers\CRM\FonnteMessageStore::extractAttachmentFields($data);
+        $rawText = trim((string) ($data['message'] ?? $data['pesan'] ?? $data['text'] ?? ''));
+        if (\App\Helpers\CRM\FonnteMessageStore::isMediaPlaceholder($rawText)) {
+            $rawText = '';
+        }
+        $url = $attachment['url'];
+        $type = trim((string) ($data['type'] ?? ''));
+        if ($type === '' || $type === 'text') {
+            $type = $url !== '' ? 'image' : 'text';
+        }
+        if ($rawText === '' && $url === '') {
+            return;
+        }
+
+        $waMessageId = trim((string) ($data['wa_message_id'] ?? $data['wamid'] ?? ''));
+        $store = new \App\Helpers\CRM\FonnteMessageStore($this->db(0));
+        $localId = $store->saveOutgoing($waNumber, $rawText, [
+            'type' => $type,
+            'media_url' => $url !== '' ? $url : null,
+            'fonnte_message_id' => $waMessageId !== '' ? $waMessageId : null,
+            'fonnte_stateid' => $waMessageId !== '' ? $waMessageId : null,
+            'source' => 'device',
+            'sender_code' => 'HP',
+            'handler' => 'device_out',
+            'status' => 'sent',
+        ]);
+
+        $now = $this->fonnteTimestampToLastInAt($data['timestamp'] ?? null);
+        $preview = $rawText !== ''
+            ? ('o- ' . mb_substr($rawText, 0, 50))
+            : 'o- 📎 Media';
+        $db = $this->db(0);
+        $hints = [];
+        if (! class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaConversationAlias.php';
+        }
+        $hints = \App\Helpers\CRM\WaConversationAlias::hintsFromFonnteWebhook($data, $waNumber);
+        $conv = \App\Helpers\CRM\CrmChatMergeHelper::findWaConversation($db, $waNumber, $hints);
+        $conversationId = $conv ? (int) ($conv->id ?? 0) : 0;
+        if ($conversationId > 0) {
+            $db->update('wa_conversations', [
+                'last_message' => $preview,
+                'last_message_at' => $now,
+                'updated_at' => $now,
+            ], ['id' => $conversationId]);
+        }
+
+        \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
+            'type' => 'agent_message_sent',
+            'target_id' => '0',
+            'notify' => false,
+            'conversation_id' => $conversationId,
+            'phone' => $waNumber,
+            'contact_name' => $conv ? ($conv->contact_name ?? null) : null,
+            'kode_cabang' => $conv ? ($conv->code ?? '00') : '00',
+            'cust_id' => $conv ? ($conv->cust_id ?? null) : null,
+            'assignment_user_id' => $conv ? ($conv->assigned_user_id ?? null) : null,
+            'message' => [
+                'id' => $localId ? ('F-' . $localId) : null,
+                'wamid' => $waMessageId !== '' ? $waMessageId : null,
+                'text' => $rawText,
+                'type' => $type,
+                'media_url' => $url !== '' ? $url : null,
+                'sender_code' => 'HP',
+                'time' => $now,
+                'status' => 'sent',
+                'provider' => 'F',
+            ],
+        ]);
+
+        if (class_exists('\\Log')) {
+            \Log::write(
+                'WA_Fonnte device-out phone=' . $waNumber . ' id=' . (string) ($localId ?? '') . ' wamid=' . $waMessageId,
+                'webhook',
+                'Fonnte'
+            );
+        }
     }
 
     /**

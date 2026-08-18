@@ -183,15 +183,38 @@ function resolveSenderJid(msg) {
 }
 
 /**
+ * Chat peer (lawan bicara) — untuk pesan fromMe (kirim dari HP).
+ */
+function resolvePeerJid(msg) {
+  const remoteJid = msg.key?.remoteJid || '';
+  if (!remoteJid || isBroadcastJid(remoteJid) || isGroupJid(remoteJid)) return null;
+
+  const alt = msg.key?.remoteJidAlt || msg.key?.remote_jid_alt
+    || msg.key?.participantPn || msg.key?.participant_pn
+    || msg.key?.senderPn || msg.key?.sender_pn;
+  if (alt && !isLidJid(alt) && !isBroadcastJid(alt)) {
+    if (isLidJid(remoteJid)) setLidPhone(remoteJid, alt);
+    return alt;
+  }
+  if (isLidJid(remoteJid)) {
+    const mapped = getPhoneJidForLid(remoteJid);
+    if (mapped) return mapped;
+  }
+  return remoteJid;
+}
+
+/**
  * Parse pesan masuk → payload webhook Fonnte.
  */
-async function buildInboundPayload(msg) {
-  if (!msg.message || msg.key.fromMe) return null;
+async function buildInboundPayload(msg, opts = {}) {
+  const fromMe = Boolean(opts.fromMe);
+  if (!msg.message) return null;
+  if (Boolean(msg.key.fromMe) !== fromMe) return null;
 
   const type = getContentType(msg.message);
   if (!type || type === 'protocolMessage') return null;
 
-  const senderJid = resolveSenderJid(msg);
+  const senderJid = fromMe ? resolvePeerJid(msg) : resolveSenderJid(msg);
   if (!senderJid) return null;
 
   const inboxid = nextInboxId();
@@ -329,6 +352,8 @@ async function buildInboundPayload(msg) {
     filename,
     inboxid,
     wa_message_id: waMessageId || undefined,
+    from_me: fromMe || undefined,
+    direction: fromMe ? 'out' : undefined,
     isforwarded: Boolean(msg.message?.extendedTextMessage?.contextInfo?.isForwarded),
     isgroup: isGroup,
     location,
@@ -357,6 +382,28 @@ async function handleIncomingMessages({ messages, type }) {
   if (type !== 'notify') return;
   for (const msg of messages) {
     try {
+      if (msg.key?.fromMe) {
+        if (isTrackedOutgoing(msg.key?.id)) continue;
+        if (markInboundSeen(msg)) {
+          console.log('[outbound-device] skip duplicate wamid=', msg.key?.id);
+          continue;
+        }
+        const outPayload = await buildInboundPayload(msg, { fromMe: true });
+        if (!outPayload) continue;
+        console.log(
+          '[outbound-device]',
+          outPayload.sender,
+          outPayload.type,
+          outPayload.message?.slice(0, 60) || '(media)',
+          'wamid=',
+          outPayload.wa_message_id || '-'
+        );
+        await postWebhook(outPayload);
+        if (outPayload.wa_message_id) {
+          trackOutgoingMessageId(outPayload.wa_message_id, outPayload.wa_message_id);
+        }
+        continue;
+      }
       const payload = await buildInboundPayload(msg);
       if (!payload) continue;
       if (markInboundSeen(msg)) {
@@ -378,6 +425,15 @@ async function handleIncomingMessages({ messages, type }) {
       console.error('[inbound] error:', err.message || err);
     }
   }
+}
+
+function isTrackedOutgoing(waKeyId) {
+  if (!waKeyId) return false;
+  const id = String(waKeyId);
+  for (const entry of pendingOutStatus.values()) {
+    if (entry.waKeyId === id) return true;
+  }
+  return false;
 }
 
 function trackOutgoingMessageId(fonnteId, waKeyId) {
