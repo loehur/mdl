@@ -56,15 +56,8 @@ class FonnteReplyAdapter
         }
         $res = $this->fonnte->sendMessage($to, $message, $options);
 
-        $rawId = $res['data']['id'] ?? null;
-        $fonnteId = null;
-        if (is_array($rawId) && isset($rawId[0]) && $rawId[0] !== '') {
-            $fonnteId = $rawId[0];
-        } elseif (is_scalar($rawId) && trim((string) $rawId) !== '') {
-            $fonnteId = $rawId;
-        } else {
-            $fonnteId = $res['data']['requestid'] ?? null;
-        }
+        $fonnteId = FonnteService::extractMessageId(is_array($res['data'] ?? null) ? $res['data'] : null);
+        $stateId = FonnteService::extractStateId(is_array($res['data'] ?? null) ? $res['data'] : null);
         $waNumber = $this->normalizePhoneForStore($to);
 
         // Default AR = autoreply/bot; human harus kirim sender_code eksplisit (bukan AR).
@@ -75,7 +68,8 @@ class FonnteReplyAdapter
 
         if ($this->messageStore !== null) {
             $this->messageStore->saveOutgoing($waNumber, (string) $message, [
-                'fonnte_message_id' => is_scalar($fonnteId) ? (string) $fonnteId : null,
+                'fonnte_message_id' => $fonnteId,
+                'fonnte_stateid' => $stateId,
                 'reply_inboxid' => $inbox,
                 'source' => $isHuman ? 'human' : 'autoreply',
                 'sender_code' => $code,

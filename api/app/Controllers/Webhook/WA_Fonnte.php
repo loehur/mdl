@@ -85,7 +85,7 @@ class WA_Fonnte extends Controller
             return;
         }
 
-        $sender = $data['sender'] ?? null;
+        $sender = $this->resolveInboundSender($data);
         $message = $data['message'] ?? null;
         $text = $data['text'] ?? null;
         $name = $data['name'] ?? null;
@@ -790,6 +790,48 @@ class WA_Fonnte extends Controller
             $options['inboxid'] = (int) $inboxid;
         }
         $fonnte->sendMessage($target, $message, $options);
+    }
+
+    /**
+     * Resolve pengirim inbound — skip broadcast, prefer sender_pn (LID → HP).
+     */
+    private function resolveInboundSender(array $data)
+    {
+        $senderLid = trim((string) ($data['senderlid'] ?? ''));
+        if ($senderLid !== '' && stripos($senderLid, 'broadcast') !== false) {
+            return null;
+        }
+
+        foreach (['sender_pn', 'senderPn'] as $key) {
+            if (!empty($data[$key])) {
+                return $data[$key];
+            }
+        }
+
+        $sender = $data['sender'] ?? null;
+        if ($sender === null || trim((string) $sender) === '') {
+            return null;
+        }
+
+        $mode = strtolower(trim((string) ($data['mode'] ?? '')));
+        if ($mode === 'lid' || ($senderLid !== '' && stripos($senderLid, '@lid') !== false)) {
+            if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+            }
+            if (!\App\Helpers\CRM\WaSenderContext::looksLikeIndonesianMobile((string) $sender)) {
+                if (class_exists('\Log')) {
+                    \Log::write(
+                        'WA_Fonnte: LID belum ter-resolve sender=' . (string) $sender . ' senderlid=' . $senderLid,
+                        'webhook',
+                        'Fonnte'
+                    );
+                }
+
+                return null;
+            }
+        }
+
+        return $sender;
     }
 
     /**

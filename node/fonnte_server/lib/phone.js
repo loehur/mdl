@@ -37,11 +37,30 @@ function jidToSender(jid) {
   const raw = String(jid || '');
   if (!raw) return '';
   if (isGroupJid(raw)) return raw;
+  if (/@lid$/i.test(raw)) return '';
   const user = raw.split('@')[0].split(':')[0];
   const digits = digitsOnly(user);
   if (!digits) return '';
   if (digits.startsWith('0')) return COUNTRY_CODE + digits.slice(1);
   return digits;
+}
+
+function isBroadcastJid(value) {
+  const raw = String(value || '').toLowerCase();
+  return raw.includes('status@broadcast') || raw.includes('@broadcast');
+}
+
+function isLidJid(value) {
+  return /@lid$/i.test(String(value || ''));
+}
+
+/** Nomor HP Indonesia valid (628… / 08…). Bukan LID internal WA. */
+function looksLikeMobileDigits(digits) {
+  let d = digitsOnly(digits);
+  if (!d) return false;
+  if (d.startsWith('0')) d = d.slice(1);
+  else if (d.startsWith(COUNTRY_CODE) && d.length >= 11) d = d.slice(COUNTRY_CODE.length);
+  return d.length >= 9 && d.length <= 13 && d.startsWith('8');
 }
 
 /**
@@ -60,6 +79,9 @@ module.exports = {
   COUNTRY_CODE,
   digitsOnly,
   isGroupJid,
+  isBroadcastJid,
+  isLidJid,
+  looksLikeMobileDigits,
   targetToJid,
   jidToSender,
   deviceDisplayNumber,

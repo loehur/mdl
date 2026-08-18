@@ -97,6 +97,9 @@ class WaSenderContext
         if ($digits === null || strlen($digits) < 8) {
             return null;
         }
+        if (!self::looksLikeIndonesianMobile($digits)) {
+            return null;
+        }
         if (str_starts_with($digits, '0')) {
             $digits = substr($digits, 1);
         } elseif (str_starts_with($digits, '62') && strlen($digits) >= 11) {
@@ -107,6 +110,22 @@ class WaSenderContext
         }
 
         return $digits;
+    }
+
+    /** Nomor HP Indonesia valid (bukan LID internal WhatsApp). */
+    public static function looksLikeIndonesianMobile($phone): bool
+    {
+        $digits = preg_replace('/[^0-9]/', '', (string) $phone);
+        if ($digits === null || $digits === '') {
+            return false;
+        }
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        } elseif (str_starts_with($digits, '62') && strlen($digits) >= 11) {
+            $digits = substr($digits, 2);
+        }
+
+        return strlen($digits) >= 9 && strlen($digits) <= 13 && str_starts_with($digits, '8');
     }
 
     /** Kunci identitas: nasional 852… (bukan N digit terakhir). */

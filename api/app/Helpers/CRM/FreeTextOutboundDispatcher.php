@@ -330,7 +330,12 @@ class FreeTextOutboundDispatcher
                 }
                 $db = \App\Core\DB::getInstance(0);
                 $store = new FonnteMessageStore($db);
-                $fonnteId = $fonnteResult['data']['id'][0] ?? ($fonnteResult['data']['requestid'] ?? null);
+                $fonnteId = FonnteService::extractMessageId(
+                    is_array($fonnteResult['data'] ?? null) ? $fonnteResult['data'] : null
+                );
+                $stateId = FonnteService::extractStateId(
+                    is_array($fonnteResult['data'] ?? null) ? $fonnteResult['data'] : null
+                );
                 $code = ($senderCode !== null && trim((string) $senderCode) !== '')
                     ? trim((string) $senderCode)
                     : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
@@ -341,7 +346,8 @@ class FreeTextOutboundDispatcher
                     $phoneNorm = '62' . $phoneNorm;
                 }
                 $store->saveOutgoing('+' . $phoneNorm, $messageText, [
-                    'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+                    'fonnte_message_id' => $fonnteId,
+                    'fonnte_stateid' => $stateId,
                     'source' => SapaanStatsHelper::isHumanSenderCode($code) ? 'human' : 'autoreply',
                     'sender_code' => $code,
                     'status' => 'sent',
@@ -355,7 +361,9 @@ class FreeTextOutboundDispatcher
                 'channel' => 'fonnte',
                 'http_message' => 'WhatsApp free text sent via Fonnte',
                 'http_data' => [
-                    'message_id' => $fonnteResult['data']['id'][0] ?? ($fonnteResult['data']['requestid'] ?? null),
+                    'message_id' => FonnteService::extractMessageId(
+                        is_array($fonnteResult['data'] ?? null) ? $fonnteResult['data'] : null
+                    ),
                     'status' => $fonnteResult['data']['process'] ?? 'sent',
                     'mode' => 'fonnte',
                     'to' => $phone,

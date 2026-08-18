@@ -83,6 +83,50 @@ class FonnteService
     }
 
     /**
+     * Ambil fonnte_message_id dari response /send (skalar atau array — cloud vs self-hosted).
+     */
+    public static function extractMessageId(?array $response): ?string
+    {
+        if (!is_array($response)) {
+            return null;
+        }
+        $rawId = $response['id'] ?? null;
+        if (is_array($rawId)) {
+            $first = $rawId[0] ?? null;
+            if (is_scalar($first) && trim((string) $first) !== '') {
+                return (string) $first;
+            }
+        } elseif (is_scalar($rawId) && trim((string) $rawId) !== '') {
+            return (string) $rawId;
+        }
+        $requestId = $response['requestid'] ?? null;
+        if (is_scalar($requestId) && trim((string) $requestId) !== '') {
+            return (string) $requestId;
+        }
+
+        return null;
+    }
+
+    /**
+     * WhatsApp key id (stateid) dari response Baileys self-hosted.
+     */
+    public static function extractStateId(?array $response): ?string
+    {
+        if (!is_array($response)) {
+            return null;
+        }
+        if (!empty($response['stateid']) && is_scalar($response['stateid'])) {
+            return (string) $response['stateid'];
+        }
+        $detail = $response['detail'] ?? null;
+        if (is_array($detail) && !empty($detail['key']['id'])) {
+            return (string) $detail['key']['id'];
+        }
+
+        return null;
+    }
+
+    /**
      * Ambil profil device Fonnte (kuota, paket, status koneksi, dll.)
      * @return array ['success' => bool, 'data' => array|null, 'error' => string|null]
      */

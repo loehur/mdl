@@ -16,7 +16,8 @@ const {
 const { nextInboxId } = require('./inbox');
 const { saveMediaBuffer, extFromMime } = require('./media');
 const { postWebhook } = require('./webhook');
-const { jidToSender, deviceDisplayNumber, isGroupJid } = require('./phone');
+const { jidToSender, deviceDisplayNumber, isGroupJid, isBroadcastJid, isLidJid, looksLikeMobileDigits } = require('./phone');
+const { setLidPhone, getPhoneJidForLid } = require('./lid-map');
 
 const AUTH_DIR = path.join(__dirname, '..', 'auth');
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
@@ -79,6 +80,34 @@ async function sendStatusWebhook(fields) {
 }
 
 /**
+ * Resolve JID pengirim — LID → nomor HP bila memungkinkan.
+ */
+function resolveSenderJid(msg) {
+  const remoteJid = msg.key?.remoteJid || '';
+  if (!remoteJid || isBroadcastJid(remoteJid)) return null;
+
+  const isGroup = isGroupJid(remoteJid);
+  const participant = msg.key?.participant || msg.participant || remoteJid;
+  let senderJid = isGroup ? participant : remoteJid;
+
+  if (isBroadcastJid(senderJid)) return null;
+
+  // Baileys ≥6.7 kadang menyertakan senderPn di key
+  const senderPn = msg.key?.senderPn || msg.key?.sender_pn;
+  if (senderPn && (isLidJid(senderJid) || isLidJid(remoteJid))) {
+    const lidRef = isLidJid(remoteJid) ? remoteJid : senderJid;
+    if (isLidJid(lidRef)) setLidPhone(lidRef, senderPn);
+    senderJid = String(senderPn);
+  } else if (isLidJid(senderJid) || (!isGroup && isLidJid(remoteJid))) {
+    const lidRef = isLidJid(senderJid) ? senderJid : remoteJid;
+    const mapped = getPhoneJidForLid(lidRef);
+    if (mapped) senderJid = mapped;
+  }
+
+  return senderJid;
+}
+
+/**
  * Parse pesan masuk → payload webhook Fonnte.
  */
 async function buildInboundPayload(msg) {
@@ -87,12 +116,18 @@ async function buildInboundPayload(msg) {
   const type = getContentType(msg.message);
   if (!type || type === 'protocolMessage') return null;
 
+  const senderJid = resolveSenderJid(msg);
+  if (!senderJid) return null;
+
   const inboxid = nextInboxId();
   const remoteJid = msg.key.remoteJid || '';
   const isGroup = isGroupJid(remoteJid);
-  const participant = msg.key.participant || msg.participant || remoteJid;
-  const senderJid = isGroup ? participant : remoteJid;
   const sender = jidToSender(senderJid);
+  if (!sender && !isGroup) return null;
+  if (!isGroup && !looksLikeMobileDigits(sender)) return null;
+
+  const senderLidRaw = msg.key?.remoteJid || msg.key?.participant || '';
+  const senderLid = isLidJid(senderLidRaw) ? senderLidRaw : (isLidJid(senderJid) ? senderJid : '');
   const pushName = msg.pushName || msg.verifiedBizName || '';
   const timestamp = Number(msg.messageTimestamp || Math.floor(Date.now() / 1000));
 
@@ -205,7 +240,7 @@ async function buildInboundPayload(msg) {
   }
 
   const device = getDeviceNumber();
-  const senderLid = String(senderJid || '');
+  const senderLidStr = String(senderLid || '');
 
   return {
     choices: [],
@@ -216,9 +251,9 @@ async function buildInboundPayload(msg) {
     isforwarded: Boolean(msg.message?.extendedTextMessage?.contextInfo?.isForwarded),
     isgroup: isGroup,
     location,
-    memberlid: isGroup ? senderLid : '',
+    memberlid: isGroup ? senderLidStr : '',
     message: messageText,
-    mode: senderLid.includes('@lid') ? 'lid' : 'pn',
+    mode: senderLidStr.includes('@lid') ? 'lid' : 'pn',
     name: pushName,
     pengirim: sender,
     pesan: messageText,
@@ -226,7 +261,8 @@ async function buildInboundPayload(msg) {
     pushname: pushName,
     quick: false,
     sender,
-    senderlid: senderLid,
+    sender_pn: sender,
+    senderlid: senderLidStr,
     text: 'non-button message',
     timestamp,
     type: waType,
@@ -286,6 +322,10 @@ async function handleMessageUpdates(updates) {
         state,
         stateid: waKeyId,
       });
+      if (status >= 3) {
+        clearTimeout(entry.timer);
+        pendingOutStatus.delete(String(fonnteId));
+      }
     }
   }
 }
@@ -449,6 +489,10 @@ async function startBaileys() {
     socket.ev.on('messages.upsert', handleIncomingMessages);
     socket.ev.on('messages.update', handleMessageUpdates);
 
+    socket.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
+      if (lid && jid) setLidPhone(lid, jid);
+    });
+
     if (authDirIsEmpty()) {
       scheduleRestart(25000, 'QR timeout watchdog');
     }
@@ -522,6 +566,7 @@ async function sendViaBaileys({ jid, message, url, filename, inboxid }) {
     return {
       status: true,
       id: fonnteId,
+      stateid: waKeyId || null,
       detail: sent,
       requestid: fonnteId,
     };

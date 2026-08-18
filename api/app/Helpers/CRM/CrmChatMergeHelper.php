@@ -210,11 +210,8 @@ class CrmChatMergeHelper
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
-        if ($db->insert('wa_conversations', $insert)) {
-            return (int) $db->insert_id();
-        }
-
-        return 0;
+        $insertId = $db->insert('wa_conversations', $insert);
+        return $insertId ? (int) $insertId : 0;
     }
 
     public static function pushWebSocket(array $payload): bool

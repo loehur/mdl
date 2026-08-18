@@ -507,9 +507,12 @@ class Chat extends Controller
         $isHuman = \App\Helpers\CRM\SapaanStatsHelper::isHumanSenderCode($code);
 
         $store = new \App\Helpers\CRM\FonnteMessageStore($db);
-        $fonnteId = $result['data']['id'][0] ?? ($result['data']['requestid'] ?? null);
+        $responseData = is_array($result['data'] ?? null) ? $result['data'] : null;
+        $fonnteId = \App\Helpers\CRM\FonnteService::extractMessageId($responseData);
+        $stateId = \App\Helpers\CRM\FonnteService::extractStateId($responseData);
         $localId = $store->saveOutgoing($waNumber, $message, [
-            'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+            'fonnte_message_id' => $fonnteId,
+            'fonnte_stateid' => $stateId,
             'reply_inboxid' => !empty($options['inboxid']) ? (int) $options['inboxid'] : null,
             'source' => $isHuman ? 'human' : 'autoreply',
             'sender_code' => $code,
@@ -1462,11 +1465,14 @@ class Chat extends Controller
         $lastPreview = $mediaType === 'video' ? 'o- 🎥 Video' : 'o- 📷 Image';
 
         $store = new \App\Helpers\CRM\FonnteMessageStore($db);
-        $fonnteId = $result['data']['id'][0] ?? ($result['data']['requestid'] ?? null);
+        $responseData = is_array($result['data'] ?? null) ? $result['data'] : null;
+        $fonnteId = \App\Helpers\CRM\FonnteService::extractMessageId($responseData);
+        $stateId = \App\Helpers\CRM\FonnteService::extractStateId($responseData);
         $localId = $store->saveOutgoing($waNumber, trim($caption), [
             'type' => $mediaType,
             'media_url' => $mediaUrl,
-            'fonnte_message_id' => $fonnteId !== null ? (string) $fonnteId : null,
+            'fonnte_message_id' => $fonnteId,
+            'fonnte_stateid' => $stateId,
             'source' => $isHuman ? 'human' : 'autoreply',
             'sender_code' => $code,
             'status' => 'sent',

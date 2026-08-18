@@ -163,6 +163,7 @@ class FonnteMessageStore
         }
 
         $fonnteId = !empty($meta['fonnte_message_id']) ? mb_substr((string) $meta['fonnte_message_id'], 0, 64) : null;
+        $stateId = !empty($meta['fonnte_stateid']) ? mb_substr((string) $meta['fonnte_stateid'], 0, 64) : null;
         $senderCode = array_key_exists('sender_code', $meta)
             ? (trim((string) $meta['sender_code']) !== '' ? mb_substr(trim((string) $meta['sender_code']), 0, 32) : null)
             : SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
@@ -184,6 +185,9 @@ class FonnteMessageStore
             'error_text' => !empty($meta['error_text']) ? mb_substr((string) $meta['error_text'], 0, 255) : null,
             'created_at' => date('Y-m-d H:i:s'),
         ];
+        if ($this->hasFonnteStateIdColumn() && $stateId !== null && $stateId !== '') {
+            $row['fonnte_stateid'] = $stateId;
+        }
 
         // Match by fonnte_message_id: update existing, jangan insert duplikat
         if ($fonnteId !== null && $fonnteId !== '') {
@@ -203,6 +207,9 @@ class FonnteMessageStore
                     'status' => $row['status'],
                     'error_text' => $row['error_text'],
                 ];
+                if ($this->hasFonnteStateIdColumn() && $stateId !== null && $stateId !== '') {
+                    $update['fonnte_stateid'] = $stateId;
+                }
                 $ok = $this->db->update('wa_fonnte_messages_out', $update, ['id' => (int) $existing->id]);
                 if (!$ok && class_exists('\Log')) {
                     $err = $this->db->conn()->error ?? 'unknown';
