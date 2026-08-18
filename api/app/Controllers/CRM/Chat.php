@@ -513,7 +513,15 @@ class Chat extends Controller
 
             $messages = $db->query($sql, $params)->result_array();
 
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+                require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+            }
+
             foreach ($messages as &$msg) {
+                if (!empty($msg['media_url'])) {
+                    $msg['media_url'] = \App\Helpers\CRM\FonnteMessageStore::normalizeMediaUrl((string) $msg['media_url']);
+                }
+
                 $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
                 if ($privateValue !== null && $privateValue !== '' && $privateValue !== false) {
                     $msg['private'] = (int) $privateValue;
@@ -1290,6 +1298,59 @@ class Chat extends Controller
         if (isset($media['raw'])) {
             echo "\n\nDebug Raw Response:\n" . json_encode($media['raw'], JSON_PRETTY_PRINT);
         }
+    }
+
+    /**
+     * Proxy media HTTP→HTTPS untuk CRM (mixed-content fix).
+     * GET ?url=http://api.nalju.com/...
+     */
+    public function proxyMedia()
+    {
+        $url = trim((string) ($this->query('url') ?? ''));
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            http_response_code(400);
+            die('URL required');
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
+            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        }
+
+        $parts = parse_url($url);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($host === '' || !\App\Helpers\CRM\FonnteMessageStore::isProxyAllowedMediaHost($host)) {
+            http_response_code(403);
+            die('Host not allowed');
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'MdL-CRM/1.0');
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        $data = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        if ($data === false || $httpCode < 200 || $httpCode >= 300) {
+            http_response_code(404);
+            die('Media fetch failed');
+        }
+
+        $mime = 'application/octet-stream';
+        if (is_string($contentType) && $contentType !== '') {
+            $mime = trim(explode(';', $contentType)[0]);
+        }
+
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: public, max-age=86400');
+        echo $data;
+        exit;
     }
 
     private function pushToWebSocket($data)

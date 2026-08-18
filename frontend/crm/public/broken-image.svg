@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" width="320" height="240">
+  <rect width="320" height="240" fill="#e5e7eb"/>
+  <rect x="24" y="24" width="272" height="192" rx="12" fill="#d1d5db" stroke="#9ca3af" stroke-width="2"/>
+  <path d="M72 156 L112 116 L144 144 L184 96 L248 156 Z" fill="#9ca3af"/>
+  <circle cx="112" cy="92" r="16" fill="#9ca3af"/>
+  <line x1="88" y1="64" x2="232" y2="176" stroke="#ef4444" stroke-width="6" stroke-linecap="round"/>
+  <line x1="232" y1="64" x2="88" y2="176" stroke="#ef4444" stroke-width="6" stroke-linecap="round"/>
+  <text x="160" y="210" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#6b7280">Gambar tidak dapat dimuat</text>
+</svg>

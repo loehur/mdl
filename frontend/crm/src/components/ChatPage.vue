@@ -625,6 +625,62 @@ const mediaCaptionText = (msg) => {
     if (!t || /^\[[a-z_]+\]$/i.test(t)) return "";
     return t;
 };
+
+const BROKEN_MEDIA_URL = "/crm/broken-image.svg";
+const HTTPS_UPGRADE_HOSTS = ["api.nalju.com", "ml.nalju.com", "www.nalju.com", "nalju.com"];
+const PROXY_ALLOWED_HOSTS = ["api.nalju.com", "ml.nalju.com", "127.0.0.1", "localhost"];
+
+const hostMatchesList = (host, allowedHosts) => {
+    const h = String(host || "").toLowerCase();
+    if (!h) return false;
+    return allowedHosts.some((allowed) => {
+        const a = String(allowed).toLowerCase();
+        return h === a || h.endsWith("." + a);
+    });
+};
+
+const normalizeMediaUrlClient = (url) => {
+    if (!url || String(url).startsWith("data:")) return url;
+    try {
+        const parsed = new URL(String(url));
+        if (parsed.protocol !== "http:") return String(url);
+        const host = parsed.hostname.toLowerCase();
+        if (hostMatchesList(host, HTTPS_UPGRADE_HOSTS)) {
+            parsed.protocol = "https:";
+            return parsed.toString();
+        }
+        if (hostMatchesList(host, PROXY_ALLOWED_HOSTS)) {
+            return `${props.API_BASE}/CRM/Chat/proxyMedia?url=${encodeURIComponent(String(url))}`;
+        }
+        return String(url);
+    } catch {
+        return String(url);
+    }
+};
+
+const resolveMediaSrc = (msg) => {
+    if (!msg) return "";
+    if (msg._mediaBroken) return BROKEN_MEDIA_URL;
+    if (msg.media_id) return `${props.API_BASE}/CRM/Chat/media?id=${msg.media_id}`;
+    if (msg.media_url) return normalizeMediaUrlClient(msg.media_url);
+    return "";
+};
+
+const handleImageError = (msg, event) => {
+    if (!msg) return;
+    msg._mediaBroken = true;
+    if (event?.target) {
+        event.target.onerror = null;
+        event.target.src = BROKEN_MEDIA_URL;
+    }
+    messageUpdateTrigger.value++;
+};
+
+const openMessageImageLightbox = (msg) => {
+    const src = resolveMediaSrc(msg);
+    if (!src || src === BROKEN_MEDIA_URL) return;
+    openImageLightbox(src);
+};
 // Check if message is plain text (no media type)
 const isPlainTextMessage = (msg) => {
     return !msg.type || msg.type === 'text' || msg.type === '' || msg.type === 'template' || msg.type === 'button' || msg.type === 'reaction';
@@ -1015,8 +1071,12 @@ onUnmounted(() => {
                                   <div v-if="msg.type === 'image'" class="relative max-w-sm">
                                       <!-- Blur image if private and not admin -->
                                       <div v-if="shouldHideMessage(msg)" class="relative">
-                                           <img :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" class="max-h-80 object-cover blur-md" />
-                                           <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+                                           <img
+                                             :src="resolveMediaSrc(msg)"
+                                             @error="handleImageError(msg, $event)"
+                                             class="max-h-80 min-h-32 w-full object-cover blur-md rounded-lg"
+                                           />
+                                           <div class="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
                                                 <div class="text-center text-white p-4">
                                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -1026,11 +1086,17 @@ onUnmounted(() => {
                                                 </div>
                                            </div>
                                       </div>
-                                      <img v-else-if="msg.media_url || msg.media_id" :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`" @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)" class="max-h-80 object-cover cursor-pointer" />
-                                      <div v-else class="px-3 py-4 text-sm text-[var(--wa-text-tertiary)] italic bg-[var(--wa-bg-secondary)] rounded-lg">📷 Gambar tidak tersedia</div>
+                                      <img
+                                        v-else-if="resolveMediaSrc(msg)"
+                                        :src="resolveMediaSrc(msg)"
+                                        @error="handleImageError(msg, $event)"
+                                        @click="openMessageImageLightbox(msg)"
+                                        class="max-h-80 min-h-32 w-full object-cover cursor-pointer rounded-lg"
+                                      />
+                                      <div v-else class="px-3 py-4 min-h-32 flex items-center justify-center text-sm text-[var(--wa-text-tertiary)] italic bg-[var(--wa-bg-secondary)] rounded-lg">📷 Gambar tidak tersedia</div>
                                       <div
                                         v-if="mediaCaptionText(msg) || msg.time"
-                                        class="absolute bottom-0 inset-x-0 px-2.5 py-2"
+                                        class="mt-1.5 px-2.5 py-2 rounded-lg"
                                         style="background: var(--wa-caption-overlay-bg); color: var(--wa-caption-overlay-text);"
                                       >
                                            <div v-if="isPrivateMessage(msg)" class="inline-flex items-center gap-1 text-xs font-semibold mb-1 opacity-90">
@@ -1414,7 +1480,7 @@ onUnmounted(() => {
             <div class="p-4 overflow-y-auto flex-1">
                 <p class="text-xs font-bold text-[var(--wa-accent-green)] mb-1">{{ quotedMessageToShow.fromName }}</p>
                 <div v-if="quotedMessageToShow.type === 'image' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
-                    <img :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" />
+                    <img :src="normalizeMediaUrlClient(quotedMessageToShow.media_url) || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" @error="(e) => { e.target.onerror = null; e.target.src = BROKEN_MEDIA_URL; }" />
                     <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
                 </div>
                 <div v-else-if="quotedMessageToShow.type === 'video' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">

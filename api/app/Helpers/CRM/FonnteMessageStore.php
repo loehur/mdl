@@ -14,6 +14,22 @@ class FonnteMessageStore
         'nontext message',
     ];
 
+    /** Host nalju yang mendukung HTTPS — upgrade http agar CRM (HTTPS) tidak mixed-content block. */
+    private const HTTPS_UPGRADE_HOSTS = [
+        'api.nalju.com',
+        'ml.nalju.com',
+        'www.nalju.com',
+        'nalju.com',
+    ];
+
+    /** Host yang boleh di-fetch via CRM/Chat/proxyMedia. */
+    private const PROXY_ALLOWED_HOSTS = [
+        'api.nalju.com',
+        'ml.nalju.com',
+        '127.0.0.1',
+        'localhost',
+    ];
+
     /** @var object */
     private $db;
 
@@ -112,6 +128,7 @@ class FonnteMessageStore
             if ($persistedUrl !== null) {
                 $url = $persistedUrl;
             }
+            $url = self::normalizeMediaUrl($url) ?? '';
         }
 
         $row = [
@@ -194,11 +211,15 @@ class FonnteMessageStore
             SapaanStatsHelper::isHumanSenderCode($senderCode) ? 'human' : 'autoreply'
         ));
 
+        $mediaUrl = !empty($meta['media_url'])
+            ? self::normalizeMediaUrl((string) $meta['media_url'])
+            : null;
+
         $row = [
             'phone' => $waNumber,
             'type' => (string) ($meta['type'] ?? 'text'),
             'text' => $text,
-            'media_url' => !empty($meta['media_url']) ? mb_substr((string) $meta['media_url'], 0, 512) : null,
+            'media_url' => ($mediaUrl !== null && $mediaUrl !== '') ? mb_substr($mediaUrl, 0, 512) : null,
             'fonnte_message_id' => $fonnteId,
             'reply_inboxid' => !empty($meta['reply_inboxid']) ? (int) $meta['reply_inboxid'] : null,
             'source' => $source,
@@ -636,6 +657,65 @@ class FonnteMessageStore
         $normalized = strtolower(trim($text));
 
         return in_array($normalized, self::MEDIA_PLACEHOLDER_TEXTS, true);
+    }
+
+    /**
+     * Upgrade http→https untuk host nalju agar media tampil di CRM (HTTPS).
+     */
+    public static function normalizeMediaUrl(?string $url): ?string
+    {
+        if ($url === null || trim($url) === '') {
+            return null;
+        }
+
+        $url = trim($url);
+        if (stripos($url, 'data:') === 0) {
+            return $url;
+        }
+        if (!preg_match('#^http://#i', $url)) {
+            return $url;
+        }
+
+        $parts = parse_url($url);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return $url;
+        }
+
+        $host = strtolower((string) $parts['host']);
+        if (self::hostMatchesList($host, self::HTTPS_UPGRADE_HOSTS)) {
+            return preg_replace('#^http://#i', 'https://', $url, 1);
+        }
+
+        return $url;
+    }
+
+    /**
+     * Apakah host boleh di-proxy oleh CRM/Chat/proxyMedia.
+     */
+    public static function isProxyAllowedMediaHost(string $host): bool
+    {
+        return self::hostMatchesList(strtolower(trim($host)), self::PROXY_ALLOWED_HOSTS);
+    }
+
+    /**
+     * @param list<string> $allowedHosts
+     */
+    private static function hostMatchesList(string $host, array $allowedHosts): bool
+    {
+        if ($host === '') {
+            return false;
+        }
+        foreach ($allowedHosts as $allowed) {
+            $allowed = strtolower(trim($allowed));
+            if ($allowed === '') {
+                continue;
+            }
+            if ($host === $allowed || substr($host, -strlen('.' . $allowed)) === '.' . $allowed) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function detectIncomingType(string $messageText, string $url, string $location, string $extension, bool $wasMediaPlaceholder = false): string
