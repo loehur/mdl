@@ -33,6 +33,8 @@ const deliveryFormMsg = ref("");
 const deliveryResultMsg = ref("");
 const deliveryResultOk = ref(false);
 const submittingDelivery = ref(false);
+const deliveryAktifItems = ref([]);
+const deliveryAktifLoading = ref(false);
 
 const deliveryJenisOptions = [
   { id: "jemput", label: "Jemput" },
@@ -266,12 +268,49 @@ const submitDeliveryRequest = async () => {
     }
     deliveryResultOk.value = true;
     deliveryResultMsg.value = res?.message || "Permintaan terkirim.";
+    if (Array.isArray(res.items)) {
+      deliveryAktifItems.value = res.items;
+    } else {
+      loadDeliveryAktif();
+    }
     closeDeliveryRequest();
   } catch (_) {
     deliveryFormMsg.value = "Gagal membuat permintaan";
   } finally {
     submittingDelivery.value = false;
   }
+};
+
+const loadDeliveryAktif = async () => {
+  if (!custId.value) {
+    deliveryAktifItems.value = [];
+    return;
+  }
+  deliveryAktifLoading.value = true;
+  try {
+    const res = await fetch(
+      `${props.apiBase}/Laundry/DeliveryRequest/listAktif?cust_id=${custId.value}`
+    ).then((r) => r.json());
+    if (!res?.ok && !res?.status) {
+      deliveryAktifItems.value = [];
+      return;
+    }
+    deliveryAktifItems.value = Array.isArray(res.items) ? res.items : [];
+  } catch (_) {
+    deliveryAktifItems.value = [];
+  } finally {
+    deliveryAktifLoading.value = false;
+  }
+};
+
+const deliveryJenisLabel = (req) => req?.jenis_label || (req?.sekalian_jemput ? "Antar & Jemput" : (req?.jenis === "antar" ? "Antar" : "Jemput"));
+
+const formatRequestTime = (raw) => {
+  if (!raw) return "";
+  const d = new Date(String(raw).replace(" ", "T"));
+  if (Number.isNaN(d.getTime())) return String(raw);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 const loadLokasi = async () => {
@@ -467,13 +506,16 @@ watch(
       closeDeliveryRequest();
       lokasiItems.value = [];
       lokasiError.value = "";
+      deliveryAktifItems.value = [];
       return;
     }
     if (id) {
       loadLokasi();
+      loadDeliveryAktif();
     } else {
       lokasiItems.value = [];
       lokasiError.value = "";
+      deliveryAktifItems.value = [];
     }
   }
 );
@@ -576,6 +618,32 @@ onUnmounted(() => {
           >
             {{ deliveryResultMsg }}
           </p>
+          <p v-if="custId && deliveryAktifLoading && !deliveryAktifItems.length" class="text-xs text-[var(--wa-text-tertiary)] mt-3">
+            Memuat request…
+          </p>
+          <div v-else-if="deliveryAktifItems.length" class="space-y-2 mt-3">
+            <div
+              v-for="req in deliveryAktifItems"
+              :key="req.id_request"
+              class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)]"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-medium text-[var(--wa-text-primary)]">{{ deliveryJenisLabel(req) }}</p>
+                <span class="text-[11px] font-bold text-[var(--wa-accent-green)] flex-shrink-0">
+                  {{ req.status_label || "Berjalan" }}
+                </span>
+              </div>
+              <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5">
+                {{ req.lokasi_nama || "Lokasi" }}
+                <span v-if="req.lokasi_detail"> · {{ req.lokasi_detail }}</span>
+              </p>
+              <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+                #{{ req.id_request }}
+                <span v-if="req.layanan && req.layanan !== 'sameday'"> · {{ req.layanan }}</span>
+                <span v-if="req.insertTime"> · {{ formatRequestTime(req.insertTime) }}</span>
+              </p>
+            </div>
+          </div>
         </section>
 
         <section>

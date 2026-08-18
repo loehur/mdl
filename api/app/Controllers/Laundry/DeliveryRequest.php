@@ -34,6 +34,25 @@ class DeliveryRequest extends Controller
         $this->reply(DeliveryRequestStore::create($body));
     }
 
+    public function listAktif()
+    {
+        $this->jsonHeader();
+        $id = (int) (
+            $this->query('id_pelanggan')
+            ?? $this->query('cust_id')
+            ?? 0
+        );
+        if ($id <= 0) {
+            $body = $this->mergedInput();
+            $id = (int) ($body['id_pelanggan'] ?? $body['cust_id'] ?? 0);
+        }
+        if ($id <= 0) {
+            $this->fail('id_pelanggan / cust_id wajib', 400);
+            return;
+        }
+        $this->reply(DeliveryRequestStore::listAktif($id));
+    }
+
     private function jsonHeader(): void
     {
         header('Content-Type: application/json; charset=utf-8');

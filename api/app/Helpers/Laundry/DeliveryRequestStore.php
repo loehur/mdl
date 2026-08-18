@@ -166,6 +166,7 @@ class DeliveryRequestStore
             );
 
             $label = $sekalianJemput ? 'Antar & Jemput' : ($jenis === 'antar' ? 'Antar' : 'Jemput');
+            $listed = self::listAktif($idPelanggan);
             return [
                 'ok' => true,
                 'message' => "Permintaan {$label} terkirim.",
@@ -173,6 +174,7 @@ class DeliveryRequestStore
                 'jenis' => $jenis,
                 'sekalian_jemput' => $sekalianJemput,
                 'group_sent' => $groupSent,
+                'items' => $listed['items'] ?? [],
             ];
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -180,6 +182,64 @@ class DeliveryRequestStore
             }
             return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
         }
+    }
+
+    /**
+     * Request masih aktif: berjalan / menunggu pembayaran.
+     * @return array{ok:bool,message?:string,items?:array}
+     */
+    public static function listAktif(int $idPelanggan): array
+    {
+        $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
+        if ($pel === null) {
+            return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
+        }
+
+        $rows = PelangganLokasiStore::laundryDb()->query(
+            "SELECT id_request, jenis, sekalian_jemput, layanan, delivery_status,
+                    id_lokasi, lokasi_nama, lokasi_detail, insertTime, tarif_surcas
+             FROM delivery_request
+             WHERE id_pelanggan = ?
+               AND delivery_status IN ('berjalan','menunggu_pembayaran')
+             ORDER BY id_request DESC",
+            [$idPelanggan]
+        )->result_array();
+
+        $items = [];
+        foreach (is_array($rows) ? $rows : [] as $r) {
+            $items[] = self::formatAktifItem($r);
+        }
+
+        return ['ok' => true, 'items' => $items];
+    }
+
+    /**
+     * @param array<string,mixed> $r
+     * @return array<string,mixed>
+     */
+    private static function formatAktifItem(array $r): array
+    {
+        $jenis = strtolower((string) ($r['jenis'] ?? ''));
+        $sekalian = !empty($r['sekalian_jemput']);
+        $status = strtolower((string) ($r['delivery_status'] ?? ''));
+        $layanan = strtolower((string) ($r['layanan'] ?? 'sameday'));
+        $jenisLabel = $sekalian ? 'Antar & Jemput' : ($jenis === 'antar' ? 'Antar' : 'Jemput');
+        $statusLabel = $status === 'menunggu_pembayaran' ? 'Menunggu pembayaran' : 'Berjalan';
+
+        return [
+            'id_request' => (int) ($r['id_request'] ?? 0),
+            'jenis' => $jenis,
+            'sekalian_jemput' => $sekalian ? 1 : 0,
+            'jenis_label' => $jenisLabel,
+            'layanan' => $layanan,
+            'delivery_status' => $status,
+            'status_label' => $statusLabel,
+            'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
+            'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
+            'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
+            'insertTime' => (string) ($r['insertTime'] ?? ''),
+            'tarif_surcas' => (int) ($r['tarif_surcas'] ?? 0),
+        ];
     }
 
     /**
