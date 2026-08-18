@@ -51,12 +51,12 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerInfoModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
   isMarkingAsDone, isCheckingPayment, isPickupDelivery, isRequest, isFollowUp,
-  isReopeningConversation, isRefreshingChat, isLoadingQuickReplies, copiedPhone,
+  isReopeningConversation, isRefreshingChat, isLoadingQuickReplies,
   // Settings
   fontSize, theme, notificationSoundEnabled, notificationAudio,
   // Quick Reply
@@ -1155,74 +1155,6 @@ const needsDateSeparator = (currentMsg, previousMsg) => {
 
 // --- Methods ---
 
-// Show Customer Info Modal
-const showCustomerInfo = () => {
-  if (activeConversation.value) {
-    showCustomerInfoModal.value = true;
-  }
-};
-
-// Copy phone number to clipboard
-const copyPhoneNumber = async () => {
-  if (!activeConversation.value) return;
-
-  try {
-    // Convert to 08xx format
-    let phone = activeConversation.value.wa_number || "";
-    // Remove all non-digits
-    phone = phone.replace(/\D/g, "");
-
-    // Convert to 08xx format
-    if (phone.startsWith("628")) {
-      phone = "0" + phone.substring(2);
-    } else if (phone.startsWith("62")) {
-      phone = "0" + phone.substring(2);
-    } else if (!phone.startsWith("0")) {
-      phone = "0" + phone;
-    }
-
-    // Copy to clipboard
-    await navigator.clipboard.writeText(phone);
-
-    // Show copied feedback
-    copiedPhone.value = true;
-    setTimeout(() => {
-      copiedPhone.value = false;
-    }, 2000);
-  } catch (err) {
-    console.error("Failed to copy:", err);
-    // Fallback for older browsers
-    const textArea = document.createElement("textarea");
-    textArea.value = formatPhoneTo08(activeConversation.value.wa_number);
-    document.body.appendChild(textArea);
-    textArea.select();
-    try {
-      document.execCommand("copy");
-      copiedPhone.value = true;
-      setTimeout(() => {
-        copiedPhone.value = false;
-      }, 2000);
-    } catch (err2) {
-      console.error("Fallback copy failed:", err2);
-    }
-    document.body.removeChild(textArea);
-  }
-};
-
-// Format phone to 08xx
-const formatPhoneTo08 = (phone) => {
-  if (!phone) return "";
-  let cleaned = phone.replace(/\D/g, "");
-  if (cleaned.startsWith("628")) {
-    return "0" + cleaned.substring(2);
-  } else if (cleaned.startsWith("62")) {
-    return "0" + cleaned.substring(2);
-  } else if (!cleaned.startsWith("0")) {
-    return "0" + cleaned;
-  }
-  return cleaned;
-};
-
 /** Caption/text helper: ignore media placeholders like [image] / [video] */
 const isMediaPlaceholderText = (t) => {
   const s = String(t || "").trim();
@@ -2241,6 +2173,7 @@ const clearSavedChatState = () => {
 };
 
 const backToMenu = (animated = true) => {
+  showCustomerPanel.value = false;
   // Stop chat polling when closing chat
   stopChatPolling();
   
@@ -4553,6 +4486,11 @@ onMounted(() => {
       showSettingsModal.value = false;
       return 'settings_closed';
     }
+
+    if (showCustomerPanel.value) {
+      showCustomerPanel.value = false;
+      return 'customer_panel_closed';
+    }
     
     // Priority 3: Navigate back from chat to list
     if (navStore.current === 'chat' || showMobileChat.value) {
@@ -4904,6 +4842,11 @@ function handleBackButtonPress() {
   if (showSettingsModal.value) {
     showSettingsModal.value = false;
     return "settings_closed";
+  }
+
+  if (showCustomerPanel.value) {
+    showCustomerPanel.value = false;
+    return "customer_panel_closed";
   }
 
   // Priority 3: Navigate back from chat to list
@@ -5535,162 +5478,6 @@ const handleLinkClick = (e) => {
             </div>
           </div>
 
-        </div>
-      </div>
-    </div>
-
-    <!-- Customer Info Modal -->
-    <div
-      v-if="showCustomerInfoModal"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4"
-      @click="showCustomerInfoModal = false"
-    >
-      <div
-        class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-scale-in"
-        @click.stop
-      >
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">
-            Info Customer
-          </h2>
-          <button
-            @click="showCustomerInfoModal = false"
-            class="p-2 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)] hover:bg-[var(--wa-hover)] rounded-lg transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Customer Avatar -->
-        <div class="flex justify-center mb-6">
-          <div
-            class="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg"
-            :style="{ backgroundColor: activeConversation?.color }"
-          >
-            {{ activeConversation?.initials }}
-          </div>
-        </div>
-
-        <!-- Customer Info -->
-        <div class="space-y-4">
-          <!-- Name -->
-          <div
-            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
-          >
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
-              >Nama</label
-            >
-            <p
-              class="text-base font-medium text-[var(--wa-text-primary)] uppercase"
-            >
-              {{ activeConversation?.name }}
-            </p>
-          </div>
-
-          <!-- Phone Number -->
-          <div
-            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
-          >
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
-              >Nomor WhatsApp</label
-            >
-            <div class="flex items-center justify-between gap-3">
-              <p
-                class="text-lg font-mono font-semibold text-[var(--wa-text-primary)]"
-              >
-                {{ formatPhoneTo08(activeConversation?.wa_number) }}
-              </p>
-              <button
-                @click="copyPhoneNumber"
-                class="flex items-center gap-2 px-4 py-2 rounded-lg transition-all flex-shrink-0"
-                :class="
-                  copiedPhone
-                    ? 'bg-green-500/20 text-green-400'
-                    : 'bg-[var(--wa-accent-green)] text-black hover:bg-[#00a884]/90'
-                "
-              >
-                <!-- Copy Icon -->
-                <svg
-                  v-if="!copiedPhone"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
-                <!-- Check Icon -->
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                <span class="text-sm font-medium">{{
-                  copiedPhone ? "Copied!" : "Copy"
-                }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Branch Code (if exists) -->
-          <div
-            v-if="activeConversation?.kode_cabang"
-            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
-          >
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
-              >Cabang</label
-            >
-            <p
-              class="text-base font-bold text-[var(--wa-text-primary)]"
-            >
-              {{ activeConversation?.kode_cabang }}
-            </p>
-          </div>
-
-          <!-- ID Pelanggan (if exists) -->
-          <div
-            v-if="activeConversation?.cust_id"
-            class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]"
-          >
-            <label class="text-xs text-[var(--wa-text-tertiary)] mb-1 block"
-              >ID Pelanggan</label
-            >
-            <p
-              class="text-base font-bold text-[var(--wa-text-primary)]"
-            >
-              #{{ activeConversation.cust_id }}
-            </p>
-          </div>
         </div>
       </div>
     </div>

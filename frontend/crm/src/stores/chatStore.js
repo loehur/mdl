@@ -235,7 +235,7 @@ export const showExitToast = ref(false);
 export const showChatMenu = ref(false);
 export const showResolveMenu = ref(false);
 export const showSettingsModal = ref(false);
-export const showCustomerInfoModal = ref(false);
+export const showCustomerPanel = ref(false);
 export const showImageLightbox = ref(false);
 export const lightboxImageUrl = ref("");
 export const showQuickReplies = ref(false);
@@ -258,7 +258,6 @@ export const isFollowUp = ref(false);
 export const isReopeningConversation = ref(false);
 export const isRefreshingChat = ref(false);
 export const isLoadingQuickReplies = ref(false);
-export const copiedPhone = ref(false);
 
 // ============================================================================
 // Settings State

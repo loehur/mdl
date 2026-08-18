@@ -2,8 +2,9 @@
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
+import CustomerPanel from "./CustomerPanel.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -125,10 +126,6 @@ const toggleAudioPlay = (msgId) => {
     el.play();
   }
 };
-
-// Customer Info Modal State (Local to ChatPage)
-const showCustomerInfoModal = ref(false);
-const copiedPhone = ref(false);
 
 // Quoted Message Detail Modal (tap untuk lihat pesan lengkap)
 const showQuotedMessageModal = ref(false);
@@ -288,25 +285,9 @@ const isCaseOpen = (caseId) => {
     return props.activeConversation.cases.some(c => parseInt(c.case) === parseInt(caseId) && (c.status || 'open') !== 'closed');
 };
 
-const formatPhoneTo08 = (phone) => {
-  if (!phone) return "";
-  let p = phone.toString().replace(/\D/g, "");
-  if (p.startsWith("62")) p = "0" + p.substring(2);
-  return p;
-};
-
-const copyPhoneNumber = () => {
-    if(!props.activeConversation?.wa_number) return;
-    const phone = formatPhoneTo08(props.activeConversation.wa_number);
-    navigator.clipboard.writeText(phone).then(() => {
-        copiedPhone.value = true;
-        setTimeout(() => (copiedPhone.value = false), 2000);
-    });
-};
-
 // --- HANDLERS ---
 const showCustomerInfo = () => {
-    showCustomerInfoModal.value = true;
+    showCustomerPanel.value = true;
 };
 
 const handleBubbleLinkClick = (e) => {
@@ -326,43 +307,8 @@ const handleBubbleLinkClick = (e) => {
     }
 };
 
-const isUpdatingPartner = ref(false);
-const isPartnerActive = computed(() => {
-    const p = props.activeConversation?.partner;
-    return p === 1 || p === "1";
-});
-
-const onPartnerToggle = async (e) => {
-    if (!props.activeConversation?.wa_number || isUpdatingPartner.value) return;
-    const wantOn = e.target.checked;
-    const prevPartner = props.activeConversation.partner;
-    props.activeConversation.partner = wantOn ? 1 : null;
-    isUpdatingPartner.value = true;
-    try {
-        const res = await fetch(`${props.API_BASE}/CRM/Chat/setPartner`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                phone: props.activeConversation.wa_number,
-                partner: wantOn,
-                user_id: props.authId,
-            }),
-        }).then((r) => r.json());
-        if (!res.status) {
-            props.activeConversation.partner = prevPartner;
-            e.target.checked =
-                prevPartner === 1 || prevPartner === "1";
-        }
-    } catch (err) {
-        console.error(err);
-        props.activeConversation.partner = prevPartner;
-        e.target.checked = prevPartner === 1 || prevPartner === "1";
-    } finally {
-        isUpdatingPartner.value = false;
-    }
-};
-
 const backToMenu = () => {
+    showCustomerPanel.value = false;
     emit('back-to-menu');
 };
 
@@ -946,6 +892,16 @@ onUnmounted(() => {
                </div>
                <!-- Actions -->
                <div class="flex items-center gap-2 text-[var(--wa-icon-default)] relative">
+                    <button
+                      type="button"
+                      class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"
+                      title="Customer Panel"
+                      @click.stop="showCustomerInfo"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5h4a2 2 0 012 2v10a2 2 0 01-2 2h-4M15 5v14M15 5H5a2 2 0 00-2 2v10a2 2 0 002 2h10" />
+                      </svg>
+                    </button>
                     <!-- Resolve Menu -->
                     <div class="relative">
                         <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
@@ -1493,43 +1449,13 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
-
-     <!-- Customer Info Modal -->
-    <div v-if="showCustomerInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[600] flex items-center justify-center p-4" @click="showCustomerInfoModal = false">
-        <div class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl max-w-sm w-full p-6" @click.stop>
-            <div class="flex justify-between mb-6">
-                <h2 class="text-xl font-semibold text-[var(--wa-text-primary)]">Info Customer</h2>
-                <button @click="showCustomerInfoModal = false" class="text-[var(--wa-icon-default)]">X</button>
-            </div>
-            <div class="space-y-4">
-                 <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-                      <label class="text-xs text-[var(--wa-text-tertiary)]">Nama</label>
-                      <p class="text-base font-medium text-[var(--wa-text-primary)] uppercase">{{ activeConversation?.name }}</p>
-                 </div>
-                 <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-                      <label class="text-xs text-[var(--wa-text-tertiary)]">WA</label>
-                      <div class="flex justify-between">
-                          <p class="text-base font-mono text-[var(--wa-text-primary)]">{{ formatPhoneTo08(activeConversation?.wa_number) }}</p>
-                          <button @click="copyPhoneNumber" class="text-[var(--wa-accent-green)] text-sm font-bold">{{ copiedPhone ? 'Copied!' : 'Copy' }}</button>
-                      </div>
-                 </div>
-                 <div class="flex items-center justify-between gap-3 bg-[var(--wa-bg-secondary)] rounded-xl p-4 border border-[var(--wa-border)]">
-                   <span class="text-sm font-medium text-[var(--wa-text-primary)]">Partner</span>
-                   <label class="relative inline-flex cursor-pointer items-center" :class="{ 'pointer-events-none opacity-50': isUpdatingPartner }">
-                     <input
-                       type="checkbox"
-                       class="peer sr-only"
-                       :checked="isPartnerActive"
-                       :disabled="isUpdatingPartner"
-                       @change="onPartnerToggle"
-                     />
-                     <div class="relative peer h-6 w-11 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
-                   </label>
-                 </div>
-            </div>
-        </div>
-    </div>
     </Teleport>
+
+    <CustomerPanel
+      :conversation="activeConversation"
+      :auth-id="authId"
+      :api-base="API_BASE"
+    />
     </main>
 </template>
 
