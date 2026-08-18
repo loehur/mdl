@@ -55,7 +55,7 @@ import {
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
-  isMarkingAsDone, isCheckingPayment, isPickupDelivery, isRequest, isFollowUp,
+  isMarkingAsDone, isCheckingPayment, isFollowUp,
   isReopeningConversation, isRefreshingChat, isLoadingQuickReplies,
   // Settings
   fontSize, theme, notificationSoundEnabled, notificationAudio,
@@ -1609,99 +1609,6 @@ const checkPayment = async () => {
   }
 };
 
-const pickupDelivery = async () => {
-  if (!activeConversation.value || isPickupDelivery.value) return;
-
-  try {
-    isPickupDelivery.value = true;
-    showChatMenu.value = false;
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        case: 2,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      if (!activeConversation.value.cases) activeConversation.value.cases = [];
-      activeConversation.value.cases = activeConversation.value.cases
-        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
-        .filter((c) => c.case !== 0);
-      if (
-        !activeConversation.value.cases.some(
-          (c) => c.case === 2 && c.status === "open"
-        )
-      ) {
-        activeConversation.value.cases.push({ case: 2, status: "open" });
-      }
-    } else {
-      console.error("Failed to mark for pickup/delivery:", res.message);
-    }
-
-    setTimeout(() => {
-      isPickupDelivery.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error marking for pickup/delivery:", e);
-    isPickupDelivery.value = false;
-  }
-};
-
-const requestPriority = async () => {
-  if (!activeConversation.value || isRequest.value) return;
-
-  try {
-    isRequest.value = true;
-    showChatMenu.value = false; // Close menu
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        case: 3,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      // Update local cases
-      // Update local cases (Append for multi-case)
-      if (!activeConversation.value.cases) activeConversation.value.cases = [];
-      // Close case 4 if exists, remove case 0
-      activeConversation.value.cases = activeConversation.value.cases
-        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
-        .filter((c) => c.case !== 0);
-      // Add case 3 with status open
-      if (
-        !activeConversation.value.cases.some(
-          (c) => c.case === 3 && c.status === "open"
-        )
-      ) {
-        activeConversation.value.cases.push({ case: 3, status: "open" });
-      }
-    } else {
-      console.error("Failed to mark as request:", res.message);
-    }
-
-    // Keep loading for 3 seconds
-    setTimeout(() => {
-      isRequest.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error marking as request:", e);
-    isRequest.value = false;
-  }
-};
-
 const followUp = async () => {
   if (!activeConversation.value || isFollowUp.value) return;
 
@@ -3018,11 +2925,7 @@ const handleIncomingMessage = (payload) => {
       conversation.assignment_user_id = payload.assignment_user_id;
     }
     // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
-    if (
-      payload.active_cases &&
-      Array.isArray(payload.active_cases) &&
-      payload.active_cases.length > 0
-    ) {
+    if (Array.isArray(payload.active_cases)) {
       conversation.cases = payload.active_cases.map((c) => ({
         case: parseInt(c),
         status: "open",

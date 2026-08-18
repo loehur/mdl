@@ -256,7 +256,6 @@ export const isInternalBrowserLoading = ref(true);
 export const isMarkingAsDone = ref(false);
 export const isCheckingPayment = ref(false);
 export const isPickupDelivery = ref(false);
-export const isRequest = ref(false);
 export const isFollowUp = ref(false);
 export const isReopeningConversation = ref(false);
 export const isRefreshingChat = ref(false);
@@ -313,8 +312,8 @@ export const getCaseColor = (caseId) => {
 export const getCaseLabel = (caseId) => {
     switch (parseInt(caseId)) {
         case 1: return "Check Payment";
-        case 2: return "Pickup/Delivery";
-        case 3: return "Request";
+        case 2: return "Delivery Request";
+        case 3: return "Permintaan";
         case 4: return "Follow Up";
         default: return "Case " + caseId;
     }

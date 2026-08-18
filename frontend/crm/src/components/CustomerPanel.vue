@@ -7,7 +7,10 @@ const props = defineProps({
   authId: { type: String, default: "" },
   apiBase: { type: String, default: "https://api.nalju.com" },
   isMobile: { type: Boolean, default: false },
+  currentUserRole: { type: String, default: "crew" },
 });
+
+const isAdmin = computed(() => props.currentUserRole === "admin");
 
 const copiedPhone = ref(false);
 const isUpdatingPartner = ref(false);
@@ -154,6 +157,7 @@ const copyPhoneNumber = async () => {
 };
 
 const onPartnerToggle = async (e) => {
+  if (!isAdmin.value) return;
   if (!props.conversation?.wa_number || isUpdatingPartner.value) return;
   const wantOn = e.target.checked;
   const prevPartner = props.conversation.partner;
@@ -197,13 +201,13 @@ const closeAddLokasi = () => {
 };
 
 const openAddLokasi = () => {
-  if (!custId.value) return;
+  if (!isAdmin.value || !custId.value) return;
   resetAddLokasiForm();
   showAddLokasiModal.value = true;
 };
 
 const openEditLokasi = (loc) => {
-  if (!custId.value || !loc?.id_lokasi) return;
+  if (!isAdmin.value || !custId.value || !loc?.id_lokasi) return;
   resetAddLokasiForm();
   formIdLokasi.value = Number(loc.id_lokasi) || 0;
   formNama.value = loc.nama || "";
@@ -220,7 +224,7 @@ const closeDeleteLokasi = () => {
 };
 
 const openDeleteLokasi = (loc) => {
-  if (!custId.value || !loc?.id_lokasi) return;
+  if (!isAdmin.value || !custId.value || !loc?.id_lokasi) return;
   deleteMsg.value = "";
   deleteTarget.value = loc;
   showDeleteLokasiModal.value = true;
@@ -239,7 +243,7 @@ const closeDeliveryRequest = () => {
 };
 
 const openDeliveryRequest = () => {
-  if (!custId.value) return;
+  if (!isAdmin.value || !custId.value) return;
   resetDeliveryForm();
   deliveryResultMsg.value = "";
   deliveryResultOk.value = false;
@@ -250,7 +254,7 @@ const openDeliveryRequest = () => {
 };
 
 const submitDeliveryRequest = async () => {
-  if (!custId.value || !deliveryJenis.value || !deliveryLokasiId.value || submittingDelivery.value) return;
+  if (!isAdmin.value || !custId.value || !deliveryJenis.value || !deliveryLokasiId.value || submittingDelivery.value) return;
   submittingDelivery.value = true;
   deliveryFormMsg.value = "";
   try {
@@ -273,6 +277,7 @@ const submitDeliveryRequest = async () => {
     deliveryResultMsg.value = res?.message || "Permintaan terkirim.";
     if (Array.isArray(res.items)) {
       deliveryAktifItems.value = res.items;
+      syncConversationDeliveryCase(deliveryAktifItems.value);
     } else {
       loadDeliveryAktif();
     }
@@ -284,9 +289,20 @@ const submitDeliveryRequest = async () => {
   }
 };
 
+const syncConversationDeliveryCase = (items = deliveryAktifItems.value) => {
+  if (!props.conversation) return;
+  const hasActive = Array.isArray(items) && items.length > 0;
+  const existingCases = Array.isArray(props.conversation.cases) ? props.conversation.cases : [];
+  const withoutDelivery = existingCases.filter((c) => Number(c?.case) !== 2);
+  props.conversation.cases = hasActive
+    ? [...withoutDelivery, { case: 2, status: "open" }]
+    : withoutDelivery;
+};
+
 const loadDeliveryAktif = async () => {
   if (!custId.value) {
     deliveryAktifItems.value = [];
+    syncConversationDeliveryCase([]);
     return;
   }
   deliveryAktifLoading.value = true;
@@ -296,11 +312,14 @@ const loadDeliveryAktif = async () => {
     ).then((r) => r.json());
     if (!res?.ok && !res?.status) {
       deliveryAktifItems.value = [];
+      syncConversationDeliveryCase([]);
       return;
     }
     deliveryAktifItems.value = Array.isArray(res.items) ? res.items : [];
+    syncConversationDeliveryCase(deliveryAktifItems.value);
   } catch (_) {
     deliveryAktifItems.value = [];
+    syncConversationDeliveryCase([]);
   } finally {
     deliveryAktifLoading.value = false;
   }
@@ -385,7 +404,7 @@ const applyLokasiItems = (res) => {
 };
 
 const saveLokasi = async () => {
-  if (!custId.value || !canSaveLokasi.value) return;
+  if (!isAdmin.value || !custId.value || !canSaveLokasi.value) return;
   savingLokasi.value = true;
   formMsg.value = "";
   try {
@@ -425,6 +444,7 @@ const saveLokasi = async () => {
 };
 
 const confirmDeleteLokasi = async () => {
+  if (!isAdmin.value) return;
   const loc = deleteTarget.value;
   if (!custId.value || !loc?.id_lokasi || deletingLokasi.value) return;
   deletingLokasi.value = true;
@@ -498,6 +518,14 @@ watch(showDeleteLokasiModal, (open) => {
 
 watch(showDeliveryRequestModal, (open) => {
   if (!open) resetDeliveryForm();
+});
+
+watch(isAdmin, (admin) => {
+  if (!admin) {
+    closeAddLokasi();
+    closeDeleteLokasi();
+    closeDeliveryRequest();
+  }
 });
 
 watch(
@@ -587,6 +615,7 @@ onUnmounted(() => {
           <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] flex items-center justify-between gap-2">
             <span class="text-sm font-medium text-[var(--wa-text-primary)]">Partner</span>
             <label
+              v-if="isAdmin"
               class="relative inline-flex cursor-pointer items-center flex-shrink-0"
               :class="{ 'pointer-events-none opacity-50': isUpdatingPartner }"
             >
@@ -599,10 +628,13 @@ onUnmounted(() => {
               />
               <div class="relative peer h-6 w-11 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
             </label>
+            <span v-else class="text-sm text-[var(--wa-text-secondary)]">
+              {{ isPartnerActive ? "Ya" : "Tidak" }}
+            </span>
           </div>
         </section>
 
-        <section>
+        <section v-if="isAdmin">
           <button
             type="button"
             class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
@@ -652,10 +684,40 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <section v-else-if="custId">
+          <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Request aktif</p>
+          <p v-if="deliveryAktifLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat request…</p>
+          <p v-else-if="!deliveryAktifItems.length" class="text-xs text-[var(--wa-text-tertiary)]">
+            Tidak ada request aktif.
+          </p>
+          <div v-else class="space-y-2">
+            <div
+              v-for="req in deliveryAktifItems"
+              :key="'view-' + req.id_request"
+              class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)]"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-medium text-[var(--wa-text-primary)]">{{ deliveryJenisLabel(req) }}</p>
+                <span class="text-[11px] font-bold text-[var(--wa-accent-green)] flex-shrink-0">
+                  {{ req.status_label || "Berjalan" }}
+                </span>
+              </div>
+              <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5">
+                {{ req.lokasi_nama || "Lokasi" }}
+                <span v-if="req.lokasi_detail"> · {{ req.lokasi_detail }}</span>
+              </p>
+              <p v-if="req.catatan_kurir" class="text-xs text-[var(--wa-text-secondary)] mt-1 break-words">
+                {{ req.catatan_kurir }}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section>
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Lokasi</h3>
             <button
+              v-if="isAdmin"
               type="button"
               class="text-xs font-bold text-[var(--wa-accent-green)] disabled:opacity-40 disabled:cursor-not-allowed"
               :disabled="!custId"
@@ -692,7 +754,7 @@ onUnmounted(() => {
                 </a>
               </div>
               <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 break-words">{{ loc.detail }}</p>
-              <div class="flex items-center gap-3 mt-2">
+              <div v-if="isAdmin" class="flex items-center gap-3 mt-2">
                 <button
                   type="button"
                   class="text-[11px] font-bold text-[var(--wa-accent-green)]"
@@ -717,7 +779,7 @@ onUnmounted(() => {
 
   <Teleport to="body">
     <div
-      v-if="showAddLokasiModal"
+      v-if="isAdmin && showAddLokasiModal"
       class="fixed inset-0 z-[700] flex items-center justify-center p-4"
       @click="closeAddLokasi"
     >
@@ -804,7 +866,7 @@ onUnmounted(() => {
 
   <Teleport to="body">
     <div
-      v-if="showDeleteLokasiModal"
+      v-if="isAdmin && showDeleteLokasiModal"
       class="fixed inset-0 z-[710] flex items-center justify-center p-4"
       @click="closeDeleteLokasi"
     >
@@ -842,7 +904,7 @@ onUnmounted(() => {
 
   <Teleport to="body">
     <div
-      v-if="showDeliveryRequestModal"
+      v-if="isAdmin && showDeliveryRequestModal"
       class="fixed inset-0 z-[700] flex items-center justify-center p-4"
       @click="closeDeliveryRequest"
     >

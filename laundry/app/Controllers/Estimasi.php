@@ -181,6 +181,76 @@ class Estimasi extends Controller
     }
 
     /**
+     * Tandai permintaan pelanggan sudah ditangani: set status='closed' di wa_permintaan_session
+     * dan resolve case 3 di wa_conversations.
+     * POST: phone
+     */
+    public function selesaiPermintaan()
+    {
+        if (ob_get_level() === 0) {
+            ob_start();
+        }
+        $this->session_cek();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        if ($phone === '') {
+            $this->echoJson(['ok' => 0, 'msg' => 'Nomor WA wajib']);
+            return;
+        }
+
+        try {
+            $db = $this->db(100);
+            $phoneEsc = $db->escape($phone);
+
+            // Tutup semua record terbuka untuk nomor ini
+            $db->query(
+                "UPDATE wa_permintaan_session SET status = 'closed'
+                 WHERE (" . $this->permintaanNotifyOpenWhereSql() . ")
+                   AND (phone = '" . $phoneEsc . "')"
+            );
+
+            // Resolve case 3 di wa_conversations (jika ada)
+            $conv = $db->get_where_row(
+                'wa_conversations',
+                "wa_number = '" . $phoneEsc . "'"
+            );
+            if (!empty($conv['id'])) {
+                $cases = json_decode($conv['conv_case'] ?? '[]', true);
+                $changed = false;
+                if (is_array($cases)) {
+                    foreach ($cases as &$c) {
+                        if ((int) ($c['case'] ?? 0) === 3 && ($c['status'] ?? 'open') !== 'closed') {
+                            $c['status'] = 'closed';
+                            $changed = true;
+                        }
+                    }
+                    unset($c);
+                }
+                if ($changed) {
+                    $db->update(
+                        'wa_conversations',
+                        ['conv_case' => json_encode($cases)],
+                        "id = " . (int) $conv['id']
+                    );
+                    $this->pushToWebSocket([
+                        'type'      => 'case_resolved',
+                        'phone'     => $conv['wa_number'],
+                        'case'      => 3,
+                        'target_id' => '0',
+                        'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system',
+                    ]);
+                }
+            }
+
+            $count = $this->syncNotifTaskCount();
+            $this->echoJson(['ok' => 1, 'msg' => 'Permintaan ditandai selesai', 'count' => $count]);
+        } catch (\Throwable $e) {
+            $this->echoJson(['ok' => 0, 'msg' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * Update satu task.
      * POST: phone, task_type=estimasi|pelanggan_new,
      *       estimasi_jam?, id_karyawan?, nama_pelanggan?, send_wa?

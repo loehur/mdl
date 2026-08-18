@@ -136,6 +136,20 @@ class Chat extends Controller
             }
 
             $conversations = $query->result();
+
+            $activeDeliveryByCustId = $this->fetchActiveDeliveryMap($db, array_map(
+                static function ($conv) {
+                    return (int) ($conv->cust_id ?? 0);
+                },
+                $conversations
+            ));
+
+            $activePermintaanByPhone = $this->fetchActivePermintaanMap($db, array_map(
+                static function ($conv) {
+                    return (string) ($conv->wa_number ?? '');
+                },
+                $conversations
+            ));
             
             // Check if there are more conversations
             $hasMore = count($conversations) > $limit;
@@ -169,31 +183,27 @@ class Chat extends Controller
                 $conv->can_reply = $csw['can_reply'];
                 $conv->unread_count = CrmChatMergeHelper::countUnreadForPhone($db, (string) ($conv->wa_number ?? ''));
 
-                // Check if 'conv_case' column exists and has content
-                if (isset($conv->conv_case)) {
-                    // If JSON
-                    if (is_string($conv->conv_case) && (strpos(trim($conv->conv_case), '{') === 0 || strpos(trim($conv->conv_case), '[') === 0)) {
-                        $jsonP = json_decode($conv->conv_case, true);
-                        
-                        if (is_array($jsonP)) {
-                            // Check if List (Array of Objects)
-                            if (isset($jsonP[0])) {
-                                // It's a list, take the LAST item as current active case
-                                $lastItem = end($jsonP);
-                                $conv->case_val = (int)($lastItem['case'] ?? 0);
-                                $conv->case_status = $lastItem['status'] ?? null;
-                                $conv->case_history = $jsonP;
-                            } elseif (isset($jsonP['case'])) {
-                                // Single Object (Legacy JSON)
-                                $conv->case_val = (int)$jsonP['case'];
-                                $conv->case_status = $jsonP['status'] ?? null;
-                                $conv->case_history = [$jsonP];
-                            }
-                        }
-                    } elseif (is_numeric($conv->conv_case)) {
-                        // Legacy integer in 'conv_case' column
-                        $conv->case_val = (int)$conv->conv_case;
+                $caseList = $this->normalizeCaseList($conv->conv_case ?? null);
+                $hasActiveDelivery = !empty($activeDeliveryByCustId[(int) ($conv->cust_id ?? 0)]);
+                $caseList = $this->mergeDeliveryCase($caseList, $hasActiveDelivery);
+                $hasActivePermintaan = !empty($activePermintaanByPhone[ltrim((string) ($conv->wa_number ?? ''), '+')]);
+                $caseList = $this->mergePermintaanCase($caseList, $hasActivePermintaan);
+                $conv->case_history = $caseList;
+
+                $lastOpenCase = null;
+                foreach ($caseList as $item) {
+                    if ((int) ($item['case'] ?? 0) > 0 && (($item['status'] ?? 'open') !== 'closed')) {
+                        $lastOpenCase = $item;
                     }
+                }
+
+                if ($lastOpenCase) {
+                    $conv->case_val = (int) ($lastOpenCase['case'] ?? 0);
+                    $conv->case_status = $lastOpenCase['status'] ?? 'open';
+                } elseif (!empty($caseList)) {
+                    $lastItem = end($caseList);
+                    $conv->case_val = (int) ($lastItem['case'] ?? 0);
+                    $conv->case_status = $lastItem['status'] ?? null;
                 }
             }
             
@@ -229,6 +239,136 @@ class Chat extends Controller
             ]);
             exit;
         }
+    }
+
+    private function normalizeCaseList($rawCase): array
+    {
+        if (is_string($rawCase)) {
+            $trimmed = trim($rawCase);
+            if ($trimmed !== '' && ($trimmed[0] === '[' || $trimmed[0] === '{')) {
+                $parsed = json_decode($trimmed, true);
+                if (is_array($parsed)) {
+                    if (isset($parsed[0])) {
+                        return $parsed;
+                    }
+                    if (isset($parsed['case'])) {
+                        return [$parsed];
+                    }
+                }
+            }
+        }
+
+        if (is_numeric($rawCase)) {
+            return [['case' => (int) $rawCase, 'status' => 'open']];
+        }
+
+        return [];
+    }
+
+    private function mergeDeliveryCase(array $caseList, bool $hasActiveDelivery): array
+    {
+        $filtered = [];
+        foreach ($caseList as $item) {
+            if ((int) ($item['case'] ?? 0) === 2) {
+                continue;
+            }
+            $filtered[] = $item;
+        }
+
+        if ($hasActiveDelivery) {
+            $filtered[] = ['case' => 2, 'status' => 'open'];
+        }
+
+        return array_values($filtered);
+    }
+
+    private function fetchActiveDeliveryMap($db, array $custIds): array
+    {
+        $custIds = array_values(array_unique(array_filter(array_map('intval', $custIds))));
+        if ($custIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($custIds), '?'));
+        $rows = $db->query(
+            "SELECT cust_id
+             FROM delivery_request
+             WHERE cust_id IN ($placeholders)
+               AND delivery_status IN ('berjalan','menunggu_pembayaran')
+             GROUP BY cust_id",
+            $custIds
+        )->result_array();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $custId = (int) ($row['cust_id'] ?? 0);
+            if ($custId > 0) {
+                $map[$custId] = true;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Fetch wa_permintaan_session yang masih aktif (status='open' + notify_expires_at > NOW()).
+     * Return map: wa_number (tanpa leading '+') => true.
+     */
+    private function fetchActivePermintaanMap($db, array $phones): array
+    {
+        $phones = array_values(array_unique(array_filter(array_map(
+            static function ($p) {
+                return ltrim(preg_replace('/[^0-9+]/', '', (string) $p), '+');
+            },
+            $phones
+        ))));
+
+        if ($phones === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($phones), '?'));
+        try {
+            $rows = $db->query(
+                "SELECT phone
+                 FROM wa_permintaan_session
+                 WHERE status = 'open'
+                   AND notify_expires_at > NOW()
+                   AND phone IN ($placeholders)
+                 GROUP BY phone",
+                $phones
+            )->result_array();
+        } catch (\Throwable $e) {
+            // tabel belum ada / DB berbeda
+            return [];
+        }
+
+        $map = [];
+        foreach ($rows as $row) {
+            $p = ltrim(preg_replace('/[^0-9]/', '', (string) ($row['phone'] ?? '')), '');
+            if ($p !== '') {
+                $map[$p] = true;
+            }
+        }
+
+        return $map;
+    }
+
+    private function mergePermintaanCase(array $caseList, bool $hasActivePermintaan): array
+    {
+        $filtered = [];
+        foreach ($caseList as $item) {
+            if ((int) ($item['case'] ?? 0) === 3) {
+                continue;
+            }
+            $filtered[] = $item;
+        }
+
+        if ($hasActivePermintaan) {
+            $filtered[] = ['case' => 3, 'status' => 'open'];
+        }
+
+        return array_values($filtered);
     }
 
     public function getMessages()
@@ -765,6 +905,14 @@ class Chat extends Controller
                  $this->success([], 'Case 0 ignored');
                  return;
             }
+
+            if ((int)$caseVal === 2) {
+                $this->error('Case Delivery Request mengikuti delivery_request aktif dan tidak bisa diubah manual');
+            }
+
+            if ((int)$caseVal === 3) {
+                $this->error('Case Permintaan mengikuti wa_permintaan_session aktif dan tidak bisa diubah manual');
+            }
             
             $db = $this->db(0);
             
@@ -1007,6 +1155,12 @@ class Chat extends Controller
             }
 
             $targetCase = (int)$caseVal;
+            if ($targetCase === 2) {
+                $this->error('Case Delivery Request mengikuti delivery_request aktif dan tidak bisa di-resolve manual');
+            }
+            if ($targetCase === 3) {
+                $this->error('Case Permintaan mengikuti wa_permintaan_session aktif dan tidak bisa di-resolve manual — gunakan tombol Selesai di panel Laundry');
+            }
             
             $db = $this->db(0);
             

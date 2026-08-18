@@ -812,6 +812,11 @@ if (isset($data['data_operasi'])) {
             background: linear-gradient(180deg, #2563eb, #1d4ed8);
             color: #fff;
         }
+        .mdl-notif-btn--selesai {
+            border: 1px solid #15803d;
+            background: linear-gradient(180deg, #16a34a, #15803d);
+            color: #fff;
+        }
         .mdl-notif-actions {
             display: flex;
             flex-wrap: wrap;
@@ -3632,9 +3637,11 @@ if ($privUi === 100) {
                             var formFields = '';
                             if (taskType === 'permintaan') {
                                 formFields =
-                                    '<div class="mdl-notif-actions" style="width:100%">' +
+                                    '<div class="mdl-notif-actions" style="width:100%;display:flex;gap:8px">' +
                                     '<button type="button" class="mdl-notif-btn mdl-notif-btn--blue js-notif-open-chat" data-nama="' + title + '">' +
                                     '<i class="fas fa-comments"></i> Chat</button>' +
+                                    '<button type="button" class="mdl-notif-btn mdl-notif-btn--selesai js-permintaan-selesai">' +
+                                    '<i class="fas fa-check"></i> Selesai</button>' +
                                     '</div>';
                             } else if (taskType === 'pelanggan_new') {
                                 var saranNama = escHtml(it.nama_saran || it.nama || '');
@@ -3870,6 +3877,40 @@ if ($privUi === 100) {
                         if (window.MdlChatHistory) {
                             MdlChatHistory.open($card.data('phone'), $card.data('nama') || $(this).data('nama'));
                         }
+                    });
+
+                    $(bodyEl).on('click', '.js-permintaan-selesai', function() {
+                        var $btn = $(this);
+                        var $card = $btn.closest('.mdl-notif-card');
+                        var phone = $card.data('phone');
+                        if (!phone) return;
+                        $btn.prop('disabled', true).text('Menyimpan…');
+                        $.ajax({
+                            url: baseUrl + 'Estimasi/selesaiPermintaan',
+                            method: 'POST',
+                            dataType: 'json',
+                            data: { phone: phone }
+                        }).done(function(res) {
+                            if (res && res.ok) {
+                                if (typeof res.count !== 'undefined') setBadge(res.count);
+                                else refreshCount();
+                                $card.css('transition', 'opacity .35s,transform .35s')
+                                     .css({'opacity': '0', 'transform': 'translateX(40px)'});
+                                setTimeout(function() {
+                                    $card.remove();
+                                    if (!$(bodyEl).find('.mdl-notif-card').length) {
+                                        bodyEl.innerHTML = '<div class="mdl-notif-empty">Belum ada notifikasi</div>';
+                                    }
+                                }, 370);
+                                if (window.MdlToast) MdlToast.ok(res.msg || 'Permintaan ditandai selesai');
+                            } else {
+                                if (window.MdlToast) MdlToast.error((res && res.msg) || 'Gagal');
+                                $btn.prop('disabled', false).html('<i class="fas fa-check"></i> Selesai');
+                            }
+                        }).fail(function() {
+                            if (window.MdlToast) MdlToast.error('Gagal menghubungi server');
+                            $btn.prop('disabled', false).html('<i class="fas fa-check"></i> Selesai');
+                        });
                     });
 
                 })();

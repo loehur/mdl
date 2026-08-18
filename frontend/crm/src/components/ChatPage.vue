@@ -135,8 +135,6 @@ const quotedMessageToShow = ref(null);
 const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
 const isCheckingPayment = ref(false);
-const isPickupDelivery = ref(false);
-const isRequest = ref(false);
 const isFollowUp = ref(false);
 const resolvingCaseId = ref(null);
 
@@ -173,11 +171,13 @@ const resolveableCases = computed(() => {
   const openCases = props.activeConversation.cases.filter(
     (c) =>
       (c.status || "open") !== "closed" &&
-      parseInt(c.case) > 0
+      parseInt(c.case) > 0 &&
+      parseInt(c.case) !== 2 &&
+      parseInt(c.case) !== 3
   );
-  // Role based filtering
+  // Role based filtering — case 3 (Permintaan) tidak bisa di-resolve manual dari CRM
   if (props.currentUserRole === "admin") return openCases;
-  if (props.currentUserRole === "crew") return openCases.filter((c) => parseInt(c.case) === 3);
+  if (props.currentUserRole === "crew") return [];
   return [];
 });
 
@@ -273,8 +273,8 @@ const getCaseColor = (caseId) => {
 const getCaseLabel = (caseId) => {
   switch (parseInt(caseId)) {
     case 1: return "Check Payment";
-    case 2: return "Pickup/Delivery";
-    case 3: return "Request";
+    case 2: return "Delivery Request";
+    case 3: return "Permintaan";
     case 4: return "Follow Up";
     default: return "Case " + caseId;
   }
@@ -352,8 +352,6 @@ const updateCase = async (caseId, loadingRef) => {
 };
 
 const checkPayment = () => updateCase(1, isCheckingPayment);
-const pickupDelivery = () => updateCase(2, isPickupDelivery);
-const requestPriority = () => updateCase(3, isRequest);
 const followUp = () => updateCase(4, isFollowUp);
 
 const resolveCase = async (caseId) => {
@@ -903,8 +901,8 @@ onUnmounted(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5h4a2 2 0 012 2v10a2 2 0 01-2 2h-4M15 5v14M15 5H5a2 2 0 00-2 2v10a2 2 0 002 2h10" />
                       </svg>
                     </button>
-                    <!-- Resolve Menu -->
-                    <div class="relative">
+                    <!-- Resolve Menu (admin) -->
+                    <div v-if="isAdmin" class="relative">
                         <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         </button>
@@ -921,24 +919,14 @@ onUnmounted(() => {
                              </button>
                         </div>
                     </div>
-                    <!-- Chat Menu -->
-                    <div class="relative">
+                    <!-- Chat Menu (admin) -->
+                    <div v-if="isAdmin" class="relative">
                         <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
                          <div v-if="showChatMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
                                <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                     <div v-if="isCheckingPayment" class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
                                     <span v-else class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
                                     Check Payment
-                               </button>
-                               <button v-if="!isCaseOpen(2)" @click="pickupDelivery" :disabled="isPickupDelivery" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <div v-if="isPickupDelivery" class="w-3 h-3 border-2 border-yellow-200 border-t-yellow-500 rounded-full animate-spin flex-shrink-0"></div>
-                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0"></span>
-                                    Pickup/Delivery
-                               </button>
-                               <button v-if="!isCaseOpen(3)" @click="requestPriority" :disabled="isRequest" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <div v-if="isRequest" class="w-3 h-3 border-2 border-red-200 border-t-red-500 rounded-full animate-spin flex-shrink-0"></div>
-                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
-                                    Request
                                </button>
                                <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                     <div v-if="isFollowUp" class="w-3 h-3 border-2 border-purple-200 border-t-purple-500 rounded-full animate-spin flex-shrink-0"></div>
@@ -1458,6 +1446,7 @@ onUnmounted(() => {
       :auth-id="authId"
       :api-base="API_BASE"
       :is-mobile="windowWidth < 768"
+      :current-user-role="currentUserRole"
     />
     </main>
 </template>
