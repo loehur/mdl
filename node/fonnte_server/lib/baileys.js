@@ -324,10 +324,11 @@ async function handleMessageUpdates(updates) {
       const status = update.update?.status;
       if (status === undefined || status === null) continue;
 
+      // proto.WebMessageInfo.Status: PENDING=1, SERVER_ACK=2, DELIVERY_ACK=3, READ=4, PLAYED=5
       let state = 'sent';
-      if (status >= 3) state = 'read';
-      else if (status >= 2) state = 'delivered';
-      else if (status >= 1) state = 'sent';
+      if (status >= 4) state = 'read';
+      else if (status === 3) state = 'delivered';
+      else if (status >= 2) state = 'sent';
 
       await sendStatusWebhook({
         id: fonnteId,
@@ -335,7 +336,7 @@ async function handleMessageUpdates(updates) {
         state,
         stateid: waKeyId,
       });
-      if (status >= 3) {
+      if (status >= 4) {
         clearTimeout(entry.timer);
         pendingOutStatus.delete(String(fonnteId));
       }
