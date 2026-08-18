@@ -1,0 +1,63 @@
+{
+  "name": "MDL (nalju) monorepo",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "api (php)",
+      "command": "php -S 0.0.0.0:8080 -t api .cursor/php-router.php",
+      "description": "NALJU backend API (CodeIgniter-style PHP). Base URL http://localhost:8080 — try /Investasi/Auth/ping."
+    },
+    {
+      "name": "qr_server",
+      "command": "cd node/qr_server && node server.js",
+      "description": "QR/WebSocket distribution service. Health: http://localhost:3001/health"
+    },
+    {
+      "name": "wa_server",
+      "command": "cd node/wa_server && node server.js",
+      "description": "WhatsApp WebSocket relay (port 3003)."
+    },
+    {
+      "name": "wadesk_server",
+      "command": "cd node/wadesk_server && node server.js",
+      "description": "WaDesk WebSocket/HTTP service (port 3010)."
+    },
+    {
+      "name": "maps_server",
+      "command": "cd node/maps_server && node server.js",
+      "description": "Google Maps URL -> lat/lng resolver (port 3020)."
+    },
+    {
+      "name": "cron_server",
+      "command": "cd node/cron_server && node server.js",
+      "description": "HTTP cron runner (port 3011)."
+    },
+    {
+      "name": "mail_server",
+      "command": "cd node/mail_server && node index.js",
+      "description": "Transactional email service (port 3000)."
+    },
+    {
+      "name": "frontend crm (vite)",
+      "command": "cd frontend/crm && npm run dev -- --host 0.0.0.0 --port 5173",
+      "description": "CRM WhatsApp console (Vue 3 + Vite). http://localhost:5173"
+    },
+    {
+      "name": "frontend invoice (vite)",
+      "command": "cd frontend/invoice && npm run dev -- --host 0.0.0.0 --port 5174",
+      "description": "Invoice PWA (Vue 3 + Vite). http://localhost:5174"
+    }
+  ],
+  "ports": [
+    { "name": "api (php)", "port": 8080 },
+    { "name": "mail_server", "port": 3000 },
+    { "name": "qr_server", "port": 3001 },
+    { "name": "wa_server", "port": 3003 },
+    { "name": "wadesk_server", "port": 3010 },
+    { "name": "cron_server", "port": 3011 },
+    { "name": "maps_server", "port": 3020 },
+    { "name": "frontend crm", "port": 5173 },
+    { "name": "frontend invoice", "port": 5174 }
+  ]
+}
