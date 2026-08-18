@@ -45,8 +45,26 @@ class CrmChatMergeHelper
         return '+' . $clean;
     }
 
-    public static function findWaConversation($db, string $phone): ?object
+    /**
+     * @param array{phone?:string,lid?:string,ycloud_user_id?:string,ycloud_parent_user_id?:string,wa_username?:string} $hints
+     */
+    public static function findWaConversation($db, string $phone, array $hints = []): ?object
     {
+        if (!class_exists(WaConversationAlias::class)) {
+            require_once __DIR__ . '/WaConversationAlias.php';
+        }
+        $aliasHints = $hints;
+        if ($phone !== '' && !isset($aliasHints['phone']) && !WaConversationAlias::looksLikeLidFallback($phone)) {
+            $aliasHints['phone'] = $phone;
+        }
+        if ($phone !== '' && WaConversationAlias::looksLikeLidFallback($phone) && empty($aliasHints['lid'])) {
+            $aliasHints['lid'] = $phone;
+        }
+        $byAlias = WaConversationAlias::findConversationRow($db, $aliasHints);
+        if ($byAlias) {
+            return $byAlias;
+        }
+
         foreach (self::phoneVariants($phone) as $variant) {
             $row = $db->get_where('wa_conversations', ['wa_number' => $variant])->row();
             if ($row) {
@@ -175,11 +193,17 @@ class CrmChatMergeHelper
      * Row CRM induk untuk chat Fonnte-only (tanpa membuka CSW yCloud).
      *
      * @param array{contact_name?:?string,assigned_user_id?:int|string|null,code?:?string,cust_id?:int|string|null} $ctx
+     * @param array{phone?:string,lid?:string,ycloud_user_id?:string,ycloud_parent_user_id?:string,wa_username?:string} $hints
      */
-    public static function ensureShellFromFonnte($db, string $phone, array $ctx, string $lastMessage, string $lastMessageAt): int
+    public static function ensureShellFromFonnte($db, string $phone, array $ctx, string $lastMessage, string $lastMessageAt, array $hints = []): int
     {
-        $waNumber = self::normalizeWaNumber($phone);
-        $conv = self::findWaConversation($db, $phone);
+        if (!class_exists(WaConversationAlias::class)) {
+            require_once __DIR__ . '/WaConversationAlias.php';
+        }
+        $waNumber = WaConversationAlias::looksLikeLidFallback($phone)
+            ? $phone
+            : self::normalizeWaNumber($phone);
+        $conv = self::findWaConversation($db, $phone, $hints);
         if ($conv) {
             $convId = (int) ($conv->id ?? 0);
             $existingAt = (string) ($conv->last_message_at ?? '');
@@ -194,6 +218,7 @@ class CrmChatMergeHelper
                 }
                 $db->update('wa_conversations', $update, ['id' => $convId]);
             }
+            self::rememberConversationAliases($db, $convId, $phone, $hints, 'fonnte');
 
             return $convId;
         }
@@ -211,7 +236,32 @@ class CrmChatMergeHelper
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         $insertId = $db->insert('wa_conversations', $insert);
-        return $insertId ? (int) $insertId : 0;
+        $newId = $insertId ? (int) $insertId : 0;
+        if ($newId > 0) {
+            self::rememberConversationAliases($db, $newId, $phone, $hints, 'fonnte');
+        }
+
+        return $newId;
+    }
+
+    /**
+     * @param array{phone?:string,lid?:string,ycloud_user_id?:string,ycloud_parent_user_id?:string,wa_username?:string} $hints
+     */
+    public static function rememberConversationAliases($db, int $conversationId, string $phone, array $hints = [], string $source = ''): void
+    {
+        if ($conversationId <= 0) {
+            return;
+        }
+        if (!class_exists(WaConversationAlias::class)) {
+            require_once __DIR__ . '/WaConversationAlias.php';
+        }
+        if ($phone !== '' && !isset($hints['phone']) && !WaConversationAlias::looksLikeLidFallback($phone)) {
+            $hints['phone'] = $phone;
+        }
+        if ($phone !== '' && WaConversationAlias::looksLikeLidFallback($phone) && empty($hints['lid'])) {
+            $hints['lid'] = $phone;
+        }
+        WaConversationAlias::remember($db, $conversationId, $hints, $source);
     }
 
     public static function pushWebSocket(array $payload): bool

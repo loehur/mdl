@@ -122,6 +122,10 @@ class WA_Fonnte extends Controller
 
             return;
         }
+        if (! class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaConversationAlias.php';
+        }
+        $identityHints = \App\Helpers\CRM\WaConversationAlias::hintsFromFonnteWebhook($data, $waNumber);
 
         $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
         $phone0 = '0' . substr($cleanPhone, 2);
@@ -175,7 +179,8 @@ class WA_Fonnte extends Controller
                     $inboxid,
                     $meta['text'],
                     $meta['type'],
-                    $meta['media_url']
+                    $meta['media_url'],
+                    $identityHints
                 );
             }
             echo json_encode(['status' => 'ok', 'reply' => $replyText]);
@@ -251,7 +256,8 @@ class WA_Fonnte extends Controller
                     $inboxid,
                     $pushText,
                     $pushType,
-                    $meta['media_url']
+                    $meta['media_url'],
+                    $identityHints
                 );
             }
 
@@ -371,6 +377,7 @@ class WA_Fonnte extends Controller
      * Push inbound Fonnte ke CRM (WS only, OneSignal selalu false).
      *
      * @param array{contact_name?:?string,assigned_user_id?:int|string|null,code?:?string,cust_id?:int|string|null} $customerCtx
+     * @param array{phone?:string,lid?:string,ycloud_user_id?:string,ycloud_parent_user_id?:string,wa_username?:string} $identityHints
      */
     private function pushCrmFonnteInbound(
         string $waNumber,
@@ -381,7 +388,8 @@ class WA_Fonnte extends Controller
         $inboxid,
         string $messageText,
         string $messageType,
-        ?string $mediaUrl
+        ?string $mediaUrl,
+        array $identityHints = []
     ): void {
         if (! class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
             require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
@@ -392,7 +400,8 @@ class WA_Fonnte extends Controller
             $waNumber,
             $customerCtx,
             $lastMessage,
-            $createdAt
+            $createdAt,
+            $identityHints
         );
 
         \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
@@ -525,6 +534,28 @@ class WA_Fonnte extends Controller
     private function mergeAssignmentFromExistingConversations(string $waNumber, array $ctx): array
     {
         $db = $this->db(0);
+        if (!class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaConversationAlias.php';
+        }
+        $aliasRow = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, ['phone' => $waNumber]);
+        if ($aliasRow) {
+            if (empty($ctx['contact_name']) && !empty($aliasRow->contact_name)) {
+                $ctx['contact_name'] = $aliasRow->contact_name;
+            }
+            if ($ctx['assigned_user_id'] === null && !empty($aliasRow->assigned_user_id)) {
+                $ctx['assigned_user_id'] = (int) $aliasRow->assigned_user_id;
+            }
+            if (empty($ctx['code']) && !empty($aliasRow->code)) {
+                $ctx['code'] = (string) $aliasRow->code;
+            }
+            if ($ctx['cust_id'] === null && !empty($aliasRow->cust_id)) {
+                $ctx['cust_id'] = (int) $aliasRow->cust_id;
+            }
+            if ($ctx['assigned_user_id'] !== null) {
+                return $ctx;
+            }
+        }
+
         $variants = $this->phoneVariantsForLookup($waNumber);
 
         foreach (['wa_fonnte_conversations', 'wa_conversations'] as $table) {

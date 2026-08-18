@@ -9105,6 +9105,18 @@ class WAReplies
      */
     private function findExistingWaConversationRow($db, string $waNumber): ?object
     {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaConversationAlias.php';
+        }
+        $hints = ['phone' => $waNumber];
+        if (\App\Helpers\CRM\WaConversationAlias::looksLikeLidFallback($waNumber)) {
+            $hints = ['lid' => $waNumber];
+        }
+        $byAlias = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $hints);
+        if ($byAlias) {
+            return $byAlias;
+        }
+
         foreach ($this->waNumberLookupVariants($waNumber) as $variant) {
             $existing = $db->get_where('wa_conversations', ['wa_number' => $variant], 1);
             if ($existing->num_rows() > 0) {

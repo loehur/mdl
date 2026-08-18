@@ -120,6 +120,10 @@ class WhatsApp extends Controller
         }
 
         $waNumber = $this->normalizePhoneNumber($msg['from'] ?? null);
+        if (!class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaConversationAlias.php';
+        }
+        $identityHints = \App\Helpers\CRM\WaConversationAlias::hintsFromYcloudMessage($msg, $waNumber);
         $contactName = $msg['customerProfile']['name'] ?? null;
         $messageType = $msg['type'] ?? 'text';
         $messageId = $msg['id'] ?? null;
@@ -306,10 +310,13 @@ class WhatsApp extends Controller
         // Reuse assignment from existing conversation for WS targeting (tanpa load WAReplies dulu —
         // load WAReplies bisa fatal jika trait belum ada; jangan blok insert/WS)
         try {
-            $existingQuick = $db->query(
-                "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
-                [$waNumber]
-            )->row();
+            $existingQuick = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $identityHints);
+            if (!$existingQuick) {
+                $existingQuick = $db->query(
+                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                    [$waNumber]
+                )->row();
+            }
             if (!$existingQuick) {
                 $existingQuick = $db->query(
                     "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
@@ -389,10 +396,16 @@ class WhatsApp extends Controller
                 $replies = new \App\Models\WAReplies();
                 $replies->setInboundReplyToMessageId($wamid ?: $messageId);
 
+                $convWaNumber = $waNumber;
+                $aliasConv = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $identityHints);
+                if ($aliasConv && !empty($aliasConv->wa_number)) {
+                    $convWaNumber = (string) $aliasConv->wa_number;
+                }
+
                 // 1) Open CSW + push WS segera (mirip WaDesk) — intent/AI belakangan
                 $conversationId = (int) $replies->getOrCreateConversationWithCase(
                     $db,
-                    $waNumber,
+                    $convWaNumber,
                     $contact_name,
                     $assigned_user_id,
                     $code,
@@ -400,6 +413,9 @@ class WhatsApp extends Controller
                     $lastMessage,
                     null
                 );
+                if ($conversationId > 0) {
+                    \App\Helpers\CRM\WaConversationAlias::remember($db, $conversationId, $identityHints, 'ycloud');
+                }
 
                 // Broadcast cepat ke UI — tanpa OneSignal (notify=false).
                 // Push HP baru dikirim setelah intent jika notify=true.
@@ -462,7 +478,7 @@ class WhatsApp extends Controller
                     }
                     $replies->getOrCreateConversationWithCase(
                         $db,
-                        $waNumber,
+                        $convWaNumber,
                         $contact_name,
                         $assigned_user_id,
                         $code,
