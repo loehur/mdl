@@ -404,6 +404,11 @@ async function handleIncomingMessages({ messages, type }) {
         }
         continue;
       }
+      const remoteJid = msg.key?.remoteJid || '';
+      if (isGroupJid(remoteJid)) {
+        console.log('[inbound] skip group wamid=', msg.key?.id);
+        continue;
+      }
       const payload = await buildInboundPayload(msg);
       if (!payload) continue;
       if (markInboundSeen(msg)) {

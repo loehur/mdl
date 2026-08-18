@@ -77,6 +77,19 @@ class WA_Fonnte extends Controller
             return;
         }
 
+        if ($this->isFonnteGroupWebhook($data)) {
+            \Log::write(
+                'WA_Fonnte: skip group message inboxid=' . (string) ($data['inboxid'] ?? '')
+                . ' member=' . mb_substr(trim((string) ($data['member'] ?? '')), 0, 32)
+                . ' msg=' . mb_substr(trim((string) ($data['message'] ?? $data['text'] ?? '')), 0, 40),
+                'webhook',
+                'Fonnte'
+            );
+            echo json_encode(['status' => 'ok', 'skipped' => 'group']);
+
+            return;
+        }
+
         // Pesan keluar dari HP (Baileys fromMe) — simpan outbound, bukan inbound
         if ($this->isFonnteDeviceOutboundWebhook($data)) {
             $this->handleFonnteDeviceOutboundWebhook($data);
@@ -954,6 +967,40 @@ class WA_Fonnte extends Controller
             $options['inboxid'] = (int) $inboxid;
         }
         $fonnte->sendMessage($target, $message, $options);
+    }
+
+    /**
+     * Pesan dari group WA — abaikan (bukan percakapan pribadi CRM).
+     * Fonnte cloud: field member terisi; Baileys self-host: isgroup=true.
+     */
+    private function isFonnteGroupWebhook(array $data): bool
+    {
+        foreach (['isgroup', 'isGroup', 'is_group'] as $key) {
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+            $v = $data[$key];
+            if ($v === true || $v === 1 || $v === '1') {
+                return true;
+            }
+            if (is_string($v) && in_array(strtolower(trim($v)), ['true', 'yes'], true)) {
+                return true;
+            }
+        }
+
+        $member = trim((string) ($data['member'] ?? ''));
+        if ($member !== '' && preg_match('/^\d/', $member)) {
+            return true;
+        }
+
+        foreach (['sender', 'pengirim', 'target', 'chat', 'group_id', 'groupid'] as $key) {
+            $val = trim((string) ($data[$key] ?? ''));
+            if ($val !== '' && stripos($val, '@g.us') !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
