@@ -133,7 +133,13 @@
       background: #fff;
       margin: 8px 0;
     }
-    #wa-gateway-root #wg-qr-canvas {
+    #wa-gateway-root #wg-qr-box {
+      min-width: 280px;
+      min-height: 280px;
+      display: inline-block;
+    }
+    #wa-gateway-root #wg-qr-box img,
+    #wa-gateway-root #wg-qr-box canvas {
       display: block;
       max-width: 100%;
       height: auto;
@@ -214,17 +220,17 @@
       <p class="wg-hint mt-2" id="wg-connected-device"></p>
     </div>
 
-    <div id="wg-qr-panel" class="wg-qr-panel hidden">
+    <div id="wg-qr-panel" class="wg-qr-panel">
       <p class="wg-hint mb-2"><strong>Scan QR</strong> dengan WhatsApp di HP (Linked Devices → Link a device)</p>
       <div class="wg-qr-wrap">
-        <canvas id="wg-qr-canvas" width="280" height="280"></canvas>
+        <div id="wg-qr-box"></div>
       </div>
       <p class="wg-hint">QR diperbarui otomatis setiap 5 detik selama belum terhubung.</p>
     </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script src="<?= URL::IN_ASSETS; ?>js/qrcode.min.js?v=1"></script>
 <script>
 (function () {
   var statusUrl = '<?= URL::BASE_URL; ?>WaGateway/status';
@@ -232,6 +238,7 @@
   var logoutUrl = '<?= URL::BASE_URL; ?>WaGateway/logout';
 
   var pollTimer = null;
+  var lastQrRendered = '';
   var $badge = $('#wg-status-badge');
   var $device = $('#wg-device');
   var $gateway = $('#wg-gateway');
@@ -263,15 +270,31 @@
   }
 
   function renderQr(qrString) {
-    if (!qrString || typeof QRCode === 'undefined') return;
-    var canvas = document.getElementById('wg-qr-canvas');
-    QRCode.toCanvas(canvas, qrString, {
-      width: 280,
-      margin: 1,
-      color: { dark: '#0f172a', light: '#ffffff' }
-    }, function (err) {
-      if (err) showError('Gagal render QR: ' + err.message);
-    });
+    if (!qrString) return;
+    if (typeof QRCode === 'undefined') {
+      showError('Library QR tidak termuat. Muat ulang halaman.');
+      return;
+    }
+    if (qrString === lastQrRendered) return;
+    lastQrRendered = qrString;
+
+    var box = document.getElementById('wg-qr-box');
+    if (!box) return;
+    box.innerHTML = '';
+
+    try {
+      new QRCode(box, {
+        text: qrString,
+        width: 280,
+        height: 280,
+        colorDark: '#0f172a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      showError('');
+    } catch (err) {
+      showError('Gagal render QR: ' + (err.message || err));
+    }
   }
 
   function loadQr() {
@@ -291,12 +314,14 @@
         showError('');
       }
     }).fail(function (xhr) {
-      var msg = 'QR belum siap';
+      var msg = 'QR belum siap — tunggu fonnte_server generate QR';
       try {
         var j = xhr.responseJSON;
         if (j && j.message) msg = j.message;
       } catch (e) {}
-      /* normal saat connecting */
+      if (xhr.status && xhr.status !== 404) {
+        showError(msg);
+      }
     });
   }
 
@@ -374,6 +399,7 @@
   });
 
   function doLogout() {
+    lastQrRendered = '';
     $.ajax({
       url: logoutUrl,
       method: 'POST',
