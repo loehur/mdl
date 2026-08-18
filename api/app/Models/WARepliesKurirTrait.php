@@ -3990,8 +3990,6 @@ trait WARepliesKurirTrait
             }
         }
 
-        $catatan = '';
-
         $tarif = (int) ($session['tarif'] ?? 0);
         if ($tarif <= 0 && $idLokasi > 0) {
             $cab = $this->kurirCabangCoords($idCabang);
@@ -4029,19 +4027,6 @@ trait WARepliesKurirTrait
                     }
                 } catch (\Throwable $e) {
                     // ignore
-                }
-                if ($catatan !== '') {
-                    $set['catatan_kurir'] = mb_substr($catatan, 0, 150);
-                } else {
-                    // Hapus catatan early-activate saja jika lokasi sudah lengkap
-                    $prev = $db->query(
-                        'SELECT catatan_kurir FROM delivery_request WHERE id_request = ? LIMIT 1',
-                        [$existingId]
-                    )->row();
-                    $prevCatatan = trim((string) ($prev->catatan_kurir ?? ''));
-                    if (stripos($prevCatatan, 'Early activate') === 0) {
-                        $set['catatan_kurir'] = '';
-                    }
                 }
                 $db->update('delivery_request', $set, ['id_request' => $existingId]);
 
@@ -4085,9 +4070,6 @@ trait WARepliesKurirTrait
                 'insertTime' => $now,
                 'tarif_surcas' => $tarif,
             ];
-            if ($catatan !== '') {
-                $insData['catatan_kurir'] = mb_substr($catatan, 0, 150);
-            }
             $idRequest = $db->insert('delivery_request', $insData);
             $idRequest = $idRequest ? (int) $idRequest : 0;
             if ($idRequest <= 0) {

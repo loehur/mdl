@@ -29,6 +29,7 @@ const deleteTarget = ref(null);
 const deleteMsg = ref("");
 const deliveryJenis = ref("");
 const deliveryLokasiId = ref(0);
+const deliveryCatatan = ref("");
 const deliveryFormMsg = ref("");
 const deliveryResultMsg = ref("");
 const deliveryResultOk = ref(false);
@@ -228,6 +229,7 @@ const openDeleteLokasi = (loc) => {
 const resetDeliveryForm = () => {
   deliveryJenis.value = "";
   deliveryLokasiId.value = 0;
+  deliveryCatatan.value = "";
   deliveryFormMsg.value = "";
 };
 
@@ -260,6 +262,7 @@ const submitDeliveryRequest = async () => {
         jenis: deliveryJenis.value,
         id_lokasi: deliveryLokasiId.value,
         wa_number: props.conversation?.wa_number || "",
+        catatan: deliveryCatatan.value.trim(),
       }),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {
@@ -637,6 +640,9 @@ onUnmounted(() => {
                 {{ req.lokasi_nama || "Lokasi" }}
                 <span v-if="req.lokasi_detail"> · {{ req.lokasi_detail }}</span>
               </p>
+              <p v-if="req.catatan_kurir" class="text-xs text-[var(--wa-text-secondary)] mt-1 break-words">
+                {{ req.catatan_kurir }}
+              </p>
               <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
                 #{{ req.id_request }}
                 <span v-if="req.layanan && req.layanan !== 'sameday'"> · {{ req.layanan }}</span>
@@ -893,6 +899,18 @@ onUnmounted(() => {
             <p class="text-sm font-medium text-[var(--wa-text-primary)] truncate">{{ loc.nama }}</p>
             <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 break-words">{{ loc.detail }}</p>
           </button>
+        </div>
+
+        <div class="mb-3">
+          <label class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Catatan untuk Kurir</label>
+          <textarea
+            v-model="deliveryCatatan"
+            rows="2"
+            maxlength="150"
+            placeholder="Opsional — patokan / instruksi untuk driver"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+          ></textarea>
+          <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Maks. 150 karakter. Kosongkan jika tidak perlu.</p>
         </div>
 
         <p v-if="deliveryFormMsg" class="text-xs text-red-400 mb-3">{{ deliveryFormMsg }}</p>

@@ -74,6 +74,12 @@ class DeliveryRequestStore
             return ['ok' => false, 'message' => 'Nomor pelanggan belum lengkap'];
         }
 
+        $catatanNorm = self::normalizeCatatanKurir($input['catatan'] ?? $input['catatan_kurir'] ?? '');
+        if (!$catatanNorm['ok']) {
+            return ['ok' => false, 'message' => $catatanNorm['message']];
+        }
+        $catatanKurir = $catatanNorm['value'];
+
         if ($jenis === 'jemput') {
             $pendingLokasi = $db->query(
                 "SELECT COUNT(*) AS n FROM delivery_request
@@ -120,6 +126,9 @@ class DeliveryRequestStore
                     'tarif_surcas' => $tarif,
                     'delivery_status' => 'berjalan',
                 ];
+                if ($catatanKurir !== '') {
+                    $set['catatan_kurir'] = $catatanKurir;
+                }
                 $ok = $db->update('delivery_request', $set, ['id_request' => $existingId]);
                 if ($ok === false) {
                     return ['ok' => false, 'message' => 'Gagal memperbarui permintaan'];
@@ -127,7 +136,7 @@ class DeliveryRequestStore
                 $idRequest = $existingId;
                 self::ensureRequestItems($db, $idRequest, $eligibleIds);
             } else {
-                $idRequest = $db->insert('delivery_request', [
+                $insData = [
                     'sumber' => 'customer',
                     'jenis' => $jenis,
                     'sekalian_jemput' => $sekalianJemput,
@@ -143,8 +152,11 @@ class DeliveryRequestStore
                     'lokasi_longt' => $locLon,
                     'insertTime' => $now,
                     'tarif_surcas' => $tarif,
-                    'catatan_kurir' => 'CRM',
-                ]);
+                ];
+                if ($catatanKurir !== '') {
+                    $insData['catatan_kurir'] = $catatanKurir;
+                }
+                $idRequest = $db->insert('delivery_request', $insData);
                 $idRequest = $idRequest ? (int) $idRequest : 0;
                 if ($idRequest <= 0) {
                     return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
@@ -161,6 +173,7 @@ class DeliveryRequestStore
                 $cab,
                 $jenis,
                 $sekalianJemput,
+                $catatanKurir,
                 (string) ($lokasi['detail'] ?? ''),
                 $existingId > 0
             );
@@ -197,7 +210,7 @@ class DeliveryRequestStore
 
         $rows = PelangganLokasiStore::laundryDb()->query(
             "SELECT id_request, jenis, sekalian_jemput, layanan, delivery_status,
-                    id_lokasi, lokasi_nama, lokasi_detail, insertTime, tarif_surcas
+                    id_lokasi, lokasi_nama, lokasi_detail, catatan_kurir, insertTime, tarif_surcas
              FROM delivery_request
              WHERE id_pelanggan = ?
                AND delivery_status IN ('berjalan','menunggu_pembayaran')
@@ -237,6 +250,7 @@ class DeliveryRequestStore
             'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
             'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
             'lokasi_detail' => (string) ($r['lokasi_detail'] ?? ''),
+            'catatan_kurir' => (string) ($r['catatan_kurir'] ?? ''),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
             'tarif_surcas' => (int) ($r['tarif_surcas'] ?? 0),
         ];
@@ -432,12 +446,34 @@ class DeliveryRequestStore
         $db->insert('surcas', $row);
     }
 
+    /**
+     * @return array{ok:bool,value:string,message:string}
+     */
+    private static function normalizeCatatanKurir($raw): array
+    {
+        $val = trim((string) $raw);
+        $val = preg_replace("/[\r\n]+/", ' ', $val);
+        $val = preg_replace('/\s+/u', ' ', (string) $val);
+        $val = trim((string) $val);
+        $len = function_exists('mb_strlen') ? mb_strlen($val, 'UTF-8') : strlen($val);
+        if ($len > 150) {
+            return [
+                'ok' => false,
+                'value' => '',
+                'message' => 'Catatan maksimal 150 karakter',
+            ];
+        }
+
+        return ['ok' => true, 'value' => $val, 'message' => ''];
+    }
+
     private static function notifyDriverGroup(
         array $pel,
         array $cab,
         string $jenis,
         int $sekalianJemput,
-        string $detail,
+        string $catatanKurir,
+        string $lokasiDetail,
         bool $isUpdate
     ): bool {
         try {
@@ -454,10 +490,14 @@ class DeliveryRequestStore
                 "*{$nama}*",
                 "-{$kode} -{$jenisUpper}",
             ];
-            $detail = trim($detail);
-            if ($detail !== '') {
-                $lines[] = $detail;
+            $catatanKurir = trim($catatanKurir);
+            if ($catatanKurir !== '') {
+                $lines[] = $catatanKurir;
             }
+            $lines[] = '';
+            $lines[] = 'Lokasi:';
+            $lokasiDetail = trim($lokasiDetail);
+            $lines[] = $lokasiDetail !== '' ? $lokasiDetail : '-';
             if ($isUpdate) {
                 $lines[] = '(update)';
             }
