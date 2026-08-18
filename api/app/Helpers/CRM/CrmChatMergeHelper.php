@@ -222,11 +222,13 @@ class CrmChatMergeHelper
             } elseif (!empty($ctx['assigned_user_id'])) {
                 $update['assigned_user_id'] = (int) $ctx['assigned_user_id'];
             }
-            if (!empty($ctx['code'])) {
-                $update['code'] = mb_substr((string) $ctx['code'], 0, 16);
-            }
-            if (!empty($ctx['cust_id'])) {
-                $update['cust_id'] = (int) $ctx['cust_id'];
+            if (empty($ctx['is_karyawan'])) {
+                if (!empty($ctx['code'])) {
+                    $update['code'] = mb_substr((string) $ctx['code'], 0, 16);
+                }
+                if (!empty($ctx['cust_id'])) {
+                    $update['cust_id'] = (int) $ctx['cust_id'];
+                }
             }
             $db->update('wa_conversations', $update, ['id' => $convId]);
             self::rememberConversationAliases($db, $convId, $phone, $hints, 'fonnte');
@@ -237,9 +239,9 @@ class CrmChatMergeHelper
         $insert = [
             'wa_number' => $waNumber,
             'contact_name' => $ctx['contact_name'] ?? null,
-            'assigned_user_id' => $ctx['assigned_user_id'] ?? null,
-            'code' => $ctx['code'] ?? null,
-            'cust_id' => $ctx['cust_id'] ?? null,
+            'assigned_user_id' => !empty($ctx['is_karyawan']) ? null : ($ctx['assigned_user_id'] ?? null),
+            'code' => !empty($ctx['is_karyawan']) ? null : ($ctx['code'] ?? null),
+            'cust_id' => !empty($ctx['is_karyawan']) ? null : ($ctx['cust_id'] ?? null),
             'status' => 'closed',
             'last_message' => $lastMessage,
             'last_message_at' => $lastMessageAt,

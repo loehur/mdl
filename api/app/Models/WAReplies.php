@@ -8865,11 +8865,13 @@ class WAReplies
             if ($assigned_user_id !== null && $assigned_user_id !== '') {
                 $updateData['assigned_user_id'] = $assigned_user_id;
             }
-            if ($code !== null && $code !== '') {
-                $updateData['code'] = $code;
-            }
-            if ($cust_id !== null && $cust_id !== '') {
-                $updateData['cust_id'] = $cust_id;
+            if (empty($this->senderContext['is_karyawan'])) {
+                if ($code !== null && $code !== '') {
+                    $updateData['code'] = $code;
+                }
+                if ($cust_id !== null && $cust_id !== '') {
+                    $updateData['cust_id'] = $cust_id;
+                }
             }
             if (!empty($this->senderContext['is_karyawan'])) {
                 unset($updateData['assigned_user_id']);
@@ -8974,6 +8976,8 @@ class WAReplies
         ];
         if (!empty($this->senderContext['is_karyawan'])) {
             unset($convData['assigned_user_id']);
+            unset($convData['code']);
+            unset($convData['cust_id']);
         }
         
         // Only set case if not null and not 0

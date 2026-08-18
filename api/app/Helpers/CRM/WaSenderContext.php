@@ -44,9 +44,11 @@ class WaSenderContext
         self::fillKaryawan($db1, $nomor, $ctx);
         self::fillPelanggan($db1, $nomor, $ctx);
 
-        // Karyawan (meski juga pelanggan) tidak di-assign ke CSW cabang.
+        // Karyawan (meski juga pelanggan): identitas karyawan prioritas — tanpa CSW cabang / kode_cabang.
         if (!empty($ctx['is_karyawan'])) {
             $ctx['assigned_user_id'] = null;
+            $ctx['code'] = null;
+            $ctx['cust_id'] = null;
         }
 
         return $ctx;

@@ -546,14 +546,14 @@ class FonnteMessageStore
             if ($assigned !== null && $assigned !== '') {
                 $fields['assigned_user_id'] = (int) $assigned;
             }
-        }
-        $code = $this->customerContext['code'] ?? null;
-        if ($code !== null && $code !== '') {
-            $fields['code'] = mb_substr((string) $code, 0, 16);
-        }
-        $custId = $this->customerContext['cust_id'] ?? null;
-        if ($custId !== null && $custId !== '') {
-            $fields['cust_id'] = (int) $custId;
+            $code = $this->customerContext['code'] ?? null;
+            if ($code !== null && $code !== '') {
+                $fields['code'] = mb_substr((string) $code, 0, 16);
+            }
+            $custId = $this->customerContext['cust_id'] ?? null;
+            if ($custId !== null && $custId !== '') {
+                $fields['cust_id'] = (int) $custId;
+            }
         }
 
         return $fields;

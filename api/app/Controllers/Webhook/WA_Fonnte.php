@@ -158,8 +158,8 @@ class WA_Fonnte extends Controller
         $customerCtx = [
             'contact_name' => $senderCtx['contact_name'] ?: ($name !== null && $name !== '' ? (string) $name : null),
             'assigned_user_id' => $isKaryawan ? null : \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtx),
-            'code' => $senderCtx['code'],
-            'cust_id' => $senderCtx['cust_id'] ?: null,
+            'code' => $isKaryawan ? null : ($senderCtx['code'] ?? null),
+            'cust_id' => $isKaryawan ? null : ($senderCtx['cust_id'] ?: null),
             'is_karyawan' => $isKaryawan,
         ];
         if (!$isKaryawan && $customerCtx['assigned_user_id'] === null) {

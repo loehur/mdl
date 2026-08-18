@@ -310,38 +310,57 @@ class WhatsApp extends Controller
         // Reuse assignment from existing conversation for WS targeting (tanpa load WAReplies dulu —
         // load WAReplies bisa fatal jika trait belum ada; jangan blok insert/WS)
         try {
-            $existingQuick = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $identityHints);
-            if (!$existingQuick) {
-                $existingQuick = $db->query(
-                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
-                    [$waNumber]
-                )->row();
-            }
-            if (!$existingQuick) {
-                $existingQuick = $db->query(
-                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
-                    [$phonePlus]
-                )->row();
-            }
-            if (!$existingQuick) {
-                $existingQuick = $db->query(
-                    "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
-                    [$cleanPhone]
-                )->row();
-            }
-            if ($existingQuick) {
-                $assigned_user_id = $existingQuick->assigned_user_id ?? null;
-                $code = $existingQuick->code ?? null;
-                $cust_id = $existingQuick->cust_id ?? null;
-                if (empty($contact_name) && !empty($existingQuick->contact_name)) {
-                    $contact_name = $existingQuick->contact_name;
-                }
-            }
             if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
                 require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
             }
-            if (\App\Helpers\CRM\WaSenderContext::isKaryawanNumber($waNumber)) {
+            $senderCtxEarly = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+            $isKaryawanEarly = !empty($senderCtxEarly['is_karyawan']);
+            if (!empty($senderCtxEarly['contact_name'])) {
+                $contact_name = $senderCtxEarly['contact_name'];
+            }
+
+            if (!$isKaryawanEarly) {
+                $existingQuick = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $identityHints);
+                if (!$existingQuick) {
+                    $existingQuick = $db->query(
+                        "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                        [$waNumber]
+                    )->row();
+                }
+                if (!$existingQuick) {
+                    $existingQuick = $db->query(
+                        "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                        [$phonePlus]
+                    )->row();
+                }
+                if (!$existingQuick) {
+                    $existingQuick = $db->query(
+                        "SELECT id, assigned_user_id, contact_name, code, cust_id FROM wa_conversations WHERE wa_number = ? LIMIT 1",
+                        [$cleanPhone]
+                    )->row();
+                }
+                if ($existingQuick) {
+                    $assigned_user_id = $existingQuick->assigned_user_id ?? null;
+                    $code = $existingQuick->code ?? null;
+                    $cust_id = $existingQuick->cust_id ?? null;
+                    if (empty($contact_name) && !empty($existingQuick->contact_name)) {
+                        $contact_name = $existingQuick->contact_name;
+                    }
+                }
+                $fromCtx = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtxEarly);
+                if ($fromCtx !== null) {
+                    $assigned_user_id = $fromCtx;
+                }
+                if (!empty($senderCtxEarly['code'])) {
+                    $code = $senderCtxEarly['code'];
+                }
+                if (!empty($senderCtxEarly['cust_id'])) {
+                    $cust_id = $senderCtxEarly['cust_id'];
+                }
+            } else {
                 $assigned_user_id = null;
+                $code = null;
+                $cust_id = null;
             }
         } catch (\Throwable $e) {
             // ignore — push tetap jalan
@@ -460,19 +479,17 @@ class WhatsApp extends Controller
                 $isKaryawan = !empty($senderCtx['is_karyawan']);
                 if ($isKaryawan) {
                     $assigned_user_id = null;
+                    $code = null;
+                    $cust_id = null;
+                } elseif ($isPelanggan) {
+                    $fromCtx = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtx);
+                    if ($fromCtx !== null) {
+                        $assigned_user_id = $fromCtx;
+                    }
+                    $code = $senderCtx['code'] ?? $code;
+                    $cust_id = $senderCtx['cust_id'] ?? $cust_id;
                 }
                 if ($isPelanggan || $isKaryawan) {
-                    if ($isPelanggan && !$isKaryawan) {
-                        $fromCtx = \App\Helpers\CRM\WaSenderContext::cswAssignedUserId($senderCtx);
-                        if ($fromCtx !== null) {
-                            $assigned_user_id = $fromCtx;
-                        }
-                        $code = $senderCtx['code'] ?? $code;
-                        $cust_id = $senderCtx['cust_id'] ?? $cust_id;
-                    } elseif ($isPelanggan) {
-                        $code = $senderCtx['code'] ?? $code;
-                        $cust_id = $senderCtx['cust_id'] ?? $cust_id;
-                    }
                     if (!empty($senderCtx['contact_name'])) {
                         $contact_name = $senderCtx['contact_name'];
                     }
