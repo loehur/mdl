@@ -1385,6 +1385,10 @@ class Delivery extends Controller
             $idRequest
          );
 
+         if ($inserted <= 0) {
+            throw new Exception('Tidak ada item yang bisa diselesaikan — semua item yang dipilih mungkin belum selesai laundry');
+         }
+
          $surcasJemput = null;
          $surcasAntar = null;
 
@@ -2329,13 +2333,16 @@ class Delivery extends Controller
             $blockHint = 'Instant · track only';
          } elseif ($jenis === 'antar' && !$isInstant && !$hasLokasi) {
             $blockHint = 'Lokasi belum lengkap';
-         } elseif ($siapCount <= 0 && $belumCount > 0) {
-            $blockHint = 'Laundry belum selesai';
          } elseif ($siapCount <= 0) {
-            $blockHint = 'Belum ada item siap';
+            // Semua item belum selesai laundry — belum bisa diselesaikan
+            $blockHint = $belumCount > 0 ? 'Laundry belum selesai' : 'Belum ada item siap';
+         } elseif ($belumCount > 0) {
+            // Ada sebagian siap, sebagian belum — boleh selesai, hint informasi saja
+            $blockHint = $siapCount . ' item siap, ' . $belumCount . ' belum selesai laundry';
          }
 
          if ($jenis === 'antar' && !$isInstant) {
+            // Bisa diselesaikan asal lokasi lengkap dan ada minimal 1 item siap
             $siapSelesai = $hasLokasi && $siapCount > 0;
          } elseif ($jenis === 'jemput') {
             // Jemput selalu dianggap siap tampil di board customer
@@ -2513,8 +2520,9 @@ class Delivery extends Controller
          if (!isset($eligibleMap[$idPenjualan])) {
             throw new Exception("Item #$idPenjualan tidak eligible atau sudah ada riwayat $jenis");
          }
+         // Item antar yang belum selesai laundry dilewati (tidak di-throw), hanya item siap yang dicatat
          if ($jenis === 'antar' && !isset($selesaiSet[$idPenjualan])) {
-            throw new Exception("Item #$idPenjualan belum selesai — tidak bisa diantar");
+            continue;
          }
          $sale = $eligibleMap[$idPenjualan];
          $data = [

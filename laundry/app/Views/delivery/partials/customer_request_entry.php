@@ -83,8 +83,10 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
         <?php if (!$hasLokasi && !$isInstant) { ?>
           <span class="dlv-jenis-pill" style="background:#fef3c7;color:#92400e">Lokasi menyusul</span>
         <?php } ?>
-        <?php if ($siapSelesai && $siapItemCount > 0) { ?>
-          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= $siapItemCount ?> item siap</span>
+        <?php
+          $belumItemCount = (int) ($rq['belum_item_count'] ?? 0);
+          if ($siapSelesai && $siapItemCount > 0) { ?>
+          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= $siapItemCount ?> item siap<?= $belumItemCount > 0 ? ', ' . $belumItemCount . ' menunggu' : '' ?></span>
         <?php } elseif (!$siapSelesai && $blockHint !== '') { ?>
           <span class="dlv-jenis-pill" style="background:#fee2e2;color:#991b1b"><?= htmlspecialchars($blockHint, ENT_QUOTES, 'UTF-8') ?></span>
         <?php } ?>
