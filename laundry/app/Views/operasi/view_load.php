@@ -688,10 +688,10 @@ $labeled = false;
               }
 
               echo "<tr>
-              <td>" . $btnHapusSurcas . "</td>
-              <td>" . $surcasNya . "</td>
-              <td>" . $tglCas . "</td>
-              <td align='right'>" . number_format($jumlahCas) . "</td>
+              <td class='text-center align-middle' style='vertical-align:middle;width:2rem;'>" . $btnHapusSurcas . "</td>
+              <td class='align-middle'>" . $surcasNya . "</td>
+              <td class='align-middle'>" . $tglCas . "</td>
+              <td align='right' class='align-middle'>" . number_format($jumlahCas) . "</td>
             </tr>";
               $subTotal += $jumlahCas;
 

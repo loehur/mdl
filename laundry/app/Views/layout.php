@@ -305,6 +305,13 @@ if (isset($data['data_operasi'])) {
         .content-wrapper .mdl-nota-card > .table {
             margin-bottom: 0 !important;
         }
+        .content-wrapper .mdl-nota-card > .table a.hapusSurcasKurir {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            line-height: 1;
+        }
 
         /* Grid nota Antrian/Operasi ? jarak atas-bawah = kanan-kiri (8px) */
         .content-wrapper .mdl-nota-grid {
