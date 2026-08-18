@@ -658,6 +658,7 @@ $labeled = false;
                     . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-jumlah='" . htmlspecialchars((string) $jumlahCas, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-pengisi='" . htmlspecialchars((string) ((int) ($sca['id_user'] ?? 0)), ENT_QUOTES, 'UTF-8') . "'"
+                    . " data-id-surcas='" . htmlspecialchars((string) $id_surcas, ENT_QUOTES, 'UTF-8') . "'"
                     . "><i class='far fa-circle'></i> " . $labelDlvCas . "</a><br>";
                 }
               } else {
@@ -1391,7 +1392,8 @@ $labeled = false;
               $(this).attr('data-jenis') || '',
               $(this).attr('data-ref') || '',
               $(this).attr('data-jumlah'),
-              $(this).attr('data-pengisi')
+              $(this).attr('data-pengisi'),
+              $(this).attr('data-id-surcas')
           );
       });
   });

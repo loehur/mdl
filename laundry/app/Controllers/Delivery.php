@@ -71,57 +71,6 @@ class Delivery extends Controller
    }
 
    /**
-    * Cari pelanggan cabang session aktif (untuk tambah Delivery manual).
-    */
-   public function search_pelanggan()
-   {
-      if (ob_get_length()) {
-         ob_clean();
-      }
-      header('Content-Type: application/json; charset=utf-8');
-
-      $idCabang = (int) ($this->id_cabang ?? 0);
-      if ($idCabang <= 0) {
-         echo json_encode(['status' => 'error', 'message' => 'Cabang session tidak valid', 'items' => []]);
-         return;
-      }
-
-      $q = trim((string) ($_GET['q'] ?? $_POST['q'] ?? ''));
-      $where = 'id_cabang = ' . $idCabang;
-      if ($q !== '') {
-         $esc = $this->db(0)->escape($q);
-         $digits = preg_replace('/\D/', '', $q);
-         $parts = [
-            "nama_pelanggan LIKE '%{$esc}%'",
-            "nomor_pelanggan LIKE '%{$esc}%'",
-         ];
-         if ($digits !== '') {
-            $this->helper('PelangganByPhone');
-            $nomor = PelangganByPhone::toNomorNasional($digits) ?? $digits;
-            $escD = $this->db(0)->escape($nomor);
-            $parts[] = PelangganByPhone::likeSql($escD);
-         }
-         $where .= ' AND (' . implode(' OR ', $parts) . ')';
-      }
-
-      $rows = $this->db(0)->get_where_order('pelanggan', $where, 'nama_pelanggan ASC LIMIT 30');
-      if (!is_array($rows)) {
-         $rows = [];
-      }
-
-      $items = [];
-      foreach ($rows as $r) {
-         $items[] = [
-            'id_pelanggan' => (int) ($r['id_pelanggan'] ?? 0),
-            'nama_pelanggan' => (string) ($r['nama_pelanggan'] ?? ''),
-            'nomor_pelanggan' => (string) ($r['nomor_pelanggan'] ?? ''),
-         ];
-      }
-
-      echo json_encode(['status' => 'success', 'items' => $items], JSON_UNESCAPED_UNICODE);
-   }
-
-   /**
     * List lokasi tersimpan pelanggan (hanya pilih, tidak create).
     */
    public function lokasi_options()
@@ -488,138 +437,6 @@ class Delivery extends Controller
    }
 
    /**
-    * Buat delivery_request manual dari board Delivery.
-    * Lokasi opsional (hanya pilih yang sudah ada — tidak create lokasi baru).
-    */
-   public function buat_manual()
-   {
-      if (ob_get_length()) {
-         ob_clean();
-      }
-      ob_start();
-      $response = ['status' => 'error', 'message' => 'Unknown error'];
-
-      try {
-         $idCabang = (int) ($this->id_cabang ?? 0);
-         $idPelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
-         $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
-         $idLokasi = (int) ($_POST['id_lokasi'] ?? 0);
-
-         if ($idCabang <= 0) {
-            throw new Exception('Cabang session tidak valid');
-         }
-         if ($idPelanggan <= 0) {
-            throw new Exception('Pilih pelanggan');
-         }
-         if (!in_array($jenis, ['jemput', 'antar'], true)) {
-            throw new Exception('Pilih jenis jemput atau antar');
-         }
-
-         $pel = $this->db(0)->get_where_row(
-            'pelanggan',
-            'id_pelanggan = ' . $idPelanggan . ' AND id_cabang = ' . $idCabang
-         );
-         if (!is_array($pel) || empty($pel['id_pelanggan'])) {
-            throw new Exception('Pelanggan tidak ditemukan di cabang aktif');
-         }
-
-         $phoneTail = $this->phoneKey($pel['nomor_pelanggan'] ?? '');
-         if (strlen($phoneTail) < 8) {
-            throw new Exception('Nomor pelanggan belum lengkap');
-         }
-
-         $pending = (int) ($this->db(0)->count_where(
-            'delivery_request',
-            'id_pelanggan = ' . $idPelanggan
-               . " AND jenis = '" . $this->db(0)->escape($jenis) . "'"
-               . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
-               . " AND layanan = 'sameday'"
-         ) ?? 0);
-         if ($pending > 0) {
-            throw new Exception('Sudah ada request ' . $jenis . ' berjalan untuk pelanggan ini');
-         }
-
-         $lokasiNama = '';
-         $lokasiDetail = '';
-         $lokLatt = 0.0;
-         $lokLongt = 0.0;
-         $tarifSurcas = null;
-
-         if ($idLokasi > 0) {
-            $lok = $this->db(0)->get_where_row(
-               'pelanggan_lokasi',
-               'id_lokasi = ' . $idLokasi . ' AND id_pelanggan = ' . $idPelanggan
-            );
-            if (!is_array($lok) || empty($lok['id_lokasi'])) {
-               throw new Exception('Lokasi tidak valid untuk pelanggan ini');
-            }
-            $lokasiNama = (string) ($lok['nama'] ?? '');
-            $lokasiDetail = (string) ($lok['detail'] ?? '');
-            $lokLatt = (float) ($lok['latt'] ?? 0);
-            $lokLongt = (float) ($lok['longt'] ?? 0);
-
-            $cabLat = (float) ($this->dCabang['latt'] ?? 0);
-            $cabLon = (float) ($this->dCabang['long'] ?? 0);
-            if ($cabLat != 0.0 || $cabLon != 0.0) {
-               if ($lokLatt != 0.0 || $lokLongt != 0.0) {
-                  $calc = $this->helper('AntarTarif')->tarifFromCoords($cabLat, $cabLon, $lokLatt, $lokLongt);
-                  $tarifSurcas = (int) ($calc['tarif'] ?? 0);
-               }
-            }
-         }
-
-         $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
-         $insData = [
-            'sumber' => 'customer',
-            'jenis' => $jenis,
-            'layanan' => 'sameday',
-            'delivery_status' => 'berjalan',
-            'id_pelanggan' => $idPelanggan,
-            'phone_tail' => $phoneTail,
-            'id_cabang' => $idCabang,
-            'id_lokasi' => $idLokasi > 0 ? $idLokasi : 0,
-            'lokasi_nama' => $lokasiNama,
-            'lokasi_detail' => $lokasiDetail,
-            'lokasi_latt' => $lokLatt,
-            'lokasi_longt' => $lokLongt,
-            'insertTime' => $now,
-            'catatan_kurir' => 'Manual dari board Delivery',
-         ];
-         if ($tarifSurcas !== null) {
-            $insData['tarif_surcas'] = $tarifSurcas;
-         }
-
-         $ins = $this->db(0)->insert('delivery_request', $insData);
-         if (is_array($ins) && isset($ins['errno']) && (int) $ins['errno'] !== 0) {
-            throw new Exception($ins['error'] ?? 'Gagal membuat request');
-         }
-         $idRequest = (int) ($ins['insert_id'] ?? 0);
-         if ($idRequest <= 0) {
-            throw new Exception('Gagal membuat request');
-         }
-
-         $response = [
-            'status' => 'success',
-            'message' => 'Request ' . $jenis . ' #' . $idRequest . ' dibuat',
-            'data' => [
-               'id_request' => $idRequest,
-               'jenis' => $jenis,
-               'phone_tail' => $phoneTail,
-               'nama' => strtoupper((string) ($pel['nama_pelanggan'] ?? 'Customer')),
-            ],
-         ];
-      } catch (\Throwable $e) {
-         $response = ['status' => 'error', 'message' => $e->getMessage()];
-      }
-
-      ob_end_clean();
-      if (!headers_sent()) {
-         header('Content-Type: application/json; charset=utf-8');
-      }
-      echo json_encode($response, JSON_UNESCAPED_UNICODE);
-   }
-
-   /**
     * Dari Operasi FAB Kurir.
     * Surcas selalu ditulis ke nota (wajib pilih item + pengisi surcas). Request lama di board diikat (reuse).
     * Penyelesai (id_karyawan) masuk riwayat delivery; pengisi surcas (id_pengisi_surcas) masuk baris surcas.
@@ -642,6 +459,7 @@ class Delivery extends Controller
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
          $idPengisiSurcas = (int) ($_POST['id_pengisi_surcas'] ?? 0);
+         $preferSurcasId = (int) ($_POST['id_surcas'] ?? 0);
          $wantPendingAntar = in_array((string) ($_POST['pending'] ?? '0'), ['1', 'true', 'on', 'yes'], true);
 
          $idsRaw = $_POST['ids'] ?? [];
@@ -698,6 +516,7 @@ class Delivery extends Controller
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item jemput');
             }
+            $this->rejectBoundToOtherSurcas($ids, 'jemput', $preferSurcasId);
 
             $jumlahAntar = -1;
             if ($jenis === 'jemput_antar') {
@@ -751,7 +570,8 @@ class Delivery extends Controller
                $ids,
                $jumlahSurcas,
                $idPengisiSurcas,
-               $idReqJemput
+               $idReqJemput,
+               $preferSurcasId
             );
 
             if ($idReqJemput > 0) {
@@ -832,6 +652,7 @@ class Delivery extends Controller
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
             }
+            $this->rejectBoundToOtherSurcas($ids, 'antar', $preferSurcasId);
             $tarifSurcas = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
             $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
             if ($lockedAntar !== null) {
@@ -852,8 +673,99 @@ class Delivery extends Controller
                throw new Exception('Jangan campur item sudah Delivered dengan yang belum. Pilih terpisah.');
             }
 
-            // Legacy: item sudah Delivered (WA/manual lama) tapi surcas pengantaran belum masuk nota
-            if ($deliveredCount === count($ids)) {
+            if ($idKaryawan > 0) {
+               // ===== Antar: selesai (penyelesai terisi) — prioritas, tidak tambah surcas jika sudah ada =====
+               $this->rejectAntarPenyelesaiIfBelumSelesai($ids);
+
+               $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
+               if (!$karyawan) {
+                  throw new Exception('Karyawan tidak ditemukan');
+               }
+               $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
+
+               $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
+               $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
+
+               $freshIds = [];
+               foreach ($ids as $idSale) {
+                  $idSale = (int) $idSale;
+                  if ($idSale > 0 && !isset($deliveredSet[$idSale])) {
+                     $freshIds[] = $idSale;
+                  }
+               }
+
+               $inserted = 0;
+               if (!empty($freshIds)) {
+                  $inserted = $this->insertDeliveryRiwayatBatch(
+                     $phoneTail,
+                     $pelangganIds,
+                     'antar',
+                     $freshIds,
+                     $idKaryawan,
+                     $namaKaryawan,
+                     $idCabang,
+                     $now,
+                     $idReqAntar
+                  );
+               }
+
+               if ($inserted <= 0 && $deliveredCount < count($ids)) {
+                  throw new Exception('Tidak ada item antar yang bisa diselesaikan — semua item mungkin belum selesai laundry');
+               }
+
+               $surcasAntar = null;
+               if (!$this->allSaleIdsBoundSurcasPengantaran($ids)) {
+                  $surcasAntar = $this->upsertSurcasPengantaran(
+                     $idCabang,
+                     $ids,
+                     $tarifSurcas,
+                     $idPengisiSurcas,
+                     $idReqAntar,
+                     $preferSurcasId
+                  );
+               } else {
+                  $this->helper('SurcasKurir');
+                  $this->helper('AntarTarif');
+                  $noRefDone = SurcasKurir::pickRefForIds($this->db(0), $ids);
+                  $surcasAntar = [
+                     'no_ref' => $noRefDone ?? '',
+                     'jumlah' => $tarifSurcas,
+                     'updated' => false,
+                     'skipped' => true,
+                     'bound_ids' => $ids,
+                  ];
+               }
+
+               if ($idReqAntar > 0) {
+                  $this->closeActiveDeliveryRequest($idReqAntar, $idKaryawan, $namaKaryawan, $now);
+               }
+
+               $msg = $inserted > 0
+                  ? "Delivery antar selesai ($inserted item)"
+                  : 'Antar sudah tercatat — penyelesai diperbarui';
+               if ($idReqAntar > 0) {
+                  $msg .= " · Request antar #$idReqAntar ditutup";
+               }
+               if (is_array($surcasAntar) && empty($surcasAntar['skipped'])) {
+                  $msg .= !empty($surcasAntar['updated'])
+                     ? ' · Item ditambahkan ke surcas antar yang sudah ada'
+                     : ' · Surcas antar ditambahkan ke nota';
+               }
+
+               $response = [
+                  'status' => 'success',
+                  'message' => $msg,
+                  'data' => [
+                     'mode' => 'selesai',
+                     'jenis' => 'antar',
+                     'phone_tail' => $phoneTail,
+                     'count' => $inserted,
+                     'surcas_antar' => $surcasAntar,
+                     'id_request_antar' => $idReqAntar > 0 ? $idReqAntar : null,
+                  ],
+               ];
+            } elseif ($deliveredCount === count($ids)) {
+               // Legacy: item sudah Delivered (WA/manual lama) tapi surcas pengantaran belum masuk nota
                $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
                $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
                $surcasAntar = $this->upsertSurcasPengantaran(
@@ -877,9 +789,16 @@ class Delivery extends Controller
                      'id_request_antar' => $idReqAntar > 0 ? $idReqAntar : null,
                   ],
                ];
-            } elseif ($idKaryawan <= 0) {
-            // ===== Antar: request (buat atau ikat) + surcas ke nota =====
-            // Pending hanya jika penyelesai kosong; default dari checkbox Operasi.
+            } else {
+            // ===== Antar: request (buat atau ikat) + surcas ke nota — tanpa penyelesai =====
+            $this->helper('SurcasKurir');
+            $this->helper('AntarTarif');
+            $noRefAntar = SurcasKurir::pickRefForIds($this->db(0), $ids);
+            if ($noRefAntar !== null && $noRefAntar !== ''
+               && SurcasKurir::findExistingSurcasOnRef($this->db(0), $noRefAntar, $idCabang, (int) AntarTarif::SURCAS_JENIS_PENGANTARAN) > 0) {
+               throw new Exception('Surcas antar sudah ada di nota ini. Isi penyelesai untuk menyelesaikan antar.');
+            }
+
             $asPending = $wantPendingAntar;
             $reqAntar = $this->findAntarRequestForOperasiBind($idPelanggan);
             $idRequest = (int) ($reqAntar['id_request'] ?? 0);
@@ -963,70 +882,7 @@ class Delivery extends Controller
                   'surcas_antar' => $surcasAntar,
                ],
             ];
-         } else {
-            // ===== Antar: selesai langsung (ikat request jika ada) =====
-            $this->rejectAntarPenyelesaiIfBelumSelesai($ids);
-
-            $jumlahAntarSelesai = $tarifSurcas;
-
-            $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
-            if (!$karyawan) {
-               throw new Exception('Karyawan tidak ditemukan');
             }
-            $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
-
-            $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
-            $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
-
-            $inserted = $this->insertDeliveryRiwayatBatch(
-               $phoneTail,
-               $pelangganIds,
-               'antar',
-               $ids,
-               $idKaryawan,
-               $namaKaryawan,
-               $idCabang,
-               $now,
-               $idReqAntar
-            );
-
-            if ($inserted <= 0) {
-               throw new Exception('Tidak ada item antar yang bisa diselesaikan — semua item mungkin belum selesai laundry');
-            }
-
-            $surcasAntar = $this->upsertSurcasPengantaran(
-               $idCabang,
-               $ids,
-               $jumlahAntarSelesai,
-               $idPengisiSurcas,
-               $idReqAntar
-            );
-
-            if ($idReqAntar > 0) {
-               $this->closeActiveDeliveryRequest($idReqAntar, $idKaryawan, $namaKaryawan, $now);
-            }
-
-            $msg = "Delivery antar selesai ($inserted item)";
-            if ($idReqAntar > 0) {
-               $msg .= " · Request antar #$idReqAntar ditutup";
-            }
-            $msg .= !empty($surcasAntar['skipped'])
-               ? ' · Surcas antar sudah ada pada item (dilewati)'
-               : ' · Surcas antar ditambahkan ke nota';
-
-            $response = [
-               'status' => 'success',
-               'message' => $msg,
-               'data' => [
-                  'mode' => 'selesai',
-                  'jenis' => 'antar',
-                  'phone_tail' => $phoneTail,
-                  'count' => $inserted,
-                  'surcas_antar' => $surcasAntar,
-                  'id_request_antar' => $idReqAntar > 0 ? $idReqAntar : null,
-               ],
-            ];
-         }
          }
       } catch (\Throwable $e) {
          $response = ['status' => 'error', 'message' => $e->getMessage()];
@@ -1125,8 +981,26 @@ class Delivery extends Controller
          return;
       }
       $exceptRequestId = (int) ($_GET['id_request'] ?? 0);
+      $excludeSurcasId = (int) ($_GET['exclude_surcas_id'] ?? 0);
+      $selesaiOnly = in_array((string) ($_GET['selesai_only'] ?? '0'), ['1', 'true', 'on', 'yes'], true);
       $includeDeliveredMissingSurcas = $fromOperasi && $jenis === 'antar';
       $includeAllActive = $fromOperasi && $jenis === 'jemput';
+
+      if ($excludeSurcasId <= 0 && $exceptRequestId > 0) {
+         $this->helper('AntarTarif');
+         $jenisSurcas = $jenis === 'antar'
+            ? (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+            : (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+         $excludeSurcasId = $this->surcasIdForDeliveryRequest($exceptRequestId, $jenisSurcas);
+      }
+      if ($selesaiOnly || $excludeSurcasId > 0 || $exceptRequestId > 0) {
+         if ($jenis === 'antar') {
+            $includeDeliveredMissingSurcas = true;
+         }
+         if ($jenis === 'jemput') {
+            $includeAllActive = true;
+         }
+      }
 
       $pelangganIds = [];
       if ($fromOperasi && $idPelangganGet > 0) {
@@ -1149,7 +1023,8 @@ class Delivery extends Controller
          $exceptRequestId,
          $includeDeliveredMissingSurcas,
          false,
-         $includeAllActive
+         $includeAllActive,
+         $excludeSurcasId
       );
       echo json_encode([
          'status' => 'success',
@@ -1376,6 +1251,13 @@ class Delivery extends Controller
             throw new Exception('Pelanggan tidak ditemukan');
          }
 
+         $this->helper('AntarTarif');
+         $jenisSurcasReq = $jenis === 'antar'
+            ? (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+            : (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+         $preferSurcasId = $this->surcasIdForDeliveryRequest($idRequest, $jenisSurcasReq);
+         $this->rejectBoundToOtherSurcas($ids, $jenis, $preferSurcasId);
+
          $now = $GLOBALS['now'] ?? date('Y-m-d H:i:s');
          $idCabang = (int) ($req['id_cabang'] ?? $this->id_cabang ?? 0);
 
@@ -1408,7 +1290,8 @@ class Delivery extends Controller
                $ids,
                $jumlahSurcas,
                $idKaryawan,
-               $idRequest
+               $idRequest,
+               $preferSurcasId
             );
          }
 
@@ -1422,7 +1305,8 @@ class Delivery extends Controller
                $ids,
                $jumlahAntar,
                $idKaryawan,
-               $idRequest
+               $idRequest,
+               $preferSurcasId
             );
          }
 
@@ -2689,6 +2573,30 @@ class Delivery extends Controller
    }
 
    /**
+    * @param int[] $ids
+    */
+   private function allSaleIdsBoundSurcasPengantaran(array $ids): bool
+   {
+      if (empty($ids)) {
+         return false;
+      }
+      $this->helper('AntarTarif');
+      $this->helper('SurcasKurir');
+      $bound = SurcasKurir::boundSaleIds(
+         $this->db(0),
+         $ids,
+         (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+      );
+      foreach ($ids as $id) {
+         if (!isset($bound[(int) $id])) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Antar + penyelesai: semua item terpilih harus sudah selesai laundry.
     * @param int[] $ids
     * @throws Exception
@@ -3056,7 +2964,8 @@ class Delivery extends Controller
       int $exceptRequestId = 0,
       bool $includeDeliveredMissingSurcas = false,
       bool $includeBound = false,
-      bool $includeAllActive = false
+      bool $includeAllActive = false,
+      int $excludeSurcasId = 0
    ): array {
       if (empty($pelangganIds)) {
          return [];
@@ -3121,16 +3030,63 @@ class Delivery extends Controller
          foreach ($rows as $r) {
             $saleIds[] = (int) ($r['id_penjualan'] ?? 0);
          }
-         $bound = SurcasKurir::boundSaleIds(
-            $this->db(0),
-            $saleIds,
-            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
-         );
-         $rows = array_values(array_filter($rows, static function ($r) use ($bound) {
-            $sid = (int) ($r['id_penjualan'] ?? 0);
+         if ($excludeSurcasId > 0) {
+            $other = SurcasKurir::boundToOtherSurcas(
+               $this->db(0),
+               $saleIds,
+               (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
+               $excludeSurcasId
+            );
+            $rows = array_values(array_filter($rows, static function ($r) use ($other) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
 
-            return $sid > 0 && !isset($bound[$sid]);
-         }));
+               return $sid > 0 && !isset($other[$sid]);
+            }));
+         } else {
+            $bound = SurcasKurir::boundSaleIds(
+               $this->db(0),
+               $saleIds,
+               (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+            );
+            $rows = array_values(array_filter($rows, static function ($r) use ($bound) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
+
+               return $sid > 0 && !isset($bound[$sid]);
+            }));
+         }
+      }
+
+      if ($includeAllActive && $jenis === 'jemput') {
+         $this->helper('AntarTarif');
+         $this->helper('SurcasKurir');
+         $saleIds = [];
+         foreach ($rows as $r) {
+            $saleIds[] = (int) ($r['id_penjualan'] ?? 0);
+         }
+         if ($excludeSurcasId > 0) {
+            $other = SurcasKurir::boundToOtherSurcas(
+               $this->db(0),
+               $saleIds,
+               (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
+               $excludeSurcasId
+            );
+            $rows = array_values(array_filter($rows, static function ($r) use ($other) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
+
+               return $sid > 0 && !isset($other[$sid]);
+            }));
+         } else {
+            $bound = SurcasKurir::boundSaleIds(
+               $this->db(0),
+               $saleIds,
+               (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+            );
+            $rows = array_values(array_filter($rows, static function ($r) use ($bound) {
+               $sid = (int) ($r['id_penjualan'] ?? 0);
+
+               return $sid > 0 && !isset($bound[$sid]);
+            }));
+         }
       }
 
       return $rows;
@@ -3142,7 +3098,8 @@ class Delivery extends Controller
       int $exceptRequestId = 0,
       bool $includeDeliveredMissingSurcas = false,
       bool $includeBound = false,
-      bool $includeAllActive = false
+      bool $includeAllActive = false,
+      int $excludeSurcasId = 0
    ): array {
       $rows = $this->fetchEligibleSaleRows(
          $pelangganIds,
@@ -3150,7 +3107,8 @@ class Delivery extends Controller
          $exceptRequestId,
          $includeDeliveredMissingSurcas,
          $includeBound,
-         $includeAllActive
+         $includeAllActive,
+         $excludeSurcasId
       );
       if (empty($rows)) {
          return [];
@@ -3217,8 +3175,14 @@ class Delivery extends Controller
             'tarif_surcas_antar' => null,
             'surcas_jemput' => false,
             'surcas_antar' => false,
+            'surcas_mine' => false,
+            'terikat_surcas_lain' => false,
          ];
       }
+
+      $jenisSurcasFlag = null;
+      $otherBoundMap = [];
+      $mineBoundMap = [];
 
       // Antar: tandai item tanpa notif selesai (tipe=2) — tampil terkunci di UI
       if ($jenis === 'antar' && !empty($orders)) {
@@ -3304,6 +3268,25 @@ class Delivery extends Controller
                $sid = (int) ($it['id'] ?? 0);
                $orders[$refKey]['items'][$ix]['surcas_jemput'] = $sid > 0 && isset($boundJemput[$sid]);
                $orders[$refKey]['items'][$ix]['surcas_antar'] = $sid > 0 && isset($boundAntar[$sid]);
+            }
+         }
+         $jenisSurcasFlag = $jenis === 'antar'
+            ? (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+            : (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+         $otherBoundMap = SurcasKurir::boundToOtherSurcas(
+            $this->db(0),
+            $allSaleIds,
+            $jenisSurcasFlag,
+            $excludeSurcasId
+         );
+         $mineBoundMap = $excludeSurcasId > 0
+            ? SurcasKurir::saleIdsOnSurcas($this->db(0), $excludeSurcasId, $jenisSurcasFlag, $allSaleIds)
+            : [];
+         foreach ($orders as $refKey => $ord) {
+            foreach ($ord['items'] as $ix => $it) {
+               $sid = (int) ($it['id'] ?? 0);
+               $orders[$refKey]['items'][$ix]['terikat_surcas_lain'] = $sid > 0 && isset($otherBoundMap[$sid]);
+               $orders[$refKey]['items'][$ix]['surcas_mine'] = $sid > 0 && isset($mineBoundMap[$sid]);
             }
          }
          $idCabang = (int) ($this->id_cabang ?? 0);
@@ -3560,7 +3543,8 @@ class Delivery extends Controller
       array $ids,
       int $jumlah,
       int $idUser,
-      int $idDeliveryRequest = 0
+      int $idDeliveryRequest = 0,
+      int $preferSurcasId = 0
    ): array {
       $this->helper('AntarTarif');
       $this->helper('SurcasKurir');
@@ -3573,7 +3557,8 @@ class Delivery extends Controller
          $idUser,
          (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
          $idDeliveryRequest,
-         'Penjemputan'
+         'Penjemputan',
+         $preferSurcasId
       );
    }
 
@@ -3590,7 +3575,8 @@ class Delivery extends Controller
       array $ids,
       int $jumlah,
       int $idUser,
-      int $idDeliveryRequest = 0
+      int $idDeliveryRequest = 0,
+      int $preferSurcasId = 0
    ): array {
       $this->helper('AntarTarif');
       $this->helper('SurcasKurir');
@@ -3603,8 +3589,62 @@ class Delivery extends Controller
          $idUser,
          (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
          $idDeliveryRequest,
-         'Pengantaran'
+         'Pengantaran',
+         $preferSurcasId
       );
+   }
+
+   /**
+    * id_surcas kurir dari delivery_request (untuk mode selesai).
+    */
+   private function surcasIdForDeliveryRequest(int $idRequest, int $jenisSurcas): int
+   {
+      $idRequest = (int) $idRequest;
+      $jenisSurcas = (int) $jenisSurcas;
+      if ($idRequest <= 0 || $jenisSurcas <= 0) {
+         return 0;
+      }
+      $row = $this->db(0)->get_where_row(
+         'surcas',
+         'id_delivery_request = ' . $idRequest
+            . ' AND id_jenis_surcas = ' . $jenisSurcas
+            . ' AND dari_delivery = 1'
+            . ' ORDER BY id_surcas DESC'
+      );
+      if (!is_array($row) || empty($row['id_surcas'])) {
+         return 0;
+      }
+
+      return (int) $row['id_surcas'];
+   }
+
+   /**
+    * @param int[] $ids
+    * @throws Exception
+    */
+   private function rejectBoundToOtherSurcas(array $ids, string $jenis, int $excludeSurcasId = 0): void
+   {
+      if (empty($ids)) {
+         return;
+      }
+      $jenis = strtolower(trim($jenis));
+      if (!in_array($jenis, ['jemput', 'antar'], true)) {
+         return;
+      }
+      $this->helper('AntarTarif');
+      $this->helper('SurcasKurir');
+      $jenisSurcas = $jenis === 'jemput'
+         ? (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+         : (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
+      $other = SurcasKurir::boundToOtherSurcas($this->db(0), $ids, $jenisSurcas, $excludeSurcasId);
+      foreach ($ids as $id) {
+         $id = (int) $id;
+         if ($id > 0 && isset($other[$id])) {
+            throw new Exception(
+               'Item #' . $id . ' sudah terikat surcas ' . $jenis . ' lain — pilih item lain atau lepaskan dari surcas tersebut dulu'
+            );
+         }
+      }
    }
 
    /**

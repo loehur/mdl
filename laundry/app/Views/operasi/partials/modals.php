@@ -2092,6 +2092,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var prefillNoRef = '';
   var prefillJumlah = '';
   var prefillPengisi = 0;
+  var prefillSurcasId = 0;
   var forceComplete = false;
 
   function currentPelanggan() {
@@ -2537,12 +2538,16 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         var tarifAntar = (it.tarif_surcas_antar === 0 || it.tarif_surcas_antar) ? String(it.tarif_surcas_antar) : '';
         var boundJemput = !!it.surcas_jemput;
         var boundAntar = !!it.surcas_antar;
+        var surcasMine = !!it.surcas_mine;
+        var terikatSurcasLain = !!it.terikat_surcas_lain;
         var meta = '#' + it.id + (it.member ? ' · member' : '')
           + (delivered ? ' · sudah delivered · isi surcas saja' : '')
           + (terikat && !delivered ? ' · terikat request' : '')
           + (tarif !== '' && terikat ? ' · tarif Rp' + Number(tarif).toLocaleString('id-ID') : '')
           + (boundJemput ? ' · surcas jemput' : '')
           + (boundAntar ? ' · surcas antar' : '')
+          + (surcasMine ? ' · item surcas ini' : '')
+          + (terikatSurcasLain ? ' · terikat surcas lain' : '')
           + (belum && !delivered ? ' · belum selesai laundry' : '');
         return '<label class="kurir-item">' +
           '<input type="checkbox" name="kurir_ids" value="' + esc(it.id) + '"' +
@@ -2552,6 +2557,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           (terikatAntar ? ' data-terikat-antar="1"' : '') +
           (boundJemput ? ' data-surcas-jemput="1"' : '') +
           (boundAntar ? ' data-surcas-antar="1"' : '') +
+          (surcasMine ? ' data-surcas-mine="1"' : '') +
+          (terikatSurcasLain ? ' data-terikat-surcas-lain="1"' : '') +
           (tarif !== '' ? ' data-tarif-surcas="' + esc(tarif) + '"' : '') +
           (tarifAntar !== '' ? ' data-tarif-surcas-antar="' + esc(tarifAntar) + '"' : '') + '>' +
           '<span><div>' + esc(it.kategori || '') + ' · ' + esc(it.durasi || '') + ' · ' + esc(it.qty_show || '') + '</div>' +
@@ -2589,18 +2596,22 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   function lockBoundCheckboxes() {
     var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
-    var lockJemput = jenis === 'jemput' || jenis === 'jemput_antar';
-    var lockAntar = jenis === 'antar' || jenis === 'jemput_antar';
     root.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
       var bound = false;
-      if (lockJemput && (cb.getAttribute('data-surcas-jemput') === '1' || cb.getAttribute('data-terikat') === '1')) {
+      if (cb.getAttribute('data-terikat-surcas-lain') === '1') {
         bound = true;
       }
-      if (lockAntar && (cb.getAttribute('data-surcas-antar') === '1' || (jenis === 'antar' && cb.getAttribute('data-terikat') === '1'))) {
+      if (cb.getAttribute('data-terikat') === '1') {
         bound = true;
       }
       if (jenis === 'jemput_antar' && cb.getAttribute('data-terikat-antar') === '1') {
         bound = true;
+      }
+      if (!forceComplete) {
+        var lockJemput = jenis === 'jemput' || jenis === 'jemput_antar';
+        var lockAntar = jenis === 'antar' || jenis === 'jemput_antar';
+        if (lockJemput && cb.getAttribute('data-surcas-jemput') === '1') bound = true;
+        if (lockAntar && cb.getAttribute('data-surcas-antar') === '1') bound = true;
       }
       if (!bound) return;
       cb.checked = true;
@@ -2618,7 +2629,21 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       var match = String(g.getAttribute('data-no-ref') || '') === want;
       g.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
         if (cb.getAttribute('data-bound') === '1' || cb.disabled) return;
-        cb.checked = match;
+        if (forceComplete) {
+          var jenisFc = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+          if (jenisFc === 'jemput') {
+            cb.checked = match
+              && (cb.getAttribute('data-surcas-mine') === '1' || cb.getAttribute('data-surcas-jemput') === '1')
+              && cb.getAttribute('data-sudah-delivered') !== '1';
+          } else {
+            cb.checked = match
+              && (cb.getAttribute('data-surcas-mine') === '1' || cb.getAttribute('data-surcas-antar') === '1')
+              && cb.getAttribute('data-sudah-delivered') !== '1'
+              && cb.getAttribute('data-belum-selesai') !== '1';
+          }
+        } else {
+          cb.checked = match;
+        }
       });
     });
     if (prefillJumlah !== '' && prefillJumlah != null) {
@@ -2651,6 +2676,12 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     box.innerHTML = '<div class="kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>';
     var q = '?jenis=' + encodeURIComponent(jenis) + '&operasi=1';
     if (idPelanggan > 0) q += '&id_pelanggan=' + encodeURIComponent(String(idPelanggan));
+    if (forceComplete) {
+      q += '&selesai_only=1';
+      if (prefillSurcasId > 0) {
+        q += '&exclude_surcas_id=' + encodeURIComponent(String(prefillSurcasId));
+      }
+    }
     var pathTail = phoneTail || ('p' + idPelanggan);
     fetch(salesUrl + encodeURIComponent(pathTail) + q, {
       credentials: 'same-origin'
@@ -2710,6 +2741,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     prefillNoRef = '';
     prefillJumlah = '';
     prefillPengisi = 0;
+    prefillSurcasId = 0;
     forceComplete = false;
     var sel = document.getElementById('kurirJenis');
     if (sel) sel.disabled = false;
@@ -2818,6 +2850,12 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
     fd.append('id_pengisi_surcas', String(idPengisiSurcas));
+    if (forceComplete) {
+      fd.append('selesai_only', '1');
+      if (prefillSurcasId > 0) {
+        fd.append('id_surcas', String(prefillSurcasId));
+      }
+    }
     ids.forEach(function (id) { fd.append('ids[]', String(id)); });
     if (jenis === 'jemput' || jenis === 'jemput_antar') {
       var j = document.getElementById('kurirSurcasJemput').value;
@@ -2850,7 +2888,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       .finally(function () { btn.disabled = false; });
   });
 
-  window.openKurirDelivery = function (jenis, noRef, jumlah, pengisi) {
+  window.openKurirDelivery = function (jenis, noRef, jumlah, pengisi, idSurcas) {
     jenis = String(jenis || '').toLowerCase();
     if (jenis !== 'jemput' && jenis !== 'antar') {
       toast('Jenis delivery tidak valid', 'warn');
@@ -2860,6 +2898,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     prefillNoRef = String(noRef || '');
     prefillJumlah = (jumlah === 0 || jumlah) ? String(jumlah) : '';
     prefillPengisi = parseInt(pengisi, 10) || 0;
+    prefillSurcasId = parseInt(idSurcas, 10) || 0;
     var sel = document.getElementById('kurirJenis');
     if (sel) {
       sel.value = jenis;
