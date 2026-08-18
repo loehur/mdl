@@ -93,7 +93,11 @@ class WaSenderContext
     /** 628529834343 / 0852… / +62… → 8529834343 */
     public static function toNomorNasional($phone): ?string
     {
-        $digits = preg_replace('/[^0-9]/', '', (string) $phone);
+        $s = trim((string) $phone);
+        if ($s === '' || stripos($s, '+lid') === 0 || stripos($s, 'lid:') === 0) {
+            return null;
+        }
+        $digits = preg_replace('/[^0-9]/', '', $s);
         if ($digits === null || strlen($digits) < 8) {
             return null;
         }

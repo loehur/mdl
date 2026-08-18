@@ -122,12 +122,14 @@ async function buildInboundPayload(msg) {
   const inboxid = nextInboxId();
   const remoteJid = msg.key.remoteJid || '';
   const isGroup = isGroupJid(remoteJid);
-  const sender = jidToSender(senderJid);
+  let sender = jidToSender(senderJid);
   if (!sender && !isGroup) return null;
-  if (!isGroup && !looksLikeMobileDigits(sender)) return null;
 
-  const senderLidRaw = msg.key?.remoteJid || msg.key?.participant || '';
-  const senderLid = isLidJid(senderLidRaw) ? senderLidRaw : (isLidJid(senderJid) ? senderJid : '');
+  const senderLidRaw = isLidJid(remoteJid)
+    ? remoteJid
+    : (isLidJid(msg.key?.participant || '') ? (msg.key?.participant || '') : '');
+  const senderLid = senderLidRaw || (isLidJid(senderJid) ? senderJid : '');
+  const resolvedPn = looksLikeMobileDigits(sender) ? sender : '';
   const pushName = msg.pushName || msg.verifiedBizName || '';
   const timestamp = Number(msg.messageTimestamp || Math.floor(Date.now() / 1000));
 
@@ -261,7 +263,7 @@ async function buildInboundPayload(msg) {
     pushname: pushName,
     quick: false,
     sender,
-    sender_pn: sender,
+    sender_pn: resolvedPn || undefined,
     senderlid: senderLidStr,
     text: 'non-button message',
     timestamp,

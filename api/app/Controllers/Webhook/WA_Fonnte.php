@@ -808,26 +808,22 @@ class WA_Fonnte extends Controller
             }
         }
 
-        $sender = $data['sender'] ?? null;
-        if ($sender === null || trim((string) $sender) === '') {
+        $sender = trim((string) ($data['sender'] ?? ''));
+        if ($sender === '') {
             return null;
         }
 
         $mode = strtolower(trim((string) ($data['mode'] ?? '')));
-        if ($mode === 'lid' || ($senderLid !== '' && stripos($senderLid, '@lid') !== false)) {
-            if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
-                require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
-            }
-            if (!\App\Helpers\CRM\WaSenderContext::looksLikeIndonesianMobile((string) $sender)) {
-                if (class_exists('\Log')) {
-                    \Log::write(
-                        'WA_Fonnte: LID belum ter-resolve sender=' . (string) $sender . ' senderlid=' . $senderLid,
-                        'webhook',
-                        'Fonnte'
-                    );
-                }
+        $isLid = ($mode === 'lid') || ($senderLid !== '' && stripos($senderLid, '@lid') !== false);
 
-                return null;
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+
+        if ($isLid && !\App\Helpers\CRM\WaSenderContext::looksLikeIndonesianMobile($sender)) {
+            $lidDigits = preg_replace('/[^0-9]/', '', $senderLid !== '' ? explode('@', $senderLid)[0] : $sender);
+            if ($lidDigits !== '') {
+                return 'lid:' . $lidDigits;
             }
         }
 
@@ -842,7 +838,13 @@ class WA_Fonnte extends Controller
         if (empty($sender)) {
             return null;
         }
-        $clean = preg_replace('/[^0-9]/', '', $sender);
+        $s = trim((string) $sender);
+        if (str_starts_with(strtolower($s), 'lid:')) {
+            $digits = preg_replace('/[^0-9]/', '', substr($s, 4));
+
+            return $digits !== '' ? ('+lid' . $digits) : null;
+        }
+        $clean = preg_replace('/[^0-9]/', '', $s);
         if (strlen($clean) < 8) {
             return null;
         }

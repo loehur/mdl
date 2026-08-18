@@ -37,10 +37,11 @@ function jidToSender(jid) {
   const raw = String(jid || '');
   if (!raw) return '';
   if (isGroupJid(raw)) return raw;
-  if (/@lid$/i.test(raw)) return '';
   const user = raw.split('@')[0].split(':')[0];
   const digits = digitsOnly(user);
   if (!digits) return '';
+  // LID (@lid) — kirim digit LID sebagai fallback (PHP simpan sebagai +lid…)
+  if (/@lid$/i.test(raw)) return digits;
   if (digits.startsWith('0')) return COUNTRY_CODE + digits.slice(1);
   return digits;
 }
