@@ -308,6 +308,11 @@ foreach ($tabs as $key => $_meta) {
       border-color: var(--aa-line);
       color: var(--aa-ink);
     }
+    #aa-root #load .aa-card.is-busy .aa-btn,
+    #aa-root #load .aa-card.is-leaving {
+      pointer-events: none;
+    }
+    #aa-root #load .aa-card.is-busy .aa-btn { opacity: .55; }
     #aa-root #load .aa-empty {
       text-align: center;
       padding: 28px 16px;
@@ -414,6 +419,79 @@ foreach ($tabs as $key => $_meta) {
     $(".loaderDiv").fadeIn("fast");
     $("div#load").load(<?= json_encode(URL::BASE_URL) ?> + mode, function() {
       $(".loaderDiv").fadeOut("slow");
+    });
+  }
+
+  function aaToast(msg, type) {
+    msg = String(msg || '').trim();
+    if (!msg) return;
+    if (window.MdlToast) {
+      if (type === 'ok' || type === 'success') return MdlToast.ok(msg);
+      if (type === 'error' || type === 'danger') return MdlToast.error(msg);
+      if (type === 'warn' || type === 'warning') return MdlToast.warn(msg);
+      return MdlToast.info(msg);
+    }
+  }
+
+  function aaUpdateTabCount(tabKey, remaining) {
+    var $tab = $('#aa-root a.aa-tab[href$="/' + tabKey + '"]');
+    if (!$tab.length) return;
+    remaining = Math.max(0, parseInt(remaining, 10) || 0);
+    $tab.find('.aa-badge, .aa-ok').remove();
+    if (remaining > 0) {
+      $tab.removeClass('is-done');
+      $tab.append('<span class="aa-badge">' + remaining + '</span>');
+    } else {
+      if (!$tab.hasClass('is-active')) $tab.addClass('is-done');
+      $tab.append('<i class="aa-ok fas fa-check-circle" aria-hidden="true"></i>');
+    }
+    var total = 0;
+    $('#aa-root a.aa-tab .aa-badge').each(function() {
+      total += parseInt($(this).text(), 10) || 0;
+    });
+    $('#aa-root .aa-head-meta').text(total > 0 ? (total + ' pending') : 'Semua bersih');
+  }
+
+  function aaFadeApproveCard($card, tabKey, emptyHtml) {
+    var $grid = $card.closest('.aa-grid');
+    $card.addClass('is-leaving').stop(true, true).fadeOut(320, function() {
+      $(this).remove();
+      var left = $grid.children('.aa-card').length;
+      if (typeof aaUpdateTabCount === 'function') aaUpdateTabCount(tabKey, left);
+      if (left === 0) {
+        $grid.prev('.aa-section-title').remove();
+        $grid.replaceWith(emptyHtml);
+      }
+    });
+  }
+
+  function aaApproveAjax($btn, opts) {
+    opts = opts || {};
+    var $card = $btn.closest('.aa-card');
+    if (!$card.length || $card.hasClass('is-busy') || $card.hasClass('is-leaving')) return;
+    var url = $btn.attr('data-target');
+    var id = $btn.attr('data-id');
+    if (!url || !id) {
+      aaToast('Data aksi tidak lengkap', 'error');
+      return;
+    }
+    $card.addClass('is-busy');
+    $.ajax({
+      url: url,
+      type: 'POST',
+      data: { id: id }
+    }).done(function(res) {
+      var txt = String(res == null ? '' : res).trim();
+      if (txt === '0' || txt === 'success' || txt === '') {
+        aaToast(opts.okMsg || 'Berhasil', 'ok');
+        aaFadeApproveCard($card, opts.tabKey, opts.emptyHtml);
+        return;
+      }
+      $card.removeClass('is-busy');
+      aaToast(txt || (opts.failMsg || 'Gagal memproses'), 'warn');
+    }).fail(function() {
+      $card.removeClass('is-busy');
+      aaToast(opts.failMsg || 'Gagal memproses', 'error');
     });
   }
 </script>

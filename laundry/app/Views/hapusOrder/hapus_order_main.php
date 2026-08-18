@@ -250,12 +250,26 @@ $totalRef = count($byRef);
     }
     #ho-root .ho-pay__row {
       display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 8px;
       font-size: 0.8rem;
       font-weight: 750;
-      padding: 1px 0;
+      padding: 4px 0;
       line-height: 1.4;
+    }
+    #ho-root .ho-pay__row + .ho-pay__row {
+      border-top: 1px dashed #fcd34d;
+    }
+    #ho-root .ho-pay__row > span:first-child {
+      min-width: 0;
+      flex: 1;
+    }
+    #ho-root .ho-pay__side {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
     }
     #ho-root .ho-item {
       border: 1px solid #93c5fd;
@@ -513,10 +527,27 @@ $totalRef = count($byRef);
                   $label = $statusMutasiLabel($sts);
                   $notePay = (string) ($ka['note'] ?? '');
                   $payUser = $userName($ka['id_user'] ?? 0);
+                  $idKas = trim((string) ($ka['id_kas'] ?? ''));
+                  $isQris = strtoupper(trim($notePay)) === 'QRIS';
+                  $payLabel = trim($notePay . ' · ' . $label . ($payUser !== '' ? ' · ' . $payUser : ''));
+                  $payAmount = (float) ($ka['jumlah'] ?? 0);
                 ?>
-                  <div class="ho-pay__row">
-                    <span><?= htmlspecialchars($notePay, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($payUser, ENT_QUOTES, 'UTF-8') ?></span>
-                    <span>Rp<?= number_format((float) ($ka['jumlah'] ?? 0)) ?></span>
+                  <div class="ho-pay__row" data-id-kas="<?= htmlspecialchars($idKas, ENT_QUOTES, 'UTF-8') ?>">
+                    <span><?= htmlspecialchars($payLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="ho-pay__side">
+                      <span>Rp<?= number_format($payAmount) ?></span>
+                      <?php if ($idKas !== '') { ?>
+                        <button type="button"
+                          class="ho-btn ho-btn--danger ho-btn--sm ho-btn--icon ho-btn-hapus-pay"
+                          title="Hapus pembayaran"
+                          data-id-kas="<?= htmlspecialchars($idKas, ENT_QUOTES, 'UTF-8') ?>"
+                          data-qris="<?= $isQris ? '1' : '0' ?>"
+                          data-label="<?= htmlspecialchars($payLabel, ENT_QUOTES, 'UTF-8') ?>"
+                          data-amount="<?= htmlspecialchars((string) number_format($payAmount), ENT_QUOTES, 'UTF-8') ?>">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      <?php } ?>
+                    </span>
                   </div>
                 <?php } ?>
               </div>
@@ -805,6 +836,25 @@ $totalRef = count($byRef);
       okHead: true,
       run: function() {
         postJson(BASE + 'HapusOrder/restoreRef', { ref: ref }, 'Nota dikembalikan');
+      }
+    });
+  });
+
+  $root.on('click', '.ho-btn-hapus-pay', function() {
+    var idKas = $(this).attr('data-id-kas') || '';
+    var label = $(this).attr('data-label') || idKas;
+    var amount = $(this).attr('data-amount') || '';
+    var isQris = $(this).attr('data-qris') === '1';
+    if (!idKas) return;
+    var msg = isQris
+      ? 'Hapus pembayaran QRIS Rp' + amount + '? Status di gateway akan dicek; jika sudah berhasil atau masih aktif, pembayaran tidak dihapus.'
+      : 'Hapus pembayaran ' + label + (amount ? ' Rp' + amount : '') + '?';
+    openConfirm({
+      title: 'Hapus Pembayaran',
+      message: msg,
+      okLabel: 'Ya, Hapus Pembayaran',
+      run: function() {
+        postJson(BASE + 'HapusOrder/hapusPembayaran', { id_kas: idKas }, 'Pembayaran dihapus');
       }
     });
   });

@@ -239,6 +239,99 @@ class HapusOrder extends Controller
    }
 
    /**
+    * Hapus satu pembayaran (kas) dari antrean HapusOrder.
+    * Non-QRIS (tunai/saldo/transfer) boleh dihapus termasuk yang sudah lunas.
+    * QRIS nontunai tetap lewat deleteKasSafe (cek gateway); jika tidak boleh → error + toast.
+    */
+   public function hapusPembayaran()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $idKas = trim((string) ($_POST['id_kas'] ?? ''));
+      if ($idKas === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID pembayaran tidak valid']);
+         return;
+      }
+
+      $db = $this->db(0);
+      $wc = $this->wCabang;
+      $idEsc = $db->escape($idKas);
+      $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 1";
+      $kas = $db->get_where_row('kas', $where);
+      if (!is_array($kas) || empty($kas['id_kas'])) {
+         echo json_encode(['status' => 'error', 'message' => 'Pembayaran tidak ditemukan']);
+         return;
+      }
+
+      $ref = trim((string) ($kas['ref_transaksi'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Pembayaran tidak memiliki REF']);
+         return;
+      }
+      $refEsc = $db->escape($ref);
+      $inQueue = (int) ($db->count_where('sale', $wc . " AND no_ref = '" . $refEsc . "' AND bin = 1") ?? 0);
+      if ($inQueue <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Pembayaran tidak terkait antrean hapus']);
+         return;
+      }
+
+      $isQris = strtoupper(trim((string) ($kas['note'] ?? ''))) === 'QRIS';
+      $kasResult = $this->deleteKasSafe($where, false);
+      if (empty($kasResult['ok'])) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => $kasResult['msg'] !== ''
+               ? $kasResult['msg']
+               : ($kasResult['error'] !== '' ? $kasResult['error'] : 'Gagal hapus pembayaran'),
+         ]);
+         return;
+      }
+
+      $keptPaid = (int) ($kasResult['kept_paid'] ?? 0);
+      $keptPending = (int) ($kasResult['kept_pending'] ?? 0);
+      $keptUnknown = (int) ($kasResult['kept_unknown'] ?? 0);
+      $keptLunas = (int) ($kasResult['kept_lunas'] ?? 0);
+      $kept = $keptPaid + $keptPending + $keptUnknown + $keptLunas;
+      $action = (string) ($kasResult['action'] ?? '');
+      $blocked = $kept > 0 || in_array($action, ['paid', 'blocked', 'lunas', 'partial'], true);
+
+      if ($blocked) {
+         // Tunai/saldo/transfer lunas: di HapusOrder tetap boleh dihapus.
+         // QRIS (nontunai) yang paid/pending/unknown/lunas: ditolak.
+         if (!$isQris && $keptLunas > 0 && $keptPaid === 0 && $keptPending === 0 && $keptUnknown === 0) {
+            $del = $db->delete('kas', $where);
+            if (isset($del['errno']) && (int) $del['errno'] !== 0) {
+               echo json_encode(['status' => 'error', 'message' => $del['error'] ?? 'Gagal hapus pembayaran']);
+               return;
+            }
+            $this->model('Log')->write('[HapusOrder::hapusPembayaran] id_kas=' . $idKas . ' ref=' . $ref . ' (lunas non-QRIS)');
+            echo json_encode(['status' => 'success', 'message' => 'Pembayaran dihapus']);
+            return;
+         }
+
+         $msg = trim((string) ($kasResult['msg'] ?? ''));
+         if ($msg === '') {
+            if ($keptPaid > 0 || $keptLunas > 0 || $action === 'paid' || $action === 'lunas') {
+               $msg = 'Pembayaran QRIS sudah berhasil — tidak bisa dihapus';
+            } elseif ($keptPending > 0) {
+               $msg = 'Pembayaran QRIS masih pending — tidak bisa dihapus';
+            } else {
+               $msg = 'Pembayaran tidak bisa dihapus';
+            }
+         }
+         echo json_encode(['status' => 'error', 'message' => $msg]);
+         return;
+      }
+
+      if ((int) ($kasResult['deleted'] ?? 0) <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Pembayaran tidak dihapus']);
+         return;
+      }
+
+      $this->model('Log')->write('[HapusOrder::hapusPembayaran] id_kas=' . $idKas . ' ref=' . $ref);
+      echo json_encode(['status' => 'success', 'message' => 'Pembayaran dihapus']);
+   }
+
+   /**
     * Hapus satu baris penyelesai (operasi) dari antrean HapusOrder.
     */
    public function hapusOperasi()

@@ -22,21 +22,29 @@ class Pengeluaran extends Controller
 
    public function operasi($tipe)
    {
-      $id = $_POST['id'];
-      $set = [
-         'status_mutasi' => $tipe
-      ];
-
-      $where = $this->wCabang . " AND id_kas = '" . $id . "'";
-      $count = $this->db(0)->count_where('kas', $where);
-      if ($count == 0) {
-         echo $id;
+      $tipe = (int) $tipe;
+      if (!in_array($tipe, [3, 4], true)) {
+         echo 'Tipe tidak valid';
          return;
       }
 
-      $up = $this->db(0)->update('kas', $set, $where);
+      $id = trim((string) ($_POST['id'] ?? ''));
+      if ($id === '' || !preg_match('/^[A-Za-z0-9]+$/', $id)) {
+         echo 'ID tidak valid';
+         return;
+      }
+
+      $idEsc = $this->db(0)->escape($id);
+      $where = $this->wCabang . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 4 AND status_mutasi = 2";
+      $count = $this->db(0)->count_where('kas', $where);
+      if ($count == 0) {
+         echo 'Pengeluaran tidak ditemukan atau sudah diproses';
+         return;
+      }
+
+      $up = $this->db(0)->update('kas', ['status_mutasi' => $tipe], $where);
       if ($up['errno'] == 0) {
-         echo "success";
+         echo '0';
       } else {
          echo $up['error'];
       }

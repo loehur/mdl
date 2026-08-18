@@ -13,7 +13,8 @@ foreach ((array) ($data['list'] ?? []) as $a) {
   <div class="aa-section-title">Menunggu konfirmasi</div>
   <div class="aa-grid">
     <?php foreach ($pending as $a) {
-      $id = $a['id_kas'];
+      $id = (string) ($a['id_kas'] ?? '');
+      $idAttr = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
       $f1 = $a['insertTime'];
       $f2 = $a['note'];
       $f3 = $a['id_user'];
@@ -26,12 +27,12 @@ foreach ((array) ($data['list'] ?? []) as $a) {
       }
     ?>
       <div class="aa-card aa-card--pending">
-        <div class="aa-card__meta">#<?= (int) $id ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?> · <?= date('d/m/Y H:i', strtotime($f1)) ?></div>
+        <div class="aa-card__meta">#<?= $idAttr ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?> · <?= date('d/m/Y H:i', strtotime($f1)) ?></div>
         <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $f2), ENT_QUOTES, 'UTF-8') ?></div>
         <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
         <div class="aa-actions">
-          <span class="aa-btn aa-btn--danger nTunai" role="button" data-id="<?= (int) $id ?>" data-target="<?= URL::BASE_URL ?>Setoran/operasi/4">Tolak</span>
-          <span class="aa-btn aa-btn--ok nTunai" role="button" data-id="<?= (int) $id ?>" data-target="<?= URL::BASE_URL ?>Setoran/operasi/3">Konfirmasi</span>
+          <span class="aa-btn aa-btn--danger nTunai" role="button" data-id="<?= $idAttr ?>" data-target="<?= URL::BASE_URL ?>Setoran/operasi/4">Tolak</span>
+          <span class="aa-btn aa-btn--ok nTunai" role="button" data-id="<?= $idAttr ?>" data-target="<?= URL::BASE_URL ?>Setoran/operasi/3">Konfirmasi</span>
         </div>
       </div>
     <?php } ?>
@@ -53,7 +54,8 @@ foreach ((array) ($data['list'] ?? []) as $a) {
       }
       $cardCls = $sts === 3 ? 'aa-card--ok' : ($sts === 4 ? 'aa-card--fail' : '');
       $statusCls = $sts === 3 ? 'is-ok' : ($sts === 4 ? 'is-fail' : '');
-      $id = $a['id_kas'];
+      $id = (string) ($a['id_kas'] ?? '');
+      $idAttr = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
       $f1 = $a['insertTime'];
       $f2 = $a['note'];
       $f3 = $a['id_user'];
@@ -66,7 +68,7 @@ foreach ((array) ($data['list'] ?? []) as $a) {
       }
     ?>
       <div class="aa-card <?= $cardCls ?>">
-        <div class="aa-card__meta">#<?= (int) $id ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?> · <?= date('d/m/Y H:i', strtotime($f1)) ?></div>
+        <div class="aa-card__meta">#<?= $idAttr ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?> · <?= date('d/m/Y H:i', strtotime($f1)) ?></div>
         <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $f2), ENT_QUOTES, 'UTF-8') ?></div>
         <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
         <div class="aa-card__status <?= $statusCls ?>"><?= htmlspecialchars((string) $stBayar, ENT_QUOTES, 'UTF-8') ?></div>
@@ -76,15 +78,15 @@ foreach ((array) ($data['list'] ?? []) as $a) {
 <?php } ?>
 
 <script>
-  $("span.nTunai").on("click", function(e) {
+  $("#load").off("click.aaSetoran").on("click.aaSetoran", "span.nTunai", function(e) {
     e.preventDefault();
-    $.ajax({
-      url: $(this).attr("data-target"),
-      data: { id: $(this).attr('data-id') },
-      type: "POST",
-      success: function() {
-        location.reload(true);
-      },
+    var $btn = $(this);
+    var isOk = $btn.hasClass("aa-btn--ok");
+    aaApproveAjax($btn, {
+      tabKey: "Setoran",
+      okMsg: isOk ? "Setoran dikonfirmasi" : "Setoran ditolak",
+      failMsg: isOk ? "Gagal konfirmasi setoran" : "Gagal menolak setoran",
+      emptyHtml: '<div class="aa-empty" style="margin-bottom:14px"><i class="fas fa-check-circle"></i>Tidak ada setoran pending</div>'
     });
   });
 </script>
