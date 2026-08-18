@@ -175,9 +175,9 @@ class Fonnte extends Controller
             $qrHint = null;
             if (!$connected && ($qr === null || $qr === '')) {
                 if ($state === 'connecting') {
-                    $qrHint = 'Sedang menghubungkan sesi lama. Jika QR tidak muncul dalam 30 detik, klik Logout / Scan ulang.';
+                    $qrHint = 'Menunggu QR dari server… Jika tidak muncul dalam 30 detik, klik Logout / Scan ulang.';
                 } else {
-                    $qrHint = 'QR belum tersedia. Pastikan fonnte_server jalan, lalu klik Logout / Scan ulang.';
+                    $qrHint = 'QR belum tersedia. Klik Logout / Scan ulang, atau restart fonnte_server di aaPanel.';
                 }
             }
 
@@ -276,7 +276,8 @@ class Fonnte extends Controller
 
             $fonnte = new FonnteService();
             $res = $fonnte->gatewayLogout();
-            $ok = !empty($res['success']);
+            $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+            $ok = !empty($res['success']) || !empty($data['ok']) || !empty($data['status']);
 
             if (!$ok) {
                 http_response_code(502);
@@ -285,9 +286,9 @@ class Fonnte extends Controller
             echo json_encode([
                 'ok' => $ok,
                 'message' => $ok
-                    ? ($res['data']['message'] ?? 'Sesi direset — scan QR baru')
+                    ? ($data['message'] ?? 'Sesi direset — scan QR baru')
                     : ($res['error'] ?? 'Gagal reset sesi'),
-                'data' => $res['data'] ?? null,
+                'data' => $data ?: null,
             ], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             http_response_code(500);

@@ -404,8 +404,17 @@
     }
   });
 
+  function wgToast(msg, type) {
+    if (window.MdlToast) {
+      if (type === 'ok' && MdlToast.ok) return MdlToast.ok(msg);
+      if (type === 'error' && MdlToast.error) return MdlToast.error(msg);
+      if (MdlToast.info) return MdlToast.info(msg);
+    }
+  }
+
   function doLogout() {
     lastQrRendered = '';
+    setQrPlaceholder('Mereset sesi WhatsApp…');
     $.ajax({
       url: logoutUrl,
       method: 'POST',
@@ -415,14 +424,16 @@
       timeout: 30000
     }).done(function (res) {
       if (res && res.ok) {
-        if (typeof MdlToast !== 'undefined') MdlToast('Sesi direset — scan QR baru', 'ok');
-        refreshStatus();
-        startPoll();
+        wgToast('Sesi direset — tunggu QR baru muncul', 'ok');
+        setTimeout(function () {
+          refreshStatus();
+          startPoll();
+        }, 2000);
       } else {
-        showError((res && res.message) || 'Logout gagal');
+        showError((res && res.message) || 'Logout gagal — coba reset manual di VPS: rm -rf node/fonnte_server/auth/*');
       }
     }).fail(function () {
-      showError('Logout gagal — cek koneksi API');
+      showError('Logout gagal — cek API/fonnte_server. Manual: rm -rf node/fonnte_server/auth/* lalu restart pm2');
     });
   }
 

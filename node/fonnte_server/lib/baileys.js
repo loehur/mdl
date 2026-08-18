@@ -9,6 +9,8 @@ const {
   downloadMediaMessage,
   getContentType,
   jidNormalizedUser,
+  fetchLatestBaileysVersion,
+  Browsers,
 } = require('@whiskeysockets/baileys');
 
 const { nextInboxId } = require('./inbox');
@@ -23,12 +25,22 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
 let sock = null;
 let connectionState = 'close';
 let lastQr = null;
+let sockGeneration = 0;
 /** @type {Map<string, { resolve: Function, reject: Function, timer: NodeJS.Timeout }>} */
 const pendingOutStatus = new Map();
 
 function ensureAuthDir() {
   if (!fs.existsSync(AUTH_DIR)) {
     fs.mkdirSync(AUTH_DIR, { recursive: true });
+  }
+}
+
+function authDirIsEmpty() {
+  try {
+    if (!fs.existsSync(AUTH_DIR)) return true;
+    return fs.readdirSync(AUTH_DIR).length === 0;
+  } catch (_) {
+    return true;
   }
 }
 
@@ -49,10 +61,13 @@ function getDeviceJid() {
 }
 
 function getDeviceNumber() {
-  const env = String(process.env.DEVICE_NUMBER || '').trim();
-  if (env) return env;
   const jid = getDeviceJid();
-  return jid ? deviceDisplayNumber(jid) : '';
+  if (jid) return deviceDisplayNumber(jid);
+  if (connectionState === 'open') {
+    const env = String(process.env.DEVICE_NUMBER || '').trim();
+    if (env) return env;
+  }
+  return '';
 }
 
 async function sendStatusWebhook(fields) {
@@ -275,13 +290,56 @@ async function handleMessageUpdates(updates) {
   }
 }
 
-/** True saat logout manual — cegah auto-reconnect sebelum start ulang. */
+/** True saat logout/restart — cegah auto-reconnect socket lama. */
 let preventReconnect = false;
+
+/** Cegah double socket saat restart cepat. */
+let isStarting = false;
+let restartTimer = null;
+
+function clearRestartTimer() {
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+}
+
+function scheduleRestart(delayMs, reason) {
+  if (preventReconnect || isStarting) return;
+  clearRestartTimer();
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    if (connectionState === 'open' || lastQr) return;
+    console.warn('[fonnte_server] restart Baileys:', reason);
+    startBaileys().catch(console.error);
+  }, delayMs);
+}
+
+async function destroySocket() {
+  const old = sock;
+  sock = null;
+  if (!old) return;
+  try {
+    old.ev.removeAllListeners('connection.update');
+    old.ev.removeAllListeners('creds.update');
+    old.ev.removeAllListeners('messages.upsert');
+    old.ev.removeAllListeners('messages.update');
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    old.end(undefined);
+  } catch (_) {
+    /* ignore */
+  }
+}
 
 async function logoutBaileys() {
   preventReconnect = true;
+  clearRestartTimer();
   connectionState = 'close';
   lastQr = null;
+  sockGeneration += 1;
 
   if (sock) {
     try {
@@ -289,13 +347,8 @@ async function logoutBaileys() {
     } catch (_) {
       /* ignore */
     }
-    try {
-      sock.end(undefined);
-    } catch (_) {
-      /* ignore */
-    }
-    sock = null;
   }
+  await destroySocket();
 
   try {
     if (fs.existsSync(AUTH_DIR)) {
@@ -309,58 +362,103 @@ async function logoutBaileys() {
   }
 
   preventReconnect = false;
-  setTimeout(() => startBaileys().catch(console.error), 1500);
+  await new Promise((r) => setTimeout(r, 800));
+  await startBaileys();
   return { status: true, message: 'Session reset — scan QR baru' };
 }
 
 async function startBaileys() {
-  ensureAuthDir();
-  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  if (isStarting) return;
+  isStarting = true;
+  clearRestartTimer();
 
-  sock = makeWASocket({
-    auth: state,
-    logger,
-    printQRInTerminal: false,
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
-    generateHighQualityLinkPreview: false,
-  });
+  try {
+    await destroySocket();
+    sockGeneration += 1;
+    const generation = sockGeneration;
 
-  sock.ev.on('creds.update', saveCreds);
+    ensureAuthDir();
+    const { version } = await fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      lastQr = qr;
-      console.log('\n[fonnte_server] Scan QR WhatsApp:\n');
-      qrcode.generate(qr, { small: true });
-    }
-    if (connection === 'connecting') {
-      connectionState = 'connecting';
-    }
-    if (connection === 'open') {
-      connectionState = 'open';
-      lastQr = null;
-      const num = getDeviceNumber();
-      console.log('[fonnte_server] WhatsApp connected', num || sock?.user?.id || '');
-      await sendStatusWebhook({ status: 'connect' });
-    }
-    if (connection === 'close') {
-      connectionState = 'close';
-      const code = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = !preventReconnect && code !== DisconnectReason.loggedOut;
-      console.warn('[fonnte_server] connection closed', code, shouldReconnect ? 'reconnecting…' : 'logged out');
-      await sendStatusWebhook({ status: 'disconnect' });
-      if (shouldReconnect) {
-        setTimeout(() => startBaileys().catch(console.error), 3000);
-      } else {
-        sock = null;
+    connectionState = 'connecting';
+    lastQr = null;
+
+    const socket = makeWASocket({
+      version,
+      auth: state,
+      logger,
+      browser: Browsers.ubuntu('Chrome'),
+      syncFullHistory: false,
+      markOnlineOnConnect: false,
+      generateHighQualityLinkPreview: false,
+    });
+
+    sock = socket;
+
+    socket.ev.on('creds.update', saveCreds);
+
+    socket.ev.on('connection.update', async (update) => {
+      if (generation !== sockGeneration) return;
+
+      const { connection, lastDisconnect, qr } = update;
+      if (qr) {
+        lastQr = qr;
+        connectionState = 'connecting';
+        clearRestartTimer();
+        console.log('[fonnte_server] QR ready — scan via Tools → WhatsApp');
+        qrcode.generate(qr, { small: true });
       }
-    }
-  });
+      if (connection === 'connecting') {
+        connectionState = 'connecting';
+      }
+      if (connection === 'open') {
+        connectionState = 'open';
+        lastQr = null;
+        clearRestartTimer();
+        const num = getDeviceNumber();
+        console.log('[fonnte_server] WhatsApp connected', num || socket?.user?.id || '');
+        await sendStatusWebhook({ status: 'connect' });
+      }
+      if (connection === 'close') {
+        if (generation !== sockGeneration) return;
 
-  sock.ev.on('messages.upsert', handleIncomingMessages);
-  sock.ev.on('messages.update', handleMessageUpdates);
+        connectionState = 'close';
+        lastQr = null;
+        const code = lastDisconnect?.error?.output?.statusCode;
+        const loggedOut = code === DisconnectReason.loggedOut;
+        const needsQr = authDirIsEmpty();
+        const shouldReconnect = !preventReconnect && !loggedOut;
+        console.warn(
+          '[fonnte_server] connection closed',
+          code,
+          shouldReconnect ? 'reconnecting…' : needsQr ? 'need QR' : 'logged out'
+        );
+        await sendStatusWebhook({ status: 'disconnect' });
+
+        await destroySocket();
+
+        if (shouldReconnect) {
+          scheduleRestart(3000, 'disconnect');
+        } else if (needsQr && !preventReconnect) {
+          scheduleRestart(1500, 'logged out / empty auth');
+        }
+      }
+    });
+
+    socket.ev.on('messages.upsert', handleIncomingMessages);
+    socket.ev.on('messages.update', handleMessageUpdates);
+
+    if (authDirIsEmpty()) {
+      scheduleRestart(25000, 'QR timeout watchdog');
+    }
+  } catch (err) {
+    console.error('[fonnte_server] startBaileys failed:', err.message || err);
+    connectionState = 'close';
+    scheduleRestart(5000, 'start error');
+  } finally {
+    isStarting = false;
+  }
 }
 
 /**
@@ -405,7 +503,6 @@ async function sendViaBaileys({ jid, message, url, filename, inboxid }) {
   }
 
   if (inboxid && content.text === undefined && text) {
-    // quote reply via contextInfo when inboxid provided (best-effort)
     content.contextInfo = { ...(content.contextInfo || {}), stanzaId: String(inboxid) };
   }
 
