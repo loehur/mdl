@@ -289,15 +289,21 @@ class Chat extends Controller
             return [];
         }
 
+        // delivery_request ada di mdl_laundry (db index 1), bukan mdl_main (db index 0)
+        $dbLaundry = $this->db(1);
         $placeholders = implode(',', array_fill(0, count($custIds), '?'));
-        $rows = $db->query(
-            "SELECT cust_id
-             FROM delivery_request
-             WHERE cust_id IN ($placeholders)
-               AND delivery_status IN ('berjalan','menunggu_pembayaran')
-             GROUP BY cust_id",
-            $custIds
-        )->result_array();
+        try {
+            $rows = $dbLaundry->query(
+                "SELECT cust_id
+                 FROM delivery_request
+                 WHERE cust_id IN ($placeholders)
+                   AND delivery_status IN ('berjalan','menunggu_pembayaran')
+                 GROUP BY cust_id",
+                $custIds
+            )->result_array();
+        } catch (\Throwable $e) {
+            return [];
+        }
 
         $map = [];
         foreach ($rows as $row) {
@@ -313,6 +319,7 @@ class Chat extends Controller
     /**
      * Fetch wa_permintaan_session yang masih aktif (status='open' + notify_expires_at > NOW()).
      * Return map: wa_number (tanpa leading '+') => true.
+     * Tabel ada di mdl_laundry (db index 1).
      */
     private function fetchActivePermintaanMap($db, array $phones): array
     {
@@ -327,9 +334,11 @@ class Chat extends Controller
             return [];
         }
 
+        // wa_permintaan_session ada di mdl_laundry (db index 1)
+        $dbLaundry = $this->db(1);
         $placeholders = implode(',', array_fill(0, count($phones), '?'));
         try {
-            $rows = $db->query(
+            $rows = $dbLaundry->query(
                 "SELECT phone
                  FROM wa_permintaan_session
                  WHERE status = 'open'
@@ -339,7 +348,7 @@ class Chat extends Controller
                 $phones
             )->result_array();
         } catch (\Throwable $e) {
-            // tabel belum ada / DB berbeda
+            // tabel belum ada
             return [];
         }
 
