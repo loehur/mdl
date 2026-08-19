@@ -7572,6 +7572,122 @@ class WAReplies
     /**
      * Nama blok === INTENT === yang instruksi AI-nya dipakai untuk menentukan intent.
      */
+    private function buildAiIntentClassifierPrompt(string $textBody, array $keywordConfig): string
+    {
+        $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan ke SATU kategori.\n\n";
+        $prompt .= "ATURAN TRUE/FALSE (WAJIB — BACA SEBELUM MEMILIH INTENT):\n";
+        $prompt .= "1. Definisi intent HANYA dari teks di blok === NAMA === (field ai_prompt database). Jangan infer dari nama blok (TERKE, KURIR, dll.).\n";
+        $prompt .= "2. PRIORITAS FALSE (PALING TINGGI): Sebelum menetapkan intent apapun, periksa SEMUA blok. Jika pesan memenuhi syarat FALSE di blok manapun, intent WAJIB \"FALSE\" — meskipun pesan juga cocok dengan TRUE di blok lain.\n";
+        $prompt .= "3. FALSE menang atas TRUE. Jika FALSE dan TRUE keduanya bisa dibaca, pilih FALSE.\n";
+        $prompt .= "4. TRUE hanya jika syarat TRUE di blok terpenuhi DAN tidak ada FALSE di blok manapun yang match.\n";
+        $prompt .= "5. Blok ideal memakai format: \"TRUE jika:\" (syarat masuk intent) dan \"FALSE jika:\" (syarat tolak). Ikuti contoh/frasa di FALSE secara harfiah.\n";
+        $prompt .= "6. Jika tidak ada TRUE yang jelas dan tidak ada FALSE spesifik yang match → intent=FALSE.\n";
+        $prompt .= "7. Jangan memperluas kategori; jangan mengarang label di luar daftar blok.\n\n";
+
+        foreach ($keywordConfig as $category => $config) {
+            $aiPrompt = trim((string) ($config['ai_prompt'] ?? ''));
+            if ($aiPrompt === '') {
+                continue;
+            }
+            $prompt .= "=== {$category} ===\n{$aiPrompt}\n\n";
+        }
+
+        $prompt .= "=== FALSE ===\nTidak termasuk kategori di atas (termasuk jika ada FALSE match di blok manapun).\n\n";
+        $prompt .= "ATURAN WAJIB OUTPUT:\n";
+        $prompt .= "- field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar blok di atas, atau FALSE. Jangan mengarang label (PERTANYAAN, PERTANYAAN_UMUM, dll.).\n";
+        $prompt .= "- Field \"ask\" (boolean, wajib): true jika pesan pertanyaan/permintaan butuh respon CS; false jika info/ack/cerita tanpa minta aksi.\n";
+        $prompt .= "- ask=true: bertanya (ada/tidak ada tanda ?), minta bantuan/cek/info/kabari/tolong/komplain.\n";
+        $prompt .= "- ask=false: info saja (otw, daftar item tanpa minta aksi), ack singkat (ok/siap/baik), cerita sosial.\n";
+        $prompt .= "- Field \"from_block\" (wajib): blok === NAMA === yang aturan TRUE/FALSE-nya Anda pakai.\n";
+        $prompt .= "- Jika intent=FALSE karena FALSE di blok === X === → from_block=X (bukan FALSE kecuali tidak ada blok spesifik).\n";
+        $prompt .= "- Jika intent=HARGA karena blok === BONEKA === menulis \"tanya harga boneka → HARGA\" → from_block=BONEKA.\n";
+        $prompt .= "- from_block harus PERSIS nama blok di daftar, atau FALSE.\n\n";
+        $prompt .= "Pesan: \"{$textBody}\"\n";
+        $prompt .= "JAWAB HANYA JSON SATU OBJEK (tanpa markdown, tanpa teks lain).\n";
+        $prompt .= "reason maksimal 12 kata, tanpa tanda kutip ganda.\n";
+        $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"alasan singkat\"}\n";
+        $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false. from_block wajib diisi.";
+
+        return $prompt;
+    }
+
+    /**
+     * PHP enforcement: FALSE priority — scan contoh/frasa di bagian FALSE tiap ai_prompt.
+     * @return array{from_block:string,reason:string}|null
+     */
+    private function applyAiFalsePriorityOverride(string $textBody, string $intent, array $keywordConfig): ?array
+    {
+        if ($intent === '' || $intent === 'FALSE') {
+            return null;
+        }
+        $textNorm = mb_strtolower(trim($textBody), 'UTF-8');
+        if ($textNorm === '') {
+            return null;
+        }
+        foreach ($keywordConfig as $code => $config) {
+            $aiPrompt = trim((string) ($config['ai_prompt'] ?? ''));
+            if ($aiPrompt === '') {
+                continue;
+            }
+            foreach ($this->extractFalseMatchPhrasesFromAiPrompt($aiPrompt) as $phrase) {
+                $phraseNorm = mb_strtolower(trim($phrase), 'UTF-8');
+                if ($phraseNorm === '' || mb_strlen($phraseNorm) < 4) {
+                    continue;
+                }
+                if (mb_stripos($textNorm, $phraseNorm) !== false) {
+                    return [
+                        'from_block' => (string) $code,
+                        'reason' => 'false_priority ' . $code . ' phrase=' . mb_substr($phrase, 0, 48),
+                    ];
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ambil frasa contoh dari bagian FALSE di ai_prompt (kutip, pipe, atau baris FALSE jika).
+     * @return list<string>
+     */
+    private function extractFalseMatchPhrasesFromAiPrompt(string $aiPrompt): array
+    {
+        $phrases = [];
+        $lines = preg_split('/\r\n|\r|\n/', $aiPrompt) ?: [];
+        $inFalse = false;
+        foreach ($lines as $line) {
+            $trim = trim($line);
+            if ($trim === '') {
+                continue;
+            }
+            if (preg_match('/^(TRUE\s*:|TRUE\s+jika)/iu', $trim)) {
+                $inFalse = false;
+                continue;
+            }
+            if (preg_match('/^(FALSE\s*:|FALSE\s+jika|Contoh\s+FALSE)/iu', $trim)) {
+                $inFalse = true;
+            } elseif (preg_match('/\bFALSE\s+jika\b/iu', $trim)) {
+                $inFalse = true;
+            }
+            if (!$inFalse) {
+                continue;
+            }
+            if (preg_match_all('/["\']([^"\']{3,120})["\']/', $trim, $quoted)) {
+                foreach ($quoted[1] as $p) {
+                    $phrases[] = trim($p);
+                }
+            }
+            if (preg_match_all('/\|\s*([^|]{3,120}?)\s*\|/u', $trim, $piped)) {
+                foreach ($piped[1] as $p) {
+                    $p = trim($p);
+                    if ($p !== '' && !preg_match('/^(FALSE|TRUE)$/iu', $p)) {
+                        $phrases[] = $p;
+                    }
+                }
+            }
+        }
+        return array_values(array_unique(array_filter($phrases, static fn ($p) => trim($p) !== '')));
+    }
+
     private function normalizeAiFromBlock($raw, array $keywordConfig, string $fallbackIntent): string
     {
         $block = trim(strtoupper((string) $raw));
@@ -7786,32 +7902,7 @@ class WAReplies
             }
             $keywordConfig = $this->filterKeywordConfigBySenderGate($keywordConfig);
 
-            // Klasifikasi: definisi intent HANYA dari ai_prompt DB. Format JSON + ask tetap di kode.
-            $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan ke SATU kategori.\n";
-            $prompt .= "Definisi tiap kategori HANYA dari teks di blok === NAMA === (field ai_prompt database). Ikuti syarat TRUE/FALSE di situ secara harfiah. Jangan menambah arti, jangan perluas kategori.\n\n";
-
-            foreach ($keywordConfig as $category => $config) {
-                $aiPrompt = trim((string) ($config['ai_prompt'] ?? ''));
-                if ($aiPrompt === '') {
-                    continue;
-                }
-                $prompt .= "=== {$category} ===\n{$aiPrompt}\n\n";
-            }
-
-            $prompt .= "=== FALSE ===\nTidak termasuk kategori di atas.\n\n";
-            $prompt .= "ATURAN WAJIB: field \"intent\" HANYA boleh berisi nama kategori yang PERSIS ada di daftar di atas, atau FALSE. Jangan mengarang label seperti PERTANYAAN, PERTANYAAN_UMUM, atau kategori lain yang tidak tercantum.\n";
-            $prompt .= "Field \"ask\" (boolean, wajib): true jika pesan adalah PERTANYAAN atau PERMINTAAN yang butuh respon CS; false jika hanya info/pemberitahuan/ack/omongan biasa tanpa minta aksi.\n";
-            $prompt .= "ask=true: bertanya (ada/tidak ada tanda ?), minta bantuan/cek/info/kabari/tolong/komplain.\n";
-            $prompt .= "ask=false: info saja (otw, daftar item tanpa minta aksi), ack singkat (ok/siap/baik), cerita sosial.\n";
-            $prompt .= "Field \"from_block\" (wajib): nama blok === NAMA === yang INSTRUKSINYA kamu pakai untuk menentukan intent.\n";
-            $prompt .= "- Jika intent HARGA karena teks di blok === HARGA === → from_block=HARGA.\n";
-            $prompt .= "- Jika intent HARGA karena blok lain (mis. === BONEKA ===) menulis \"tanya harga boneka → HARGA\" → from_block=BONEKA (bukan HARGA).\n";
-            $prompt .= "- from_block harus PERSIS nama blok di daftar, atau FALSE. Boleh berbeda dari field intent.\n";
-            $prompt .= "Pesan: \"{$textBody}\"\n";
-            $prompt .= "JAWAB HANYA JSON SATU OBJEK (tanpa markdown, tanpa teks lain).\n";
-            $prompt .= "reason maksimal 12 kata, tanpa tanda kutip ganda.\n";
-            $prompt .= "{\"intent\": \"NAMA_KATEGORI\", \"ask\": true, \"from_block\": \"NAMA_BLOK\", \"reason\": \"alasan singkat\"}\n";
-            $prompt .= "Kategori harus salah satu dari daftar di atas atau FALSE. ask harus true atau false. from_block wajib diisi.";
+            $prompt = $this->buildAiIntentClassifierPrompt($textBody, $keywordConfig);
 
             $this->logAutoreplyTrace($waNumber, 'AI_REQUEST', \App\Config\AI::describePriority());
             $response = $this->callOpenAI($prompt, $waNumber);
@@ -7852,6 +7943,18 @@ class WAReplies
                 $intent
             );
             $aiIntentRaw = $intent;
+
+            $falseOverride = $this->applyAiFalsePriorityOverride($textBody, $intent, $keywordConfig);
+            if ($falseOverride !== null) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'AI_FALSE_PRIORITY',
+                    $falseOverride['reason'] . ' was=' . $aiIntentRaw
+                );
+                $intent = 'FALSE';
+                $fromBlock = $falseOverride['from_block'];
+                $reason = $falseOverride['reason'];
+            }
 
             if (in_array($intent, ['SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE'], true)
                 && isset($keywordConfig['SALDO'])) {

@@ -424,6 +424,7 @@ class IntentTeachHelper
             . "JANGAN hanya menambahkan satu baris pengecualian di akhir prompt.\n"
             . "Pertahankan seluruh aturan/contoh yang masih relevan; ubah atau tambahkan aturan FALSE pada bagian yang tepat agar batas intent jelas.\n"
             . "Gunakan struktur yang rapi dan konsisten: TRUE jika: dan FALSE jika:.\n"
+            . "PRIORITAS FALSE: jika pesan match contoh/frasa di bagian FALSE, intent harus FALSE (FALSE menang atas TRUE).\n"
             . "Jangan mengarahkan ke intent lain; untuk kasus yang tidak cocok cukup tulis FALSE.\n"
             . "Balas HANYA JSON valid tanpa markdown:\n"
             . '{"proposed_prompt":"isi ai_prompt lengkap hasil revisi","reason":"perubahan inti secara singkat"}';
