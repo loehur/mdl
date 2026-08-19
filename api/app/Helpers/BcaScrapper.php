@@ -91,6 +91,73 @@ class BcaScrapper
     }
 
     /**
+     * Pangkas rentang scrape: lewati tanggal yang sudah punya data di DB, kecuali hari ini.
+     *
+     * @return array{skip:bool,start?:string,end?:string,trimmed?:bool,reason?:string}
+     */
+    public static function trimFetchRangeByDb($db, string $startYmd, string $endYmd): array
+    {
+        $clamped = self::clampDateRange($startYmd, $endYmd);
+        if (empty($clamped['valid'])) {
+            return [
+                'skip' => true,
+                'reason' => (string) ($clamped['reason'] ?? 'invalid_range'),
+            ];
+        }
+
+        $start = (string) $clamped['start'];
+        $end = (string) $clamped['end'];
+        $today = date('Y-m-d');
+
+        $fetchStart = null;
+        for ($d = $start; $d <= $end; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            if ($d === $today) {
+                $fetchStart = $today;
+                break;
+            }
+            if (!self::hasMutasiForDate($db, $d)) {
+                $fetchStart = $d;
+                break;
+            }
+        }
+
+        if ($fetchStart === null) {
+            return [
+                'skip' => true,
+                'reason' => 'range_already_synced',
+                'start' => $start,
+                'end' => $end,
+            ];
+        }
+
+        $fetchEnd = $fetchStart === $today ? $today : $end;
+
+        return [
+            'skip' => false,
+            'start' => $fetchStart,
+            'end' => $fetchEnd,
+            'trimmed' => $fetchStart > $start || $fetchEnd < $end,
+        ];
+    }
+
+    /**
+     * Apakah tanggal sudah punya minimal satu mutasi tersimpan (tanggal_iso).
+     */
+    public static function hasMutasiForDate($db, string $ymd): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) {
+            return false;
+        }
+
+        $row = $db->query(
+            'SELECT 1 FROM bca_mutasi WHERE tanggal_iso = ? LIMIT 1',
+            [$ymd]
+        )->row_array();
+
+        return is_array($row) && !empty($row);
+    }
+
+    /**
      * Hitung rentang fetch berdasarkan tanggal terakhir di DB.
      *
      * @return array{skip:bool,start?:string,end?:string,has_more?:bool,reason?:string}
@@ -100,29 +167,16 @@ class BcaScrapper
         $today = date('Y-m-d');
         $minStart = date('Y-m-d', strtotime('-' . self::MAX_LOOKBACK_DAYS . ' days'));
 
-        $row = $db->query(
-            'SELECT MAX(tanggal_iso) AS latest FROM bca_mutasi WHERE tanggal_iso IS NOT NULL'
-        )->row_array();
-
-        $latest = isset($row['latest']) && $row['latest'] !== '' ? (string) $row['latest'] : null;
-
-        if ($latest !== null) {
-            $start = date('Y-m-d', strtotime($latest . ' +1 day'));
-        } else {
-            $start = $minStart;
+        $trimmed = self::trimFetchRangeByDb($db, $minStart, $today);
+        if (!empty($trimmed['skip'])) {
+            return [
+                'skip' => true,
+                'reason' => (string) ($trimmed['reason'] ?? 'already_synced'),
+            ];
         }
 
-        if ($start < $minStart) {
-            $start = $minStart;
-        }
-
-        $end = $today;
-
-        // Sudah ada data hari ini → tetap fetch hari ini (transaksi baru), dedup per baris
-        if ($start > $end) {
-            $start = $today;
-            $end = $today;
-        }
+        $start = (string) $trimmed['start'];
+        $end = (string) $trimmed['end'];
 
         $totalDays = self::daysBetween($start, $end) + 1;
         $hasMore = $totalDays > self::MAX_RANGE_DAYS;
@@ -225,11 +279,12 @@ class BcaScrapper
 
     /**
      * @param array<int,array<string,mixed>> $rows
-     * @return array{inserted:int,skipped_dup:int}
+     * @return array{inserted:int,updated:int,skipped_dup:int}
      */
     public static function saveMutasiRows($db, array $rows): array
     {
         $inserted = 0;
+        $updated = 0;
         $skippedDup = 0;
 
         foreach ($rows as $row) {
@@ -238,7 +293,7 @@ class BcaScrapper
             }
 
             $tanggal = trim((string) ($row['tanggal'] ?? ''));
-            $keterangan = trim((string) ($row['keterangan'] ?? ''));
+            $keterangan = self::normalizeKeterangan((string) ($row['keterangan'] ?? ''));
             $mutasi = strtoupper(trim((string) ($row['mutasi'] ?? '')));
             $nominal = self::normalizeNominal($row['nominal'] ?? 0);
 
@@ -248,6 +303,22 @@ class BcaScrapper
 
             $tanggalIso = self::parseTanggalIso($tanggal);
             $fingerprint = self::fingerprint($tanggal, $keterangan, $nominal, $mutasi);
+            $reconcileKey = self::reconcileKey($keterangan, $nominal, $mutasi);
+            $isPosted = strtoupper($tanggal) !== 'PEND' && $tanggalIso !== null;
+
+            if ($isPosted && self::upgradePendingMutasi(
+                $db,
+                $reconcileKey,
+                $tanggal,
+                $tanggalIso,
+                $fingerprint,
+                $keterangan,
+                $nominal,
+                $mutasi
+            )) {
+                $updated++;
+                continue;
+            }
 
             $db->insertIgnore('bca_mutasi', [
                 'tanggal' => $tanggal,
@@ -256,19 +327,107 @@ class BcaScrapper
                 'nominal' => $nominal,
                 'mutasi' => $mutasi,
                 'fingerprint' => $fingerprint,
+                'reconcile_key' => $reconcileKey,
             ]);
 
             if ($db->conn()->affected_rows > 0) {
                 $inserted++;
-            } else {
-                $skippedDup++;
+                continue;
+            }
+
+            $skippedDup++;
+            if ($isPosted) {
+                self::purgeOrphanPendingMutasi($db, $reconcileKey);
             }
         }
 
         return [
             'inserted' => $inserted,
+            'updated' => $updated,
             'skipped_dup' => $skippedDup,
         ];
+    }
+
+    /**
+     * Upgrade baris PEND → posted (tanggal pasti) jika reconcile_key cocok.
+     */
+    private static function upgradePendingMutasi(
+        $db,
+        string $reconcileKey,
+        string $tanggal,
+        string $tanggalIso,
+        string $fingerprint,
+        string $keterangan,
+        string $nominal,
+        string $mutasi
+    ): bool {
+        $pending = $db->query(
+            'SELECT id FROM bca_mutasi
+             WHERE reconcile_key = ?
+               AND UPPER(tanggal) = ?
+             ORDER BY id ASC
+             LIMIT 1',
+            [$reconcileKey, 'PEND']
+        )->row_array();
+
+        if (empty($pending['id'])) {
+            $pending = $db->query(
+                'SELECT id FROM bca_mutasi
+                 WHERE UPPER(tanggal) = ?
+                   AND keterangan = ?
+                   AND nominal = ?
+                   AND mutasi = ?
+                 ORDER BY id ASC
+                 LIMIT 1',
+                ['PEND', $keterangan, $nominal, $mutasi]
+            )->row_array();
+        }
+
+        if (empty($pending['id'])) {
+            return false;
+        }
+
+        return (bool) $db->update('bca_mutasi', [
+            'tanggal' => $tanggal,
+            'tanggal_iso' => $tanggalIso,
+            'keterangan' => $keterangan,
+            'fingerprint' => $fingerprint,
+            'reconcile_key' => $reconcileKey,
+        ], ['id' => (int) $pending['id']]);
+    }
+
+    /**
+     * Hapus PEND orphan jika baris posted dengan reconcile_key sama sudah ada di DB.
+     */
+    private static function purgeOrphanPendingMutasi($db, string $reconcileKey): void
+    {
+        $db->query(
+            'DELETE p FROM bca_mutasi p
+             INNER JOIN bca_mutasi d
+               ON d.reconcile_key = p.reconcile_key
+              AND UPPER(d.tanggal) <> ?
+             LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = p.id
+             WHERE p.reconcile_key = ?
+               AND UPPER(p.tanggal) = ?
+               AND l.id IS NULL',
+            ['PEND', $reconcileKey, 'PEND']
+        );
+    }
+
+    public static function normalizeKeterangan(string $keterangan): string
+    {
+        return trim($keterangan);
+    }
+
+    /**
+     * Business key stabil: keterangan + nominal + mutasi (tanpa tanggal).
+     */
+    public static function reconcileKey(string $keterangan, $nominal, string $mutasi): string
+    {
+        $nominalStr = self::normalizeNominal($nominal);
+        $payload = self::normalizeKeterangan($keterangan) . '|' . $nominalStr . '|' . strtoupper(trim($mutasi));
+
+        return hash('sha256', $payload);
     }
 
     /**

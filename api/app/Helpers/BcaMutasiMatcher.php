@@ -43,20 +43,29 @@ class BcaMutasiMatcher
 
     /**
      * Fetch mutasi dari bca_scrapper untuk rentang tertentu dan simpan ke DB.
+     * Pangkas tanggal yang sudah ada di DB; hari ini selalu di-scrape jika dalam rentang.
      *
-     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,error?:string}
+     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,skipped_scrape?:bool,error?:string,start?:string,end?:string}
      */
     public static function fetchAndStoreRange($mainDb, string $startYmd, string $endYmd): array
     {
-        $clamped = BcaScrapper::clampDateRange($startYmd, $endYmd);
-        if (empty($clamped['valid'])) {
+        $trimmed = BcaScrapper::trimFetchRangeByDb($mainDb, $startYmd, $endYmd);
+        if (!empty($trimmed['skip'])) {
             return [
-                'ok' => false,
-                'error' => (string) ($clamped['reason'] ?? 'invalid_range'),
+                'ok' => true,
+                'fetched' => 0,
+                'inserted' => 0,
+                'skipped_dup' => 0,
+                'skipped_scrape' => true,
+                'start' => (string) ($trimmed['start'] ?? $startYmd),
+                'end' => (string) ($trimmed['end'] ?? $endYmd),
             ];
         }
 
-        $remote = BcaScrapper::mutasi($clamped['start'], $clamped['end']);
+        $fetchStart = (string) $trimmed['start'];
+        $fetchEnd = (string) $trimmed['end'];
+
+        $remote = BcaScrapper::mutasi($fetchStart, $fetchEnd);
         if (empty($remote['ok'])) {
             return [
                 'ok' => false,
@@ -72,8 +81,9 @@ class BcaMutasiMatcher
             'fetched' => count($rows),
             'inserted' => (int) ($save['inserted'] ?? 0),
             'skipped_dup' => (int) ($save['skipped_dup'] ?? 0),
-            'start' => $clamped['start'],
-            'end' => $clamped['end'],
+            'start' => $fetchStart,
+            'end' => $fetchEnd,
+            'trimmed' => !empty($trimmed['trimmed']),
         ];
     }
 
@@ -187,7 +197,7 @@ class BcaMutasiMatcher
                     'message' => (string) ($fetch['error'] ?? 'fetch_failed'),
                 ];
             }
-            $scraped = true;
+            $scraped = empty($fetch['skipped_scrape']);
             $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
         }
 
