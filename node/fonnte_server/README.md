@@ -28,6 +28,7 @@ Scan QR di terminal saat pertama kali jalan. Session disimpan di `auth/`.
 | `FONNTE_TOKEN` | Samakan dengan `Env::FONNTE_TOKEN` di API PHP |
 | `WEBHOOK_URL` | Contoh: `https://api.nalju.com/Webhook/WA_Fonnte` |
 | `MEDIA_PUBLIC_BASE_URL` | URL publik agar PHP bisa unduh media (contoh `https://wa.nalju.com`) |
+| `LID_MAP_MIRROR_FILE` | Salin `lid_phone_map.json` ke `api/data/` agar PHP bisa baca (open_basedir) |
 
 ## Integrasi PHP (sudah diterapkan)
 

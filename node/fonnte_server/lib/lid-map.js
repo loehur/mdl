@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs');
 
 const MAP_FILE = path.join(__dirname, '..', 'data', 'lid_phone_map.json');
+const MAP_MIRROR = String(process.env.LID_MAP_MIRROR_FILE || '').trim()
+  || path.join(__dirname, '..', '..', '..', 'api', 'data', 'lid_phone_map.json');
 /** @type {Map<string, string>} lid JID → phone JID (@s.whatsapp.net) */
 const map = new Map();
 
@@ -11,10 +13,10 @@ function normalizeJid(value) {
   return raw.includes('@') ? raw : `${raw.replace(/\D/g, '')}@s.whatsapp.net`;
 }
 
-function loadLidMap() {
+function loadFromFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return;
   try {
-    if (!fs.existsSync(MAP_FILE)) return;
-    const data = JSON.parse(fs.readFileSync(MAP_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     if (!data || typeof data !== 'object') return;
     for (const [lid, phone] of Object.entries(data)) {
       const lidJid = normalizeJid(lid);
@@ -22,18 +24,31 @@ function loadLidMap() {
       if (lidJid && phoneJid) map.set(lidJid, phoneJid);
     }
   } catch (err) {
-    console.warn('[lid-map] load failed:', err.message || err);
+    console.warn('[lid-map] load failed:', filePath, err.message || err);
+  }
+}
+
+function loadLidMap() {
+  loadFromFile(MAP_FILE);
+  loadFromFile(MAP_MIRROR);
+}
+
+function writeMapFile(filePath) {
+  if (!filePath) return;
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const obj = Object.fromEntries(map.entries());
+    fs.writeFileSync(filePath, JSON.stringify(obj, null, 0));
+  } catch (err) {
+    console.warn('[lid-map] save failed:', filePath, err.message || err);
   }
 }
 
 function saveLidMap() {
-  try {
-    const dir = path.dirname(MAP_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const obj = Object.fromEntries(map.entries());
-    fs.writeFileSync(MAP_FILE, JSON.stringify(obj, null, 0));
-  } catch (err) {
-    console.warn('[lid-map] save failed:', err.message || err);
+  writeMapFile(MAP_FILE);
+  if (MAP_MIRROR && path.resolve(MAP_MIRROR) !== path.resolve(MAP_FILE)) {
+    writeMapFile(MAP_MIRROR);
   }
 }
 

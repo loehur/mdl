@@ -83,6 +83,8 @@ class Env
     // Dev XAMPP: http://localhost/mdl/api/Webhook/WA_Fonnte
     // Production: https://api.nalju.com/Webhook/WA_Fonnte
     const FONNTE_WEBHOOK_URL = 'http://localhost/mdl/api/Webhook/WA_Fonnte';
+    // LID → HP map (sync dari fonnte_server). Kosong = api/data/lid_phone_map.json
+    const FONNTE_LID_MAP_FILE = '';
 
     // -------------------------------------------------------------------------
     // WaDesk

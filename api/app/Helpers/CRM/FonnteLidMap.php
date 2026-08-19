@@ -3,7 +3,9 @@
 namespace App\Helpers\CRM;
 
 /**
- * Mapping LID WhatsApp → nomor HP (shared dengan node/fonnte_server/data/lid_phone_map.json).
+ * Mapping LID WhatsApp → nomor HP.
+ * File utama: api/data/lid_phone_map.json (dalam open_basedir PHP).
+ * Ditulis juga oleh node/fonnte_server (LID_MAP_MIRROR_FILE).
  */
 class FonnteLidMap
 {
@@ -12,15 +14,14 @@ class FonnteLidMap
 
     public static function mapFilePath(): string
     {
-        $fromEnv = '';
         if (class_exists('\\Env') && defined('Env::FONNTE_LID_MAP_FILE')) {
             $fromEnv = trim((string) \Env::FONNTE_LID_MAP_FILE);
-        }
-        if ($fromEnv !== '' && is_file($fromEnv)) {
-            return $fromEnv;
+            if ($fromEnv !== '') {
+                return $fromEnv;
+            }
         }
 
-        return dirname(__DIR__, 3) . '/../node/fonnte_server/data/lid_phone_map.json';
+        return dirname(__DIR__, 3) . '/data/lid_phone_map.json';
     }
 
     /**

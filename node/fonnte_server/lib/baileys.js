@@ -228,6 +228,16 @@ async function buildInboundPayload(msg, opts = {}) {
     || (isLidJid(remoteJid) ? remoteJid : '')
     || (isLidJid(msg.key?.participant || '') ? (msg.key?.participant || '') : '');
   const senderLid = senderLidRaw || (isLidJid(senderJid) ? senderJid : '');
+
+  // fromMe ke kontak LID: enrich nomor HP dari map agar PHP tidak perlu baca file di luar open_basedir
+  if (fromMe && !looksLikeMobileDigits(sender)) {
+    const lidRef = isLidJid(remoteJid) ? remoteJid : (senderLid || '');
+    if (lidRef) {
+      const mappedPeer = getPhoneJidForLid(lidRef);
+      if (mappedPeer) sender = jidToSender(mappedPeer);
+    }
+  }
+
   const resolvedPn = looksLikeMobileDigits(sender) ? sender : '';
   const pushName = msg.pushName || msg.verifiedBizName || '';
   const timestamp = Number(msg.messageTimestamp || Math.floor(Date.now() / 1000));
