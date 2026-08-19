@@ -347,6 +347,7 @@ import {
   validateBlastRows,
   rowsToBlastPayload,
 } from '../utils/csv.js';
+import { buildFilledPreview } from '../utils/templatePreview.js';
 
 const auth = useAuthStore();
 
@@ -437,34 +438,12 @@ const selectedTemplate = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
 );
 
-/** Template body with {{component}} placeholders only (no CSV values). */
+/** Template body with placeholders (no CSV values). */
 const blastTemplatePreview = computed(() => {
   const tpl = selectedTemplate.value;
-  if (!tpl) return '';
-  let out = String(tpl.body_preview || '');
-
-  const textParams = (tpl.params || []).filter((p) => {
-    const c = String(p.component || 'body').toLowerCase();
-    return c === 'body' || c === 'header';
-  });
-
-  const missing = [];
-  for (const p of textParams) {
-    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? '');
-    if (!token) continue;
-    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`);
-    if (!re.test(out)) missing.push(token);
-  }
-  if (missing.length) {
-    const synthetic = missing.map((t) => `{{${t}}}`).join(' ');
-    out = out ? `${synthetic}\n\n${out}` : synthetic;
-  }
-  return out;
+  if (!tpl) return "";
+  return buildFilledPreview(tpl.body_preview, tpl.params, {}, {});
 });
-
-function escapeRegExp(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {

@@ -116,6 +116,11 @@
 
 <script setup>
 import { computed, reactive, watch } from "vue";
+import {
+  buildFilledPreview,
+  buildPreviewMapsFromValues,
+  paramKey,
+} from "../utils/templatePreview";
 
 const props = defineProps({
   keys: { type: Array, default: () => [] },
@@ -141,62 +146,17 @@ const selectedTpl = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
 );
 
-function paramKey(p) {
-  if (p.param_name) return String(p.param_name);
-  const component = String(p.component || "body").toLowerCase();
-  return `${component}_${p.param_index}`;
-}
-
 function paramMaxlength(p) {
   const m = Number(p?.maxlength ?? 20);
   return m > 0 ? m : 20;
 }
 
-function escapeRegExp(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Replace {{name}} / {{1}} in preview text.
- * Header vars (e.g. {{customer}}) are often missing from older body_preview
- * rows that only stored BODY — prepend missing placeholders so live fill works
- * before the next YCloud sync.
- */
 const livePreview = computed(() => {
   const tpl = selectedTpl.value;
   if (!tpl) return "";
 
-  const values = { ...paramValues };
-  let out = String(tpl.body_preview || "");
-
-  const textParams = (tpl.params || []).filter((p) => {
-    const c = String(p.component || "body").toLowerCase();
-    return c === "body" || c === "header";
-  });
-
-  const missingTokens = [];
-  for (const p of textParams) {
-    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? "");
-    if (!token) continue;
-    const re = new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`);
-    if (!re.test(out)) {
-      missingTokens.push(token);
-    }
-  }
-  if (missingTokens.length) {
-    const synthetic = missingTokens.map((t) => `{{${t}}}`).join(" ");
-    out = out ? `${synthetic}\n\n${out}` : synthetic;
-  }
-
-  for (const p of textParams) {
-    const key = paramKey(p);
-    const val = values[key] ?? "";
-    const token = p.param_name ? String(p.param_name) : String(p.param_index ?? "");
-    if (!token) continue;
-    out = out.replace(new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\s*\\}\\}`, "g"), val);
-  }
-
-  return out;
+  const { named, indexed } = buildPreviewMapsFromValues(tpl.params, paramValues);
+  return buildFilledPreview(tpl.body_preview, tpl.params, named, indexed);
 });
 
 watch(
