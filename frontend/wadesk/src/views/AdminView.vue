@@ -250,6 +250,28 @@
           </p>
         </form>
 
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveDailyLimit">
+          <p class="text-xs text-slate-400">
+            Limit harian nomor customer <strong>unik</strong> per tenant (semua channel/team digabung). Reset setiap hari.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2 items-end">
+            <div class="flex-1 w-full">
+              <label class="label">Maks. nomor unik per hari</label>
+              <input
+                v-model.number="dailyLimitForm.daily_unique_limit"
+                type="number"
+                min="1"
+                max="100000"
+                required
+                class="field"
+              />
+            </div>
+            <button type="submit" class="btn shrink-0" :disabled="savingDailyLimit">
+              {{ savingDailyLimit ? "Menyimpan..." : "Simpan limit" }}
+            </button>
+          </div>
+        </form>
+
         <p class="text-xs text-slate-400">
           Sync device dari Kirimin, lalu assign <strong>1 nomor = 1 team</strong>.
         </p>
@@ -550,7 +572,9 @@ const keys = ref([]);
 const availableDevices = ref([]);
 const channelForm = reactive({ device_id: "", label: "", team_id: "" });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
+const dailyLimitForm = reactive({ daily_unique_limit: 250 });
 const savingKiriminKey = ref(false);
+const savingDailyLimit = ref(false);
 const syncingDevices = ref(false);
 const editingKeyId = ref(null);
 const templates = ref([]);
@@ -689,6 +713,7 @@ async function refresh() {
   initMaxlengthDrafts(templates.value);
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
+  dailyLimitForm.daily_unique_limit = Number(kir.data?.daily_unique_limit) || 250;
 }
 
 async function createTeam() {
@@ -932,6 +957,27 @@ async function saveKiriminKey() {
     flash(false, e.message);
   } finally {
     savingKiriminKey.value = false;
+  }
+}
+
+async function saveDailyLimit() {
+  const limit = Number(dailyLimitForm.daily_unique_limit);
+  if (!Number.isFinite(limit) || limit < 1) {
+    flash(false, "Limit harian minimal 1");
+    return;
+  }
+  savingDailyLimit.value = true;
+  try {
+    const res = await api("/WaDesk/Settings/dailyLimit", {
+      method: "POST",
+      body: { daily_unique_limit: limit },
+    });
+    dailyLimitForm.daily_unique_limit = Number(res.data?.daily_unique_limit) || limit;
+    flash(true, "Limit harian tenant disimpan");
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingDailyLimit.value = false;
   }
 }
 
