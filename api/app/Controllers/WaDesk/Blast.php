@@ -135,6 +135,14 @@ class Blast extends WaDeskController
                     $errors[] = "Baris " . ($i + 1) . ": kolom '{$key2}' wajib diisi";
                 }
             }
+            $lengthErrors = $this->validateTemplateParamValues(
+                $paramDefs,
+                is_array($rowParams) ? $rowParams : [],
+                'Baris ' . ($i + 1)
+            );
+            foreach ($lengthErrors as $le) {
+                $errors[] = $le;
+            }
         }
         if ($errors !== []) {
             $this->error('Validasi gagal: ' . implode('; ', array_slice($errors, 0, 5)), 422, ['errors' => $errors]);
@@ -387,8 +395,9 @@ class Blast extends WaDeskController
 
     private function loadParamDefs(int $templateId): array
     {
+        $maxCol = $this->columnExists('wa_template_params', 'maxlength') ? ', maxlength' : '';
         return $this->db($this->db_index)->query(
-            "SELECT component, button_sub_type, button_index, param_index, param_name, label, example_value, is_required
+            "SELECT component, button_sub_type, button_index, param_index, param_name, label, example_value, is_required{$maxCol}
              FROM wa_template_params WHERE template_id = ?
              ORDER BY FIELD(component,'header','body','button'), param_index ASC",
             [$templateId]
@@ -416,6 +425,7 @@ class Blast extends WaDeskController
                 'example'  => $def['example_value'] ?? '',
                 'required' => (int) $def['is_required'] === 1,
                 'component'=> $def['component'],
+                'maxlength'=> $this->effectiveParamMaxlength($def),
             ];
         }
         return $result;

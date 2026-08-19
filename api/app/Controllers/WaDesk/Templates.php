@@ -25,9 +25,13 @@ class Templates extends WaDeskController
         $rows = $this->dedupeTemplateListRows($rows, $tenantId);
 
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
+        $hasMaxlength = $this->columnExists('wa_template_params', 'maxlength');
         $paramCols = $hasButtonMeta
             ? "id, component, button_sub_type, button_index, param_index, param_name, label, example_value, is_required"
             : "id, component, param_index, param_name, label, example_value, is_required";
+        if ($hasMaxlength) {
+            $paramCols .= ', maxlength';
+        }
 
         foreach ($rows as &$row) {
             $row['params'] = $this->db($this->db_index)->query(
@@ -490,10 +494,70 @@ class Templates extends WaDeskController
         $this->success(null, 'Template dihapus');
     }
 
+    /** POST { template_id, params: [{ id, maxlength }] } — admin only */
+    public function updateMaxlength()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        if (!$this->columnExists('wa_template_params', 'maxlength')) {
+            $this->error('Kolom maxlength belum ada. Jalankan migration 011.', 500);
+        }
+
+        $body = $this->getBody();
+        $templateId = (int) ($body['template_id'] ?? 0);
+        $params = $body['params'] ?? [];
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
+        }
+        if (!is_array($params) || $params === []) {
+            $this->error('params wajib', 400);
+        }
+
+        if (!$this->findTemplateForTenant($templateId, (int) $admin['tenant_id'])) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+
+        $updated = 0;
+        foreach ($params as $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $id = (int) ($p['id'] ?? 0);
+            $max = (int) ($p['maxlength'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            if ($max < 1 || $max > 1024) {
+                $this->error('maxlength harus antara 1 dan 1024', 400);
+            }
+
+            $row = $this->db($this->db_index)->query(
+                "SELECT id FROM wa_template_params WHERE id = ? AND template_id = ? LIMIT 1",
+                [$id, $templateId]
+            )->row_array();
+            if (!$row) {
+                $this->error('Param template tidak ditemukan', 404);
+            }
+
+            $this->db($this->db_index)->update('wa_template_params', [
+                'maxlength' => $max,
+            ], ['id' => $id]);
+            $updated++;
+        }
+
+        $this->success(['updated' => $updated], 'Maxlength param diupdate');
+    }
+
     private function replaceParams(int $templateId, array $params): void
     {
+        $maxMap = $this->loadExistingMaxlengthMap($templateId);
         $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $templateId]);
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
+        $hasMaxlength = $this->columnExists('wa_template_params', 'maxlength');
         $seen = [];
         \Log::write('replaceParams start tpl=' . $templateId . ' count=' . count($params) . ' params=' . json_encode(array_map(fn($p)=>($p['component']??'?').':'.$p['param_index'].':'.$p['param_name']??'', $params), JSON_UNESCAPED_UNICODE), 'wadesk', 'replace_params');
         foreach ($params as $p) {
@@ -535,6 +599,14 @@ class Templates extends WaDeskController
                     : null;
             }
 
+            if ($hasMaxlength) {
+                $row['maxlength'] = $maxMap[$seenKey]
+                    ?? (int) ($p['maxlength'] ?? self::TEMPLATE_PARAM_DEFAULT_MAXLENGTH);
+                if ($row['maxlength'] < 1) {
+                    $row['maxlength'] = self::TEMPLATE_PARAM_DEFAULT_MAXLENGTH;
+                }
+            }
+
             try {
                 $insertId = $this->db($this->db_index)->insert('wa_template_params', $row);
                 if ($insertId === false || $insertId === 0) {
@@ -554,6 +626,27 @@ class Templates extends WaDeskController
         }
     }
 
+
+    /** @return array<string,int> component:param_index => maxlength */
+    private function loadExistingMaxlengthMap(int $templateId): array
+    {
+        if (!$this->columnExists('wa_template_params', 'maxlength')) {
+            return [];
+        }
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT component, param_index, maxlength FROM wa_template_params WHERE template_id = ?",
+            [$templateId]
+        )->result_array();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $key = strtolower((string) ($row['component'] ?? 'body')) . ':' . (int) ($row['param_index'] ?? 0);
+            $map[$key] = (int) ($row['maxlength'] ?? self::TEMPLATE_PARAM_DEFAULT_MAXLENGTH);
+        }
+
+        return $map;
+    }
 
     private function getTenantTemplate(int $id, int $tenantId): ?array
     {

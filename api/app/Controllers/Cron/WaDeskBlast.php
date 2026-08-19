@@ -62,7 +62,7 @@ class WaDeskBlast extends Controller
 
             // Load template param defs
             $paramDefs = $db->query(
-                "SELECT component, button_sub_type, button_index, param_index, param_name, label, is_required
+                "SELECT component, button_sub_type, button_index, param_index, param_name, label, is_required, maxlength
                  FROM wa_template_params WHERE template_id = ?
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $blast['template_id']]

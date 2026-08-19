@@ -124,10 +124,17 @@ export function validateBlastRows(rows, headers, params) {
     }
 
     for (const p of params) {
-      if (!p.required) continue;
       const val = (row[p.key] ?? '').trim();
-      if (val === '') {
+      if (p.required && val === '') {
         errors.push(`Baris ${rowNum}: kolom "${p.key}" (${p.label}) wajib diisi`);
+        continue;
+      }
+      if (val === '') continue;
+      const maxLen = Number(p.maxlength ?? 20) > 0 ? Number(p.maxlength ?? 20) : 20;
+      if (val.length > maxLen) {
+        errors.push(
+          `Baris ${rowNum}: kolom "${p.key}" (${p.label}) maksimal ${maxLen} karakter (sekarang ${val.length})`
+        );
       }
     }
   }

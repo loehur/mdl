@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS wa_template_params (
   label VARCHAR(150) NOT NULL,
   example_value VARCHAR(255) NULL,
   is_required TINYINT(1) NOT NULL DEFAULT 1,
+  maxlength SMALLINT UNSIGNED NOT NULL DEFAULT 20,
   UNIQUE KEY uq_tpl_param (template_id, component, param_index),
   CONSTRAINT fk_tpl_param FOREIGN KEY (template_id) REFERENCES wa_templates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

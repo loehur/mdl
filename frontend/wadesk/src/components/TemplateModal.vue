@@ -54,8 +54,10 @@
             class="field"
             :placeholder="p.example_value || ''"
             :required="Number(p.is_required) === 1"
+            :maxlength="paramMaxlength(p)"
             :disabled="busy"
           />
+          <p class="text-[10px] text-slate-500">Maks. {{ paramMaxlength(p) }} karakter</p>
         </div>
 
         <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
@@ -143,6 +145,11 @@ function paramKey(p) {
   if (p.param_name) return String(p.param_name);
   const component = String(p.component || "body").toLowerCase();
   return `${component}_${p.param_index}`;
+}
+
+function paramMaxlength(p) {
+  const m = Number(p?.maxlength ?? 20);
+  return m > 0 ? m : 20;
 }
 
 function escapeRegExp(s) {

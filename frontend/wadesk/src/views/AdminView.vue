@@ -381,12 +381,13 @@
                     <th class="px-3 py-2">Param Name</th>
                     <th class="px-3 py-2">Label</th>
                     <th class="px-3 py-2">Example</th>
+                    <th class="px-3 py-2">Maxlength</th>
                     <th class="px-3 py-2">Button SubType</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5">
                   <tr v-if="!(t.params||[]).length">
-                    <td colspan="6" class="px-3 py-3 text-center text-slate-500">Tidak ada params — klik Resync</td>
+                    <td colspan="7" class="px-3 py-3 text-center text-slate-500">Tidak ada params — klik Resync</td>
                   </tr>
                   <tr v-for="p in (t.params||[])" :key="p.component+'-'+p.param_index" class="hover:bg-white/5">
                     <td class="px-3 py-2">
@@ -403,10 +404,29 @@
                     <td class="px-3 py-2 font-mono text-accent">{{ p.param_name || '-' }}</td>
                     <td class="px-3 py-2 text-slate-300">{{ p.label }}</td>
                     <td class="px-3 py-2 text-slate-500 italic">{{ p.example_value || '-' }}</td>
+                    <td class="px-3 py-2">
+                      <input
+                        v-model.number="maxlengthDraft[maxlengthKey(t.id, p.id)]"
+                        type="number"
+                        min="1"
+                        max="1024"
+                        class="field py-1 px-2 text-xs w-20"
+                      />
+                    </td>
                     <td class="px-3 py-2 text-slate-500">{{ p.button_sub_type || '-' }}</td>
                   </tr>
                 </tbody>
               </table>
+              <div v-if="(t.params||[]).length" class="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  class="btn-sm text-xs"
+                  :disabled="savingMaxlengthId === t.id"
+                  @click="saveMaxlength(t)"
+                >
+                  {{ savingMaxlengthId === t.id ? 'Menyimpan...' : 'Simpan maxlength' }}
+                </button>
+              </div>
             </div>
           </li>
         </ul>
@@ -568,6 +588,8 @@ const editKeyForm = reactive({ label: "", phone_number: "", team_id: "" });
 const savingKey = ref(false);
 const syncing = ref(false);
 const resyncingId = ref(null);
+const savingMaxlengthId = ref(null);
+const maxlengthDraft = reactive({});
 const expandedTemplate = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 
@@ -610,6 +632,7 @@ async function refresh() {
   keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
   quotas.value = q.data.quotas || [];
+  initMaxlengthDrafts(templates.value);
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
 }
@@ -937,6 +960,46 @@ async function removeKey(id) {
       }
     },
   });
+}
+
+function maxlengthKey(templateId, paramId) {
+  return `${templateId}:${paramId}`;
+}
+
+function initMaxlengthDrafts(list) {
+  for (const t of list) {
+    for (const p of t.params || []) {
+      if (!p.id) continue;
+      maxlengthDraft[maxlengthKey(t.id, p.id)] = Number(p.maxlength ?? 20);
+    }
+  }
+}
+
+async function saveMaxlength(t) {
+  const params = (t.params || [])
+    .filter((p) => p.id)
+    .map((p) => ({
+      id: Number(p.id),
+      maxlength: Number(maxlengthDraft[maxlengthKey(t.id, p.id)] ?? p.maxlength ?? 20),
+    }));
+  if (!params.length) {
+    flash(false, "Tidak ada param untuk disimpan");
+    return;
+  }
+  savingMaxlengthId.value = t.id;
+  try {
+    await api("/WaDesk/Templates/updateMaxlength", {
+      method: "POST",
+      body: { template_id: t.id, params },
+    });
+    flash(true, "Maxlength param disimpan");
+    await refresh();
+    expandedTemplate.value = t.id;
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingMaxlengthId.value = null;
+  }
 }
 
 async function resyncOneTemplate(templateName) {

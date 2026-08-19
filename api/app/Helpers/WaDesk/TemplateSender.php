@@ -61,6 +61,11 @@ class TemplateSender
             $client = Kirimin::fromApiKey($apiKey);
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams($paramDefs, $rawParams);
 
+            $lengthErr = $this->validateParamLengths($paramDefs, $rawParams);
+            if ($lengthErr !== '') {
+                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => $lengthErr];
+            }
+
             $previewSource = (string) ($tpl['body_preview'] ?? '');
             if ($previewSource === '') {
                 $previewSource = '[template] ' . $tpl['template_name'];
@@ -259,5 +264,45 @@ class TemplateSender
             throw new \RuntimeException('Kirimin API key belum diatur untuk tenant ini');
         }
         return $key;
+    }
+
+    private function validateParamLengths(array $defs, array $rawParams): string
+    {
+        $defaultMax = 20;
+        $isList = $rawParams === [] || array_keys($rawParams) === range(0, count($rawParams) - 1);
+        $listCursor = 0;
+        $errors = [];
+
+        foreach ($defs as $def) {
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            $paramName = trim((string) ($def['param_name'] ?? ''));
+            $idx = (int) ($def['param_index'] ?? 0);
+            $csvKey = $component . '_' . $idx;
+            $maxLen = (int) ($def['maxlength'] ?? 0);
+            if ($maxLen < 1) {
+                $maxLen = $defaultMax;
+            }
+            $label = trim((string) ($def['label'] ?? $paramName ?: $csvKey));
+
+            $value = '';
+            if ($paramName !== '' && !$isList && array_key_exists($paramName, $rawParams)) {
+                $value = (string) $rawParams[$paramName];
+            } elseif (!$isList && array_key_exists($csvKey, $rawParams)) {
+                $value = (string) $rawParams[$csvKey];
+            } elseif (!$isList && array_key_exists((string) $idx, $rawParams)) {
+                $value = (string) $rawParams[(string) $idx];
+            } elseif ($isList && array_key_exists($listCursor, $rawParams)) {
+                $value = (string) $rawParams[$listCursor];
+                $listCursor++;
+            } elseif ($isList && array_key_exists($idx - 1, $rawParams)) {
+                $value = (string) $rawParams[$idx - 1];
+            }
+
+            if ($value !== '' && mb_strlen($value) > $maxLen) {
+                $errors[] = "'{$label}' maksimal {$maxLen} karakter";
+            }
+        }
+
+        return $errors !== [] ? implode('; ', $errors) : '';
     }
 }

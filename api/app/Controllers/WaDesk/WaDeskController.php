@@ -357,6 +357,68 @@ abstract class WaDeskController extends BaseController
         return $row;
     }
 
+    protected const TEMPLATE_PARAM_DEFAULT_MAXLENGTH = 20;
+
+    protected function effectiveParamMaxlength(array $def): int
+    {
+        $max = (int) ($def['maxlength'] ?? 0);
+        return $max > 0 ? $max : self::TEMPLATE_PARAM_DEFAULT_MAXLENGTH;
+    }
+
+    protected function templateParamKey(array $def): string
+    {
+        $name = trim((string) ($def['param_name'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+        return strtolower((string) ($def['component'] ?? 'body')) . '_' . (int) ($def['param_index'] ?? 0);
+    }
+
+    /** @return list<string> */
+    protected function validateTemplateParamValues(array $defs, array $rawParams, string $rowLabel = ''): array
+    {
+        if ($defs === []) {
+            return [];
+        }
+
+        $errors = [];
+        $prefix = $rowLabel !== '' ? ($rowLabel . ': ') : '';
+        $isList = $rawParams === [] || array_keys($rawParams) === range(0, count($rawParams) - 1);
+        $listCursor = 0;
+
+        foreach ($defs as $def) {
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            $paramName = trim((string) ($def['param_name'] ?? ''));
+            $idx = (int) ($def['param_index'] ?? 0);
+            $csvKey = $component . '_' . $idx;
+            $maxLen = $this->effectiveParamMaxlength($def);
+            $label = trim((string) ($def['label'] ?? $paramName ?: $csvKey));
+
+            $value = '';
+            if ($paramName !== '' && !$isList && array_key_exists($paramName, $rawParams)) {
+                $value = (string) $rawParams[$paramName];
+            } elseif (!$isList && array_key_exists($csvKey, $rawParams)) {
+                $value = (string) $rawParams[$csvKey];
+            } elseif (!$isList && array_key_exists((string) $idx, $rawParams)) {
+                $value = (string) $rawParams[(string) $idx];
+            } elseif ($isList && array_key_exists($listCursor, $rawParams)) {
+                $value = (string) $rawParams[$listCursor];
+                $listCursor++;
+            } elseif ($isList && array_key_exists($idx - 1, $rawParams)) {
+                $value = (string) $rawParams[$idx - 1];
+            }
+
+            if ($value === '') {
+                continue;
+            }
+            if (mb_strlen($value) > $maxLen) {
+                $errors[] = $prefix . "'{$label}' maksimal {$maxLen} karakter (sekarang " . mb_strlen($value) . ')';
+            }
+        }
+
+        return $errors;
+    }
+
     /** Template usable by any team in tenant (tenant-wide sync). */
     protected function findTemplateForTenant(int $templateId, int $tenantId): ?array
     {
