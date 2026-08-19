@@ -6,7 +6,7 @@ use App\Core\DB;
 use App\Helpers\Laundry\AntarTarif;
 
 /**
- * Multi-turn MINTA_JEMPUT_ANTAR — dipakai oleh WAReplies via `use`.
+ * Multi-turn KURIR — dipakai oleh WAReplies via `use`.
  */
 trait WARepliesKurirTrait
 {
@@ -268,7 +268,7 @@ trait WARepliesKurirTrait
     /**
      * @return bool true = pesan sudah ditangani kurir; false = unrelated → lanjut routing intent lain
      */
-    private function handleMinta_Jemput_Antar($phoneIn, $waNumber, $textBody = '')
+    private function handleKurir($phoneIn, $waNumber, $textBody = '')
     {
         // Di luar jam operasional: flow sameday tetap jalan; instant ditolak / tidak ditawarkan
         $msg = trim((string) $textBody);
@@ -295,7 +295,7 @@ trait WARepliesKurirTrait
             if ($jenis === 'jemput' && $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
-                    'MINTA_JEMPUT_ANTAR',
+                    'KURIR',
                     'jemput_ignored_has_antarable_sale (no reply, no session)'
                 );
                 return false;
@@ -475,7 +475,7 @@ trait WARepliesKurirTrait
         $nama = $this->kurirFetchPelangganNama($idPelanggan);
         $this->sendAutoreplyText($waNumber, $this->kurirAntarNoEligibleOrderReply($sapaan, $nama));
         $this->clearKurirSession($waNumber);
-        $this->logAutoreplyTrace($waNumber, 'MINTA_JEMPUT_ANTAR', 'antar_reject_no_unpicked_sale id_pelanggan=' . $idPelanggan);
+        $this->logAutoreplyTrace($waNumber, 'KURIR', 'antar_reject_no_unpicked_sale id_pelanggan=' . $idPelanggan);
 
         return false;
     }
@@ -1018,7 +1018,7 @@ trait WARepliesKurirTrait
             if ($this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
-                    'MINTA_JEMPUT_ANTAR',
+                    'KURIR',
                     'jenis_followup_jemput_ignored_has_antarable_sale'
                 );
                 return false;
@@ -1398,7 +1398,7 @@ trait WARepliesKurirTrait
         // (jangan consume & jangan tanya shareloc lagi di tengah chat harga/status/dll.)
         if (in_array($step, ['ask_shareloc', 'new_ask_shareloc'], true)) {
             // Minta jemput/antar baru → anggap flow lama ditinggalkan
-            if ($this->messageLooksLikeMintaJemputAntar(mb_strtolower($msg))) {
+            if ($this->messageLooksLikeKurir(mb_strtolower($msg))) {
                 $this->clearKurirSession($waNumber);
                 $this->clearLokasiSession($waNumber);
             }
@@ -1475,7 +1475,7 @@ trait WARepliesKurirTrait
             if ($jenis === 'jemput' && $this->pelangganHasAntarableSaleForWa($phoneIn, $waNumber)) {
                 $this->logAutoreplyTrace(
                     $waNumber,
-                    'MINTA_JEMPUT_ANTAR',
+                    'KURIR',
                     'ask_jenis_jemput_ignored_has_antarable_sale→clear'
                 );
                 $this->clearKurirSession($waNumber);
@@ -4147,7 +4147,7 @@ trait WARepliesKurirTrait
             if (empty($claim['claimed'])) {
                 $this->logAutoreplyTrace(
                     $waNumber,
-                    'MINTA_JEMPUT_ANTAR',
+                    'KURIR',
                     'notify_delivery_group skip already_claimed key=' . $claimKey
                 );
                 return;
@@ -4226,14 +4226,14 @@ trait WARepliesKurirTrait
                 );
                 $this->logAutoreplyTrace(
                     $waNumber,
-                    'MINTA_JEMPUT_ANTAR',
+                    'KURIR',
                     'notify_delivery_group fail ' . ($send['error'] ?? 'unknown')
                 );
                 return;
             }
             $this->logAutoreplyTrace(
                 $waNumber,
-                'MINTA_JEMPUT_ANTAR',
+                'KURIR',
                 'notify_delivery_group ok key=' . $claimKey . ($isUpdate ? ' update=1' : '')
             );
         } catch (\Throwable $e) {

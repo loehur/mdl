@@ -161,7 +161,7 @@ trait WARepliesPermintaanTrait
             'HARGA',
             'REKENING',
             'LOKASI',
-            'MINTA_JEMPUT_ANTAR',
+            'KURIR',
             'ESTIMASI_SELESAI',
             'JAM_OPERASIONAL',
             'SALDO',
@@ -180,7 +180,7 @@ trait WARepliesPermintaanTrait
                 $ok = @preg_match('/' . $pat . '/iu', $text);
                 if ($ok === 1) {
                     // Kecuali pola MINTA yang sebenarnya permintaan ambil pakaian dulu
-                    if ($code === 'MINTA_JEMPUT_ANTAR' && $this->messageIsPermintaanAmbilPakaianDulu($text)) {
+                    if ($code === 'KURIR' && $this->messageIsPermintaanAmbilPakaianDulu($text)) {
                         continue;
                     }
                     return true;

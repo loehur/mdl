@@ -9,7 +9,7 @@ use App\Helpers\CRM\WaSenderContext;
 
 /**
  * Buat delivery_request sameday + notif group Fonnte.
- * Dipakai CRM Customer Panel (sama seperti hasil akhir intent MINTA_JEMPUT_ANTAR).
+ * Dipakai CRM Customer Panel (sama seperti hasil akhir intent KURIR).
  */
 class DeliveryRequestStore
 {
