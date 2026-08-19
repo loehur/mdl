@@ -50,6 +50,7 @@ import AppLayout from "./views/AppLayout.vue";
 import Dashboard from "./views/Dashboard.vue";
 import Investment from "./views/Investment.vue";
 import Portfolio from "./views/Portfolio.vue";
+import Growth from "./views/Growth.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -63,6 +64,7 @@ const router = createRouter({
         { path: "dashboard", component: Dashboard },
         { path: "investasi", component: Investment },
         { path: "portfolio", component: Portfolio },
+        { path: "growth", component: Growth },
       ],
     },
   ],

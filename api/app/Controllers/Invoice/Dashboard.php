@@ -42,12 +42,15 @@ class Dashboard extends InvoiceController
                 [$today, $today, $userId]
             )->row_array();
 
+            $monthStart = date('Y-m-01');
+            $monthEnd = date('Y-m-d', strtotime($monthStart . ' +1 month'));
+
             $monthStats = $this->db($this->db_index)->query(
                 "SELECT COUNT(*) AS month_count,
                         COALESCE(SUM(total), 0) AS month_total
                  FROM invoices
-                 WHERE user_id = ? AND DATE_FORMAT(issue_date, '%Y-%m') = ?",
-                [$userId, date('Y-m')]
+                 WHERE user_id = ? AND issue_date >= ? AND issue_date < ?",
+                [$userId, $monthStart, $monthEnd]
             )->row_array();
 
             $recent = $this->db($this->db_index)->query(

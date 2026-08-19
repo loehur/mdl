@@ -31,8 +31,11 @@ class Invoices extends InvoiceController
             $bind = [$userId];
 
             if (!$all) {
-                $sql .= " AND DATE_FORMAT(issue_date, '%Y-%m') = ?";
-                $bind[] = $month;
+                $monthStart = $month . '-01';
+                $monthEnd = date('Y-m-d', strtotime($monthStart . ' +1 month'));
+                $sql .= " AND issue_date >= ? AND issue_date < ?";
+                $bind[] = $monthStart;
+                $bind[] = $monthEnd;
             }
 
             if ($status === 'paid') {

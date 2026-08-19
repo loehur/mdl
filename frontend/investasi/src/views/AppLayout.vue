@@ -80,16 +80,25 @@ const IconChart = () =>
     h("path", { d: "M16 16v-4", strokeLinecap: "round" }),
   ]);
 
+const IconGrowth = () =>
+  h("svg", iconProps, [
+    h("path", { d: "M4 19V5", strokeLinecap: "round" }),
+    h("path", { d: "M4 19h16", strokeLinecap: "round" }),
+    h("path", { d: "M8 16l3-4 3 2 5-7", strokeLinecap: "round", strokeLinejoin: "round" }),
+  ]);
+
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
   { path: "/investasi", label: "Aliran", icon: IconFlow },
   { path: "/portfolio", label: "Aset", icon: IconChart },
+  { path: "/growth", label: "Growth", icon: IconGrowth },
 ];
 
 const titles = {
   "/dashboard": "Overview",
   "/investasi": "Aliran Dana",
   "/portfolio": "Portfolio",
+  "/growth": "Growth",
 };
 
 const pageTitle = computed(() => titles[route.path] || "Investasi");

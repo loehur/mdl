@@ -42,6 +42,63 @@ class Portfolio extends InvestasiController
         $this->success(['items' => $rows]);
     }
 
+    public function chart()
+    {
+        $year = (int) $this->query('year', date('Y'));
+        if ($year < 2000 || $year > 2100) {
+            $this->error('Tahun tidak valid', 400);
+        }
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT amount, record_date
+             FROM portfolio_snapshots
+             WHERE YEAR(record_date) = ?
+             ORDER BY record_date ASC, id ASC",
+            [$year]
+        )->result_array();
+
+        $months = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $months[$m] = [
+                'month' => $m,
+                'open' => null,
+                'high' => null,
+                'low' => null,
+                'close' => null,
+                'snapshot_count' => 0,
+            ];
+        }
+
+        foreach ($rows as $row) {
+            $m = (int) date('n', strtotime($row['record_date']));
+            $amount = (float) $row['amount'];
+
+            if ($months[$m]['snapshot_count'] === 0) {
+                $months[$m]['open'] = $amount;
+                $months[$m]['high'] = $amount;
+                $months[$m]['low'] = $amount;
+            } else {
+                $months[$m]['high'] = max($months[$m]['high'], $amount);
+                $months[$m]['low'] = min($months[$m]['low'], $amount);
+            }
+
+            $months[$m]['close'] = $amount;
+            $months[$m]['snapshot_count']++;
+        }
+
+        $yearRows = $this->db($this->db_index)->query(
+            "SELECT DISTINCT YEAR(record_date) AS y
+             FROM portfolio_snapshots
+             ORDER BY y DESC"
+        )->result_array();
+
+        $this->success([
+            'year' => $year,
+            'months' => array_values($months),
+            'years' => array_map(fn($r) => (int) $r['y'], $yearRows),
+        ]);
+    }
+
     public function update()
     {
         if (!$this->isPost()) {
