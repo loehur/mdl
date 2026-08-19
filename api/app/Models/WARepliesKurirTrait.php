@@ -6,7 +6,7 @@ use App\Core\DB;
 use App\Helpers\Laundry\AntarTarif;
 
 /**
- * Multi-turn TERKE — dipakai oleh WAReplies via `use`.
+ * Multi-turn KURIR — dipakai oleh WAReplies via `use`.
  */
 trait WARepliesKurirTrait
 {
@@ -268,7 +268,7 @@ trait WARepliesKurirTrait
     /**
      * @return bool true = pesan sudah ditangani kurir; false = unrelated → lanjut routing intent lain
      */
-    private function handleTerke($phoneIn, $waNumber, $textBody = '')
+    private function handleKurir($phoneIn, $waNumber, $textBody = '')
     {
         // Di luar jam operasional: flow sameday tetap jalan; instant ditolak / tidak ditawarkan
         $msg = trim((string) $textBody);
@@ -1398,7 +1398,7 @@ trait WARepliesKurirTrait
         // (jangan consume & jangan tanya shareloc lagi di tengah chat harga/status/dll.)
         if (in_array($step, ['ask_shareloc', 'new_ask_shareloc'], true)) {
             // Minta jemput/antar baru → anggap flow lama ditinggalkan
-            if ($this->messageLooksLikeTerke(mb_strtolower($msg))) {
+            if ($this->messageLooksLikeKurir(mb_strtolower($msg))) {
                 $this->clearKurirSession($waNumber);
                 $this->clearLokasiSession($waNumber);
             }

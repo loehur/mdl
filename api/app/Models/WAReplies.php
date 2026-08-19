@@ -520,7 +520,7 @@ class WAReplies
         if ($h === 'JAM_OPERASIONAL' || $h === 'JAM_TUTUP') {
             return 60;
         }
-        if ($h === 'TERKE' || $h === 'LOKASI' || $h === 'PERMINTAAN') {
+        if ($h === 'KURIR' || $h === 'LOKASI' || $h === 'PERMINTAAN') {
             return 1;
         }
 
@@ -2351,7 +2351,7 @@ class WAReplies
         // Session LOKASI aktif: lengkapi alamat (kecuali intent jelas lain / jemput-antar)
         try {
             if ($this->getLokasiSession($waNumber) !== null
-                && !$this->messageLooksLikeTerke($textBodyToCheck, $fullKeywordConfig)
+                && !$this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)
                 && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
             ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
@@ -2382,14 +2382,14 @@ class WAReplies
             }
         }
 
-        // Session KURIR aktif: follow-up TERKE
+        // Session KURIR aktif: follow-up KURIR
         if ($this->getKurirSession($waNumber) !== null) {
             $kurirSessEarly = $this->getKurirSession($waNumber);
             // Kurir menunggu LOKASI selesai → serahkan ke lokasi bila session ada
             try {
                 if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
                     if ($this->getLokasiSession($waNumber) !== null
-                        && !$this->messageLooksLikeTerke($textBodyToCheck, $fullKeywordConfig)
+                        && !$this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)
                         && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
@@ -2425,10 +2425,10 @@ class WAReplies
                 $this->clearLokasiSession($waNumber);
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→other_intent');
             } else {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→TERKE case=2');
-                $this->currentHandler = 'TERKE';
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→KURIR case=2');
+                $this->currentHandler = 'KURIR';
                 // Bypass cooldown for active session
-                $kurirConsumed = $this->handleTerke($phoneIn, $waNumber, $textBody);
+                $kurirConsumed = $this->handleKurir($phoneIn, $waNumber, $textBody);
                 if ($kurirConsumed !== false) {
                     $conversationId = $this->getOrCreateConversationWithCase(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
@@ -2512,17 +2512,17 @@ class WAReplies
                         continue;
                     }
                     // KURIR: "saya/aku ambil" / "kami aja yang antar" = info, bukan minta kurir
-                    if ($handler === 'TERKE' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'KURIR→customer_self_antar_jemput');
                         continue;
                     }
                     // LOKASI tapi jelas minta jemput/antar → KURIR
-                    if ($handler === 'LOKASI' && $this->messageLooksLikeTerke($textBodyToCheck, $fullKeywordConfig)) {
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'LOKASI→TERKE');
-                        $handler = 'TERKE';
+                    if ($handler === 'LOKASI' && $this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)) {
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'LOKASI→KURIR');
+                        $handler = 'KURIR';
                     }
                     // KURIR: udh/sdh/sudah + bisa dijemput/diambil = tanya STATUS order, bukan minta kurir
-                    if ($handler === 'TERKE' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
+                    if ($handler === 'KURIR' && preg_match('/\b(udah|sudah|udh|sdh|dah|dh)\s+bisa\s*(di\s*)?(jemput|ambil)\b/i', $textBodyToCheck)) {
                         continue;
                     }
                     // STATUS: tanya kapan/jam berapa siap = ESTIMASI, bukan cek status sekarang
@@ -2533,7 +2533,7 @@ class WAReplies
                         $handler = 'ESTIMASI_SELESAI';
                     }
                     // Ambigu "bisa jemput … sore/pagi ini": ada order aktif → ESTIMASI; tidak ada → tetap MINTA kurir
-                    if ($handler === 'TERKE' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)) {
                         if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
                             $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'KURIR→ESTIMASI_SELESAI has_sale');
                             $handler = 'ESTIMASI_SELESAI';
@@ -2542,7 +2542,7 @@ class WAReplies
                         }
                     }
                     // "diantar kembali selambatnya hari minggu" tanpa sale = PERMINTAAN, bukan jam kurir
-                    if ($handler === 'TERKE' && $this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)
+                    if ($handler === 'KURIR' && $this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)
                         && !$this->pelangganHasActiveSale($phoneIn, $waNumber)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'KURIR→PERMINTAAN antar_kembali_deadline');
@@ -2550,7 +2550,7 @@ class WAReplies
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
                     // KURIR: tanya harga paket/member + antar/jemput = HARGA (bukan minta kurir)
-                    if ($handler === 'TERKE' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
                         continue;
                     }
                     // Legacy intent HARGA_PAKET(_D) → unified HARGA
@@ -2559,31 +2559,31 @@ class WAReplies
                         $handler = 'HARGA';
                     }
                     // KURIR: "kalau/klo ... antar/jemput" = hipotetis, bukan minta kurir
-                    if ($handler === 'TERKE' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'KURIR→kalau_hypothetical');
                         continue;
                     }
                     // KURIR: ongkos + durasi hari / tipe layanan = HARGA (regex HARGA dicek lebih dulu; ini cadangan)
-                    if ($handler === 'TERKE' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
                         continue;
                     }
                     // KURIR: pertanyaan ongkir/ongkos saja = bukan minta kurir
-                    if ($handler === 'TERKE' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
+                    if ($handler === 'KURIR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'KURIR→ongkir_inquiry_only');
                         continue;
                     }
                     // KURIR: "masih bisa/bs jemput" = tanya availabilitas layanan = JAM_OPERASIONAL (regex MINTA lewat sub-bisa jemput)
-                    if ($handler === 'TERKE' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
+                    if ($handler === 'KURIR' && preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // KURIR: minta satu pakaian/item diambil/dulukan dulu dari order = PERMINTAAN, bukan TERKE ke alamat
-                    if ($handler === 'TERKE' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
+                    // KURIR: minta satu pakaian/item diambil/dulukan dulu dari order = PERMINTAAN, bukan KURIR ke alamat
+                    if ($handler === 'KURIR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'KURIR→PERMINTAAN ambil_pakaian_dulu');
                         $handler = 'PERMINTAAN';
                         $config = $fullKeywordConfig['PERMINTAAN'] ?? $config;
                     }
                     // KURIR: jenis jemput + order aktif (tuntas=0,bin=0,id_user_ambil=0) = abaikan
-                    if ($handler === 'TERKE'
+                    if ($handler === 'KURIR'
                         && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_SKIP', 'KURIR→jemput_has_antarable_sale');
@@ -2603,8 +2603,8 @@ class WAReplies
                         if ($this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
                             continue;
                         }
-                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'JAM_OPERASIONAL→TERKE no_sale');
-                        $handler = 'TERKE';
+                        $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', 'JAM_OPERASIONAL→KURIR no_sale');
+                        $handler = 'KURIR';
                     }
                     // "bs jmpt?" tanpa estimasi = KURIR (minta jemput), bukan JAM_OPERASIONAL
                     if ($handler === 'JAM_OPERASIONAL' && preg_match('/\b(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)\b/i', $textBodyToCheck) && !preg_match('/\b(masih|msh|mash|masi|msih)\s+(bisa|bs|bis|boleh)\s*(jemput|jmpt|antar)/i', $textBodyToCheck)) {
@@ -2858,8 +2858,8 @@ class WAReplies
             $aiNotify = $fullKeywordConfig[$aiIntent]['notify'] ?? false;
 
             // AI salah: tanya harga (termasuk paket + antar/jemput) = HARGA unified, bukan minta kurir
-            if ($aiIntent === 'TERKE' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_terke→HARGA delivery_question');
+            if ($aiIntent === 'KURIR' && $this->messageIsHargaDeliveryQuestion($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_kurir→HARGA delivery_question');
                 $aiIntent = 'HARGA';
                 $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
@@ -2874,12 +2874,12 @@ class WAReplies
             }
 
             // AI salah: "kalau/klo ... antar/jemput" = hipotetis (bukan minta kurir) → biarkan CS (FALSE + ask)
-            if ($aiIntent === 'TERKE' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_terke_kalau_hypothetical');
+            if ($aiIntent === 'KURIR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_kurir_kalau_hypothetical');
                 if ($this->isHumanAgentRecentlyActive($waNumber)) {
                     return $this->silentExitHumanActive(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
-                        'ai_reject_terke_kalau_hypothetical'
+                        'ai_reject_kurir_kalau_hypothetical'
                     );
                 }
                 $conversationId = $this->getOrCreateConversationWithCase(
@@ -2894,12 +2894,12 @@ class WAReplies
             }
 
             // AI salah: "kami aja yang antar" / "saya yang jemput" = info (bukan minta kurir)
-            if ($aiIntent === 'TERKE' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_terke_customer_self_antar_jemput');
+            if ($aiIntent === 'KURIR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_kurir_customer_self_antar_jemput');
                 if ($this->isHumanAgentRecentlyActive($waNumber)) {
                     return $this->silentExitHumanActive(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
-                        'ai_reject_terke_customer_self'
+                        'ai_reject_kurir_customer_self'
                     );
                 }
                 $conversationId = $this->getOrCreateConversationWithCase(
@@ -2914,24 +2914,24 @@ class WAReplies
             }
 
             // AI salah: ongkos + durasi (hari) / jenis layanan = HARGA, bukan minta kurir
-            if ($aiIntent === 'TERKE' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_terke→HARGA ongkos_durasi_tier');
+            if ($aiIntent === 'KURIR' && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_kurir→HARGA ongkos_durasi_tier');
                 $aiIntent = 'HARGA';
                 $aiCase = $fullKeywordConfig['HARGA']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['HARGA']['notify'] ?? false;
             }
 
             // AI salah: pertanyaan ongkir/ongkos antar-jemput saja = FALSE (CS), bukan minta kurir
-            if ($aiIntent === 'TERKE' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_terke→FALSE ongkir_inquiry_only');
+            if ($aiIntent === 'KURIR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_kurir→FALSE ongkir_inquiry_only');
                 $aiIntent = 'FALSE';
                 $aiCase = 4;
                 $aiNotify = false;
             }
 
             // AI salah: minta satu pakaian/item diambil/dulukan dulu dari cucian/order = PERMINTAAN, bukan minta kurir jemput/antar
-            if ($aiIntent === 'TERKE' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_terke→PERMINTAAN ambil_pakaian_dulu');
+            if ($aiIntent === 'KURIR' && $this->messageIsPermintaanAmbilPakaianDulu($textBodyToCheck)) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_kurir→PERMINTAAN ambil_pakaian_dulu');
                 $aiIntent = 'PERMINTAAN';
                 $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
                 $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
@@ -2946,7 +2946,7 @@ class WAReplies
             }
 
             // STATUS / MINTA / JAM → ESTIMASI_SELESAI (tanya kapan/jam berapa siap) jika ada order aktif
-            if (in_array($aiIntent, ['STATUS', 'TERKE', 'JAM_OPERASIONAL'], true)
+            if (in_array($aiIntent, ['STATUS', 'KURIR', 'JAM_OPERASIONAL'], true)
                 && $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
                 && $this->pelangganHasActiveSale($phoneIn, $waNumber)
             ) {
@@ -2956,11 +2956,11 @@ class WAReplies
                 $aiNotify = $fullKeywordConfig['ESTIMASI_SELESAI']['notify'] ?? false;
             }
 
-            if ($aiIntent === 'TERKE'
+            if ($aiIntent === 'KURIR'
                 && $this->messageLooksLikeAntarKembaliDeadline($textBodyToCheck)
                 && !$this->pelangganHasActiveSale($phoneIn, $waNumber)
             ) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_terke→PERMINTAAN antar_kembali_deadline');
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_kurir→PERMINTAAN antar_kembali_deadline');
                 $aiIntent = 'PERMINTAAN';
                 $aiCase = $fullKeywordConfig['PERMINTAAN']['case'] ?? 3;
                 $aiNotify = $fullKeywordConfig['PERMINTAAN']['notify'] ?? true;
@@ -3013,10 +3013,10 @@ class WAReplies
                     $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
                     && $this->pelangganHasActiveSale($phoneIn, $waNumber)
                 )) {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_jam_operasional→TERKE bs_jmput_tanpa_masih');
-                $aiIntent = 'TERKE';
-                $aiCase = $fullKeywordConfig['TERKE']['case'] ?? null;
-                $aiNotify = $fullKeywordConfig['TERKE']['notify'] ?? false;
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ai_override_jam_operasional→KURIR bs_jmput_tanpa_masih');
+                $aiIntent = 'KURIR';
+                $aiCase = $fullKeywordConfig['KURIR']['case'] ?? null;
+                $aiNotify = $fullKeywordConfig['KURIR']['notify'] ?? false;
             }
 
             // Human agent aktif: setelah remap, hanya intent data/self-service yang boleh balas
@@ -3093,22 +3093,22 @@ class WAReplies
             }
 
             // LOKASI AI tapi jelas minta jemput/antar
-            if ($aiIntent === 'LOKASI' && $this->messageLooksLikeTerke($textBodyToCheck, $fullKeywordConfig)) {
-                $this->logAutoreplyTrace($waNumber, 'AI_REMAP', 'LOKASI→TERKE');
-                $aiIntent = 'TERKE';
-                $aiCase = $fullKeywordConfig['TERKE']['case'] ?? 2;
-                $aiNotify = $fullKeywordConfig['TERKE']['notify'] ?? true;
+            if ($aiIntent === 'LOKASI' && $this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)) {
+                $this->logAutoreplyTrace($waNumber, 'AI_REMAP', 'LOKASI→KURIR');
+                $aiIntent = 'KURIR';
+                $aiCase = $fullKeywordConfig['KURIR']['case'] ?? 2;
+                $aiNotify = $fullKeywordConfig['KURIR']['notify'] ?? true;
             }
 
             // Jenis jemput + order aktif (tuntas=0,bin=0,id_user_ambil=0) = bukan MINTA jemput
-            if ($aiIntent === 'TERKE'
+            if ($aiIntent === 'KURIR'
                 && $this->kurirJemputBlockedByActiveSale($phoneIn, $waNumber, $textBodyToCheck)
             ) {
-                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_terke_has_antarable_sale');
+                $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_reject_kurir_has_antarable_sale');
                 if ($this->isHumanAgentRecentlyActive($waNumber)) {
                     return $this->silentExitHumanActive(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
-                        'ai_reject_terke_has_antarable_sale'
+                        'ai_reject_kurir_has_antarable_sale'
                     );
                 }
                 $conversationId = $this->getOrCreateConversationWithCase(
@@ -3496,7 +3496,7 @@ class WAReplies
     }
 
     /**
-     * Intent TERKE — logic di WARepliesKurirTrait.
+     * Intent KURIR — logic di WARepliesKurirTrait.
      */
 
     /**
@@ -3713,7 +3713,7 @@ class WAReplies
     }
 
     /**
-     * Pertanyaan ongkir/ongkos antar-jemput saja — belum minta kurir (→ FALSE/CS, bukan TERKE).
+     * Pertanyaan ongkir/ongkos antar-jemput saja — belum minta kurir (→ FALSE/CS, bukan KURIR).
      * Contoh: "udah sm ongkir ni kak?", "brp ongkirnya?", "berapa ongkos antar?"
      *
      * @param string $text asli atau lowercase
@@ -3755,7 +3755,7 @@ class WAReplies
     }
 
     /**
-     * Minta satu jenis pakaian/item diambil/dulukan dulu dari order — PERMINTAAN, bukan TERKE jemput ke kamar/alamat.
+     * Minta satu jenis pakaian/item diambil/dulukan dulu dari order — PERMINTAAN, bukan KURIR jemput ke kamar/alamat.
      *
      * @param string $textLower lowercase, tanpa formatter WA
      */
@@ -4310,13 +4310,13 @@ class WAReplies
             'JAM_OPERASIONAL',
             'JAM_TUTUP',
             'JAM_BUKA',
-            'TERKE',
+            'KURIR',
         ];
 
         $looksEstimasi = $this->messageLooksLikeEstimasiSelesai($text);
         foreach ($breakout as $handler) {
             // Jangan putus session bila pesan masih tanya estimasi (hindari false match MINTA/JAM)
-            if ($looksEstimasi && in_array($handler, ['TERKE', 'JAM_OPERASIONAL', 'JAM_TUTUP', 'JAM_BUKA', 'STATUS'], true)) {
+            if ($looksEstimasi && in_array($handler, ['KURIR', 'JAM_OPERASIONAL', 'JAM_TUTUP', 'JAM_BUKA', 'STATUS'], true)) {
                 continue;
             }
             $patterns = $keywordConfig[$handler]['patterns'] ?? [];
@@ -4594,9 +4594,9 @@ class WAReplies
     {
         $item = $this->pickEstimasiFocusItem($phoneIn, $waNumber);
         if ($item === null) {
-            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'first_hit_no_item→TERKE');
-            $this->currentHandler = 'TERKE';
-            $this->handleTerke($phoneIn, $waNumber, $textBody);
+            $this->logAutoreplyTrace($waNumber, 'ESTIMASI_SELESAI', 'first_hit_no_item→KURIR');
+            $this->currentHandler = 'KURIR';
+            $this->handleKurir($phoneIn, $waNumber, $textBody);
             return;
         }
 
@@ -7576,7 +7576,7 @@ class WAReplies
     {
         $prompt = "Kamu adalah AI classifier untuk WhatsApp bot laundry. Klasifikasikan pesan ke SATU kategori.\n\n";
         $prompt .= "ATURAN TRUE/FALSE (WAJIB — BACA SEBELUM MEMILIH INTENT):\n";
-        $prompt .= "1. Definisi intent HANYA dari teks di blok === NAMA === (field ai_prompt database). Jangan infer dari nama blok (TERKE, KURIR, dll.).\n";
+        $prompt .= "1. Definisi intent HANYA dari teks di blok === NAMA === (field ai_prompt database). Jangan infer dari nama blok (KURIR, dll.).\n";
         $prompt .= "2. PRIORITAS FALSE (PALING TINGGI): Sebelum menetapkan intent apapun, periksa SEMUA blok. Jika pesan memenuhi syarat FALSE di blok manapun, intent WAJIB \"FALSE\" — meskipun pesan juga cocok dengan TRUE di blok lain.\n";
         $prompt .= "3. FALSE menang atas TRUE. Jika FALSE dan TRUE keduanya bisa dibaca, pilih FALSE.\n";
         $prompt .= "4. TRUE hanya jika syarat TRUE di blok terpenuhi DAN tidak ada FALSE di blok manapun yang match.\n";
@@ -7977,7 +7977,7 @@ class WAReplies
             }
 
             // FALSE / STATUS / MINTA padahal tanya kapan/jam berapa siap = ESTIMASI_SELESAI
-            if (in_array($intent, ['FALSE', 'STATUS', 'TERKE', 'JAM_OPERASIONAL'], true)
+            if (in_array($intent, ['FALSE', 'STATUS', 'KURIR', 'JAM_OPERASIONAL'], true)
                 && $this->messageLooksLikeEstimasiSelesai($textBody)) {
                 $intent = 'ESTIMASI_SELESAI';
                 $reason = 'remap kapan/jam berapa siap → ESTIMASI_SELESAI';
@@ -8053,26 +8053,26 @@ class WAReplies
             }
 
             // KURIR / FALSE padahal tanya tarif ongkos by durasi atau jenis layanan = HARGA
-            if (($intent === 'TERKE' || $intent === 'FALSE') && isset($keywordConfig['HARGA'])
+            if (($intent === 'KURIR' || $intent === 'FALSE') && isset($keywordConfig['HARGA'])
                 && $this->messageIsHargaOngkosByDurasiAtauLayanan($textBody)) {
                 $intent = 'HARGA';
                 $reason = 'remap ongkos + durasi/tier layanan → HARGA';
             }
 
             // MINTA padahal "kalau/klo ... antar/jemput" = hipotetis, bukan minta kurir
-            if ($intent === 'TERKE' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBody)) {
+            if ($intent === 'KURIR' && $this->messageLooksLikeKalauAntarJemputBukanMinta($textBody)) {
                 $intent = 'FALSE';
                 $reason = 'remap kalau+antar/jemput → FALSE (hipotetis, bukan minta kurir)';
             }
 
             // MINTA padahal customer sendiri yang antar/jemput ("kami aja yang antar")
-            if ($intent === 'TERKE' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBody)) {
+            if ($intent === 'KURIR' && $this->messageLooksLikeCustomerSelfAntarAtauJemput($textBody)) {
                 $intent = 'FALSE';
                 $reason = 'remap customer self antar/jemput → FALSE (bukan minta kurir)';
             }
 
             // MINTA padahal hanya tanya ongkir/ongkos antar-jemput (belum minta kurir)
-            if ($intent === 'TERKE' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBody)) {
+            if ($intent === 'KURIR' && $this->messageLooksLikeOngkirOngkosInquiryOnly($textBody)) {
                 $intent = 'FALSE';
                 $reason = 'remap pertanyaan ongkir/ongkos → FALSE (bukan minta kurir)';
             }
@@ -8087,7 +8087,7 @@ class WAReplies
             $textBodyForPaketCheck = mb_strtolower(preg_replace('/[*_~`]/', '', (string) $textBody), 'UTF-8');
 
             // MINTA + tanya harga paket/antar → HARGA
-            if ($intent === 'TERKE' && $this->messageIsHargaDeliveryQuestion($textBodyForPaketCheck)) {
+            if ($intent === 'KURIR' && $this->messageIsHargaDeliveryQuestion($textBodyForPaketCheck)) {
                 $intent = 'HARGA';
                 $reason = 'remap minta + harga delivery → HARGA';
             }
