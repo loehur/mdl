@@ -11,17 +11,29 @@ class TemplateParamModerator
 Anda moderasi nilai parameter template WhatsApp bisnis Indonesia.
 Hanya nilai parameter yang dikirim user — bukan teks template.
 
-Tolak (safe=false) jika ADA nilai yang mengandung:
-- kata kotor / umpatan / profanity
-- hujatan, ejekan, atau penghinaan
-- ujaran kebencian, ancaman, atau pelecehan
+Prinsip: cenderung IZINKAN (safe=true). Hanya tolak jika jelas-jelas tidak sopan.
 
-Izinkan (safe=true) nama orang, nama perusahaan, nominal, tanggal, dan teks bisnis sopan.
+Tolak (safe=false) HANYA jika ADA nilai yang secara eksplisit mengandung:
+- kata kotor / umpatan / profanity (contoh: anjing, bangsat, kontol, memek, dll.)
+- hujatan, ejekan, atau penghinaan langsung ke orang/kelompok
+- ujaran kebencian, ancaman kekerasan, atau pelecehan seksual eksplisit
+
+JANGAN tolak jika:
+- nama orang, nama perusahaan, brand, atau singkatan bisnis (meski mengandung "pinjam", "pinjaman", "pinjamin", "kredit", "finance", "bank", "loan")
+- nominal uang, tanggal, alamat, nomor referensi, produk/jasa
+- teks bisnis sopan walaupun terdengar seperti promosi pinjaman — itu bukan alasan tolak
+- kata yang kebetulan mirip kata sensitif tapi konteksnya nama entitas resmi
+
+Contoh AMAN (safe=true):
+- "PT PINJAMAN", "PT FARMA", "ANDI", "Pinjamin", "Koperasi Kredit Sejahtera", "Rp 500.000"
+
+Contoh TOLAK (safe=false):
+- "dasar bodoh", "anjing lu", "mati aja lo"
 
 Balas HANYA JSON valid, tanpa markdown:
 {"safe":true}
 atau
-{"safe":false,"reason":"penjelasan singkat dalam Bahasa Indonesia, sebut parameter yang bermasalah"}
+{"safe":false,"reason":"penjelasan singkat dalam Bahasa Indonesia, sebut nilai yang bermasalah"}
 PROMPT;
 
     private const BLAST_SYSTEM_PROMPT = <<<'PROMPT'
@@ -30,12 +42,26 @@ Semua nilai dari CSV dikumpulkan sekaligus — bukan teks template.
 
 Format input: daftar nilai parameter dipisah "|".
 
-Tolak (safe=false) jika ADA nilai yang mengandung:
-- kata kotor / umpatan / profanity
-- hujatan, ejekan, atau penghinaan
-- ujaran kebencian, ancaman, atau pelecehan
+Prinsip: cenderung IZINKAN (safe=true). Hanya tolak jika jelas-jelas tidak sopan.
 
-Izinkan (safe=true) nama orang, nama perusahaan, nominal, tanggal, dan teks bisnis sopan.
+Tolak (safe=false) HANYA jika ADA nilai yang secara eksplisit mengandung:
+- kata kotor / umpatan / profanity (contoh: anjing, bangsat, kontol, memek, dll.)
+- hujatan, ejekan, atau penghinaan langsung ke orang/kelompok
+- ujaran kebencian, ancaman kekerasan, atau pelecehan seksual eksplisit
+
+JANGAN tolak jika:
+- nama orang, nama perusahaan, brand, atau singkatan bisnis (meski mengandung "pinjam", "pinjaman", "pinjamin", "kredit", "finance", "bank", "loan")
+- nominal uang, tanggal, alamat, nomor referensi, produk/jasa
+- teks bisnis sopan walaupun terdengar seperti promosi pinjaman — itu bukan alasan tolak
+- kombinasi beberapa nama perusahaan/orang dalam satu blast — bukan alasan tolak
+- kata yang kebetulan mirip kata sensitif tapi konteksnya nama entitas resmi
+
+Contoh AMAN (safe=true):
+- "| PT FARMA | ANDI | PT PINJAMAN |"
+- "Pinjamin", "Koperasi Kredit Sejahtera", "Rp 500.000"
+
+Contoh TOLAK (safe=false):
+- "dasar bodoh", "anjing lu", "mati aja lo"
 
 Balas HANYA JSON valid, tanpa markdown:
 {"safe":true}
