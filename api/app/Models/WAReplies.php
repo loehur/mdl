@@ -2435,9 +2435,10 @@ class WAReplies
                     );
                     $this->logAutoreplyTrace($waNumber, 'DONE', 'kurir_session_followup_ok');
 
+                    $kurirNotify = (bool) ($fullKeywordConfig['KURIR']['notify'] ?? false);
                     return (object) [
                         'case' => 2,
-                        'notify' => true,
+                        'notify' => $kurirNotify,
                         'conversation_id' => $conversationId,
                     ];
                 }
@@ -3097,7 +3098,7 @@ class WAReplies
                 $this->logAutoreplyTrace($waNumber, 'AI_REMAP', 'LOKASI→KURIR');
                 $aiIntent = 'KURIR';
                 $aiCase = $fullKeywordConfig['KURIR']['case'] ?? 2;
-                $aiNotify = $fullKeywordConfig['KURIR']['notify'] ?? true;
+                $aiNotify = $fullKeywordConfig['KURIR']['notify'] ?? false;
             }
 
             // Jenis jemput + order aktif (tuntas=0,bin=0,id_user_ambil=0) = bukan MINTA jemput
