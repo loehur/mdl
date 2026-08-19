@@ -31,6 +31,7 @@ let sockGeneration = 0;
 const pendingOutStatus = new Map();
 
 const SEEN_INBOUND_FILE = path.join(AUTH_DIR, 'seen_inbound_keys.json');
+const UPSERT_DEBUG_FILE = path.join(__dirname, '..', 'data', 'upsert_debug.log');
 const SEEN_INBOUND_MAX = 10000;
 /** @type {Set<string>} */
 const seenInboundKeys = new Set();
@@ -93,6 +94,62 @@ function markInboundSeen(msg) {
   seenInboundDirty = true;
   persistSeenInboundKeys();
   return false;
+}
+
+function debugUpsert(line) {
+  if (process.env.DEBUG_UPSERT !== '1') return;
+  try {
+    const dir = path.dirname(UPSERT_DEBUG_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(UPSERT_DEBUG_FILE, `${new Date().toISOString()} ${line}\n`);
+  } catch (_) {
+    // ignore
+  }
+}
+
+async function processDeviceOutbound(msg, type) {
+  loadSeenInboundKeys();
+  const dedupKey = inboundDedupKey(msg);
+  if (dedupKey && seenInboundKeys.has(dedupKey)) {
+    console.log('[outbound-device] skip duplicate wamid=', msg.key?.id);
+    return;
+  }
+  if (isTrackedOutgoing(msg.key?.id)) {
+    console.log('[outbound-device] skip tracked-api wamid=', msg.key?.id);
+    return;
+  }
+  const outPayload = await buildInboundPayload(msg, { fromMe: true });
+  if (!outPayload) {
+    console.log(
+      '[outbound-device] skip null payload type=',
+      type,
+      'wamid=',
+      msg.key?.id,
+      'remoteJid=',
+      msg.key?.remoteJid || '-',
+      'hasMessage=',
+      Boolean(msg.message)
+    );
+    return;
+  }
+  console.log(
+    '[outbound-device]',
+    outPayload.sender,
+    outPayload.sender_pn || '(no pn)',
+    outPayload.type,
+    outPayload.message?.slice(0, 60) || '(media)',
+    'wamid=',
+    outPayload.wa_message_id || '-'
+  );
+  const hookResult = await postWebhook(outPayload);
+  if (!hookResult?.ok) {
+    console.error('[outbound-device] webhook failed:', hookResult?.error || hookResult);
+    return;
+  }
+  markInboundSeen(msg);
+  if (outPayload.wa_message_id) {
+    trackOutgoingMessageId(outPayload.wa_message_id, outPayload.wa_message_id);
+  }
 }
 
 function ensureAuthDir() {
@@ -389,47 +446,13 @@ async function buildInboundPayload(msg, opts = {}) {
 }
 
 async function handleIncomingMessages({ messages, type }) {
+  debugUpsert(`upsert type=${type} count=${messages.length} fromMe=${messages.filter((m) => m.key?.fromMe).length}`);
   for (const msg of messages) {
     try {
       if (msg.key?.fromMe) {
         // Pesan keluar dari HP (multi-device) sering type=append, bukan notify
         if (type !== 'notify' && type !== 'append') continue;
-        if (isTrackedOutgoing(msg.key?.id)) {
-          console.log('[outbound-device] skip tracked-api wamid=', msg.key?.id);
-          continue;
-        }
-        if (markInboundSeen(msg)) {
-          console.log('[outbound-device] skip duplicate wamid=', msg.key?.id);
-          continue;
-        }
-        const outPayload = await buildInboundPayload(msg, { fromMe: true });
-        if (!outPayload) {
-          console.log(
-            '[outbound-device] skip null payload type=',
-            type,
-            'wamid=',
-            msg.key?.id,
-            'remoteJid=',
-            msg.key?.remoteJid || '-'
-          );
-          continue;
-        }
-        console.log(
-          '[outbound-device]',
-          outPayload.sender,
-          outPayload.sender_pn || '(no pn)',
-          outPayload.type,
-          outPayload.message?.slice(0, 60) || '(media)',
-          'wamid=',
-          outPayload.wa_message_id || '-'
-        );
-        const hookResult = await postWebhook(outPayload);
-        if (!hookResult?.ok) {
-          console.error('[outbound-device] webhook failed:', hookResult?.error || hookResult);
-        }
-        if (outPayload.wa_message_id) {
-          trackOutgoingMessageId(outPayload.wa_message_id, outPayload.wa_message_id);
-        }
+        await processDeviceOutbound(msg, type);
         continue;
       }
       if (type !== 'notify') continue;
