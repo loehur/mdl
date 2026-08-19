@@ -204,7 +204,7 @@
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                {{ sending ? "Mengirim..." : "Kirim" }}
+                {{ sending ? "Memeriksa AI..." : "Kirim" }}
               </button>
             </div>
             <div v-else-if="auth.canSendWa" class="flex flex-col gap-2">
@@ -234,15 +234,26 @@
       @load-templates="(id) => chat.loadTemplates(id)"
       @submit="onTemplateSubmit"
     />
+
+    <ConfirmModal
+      v-if="freeReject.open"
+      mode="alert"
+      title="Pesan tidak dapat dikirim"
+      :message="freeReject.message"
+      confirm-label="Mengerti"
+      @confirm="freeReject.open = false"
+      @close="freeReject.open = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
 import TemplateModal from "../components/TemplateModal.vue";
+import ConfirmModal from "../components/ConfirmModal.vue";
 import ThemeToggle from "../components/ThemeToggle.vue";
 import { api } from "../api";
 
@@ -261,6 +272,7 @@ const tplSending = ref(false);
 const tplError = ref("");
 const scrollEl = ref(null);
 const templateQuotaBalance = ref(null);
+const freeReject = reactive({ open: false, message: "" });
 let pollTimer = null;
 
 function formatTime(v) {
@@ -347,12 +359,18 @@ async function sendFree() {
   if (!draft.value.trim() || sending.value) return;
   sending.value = true;
   sendError.value = "";
+  freeReject.open = false;
   try {
     await chat.sendFree(draft.value.trim());
     draft.value = "";
     scrollToBottom();
   } catch (e) {
-    sendError.value = e.message;
+    if (e.status === 422 && (e.data?.status === false || e.data?.reason)) {
+      freeReject.message = e.data.reason || e.message || "Pesan ditolak AI.";
+      freeReject.open = true;
+    } else {
+      sendError.value = e.message;
+    }
   } finally {
     sending.value = false;
   }

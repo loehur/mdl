@@ -6,7 +6,7 @@
         <button
           type="button"
           class="text-slate-400 hover:text-slate-100 disabled:opacity-40 disabled:pointer-events-none"
-          :disabled="busy"
+          :disabled="busy || checking"
           @click="$emit('close')"
         >
           ✕
@@ -16,7 +16,7 @@
       <form class="p-4 space-y-4" @submit.prevent="submit">
         <div v-if="!fixedKeyId">
           <label class="label">Channel / nomor WA</label>
-          <select v-model="form.channel_id" required class="field" :disabled="busy" @change="onKeyChange">
+          <select v-model="form.channel_id" required class="field" :disabled="busy || checking" @change="onKeyChange">
             <option disabled value="">Pilih channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
@@ -26,12 +26,12 @@
 
         <div v-if="!fixedPhone">
           <label class="label">Nomor tujuan</label>
-          <input v-model="form.phone" required class="field" placeholder="62812..." :disabled="busy" />
+          <input v-model="form.phone" required class="field" placeholder="62812..." :disabled="busy || checking" />
         </div>
 
         <div>
           <label class="label">Template</label>
-          <select v-model="form.template_id" required class="field" :disabled="busy" @change="onTplChange">
+          <select v-model="form.template_id" required class="field" :disabled="busy || checking" @change="onTplChange">
             <option disabled value="">Pilih template</option>
             <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
               {{ t.template_name }} ({{ t.language }})
@@ -55,20 +55,30 @@
             :placeholder="p.example_value || ''"
             :required="Number(p.is_required) === 1"
             :maxlength="paramMaxlength(p)"
-            :disabled="busy"
+            :disabled="busy || checking"
+            @input="clearAiWarning"
           />
           <p class="text-[10px] text-slate-500">Maks. {{ paramMaxlength(p) }} karakter</p>
         </div>
 
-        <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
+        <div
+          v-if="aiWarning"
+          class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100"
+          role="alert"
+        >
+          <p class="font-medium text-amber-200 mb-1">Template tidak dapat dikirim</p>
+          <p class="text-xs text-amber-100/90 whitespace-pre-wrap">{{ aiWarning }}</p>
+        </div>
+
+        <p v-if="error && !aiWarning" class="text-sm text-rose-400">{{ error }}</p>
 
         <button
           type="submit"
           class="w-full py-3 rounded-xl bg-accent font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
-          :disabled="busy"
+          :disabled="busy || checking"
         >
           <svg
-            v-if="busy"
+            v-if="busy || checking"
             class="h-4 w-4 animate-spin"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -82,7 +92,7 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          {{ busy ? "Mengirim..." : "Kirim template" }}
+          {{ checking ? "Memeriksa AI..." : busy ? "Mengirim..." : "Kirim template" }}
         </button>
       </form>
 
@@ -115,7 +125,8 @@
 </template>
 
 <script setup>
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
+import { api } from "../api";
 import {
   buildFilledPreview,
   buildPreviewMapsFromValues,
@@ -139,6 +150,8 @@ const form = reactive({
   template_id: "",
 });
 const paramValues = reactive({});
+const checking = ref(false);
+const aiWarning = ref("");
 
 const filteredTemplates = computed(() => props.templates);
 
@@ -159,6 +172,10 @@ const livePreview = computed(() => {
   return buildFilledPreview(tpl.body_preview, tpl.params, named, indexed);
 });
 
+function clearAiWarning() {
+  aiWarning.value = "";
+}
+
 watch(
   () => props.fixedKeyId,
   (v) => {
@@ -178,8 +195,16 @@ watch(
   { immediate: true }
 );
 
+watch(
+  () => props.error,
+  () => {
+    if (props.error) aiWarning.value = "";
+  }
+);
+
 function onKeyChange() {
   form.template_id = "";
+  clearAiWarning();
   emit("load-templates");
 }
 
@@ -188,20 +213,18 @@ function onTplChange() {
   for (const p of selectedTpl.value?.params || []) {
     paramValues[paramKey(p)] = "";
   }
+  clearAiWarning();
 }
 
-function submit() {
-  if (props.busy) return;
+function buildPayload() {
   const tpl = selectedTpl.value;
   const template_params = {};
   for (const p of tpl?.params || []) {
     const key = paramKey(p);
-    const val = paramValues[key] ?? "";
-    // Prefer named; otherwise use component_index (matches Blast CSV + resolveTemplateParams)
-    template_params[key] = val;
+    template_params[key] = paramValues[key] ?? "";
   }
 
-  emit("submit", {
+  return {
     channel_id: Number(form.channel_id || props.fixedKeyId),
     phone: form.phone || props.fixedPhone,
     template_id: Number(form.template_id),
@@ -209,7 +232,42 @@ function submit() {
     language: tpl?.language || "id",
     template_params,
     message: livePreview.value || tpl?.body_preview || "",
-  });
+  };
+}
+
+async function submit() {
+  if (props.busy || checking.value) return;
+  const tpl = selectedTpl.value;
+  if (!tpl) return;
+
+  checking.value = true;
+  aiWarning.value = "";
+
+  const payload = buildPayload();
+
+  try {
+    const mod = await api("/WaDesk/Chat/moderateTemplateParams", {
+      method: "POST",
+      body: {
+        template_id: payload.template_id,
+        template_params: payload.template_params,
+      },
+    });
+
+    if (!mod.data?.safe) {
+      aiWarning.value =
+        mod.data?.reason ||
+        mod.message ||
+        "Konten parameter ditolak moderasi AI.";
+      return;
+    }
+
+    emit("submit", payload);
+  } catch (e) {
+    aiWarning.value = e.message || "Gagal memeriksa parameter dengan AI";
+  } finally {
+    checking.value = false;
+  }
 }
 </script>
 

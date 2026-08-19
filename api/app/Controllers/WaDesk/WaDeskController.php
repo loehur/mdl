@@ -393,6 +393,44 @@ abstract class WaDeskController extends BaseController
         return $this->getTenantOpenAiConfig($tenantId)['api_key'];
     }
 
+    /**
+     * @return array{safe:bool,reason:string,skipped?:bool}
+     */
+    protected function moderateTemplateParamValues(int $tenantId, array $paramDefs, array $rawParams): array
+    {
+        $entries = \App\Helpers\WaDesk\TemplateParamModerator::entriesFromDefs($paramDefs, $rawParams);
+        $moderator = new \App\Helpers\WaDesk\TemplateParamModerator($this->db($this->db_index));
+        return $moderator->moderate($this->getTenantOpenAiApiKey($tenantId), $entries);
+    }
+
+    protected function requireTemplateParamsSafe(int $tenantId, array $paramDefs, array $rawParams): void
+    {
+        if ($this->getTenantOpenAiApiKey($tenantId) === '') {
+            $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
+        }
+
+        $result = $this->moderateTemplateParamValues($tenantId, $paramDefs, $rawParams);
+        if (!$result['safe']) {
+            $this->error($result['reason'] ?: 'Konten parameter tidak aman', 422, [
+                'safe' => false,
+                'reason' => $result['reason'],
+            ]);
+        }
+    }
+
+    /**
+     * @return array{status:bool,new_words:string,reason:string}
+     */
+    protected function polishFreeMessageText(int $tenantId, string $message): array
+    {
+        if ($this->getTenantOpenAiApiKey($tenantId) === '') {
+            $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
+        }
+
+        $polisher = new \App\Helpers\WaDesk\FreeTextPolisher();
+        return $polisher->polish($this->getTenantOpenAiApiKey($tenantId), $message);
+    }
+
     protected function maskApiKey(string $key): string
     {
         $key = trim($key);

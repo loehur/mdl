@@ -108,6 +108,44 @@ class Chat extends WaDeskController
         $this->success(null, 'Marked read');
     }
 
+    /** POST /WaDesk/Chat/moderateTemplateParams — AI cek nilai parameter template */
+    public function moderateTemplateParams()
+    {
+        $this->verifyAuth();
+        $user = $this->requireOperationalTeam();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $templateId = (int) ($body['template_id'] ?? 0);
+        $rawParams = $body['template_params'] ?? [];
+        if (!is_array($rawParams)) {
+            $rawParams = [];
+        }
+
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
+        }
+
+        $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
+        if (!$tpl) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+
+        if ($this->getTenantOpenAiApiKey((int) $user['tenant_id']) === '') {
+            $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
+        }
+
+        $tplParamDefs = $this->loadTemplateParamDefs($templateId);
+        $result = $this->moderateTemplateParamValues((int) $user['tenant_id'], $tplParamDefs, $rawParams);
+
+        $this->success([
+            'safe' => (bool) ($result['safe'] ?? false),
+            'reason' => (string) ($result['reason'] ?? ''),
+        ], ($result['safe'] ?? false) ? 'Parameter aman' : 'Parameter ditolak');
+    }
+
     public function send()
     {
         $this->verifyAuth();
@@ -180,20 +218,7 @@ class Chat extends WaDeskController
                 }
                 $templateName = $tpl['template_name'];
                 $language = $tpl['language'] ?: $language;
-                // Check if button_meta migration has been applied
-                $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
-                $hasMaxlength = $this->columnExists('wa_template_params', 'maxlength');
-                $paramCols = $hasButtonMeta
-                    ? "component, button_sub_type, button_index, param_index, param_name, label, is_required"
-                    : "component, param_index, param_name, label, is_required";
-                if ($hasMaxlength) {
-                    $paramCols .= ', maxlength';
-                }
-                $tplParamDefs = $this->db($this->db_index)->query(
-                    "SELECT $paramCols FROM wa_template_params WHERE template_id = ?
-                     ORDER BY FIELD(component,'header','body','button'), param_index ASC",
-                    [$templateId]
-                )->result_array();
+                $tplParamDefs = $this->loadTemplateParamDefs($templateId);
             }
             if ($templateName === '') {
                 $this->error('template_name atau template_id wajib', 400);
@@ -230,6 +255,8 @@ class Chat extends WaDeskController
             if ($lengthErrors !== []) {
                 $this->error(implode('; ', $lengthErrors), 422);
             }
+
+            $this->requireTemplateParamsSafe((int) $user['tenant_id'], $tplParamDefs, $rawParams);
 
             $previewSource = (string) ($tpl['body_preview'] ?? '');
             if ($previewSource === '') {
@@ -324,6 +351,19 @@ class Chat extends WaDeskController
             $this->error('message wajib', 400);
         }
 
+        $originalMessage = $message;
+        $polish = $this->polishFreeMessageText((int) $user['tenant_id'], $message);
+        if (!$polish['status']) {
+            $this->error($polish['reason'] ?: 'Pesan ditolak AI', 422, [
+                'status' => false,
+                'reason' => $polish['reason'],
+            ]);
+        }
+        $message = trim($polish['new_words']);
+        if ($message === '') {
+            $this->error('AI gagal merapikan pesan', 422);
+        }
+
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
         $quota = $limitGuard->canSend((int) $channel['tenant_id'], $phone);
         if (!$quota['allowed']) {
@@ -360,6 +400,8 @@ class Chat extends WaDeskController
             'mode' => 'free',
             'csw_open' => true,
             'kirimin' => $result['data'],
+            'ai_polished' => $message !== $originalMessage,
+            'sent_message' => $message,
         ], 'Pesan terkirim');
     }
 
@@ -524,5 +566,24 @@ class Chat extends WaDeskController
             'last_out_at' => $now,
             'last_message_at' => $now,
         ], ['id' => $convId]);
+    }
+
+    /** @return array<int,array> */
+    private function loadTemplateParamDefs(int $templateId): array
+    {
+        $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
+        $hasMaxlength = $this->columnExists('wa_template_params', 'maxlength');
+        $paramCols = $hasButtonMeta
+            ? "component, button_sub_type, button_index, param_index, param_name, label, is_required"
+            : "component, param_index, param_name, label, is_required";
+        if ($hasMaxlength) {
+            $paramCols .= ', maxlength';
+        }
+
+        return $this->db($this->db_index)->query(
+            "SELECT $paramCols FROM wa_template_params WHERE template_id = ?
+             ORDER BY FIELD(component,'header','body','button'), param_index ASC",
+            [$templateId]
+        )->result_array();
     }
 }
