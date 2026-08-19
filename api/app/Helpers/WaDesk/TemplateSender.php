@@ -30,7 +30,7 @@ class TemplateSender
         try {
             $tenantId = (int) $channel['tenant_id'];
             $limitGuard = new DailyKeyLimit($this->db);
-            $quota = $limitGuard->reserve($tenantId, $phone, $sentByUserId ?: null, 'blast');
+            $quota = $limitGuard->canSend($tenantId, $phone);
             if (!$quota['allowed']) {
                 return [
                     'success' => false,
@@ -85,6 +85,8 @@ class TemplateSender
                     ?? ($result['data']['message'] ?? 'Template send failed');
                 return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Kirimin: ' . $yErr];
             }
+
+            $limitGuard->recordSuccess($tenantId, $phone, $sentByUserId ?: null, 'blast');
 
             $conv = $this->getOrCreateConversation($channel, $phone, null);
             $fakeUser = ['id' => $sentByUserId];

@@ -200,7 +200,7 @@ class Chat extends WaDeskController
             }
 
             $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-            $quota = $limitGuard->reserve((int) $channel['tenant_id'], $phone, (int) $user['id'], 'template');
+            $quota = $limitGuard->canSend((int) $channel['tenant_id'], $phone);
             if (!$quota['allowed']) {
                 $this->error($quota['error'], 422, [
                     'daily_limit' => $quota['limit'],
@@ -265,6 +265,8 @@ class Chat extends WaDeskController
                 $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
             }
 
+            $limitGuard->recordSuccess((int) $channel['tenant_id'], $phone, (int) $user['id'], 'template');
+
             $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
             $this->touchConversationOut($conv['id'], $preview);
 
@@ -323,7 +325,7 @@ class Chat extends WaDeskController
         }
 
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->reserve((int) $channel['tenant_id'], $phone, (int) $user['id'], 'free');
+        $quota = $limitGuard->canSend((int) $channel['tenant_id'], $phone);
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],
@@ -338,6 +340,8 @@ class Chat extends WaDeskController
             $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Send failed');
             $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
         }
+
+        $limitGuard->recordSuccess((int) $channel['tenant_id'], $phone, (int) $user['id'], 'free');
 
         $msgId = $this->storeOutbound($conv, $user, 'text', $message, null, null, $result);
         $this->touchConversationOut($conv['id'], $message);

@@ -252,11 +252,12 @@
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveDailyLimit">
           <p class="text-xs text-slate-400">
-            Limit harian nomor customer <strong>unik</strong> per tenant (semua channel/team digabung). Reset setiap hari.
+            Limit harian nomor customer <strong>unik terkirim (status sent+)</strong> per tenant.
+            Pengiriman gagal tidak dihitung. Reset setiap hari.
           </p>
           <div class="flex flex-col sm:flex-row gap-2 items-end">
             <div class="flex-1 w-full">
-              <label class="label">Maks. nomor unik per hari</label>
+              <label class="label">Maks. nomor unik terkirim per hari</label>
               <input
                 v-model.number="dailyLimitForm.daily_unique_limit"
                 type="number"
@@ -483,6 +484,43 @@
         </p>
       </section>
 
+      <!-- OpenAI -->
+      <section v-if="tab === 'openai'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">OpenAI</h2>
+        <p class="text-xs text-slate-500">
+          API key OpenAI disimpan per tenant. Fitur AI akan ditambahkan di step berikutnya.
+        </p>
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveOpenAiKey">
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              v-model="openaiForm.api_key"
+              type="password"
+              class="field flex-1"
+              :placeholder="openaiForm.configured ? openaiForm.api_key_masked : 'sk-...'"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn shrink-0" :disabled="savingOpenAiKey">
+              {{ savingOpenAiKey ? "Menyimpan..." : openaiForm.configured ? "Update API key" : "Simpan API key" }}
+            </button>
+          </div>
+          <p v-if="openaiForm.configured" class="text-xs text-emerald-400">
+            Terkonfigurasi: {{ openaiForm.api_key_masked }}
+          </p>
+        </form>
+
+        <div v-if="openaiForm.configured" class="flex justify-end">
+          <button
+            type="button"
+            class="text-xs text-rose-400 hover:text-rose-300"
+            :disabled="deletingOpenAiKey"
+            @click="askDeleteOpenAiKey"
+          >
+            {{ deletingOpenAiKey ? "Menghapus..." : "Hapus API key" }}
+          </button>
+        </div>
+      </section>
+
       <!-- Quota -->
       <section v-if="tab === 'quota'" class="card space-y-4">
         <h2 class="font-display font-semibold text-lg">Kuota Template</h2>
@@ -563,6 +601,7 @@ const tabs = [
   { id: "users", label: "Users" },
   { id: "keys", label: "Channel" },
   { id: "templates", label: "Templates" },
+  { id: "openai", label: "OpenAI" },
   { id: "quota", label: "Quota" },
 ];
 
@@ -573,8 +612,11 @@ const availableDevices = ref([]);
 const channelForm = reactive({ device_id: "", label: "", team_id: "" });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const dailyLimitForm = reactive({ daily_unique_limit: 250 });
+const openaiForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const savingKiriminKey = ref(false);
 const savingDailyLimit = ref(false);
+const savingOpenAiKey = ref(false);
+const deletingOpenAiKey = ref(false);
 const syncingDevices = ref(false);
 const editingKeyId = ref(null);
 const templates = ref([]);
@@ -697,13 +739,14 @@ async function leaveOperationalTeam() {
 }
 
 async function refresh() {
-  const [t, u, k, tp, q, kir] = await Promise.all([
+  const [t, u, k, tp, q, kir, oai] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
     api("/WaDesk/Channels/list?scope=all"),
     api("/WaDesk/Templates/list"),
     api("/WaDesk/Quota/list"),
     api("/WaDesk/Settings/kirimin"),
+    api("/WaDesk/Settings/openai"),
   ]);
   teams.value = t.data.teams || [];
   users.value = u.data.users || [];
@@ -714,6 +757,8 @@ async function refresh() {
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
   dailyLimitForm.daily_unique_limit = Number(kir.data?.daily_unique_limit) || 250;
+  openaiForm.configured = !!oai.data?.configured;
+  openaiForm.api_key_masked = oai.data?.api_key_masked || "";
 }
 
 async function createTeam() {
@@ -978,6 +1023,54 @@ async function saveDailyLimit() {
     flash(false, e.message);
   } finally {
     savingDailyLimit.value = false;
+  }
+}
+
+async function saveOpenAiKey() {
+  const apiKey = String(openaiForm.api_key || "").trim();
+  if (!apiKey) {
+    flash(false, "OpenAI API key wajib diisi");
+    return;
+  }
+  savingOpenAiKey.value = true;
+  try {
+    const res = await api("/WaDesk/Settings/openai", {
+      method: "POST",
+      body: { api_key: apiKey },
+    });
+    openaiForm.api_key = "";
+    openaiForm.configured = true;
+    openaiForm.api_key_masked = res.data?.api_key_masked || "";
+    flash(true, "OpenAI API key disimpan");
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingOpenAiKey.value = false;
+  }
+}
+
+function askDeleteOpenAiKey() {
+  askConfirm({
+    title: "Hapus OpenAI API key",
+    message: "API key OpenAI tenant akan dihapus. Fitur AI tidak bisa dipakai sampai disimpan lagi.",
+    confirmLabel: "Hapus",
+    danger: true,
+    action: () => deleteOpenAiKey(),
+  });
+}
+
+async function deleteOpenAiKey() {
+  deletingOpenAiKey.value = true;
+  try {
+    await api("/WaDesk/Settings/deleteOpenai", { method: "POST", body: {} });
+    openaiForm.api_key = "";
+    openaiForm.configured = false;
+    openaiForm.api_key_masked = "";
+    flash(true, "OpenAI API key dihapus");
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    deletingOpenAiKey.value = false;
   }
 }
 

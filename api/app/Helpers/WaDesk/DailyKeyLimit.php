@@ -3,16 +3,20 @@
 namespace App\Helpers\WaDesk;
 
 /**
- * Enforce per-tenant daily limit on unique destination numbers.
+ * Enforce per-tenant daily limit on unique destination numbers (successful sends only).
  *
  * Rule:
  * - Max N unique phones per tenant per day (tenants.daily_unique_limit, default 250)
- * - Same phone can be retried multiple times in the same day
- * - Shared across all channels/teams in the tenant
+ * - Only counts phones with status >= sent (sent, delivered, read)
+ * - Failed sends are NOT counted
+ * - Same phone can be retried; still counts as one unique slot once sent
  */
 class DailyKeyLimit
 {
     public const DEFAULT_DAILY_UNIQUE_LIMIT = 250;
+
+    /** Statuses that consume daily unique quota. */
+    public const COUNTABLE_STATUSES = ['sent', 'delivered', 'read'];
 
     private $db;
 
@@ -49,30 +53,17 @@ class DailyKeyLimit
     }
 
     /**
-     * Reserve today's unique-phone slot for this tenant+phone.
+     * Check whether tenant may send to this phone today (no row inserted).
      *
      * @return array{allowed:bool,is_new:bool,used:int,limit:int,error:string}
      */
-    public function reserve(int $tenantId, string $phone, ?int $userId = null, string $source = 'chat'): array
+    public function canSend(int $tenantId, string $phone): array
     {
         $limit = $this->getLimit($tenantId);
         $today = date('Y-m-d');
-        $now = date('Y-m-d H:i:s');
 
-        $existing = $this->db->query(
-            "SELECT id FROM wa_key_daily_contacts
-             WHERE tenant_id = ? AND contact_date = ? AND phone = ?
-             LIMIT 1",
-            [$tenantId, $today, $phone]
-        )->row_array();
-
+        $existing = $this->findCountable($tenantId, $today, $phone);
         if ($existing) {
-            $this->db->update('wa_key_daily_contacts', [
-                'last_user_id' => $userId ?: null,
-                'last_source' => $source,
-                'last_attempt_at' => $now,
-            ], ['id' => (int) $existing['id']]);
-
             return [
                 'allowed' => true,
                 'is_new' => false,
@@ -86,11 +77,43 @@ class DailyKeyLimit
         if ($used >= $limit) {
             return [
                 'allowed' => false,
-                'is_new' => false,
+                'is_new' => true,
                 'used' => $used,
                 'limit' => $limit,
-                'error' => 'Limit harian tenant tercapai: maksimal ' . $limit . ' nomor customer unik per hari.',
+                'error' => 'Limit harian tenant tercapai: maksimal ' . $limit . ' nomor unik terkirim (sent) per hari.',
             ];
+        }
+
+        return [
+            'allowed' => true,
+            'is_new' => true,
+            'used' => $used,
+            'limit' => $limit,
+            'error' => '',
+        ];
+    }
+
+    /**
+     * Record a successful send (status sent). Call after provider accepts the message.
+     */
+    public function recordSuccess(int $tenantId, string $phone, ?int $userId = null, string $source = 'chat'): void
+    {
+        $today = date('Y-m-d');
+        $now = date('Y-m-d H:i:s');
+        $phone = trim($phone);
+        if ($phone === '') {
+            return;
+        }
+
+        $existing = $this->findCountable($tenantId, $today, $phone);
+        if ($existing) {
+            $this->db->update('wa_key_daily_contacts', [
+                'last_user_id' => $userId ?: null,
+                'last_source' => $source,
+                'last_attempt_at' => $now,
+                'status' => 'sent',
+            ], ['id' => (int) $existing['id']]);
+            return;
         }
 
         try {
@@ -98,6 +121,7 @@ class DailyKeyLimit
                 'tenant_id' => $tenantId,
                 'contact_date' => $today,
                 'phone' => $phone,
+                'status' => 'sent',
                 'first_user_id' => $userId ?: null,
                 'last_user_id' => $userId ?: null,
                 'first_source' => $source,
@@ -106,41 +130,22 @@ class DailyKeyLimit
                 'last_attempt_at' => $now,
             ]);
         } catch (\Throwable $e) {
-            $existing = $this->db->query(
-                "SELECT id FROM wa_key_daily_contacts
-                 WHERE tenant_id = ? AND contact_date = ? AND phone = ?
-                 LIMIT 1",
-                [$tenantId, $today, $phone]
-            )->row_array();
-
-            if (!$existing) {
-                $used = $this->countUsed($tenantId, $today);
-                if ($used >= $limit) {
-                    return [
-                        'allowed' => false,
-                        'is_new' => false,
-                        'used' => $used,
-                        'limit' => $limit,
-                        'error' => 'Limit harian tenant tercapai: maksimal ' . $limit . ' nomor customer unik per hari.',
-                    ];
-                }
-                return [
-                    'allowed' => false,
-                    'is_new' => false,
-                    'used' => $used,
-                    'limit' => $limit,
-                    'error' => 'Gagal mencatat penggunaan harian tenant.',
-                ];
+            $existing = $this->findCountable($tenantId, $today, $phone);
+            if ($existing) {
+                $this->db->update('wa_key_daily_contacts', [
+                    'last_user_id' => $userId ?: null,
+                    'last_source' => $source,
+                    'last_attempt_at' => $now,
+                    'status' => 'sent',
+                ], ['id' => (int) $existing['id']]);
             }
         }
+    }
 
-        return [
-            'allowed' => true,
-            'is_new' => true,
-            'used' => $used + 1,
-            'limit' => $limit,
-            'error' => '',
-        ];
+    /** @deprecated Use canSend() before send and recordSuccess() after success */
+    public function reserve(int $tenantId, string $phone, ?int $userId = null, string $source = 'chat'): array
+    {
+        return $this->canSend($tenantId, $phone);
     }
 
     /**
@@ -164,14 +169,7 @@ class DailyKeyLimit
             ];
         }
 
-        $placeholders = implode(',', array_fill(0, count($phones), '?'));
-        $existingRows = $this->db->query(
-            "SELECT phone FROM wa_key_daily_contacts
-             WHERE tenant_id = ? AND contact_date = ? AND phone IN ({$placeholders})",
-            array_merge([$tenantId, $today], $phones)
-        )->result_array();
-
-        $existingPhones = array_map(static fn ($row) => (string) $row['phone'], $existingRows);
+        $existingPhones = $this->findCountablePhones($tenantId, $today, $phones);
         $newUnique = count(array_diff($phones, $existingPhones));
         $used = $this->countUsed($tenantId, $today);
         $remaining = max(0, $limit - $used);
@@ -183,7 +181,7 @@ class DailyKeyLimit
                 'new_unique' => $newUnique,
                 'remaining' => $remaining,
                 'limit' => $limit,
-                'error' => 'Limit harian tenant tidak cukup. Sisa kuota nomor unik hari ini: ' . $remaining . '.',
+                'error' => 'Limit harian tenant tidak cukup. Sisa kuota nomor unik terkirim (sent) hari ini: ' . $remaining . '.',
             ];
         }
 
@@ -197,15 +195,100 @@ class DailyKeyLimit
         ];
     }
 
+    private function findCountable(int $tenantId, string $today, string $phone): ?array
+    {
+        $statuses = self::COUNTABLE_STATUSES;
+        $placeholders = implode(',', array_fill(0, count($statuses), '?'));
+        $hasStatusCol = $this->hasStatusColumn();
+
+        if (!$hasStatusCol) {
+            return $this->db->query(
+                "SELECT id FROM wa_key_daily_contacts
+                 WHERE tenant_id = ? AND contact_date = ? AND phone = ?
+                 LIMIT 1",
+                [$tenantId, $today, $phone]
+            )->row_array() ?: null;
+        }
+
+        return $this->db->query(
+            "SELECT id FROM wa_key_daily_contacts
+             WHERE tenant_id = ? AND contact_date = ? AND phone = ?
+               AND status IN ({$placeholders})
+             LIMIT 1",
+            array_merge([$tenantId, $today, $phone], $statuses)
+        )->row_array() ?: null;
+    }
+
+    /** @param array<int,string> $phones */
+    private function findCountablePhones(int $tenantId, string $today, array $phones): array
+    {
+        if ($phones === []) {
+            return [];
+        }
+
+        $statuses = self::COUNTABLE_STATUSES;
+        $phonePh = implode(',', array_fill(0, count($phones), '?'));
+        $statusPh = implode(',', array_fill(0, count($statuses), '?'));
+        $hasStatusCol = $this->hasStatusColumn();
+
+        if (!$hasStatusCol) {
+            $rows = $this->db->query(
+                "SELECT phone FROM wa_key_daily_contacts
+                 WHERE tenant_id = ? AND contact_date = ? AND phone IN ({$phonePh})",
+                array_merge([$tenantId, $today], $phones)
+            )->result_array();
+        } else {
+            $rows = $this->db->query(
+                "SELECT phone FROM wa_key_daily_contacts
+                 WHERE tenant_id = ? AND contact_date = ? AND phone IN ({$phonePh})
+                   AND status IN ({$statusPh})",
+                array_merge([$tenantId, $today], $phones, $statuses)
+            )->result_array();
+        }
+
+        return array_map(static fn ($row) => (string) $row['phone'], $rows);
+    }
+
     private function countUsed(int $tenantId, string $today): int
     {
-        $row = $this->db->query(
-            "SELECT COUNT(*) AS cnt
-             FROM wa_key_daily_contacts
-             WHERE tenant_id = ? AND contact_date = ?",
-            [$tenantId, $today]
-        )->row_array();
+        $statuses = self::COUNTABLE_STATUSES;
+        $placeholders = implode(',', array_fill(0, count($statuses), '?'));
+        $hasStatusCol = $this->hasStatusColumn();
+
+        if (!$hasStatusCol) {
+            $row = $this->db->query(
+                "SELECT COUNT(*) AS cnt
+                 FROM wa_key_daily_contacts
+                 WHERE tenant_id = ? AND contact_date = ?",
+                [$tenantId, $today]
+            )->row_array();
+        } else {
+            $row = $this->db->query(
+                "SELECT COUNT(*) AS cnt
+                 FROM wa_key_daily_contacts
+                 WHERE tenant_id = ? AND contact_date = ? AND status IN ({$placeholders})",
+                array_merge([$tenantId, $today], $statuses)
+            )->row_array();
+        }
 
         return (int) ($row['cnt'] ?? 0);
+    }
+
+    private function hasStatusColumn(): bool
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        try {
+            $row = $this->db->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_key_daily_contacts' AND COLUMN_NAME = 'status'"
+            )->row_array();
+            $cache = (int) ($row['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            $cache = false;
+        }
+        return $cache;
     }
 }

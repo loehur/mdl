@@ -373,6 +373,26 @@ abstract class WaDeskController extends BaseController
         return $this->kiriminForTenant($tenantId);
     }
 
+    /** @return array{api_key:string,api_key_masked:string,configured:bool} */
+    protected function getTenantOpenAiConfig(int $tenantId): array
+    {
+        $row = $this->db($this->db_index)->query(
+            "SELECT openai_api_key FROM tenants WHERE id = ? LIMIT 1",
+            [$tenantId]
+        )->row_array();
+        $apiKey = trim((string) ($row['openai_api_key'] ?? ''));
+        return [
+            'api_key' => $apiKey,
+            'api_key_masked' => $this->maskApiKey($apiKey),
+            'configured' => $apiKey !== '',
+        ];
+    }
+
+    protected function getTenantOpenAiApiKey(int $tenantId): string
+    {
+        return $this->getTenantOpenAiConfig($tenantId)['api_key'];
+    }
+
     protected function maskApiKey(string $key): string
     {
         $key = trim($key);

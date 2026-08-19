@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   name VARCHAR(150) NOT NULL,
   kirimin_api_key VARCHAR(255) NULL,
   daily_unique_limit INT UNSIGNED NOT NULL DEFAULT 250,
+  openai_api_key VARCHAR(255) NULL,
   admin_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
@@ -189,6 +190,7 @@ CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   tenant_id INT UNSIGNED NOT NULL,
   contact_date DATE NOT NULL,
   phone VARCHAR(32) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'sent',
   first_user_id INT UNSIGNED NULL,
   last_user_id INT UNSIGNED NULL,
   first_source VARCHAR(32) NULL,
@@ -197,6 +199,7 @@ CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_tenant_contact_day (tenant_id, contact_date, phone),
   INDEX idx_tenant_day (tenant_id, contact_date),
+  INDEX idx_tenant_day_status (tenant_id, contact_date, status),
   CONSTRAINT fk_tenant_daily_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_channel_daily_first_user FOREIGN KEY (first_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_channel_daily_last_user FOREIGN KEY (last_user_id) REFERENCES users(id) ON DELETE SET NULL
