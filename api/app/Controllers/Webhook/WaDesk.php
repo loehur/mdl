@@ -80,7 +80,7 @@ class WaDesk extends Controller
         }
 
         if (!$handled) {
-            $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
+            $type = strtolower((string) ($data['type'] ?? $data['event'] ?? $data['event_type'] ?? ''));
             $this->logWebhook(
                 'UNHANDLED type=' . ($type ?: 'none')
                 . ' keys=' . implode(',', array_slice(array_keys($data), 0, 12))
@@ -96,8 +96,12 @@ class WaDesk extends Controller
     /** @param array<string,string> $headers */
     private function dispatchWebhook(array $data, array $headers): bool
     {
+        if ($this->looksLikeKiriminIdWebhook($data)) {
+            return $this->handleKiriminIdWebhook($data);
+        }
+
         $event = strtolower($headers['event'] ?? '');
-        $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
+        $type = strtolower((string) ($data['type'] ?? $data['event'] ?? $data['event_type'] ?? ''));
 
         if ($event === 'message.received' || $type === 'message.received') {
             if ($this->looksLikeMetaInbound($data)) {
@@ -330,6 +334,93 @@ class WaDesk extends Controller
             'id' => $msg['provider_id'] ?? ($msg['id'] ?? null),
             'message_id' => $msg['provider_id'] ?? ($msg['id'] ?? null),
             'external_id' => $msg['external_id'] ?? ($inner['external_id'] ?? null),
+        ]);
+    }
+
+    private function looksLikeKiriminIdWebhook(array $data): bool
+    {
+        return isset($data['event_type']) && is_array($data['data'] ?? null);
+    }
+
+    private function handleKiriminIdWebhook(array $data): bool
+    {
+        $eventType = strtolower((string) ($data['event_type'] ?? ''));
+        $inner = $data['data'];
+
+        if (in_array($eventType, ['message.received', 'message.incoming', 'messages.received'], true)) {
+            $this->handleKiriminIdInbound($inner);
+            return true;
+        }
+
+        if ($eventType === 'message.sent') {
+            $direction = strtolower((string) ($inner['direction'] ?? ''));
+            if ($direction === 'inbound') {
+                $this->handleKiriminIdInbound($inner);
+                return true;
+            }
+            $this->handleKiriminIdOutboundStatus($inner);
+            return true;
+        }
+
+        if (in_array($eventType, ['message.delivered', 'message.read', 'message.failed', 'message.status'], true)) {
+            $this->handleKiriminIdStatus($inner, $eventType);
+            return true;
+        }
+
+        if ($eventType === 'test') {
+            $this->logWebhook('Kirimin test webhook OK endpoint_id=' . ($inner['endpoint_id'] ?? '-'));
+            return true;
+        }
+
+        $this->logWebhook('Kirimin event ignored event_type=' . $eventType);
+        return true;
+    }
+
+    private function handleKiriminIdInbound(array $inner): void
+    {
+        if (!empty($inner['is_group'])) {
+            return;
+        }
+
+        $from = (string) ($inner['customer_phone'] ?? $inner['phone'] ?? $inner['from'] ?? '');
+        $deviceId = (string) ($inner['channel_id'] ?? $inner['whatsapp_device_id'] ?? $inner['device_id'] ?? '');
+        $msgId = $inner['message_id'] ?? ($inner['id'] ?? null);
+        $type = (string) ($inner['message_type'] ?? $inner['type'] ?? 'text');
+        $body = (string) (
+            $inner['message']
+            ?? $inner['text']
+            ?? $inner['content']
+            ?? $inner['body']
+            ?? $inner['caption']
+            ?? ''
+        );
+        $name = $inner['customer_name'] ?? ($inner['push_name'] ?? ($inner['name'] ?? null));
+
+        $this->persistInbound($from, '', null, $deviceId !== '' ? $deviceId : null, $msgId, $type, $body, $name);
+    }
+
+    private function handleKiriminIdOutboundStatus(array $inner): void
+    {
+        $this->handleStatus([
+            'status' => 'sent',
+            'id' => $inner['message_id'] ?? null,
+            'message_id' => $inner['message_id'] ?? null,
+            'external_id' => $inner['external_id'] ?? null,
+        ]);
+    }
+
+    private function handleKiriminIdStatus(array $inner, string $eventType): void
+    {
+        $st = $eventType;
+        if (str_contains($eventType, '.')) {
+            $st = explode('.', $eventType, 2)[1];
+        }
+
+        $this->handleStatus([
+            'status' => $inner['status'] ?? $st,
+            'id' => $inner['message_id'] ?? null,
+            'message_id' => $inner['message_id'] ?? null,
+            'external_id' => $inner['external_id'] ?? null,
         ]);
     }
 
