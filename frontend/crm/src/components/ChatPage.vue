@@ -621,6 +621,16 @@ const getMessagePreview = (m) => {
     if(m.type === 'sticker') return "🏷️ Sticker";
     return (m.text || m.caption || "").substring(0, 60);
 };
+const formatQuoteReplyName = (sender, name) => {
+    if (sender === "me") return "YOU";
+    return String(name || "Customer").toUpperCase();
+};
+const getQuotedBubbleName = (msg) => {
+    const quoted = findQuotedMessage(msg?.quoted_message_id);
+    if (quoted?.sender === "me") return "YOU";
+    const name = msg?.quoted_message_from || props.activeConversation?.name || "Customer";
+    return String(name).toUpperCase();
+};
 /** Caption untuk bubble media: sembunyikan placeholder [image]/[video] */
 const mediaCaptionText = (msg) => {
     const t = String(msg?.text || msg?.caption || msg?.media_caption || "").trim();
@@ -709,14 +719,15 @@ const openQuotedMessageDetail = (msg) => {
         text: quoted.text || quoted.caption || '',
         type: quoted.type || 'text',
         sender: quoted.sender,
-        fromName: quoted.sender === 'me' ? 'You' : (msg.quoted_message_from || props.activeConversation?.name || 'Customer'),
+        fromName: formatQuoteReplyName(quoted.sender, msg.quoted_message_from || props.activeConversation?.name),
         media_url: quoted.media_url,
         media_id: quoted.media_id,
     } : {
         full: null,
         text: msg.quoted_message_body || 'Message not found',
         type: 'text',
-        fromName: msg.quoted_message_from || props.activeConversation?.name || 'Customer',
+        sender: null,
+        fromName: formatQuoteReplyName(null, msg.quoted_message_from || props.activeConversation?.name),
     };
     showQuotedMessageModal.value = true;
     if (quoted) scrollToMessage(quoted);
@@ -1062,7 +1073,7 @@ onUnmounted(() => {
                                    class="bg-black/10 rounded px-2 py-0.5 border-l-2 border-[var(--wa-accent-green)] mb-0.5 cursor-pointer hover:bg-black/15 active:bg-black/20 transition-colors"
                                    @click="openQuotedMessageDetail(msg)">
                                       <span class="text-[10px] font-bold text-[var(--wa-accent-green)] block leading-none" style="line-height: 1.05;">
-                                        {{ findQuotedMessage(msg.quoted_message_id)?.sender === 'me' ? 'You' : (msg.quoted_message_from ? 'Customer' : activeConversation.name) }}
+                                        {{ getQuotedBubbleName(msg) }}
                                       </span>
                                       <span class="text-xs truncate block text-[var(--wa-text-secondary)] leading-none" style="line-height: 1.05;">
                                         {{ findQuotedMessage(msg.quoted_message_id) ? getMessagePreview(findQuotedMessage(msg.quoted_message_id)) : (msg.quoted_message_body || 'Message not found') }}
@@ -1326,7 +1337,7 @@ onUnmounted(() => {
              <!-- Reply Preview -->
              <div v-if="replyToMessage" class="bg-[var(--wa-bg-panel)] p-2 rounded-lg border-l-4 border-[var(--wa-accent-green)] mb-2 flex justify-between items-center shadow-sm">
                   <div class="overflow-hidden">
-                      <p class="text-xs font-bold text-[var(--wa-accent-green)]">{{ replyToMessage.sender === 'me' ? 'You' : activeConversation.name }}</p>
+                      <p class="text-xs font-bold text-[var(--wa-accent-green)]">{{ formatQuoteReplyName(replyToMessage.sender, activeConversation.name) }}</p>
                       <p class="text-xs truncate text-[var(--wa-text-secondary)]">{{ getMessagePreview(replyToMessage) }}</p>
                   </div>
                   <button @click="cancelReply" class="text-[var(--wa-text-tertiary)] hover:text-red-500"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
