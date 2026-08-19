@@ -469,6 +469,49 @@ class WAReplies
         return [];
     }
 
+    /** Pesan melebihi chat_maxlength intent (DB). NULL/0 = tanpa batas. */
+    private function intentExceedsChatMaxlength(array $config, int $messageLength): bool
+    {
+        $max = (int) ($config['chat_maxlength'] ?? 0);
+
+        return $max > 0 && $messageLength > $max;
+    }
+
+    /** Konfirmasi bayar / ucapan thanks tetap boleh masuk PENUTUP meski panjang. */
+    private function intentSkipsChatMaxlengthForMessage(string $handler, string $textBodyToCheck): bool
+    {
+        if ($handler !== 'PENUTUP') {
+            return false;
+        }
+
+        return $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
+            || $this->messageLooksLikeThanksPenutup($textBodyToCheck);
+    }
+
+    /**
+     * @param array<string, mixed> $keywordConfig
+     * @return array<string, mixed>
+     */
+    private function filterKeywordConfigByChatMaxlength(array $keywordConfig, int $messageLength, string $textBodyToCheck): array
+    {
+        $out = [];
+        foreach ($keywordConfig as $code => $config) {
+            if (!is_array($config)) {
+                continue;
+            }
+            if ($this->intentSkipsChatMaxlengthForMessage((string) $code, $textBodyToCheck)) {
+                $out[$code] = $config;
+                continue;
+            }
+            if ($this->intentExceedsChatMaxlength($config, $messageLength)) {
+                continue;
+            }
+            $out[$code] = $config;
+        }
+
+        return $out;
+    }
+
     /**
      * Tidak ada reply tanpa cooldown. Dulu: perintah admin / tanpa ai_prompt di-skip.
      */
@@ -1517,18 +1560,6 @@ class WAReplies
     }
 
     /**
-     * PENUTUP hanya untuk ack/kalimat sangat pendek. Lebih dari 50 karakter (trim) = bukan penutup.
-     */
-    private function messageExceedsPenutupMaxLength(?string $text): bool
-    {
-        if ($text === null || trim($text) === '') {
-            return false;
-        }
-
-        return mb_strlen(trim($text)) > 50;
-    }
-
-    /**
      * Konfirmasi pembayaran/transfer/lunas — tetap PENUTUP meski pesan panjang (bukti + nominal + terima kasih).
      * Termasuk typo: uda/udah + saya bayar + barusan.
      */
@@ -1733,12 +1764,6 @@ class WAReplies
             return true;
         }
         if (!$this->messageMatchesStrictPenutupAllowlist($text)) {
-            return true;
-        }
-        if ($this->messageExceedsPenutupMaxLength($text)
-            && !$this->messageLooksLikePaymentConfirmationPenutup($text)
-            && !$this->messageLooksLikeThanksPenutup($text)
-        ) {
             return true;
         }
 
@@ -2654,6 +2679,18 @@ class WAReplies
                     }
 
                     // Human agent aktif: hanya intent data/self-service (dan admin) yang boleh balas
+                    $cfgForMax = $fullKeywordConfig[$handler] ?? $config;
+                    if (!$this->intentSkipsChatMaxlengthForMessage($handler, $textBodyToCheck)
+                        && $this->intentExceedsChatMaxlength($cfgForMax, $messageLength)
+                    ) {
+                        $this->logAutoreplyTrace(
+                            $waNumber,
+                            'REGEX_SKIP',
+                            $handler . '→exceeds_chat_maxlength max=' . (int) ($cfgForMax['chat_maxlength'] ?? 0)
+                        );
+                        continue;
+                    }
+
                     if ($this->isHumanAgentRecentlyActive($waNumber)
                         && !$this->isIntentAllowedDuringHumanActive($handler)) {
                         return $this->silentExitHumanActive(
@@ -2792,29 +2829,44 @@ class WAReplies
 
         $this->logAutoreplyTrace($waNumber, 'AI_PATH', 'no_regex_match len=' . $messageLength);
         // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
-        // Ini mengoptimalkan AI detection karena AI tidak perlu cek keyword yang sudah match
-        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+        // Intent yang melebihi chat_maxlength juga di-skip dari AI classifier
+        $keywordConfigForAi = $this->filterKeywordConfigByChatMaxlength(
+            $keywordConfig,
+            $messageLength,
+            $textBodyToCheck
+        );
+        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfigForAi);
 
         if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
-            if (!is_array($aiResult)) {
-                $aiResult = [];
+            $penutupCfg = $fullKeywordConfig['PENUTUP'] ?? [];
+            if (!$this->intentExceedsChatMaxlength($penutupCfg, $messageLength)
+                || $this->intentSkipsChatMaxlengthForMessage('PENUTUP', $textBodyToCheck)
+            ) {
+                if (!is_array($aiResult)) {
+                    $aiResult = [];
+                }
+                $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
+                if ($prevAi !== 'PENUTUP') {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP payment_confirm was=' . $prevAi);
+                }
+                $aiResult['intent'] = 'PENUTUP';
             }
-            $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
-            if ($prevAi !== 'PENUTUP') {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP payment_confirm was=' . $prevAi);
-            }
-            $aiResult['intent'] = 'PENUTUP';
         } elseif ($this->messageLooksLikeThanksPenutup($textBodyToCheck)
             && !$this->messageLooksLikeQuestion($textBody)
         ) {
-            if (!is_array($aiResult)) {
-                $aiResult = [];
+            $penutupCfg = $fullKeywordConfig['PENUTUP'] ?? [];
+            if (!$this->intentExceedsChatMaxlength($penutupCfg, $messageLength)
+                || $this->intentSkipsChatMaxlengthForMessage('PENUTUP', $textBodyToCheck)
+            ) {
+                if (!is_array($aiResult)) {
+                    $aiResult = [];
+                }
+                $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
+                if ($prevAi !== 'PENUTUP') {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP thanks was=' . $prevAi);
+                }
+                $aiResult['intent'] = 'PENUTUP';
             }
-            $prevAi = strtoupper((string) ($aiResult['intent'] ?? 'FALSE'));
-            if ($prevAi !== 'PENUTUP') {
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP thanks was=' . $prevAi);
-            }
-            $aiResult['intent'] = 'PENUTUP';
         }
 
         // Check if AI successfully detected a valid intent
@@ -3018,6 +3070,27 @@ class WAReplies
                 $aiIntent = 'KURIR';
                 $aiCase = $fullKeywordConfig['KURIR']['case'] ?? null;
                 $aiNotify = $fullKeywordConfig['KURIR']['notify'] ?? false;
+            }
+
+            if ($aiIntent !== 'FALSE'
+                && !$this->intentSkipsChatMaxlengthForMessage($aiIntent, $textBodyToCheck)
+                && $this->intentExceedsChatMaxlength($fullKeywordConfig[$aiIntent] ?? [], $messageLength)
+            ) {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'EXIT',
+                    'ai_reject_exceeds_chat_maxlength intent=' . $aiIntent
+                        . ' max=' . (int) (($fullKeywordConfig[$aiIntent]['chat_maxlength'] ?? 0))
+                );
+                $conversationId = $this->getOrCreateConversationWithCase(
+                    $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
+                );
+                return (object) [
+                    'case' => null,
+                    'notify' => false,
+                    'conversation_id' => $conversationId,
+                    'no_handler' => true,
+                ];
             }
 
             // Human agent aktif: setelah remap, hanya intent data/self-service yang boleh balas

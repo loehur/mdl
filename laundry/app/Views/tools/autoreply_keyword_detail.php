@@ -28,6 +28,7 @@
   $id = (int) $intent['id'];
   $notifyVal = ($intent['notify'] === null || $intent['notify'] === '') ? '' : (string) (int) $intent['notify'];
   $caseVal = ($intent['case_value'] === null || $intent['case_value'] === '') ? '' : (string) (int) $intent['case_value'];
+  $maxLenVal = ($intent['chat_maxlength'] === null || $intent['chat_maxlength'] === '') ? '' : (string) (int) $intent['chat_maxlength'];
   ?>
 
   <div class="container-fluid">
@@ -61,6 +62,11 @@
               <option value="0" <?= $notifyVal === '0' ? 'selected' : '' ?>>false</option>
             </select>
           </div>
+          <div class="col-md-2">
+            <label class="form-label">Max karakter</label>
+            <input type="number" name="chat_maxlength" class="form-control form-control-sm" min="0" max="5000"
+                   value="<?= htmlspecialchars($maxLenVal) ?>" placeholder="∞">
+          </div>
           <div class="col-md-2 d-flex align-items-end">
             <div class="form-check mb-2">
               <input class="form-check-input" type="checkbox" name="is_active" id="isActive" value="1" <?= ((int)$intent['is_active'] === 1) ? 'checked' : '' ?>>
@@ -84,6 +90,9 @@
               </div>
             </div>
             <p class="text-muted small mb-0">Centang = role yang boleh (OR). Dua centang = salah satu cukup. Semua kosong = publik.</p>
+          </div>
+          <div class="col-12">
+            <p class="text-muted small mb-0">Max karakter: kosong/0 = tanpa batas. Pesan lebih panjang → intent ini di-skip; intent lain tetap dicek. Konfirmasi bayar &amp; ucapan thanks tetap boleh masuk PENUTUP meski panjang.</p>
           </div>
           <div class="col-12">
             <label class="form-label">Note</label>

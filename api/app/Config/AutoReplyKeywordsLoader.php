@@ -14,7 +14,7 @@ class AutoReplyKeywordsLoader
     private static $version = null;
 
     /**
-     * @return array<string, array{patterns: list<string>, ai_prompt?: string, case?: int|null, notify?: bool}>
+     * @return array<string, array{patterns: list<string>, ai_prompt?: string, case?: int|null, notify?: bool, chat_maxlength?: int}>
      */
     public static function all(): array
     {
@@ -95,7 +95,7 @@ class AutoReplyKeywordsLoader
         $db = \App\Core\DB::getInstance(0);
 
         $intents = $db->query(
-            "SELECT id, code, case_value, notify, ai_prompt,
+            "SELECT id, code, case_value, notify, ai_prompt, chat_maxlength,
                     is_admin, is_karyawan, is_pelanggan
              FROM wa_autoreply_intents
              WHERE is_active = 1
@@ -144,6 +144,10 @@ class AutoReplyKeywordsLoader
             $cfg['is_admin'] = ((int) ($row['is_admin'] ?? 0)) === 1;
             $cfg['is_karyawan'] = ((int) ($row['is_karyawan'] ?? 0)) === 1;
             $cfg['is_pelanggan'] = ((int) ($row['is_pelanggan'] ?? 0)) === 1;
+            $maxLen = (int) ($row['chat_maxlength'] ?? 0);
+            if ($maxLen > 0) {
+                $cfg['chat_maxlength'] = $maxLen;
+            }
             $out[$code] = $cfg;
         }
 

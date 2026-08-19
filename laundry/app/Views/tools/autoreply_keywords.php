@@ -62,6 +62,7 @@
                 <th>AI</th>
                 <th>Case</th>
                 <th>Notify</th>
+                <th>MaxLen</th>
                 <th>Gerbang</th>
                 <th>Aktif</th>
                 <th></th>
@@ -77,6 +78,9 @@
                 $ai = !empty($a['ai_prompt']) ? 'ya' : '—';
                 $case = ($a['case_value'] === null || $a['case_value'] === '') ? '—' : (int) $a['case_value'];
                 $notify = ($a['notify'] === null || $a['notify'] === '') ? '—' : (((int)$a['notify'] === 1) ? 'true' : 'false');
+                $maxLen = ($a['chat_maxlength'] === null || $a['chat_maxlength'] === '' || (int) $a['chat_maxlength'] === 0)
+                  ? '—'
+                  : (int) $a['chat_maxlength'];
                 $gates = [];
                 if ((int) ($a['is_admin'] ?? 0) === 1) {
                     $gates[] = '<span class="ark-badge">admin</span>';
@@ -101,6 +105,7 @@
                 echo '<td>' . $ai . '</td>';
                 echo '<td>' . $case . '</td>';
                 echo '<td>' . $notify . '</td>';
+                echo '<td>' . $maxLen . '</td>';
                 echo '<td>' . $gateHtml . '</td>';
                 echo '<td>' . $active . '</td>';
                 echo '<td class="text-nowrap">';

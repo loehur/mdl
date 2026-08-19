@@ -176,6 +176,12 @@ class AutoReplyKeywords extends Controller
             $notify = 0;
         }
 
+        $maxRaw = trim((string) ($_POST['chat_maxlength'] ?? ''));
+        $chatMaxlength = ($maxRaw === '') ? null : max(0, (int) $maxRaw);
+        if ($chatMaxlength === 0) {
+            $chatMaxlength = null;
+        }
+
         $set = [
             'code' => $code,
             'sort_order' => $sort,
@@ -184,6 +190,7 @@ class AutoReplyKeywords extends Controller
             'ai_prompt' => $aiPrompt,
             'case_value' => $caseValue,
             'notify' => $notify,
+            'chat_maxlength' => $chatMaxlength,
             'is_admin' => $this->postFlag('is_admin'),
             'is_karyawan' => $this->postFlag('is_karyawan'),
             'is_pelanggan' => $this->postFlag('is_pelanggan'),
