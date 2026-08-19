@@ -219,10 +219,12 @@ class CrmChatMergeHelper
             }
             if (!empty($ctx['is_karyawan'])) {
                 $update['assigned_user_id'] = null;
-            } elseif (!empty($ctx['assigned_user_id'])) {
-                $update['assigned_user_id'] = (int) $ctx['assigned_user_id'];
-            }
-            if (empty($ctx['is_karyawan'])) {
+                $update['code'] = null;
+                $update['cust_id'] = null;
+            } else {
+                if (!empty($ctx['assigned_user_id'])) {
+                    $update['assigned_user_id'] = (int) $ctx['assigned_user_id'];
+                }
                 if (!empty($ctx['code'])) {
                     $update['code'] = mb_substr((string) $ctx['code'], 0, 16);
                 }

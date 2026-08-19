@@ -309,6 +309,7 @@ class WhatsApp extends Controller
 
         // Reuse assignment from existing conversation for WS targeting (tanpa load WAReplies dulu —
         // load WAReplies bisa fatal jika trait belum ada; jangan blok insert/WS)
+        $senderCtxEarly = null;
         try {
             if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
                 require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
@@ -414,6 +415,9 @@ class WhatsApp extends Controller
 
                 $replies = new \App\Models\WAReplies();
                 $replies->setInboundReplyToMessageId($wamid ?: $messageId);
+                if (is_array($senderCtxEarly)) {
+                    $replies->setSenderContext($senderCtxEarly);
+                }
 
                 $convWaNumber = $waNumber;
                 $aliasConv = \App\Helpers\CRM\WaConversationAlias::findConversationRow($db, $identityHints);
@@ -473,7 +477,9 @@ class WhatsApp extends Controller
                 if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
                     require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
                 }
-                $senderCtx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+                $senderCtx = is_array($senderCtxEarly)
+                    ? $senderCtxEarly
+                    : \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
                 $replies->setSenderContext($senderCtx);
                 $isPelanggan = !empty($senderCtx['is_pelanggan']);
                 $isKaryawan = !empty($senderCtx['is_karyawan']);

@@ -8492,19 +8492,20 @@ class WAReplies
             if ($contactName !== null && trim((string) $contactName) !== '') {
                 $updateData['contact_name'] = $contactName;
             }
-            if ($assigned_user_id !== null && $assigned_user_id !== '') {
-                $updateData['assigned_user_id'] = $assigned_user_id;
-            }
-            if (empty($this->senderContext['is_karyawan'])) {
+            if (!empty($this->senderContext['is_karyawan'])) {
+                $updateData['assigned_user_id'] = null;
+                $updateData['code'] = null;
+                $updateData['cust_id'] = null;
+            } else {
+                if ($assigned_user_id !== null && $assigned_user_id !== '') {
+                    $updateData['assigned_user_id'] = $assigned_user_id;
+                }
                 if ($code !== null && $code !== '') {
                     $updateData['code'] = $code;
                 }
                 if ($cust_id !== null && $cust_id !== '') {
                     $updateData['cust_id'] = $cust_id;
                 }
-            }
-            if (!empty($this->senderContext['is_karyawan'])) {
-                unset($updateData['assigned_user_id']);
             }
             
             // Only update case if not null and not 0 (Append to existing list)
