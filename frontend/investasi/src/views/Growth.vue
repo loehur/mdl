@@ -18,42 +18,49 @@
       <p class="mt-2 text-sm text-mist">Satu candle = agregat snapshot per bulan (OHLC)</p>
     </section>
 
-    <PageLoader v-if="loading" />
+    <section class="glass relative min-h-[320px] overflow-hidden p-3">
+      <div
+        v-if="loading"
+        class="absolute inset-0 z-10 flex items-center justify-center bg-ink-50/90"
+      >
+        <PageLoader />
+      </div>
 
-    <EmptyState
-      v-else-if="candleCount === 0"
-      title="Belum ada data"
-      :subtitle="`Tidak ada snapshot portfolio di tahun ${year}.`"
-    />
+      <EmptyState
+        v-if="!loading && candleCount === 0"
+        title="Belum ada data"
+        :subtitle="`Tidak ada snapshot portfolio di tahun ${year}.`"
+      />
 
-    <template v-else>
-      <section class="glass overflow-hidden p-3">
-        <div ref="chartContainer" class="growth-chart" />
-      </section>
+      <div
+        v-show="!loading && candleCount > 0"
+        ref="chartContainer"
+        class="growth-chart"
+      />
+    </section>
 
-      <section v-if="monthSummary" class="glass-strong p-4">
-        <p class="label-caps">{{ monthSummary.label }}</p>
-        <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p class="text-mist">Open</p>
-            <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.open) }}</p>
-          </div>
-          <div>
-            <p class="text-mist">Close</p>
-            <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.close) }}</p>
-          </div>
-          <div>
-            <p class="text-mist">High</p>
-            <p class="font-semibold text-credit-dim">{{ formatRupiah(monthSummary.high) }}</p>
-          </div>
-          <div>
-            <p class="text-mist">Low</p>
-            <p class="font-semibold text-debit-dim">{{ formatRupiah(monthSummary.low) }}</p>
-          </div>
+    <section v-if="!loading && monthSummary" class="glass-strong p-4">
+      <p class="label-caps">{{ monthSummary.label }}</p>
+      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p class="text-mist">Open</p>
+          <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.open) }}</p>
         </div>
-        <p class="mt-3 text-xs text-mist">{{ monthSummary.snapshot_count }} snapshot di bulan ini</p>
-      </section>
-    </template>
+        <div>
+          <p class="text-mist">Close</p>
+          <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.close) }}</p>
+        </div>
+        <div>
+          <p class="text-mist">High</p>
+          <p class="font-semibold text-credit-dim">{{ formatRupiah(monthSummary.high) }}</p>
+        </div>
+        <div>
+          <p class="text-mist">Low</p>
+          <p class="font-semibold text-debit-dim">{{ formatRupiah(monthSummary.low) }}</p>
+        </div>
+      </div>
+      <p class="mt-3 text-xs text-mist">{{ monthSummary.snapshot_count }} snapshot di bulan ini</p>
+    </section>
 
     <AlertBanner :message="error" type="error" />
   </div>
@@ -84,42 +91,83 @@ const chartContainer = ref(null);
 let chart = null;
 let series = null;
 let resizeObserver = null;
+let pendingCandles = null;
+let renderRetryTimer = null;
 
 function monthTime(yearValue, month) {
-  return `${yearValue}-${String(month).padStart(2, "0")}-01`;
+  return {
+    year: yearValue,
+    month,
+    day: 1,
+  };
+}
+
+function toNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function buildCandles(items, yearValue) {
   return items
-    .filter((item) => item.snapshot_count > 0)
+    .filter((item) => Number(item.snapshot_count) > 0)
     .map((item) => ({
-      time: monthTime(yearValue, item.month),
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-      month: item.month,
-      snapshot_count: item.snapshot_count,
-    }));
+      time: monthTime(yearValue, Number(item.month)),
+      open: toNumber(item.open),
+      high: toNumber(item.high),
+      low: toNumber(item.low),
+      close: toNumber(item.close),
+      month: Number(item.month),
+      snapshot_count: Number(item.snapshot_count),
+    }))
+    .filter((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
+}
+
+function setMonthSummary(candle) {
+  if (!candle) {
+    monthSummary.value = null;
+    return;
+  }
+
+  monthSummary.value = {
+    label: MONTH_LABELS[candle.month - 1],
+    open: candle.open,
+    high: candle.high,
+    low: candle.low,
+    close: candle.close,
+    snapshot_count: candle.snapshot_count,
+  };
 }
 
 function destroyChart() {
+  if (renderRetryTimer) {
+    clearTimeout(renderRetryTimer);
+    renderRetryTimer = null;
+  }
   resizeObserver?.disconnect();
   resizeObserver = null;
   chart?.remove();
   chart = null;
   series = null;
+  pendingCandles = null;
 }
 
 function renderChart(candles) {
   destroyChart();
+  pendingCandles = candles;
+
   if (!chartContainer.value || candles.length === 0) return;
 
+  const width = chartContainer.value.clientWidth;
+  if (width <= 0) {
+    renderRetryTimer = window.setTimeout(() => renderChart(candles), 50);
+    return;
+  }
+
   chart = createChart(chartContainer.value, {
-    width: chartContainer.value.clientWidth,
+    width,
     height: 320,
     layout: {
-      background: { color: "transparent" },
+      background: { color: "#ffffff" },
       textColor: "#64748b",
       fontFamily: '"Barlow", system-ui, sans-serif',
       fontSize: 12,
@@ -135,6 +183,8 @@ function renderChart(candles) {
       borderColor: "rgba(209, 219, 232, 0.8)",
       fixLeftEdge: true,
       fixRightEdge: true,
+      barSpacing: 18,
+      minBarSpacing: 8,
     },
     crosshair: {
       vertLine: { color: "rgba(74, 143, 212, 0.35)" },
@@ -152,85 +202,74 @@ function renderChart(candles) {
   });
 
   series.setData(candles);
-
   chart.timeScale().fitContent();
 
   series.subscribeCrosshairMove((param) => {
     if (!param.time || !param.seriesData.size) {
-      monthSummary.value = candles[candles.length - 1]
-        ? {
-            label: MONTH_LABELS[candles[candles.length - 1].month - 1],
-            open: candles[candles.length - 1].open,
-            high: candles[candles.length - 1].high,
-            low: candles[candles.length - 1].low,
-            close: candles[candles.length - 1].close,
-            snapshot_count: candles[candles.length - 1].snapshot_count,
-          }
-        : null;
+      setMonthSummary(candles[candles.length - 1] ?? null);
       return;
     }
 
     const point = param.seriesData.get(series);
     if (!point) return;
 
-    const candle = candles.find((item) => item.time === param.time);
-    if (!candle) return;
-
-    monthSummary.value = {
-      label: MONTH_LABELS[candle.month - 1],
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-      snapshot_count: candle.snapshot_count,
-    };
+    const candle = candles.find((item) => {
+      const t = param.time;
+      return item.time.year === t.year && item.time.month === t.month && item.time.day === t.day;
+    });
+    if (candle) setMonthSummary(candle);
   });
 
   resizeObserver = new ResizeObserver(() => {
     if (!chartContainer.value || !chart) return;
-    chart.applyOptions({ width: chartContainer.value.clientWidth });
+    const nextWidth = chartContainer.value.clientWidth;
+    if (nextWidth > 0) {
+      chart.applyOptions({ width: nextWidth });
+    }
   });
   resizeObserver.observe(chartContainer.value);
+}
+
+async function scheduleRender(candles) {
+  await nextTick();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  renderChart(candles);
 }
 
 async function loadChart() {
   loading.value = true;
   error.value = "";
   monthSummary.value = null;
+  candleCount.value = 0;
+  destroyChart();
 
   try {
     const res = await fetch(`/api/Investasi/Portfolio/chart?year=${year.value}`);
     const data = await res.json();
     if (!res.ok || !data.status) throw new Error(data.message || "Gagal memuat grafik");
 
-    months.value = data.data.months || [];
-    candleCount.value = months.value.filter((item) => item.snapshot_count > 0).length;
-
-    const availableYears = data.data.years || [];
+    const availableYears = (data.data.years || []).map(Number);
     if (availableYears.length > 0 && !availableYears.includes(year.value)) {
       year.value = availableYears[0];
       return;
     }
 
-    await nextTick();
-
+    months.value = data.data.months || [];
     const candles = buildCandles(months.value, year.value);
+    candleCount.value = candles.length;
+
     if (candles.length > 0) {
-      const last = candles[candles.length - 1];
-      monthSummary.value = {
-        label: MONTH_LABELS[last.month - 1],
-        open: last.open,
-        high: last.high,
-        low: last.low,
-        close: last.close,
-        snapshot_count: last.snapshot_count,
-      };
-      renderChart(candles);
+      setMonthSummary(candles[candles.length - 1]);
+      loading.value = false;
+      await scheduleRender(candles);
     } else {
-      destroyChart();
+      monthSummary.value = null;
+      candleCount.value = 0;
     }
   } catch (err) {
     error.value = err.message || "Gagal memuat grafik";
+    monthSummary.value = null;
+    candleCount.value = 0;
     destroyChart();
   } finally {
     loading.value = false;

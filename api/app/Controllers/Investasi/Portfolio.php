@@ -71,7 +71,7 @@ class Portfolio extends InvestasiController
 
         foreach ($rows as $row) {
             $m = (int) date('n', strtotime($row['record_date']));
-            $amount = (float) $row['amount'];
+            $amount = round((float) $row['amount'], 2);
 
             if ($months[$m]['snapshot_count'] === 0) {
                 $months[$m]['open'] = $amount;
