@@ -19,6 +19,94 @@ class NonTunai extends Controller
       $this->view($view, $list);
    }
 
+   /**
+    * JSON: daftar mutasi BCA CR belum ter-link (6 hari terakhir).
+    */
+   public function mutasiList()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $refFinance = trim((string) ($_POST['id'] ?? $_GET['id'] ?? ''));
+      if ($refFinance === '') {
+         echo json_encode(['ok' => false, 'message' => 'ref_finance wajib']);
+         return;
+      }
+
+      $idEsc = $this->db(0)->escape($refFinance);
+      $where = $this->wCabang . " AND ref_finance = '" . $idEsc . "'";
+      $kas = $this->db(0)->get_where_row('kas', $where);
+      if (!$kas || empty($kas['id_kas'])) {
+         echo json_encode(['ok' => false, 'message' => 'Transaksi tidak ditemukan']);
+         return;
+      }
+
+      if (strtoupper(trim((string) ($kas['note'] ?? ''))) !== 'BCA') {
+         echo json_encode(['ok' => false, 'message' => 'Bukan pembayaran BCA']);
+         return;
+      }
+
+      $cols = "SUM(jumlah) AS total";
+      $agg = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      $total = is_array($agg) && isset($agg[0]['total']) ? (float) $agg[0]['total'] : (float) ($kas['jumlah'] ?? 0);
+
+      $this->helper('BcaMutasiBind');
+      $dbMain = $this->db(100);
+
+      try {
+         $dbMain->query('SELECT 1 FROM bca_mutasi LIMIT 1');
+         $dbMain->query('SELECT 1 FROM bca_mutasi_link LIMIT 1');
+      } catch (\Throwable $e) {
+         echo json_encode(['ok' => false, 'message' => 'Tabel bca_mutasi belum tersedia. Jalankan migration main.']);
+         return;
+      }
+
+      $range = BcaMutasiBind::listRange();
+      $rows = BcaMutasiBind::listUnlinkedCr($dbMain, $range['start'], $range['end']);
+      $kasNominal = BcaMutasiBind::formatNominal($total);
+
+      $items = [];
+      foreach ($rows as $row) {
+         if (!is_array($row)) {
+            continue;
+         }
+         $nom = BcaMutasiBind::formatNominal($row['nominal'] ?? 0);
+         $ket = trim((string) ($row['keterangan'] ?? ''));
+         $ketShort = $ket;
+         if (strlen($ketShort) > 120) {
+            $ketShort = substr($ketShort, 0, 117) . '…';
+         }
+         $items[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'tanggal' => (string) ($row['tanggal'] ?? ''),
+            'tanggal_iso' => (string) ($row['tanggal_iso'] ?? ''),
+            'nominal' => $nom,
+            'nominal_fmt' => number_format((float) $nom, 0, ',', '.'),
+            'keterangan' => $ketShort,
+            'keterangan_full' => $ket,
+            'nominal_match' => ($nom === $kasNominal),
+         ];
+      }
+
+      usort($items, static function ($a, $b) {
+         $am = !empty($a['nominal_match']) ? 0 : 1;
+         $bm = !empty($b['nominal_match']) ? 0 : 1;
+         if ($am !== $bm) {
+            return $am <=> $bm;
+         }
+         return strcmp((string) ($b['tanggal_iso'] ?? ''), (string) ($a['tanggal_iso'] ?? ''));
+      });
+
+      echo json_encode([
+         'ok' => true,
+         'ref_finance' => $refFinance,
+         'kas_nominal' => $kasNominal,
+         'kas_nominal_fmt' => number_format((float) $kasNominal, 0, ',', '.'),
+         'range' => $range,
+         'count' => count($items),
+         'items' => $items,
+      ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+   }
+
    public function operasi($tipe)
    {
       $id = $_POST['id'];
@@ -37,6 +125,14 @@ class NonTunai extends Controller
          return;
       }
 
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      $isBca = ($note === 'BCA');
+
+      if ($isBca && $tipe === 3) {
+         $this->operasiBcaTerima($id, $where);
+         return;
+      }
+
       if (empty($guard['paid']) || $tipe !== 3) {
          $set = [
             'status_mutasi' => $tipe
@@ -49,7 +145,65 @@ class NonTunai extends Controller
          }
       }
 
-      // Update wa_conversations priority = 0 jika priority = 2 (payment confirmed)
+      $this->runPostConfirmSideEffects($where);
+      echo 0;
+   }
+
+   /**
+    * Terima BCA: wajib bind mutasi dulu.
+    */
+   private function operasiBcaTerima(string $refFinance, string $where): void
+   {
+      $mutasiId = (int) ($_POST['mutasi_id'] ?? 0);
+      $this->helper('BcaMutasiBind');
+      $this->helper('KasBcaConfirm');
+
+      $dbMain = $this->db(100);
+
+      $existingLink = $dbMain->get_where_row(
+         'bca_mutasi_link',
+         "entity_type = '" . $dbMain->escape(BcaMutasiBind::ENTITY_KAS_LAUNDRY) . "'"
+         . " AND entity_ref = '" . $dbMain->escape($refFinance) . "'"
+      );
+
+      if (!empty($existingLink['bca_mutasi_id'])) {
+         $linkedId = (int) $existingLink['bca_mutasi_id'];
+         if ($mutasiId > 0 && $mutasiId !== $linkedId) {
+            echo 'Transaksi sudah ter-bind ke mutasi lain';
+            return;
+         }
+         $mutasiId = $linkedId;
+      } elseif ($mutasiId < 1) {
+         echo 'Wajib pilih mutasi BCA terlebih dahulu';
+         return;
+      } else {
+         if (!BcaMutasiBind::bindMutasi($dbMain, $mutasiId, $refFinance)) {
+            echo 'Gagal bind mutasi (tidak valid atau sudah terpakai)';
+            return;
+         }
+      }
+
+      $up = $this->db(0)->update('kas', ['status_mutasi' => 3], $where . " AND status_mutasi = 2");
+      if ($up['errno'] <> 0) {
+         if (empty($existingLink['id'])) {
+            BcaMutasiBind::unbindEntity($dbMain, $refFinance);
+         }
+         $this->model('Log')->write('[NonTunai::operasiBcaTerima] Update Kas Error: ' . $up['error']);
+         echo $up['error'];
+         return;
+      }
+
+      $kasRows = $this->db(0)->get_where('kas', $where);
+      if (!is_array($kasRows)) {
+         $kasRows = [];
+      }
+
+      KasBcaConfirm::afterApprove($this->db(0), $dbMain, $refFinance, $kasRows);
+      echo 0;
+   }
+
+   private function runPostConfirmSideEffects(string $where): void
+   {
       try {
          $kasData = $this->db(0)->get_where_row('kas', $where);
 
@@ -88,17 +242,12 @@ class NonTunai extends Controller
       } catch (\Error $e) {
          $this->model('Log')->write("[NonTunai::operasi] WA conversation fatal error: " . $e->getMessage());
       }
-
-      echo 0;
    }
 
-
-   
    private function pushToWebSocket($data)
    {
       $url = 'http://127.0.0.1:3003/incoming';
       
-      // Log request details
       $this->model('Log')->write('[NonTunai::pushToWebSocket] Starting request to: ' . $url . ' | Data: ' . json_encode($data));
       
       $ch = curl_init($url);
@@ -115,7 +264,6 @@ class NonTunai extends Controller
       $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
       $curlError = curl_error($ch);
       
-      // Log response details
       if (curl_errno($ch)) {
          $this->model('Log')->write('[NonTunai::pushToWebSocket] cURL Error [' . curl_errno($ch) . ']: ' . $curlError);
       } else {

@@ -1,0 +1,221 @@
+<?php
+
+namespace App\Helpers;
+
+/**
+ * Cari mutasi BCA yang cocok dengan kas pending, bind ke entitas, fetch on-demand.
+ */
+class BcaMutasiMatcher
+{
+    /**
+     * Cari mutasi CR unlinked yang cocok nominal + rentang tanggal.
+     *
+     * @return array|null row bca_mutasi
+     */
+    public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
+    {
+        $row = $mainDb->query(
+            'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
+             FROM bca_mutasi m
+             LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
+             WHERE l.id IS NULL
+               AND m.mutasi = ?
+               AND m.nominal = ?
+               AND m.tanggal_iso IS NOT NULL
+               AND m.tanggal_iso >= ?
+               AND m.tanggal_iso <= ?
+             ORDER BY m.tanggal_iso ASC, m.id ASC
+             LIMIT 1',
+            ['CR', $nominal, $startYmd, $endYmd]
+        )->row_array();
+
+        return is_array($row) && !empty($row['id']) ? $row : null;
+    }
+
+    /**
+     * Fetch mutasi dari bca_scrapper untuk rentang tertentu dan simpan ke DB.
+     *
+     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,error?:string}
+     */
+    public static function fetchAndStoreRange($mainDb, string $startYmd, string $endYmd): array
+    {
+        $clamped = BcaScrapper::clampDateRange($startYmd, $endYmd);
+        if (empty($clamped['valid'])) {
+            return [
+                'ok' => false,
+                'error' => (string) ($clamped['reason'] ?? 'invalid_range'),
+            ];
+        }
+
+        $remote = BcaScrapper::mutasi($clamped['start'], $clamped['end']);
+        if (empty($remote['ok'])) {
+            return [
+                'ok' => false,
+                'error' => (string) ($remote['message'] ?? $remote['error'] ?? 'scrape_failed'),
+            ];
+        }
+
+        $rows = is_array($remote['mutasi'] ?? null) ? $remote['mutasi'] : [];
+        $save = BcaScrapper::saveMutasiRows($mainDb, $rows);
+
+        return [
+            'ok' => true,
+            'fetched' => count($rows),
+            'inserted' => (int) ($save['inserted'] ?? 0),
+            'skipped_dup' => (int) ($save['skipped_dup'] ?? 0),
+            'start' => $clamped['start'],
+            'end' => $clamped['end'],
+        ];
+    }
+
+    /**
+     * Bind mutasi ke entitas (atomik). Satu mutasi = satu entitas.
+     */
+    public static function bindMutasi($mainDb, int $mutasiId, string $entityType, string $entityRef): bool
+    {
+        if ($mutasiId < 1 || $entityType === '' || $entityRef === '') {
+            return false;
+        }
+
+        if (!$mainDb->beginTransaction()) {
+            return false;
+        }
+
+        try {
+            $free = $mainDb->query(
+                'SELECT m.id
+                 FROM bca_mutasi m
+                 LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
+                 WHERE m.id = ? AND l.id IS NULL
+                 FOR UPDATE',
+                [$mutasiId]
+            )->row_array();
+
+            if (empty($free['id'])) {
+                $mainDb->rollback();
+                return false;
+            }
+
+            $entityUsed = $mainDb->query(
+                'SELECT id FROM bca_mutasi_link WHERE entity_type = ? AND entity_ref = ? LIMIT 1 FOR UPDATE',
+                [$entityType, $entityRef]
+            )->row_array();
+
+            if (!empty($entityUsed['id'])) {
+                $mainDb->rollback();
+                return false;
+            }
+
+            $insertId = $mainDb->insert('bca_mutasi_link', [
+                'bca_mutasi_id' => $mutasiId,
+                'entity_type' => $entityType,
+                'entity_ref' => $entityRef,
+            ]);
+
+            if (!$insertId) {
+                $mainDb->rollback();
+                return false;
+            }
+
+            $mainDb->commit();
+            return true;
+        } catch (\Throwable $e) {
+            $mainDb->rollback();
+            error_log('[BcaMutasiMatcher] bind fail: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Lepas binding jika update kas gagal setelah bind.
+     */
+    public static function unbindEntity($mainDb, string $entityType, string $entityRef): bool
+    {
+        return (bool) $mainDb->delete('bca_mutasi_link', [
+            'entity_type' => $entityType,
+            'entity_ref' => $entityRef,
+        ]);
+    }
+
+    /**
+     * Proses satu kas BCA pending: cari di DB → scrape jika perlu → bind.
+     *
+     * @param array<string,mixed> $kasRow grouped row (ref_finance, total/jumlah, insertTime)
+     * @return array{ok:bool,matched?:bool,confirmed?:bool,scraped?:bool,mutasi_id?:int,message?:string}
+     */
+    public static function matchAndBindForKas($mainDb, array $kasRow): array
+    {
+        $refFinance = trim((string) ($kasRow['ref_finance'] ?? ''));
+        $insertTime = trim((string) ($kasRow['insertTime'] ?? ''));
+        $nominalRaw = $kasRow['total'] ?? $kasRow['jumlah'] ?? 0;
+        $nominal = BcaScrapper::formatNominal($nominalRaw);
+
+        if ($refFinance === '' || $insertTime === '' || (float) $nominal <= 0) {
+            return ['ok' => false, 'message' => 'invalid_kas_row'];
+        }
+
+        $range = BcaScrapper::computeKasMutasiRange($insertTime);
+        if (empty($range['valid'])) {
+            return [
+                'ok' => true,
+                'matched' => false,
+                'message' => (string) ($range['reason'] ?? 'invalid_range'),
+            ];
+        }
+
+        $start = (string) $range['start'];
+        $end = (string) $range['end'];
+
+        $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+        $scraped = false;
+
+        if ($mutasi === null) {
+            $fetch = self::fetchAndStoreRange($mainDb, $start, $end);
+            if (empty($fetch['ok'])) {
+                return [
+                    'ok' => false,
+                    'scraped' => false,
+                    'message' => (string) ($fetch['error'] ?? 'fetch_failed'),
+                ];
+            }
+            $scraped = true;
+            $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+        }
+
+        if ($mutasi === null) {
+            return [
+                'ok' => true,
+                'matched' => false,
+                'scraped' => $scraped,
+            ];
+        }
+
+        $mutasiId = (int) $mutasi['id'];
+        $bound = self::bindMutasi(
+            $mainDb,
+            $mutasiId,
+            BcaScrapper::ENTITY_KAS_LAUNDRY,
+            $refFinance
+        );
+
+        if (!$bound) {
+            return [
+                'ok' => false,
+                'matched' => true,
+                'scraped' => $scraped,
+                'message' => 'bind_failed',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'matched' => true,
+            'scraped' => $scraped,
+            'mutasi_id' => $mutasiId,
+            'ref_finance' => $refFinance,
+            'nominal' => $nominal,
+            'range_start' => $start,
+            'range_end' => $end,
+        ];
+    }
+}

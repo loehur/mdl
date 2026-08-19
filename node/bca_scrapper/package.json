@@ -1,0 +1,29 @@
+{
+  "name": "bca_scrapper",
+  "version": "1.0.0",
+  "description": "BCA KlikBCA mutasi scraper for MDL — HTTP first, Puppeteer fallback",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20.17.0"
+  },
+  "keywords": [
+    "bca",
+    "klikbca",
+    "mutasi",
+    "scraper",
+    "mdl"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "puppeteer": "^24.2.0"
+  }
+}

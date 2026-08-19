@@ -651,6 +651,36 @@ const hostMatchesList = (host, allowedHosts) => {
     });
 };
 
+const isWhatsappCdnUrl = (url) => {
+    try {
+        const host = new URL(String(url)).hostname.toLowerCase();
+        return host.includes("whatsapp.net") || host.includes("fbsbx") || host.includes("fbcdn");
+    } catch {
+        return false;
+    }
+};
+
+const isServeableMediaUrl = (url) => {
+    if (!url || String(url).startsWith("data:")) return false;
+    if (isWhatsappCdnUrl(url)) return false;
+    try {
+        const parsed = new URL(String(url));
+        const host = parsed.hostname.toLowerCase();
+        if (hostMatchesList(host, HTTPS_UPGRADE_HOSTS) || hostMatchesList(host, PROXY_ALLOWED_HOSTS)) {
+            return true;
+        }
+        return parsed.protocol === "https:";
+    } catch {
+        return false;
+    }
+};
+
+const normalizeMediaId = (mediaId) => {
+    const id = mediaId != null ? String(mediaId).trim() : "";
+    if (!id || id === "0" || id.toLowerCase() === "null") return "";
+    return id;
+};
+
 const normalizeMediaUrlClient = (url) => {
     if (!url || String(url).startsWith("data:")) return url;
     try {
@@ -673,13 +703,34 @@ const normalizeMediaUrlClient = (url) => {
 const resolveMediaSrc = (msg) => {
     if (!msg) return "";
     if (msg._mediaBroken) return BROKEN_MEDIA_URL;
-    if (msg.media_id) return `${props.API_BASE}/CRM/Chat/media?id=${msg.media_id}`;
-    if (msg.media_url) return normalizeMediaUrlClient(msg.media_url);
+
+    const normalizedUrl = msg.media_url ? normalizeMediaUrlClient(msg.media_url) : "";
+    if (normalizedUrl && isServeableMediaUrl(msg.media_url)) {
+        return normalizedUrl;
+    }
+
+    const mediaId = normalizeMediaId(msg.media_id);
+    if (mediaId) {
+        return `${props.API_BASE}/CRM/Chat/media?id=${encodeURIComponent(mediaId)}`;
+    }
+
+    if (normalizedUrl) return normalizedUrl;
     return "";
 };
 
 const handleImageError = (msg, event) => {
     if (!msg) return;
+
+    if (!msg._triedMediaUrlFallback && msg.media_url) {
+        const fallback = normalizeMediaUrlClient(msg.media_url);
+        if (fallback && event?.target && event.target.src !== fallback) {
+            msg._triedMediaUrlFallback = true;
+            event.target.onerror = null;
+            event.target.src = fallback;
+            return;
+        }
+    }
+
     msg._mediaBroken = true;
     if (event?.target) {
         event.target.onerror = null;
@@ -1133,7 +1184,7 @@ onUnmounted(() => {
                                   <div v-else-if="msg.type === 'video'" class="relative max-w-sm">
                                       <div v-if="shouldHideMessage(msg)" class="relative">
                                            <video
-                                             :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                             :src="resolveMediaSrc(msg)"
                                              class="max-h-80 w-full object-cover blur-md rounded-lg"
                                              preload="metadata"
                                            ></video>
@@ -1149,7 +1200,7 @@ onUnmounted(() => {
                                       </div>
                                       <video
                                         v-else
-                                        :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                        :src="resolveMediaSrc(msg)"
                                         class="max-h-80 w-full object-contain rounded-lg bg-black"
                                         controls
                                         playsinline
@@ -1195,7 +1246,7 @@ onUnmounted(() => {
                                           <div class="flex-1 min-w-0">
                                               <audio
                                                 :ref="el => setAudioRef(msg.id, el)"
-                                                :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                                :src="resolveMediaSrc(msg)"
                                                 @play="playingAudioId = msg.id"
                                                 @pause="playingAudioId = playingAudioId === msg.id ? null : playingAudioId"
                                                 @ended="playingAudioId = playingAudioId === msg.id ? null : playingAudioId"
@@ -1215,7 +1266,7 @@ onUnmounted(() => {
                                   <div v-else-if="msg.type === 'sticker'" class="relative">
                                       <div v-if="shouldHideMessage(msg)" class="relative">
                                            <img
-                                             :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
+                                             :src="resolveMediaSrc(msg)"
                                              class="w-36 h-36 object-contain blur-md"
                                              alt="Sticker"
                                            />
@@ -1229,9 +1280,9 @@ onUnmounted(() => {
                                            </div>
                                       </div>
                                       <img
-                                        v-else-if="msg.media_url || msg.media_id"
-                                        :src="msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`"
-                                        @click="openImageLightbox(msg.media_url || `${API_BASE}/CRM/Chat/media?id=${msg.media_id}`)"
+                                        v-else-if="resolveMediaSrc(msg)"
+                                        :src="resolveMediaSrc(msg)"
+                                        @click="openMessageImageLightbox(msg)"
                                         class="w-36 h-36 object-contain cursor-pointer"
                                         alt="Sticker"
                                       />
@@ -1493,13 +1544,13 @@ onUnmounted(() => {
             </div>
             <div class="p-4 overflow-y-auto flex-1">
                 <p class="text-xs font-bold text-[var(--wa-accent-green)] mb-1">{{ quotedMessageToShow.fromName }}</p>
-                <div v-if="quotedMessageToShow.type === 'image' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
-                    <img :src="normalizeMediaUrlClient(quotedMessageToShow.media_url) || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" @error="(e) => { e.target.onerror = null; e.target.src = BROKEN_MEDIA_URL; }" />
+                <div v-if="quotedMessageToShow.type === 'image' && resolveMediaSrc(quotedMessageToShow)" class="space-y-2">
+                    <img :src="resolveMediaSrc(quotedMessageToShow)" class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)]" @error="(e) => handleImageError(quotedMessageToShow, e)" />
                     <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
                 </div>
-                <div v-else-if="quotedMessageToShow.type === 'video' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
+                <div v-else-if="quotedMessageToShow.type === 'video' && resolveMediaSrc(quotedMessageToShow)" class="space-y-2">
                     <video
-                      :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`"
+                      :src="resolveMediaSrc(quotedMessageToShow)"
                       class="max-w-full max-h-64 object-contain rounded-lg border border-[var(--wa-border)] bg-black"
                       controls
                       playsinline
@@ -1507,11 +1558,12 @@ onUnmounted(() => {
                     ></video>
                     <p v-if="quotedMessageToShow.text" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
                 </div>
-                <div v-else-if="quotedMessageToShow.type === 'sticker' && (quotedMessageToShow.media_url || quotedMessageToShow.media_id)" class="space-y-2">
+                <div v-else-if="quotedMessageToShow.type === 'sticker' && resolveMediaSrc(quotedMessageToShow)" class="space-y-2">
                     <img
-                      :src="quotedMessageToShow.media_url || `${API_BASE}/CRM/Chat/media?id=${quotedMessageToShow.media_id}`"
+                      :src="resolveMediaSrc(quotedMessageToShow)"
                       class="w-36 h-36 object-contain"
                       alt="Sticker"
+                      @error="(e) => handleImageError(quotedMessageToShow, e)"
                     />
                 </div>
                 <p v-else class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>

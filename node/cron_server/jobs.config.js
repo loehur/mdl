@@ -33,6 +33,14 @@ module.exports = [
     enabled: true,
   },
   {
+    id: 'bca-kas-confirm',
+    description: 'Konfirmasi kas BCA pending jika mutasi CR cocok (on-demand scrape)',
+    schedule: '*/10 * * * *', // setiap 10 menit; skip jika tidak ada pending BCA
+    method: 'GET',
+    url: '/Cron/BcaKasConfirm/index',
+    enabled: true,
+  },
+  {
     id: 'rekap-snapshot-bulanan',
     description: 'Snapshot rekap laundry bulan lalu per cabang operasional (untuk fee jaga malam)',
     schedule: '15 3 1 * *', // tanggal 1 tiap bulan jam 03:15 (hindari 01:00, 08:00, dan */11)
