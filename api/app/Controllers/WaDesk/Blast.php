@@ -27,7 +27,6 @@ class Blast extends WaDeskController
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-        $isAdmin = ($user['role'] ?? '') === 'admin';
 
         $templateId = (int) $this->query('template_id', 0);
         if ($templateId <= 0) {
@@ -63,8 +62,7 @@ class Blast extends WaDeskController
     public function create()
     {
         $this->verifyAuth();
-        $user = $this->requireChatUser();
-        $isAdmin = ($user['role'] ?? '') === 'admin';
+        $user = $this->requireOperationalTeam();
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
@@ -90,12 +88,9 @@ class Blast extends WaDeskController
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
             "SELECT * FROM {$tbl}
-             WHERE id = ? AND tenant_id = ? AND status = 'active'"
-             . (!$isAdmin ? " AND team_id = ?" : "")
-             . " LIMIT 1",
-            $isAdmin
-                ? [$channelId, (int) $user['tenant_id']]
-                : [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
+             WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active'
+             LIMIT 1",
+            [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
         if (!$channel) {
             $this->error('Channel tidak ditemukan atau tidak aktif', 404);
@@ -214,7 +209,7 @@ class Blast extends WaDeskController
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-        $isAdmin = ($user['role'] ?? '') === 'admin';
+        [$teamSql, $teamBinds] = $this->blastTeamScope($user);
 
         $campaign = trim((string) $this->query('campaign_name', ''));
         $page = max(1, (int) $this->query('page', 1));
@@ -228,12 +223,8 @@ class Blast extends WaDeskController
                 INNER JOIN wa_templates t ON t.id = b.template_id
                 INNER JOIN {$tbl} k ON k.id = b.channel_id
                 INNER JOIN users u ON u.id = b.created_by
-                WHERE b.tenant_id = ?";
-        $binds = [(int) $user['tenant_id']];
-        if (!$isAdmin) {
-            $sql .= ' AND k.team_id = ?';
-            $binds[] = (int) $user['team_id'];
-        }
+                WHERE b.tenant_id = ?{$teamSql}";
+        $binds = array_merge([(int) $user['tenant_id']], $teamBinds);
 
         if ($campaign !== '') {
             $sql .= ' AND b.campaign_name LIKE ?';
@@ -247,12 +238,8 @@ class Blast extends WaDeskController
         $countSql = "SELECT COUNT(*) AS cnt
                      FROM wa_blasts b
                      INNER JOIN {$tbl} k ON k.id = b.channel_id
-                     WHERE b.tenant_id = ?";
-        $countBinds = [(int) $user['tenant_id']];
-        if (!$isAdmin) {
-            $countSql .= ' AND k.team_id = ?';
-            $countBinds[] = (int) $user['team_id'];
-        }
+                     WHERE b.tenant_id = ?{$teamSql}";
+        $countBinds = array_merge([(int) $user['tenant_id']], $teamBinds);
         if ($campaign !== '') {
             $countSql .= ' AND b.campaign_name LIKE ?';
             $countBinds[] = '%' . $campaign . '%';
@@ -263,12 +250,8 @@ class Blast extends WaDeskController
         $campaignSql = "SELECT DISTINCT b.campaign_name
                         FROM wa_blasts b
                         INNER JOIN {$tbl} k ON k.id = b.channel_id
-                        WHERE b.tenant_id = ?";
-        $campaignBinds = [(int) $user['tenant_id']];
-        if (!$isAdmin) {
-            $campaignSql .= ' AND k.team_id = ?';
-            $campaignBinds[] = (int) $user['team_id'];
-        }
+                        WHERE b.tenant_id = ?{$teamSql}";
+        $campaignBinds = array_merge([(int) $user['tenant_id']], $teamBinds);
         $campaignSql .= ' ORDER BY b.campaign_name ASC';
         $campaigns = $this->db($this->db_index)->query($campaignSql, $campaignBinds)->result_array();
 
@@ -287,7 +270,7 @@ class Blast extends WaDeskController
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-        $isAdmin = ($user['role'] ?? '') === 'admin';
+        [$teamSql, $teamBinds] = $this->blastTeamScope($user);
 
         $id = (int) $this->query('id', 0);
         if ($id <= 0) {
@@ -302,12 +285,9 @@ class Blast extends WaDeskController
              INNER JOIN wa_templates t ON t.id = b.template_id
              INNER JOIN {$tbl} k ON k.id = b.channel_id
              INNER JOIN users u ON u.id = b.created_by
-             WHERE b.id = ? AND b.tenant_id = ?"
-             . (!$isAdmin ? " AND k.team_id = ?" : "")
-             . " LIMIT 1",
-            $isAdmin
-                ? [$id, (int) $user['tenant_id']]
-                : [$id, (int) $user['tenant_id'], (int) $user['team_id']]
+             WHERE b.id = ? AND b.tenant_id = ?{$teamSql}
+             LIMIT 1",
+            array_merge([$id, (int) $user['tenant_id']], $teamBinds)
         )->row_array();
 
         if (!$blast) {
@@ -348,7 +328,7 @@ class Blast extends WaDeskController
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-        $isAdmin = ($user['role'] ?? '') === 'admin';
+        [$teamSql, $teamBinds] = $this->blastTeamScope($user);
 
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
@@ -365,12 +345,9 @@ class Blast extends WaDeskController
             "SELECT b.*
              FROM wa_blasts b
              INNER JOIN {$tbl} k ON k.id = b.channel_id
-             WHERE b.id = ? AND b.tenant_id = ?"
-             . (!$isAdmin ? " AND k.team_id = ?" : "")
-             . " LIMIT 1",
-            $isAdmin
-                ? [$blastId, (int) $user['tenant_id']]
-                : [$blastId, (int) $user['tenant_id'], (int) $user['team_id']]
+             WHERE b.id = ? AND b.tenant_id = ?{$teamSql}
+             LIMIT 1",
+            array_merge([$blastId, (int) $user['tenant_id']], $teamBinds)
         )->row_array();
 
         if (!$blast) {
@@ -392,6 +369,18 @@ class Blast extends WaDeskController
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /** @return array{0:string,1:array} */
+    private function blastTeamScope(array $user): array
+    {
+        if ($this->hasOperationalTeam($user)) {
+            return [' AND k.team_id = ?', [(int) $user['team_id']]];
+        }
+        if (($user['role'] ?? '') === 'admin') {
+            return [' AND 1=0', []];
+        }
+        return [' AND k.team_id = ?', [(int) ($user['team_id'] ?? 0)]];
+    }
 
     private function loadParamDefs(int $templateId): array
     {

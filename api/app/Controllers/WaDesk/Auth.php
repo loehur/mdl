@@ -97,7 +97,10 @@ class Auth extends WaDeskController
                 $this->error('Akun tidak aktif', 403);
             }
 
-            $public = $this->publicUser($user);
+            $public = $this->loadPublicUser((int) $user['id']);
+            if (!$public) {
+                $this->error('Akun tidak aktif', 403);
+            }
             $this->establishSession($public);
             $this->extendSession();
             $token = $this->issueAuthToken((int) $user['id']);
@@ -116,7 +119,64 @@ class Auth extends WaDeskController
         if (!$this->restoreAuth()) {
             $this->error('Unauthorized', 401);
         }
-        $this->success(['user' => $this->currentUser()], 'Session aktif');
+        $user = $this->currentUser();
+        $fresh = $this->loadPublicUser((int) ($user['id'] ?? 0));
+        if ($fresh) {
+            $this->establishSession($fresh);
+            $user = $fresh;
+        }
+        $this->success(['user' => $user], 'Session aktif');
+    }
+
+    /** POST /WaDesk/Auth/joinTeam — admin bergabung ke team untuk operasional WA */
+    public function joinTeam()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $teamId = (int) ($this->getBody()['team_id'] ?? 0);
+        if ($teamId <= 0) {
+            $this->error('team_id wajib', 400);
+        }
+
+        $team = $this->db($this->db_index)->query(
+            "SELECT id, name FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$teamId, (int) $admin['tenant_id']]
+        )->row_array();
+        if (!$team) {
+            $this->error('Team tidak ditemukan', 404);
+        }
+
+        $this->db($this->db_index)->update('users', [
+            'team_id' => $teamId,
+        ], ['id' => (int) $admin['id']]);
+
+        $public = $this->loadPublicUser((int) $admin['id']);
+        $this->establishSession($public);
+
+        $this->success(['user' => $public], 'Bergabung ke team ' . $team['name']);
+    }
+
+    /** POST /WaDesk/Auth/leaveTeam — admin keluar dari team operasional */
+    public function leaveTeam()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $this->db($this->db_index)->update('users', [
+            'team_id' => null,
+        ], ['id' => (int) $admin['id']]);
+
+        $public = $this->loadPublicUser((int) $admin['id']);
+        $this->establishSession($public);
+
+        $this->success(['user' => $public], 'Keluar dari team operasional');
     }
 
     public function logout()

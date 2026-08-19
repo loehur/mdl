@@ -63,15 +63,19 @@ abstract class WaDeskController extends BaseController
         try {
             $hash = hash('sha256', $token);
             $row = $this->db($this->db_index)->query(
-                "SELECT t.user_id, u.id, u.name, u.email, u.role, u.tenant_id, u.team_id, u.is_active
+                "SELECT t.user_id
                  FROM wadesk_tokens t
-                 INNER JOIN users u ON u.id = t.user_id
                  WHERE t.token_hash = ? AND t.expires_at > NOW()
                  LIMIT 1",
                 [$hash]
             )->row_array();
 
-            if (!$row || (int) $row['is_active'] !== 1) {
+            if (!$row) {
+                return null;
+            }
+
+            $user = $this->loadPublicUser((int) $row['user_id']);
+            if (!$user) {
                 return null;
             }
 
@@ -79,7 +83,7 @@ abstract class WaDeskController extends BaseController
                 'expires_at' => date('Y-m-d H:i:s', time() + $this->token_lifetime),
             ], ['token_hash' => $hash]);
 
-            return $this->publicUser($row);
+            return $user;
         } catch (\Throwable $e) {
             return null;
         }
@@ -87,7 +91,7 @@ abstract class WaDeskController extends BaseController
 
     protected function publicUser(array $row): array
     {
-        return [
+        $user = [
             'id' => (int) $row['id'],
             'name' => $row['name'],
             'email' => $row['email'],
@@ -95,6 +99,51 @@ abstract class WaDeskController extends BaseController
             'tenant_id' => (int) $row['tenant_id'],
             'team_id' => $row['team_id'] !== null ? (int) $row['team_id'] : null,
         ];
+        if (array_key_exists('team_name', $row)) {
+            $user['team_name'] = $row['team_name'] !== null && $row['team_name'] !== ''
+                ? (string) $row['team_name']
+                : null;
+        }
+        return $user;
+    }
+
+    protected function loadPublicUser(int $userId): ?array
+    {
+        $row = $this->db($this->db_index)->query(
+            "SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.team_id, u.is_active,
+                    t.name AS team_name
+             FROM users u
+             LEFT JOIN teams t ON t.id = u.team_id
+             WHERE u.id = ?
+             LIMIT 1",
+            [$userId]
+        )->row_array();
+
+        if (!$row || (int) ($row['is_active'] ?? 0) !== 1) {
+            return null;
+        }
+
+        return $this->publicUser($row);
+    }
+
+    protected function hasOperationalTeam(?array $user = null): bool
+    {
+        $user = $user ?? $this->currentUser();
+        return !empty($user['team_id']) && (int) $user['team_id'] > 0;
+    }
+
+    /** Admin/TL/agent must join a team before send chat or blast. */
+    protected function requireOperationalTeam(): array
+    {
+        $user = $this->requireChatUser();
+        if (!$this->hasOperationalTeam($user)) {
+            $this->error(
+                'Anda belum bergabung ke team. Admin harus masuk team dulu untuk kirim atau blast WA.',
+                403,
+                ['code' => 'no_team']
+            );
+        }
+        return $user;
     }
 
     protected function establishSession(array $user): void
@@ -252,12 +301,18 @@ abstract class WaDeskController extends BaseController
     protected function visibilitySql(string $alias = 'c'): array
     {
         $user = $this->currentUser();
-        if (($user['role'] ?? '') === 'admin') {
-            return ["{$alias}.tenant_id = ?", [(int) $user['tenant_id']]];
+        if (($user['role'] ?? '') === 'admin' && !$this->hasOperationalTeam($user)) {
+            return ['1=0', []];
+        }
+        if ($this->hasOperationalTeam($user)) {
+            return [
+                "{$alias}.tenant_id = ? AND {$alias}.team_id = ?",
+                [(int) $user['tenant_id'], (int) $user['team_id']],
+            ];
         }
         return [
             "{$alias}.tenant_id = ? AND {$alias}.team_id = ?",
-            [(int) $user['tenant_id'], (int) $user['team_id']],
+            [(int) $user['tenant_id'], (int) ($user['team_id'] ?? 0)],
         ];
     }
 

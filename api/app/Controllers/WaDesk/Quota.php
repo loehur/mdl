@@ -132,27 +132,18 @@ class Quota extends WaDeskController
         ]);
     }
 
-    /** Balance for current user's team (TL/agent). Admin gets null team. */
+    /** Balance for current user's team (admin ikut team saat sudah join). */
     public function me()
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-
-        if (($user['role'] ?? '') === 'admin') {
-            $this->success([
-                'role' => 'admin',
-                'team_id' => null,
-                'balance' => null,
-                'team_name' => null,
-            ]);
-        }
 
         $teamId = (int) ($user['team_id'] ?? 0);
         if ($teamId <= 0) {
             $this->success([
                 'role' => $user['role'],
                 'team_id' => null,
-                'balance' => 0,
+                'balance' => null,
                 'team_name' => null,
             ]);
         }
@@ -182,7 +173,7 @@ class Quota extends WaDeskController
     public function forChannel()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $user = $this->requireChatUser();
 
         $channelId = (int) $this->query('channel_id', 0);
         if ($channelId <= 0) {
@@ -191,18 +182,24 @@ class Quota extends WaDeskController
 
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
-            "SELECT k.id, k.team_id, k.label, t.name AS team_name
+            "SELECT k.id, k.team_id, k.label, k.tenant_id, t.name AS team_name
              FROM {$tbl} k
              INNER JOIN teams t ON t.id = k.team_id
              WHERE k.id = ? AND k.tenant_id = ? LIMIT 1",
-            [$channelId, (int) $admin['tenant_id']]
+            [$channelId, (int) $user['tenant_id']]
         )->row_array();
         if (!$channel) {
             $this->error('Channel tidak ditemukan', 404);
         }
+        if ($this->hasOperationalTeam($user) && (int) $channel['team_id'] !== (int) $user['team_id']) {
+            $this->error('Channel tidak dapat diakses', 403);
+        }
+        if (($user['role'] ?? '') === 'admin' && !$this->hasOperationalTeam($user)) {
+            $this->error('Admin harus masuk team dulu', 403, ['code' => 'no_team']);
+        }
 
         $quota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $quota->ensureRow((int) $channel['team_id'], (int) $admin['tenant_id']);
+        $quota->ensureRow((int) $channel['team_id'], (int) $user['tenant_id']);
 
         $this->success([
             'channel_id' => (int) $channel['id'],

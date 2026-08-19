@@ -12,6 +12,32 @@
     </header>
 
     <div class="max-w-5xl mx-auto p-4 space-y-6">
+      <!-- Admin team operasional -->
+      <section class="card space-y-3 border-accent/20">
+        <h2 class="font-display font-semibold text-lg">Team operasional</h2>
+        <p class="text-sm text-slate-400">
+          Admin harus masuk team untuk kirim chat atau blast WA. Panel admin tetap bisa diakses tanpa team.
+        </p>
+        <div v-if="auth.hasTeam" class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <p class="text-sm text-slate-200">
+            Aktif di team: <span class="font-semibold text-accent">{{ auth.user?.team_name || `#${auth.user?.team_id}` }}</span>
+          </p>
+          <button type="button" class="btn-sm shrink-0" :disabled="joiningTeam" @click="leaveOperationalTeam">
+            {{ joiningTeam ? "..." : "Keluar dari team" }}
+          </button>
+        </div>
+        <form v-else class="flex flex-col sm:flex-row gap-2" @submit.prevent="joinOperationalTeam">
+          <select v-model="adminTeamPick" required class="field flex-1">
+            <option disabled value="">Pilih team untuk operasional</option>
+            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+          </select>
+          <button type="submit" class="btn shrink-0" :disabled="joiningTeam || !teams.length">
+            {{ joiningTeam ? "Masuk..." : "Masuk team" }}
+          </button>
+        </form>
+        <p v-if="!teams.length" class="text-xs text-amber-300">Buat team dulu di tab Teams.</p>
+      </section>
+
       <nav class="flex flex-wrap gap-2">
         <button
           v-for="t in tabs"
@@ -508,6 +534,8 @@ import ThemeToggle from "../components/ThemeToggle.vue";
 
 const auth = useAuthStore();
 const tab = ref("teams");
+const adminTeamPick = ref("");
+const joiningTeam = ref(false);
 const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
@@ -618,11 +646,37 @@ function flash(ok, text) {
   err.value = ok ? "" : text;
 }
 
+async function joinOperationalTeam() {
+  if (!adminTeamPick.value) return;
+  joiningTeam.value = true;
+  try {
+    await auth.joinTeam(adminTeamPick.value);
+    adminTeamPick.value = "";
+    flash(true, `Masuk team ${auth.user?.team_name || ""}`.trim());
+  } catch (e) {
+    flash(false, e.message || "Gagal masuk team");
+  } finally {
+    joiningTeam.value = false;
+  }
+}
+
+async function leaveOperationalTeam() {
+  joiningTeam.value = true;
+  try {
+    await auth.leaveTeam();
+    flash(true, "Keluar dari team operasional");
+  } catch (e) {
+    flash(false, e.message || "Gagal keluar team");
+  } finally {
+    joiningTeam.value = false;
+  }
+}
+
 async function refresh() {
   const [t, u, k, tp, q, kir] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
-    api("/WaDesk/Channels/list"),
+    api("/WaDesk/Channels/list?scope=all"),
     api("/WaDesk/Templates/list"),
     api("/WaDesk/Quota/list"),
     api("/WaDesk/Settings/kirimin"),

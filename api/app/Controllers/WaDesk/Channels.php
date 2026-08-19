@@ -14,8 +14,9 @@ class Channels extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         $tbl = $this->channelsTable();
+        $scope = trim((string) $this->query('scope', 'operational'));
 
-        if ($user['role'] === 'admin') {
+        if ($user['role'] === 'admin' && $scope === 'all') {
             $rows = $this->db($this->db_index)->query(
                 "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
                         k.channel_type, k.status, k.created_at, t.name AS team_name
@@ -25,7 +26,7 @@ class Channels extends WaDeskController
                  ORDER BY k.id DESC",
                 [(int) $user['tenant_id']]
             )->result_array();
-        } else {
+        } elseif ($this->hasOperationalTeam($user)) {
             $rows = $this->db($this->db_index)->query(
                 "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
                         k.channel_type, k.status, k.created_at, t.name AS team_name
@@ -35,6 +36,8 @@ class Channels extends WaDeskController
                  ORDER BY k.id DESC",
                 [(int) $user['tenant_id'], (int) $user['team_id']]
             )->result_array();
+        } else {
+            $rows = [];
         }
 
         $channels = array_map(fn ($r) => $this->mapChannelRow($r), $rows);

@@ -13,6 +13,14 @@
       </div>
     </header>
 
+    <div
+      v-if="auth.isAdmin && !auth.canSendWa"
+      class="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+    >
+      <span>Anda belum masuk team — tidak bisa membuat blast.</span>
+      <router-link to="/admin" class="text-accent-soft hover:underline shrink-0">Masuk team di Admin →</router-link>
+    </div>
+
     <div class="max-w-4xl mx-auto p-4 space-y-6">
 
       <!-- ================================================================
@@ -24,7 +32,7 @@
         <!-- API Key -->
         <div>
           <label class="label">Channel / nomor WA</label>
-          <select v-model="form.channel_id" class="field" @change="onKeyChange">
+          <select v-model="form.channel_id" class="field" :disabled="!auth.canSendWa" @change="onKeyChange">
             <option disabled value="">Pilih channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
@@ -161,7 +169,7 @@
           <button
             type="button"
             class="btn w-full py-3"
-            :disabled="submitting || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
+            :disabled="submitting || !auth.canSendWa || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
             @click="submitBlast"
           >
             {{ submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. 250)` }}
@@ -604,6 +612,10 @@ function resetUpload() {
 
 async function submitBlast() {
   submitError.value = '';
+  if (!auth.canSendWa) {
+    submitError.value = 'Masuk team di Admin dulu untuk blast WA.';
+    return;
+  }
   if (parsedRows.value.length > 250) {
     submitError.value = `Maksimal 250 baris per blast. File ini berisi ${parsedRows.value.length} baris.`;
     return;

@@ -111,7 +111,7 @@ class Chat extends WaDeskController
     public function send()
     {
         $this->verifyAuth();
-        $user = $this->requireChatUser();
+        $user = $this->requireOperationalTeam();
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
         }
@@ -210,18 +210,15 @@ class Chat extends WaDeskController
                 ]);
             }
 
-            // Admin has no team — skip per-team template quota (TL/agent only)
-            $isAdmin = ($user['role'] ?? '') === 'admin';
+            // Per-team template quota (admin ikut team saat sudah join)
             $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
             $teamId = (int) $channel['team_id'];
-            if (!$isAdmin) {
-                $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
-                if (!$teamQuota->canConsume($teamId, 1)) {
-                    $this->error('Kuota template team habis', 422, [
-                        'team_id' => $teamId,
-                        'balance' => $teamQuota->getBalance($teamId),
-                    ]);
-                }
+            $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
+            if (!$teamQuota->canConsume($teamId, 1)) {
+                $this->error('Kuota template team habis', 422, [
+                    'team_id' => $teamId,
+                    'balance' => $teamQuota->getBalance($teamId),
+                ]);
             }
 
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
@@ -272,29 +269,27 @@ class Chat extends WaDeskController
             $this->touchConversationOut($conv['id'], $preview);
 
             $consumedBalance = null;
-            if (!$isAdmin) {
-                $consumed = $teamQuota->consume(
-                    $teamId,
-                    (int) $channel['tenant_id'],
-                    (int) $user['id'],
-                    'chat',
-                    'message',
-                    $msgId
-                );
-                if (!$consumed['ok']) {
-                    // Race: provider already charged; keep message, do not fail the send response
-                    try {
-                        \Log::write(
-                            'WaDesk template quota consume failed after Kirimin success: team=' . $teamId . ' msg=' . $msgId,
-                            'wadesk',
-                            'Quota'
-                        );
-                    } catch (\Throwable $e) {
-                        /* ignore */
-                    }
+            $consumed = $teamQuota->consume(
+                $teamId,
+                (int) $channel['tenant_id'],
+                (int) $user['id'],
+                'chat',
+                'message',
+                $msgId
+            );
+            if (!$consumed['ok']) {
+                // Race: provider already charged; keep message, do not fail the send response
+                try {
+                    \Log::write(
+                        'WaDesk template quota consume failed after Kirimin success: team=' . $teamId . ' msg=' . $msgId,
+                        'wadesk',
+                        'Quota'
+                    );
+                } catch (\Throwable $e) {
+                    /* ignore */
                 }
-                $consumedBalance = $consumed['balance'] ?? $teamQuota->getBalance($teamId);
             }
+            $consumedBalance = $consumed['balance'] ?? $teamQuota->getBalance($teamId);
 
             WaDeskServer::push([
                 'type' => 'message_out',
@@ -378,11 +373,8 @@ class Chat extends WaDeskController
     {
         $user = $this->currentUser();
         $tbl = $this->channelsTable();
-        if ($user['role'] === 'admin') {
-            return $this->db($this->db_index)->query(
-                "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND status = 'active' LIMIT 1",
-                [$channelId, (int) $user['tenant_id']]
-            )->row_array() ?: null;
+        if (!$this->hasOperationalTeam($user)) {
+            return null;
         }
         return $this->db($this->db_index)->query(
             "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active' LIMIT 1",

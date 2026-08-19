@@ -12,6 +12,8 @@ export const useAuthStore = defineStore("auth", {
   getters: {
     isAdmin: (s) => s.user?.role === "admin",
     isLoggedIn: (s) => !!s.user,
+    hasTeam: (s) => !!s.user?.team_id,
+    canSendWa: (s) => s.user?.role !== "admin" || !!s.user?.team_id,
   },
   actions: {
     persist() {
@@ -80,6 +82,24 @@ export const useAuthStore = defineStore("auth", {
       this.user = null;
       this.token = null;
       this.persist();
+    },
+    async joinTeam(teamId) {
+      const res = await api("/WaDesk/Auth/joinTeam", {
+        method: "POST",
+        body: { team_id: Number(teamId) },
+      });
+      this.user = res.data.user;
+      this.persist();
+      return res;
+    },
+    async leaveTeam() {
+      const res = await api("/WaDesk/Auth/leaveTeam", {
+        method: "POST",
+        body: {},
+      });
+      this.user = res.data.user;
+      this.persist();
+      return res;
     },
   },
 });

@@ -4,11 +4,17 @@
       <div class="flex items-center gap-3">
         <span class="font-display text-xl font-semibold text-slate-100">WaDesk</span>
         <span class="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ auth.user?.role }}</span>
+        <span
+          v-if="auth.user?.team_name"
+          class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent-soft hidden sm:inline"
+        >
+          {{ auth.user.team_name }}
+        </span>
       </div>
       <div class="flex items-center gap-2 text-sm">
         <ThemeToggle compact />
         <span
-          v-if="templateQuotaBalance !== null && !auth.isAdmin"
+          v-if="templateQuotaBalance !== null"
           class="hidden sm:inline text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300"
           title="Sisa kuota template team"
         >
@@ -32,6 +38,14 @@
       </div>
     </header>
 
+    <div
+      v-if="auth.isAdmin && !auth.canSendWa"
+      class="shrink-0 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+    >
+      <span>Anda belum masuk team — tidak bisa kirim chat atau blast WA.</span>
+      <router-link to="/admin" class="text-accent-soft hover:underline shrink-0">Masuk team di Admin →</router-link>
+    </div>
+
     <div class="flex-1 min-h-0 flex">
       <!-- List -->
       <aside
@@ -47,8 +61,9 @@
               @keyup.enter="chat.loadConversations()"
             />
             <button
-              class="px-3 rounded-xl bg-accent text-white text-sm font-medium"
+              class="px-3 rounded-xl bg-accent text-white text-sm font-medium disabled:opacity-40"
               title="Chat baru"
+              :disabled="!auth.canSendWa"
               @click="openNewChat"
             >
               +
@@ -158,7 +173,10 @@
           </div>
 
           <div class="p-3 border-t border-white/10 bg-ink-900/60">
-            <div v-if="chat.active.csw_open" class="flex gap-2">
+            <div v-if="!auth.canSendWa" class="text-xs text-amber-300/90 py-2">
+              Masuk team di Admin untuk mengirim pesan.
+            </div>
+            <div v-else-if="chat.active.csw_open" class="flex gap-2">
               <input
                 v-model="draft"
                 class="flex-1 rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm disabled:opacity-50"
@@ -189,7 +207,7 @@
                 {{ sending ? "Mengirim..." : "Kirim" }}
               </button>
             </div>
-            <div v-else class="flex flex-col gap-2">
+            <div v-else-if="auth.canSendWa" class="flex flex-col gap-2">
               <p class="text-xs text-amber-300/90">CSW tertutup. Mulai/lanjutkan dengan template WhatsApp.</p>
               <button
                 class="w-full py-2.5 rounded-xl border border-accent/40 text-accent-soft hover:bg-accent/10 text-sm font-medium"
@@ -349,6 +367,7 @@ watch(
 );
 
 function openNewChat() {
+  if (!auth.canSendWa) return;
   tplKeyId.value = null;
   tplPhone.value = "";
   tplError.value = "";
@@ -392,7 +411,7 @@ async function onTemplateSubmit(payload) {
 }
 
 async function loadTemplateQuota() {
-  if (auth.isAdmin) {
+  if (!auth.canSendWa) {
     templateQuotaBalance.value = null;
     return;
   }
