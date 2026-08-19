@@ -9,6 +9,7 @@ use App\Helpers\Laundry\KasNonTunaiConfirm;
 
 /**
  * Konfirmasi otomatis kas BCA pending jika mutasi CR cocok ditemukan.
+ * Mutasi PEND dianggap valid — tidak menunggu tanggal_iso/posted.
  * Tidak scrape kecuali ada kas pending BCA.
  *
  * URL:

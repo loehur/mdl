@@ -158,6 +158,60 @@ class BcaScrapper
     }
 
     /**
+     * Tanggal awal lookback (30 hari) untuk PEND / scrape penuh.
+     */
+    public static function lookbackMinStart(): string
+    {
+        return date('Y-m-d', strtotime('-' . self::MAX_LOOKBACK_DAYS . ' days'));
+    }
+
+    /**
+     * Pecah rentang YYYY-MM-DD jadi chunk inklusif max N hari (untuk batas KlikBCA 6 hari).
+     *
+     * @return array<int,array{start:string,end:string}>
+     */
+    public static function splitDateRangeIntoChunks(
+        string $startYmd,
+        string $endYmd,
+        int $maxDays = self::MAX_RANGE_DAYS
+    ): array {
+        $today = date('Y-m-d');
+        $minStart = self::lookbackMinStart();
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startYmd) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endYmd)) {
+            return [];
+        }
+
+        $start = $startYmd;
+        $end = $endYmd;
+        if ($end > $today) {
+            $end = $today;
+        }
+        if ($start < $minStart) {
+            $start = $minStart;
+        }
+        if ($start > $end || $maxDays < 1) {
+            return [];
+        }
+
+        $chunks = [];
+        $cursor = $start;
+        while ($cursor <= $end) {
+            $chunkEnd = date('Y-m-d', strtotime($cursor . ' +' . ($maxDays - 1) . ' days'));
+            if ($chunkEnd > $end) {
+                $chunkEnd = $end;
+            }
+            $chunks[] = [
+                'start' => $cursor,
+                'end' => $chunkEnd,
+            ];
+            $cursor = date('Y-m-d', strtotime($chunkEnd . ' +1 day'));
+        }
+
+        return $chunks;
+    }
+
+    /**
      * Hitung rentang fetch berdasarkan tanggal terakhir di DB.
      *
      * @return array{skip:bool,start?:string,end?:string,has_more?:bool,reason?:string}
@@ -165,7 +219,7 @@ class BcaScrapper
     public static function computeFetchRange($db): array
     {
         $today = date('Y-m-d');
-        $minStart = date('Y-m-d', strtotime('-' . self::MAX_LOOKBACK_DAYS . ' days'));
+        $minStart = self::lookbackMinStart();
 
         $trimmed = self::trimFetchRangeByDb($db, $minStart, $today);
         if (!empty($trimmed['skip'])) {

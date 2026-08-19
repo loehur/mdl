@@ -9,12 +9,16 @@ class BcaMutasiMatcher
 {
     /**
      * Cari mutasi CR unlinked yang cocok nominal + rentang tanggal.
-     * Termasuk baris PEND (tanggal_iso NULL) yang di-scrape hari ini / dalam rentang.
+     * Posted: tanggal_iso dalam rentang kas (max 6 hari).
+     * PEND: created_at dalam lookback 30 hari (tidak terikat rentang 6 hari kas).
      *
      * @return array|null row bca_mutasi
      */
     public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
     {
+        $today = date('Y-m-d');
+        $pendStart = BcaScrapper::lookbackMinStart();
+
         $row = $mainDb->query(
             'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
              FROM bca_mutasi m
@@ -35,7 +39,7 @@ class BcaMutasiMatcher
                m.tanggal_iso ASC,
                m.id ASC
              LIMIT 1',
-            ['CR', $nominal, $startYmd, $endYmd, 'PEND', $startYmd, $endYmd, 'PEND']
+            ['CR', $nominal, $startYmd, $endYmd, 'PEND', $pendStart, $today, 'PEND']
         )->row_array();
 
         return is_array($row) && !empty($row['id']) ? $row : null;
@@ -45,7 +49,7 @@ class BcaMutasiMatcher
      * Fetch mutasi dari bca_scrapper untuk rentang tertentu dan simpan ke DB.
      * Pangkas tanggal yang sudah ada di DB; hari ini selalu di-scrape jika dalam rentang.
      *
-     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,skipped_scrape?:bool,error?:string,start?:string,end?:string}
+     * @return array{ok:bool,fetched?:int,inserted?:int,updated?:int,skipped_dup?:int,skipped_scrape?:bool,error?:string,start?:string,end?:string}
      */
     public static function fetchAndStoreRange($mainDb, string $startYmd, string $endYmd): array
     {
@@ -55,6 +59,7 @@ class BcaMutasiMatcher
                 'ok' => true,
                 'fetched' => 0,
                 'inserted' => 0,
+                'updated' => 0,
                 'skipped_dup' => 0,
                 'skipped_scrape' => true,
                 'start' => (string) ($trimmed['start'] ?? $startYmd),
@@ -80,11 +85,74 @@ class BcaMutasiMatcher
             'ok' => true,
             'fetched' => count($rows),
             'inserted' => (int) ($save['inserted'] ?? 0),
+            'updated' => (int) ($save['updated'] ?? 0),
             'skipped_dup' => (int) ($save['skipped_dup'] ?? 0),
             'start' => $fetchStart,
             'end' => $fetchEnd,
             'trimmed' => !empty($trimmed['trimmed']),
         ];
+    }
+
+    /**
+     * Scrape lookback penuh (30 hari → hari ini), per chunk max 6 hari.
+     * Berhenti lebih awal jika mutasi sudah ketemu. Hormati pangkas DB per chunk.
+     *
+     * @return array{ok:bool,fetched?:int,inserted?:int,updated?:int,skipped_dup?:int,chunks?:int,skipped_scrape?:bool,error?:string}
+     */
+    public static function fetchAndStoreLookback(
+        $mainDb,
+        string $nominal,
+        string $matchStartYmd,
+        string $matchEndYmd
+    ): array {
+        $today = date('Y-m-d');
+        $lookbackStart = BcaScrapper::lookbackMinStart();
+        $chunks = BcaScrapper::splitDateRangeIntoChunks($lookbackStart, $today);
+        if ($chunks !== []) {
+            $chunks = array_reverse($chunks);
+        }
+
+        $stats = [
+            'ok' => true,
+            'fetched' => 0,
+            'inserted' => 0,
+            'updated' => 0,
+            'skipped_dup' => 0,
+            'chunks' => 0,
+            'skipped_scrape' => true,
+        ];
+
+        if ($chunks === []) {
+            return $stats;
+        }
+
+        $maxChunks = min(count($chunks), BcaScrapper::MAX_SYNC_CHUNKS);
+        for ($i = 0; $i < $maxChunks; $i++) {
+            $chunk = $chunks[$i];
+            $fetch = self::fetchAndStoreRange($mainDb, $chunk['start'], $chunk['end']);
+            if (empty($fetch['ok'])) {
+                return array_merge($stats, [
+                    'ok' => false,
+                    'error' => (string) ($fetch['error'] ?? 'fetch_failed'),
+                ]);
+            }
+
+            $stats['fetched'] += (int) ($fetch['fetched'] ?? 0);
+            $stats['inserted'] += (int) ($fetch['inserted'] ?? 0);
+            $stats['updated'] += (int) ($fetch['updated'] ?? 0);
+            $stats['skipped_dup'] += (int) ($fetch['skipped_dup'] ?? 0);
+            $stats['chunks']++;
+
+            if (empty($fetch['skipped_scrape'])) {
+                $stats['skipped_scrape'] = false;
+            }
+
+            if (self::findUnlinkedMatch($mainDb, $nominal, $matchStartYmd, $matchEndYmd) !== null) {
+                break;
+            }
+        }
+
+        return $stats;
     }
 
     /**
@@ -189,7 +257,7 @@ class BcaMutasiMatcher
         $scraped = false;
 
         if ($mutasi === null) {
-            $fetch = self::fetchAndStoreRange($mainDb, $start, $end);
+            $fetch = self::fetchAndStoreLookback($mainDb, $nominal, $start, $end);
             if (empty($fetch['ok'])) {
                 return [
                     'ok' => false,
