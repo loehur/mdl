@@ -2872,7 +2872,7 @@ class Delivery extends Controller
    }
 
    /**
-    * Prefill lokasi seperti intent KURIR:
+    * Prefill lokasi seperti Intent TERKE:
     * 1 lokasi tersimpan → pakai itu; >1 → lokasi delivery selesai terakhir; else lokasi tersimpan terbaru.
     */
    private function pickDefaultLokasiForRequest(int $idPelanggan): ?array

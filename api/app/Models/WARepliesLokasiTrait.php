@@ -164,7 +164,7 @@ trait WARepliesLokasiTrait
     }
 
     /** Pesan jelas minta jemput/antar (prioritas di atas LOKASI). */
-    private function messageLooksLikeKurir(string $text, array $keywordConfig = []): bool
+    private function messageLooksLikeTerke(string $text, array $keywordConfig = []): bool
     {
         // Pertanyaan ongkir/ongkos saja — bukan minta kurir
         if ($this->messageLooksLikeOngkirOngkosInquiryOnly($text)) {
@@ -181,11 +181,11 @@ trait WARepliesLokasiTrait
         if ($this->detectKurirJenis($text, null)) {
             // deteksi jenis saja tidak cukup (kata "antar" di konteks lain) — cek pola kuat
         }
-        $patterns = $keywordConfig['KURIR']['patterns'] ?? [];
+        $patterns = $keywordConfig['TERKE']['patterns'] ?? [];
         if ($patterns === []) {
             try {
                 $full = $this->loadAutoreplyKeywordConfig();
-                $patterns = $full['KURIR']['patterns'] ?? [];
+                $patterns = $full['TERKE']['patterns'] ?? [];
             } catch (\Throwable $e) {
                 $patterns = [];
             }
@@ -224,7 +224,7 @@ trait WARepliesLokasiTrait
         if ($t === '' || mb_strlen($t) > 220) {
             return false;
         }
-        if ($this->messageLooksLikeKurir($t)) {
+        if ($this->messageLooksLikeTerke($t)) {
             return false;
         }
         // "ini alamatnya", "lokasi saya", "rumah pagar kuning", "kos azzahra"
@@ -415,7 +415,7 @@ trait WARepliesLokasiTrait
                 return false;
             }
         }
-        if ($this->messageLooksLikeKurir(mb_strtolower($textBody))) {
+        if ($this->messageLooksLikeTerke(mb_strtolower($textBody))) {
             return false;
         }
         return $this->handleLokasi($phoneIn, $waNumber, $textBody);
