@@ -55,41 +55,163 @@ class WaDesk extends Controller
     private function receive(): void
     {
         $json = file_get_contents('php://input');
-        if (class_exists('\Log')) {
-            \Log::write('WaDesk webhook raw: ' . mb_substr((string) $json, 0, 4000), 'wadesk', 'Webhook');
-        }
+        $headers = $this->kirimHeaders();
+        $this->logWebhook(
+            'POST ip=' . ($this->clientIp())
+            . ' event=' . ($headers['event'] ?: '-')
+            . ' source=' . ($headers['source'] ?: '-')
+            . ' delivery=' . ($headers['delivery'] ?: '-')
+            . ' raw=' . mb_substr((string) $json, 0, 4000)
+        );
 
         $data = json_decode($json, true);
         if (!$data) {
+            $this->logWebhook('SKIP invalid JSON body');
             http_response_code(200);
             echo json_encode(['status' => 'ok']);
             exit;
         }
 
+        $handled = false;
         try {
-            $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
-
-            if ($type === 'whatsapp.inbound_message.received') {
-                $this->handleYCloudInbound($data);
-            } elseif (in_array($type, ['whatsapp.message.status.updated', 'whatsapp.message.updated', 'message.status', 'status'], true)) {
-                $this->handleStatus($data);
-            } elseif ($this->looksLikeKiriminInbound($data)) {
-                $this->handleKiriminInbound($data);
-            } elseif ($this->looksLikeMetaInbound($data)) {
-                $this->handleMetaInbound($data);
-            } elseif ($this->looksLikeKiriminStatus($data)) {
-                $this->handleStatus($data);
-            }
+            $handled = $this->dispatchWebhook($data, $headers);
         } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('WaDesk webhook: ' . $e->getMessage(), 'wadesk', 'Webhook');
-            }
+            $this->logWebhook('ERROR ' . $e->getMessage());
+        }
+
+        if (!$handled) {
+            $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
+            $this->logWebhook(
+                'UNHANDLED type=' . ($type ?: 'none')
+                . ' keys=' . implode(',', array_slice(array_keys($data), 0, 12))
+            );
         }
 
         http_response_code(200);
         header('Content-Type: application/json');
         echo json_encode(['status' => 'ok']);
         exit;
+    }
+
+    /** @param array<string,string> $headers */
+    private function dispatchWebhook(array $data, array $headers): bool
+    {
+        $event = strtolower($headers['event'] ?? '');
+        $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
+
+        if ($event === 'message.received' || $type === 'message.received') {
+            if ($this->looksLikeMetaInbound($data)) {
+                $this->handleMetaInbound($data);
+                return true;
+            }
+            if ($this->looksLikeKirimNativeEnvelope($data)) {
+                $this->handleKirimNativeInbound($data);
+                return true;
+            }
+            if ($this->looksLikeKiriminInbound($data)) {
+                $this->handleKiriminInbound($data);
+                return true;
+            }
+        }
+
+        if (in_array($event, ['message.status', 'message.sent'], true)
+            || in_array($type, ['message.status', 'message.sent'], true)) {
+            if ($this->looksLikeMetaStatus($data)) {
+                $this->handleMetaStatus($data);
+                return true;
+            }
+            if ($this->looksLikeKirimNativeEnvelope($data)) {
+                $this->handleKirimNativeStatus($data);
+                return true;
+            }
+            if ($this->looksLikeKiriminStatus($data)) {
+                $this->handleStatus($data);
+                return true;
+            }
+        }
+
+        if ($type === 'whatsapp.inbound_message.received') {
+            $this->handleYCloudInbound($data);
+            return true;
+        }
+
+        if (in_array($type, ['whatsapp.message.status.updated', 'whatsapp.message.updated', 'message.status', 'status'], true)) {
+            $this->handleStatus($data);
+            return true;
+        }
+
+        if ($this->looksLikeMetaInbound($data)) {
+            $this->handleMetaInbound($data);
+            return true;
+        }
+
+        if ($this->looksLikeMetaStatus($data)) {
+            $this->handleMetaStatus($data);
+            return true;
+        }
+
+        if ($this->looksLikeKiriminInbound($data)) {
+            $this->handleKiriminInbound($data);
+            return true;
+        }
+
+        if ($this->looksLikeKirimNativeEnvelope($data)) {
+            if (str_contains($type, 'status') || str_contains($type, 'sent')) {
+                $this->handleKirimNativeStatus($data);
+            } else {
+                $this->handleKirimNativeInbound($data);
+            }
+            return true;
+        }
+
+        if ($this->looksLikeKiriminStatus($data)) {
+            $this->handleStatus($data);
+            return true;
+        }
+
+        return false;
+    }
+
+    /** @return array{event:string,source:string,delivery:string} */
+    private function kirimHeaders(): array
+    {
+        $pick = static function (string $name): string {
+            $serverKey = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+            return trim((string) ($_SERVER[$serverKey] ?? ''));
+        };
+
+        return [
+            'event' => $pick('X-Kirim-Event'),
+            'source' => $pick('X-Kirim-Source'),
+            'delivery' => $pick('X-Kirim-Delivery-Id'),
+        ];
+    }
+
+    private function clientIp(): string
+    {
+        return trim((string) (
+            $_SERVER['HTTP_X_FORWARDED_FOR']
+            ?? $_SERVER['HTTP_CF_CONNECTING_IP']
+            ?? $_SERVER['REMOTE_ADDR']
+            ?? ''
+        ));
+    }
+
+    private function logWebhook(string $text): void
+    {
+        if (class_exists('\Log')) {
+            \Log::write($text, 'wadesk', 'Webhook');
+        }
+
+        $dir = dirname(__DIR__, 3) . '/logs/' . date('Y-m-d');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        @file_put_contents(
+            $dir . '/wadesk_webhook.log',
+            date('H:i:s') . ' ' . $text . "\n",
+            FILE_APPEND | LOCK_EX
+        );
     }
 
     private function handleYCloudInbound(array $data): void
@@ -138,16 +260,77 @@ class WaDesk extends Controller
             return;
         }
         $metadata = $entry['metadata'] ?? [];
+        $kirim = is_array($data['kirim'] ?? null) ? $data['kirim'] : [];
+        $deviceId = $kirim['whatsapp_device_id']
+            ?? ($kirim['device_id'] ?? null)
+            ?? ($data['device_id'] ?? null);
+
         $this->persistInbound(
             (string) ($messages['from'] ?? ''),
             (string) ($metadata['display_phone_number'] ?? ''),
             $metadata['phone_number_id'] ?? null,
-            $data['device_id'] ?? null,
+            $deviceId,
             $messages['id'] ?? null,
             (string) ($messages['type'] ?? 'text'),
             $this->extractBody($messages),
             $entry['contacts'][0]['profile']['name'] ?? null
         );
+    }
+
+    private function handleMetaStatus(array $data): void
+    {
+        $entry = $data['entry'][0]['changes'][0]['value'] ?? [];
+        $statuses = $entry['statuses'] ?? [];
+        if (!is_array($statuses)) {
+            return;
+        }
+
+        foreach ($statuses as $statusRow) {
+            if (!is_array($statusRow)) {
+                continue;
+            }
+            $this->handleStatus([
+                'status' => $statusRow['status'] ?? '',
+                'id' => $statusRow['id'] ?? null,
+                'message_id' => $statusRow['id'] ?? null,
+            ]);
+        }
+    }
+
+    private function handleKirimNativeInbound(array $data): void
+    {
+        $inner = is_array($data['data'] ?? null) ? $data['data'] : [];
+        $msg = is_array($inner['message'] ?? null) ? $inner['message'] : $inner;
+        $meta = is_array($inner['meta'] ?? null) ? $inner['meta'] : [];
+
+        if (!empty($msg['from_me']) || !empty($inner['from_me'])) {
+            return;
+        }
+
+        $from = (string) ($msg['from'] ?? $inner['from'] ?? $inner['phone'] ?? '');
+        $to = (string) ($msg['to'] ?? $meta['display_phone_number'] ?? $inner['to'] ?? '');
+        $deviceId = $inner['whatsapp_device_id']
+            ?? ($meta['whatsapp_device_id'] ?? null)
+            ?? ($data['kirim']['whatsapp_device_id'] ?? null);
+        $msgId = $msg['provider_id'] ?? ($msg['id'] ?? ($inner['message_id'] ?? null));
+        $type = (string) ($msg['type'] ?? $inner['message_type'] ?? 'text');
+        $body = (string) ($msg['text'] ?? $msg['body'] ?? $msg['message'] ?? $inner['message'] ?? $inner['text'] ?? '');
+        $name = $inner['contact']['name'] ?? ($inner['name'] ?? ($msg['push_name'] ?? null));
+
+        $this->persistInbound($from, $to, $meta['phone_number_id'] ?? null, $deviceId, $msgId, $type, $body, $name);
+    }
+
+    private function handleKirimNativeStatus(array $data): void
+    {
+        $inner = is_array($data['data'] ?? null) ? $data['data'] : [];
+        $msg = is_array($inner['message'] ?? null) ? $inner['message'] : $inner;
+
+        $this->handleStatus([
+            'status' => $msg['status'] ?? ($inner['status'] ?? ''),
+            'id' => $msg['provider_id'] ?? ($msg['id'] ?? null),
+            'message_id' => $msg['provider_id'] ?? ($msg['id'] ?? null),
+            'external_id' => $msg['external_id'] ?? ($inner['external_id'] ?? null),
+        ]);
     }
 
     private function persistInbound(
@@ -168,13 +351,12 @@ class WaDesk extends Controller
 
         $resolved = $this->resolveInboundRoute($customerPhone, $businessPhone, $phoneId, $deviceId);
         if (!$resolved) {
-            if (class_exists('\Log')) {
-                \Log::write(
-                    'WaDesk inbound: channel not found business=' . $businessPhone . ' device=' . ($deviceId ?? ''),
-                    'wadesk',
-                    'Webhook'
-                );
-            }
+            $this->logWebhook(
+                'channel not found customer=' . $customerPhone
+                . ' business=' . $businessPhone
+                . ' phone_id=' . ($phoneId ?? '-')
+                . ' device=' . ($deviceId ?? '-')
+            );
             return;
         }
         $channel = $resolved['channel'];
@@ -227,6 +409,13 @@ class WaDesk extends Controller
             'provider_msg_id' => $wamid,
             'status' => 'received',
         ]);
+
+        $this->logWebhook(
+            'INBOUND saved conv=' . $convId
+            . ' msg=' . $msgId
+            . ' customer=' . $customerPhone
+            . ' channel=' . (int) $channel['id']
+        );
 
         WaDeskServer::push([
             'type' => 'message_in',
@@ -414,6 +603,17 @@ class WaDesk extends Controller
     private function looksLikeMetaInbound(array $data): bool
     {
         return isset($data['entry'][0]['changes'][0]['value']['messages']);
+    }
+
+    private function looksLikeMetaStatus(array $data): bool
+    {
+        return isset($data['entry'][0]['changes'][0]['value']['statuses']);
+    }
+
+    private function looksLikeKirimNativeEnvelope(array $data): bool
+    {
+        return isset($data['data']) && is_array($data['data'])
+            && (isset($data['type']) || isset($data['event']));
     }
 
     private function looksLikeKiriminStatus(array $data): bool
