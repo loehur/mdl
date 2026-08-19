@@ -5,7 +5,7 @@ namespace App\Controllers\WaDesk;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 
 /**
- * Channels — Kirimin device/nomor mapped 1:1 to team (global API credential in Env).
+ * Channels — Kirimin device/nomor mapped 1:1 to team (API key per tenant).
  */
 class Channels extends WaDeskController
 {
@@ -45,8 +45,9 @@ class Channels extends WaDeskController
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
+        $tenantId = (int) $admin['tenant_id'];
 
-        $client = new WaDeskKirimin();
+        $client = $this->requireKiriminConfigured($tenantId);
         $fetched = $client->listDevices();
         if (!$fetched['success']) {
             $this->error('Gagal ambil device dari Kirimin: ' . ($fetched['error'] ?: 'unknown'), 502);
@@ -219,7 +220,7 @@ class Channels extends WaDeskController
             if (isset($data['team_id']) && (int) $data['team_id'] !== (int) $channel['team_id']) {
                 $this->db($this->db_index)->update('conversations', [
                     'team_id' => (int) $data['team_id'],
-                ], ['ycloud_key_id' => $id]);
+                ], ['channel_id' => $id]);
             }
         }
 
@@ -260,7 +261,7 @@ class Channels extends WaDeskController
     private function resolveDevicePhone(string $deviceId): string
     {
         try {
-            $client = new WaDeskKirimin();
+            $client = $this->requireKiriminConfigured((int) ($this->currentUser()['tenant_id'] ?? 0));
             $fetched = $client->listDevices();
             if (!$fetched['success']) {
                 return '';

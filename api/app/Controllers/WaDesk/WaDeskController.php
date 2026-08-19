@@ -285,10 +285,54 @@ abstract class WaDeskController extends BaseController
         return $digits;
     }
 
-    /** wa_channels after migration 008; ycloud_keys before. */
+    /** @return array{api_key:string,api_key_masked:string,configured:bool} */
+    protected function getTenantKiriminConfig(int $tenantId): array
+    {
+        $row = $this->db($this->db_index)->query(
+            "SELECT kirimin_api_key FROM tenants WHERE id = ? LIMIT 1",
+            [$tenantId]
+        )->row_array();
+        $apiKey = trim((string) ($row['kirimin_api_key'] ?? ''));
+        return [
+            'api_key' => $apiKey,
+            'api_key_masked' => $this->maskApiKey($apiKey),
+            'configured' => $apiKey !== '',
+        ];
+    }
+
+    protected function getTenantKiriminApiKey(int $tenantId): string
+    {
+        return $this->getTenantKiriminConfig($tenantId)['api_key'];
+    }
+
+    protected function kiriminForTenant(int $tenantId): \App\Helpers\WaDesk\Kirimin
+    {
+        return \App\Helpers\WaDesk\Kirimin::fromApiKey($this->getTenantKiriminApiKey($tenantId));
+    }
+
+    protected function requireKiriminConfigured(int $tenantId): \App\Helpers\WaDesk\Kirimin
+    {
+        if ($this->getTenantKiriminApiKey($tenantId) === '') {
+            $this->error('Kirimin API key belum diatur. Simpan API key di Admin → Channel.', 400);
+        }
+        return $this->kiriminForTenant($tenantId);
+    }
+
+    protected function maskApiKey(string $key): string
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return '';
+        }
+        if (strlen($key) <= 12) {
+            return str_repeat('*', strlen($key));
+        }
+        return substr($key, 0, 8) . '…' . substr($key, -4);
+    }
+
     protected function channelsTable(): string
     {
-        return $this->tableExists('wa_channels') ? 'wa_channels' : 'ycloud_keys';
+        return 'wa_channels';
     }
 
     protected function tableExists(string $table): bool
@@ -316,31 +360,9 @@ abstract class WaDeskController extends BaseController
     /** Template usable by any team in tenant (tenant-wide sync). */
     protected function findTemplateForTenant(int $templateId, int $tenantId): ?array
     {
-        if ($this->columnExists('wa_templates', 'tenant_id')) {
-            return $this->db($this->db_index)->query(
-                "SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$templateId, $tenantId]
-            )->row_array() ?: null;
-        }
-
         return $this->db($this->db_index)->query(
-            "SELECT t.* FROM wa_templates t
-             INNER JOIN {$this->channelsTable()} c ON c.id = t.ycloud_key_id
-             WHERE t.id = ? AND c.tenant_id = ? LIMIT 1",
+            "SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1",
             [$templateId, $tenantId]
-        )->row_array() ?: null;
-    }
-
-    /** @deprecated use findTemplateForTenant */
-    protected function findTemplateForKey(int $templateId, array $key): ?array
-    {
-        $tenantId = (int) ($key['tenant_id'] ?? 0);
-        if ($tenantId > 0) {
-            return $this->findTemplateForTenant($templateId, $tenantId);
-        }
-        return $this->db($this->db_index)->query(
-            "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
-            [$templateId, (int) $key['id']]
         )->row_array() ?: null;
     }
 

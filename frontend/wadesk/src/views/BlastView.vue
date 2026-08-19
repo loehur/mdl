@@ -622,7 +622,6 @@ async function submitBlast() {
       body: {
         campaign_name:  form.campaign_name.trim(),
         channel_id: Number(form.channel_id),
-        ycloud_key_id: Number(form.channel_id),
         template_id:    Number(form.template_id),
         rows,
       },

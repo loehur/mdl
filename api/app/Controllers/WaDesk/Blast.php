@@ -58,7 +58,7 @@ class Blast extends WaDeskController
 
     // -------------------------------------------------------------------------
     // POST /WaDesk/Blast/create
-    // Body: { campaign_name, ycloud_key_id, template_id, rows: [{phone, params: {}}] }
+    // Body: { campaign_name, channel_id, template_id, rows: [{phone, params: {}}] }
     // -------------------------------------------------------------------------
     public function create()
     {
@@ -80,7 +80,7 @@ class Blast extends WaDeskController
             $this->error('campaign_name maksimal 150 karakter', 400);
         }
 
-        $channelId = (int) ($body['channel_id'] ?? $body['ycloud_key_id'] ?? 0);
+        $channelId = (int) ($body['channel_id'] ?? 0);
         $templateId = (int) ($body['template_id'] ?? 0);
 
         if ($channelId <= 0 || $templateId <= 0) {
@@ -175,7 +175,7 @@ class Blast extends WaDeskController
         // Insert blast job
         $blastId = (int) $this->db($this->db_index)->insert('wa_blasts', [
             'tenant_id'     => (int) $user['tenant_id'],
-            'ycloud_key_id' => $channelId,
+            'channel_id' => $channelId,
             'template_id'   => $templateId,
             'created_by'    => (int) $user['id'],
             'campaign_name' => $campaignName,
@@ -218,7 +218,7 @@ class Blast extends WaDeskController
                        u.name AS created_by_name
                 FROM wa_blasts b
                 INNER JOIN wa_templates t ON t.id = b.template_id
-                INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
+                INNER JOIN {$tbl} k ON k.id = b.channel_id
                 INNER JOIN users u ON u.id = b.created_by
                 WHERE b.tenant_id = ?";
         $binds = [(int) $user['tenant_id']];
@@ -238,7 +238,7 @@ class Blast extends WaDeskController
         // Count for pagination
         $countSql = "SELECT COUNT(*) AS cnt
                      FROM wa_blasts b
-                     INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
+                     INNER JOIN {$tbl} k ON k.id = b.channel_id
                      WHERE b.tenant_id = ?";
         $countBinds = [(int) $user['tenant_id']];
         if (!$isAdmin) {
@@ -254,7 +254,7 @@ class Blast extends WaDeskController
         // Distinct campaign names for filter dropdown
         $campaignSql = "SELECT DISTINCT b.campaign_name
                         FROM wa_blasts b
-                        INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
+                        INNER JOIN {$tbl} k ON k.id = b.channel_id
                         WHERE b.tenant_id = ?";
         $campaignBinds = [(int) $user['tenant_id']];
         if (!$isAdmin) {
@@ -292,7 +292,7 @@ class Blast extends WaDeskController
                     u.name AS created_by_name
              FROM wa_blasts b
              INNER JOIN wa_templates t ON t.id = b.template_id
-             INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
+             INNER JOIN {$tbl} k ON k.id = b.channel_id
              INNER JOIN users u ON u.id = b.created_by
              WHERE b.id = ? AND b.tenant_id = ?"
              . (!$isAdmin ? " AND k.team_id = ?" : "")
@@ -356,7 +356,7 @@ class Blast extends WaDeskController
         $blast = $this->db($this->db_index)->query(
             "SELECT b.*
              FROM wa_blasts b
-             INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
+             INNER JOIN {$tbl} k ON k.id = b.channel_id
              WHERE b.id = ? AND b.tenant_id = ?"
              . (!$isAdmin ? " AND k.team_id = ?" : "")
              . " LIMIT 1",

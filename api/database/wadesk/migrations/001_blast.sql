@@ -7,7 +7,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 CREATE TABLE IF NOT EXISTS wa_blasts (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
-  ycloud_key_id INT UNSIGNED NOT NULL,
+  channel_id INT UNSIGNED NOT NULL,
   template_id INT UNSIGNED NOT NULL,
   created_by INT UNSIGNED NOT NULL,
   campaign_name VARCHAR(150) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS wa_blasts (
   INDEX idx_blast_status (status),
   INDEX idx_blast_campaign (tenant_id, campaign_name),
   CONSTRAINT fk_blast_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  CONSTRAINT fk_blast_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE CASCADE,
+  CONSTRAINT fk_blast_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
   CONSTRAINT fk_blast_template FOREIGN KEY (template_id) REFERENCES wa_templates(id) ON DELETE CASCADE,
   CONSTRAINT fk_blast_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS wa_blast_recipients (
 
 CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  ycloud_key_id INT UNSIGNED NOT NULL,
+  channel_id INT UNSIGNED NOT NULL,
   contact_date DATE NOT NULL,
   phone VARCHAR(32) NOT NULL,
   first_user_id INT UNSIGNED NULL,
@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   last_source VARCHAR(32) NULL,
   first_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_key_contact_day (ycloud_key_id, contact_date, phone),
-  INDEX idx_key_day (ycloud_key_id, contact_date),
-  CONSTRAINT fk_key_daily_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_channel_contact_day (channel_id, contact_date, phone),
+  INDEX idx_channel_day (channel_id, contact_date),
+  CONSTRAINT fk_channel_daily_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
   CONSTRAINT fk_key_daily_first_user FOREIGN KEY (first_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_key_daily_last_user FOREIGN KEY (last_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

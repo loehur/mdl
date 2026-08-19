@@ -183,7 +183,7 @@ class WaDesk extends Controller
         $db = $this->db($this->dbIndex);
         if ($wamid) {
             $dup = $db->query(
-                "SELECT id FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
+                "SELECT id FROM messages WHERE provider_msg_id = ? LIMIT 1",
                 [$wamid]
             )->row_array();
             if ($dup) {
@@ -200,7 +200,7 @@ class WaDesk extends Controller
             $convId = (int) $db->insert('conversations', [
                 'tenant_id' => (int) $channel['tenant_id'],
                 'team_id' => (int) $channel['team_id'],
-                'ycloud_key_id' => (int) $channel['id'],
+                'channel_id' => (int) $channel['id'],
                 'phone' => $customerPhone,
                 'name' => $profileName,
                 'last_message' => mb_substr($bodyText, 0, 500),
@@ -224,7 +224,7 @@ class WaDesk extends Controller
             'direction' => 'in',
             'type' => $type,
             'body' => $bodyText,
-            'ycloud_msg_id' => $wamid,
+            'provider_msg_id' => $wamid,
             'status' => 'received',
         ]);
 
@@ -272,21 +272,21 @@ class WaDesk extends Controller
 
         if ($wamid) {
             $row = $db->query(
-                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
-                 FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
+                "SELECT id, conversation_id, provider_msg_id, external_id, status
+                 FROM messages WHERE provider_msg_id = ? LIMIT 1",
                 [$wamid]
             )->row_array();
         }
         if (!$row && $messageId) {
             $row = $db->query(
-                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
-                 FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
+                "SELECT id, conversation_id, provider_msg_id, external_id, status
+                 FROM messages WHERE provider_msg_id = ? LIMIT 1",
                 [$messageId]
             )->row_array();
         }
         if (!$row && $externalId) {
             $row = $db->query(
-                "SELECT id, conversation_id, ycloud_msg_id, external_id, status
+                "SELECT id, conversation_id, provider_msg_id, external_id, status
                  FROM messages WHERE external_id = ? LIMIT 1",
                 [$externalId]
             )->row_array();
@@ -297,7 +297,7 @@ class WaDesk extends Controller
 
         $db->update('messages', [
             'status' => $st,
-            'ycloud_msg_id' => $wamid ?: ($messageId ?: ($row['ycloud_msg_id'] ?? null)),
+            'provider_msg_id' => $wamid ?: ($messageId ?: ($row['provider_msg_id'] ?? null)),
         ], ['id' => (int) $row['id']]);
 
         $conv = $db->query(
@@ -313,7 +313,7 @@ class WaDesk extends Controller
                 'conversation_id' => (int) $row['conversation_id'],
                 'message_id' => (int) $row['id'],
                 'status' => $st,
-                'ycloud_msg_id' => $wamid ?: $messageId,
+                'provider_msg_id' => $wamid ?: $messageId,
             ]);
         }
     }
@@ -343,7 +343,7 @@ class WaDesk extends Controller
             "SELECT c.*
              FROM conversations c
              WHERE c.phone = ?
-               AND c.ycloud_key_id IN ($placeholders)
+               AND c.channel_id IN ($placeholders)
              ORDER BY
                (c.last_out_at IS NULL) ASC,
                c.last_out_at DESC,
@@ -355,7 +355,7 @@ class WaDesk extends Controller
         )->row_array() ?: null;
 
         if ($conv) {
-            $channelId = (int) $conv['ycloud_key_id'];
+            $channelId = (int) $conv['channel_id'];
             $channel = $byId[$channelId] ?? $db->query(
                 "SELECT * FROM {$this->channelsTable()} WHERE id = ? LIMIT 1",
                 [$channelId]
@@ -401,20 +401,7 @@ class WaDesk extends Controller
 
     private function channelsTable(): string
     {
-        static $cached = null;
-        if ($cached !== null) {
-            return $cached;
-        }
-        try {
-            $row = $this->db($this->dbIndex)->query(
-                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_channels'"
-            )->row_array();
-            $cached = (int) ($row['cnt'] ?? 0) > 0 ? 'wa_channels' : 'ycloud_keys';
-        } catch (\Throwable $e) {
-            $cached = 'ycloud_keys';
-        }
-        return $cached;
+        return 'wa_channels';
     }
 
     private function looksLikeKiriminInbound(array $data): bool

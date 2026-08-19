@@ -15,29 +15,14 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         $tenantId = (int) $user['tenant_id'];
-        $hasTenantCol = $this->columnExists('wa_templates', 'tenant_id');
 
-        if ($hasTenantCol) {
-            $rows = $this->db($this->db_index)->query(
-                "SELECT t.* FROM wa_templates t
-                 WHERE t.tenant_id = ?
-                 ORDER BY t.template_name ASC",
-                [$tenantId]
-            )->result_array();
-        } else {
-            $tbl = $this->channelsTable();
-            $sql = "SELECT t.*, k.label AS key_label, k.team_id, k.phone_number
-                    FROM wa_templates t
-                    INNER JOIN {$tbl} k ON k.id = t.ycloud_key_id
-                    WHERE k.tenant_id = ?";
-            $binds = [$tenantId];
-            if (($user['role'] ?? '') !== 'admin') {
-                $sql .= ' AND k.team_id = ?';
-                $binds[] = (int) $user['team_id'];
-            }
-            $sql .= ' ORDER BY t.template_name ASC';
-            $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
-        }
+        $rows = $this->db($this->db_index)->query(
+            "SELECT t.* FROM wa_templates t
+             WHERE t.tenant_id = ?
+             ORDER BY t.template_name ASC, t.id ASC",
+            [$tenantId]
+        )->result_array();
+        $rows = $this->dedupeTemplateListRows($rows, $tenantId);
 
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
         $paramCols = $hasButtonMeta
@@ -79,7 +64,7 @@ class Templates extends WaDeskController
             $this->error('template_name wajib', 400);
         }
 
-        $client = new WaDeskKirimin();
+        $client = $this->requireKiriminConfigured((int) $admin['tenant_id']);
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
 
         $found = null;
@@ -250,7 +235,7 @@ class Templates extends WaDeskController
         $tplName = trim((string) $this->query('template_name'));
 
         $rows = $this->db($this->db_index)->query(
-            "SELECT t.id, t.template_name, t.ycloud_key_id, t.api_key_hash,
+            "SELECT t.id, t.template_name, t.tenant_id,
                     (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_count
              FROM wa_templates t
              WHERE t.template_name = ?",
@@ -272,8 +257,9 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $this->requireAdmin();
 
+        $admin = $this->requireAdmin();
         $tplName = trim((string) $this->query('template_name'));
-        $client = new WaDeskKirimin();
+        $client = $this->requireKiriminConfigured((int) $admin['tenant_id']);
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
 
         $found = null;
@@ -325,7 +311,7 @@ class Templates extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $client = new WaDeskKirimin();
+        $client = $this->requireKiriminConfigured($tenantId);
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
         if (!$fetched['success']) {
             $this->error('Gagal ambil template dari Kirimin: ' . ($fetched['error'] ?: 'unknown'), 502);
@@ -337,7 +323,6 @@ class Templates extends WaDeskController
         $deleted = 0;
         $synced = [];
         $keepKeys = [];
-        $hasTenantCol = $this->columnExists('wa_templates', 'tenant_id');
 
         foreach ($fetched['templates'] as $remote) {
             if (!is_array($remote)) {
@@ -357,35 +342,24 @@ class Templates extends WaDeskController
 
             $keepKeys[$name . '|' . $lang] = true;
 
-            $existing = null;
-            if ($hasTenantCol) {
-                $existing = $this->db($this->db_index)->query(
-                    "SELECT id FROM wa_templates
-                     WHERE tenant_id = ? AND template_name = ? AND language = ?
-                     LIMIT 1",
-                    [$tenantId, $name, $lang]
-                )->row_array();
-            }
+            $existing = $this->findSyncedTemplateRow($tenantId, $name, $lang);
 
             if ($existing) {
                 $tplId = (int) $existing['id'];
                 $this->db($this->db_index)->update('wa_templates', [
+                    'tenant_id' => $tenantId,
                     'body_preview' => $mapped['body_preview'],
                 ], ['id' => $tplId]);
                 $this->replaceParams($tplId, $mapped['params']);
                 $updated++;
                 $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
             } else {
-                $insertData = [
+                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', [
+                    'tenant_id' => $tenantId,
                     'template_name' => $name,
                     'language' => $lang,
                     'body_preview' => $mapped['body_preview'],
-                    'ycloud_key_id' => null,
-                ];
-                if ($hasTenantCol) {
-                    $insertData['tenant_id'] = $tenantId;
-                }
-                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
+                ]);
                 $this->replaceParams($tplId, $mapped['params']);
                 $created++;
                 $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
@@ -413,9 +387,6 @@ class Templates extends WaDeskController
     /** @param array<string,true> $keepKeys */
     private function pruneMissingTemplates(int $tenantId, array $keepKeys): int
     {
-        if (!$this->columnExists('wa_templates', 'tenant_id')) {
-            return 0;
-        }
         $locals = $this->db($this->db_index)->query(
             "SELECT id, template_name, language FROM wa_templates WHERE tenant_id = ?",
             [$tenantId]
@@ -448,16 +419,11 @@ class Templates extends WaDeskController
 
         $tenantId = (int) $admin['tenant_id'];
         $insertData = [
+            'tenant_id' => $tenantId,
             'template_name' => trim($body['template_name']),
             'language' => trim($body['language'] ?? 'id') ?: 'id',
             'body_preview' => $body['body_preview'] ?? null,
-            'ycloud_key_id' => null,
         ];
-        if ($this->columnExists('wa_templates', 'tenant_id')) {
-            $insertData['tenant_id'] = $tenantId;
-        } elseif (!empty($body['channel_id']) || !empty($body['ycloud_key_id'])) {
-            $insertData['ycloud_key_id'] = (int) ($body['channel_id'] ?? $body['ycloud_key_id']);
-        }
 
         $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
 
@@ -592,5 +558,57 @@ class Templates extends WaDeskController
     private function getTenantTemplate(int $id, int $tenantId): ?array
     {
         return $this->findTemplateForTenant($id, $tenantId);
+    }
+
+    /** Find existing Kirimin-synced row by name+lang; dedupe orphans. */
+    private function findSyncedTemplateRow(int $tenantId, string $name, string $lang): ?array
+    {
+        $rows = $this->db($this->db_index)->query(
+            "SELECT id, tenant_id FROM wa_templates
+             WHERE template_name = ? AND language = ? AND tenant_id = ?
+             ORDER BY id ASC",
+            [$name, $lang, $tenantId]
+        )->result_array();
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $keep = $rows[0];
+        for ($i = 1, $n = count($rows); $i < $n; $i++) {
+            $this->purgeTemplateRow((int) $rows[$i]['id']);
+        }
+
+        return $keep;
+    }
+
+    /** @param list<array> $rows @return list<array> */
+    private function dedupeTemplateListRows(array $rows, int $tenantId): array
+    {
+        $seen = [];
+        $out = [];
+
+        foreach ($rows as $row) {
+            $key = ($row['template_name'] ?? '') . '|' . ($row['language'] ?? 'id');
+            if ($key === '|id' || isset($seen[$key])) {
+                if (isset($seen[$key])) {
+                    $this->purgeTemplateRow((int) $row['id']);
+                }
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $row;
+        }
+
+        return $out;
+    }
+
+    private function purgeTemplateRow(int $id): void
+    {
+        if ($id <= 0) {
+            return;
+        }
+        $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $id]);
+        $this->db($this->db_index)->delete('wa_templates', ['id' => $id]);
     }
 }

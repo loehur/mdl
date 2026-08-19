@@ -7,6 +7,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 CREATE TABLE IF NOT EXISTS tenants (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  kirimin_api_key VARCHAR(255) NULL,
   admin_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
@@ -75,16 +76,14 @@ CREATE TABLE IF NOT EXISTS wa_channels (
 CREATE TABLE IF NOT EXISTS wa_templates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NULL,
-  ycloud_key_id INT UNSIGNED NULL,
   template_name VARCHAR(150) NOT NULL,
   language VARCHAR(16) NOT NULL DEFAULT 'id',
   body_preview TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_tpl_tenant (tenant_id),
-  INDEX idx_tpl_key (ycloud_key_id),
   UNIQUE KEY uq_tpl_tenant_name_lang (tenant_id, template_name, language),
-  CONSTRAINT fk_tpl_key FOREIGN KEY (ycloud_key_id) REFERENCES wa_channels(id) ON DELETE SET NULL
+  CONSTRAINT fk_tpl_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_template_params (
@@ -106,7 +105,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
   team_id INT UNSIGNED NOT NULL,
-  ycloud_key_id INT UNSIGNED NOT NULL,
+  channel_id INT UNSIGNED NOT NULL,
   phone VARCHAR(32) NOT NULL,
   name VARCHAR(150) NULL,
   last_message TEXT NULL,
@@ -116,12 +115,12 @@ CREATE TABLE IF NOT EXISTS conversations (
   unread INT UNSIGNED NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_conv_key_phone (ycloud_key_id, phone),
+  UNIQUE KEY uq_conv_channel_phone (channel_id, phone),
   INDEX idx_conv_tenant_team (tenant_id, team_id),
   INDEX idx_conv_last (last_message_at),
   CONSTRAINT fk_conv_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_conv_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-  CONSTRAINT fk_conv_key FOREIGN KEY (ycloud_key_id) REFERENCES wa_channels(id) ON DELETE CASCADE
+  CONSTRAINT fk_conv_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -133,16 +132,103 @@ CREATE TABLE IF NOT EXISTS messages (
   template_name VARCHAR(150) NULL,
   params_json JSON NULL,
   media_url VARCHAR(500) NULL,
-  ycloud_msg_id VARCHAR(128) NULL,
+  provider_msg_id VARCHAR(128) NULL,
   external_id VARCHAR(64) NULL,
   status VARCHAR(32) NULL,
   sent_by_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_msg_conv (conversation_id, id),
-  INDEX idx_msg_ycloud (ycloud_msg_id),
+  INDEX idx_msg_provider (provider_msg_id),
   INDEX idx_msg_external (external_id),
   CONSTRAINT fk_msg_conv FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
   CONSTRAINT fk_msg_user FOREIGN KEY (sent_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_blasts (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id INT UNSIGNED NOT NULL,
+  channel_id INT UNSIGNED NOT NULL,
+  template_id INT UNSIGNED NOT NULL,
+  created_by INT UNSIGNED NOT NULL,
+  campaign_name VARCHAR(150) NOT NULL,
+  status ENUM('pending','processing','done','cancelled') NOT NULL DEFAULT 'pending',
+  total INT UNSIGNED NOT NULL DEFAULT 0,
+  sent INT UNSIGNED NOT NULL DEFAULT 0,
+  failed INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  started_at DATETIME NULL,
+  finished_at DATETIME NULL,
+  INDEX idx_blast_tenant (tenant_id),
+  INDEX idx_blast_status (status),
+  INDEX idx_blast_campaign (tenant_id, campaign_name),
+  CONSTRAINT fk_blast_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+  CONSTRAINT fk_blast_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_blast_template FOREIGN KEY (template_id) REFERENCES wa_templates(id) ON DELETE CASCADE,
+  CONSTRAINT fk_blast_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_blast_recipients (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  blast_id INT UNSIGNED NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  params_json JSON NULL,
+  status ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+  error TEXT NULL,
+  conversation_id INT UNSIGNED NULL,
+  message_id BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at DATETIME NULL,
+  INDEX idx_recip_blast_status (blast_id, status),
+  CONSTRAINT fk_recip_blast FOREIGN KEY (blast_id) REFERENCES wa_blasts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  channel_id INT UNSIGNED NOT NULL,
+  contact_date DATE NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  first_user_id INT UNSIGNED NULL,
+  last_user_id INT UNSIGNED NULL,
+  first_source VARCHAR(32) NULL,
+  last_source VARCHAR(32) NULL,
+  first_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_channel_contact_day (channel_id, contact_date, phone),
+  INDEX idx_channel_day (channel_id, contact_date),
+  CONSTRAINT fk_channel_daily_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_channel_daily_first_user FOREIGN KEY (first_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_channel_daily_last_user FOREIGN KEY (last_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_team_template_quotas (
+  team_id INT UNSIGNED NOT NULL,
+  tenant_id INT UNSIGNED NOT NULL,
+  balance INT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (team_id),
+  INDEX idx_quota_tenant (tenant_id),
+  CONSTRAINT fk_quota_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_quota_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_team_template_quota_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id INT UNSIGNED NOT NULL,
+  team_id INT UNSIGNED NOT NULL,
+  type ENUM('topup','consume','adjust') NOT NULL,
+  amount INT NOT NULL,
+  balance_after INT UNSIGNED NOT NULL DEFAULT 0,
+  user_id INT UNSIGNED NULL,
+  source VARCHAR(32) NULL,
+  ref_type VARCHAR(32) NULL,
+  ref_id BIGINT UNSIGNED NULL,
+  note VARCHAR(255) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_quota_logs_team (team_id, id),
+  INDEX idx_quota_logs_tenant (tenant_id, id),
+  CONSTRAINT fk_quota_logs_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_quota_logs_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+  CONSTRAINT fk_quota_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

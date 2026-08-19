@@ -23,9 +23,9 @@ class Chat extends WaDeskController
         $tbl = $this->channelsTable();
         $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
                        k.phone_number AS wa_number, t.name AS team_name,
-                       k.id AS channel_id
+                       c.channel_id AS channel_id
                 FROM conversations c
-                INNER JOIN {$tbl} k ON k.id = c.ycloud_key_id
+                INNER JOIN {$tbl} k ON k.id = c.channel_id
                 LEFT JOIN teams t ON t.id = c.team_id
                 WHERE {$visSql}";
         if ($q !== '') {
@@ -118,7 +118,7 @@ class Chat extends WaDeskController
 
         $body = $this->getBody();
         $mode = $body['mode'] ?? 'free';
-        $channelId = (int) ($body['channel_id'] ?? $body['ycloud_key_id'] ?? 0);
+        $channelId = (int) ($body['channel_id'] ?? 0);
         $phone = $this->normalizePhone((string) ($body['phone'] ?? ''));
         $conversationId = (int) ($body['conversation_id'] ?? 0);
 
@@ -127,7 +127,7 @@ class Chat extends WaDeskController
             if (!$conv) {
                 $this->error('Conversation tidak ditemukan', 404);
             }
-            $channelId = (int) $conv['ycloud_key_id'];
+            $channelId = (int) $conv['channel_id'];
             $phone = $conv['phone'];
         } else {
             if ($channelId <= 0 || $phone === '') {
@@ -150,7 +150,7 @@ class Chat extends WaDeskController
         if ($deviceId === '') {
             $this->error('Channel belum punya device_id Kirimin', 400);
         }
-        $client = new WaDeskKirimin();
+        $client = $this->requireKiriminConfigured((int) $user['tenant_id']);
 
         if ($mode === 'template') {
             if ($cswOpen) {
@@ -384,7 +384,7 @@ class Chat extends WaDeskController
     private function getOrCreateConversation(array $channel, string $phone, ?string $name): array
     {
         $existing = $this->db($this->db_index)->query(
-            "SELECT * FROM conversations WHERE ycloud_key_id = ? AND phone = ? LIMIT 1",
+            "SELECT * FROM conversations WHERE channel_id = ? AND phone = ? LIMIT 1",
             [(int) $channel['id'], $phone]
         )->row_array();
         if ($existing) {
@@ -394,7 +394,7 @@ class Chat extends WaDeskController
         $id = (int) $this->db($this->db_index)->insert('conversations', [
             'tenant_id' => (int) $channel['tenant_id'],
             'team_id' => (int) $channel['team_id'],
-            'ycloud_key_id' => (int) $channel['id'],
+            'channel_id' => (int) $channel['id'],
             'phone' => $phone,
             'name' => $name,
             'unread' => 0,
@@ -418,7 +418,7 @@ class Chat extends WaDeskController
             'body' => $body,
             'template_name' => $templateName,
             'params_json' => $params !== null ? json_encode($params, JSON_UNESCAPED_UNICODE) : null,
-            'ycloud_msg_id' => $providerId,
+            'provider_msg_id' => $providerId,
             'external_id' => $result['external_id'] ?? null,
             'status' => 'sent',
             'sent_by_user_id' => (int) $user['id'],

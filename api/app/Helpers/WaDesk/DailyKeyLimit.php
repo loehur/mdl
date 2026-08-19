@@ -3,10 +3,10 @@
 namespace App\Helpers\WaDesk;
 
 /**
- * Enforce per-ycloud-key daily limit on unique destination numbers.
+ * Enforce per-channel daily limit on unique destination numbers.
  *
  * Rule:
- * - Max 250 unique phones per ycloud_key_id per day
+ * - Max 250 unique phones per channel_id per day
  * - Same phone can be retried multiple times in the same day
  * - Failed and successful attempts both count
  * - Limit is shared across all users using the same API key
@@ -28,16 +28,16 @@ class DailyKeyLimit
      *
      * @return array{allowed:bool,is_new:bool,used:int,limit:int,error:string}
      */
-    public function reserve(int $ycloudKeyId, string $phone, ?int $userId = null, string $source = 'chat'): array
+    public function reserve(int $channelId, string $phone, ?int $userId = null, string $source = 'chat'): array
     {
         $today = date('Y-m-d');
         $now = date('Y-m-d H:i:s');
 
         $existing = $this->db->query(
             "SELECT id FROM wa_key_daily_contacts
-             WHERE ycloud_key_id = ? AND contact_date = ? AND phone = ?
+             WHERE channel_id = ? AND contact_date = ? AND phone = ?
              LIMIT 1",
-            [$ycloudKeyId, $today, $phone]
+            [$channelId, $today, $phone]
         )->row_array();
 
         if ($existing) {
@@ -50,13 +50,13 @@ class DailyKeyLimit
             return [
                 'allowed' => true,
                 'is_new' => false,
-                'used' => $this->countUsed($ycloudKeyId, $today),
+                'used' => $this->countUsed($channelId, $today),
                 'limit' => self::DAILY_UNIQUE_LIMIT,
                 'error' => '',
             ];
         }
 
-        $used = $this->countUsed($ycloudKeyId, $today);
+        $used = $this->countUsed($channelId, $today);
         if ($used >= self::DAILY_UNIQUE_LIMIT) {
             return [
                 'allowed' => false,
@@ -69,7 +69,7 @@ class DailyKeyLimit
 
         try {
             $this->db->insert('wa_key_daily_contacts', [
-                'ycloud_key_id' => $ycloudKeyId,
+                'channel_id' => $channelId,
                 'contact_date' => $today,
                 'phone' => $phone,
                 'first_user_id' => $userId ?: null,
@@ -83,13 +83,13 @@ class DailyKeyLimit
             // If another request inserted the same phone in parallel, allow it.
             $existing = $this->db->query(
                 "SELECT id FROM wa_key_daily_contacts
-                 WHERE ycloud_key_id = ? AND contact_date = ? AND phone = ?
+                 WHERE channel_id = ? AND contact_date = ? AND phone = ?
                  LIMIT 1",
-                [$ycloudKeyId, $today, $phone]
+                [$channelId, $today, $phone]
             )->row_array();
 
             if (!$existing) {
-                $used = $this->countUsed($ycloudKeyId, $today);
+                $used = $this->countUsed($channelId, $today);
                 if ($used >= self::DAILY_UNIQUE_LIMIT) {
                     return [
                         'allowed' => false,
@@ -124,12 +124,12 @@ class DailyKeyLimit
      * @param array<int,string> $phones
      * @return array{allowed:bool,used:int,new_unique:int,remaining:int,limit:int,error:string}
      */
-    public function checkBatch(int $ycloudKeyId, array $phones): array
+    public function checkBatch(int $channelId, array $phones): array
     {
         $today = date('Y-m-d');
         $phones = array_values(array_unique(array_filter(array_map('strval', $phones))));
         if ($phones === []) {
-            $used = $this->countUsed($ycloudKeyId, $today);
+            $used = $this->countUsed($channelId, $today);
             return [
                 'allowed' => true,
                 'used' => $used,
@@ -143,13 +143,13 @@ class DailyKeyLimit
         $placeholders = implode(',', array_fill(0, count($phones), '?'));
         $existingRows = $this->db->query(
             "SELECT phone FROM wa_key_daily_contacts
-             WHERE ycloud_key_id = ? AND contact_date = ? AND phone IN ({$placeholders})",
-            array_merge([$ycloudKeyId, $today], $phones)
+             WHERE channel_id = ? AND contact_date = ? AND phone IN ({$placeholders})",
+            array_merge([$channelId, $today], $phones)
         )->result_array();
 
         $existingPhones = array_map(static fn($row) => (string) $row['phone'], $existingRows);
         $newUnique = count(array_diff($phones, $existingPhones));
-        $used = $this->countUsed($ycloudKeyId, $today);
+        $used = $this->countUsed($channelId, $today);
         $remaining = max(0, self::DAILY_UNIQUE_LIMIT - $used);
 
         if ($newUnique > $remaining) {
@@ -173,13 +173,13 @@ class DailyKeyLimit
         ];
     }
 
-    private function countUsed(int $ycloudKeyId, string $today): int
+    private function countUsed(int $channelId, string $today): int
     {
         $row = $this->db->query(
             "SELECT COUNT(*) AS cnt
              FROM wa_key_daily_contacts
-             WHERE ycloud_key_id = ? AND contact_date = ?",
-            [$ycloudKeyId, $today]
+             WHERE channel_id = ? AND contact_date = ?",
+            [$channelId, $today]
         )->row_array();
 
         return (int) ($row['cnt'] ?? 0);

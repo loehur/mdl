@@ -13,7 +13,7 @@ class Kirimin
 
     public function __construct(?string $apiKey = null, ?string $baseUrl = null)
     {
-        $this->apiKey = $apiKey ?? $this->resolveApiKey();
+        $this->apiKey = trim((string) ($apiKey ?? ''));
         $this->baseUrl = rtrim(
             $baseUrl ?? (defined('\Env::KIRIMIN_BASE_URL') ? (string) \Env::KIRIMIN_BASE_URL : 'https://apiapp.kirimin.id'),
             '/'
@@ -326,18 +326,15 @@ class Kirimin
         ];
     }
 
-    private function resolveApiKey(): string
+    /** @throws \RuntimeException */
+    public static function fromApiKey(string $apiKey, ?string $baseUrl = null): self
     {
-        if (defined('\Env::KIRIMIN_API_KEY')) {
-            return (string) \Env::KIRIMIN_API_KEY;
+        $key = trim($apiKey);
+        if ($key === '') {
+            throw new \RuntimeException('Kirimin API key belum diatur untuk tenant ini');
         }
-        // Legacy fallback if someone still uses old env names
-        if (defined('\Env::KIRIMIN_SECRET') && str_starts_with((string) \Env::KIRIMIN_SECRET, 'kc_')) {
-            return (string) \Env::KIRIMIN_SECRET;
-        }
-        return '';
+        return new self($key, $baseUrl);
     }
-
     /** @return array{success:bool,http_code:int,data:array,raw:array} */
     private function getJson(string $path, array $query = []): array
     {

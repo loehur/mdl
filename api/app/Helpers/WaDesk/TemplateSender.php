@@ -57,7 +57,8 @@ class TemplateSender
                 return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Channel tanpa device_id'];
             }
 
-            $client = new Kirimin();
+            $apiKey = $this->fetchTenantKiriminApiKey($tenantId);
+            $client = Kirimin::fromApiKey($apiKey);
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams($paramDefs, $rawParams);
 
             $previewSource = (string) ($tpl['body_preview'] ?? '');
@@ -119,7 +120,7 @@ class TemplateSender
     private function getOrCreateConversation(array $channel, string $phone, ?string $name): array
     {
         $existing = $this->db->query(
-            "SELECT * FROM conversations WHERE ycloud_key_id = ? AND phone = ? LIMIT 1",
+            "SELECT * FROM conversations WHERE channel_id = ? AND phone = ? LIMIT 1",
             [(int) $channel['id'], $phone]
         )->row_array();
 
@@ -130,7 +131,7 @@ class TemplateSender
         $id = (int) $this->db->insert('conversations', [
             'tenant_id'     => (int) $channel['tenant_id'],
             'team_id'       => (int) $channel['team_id'],
-            'ycloud_key_id' => (int) $channel['id'],
+            'channel_id' => (int) $channel['id'],
             'phone'         => $phone,
             'name'          => $name,
             'unread'        => 0,
@@ -154,7 +155,7 @@ class TemplateSender
             'body'            => $body,
             'template_name'   => $templateName,
             'params_json'     => $params !== null ? json_encode($params, JSON_UNESCAPED_UNICODE) : null,
-            'ycloud_msg_id'   => $providerId,
+            'provider_msg_id'   => $providerId,
             'external_id'     => $result['external_id'] ?? null,
             'status'          => 'sent',
             'sent_by_user_id' => ((int) ($user['id'] ?? 0)) ?: null,
@@ -245,5 +246,18 @@ class TemplateSender
         }
 
         return [$sendParams, $named, $indexed, $paramsForStore];
+    }
+
+    private function fetchTenantKiriminApiKey(int $tenantId): string
+    {
+        $row = $this->db->query(
+            "SELECT kirimin_api_key FROM tenants WHERE id = ? LIMIT 1",
+            [$tenantId]
+        )->row_array();
+        $key = trim((string) ($row['kirimin_api_key'] ?? ''));
+        if ($key === '') {
+            throw new \RuntimeException('Kirimin API key belum diatur untuk tenant ini');
+        }
+        return $key;
     }
 }

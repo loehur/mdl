@@ -202,8 +202,29 @@
       <!-- Channels -->
       <section v-if="tab === 'keys'" class="card space-y-4">
         <h2 class="font-display font-semibold text-lg">Channel / Nomor (Kirimin)</h2>
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveKiriminKey">
+          <p class="text-xs text-slate-400">
+            API key Kirimin disimpan per tenant (1 admin = 1 key). Dipakai untuk sync device & template.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              v-model="kiriminForm.api_key"
+              type="password"
+              class="field flex-1"
+              :placeholder="kiriminForm.configured ? kiriminForm.api_key_masked : 'kc_live_...'"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn shrink-0" :disabled="savingKiriminKey">
+              {{ savingKiriminKey ? "Menyimpan..." : "Simpan API key" }}
+            </button>
+          </div>
+          <p v-if="kiriminForm.configured" class="text-xs text-emerald-400">
+            Terkonfigurasi: {{ kiriminForm.api_key_masked }}
+          </p>
+        </form>
+
         <p class="text-xs text-slate-400">
-          Kredensial Kirimin diatur di server (<code class="text-slate-300">Env.php</code>).
           Sync device dari Kirimin, lalu assign <strong>1 nomor = 1 team</strong>.
         </p>
         <div class="flex flex-wrap gap-2">
@@ -341,9 +362,9 @@
                 <button
                   type="button"
                   class="btn-sm text-xs"
-                  :disabled="resyncingId === t.id || !syncKeyId"
+                  :disabled="resyncingId === t.id"
                   @click="resyncOneTemplate(t.template_name)"
-                  title="Resync params template ini dari YCloud"
+                  title="Resync params template ini dari Kirimin"
                 >
                   {{ resyncingId === t.id ? "..." : "Resync" }}
                 </button>
@@ -390,7 +411,7 @@
           </li>
         </ul>
         <p v-if="!templates.length" class="text-sm text-slate-500 text-center py-2">
-          Belum ada template. Pilih API key lalu sync.
+          Belum ada template. Klik Sync dari Kirimin.
         </p>
       </section>
 
@@ -480,6 +501,8 @@ const users = ref([]);
 const keys = ref([]);
 const availableDevices = ref([]);
 const channelForm = reactive({ device_id: "", label: "", team_id: "" });
+const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
+const savingKiriminKey = ref(false);
 const syncingDevices = ref(false);
 const editingKeyId = ref(null);
 const templates = ref([]);
@@ -574,18 +597,21 @@ function flash(ok, text) {
 }
 
 async function refresh() {
-  const [t, u, k, tp, q] = await Promise.all([
+  const [t, u, k, tp, q, kir] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
     api("/WaDesk/Channels/list"),
     api("/WaDesk/Templates/list"),
     api("/WaDesk/Quota/list"),
+    api("/WaDesk/Settings/kirimin"),
   ]);
   teams.value = t.data.teams || [];
   users.value = u.data.users || [];
   keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
   quotas.value = q.data.quotas || [];
+  kiriminForm.configured = !!kir.data?.configured;
+  kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
 }
 
 async function createTeam() {
@@ -807,6 +833,29 @@ async function removeUser(u) {
       }
     },
   });
+}
+
+async function saveKiriminKey() {
+  const apiKey = String(kiriminForm.api_key || "").trim();
+  if (!apiKey) {
+    flash(false, "API key wajib diisi");
+    return;
+  }
+  savingKiriminKey.value = true;
+  try {
+    const res = await api("/WaDesk/Settings/kirimin", {
+      method: "POST",
+      body: { api_key: apiKey },
+    });
+    kiriminForm.api_key = "";
+    kiriminForm.configured = true;
+    kiriminForm.api_key_masked = res.data?.api_key_masked || "";
+    flash(true, "Kirimin API key disimpan");
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingKiriminKey.value = false;
+  }
 }
 
 async function syncDevicesFromKirimin() {

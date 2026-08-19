@@ -357,7 +357,7 @@ function openNewChat() {
 }
 
 function openTemplateForActive() {
-  tplKeyId.value = chat.active?.ycloud_key_id || null;
+  tplKeyId.value = chat.active?.channel_id || null;
   tplPhone.value = chat.active?.phone || "";
   tplError.value = "";
   showTpl.value = true;

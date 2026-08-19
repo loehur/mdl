@@ -236,7 +236,6 @@ function submit() {
 
   emit("submit", {
     channel_id: Number(form.channel_id || props.fixedKeyId),
-    ycloud_key_id: Number(form.channel_id || props.fixedKeyId),
     phone: form.phone || props.fixedPhone,
     template_id: Number(form.template_id),
     template_name: tpl?.template_name,

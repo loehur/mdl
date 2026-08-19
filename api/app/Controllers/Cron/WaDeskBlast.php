@@ -31,12 +31,12 @@ class WaDeskBlast extends Controller
         $failed = 0;
 
         // Pick pending blast jobs (oldest first)
-        $channelsTable = $this->tableExists('wa_channels') ? 'wa_channels' : 'ycloud_keys';
+        $channelsTable = 'wa_channels';
         $blasts = $db->query(
             "SELECT b.*, k.device_id, k.phone_number, k.tenant_id AS key_tenant_id, k.team_id,
                     t.template_name, t.language, t.body_preview
              FROM wa_blasts b
-             INNER JOIN {$channelsTable} k ON k.id = b.ycloud_key_id
+             INNER JOIN {$channelsTable} k ON k.id = b.channel_id
              INNER JOIN wa_templates t ON t.id = b.template_id
              WHERE b.status IN ('pending','processing')
              ORDER BY b.id ASC
@@ -84,7 +84,7 @@ class WaDeskBlast extends Controller
             }
 
             $channelRow = [
-                'id'          => (int) $blast['ycloud_key_id'],
+                'id'          => (int) $blast['channel_id'],
                 'device_id'   => $blast['device_id'] ?? '',
                 'phone_number'=> $blast['phone_number'],
                 'tenant_id'   => (int) $blast['key_tenant_id'],

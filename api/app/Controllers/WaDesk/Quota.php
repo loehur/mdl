@@ -184,7 +184,7 @@ class Quota extends WaDeskController
         $this->verifyAuth();
         $admin = $this->requireAdmin();
 
-        $channelId = (int) ($this->query('channel_id', 0) ?: $this->query('ycloud_key_id', 0));
+        $channelId = (int) $this->query('channel_id', 0);
         if ($channelId <= 0) {
             $this->error('channel_id wajib', 400);
         }
@@ -206,7 +206,6 @@ class Quota extends WaDeskController
 
         $this->success([
             'channel_id' => (int) $channel['id'],
-            'ycloud_key_id' => (int) $channel['id'],
             'team_id' => (int) $channel['team_id'],
             'team_name' => $channel['team_name'],
             'key_label' => $channel['label'],
