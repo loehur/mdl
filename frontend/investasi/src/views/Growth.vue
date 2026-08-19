@@ -15,8 +15,23 @@
           </button>
         </div>
       </div>
-      <p class="mt-2 text-sm text-mist">Garis nilai portfolio akhir bulan (dalam juta)</p>
+      <p class="mt-2 text-sm text-mist">{{ activeTabMeta.subtitle }}</p>
     </section>
+
+    <div class="grid grid-cols-2 gap-2 rounded-2xl border border-ink-200 bg-ink-100 p-1">
+      <button
+        v-for="tab in CHART_TABS"
+        :key="tab.id"
+        type="button"
+        class="rounded-xl py-3 text-sm font-semibold transition"
+        :class="activeTab === tab.id
+          ? 'bg-ink-50 text-pearl shadow-inner'
+          : 'text-mist hover:text-pearl'"
+        @click="setActiveTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
 
     <section class="glass relative min-h-[320px] overflow-hidden p-3">
       <div
@@ -41,8 +56,30 @@
 
     <section v-if="!loading && monthSummary" class="glass-strong p-4">
       <p class="label-caps">{{ monthSummary.label }}</p>
-      <p class="money-display-sm mt-2">{{ formatRupiah(monthSummary.value) }}</p>
-      <p class="mt-1 text-sm font-semibold text-credit-dim">{{ formatChartMillion(monthSummary.value) }}</p>
+
+      <template v-if="activeTab === 'equity'">
+        <p class="money-display-sm mt-2">{{ formatRupiah(monthSummary.value) }}</p>
+        <p class="mt-1 text-sm font-semibold text-credit-dim">{{ formatChartMillion(monthSummary.value) }}</p>
+      </template>
+
+      <template v-else>
+        <p
+          class="money-display-sm mt-2"
+          :class="monthSummary.value >= 0 ? 'text-credit-dim' : 'text-debit-dim'"
+        >
+          {{ formatGainLoss(monthSummary.value) }}
+        </p>
+        <p
+          class="mt-1 text-sm font-semibold"
+          :class="monthSummary.value >= 0 ? 'text-credit-dim' : 'text-debit-dim'"
+        >
+          {{ formatChartMillion(monthSummary.value) }}
+        </p>
+        <p class="mt-3 text-xs text-mist">
+          Modal {{ formatChartMillion(monthSummary.netInvestment) }} · Equity {{ formatChartMillion(monthSummary.equity) }}
+        </p>
+      </template>
+
       <p class="mt-3 text-xs text-mist">{{ monthSummary.snapshot_count }} snapshot di bulan ini</p>
     </section>
 
@@ -51,17 +88,41 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   AreaSeries,
   LineType,
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { formatChartMillion, formatChartMillionAxis, formatRupiah } from "../utils/format";
+import {
+  formatChartMillion,
+  formatChartMillionAxis,
+  formatGainLoss,
+  formatRupiah,
+} from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
 import PageLoader from "../components/PageLoader.vue";
+
+const CHART_TABS = [
+  {
+    id: "equity",
+    label: "Equity",
+    subtitle: "Nilai portfolio akhir bulan (dalam juta)",
+    lineColor: "#0d9488",
+    topColor: "rgba(13, 148, 136, 0.32)",
+    bottomColor: "rgba(13, 148, 136, 0.02)",
+  },
+  {
+    id: "profit",
+    label: "Net Profit",
+    subtitle: "Portfolio − modal investasi akhir bulan (dalam juta)",
+    lineColor: "#4a8fd4",
+    topColor: "rgba(74, 143, 212, 0.28)",
+    bottomColor: "rgba(74, 143, 212, 0.02)",
+  },
+];
 
 const MONTH_LABELS = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -70,6 +131,7 @@ const MONTH_LABELS = [
 
 const currentYear = new Date().getFullYear();
 const year = ref(currentYear);
+const activeTab = ref("equity");
 const loading = ref(true);
 const error = ref("");
 const months = ref([]);
@@ -83,6 +145,9 @@ let seriesMarkers = null;
 let resizeObserver = null;
 let renderRetryTimer = null;
 let crosshairHandler = null;
+let cachedPoints = [];
+
+const activeTabMeta = computed(() => CHART_TABS.find((tab) => tab.id === activeTab.value) ?? CHART_TABS[0]);
 
 function monthTime(yearValue, month) {
   return { year: yearValue, month, day: 1 };
@@ -93,15 +158,21 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function buildPoints(items, yearValue) {
+function buildPoints(items, yearValue, tabId) {
   return items
     .filter((item) => Number(item.snapshot_count) > 0)
     .map((item) => {
-      const rawValue = toNumber(item.close);
+      const equity = toNumber(item.close);
+      const netInvestment = toNumber(item.net_investment) ?? 0;
+      const netProfit = toNumber(item.net_profit);
+      const rawValue = tabId === "equity" ? equity : netProfit;
+
       return {
         time: monthTime(yearValue, Number(item.month)),
         value: rawValue === null ? null : rawValue / 1_000_000,
         rawValue,
+        equity,
+        netInvestment,
         month: Number(item.month),
         snapshot_count: Number(item.snapshot_count),
       };
@@ -118,6 +189,8 @@ function setMonthSummary(point) {
   monthSummary.value = {
     label: MONTH_LABELS[point.month - 1],
     value: point.rawValue,
+    equity: point.equity,
+    netInvestment: point.netInvestment,
     snapshot_count: point.snapshot_count,
   };
 }
@@ -143,14 +216,14 @@ function destroyChart() {
   series = null;
 }
 
-function renderChart(points) {
+function renderChart(points, tabMeta) {
   destroyChart();
 
   if (!chartContainer.value || points.length === 0) return;
 
   const width = chartContainer.value.clientWidth;
   if (width <= 0) {
-    renderRetryTimer = window.setTimeout(() => renderChart(points), 50);
+    renderRetryTimer = window.setTimeout(() => renderChart(points, tabMeta), 50);
     return;
   }
 
@@ -188,30 +261,28 @@ function renderChart(points) {
 
     series = chart.addSeries(AreaSeries, {
       lineType: LineType.Curved,
-      lineColor: "#0d9488",
-      topColor: "rgba(13, 148, 136, 0.32)",
-      bottomColor: "rgba(13, 148, 136, 0.02)",
+      lineColor: tabMeta.lineColor,
+      topColor: tabMeta.topColor,
+      bottomColor: tabMeta.bottomColor,
       lineWidth: 2,
       lastValueVisible: false,
       priceLineVisible: false,
       crosshairMarkerVisible: true,
     });
 
-    const lineData = points.map((point) => ({
+    series.setData(points.map((point) => ({
       time: point.time,
       value: point.value,
-    }));
-
-    series.setData(lineData);
+    })));
     chart.timeScale().fitContent();
 
     seriesMarkers = createSeriesMarkers(
       series,
       points.map((point) => ({
         time: point.time,
-        position: "aboveBar",
+        position: point.rawValue >= 0 ? "aboveBar" : "belowBar",
         shape: "circle",
-        color: "#0d9488",
+        color: tabMeta.lineColor,
         text: formatChartMillion(point.rawValue),
         size: 0.5,
       })),
@@ -251,11 +322,32 @@ async function scheduleRender(points) {
   await nextTick();
   await new Promise((resolve) => requestAnimationFrame(resolve));
   try {
-    renderChart(points);
+    renderChart(points, activeTabMeta.value);
   } catch (err) {
     error.value = err.message || "Gagal merender grafik";
     destroyChart();
   }
+}
+
+function refreshChartFromCache() {
+  cachedPoints = buildPoints(months.value, year.value, activeTab.value);
+  pointCount.value = cachedPoints.length;
+
+  if (cachedPoints.length === 0) {
+    monthSummary.value = null;
+    destroyChart();
+    return;
+  }
+
+  setMonthSummary(cachedPoints[cachedPoints.length - 1]);
+  scheduleRender(cachedPoints);
+}
+
+function setActiveTab(tabId) {
+  if (activeTab.value === tabId) return;
+  activeTab.value = tabId;
+  error.value = "";
+  refreshChartFromCache();
 }
 
 async function loadChart() {
@@ -277,17 +369,8 @@ async function loadChart() {
     }
 
     months.value = data.data.months || [];
-    const points = buildPoints(months.value, year.value);
-    pointCount.value = points.length;
-
-    if (points.length > 0) {
-      setMonthSummary(points[points.length - 1]);
-      loading.value = false;
-      await scheduleRender(points);
-    } else {
-      monthSummary.value = null;
-      pointCount.value = 0;
-    }
+    loading.value = false;
+    refreshChartFromCache();
   } catch (err) {
     error.value = err.message || "Gagal memuat grafik";
     monthSummary.value = null;

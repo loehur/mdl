@@ -86,6 +86,41 @@ class Portfolio extends InvestasiController
             $months[$m]['snapshot_count']++;
         }
 
+        $movements = $this->db($this->db_index)->query(
+            "SELECT movement_type, amount, record_date
+             FROM investment_movements
+             ORDER BY record_date ASC, id ASC"
+        )->result_array();
+
+        foreach ($months as $m => &$month) {
+            $month['net_investment'] = null;
+            $month['net_profit'] = null;
+
+            if ($month['snapshot_count'] === 0 || $month['close'] === null) {
+                continue;
+            }
+
+            $monthEnd = sprintf('%04d-%02d-%02d', $year, $m, (int) date('t', strtotime("{$year}-{$m}-01")));
+            $netInvestment = 0.0;
+
+            foreach ($movements as $movement) {
+                if ($movement['record_date'] > $monthEnd) {
+                    break;
+                }
+                $mvAmount = (float) $movement['amount'];
+                if ($movement['movement_type'] === 'deposit') {
+                    $netInvestment += $mvAmount;
+                } else {
+                    $netInvestment -= $mvAmount;
+                }
+            }
+
+            $netInvestment = round($netInvestment, 2);
+            $month['net_investment'] = $netInvestment;
+            $month['net_profit'] = round((float) $month['close'] - $netInvestment, 2);
+        }
+        unset($month);
+
         $yearRows = $this->db($this->db_index)->query(
             "SELECT DISTINCT YEAR(record_date) AS y
              FROM portfolio_snapshots

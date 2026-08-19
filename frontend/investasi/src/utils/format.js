@@ -74,22 +74,24 @@ export function formatGainLoss(value) {
 export function formatChartMillion(value) {
   const num = Number(value) / 1_000_000;
   if (!Number.isFinite(num)) return "";
-  const formatted = new Intl.NumberFormat("id-ID", {
+  const absFormatted = new Intl.NumberFormat("id-ID", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: num >= 100 ? 0 : 1,
-  }).format(num);
-  return `${formatted}M`;
+    maximumFractionDigits: Math.abs(num) >= 100 ? 0 : 1,
+  }).format(Math.abs(num));
+  const prefix = num < 0 ? "-" : "";
+  return `${prefix}${absFormatted}M`;
 }
 
 /** Sumbu Y chart: nilai sudah dalam juta. */
 export function formatChartMillionAxis(valueInMillions) {
   const num = Number(valueInMillions);
   if (!Number.isFinite(num)) return "";
-  const formatted = new Intl.NumberFormat("id-ID", {
+  const absFormatted = new Intl.NumberFormat("id-ID", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: num >= 100 ? 0 : 1,
-  }).format(num);
-  return `${formatted}M`;
+    maximumFractionDigits: Math.abs(num) >= 100 ? 0 : 1,
+  }).format(Math.abs(num));
+  const prefix = num < 0 ? "-" : "";
+  return `${prefix}${absFormatted}M`;
 }
 
 export function gainLossLabel(status) {
