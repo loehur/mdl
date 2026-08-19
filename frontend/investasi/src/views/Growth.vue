@@ -91,8 +91,8 @@ const chartContainer = ref(null);
 let chart = null;
 let series = null;
 let resizeObserver = null;
-let pendingCandles = null;
 let renderRetryTimer = null;
+let crosshairHandler = null;
 
 function monthTime(yearValue, month) {
   return {
@@ -143,17 +143,19 @@ function destroyChart() {
     clearTimeout(renderRetryTimer);
     renderRetryTimer = null;
   }
+  if (chart && crosshairHandler) {
+    chart.unsubscribeCrosshairMove(crosshairHandler);
+  }
+  crosshairHandler = null;
   resizeObserver?.disconnect();
   resizeObserver = null;
   chart?.remove();
   chart = null;
   series = null;
-  pendingCandles = null;
 }
 
 function renderChart(candles) {
   destroyChart();
-  pendingCandles = candles;
 
   if (!chartContainer.value || candles.length === 0) return;
 
@@ -163,7 +165,8 @@ function renderChart(candles) {
     return;
   }
 
-  chart = createChart(chartContainer.value, {
+  try {
+    chart = createChart(chartContainer.value, {
     width,
     height: 320,
     layout: {
@@ -201,39 +204,50 @@ function renderChart(candles) {
     wickDownColor: "#b91c1c",
   });
 
-  series.setData(candles);
-  chart.timeScale().fitContent();
+    series.setData(candles);
+    chart.timeScale().fitContent();
 
-  series.subscribeCrosshairMove((param) => {
-    if (!param.time || !param.seriesData.size) {
-      setMonthSummary(candles[candles.length - 1] ?? null);
-      return;
-    }
+    crosshairHandler = (param) => {
+      if (!param.time || !param.seriesData.size) {
+        setMonthSummary(candles[candles.length - 1] ?? null);
+        return;
+      }
 
-    const point = param.seriesData.get(series);
-    if (!point) return;
+      const point = param.seriesData.get(series);
+      if (!point) return;
 
-    const candle = candles.find((item) => {
-      const t = param.time;
-      return item.time.year === t.year && item.time.month === t.month && item.time.day === t.day;
+      const candle = candles.find((item) => {
+        const t = param.time;
+        return item.time.year === t.year && item.time.month === t.month && item.time.day === t.day;
+      });
+      if (candle) setMonthSummary(candle);
+    };
+
+    chart.subscribeCrosshairMove(crosshairHandler);
+
+    resizeObserver = new ResizeObserver(() => {
+      if (!chartContainer.value || !chart) return;
+      const nextWidth = chartContainer.value.clientWidth;
+      if (nextWidth > 0) {
+        chart.applyOptions({ width: nextWidth });
+      }
     });
-    if (candle) setMonthSummary(candle);
-  });
-
-  resizeObserver = new ResizeObserver(() => {
-    if (!chartContainer.value || !chart) return;
-    const nextWidth = chartContainer.value.clientWidth;
-    if (nextWidth > 0) {
-      chart.applyOptions({ width: nextWidth });
-    }
-  });
-  resizeObserver.observe(chartContainer.value);
+    resizeObserver.observe(chartContainer.value);
+  } catch (err) {
+    destroyChart();
+    throw err;
+  }
 }
 
 async function scheduleRender(candles) {
   await nextTick();
   await new Promise((resolve) => requestAnimationFrame(resolve));
-  renderChart(candles);
+  try {
+    renderChart(candles);
+  } catch (err) {
+    error.value = err.message || "Gagal merender grafik";
+    destroyChart();
+  }
 }
 
 async function loadChart() {
