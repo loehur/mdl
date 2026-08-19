@@ -64,25 +64,6 @@ const IconHome = () =>
     h("path", { d: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z", strokeLinejoin: "round" }),
   ]);
 
-const IconIncome = () =>
-  h("svg", iconProps, [
-    h("path", { d: "M12 3v18", strokeLinecap: "round" }),
-    h("path", { d: "M7 8l5-5 5 5", strokeLinecap: "round", strokeLinejoin: "round" }),
-    h("path", { d: "M5 21h14", strokeLinecap: "round" }),
-  ]);
-
-const IconExpense = () =>
-  h("svg", iconProps, [
-    h("path", { d: "M12 21V3", strokeLinecap: "round" }),
-    h("path", { d: "M7 16l5 5 5-5", strokeLinecap: "round", strokeLinejoin: "round" }),
-    h("path", { d: "M5 3h14", strokeLinecap: "round" }),
-  ]);
-
-const IconRecap = () =>
-  h("svg", iconProps, [
-    h("path", { d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01", strokeLinecap: "round" }),
-  ]);
-
 const IconFlow = () =>
   h("svg", iconProps, [
     h("path", { d: "M4 7h16M4 12h10M4 17h6", strokeLinecap: "round" }),
@@ -101,18 +82,12 @@ const IconChart = () =>
 
 const navItems = [
   { path: "/dashboard", label: "Home", icon: IconHome },
-  { path: "/rekap", label: "Rekap", icon: IconRecap },
-  { path: "/pemasukan", label: "Masuk", icon: IconIncome },
-  { path: "/pengeluaran", label: "Keluar", icon: IconExpense },
   { path: "/investasi", label: "Aliran", icon: IconFlow },
   { path: "/portfolio", label: "Aset", icon: IconChart },
 ];
 
 const titles = {
   "/dashboard": "Overview",
-  "/rekap": "Rekap",
-  "/pemasukan": "Pemasukan",
-  "/pengeluaran": "Pengeluaran",
   "/investasi": "Aliran Dana",
   "/portfolio": "Portfolio",
 };

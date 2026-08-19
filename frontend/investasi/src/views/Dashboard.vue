@@ -3,32 +3,6 @@
     <PageLoader v-if="loading" />
 
     <template v-else>
-      <!-- Pemasukan & pengeluaran — modul terpisah -->
-      <section>
-        <div class="grid grid-cols-2 gap-2.5">
-          <router-link
-            to="/pemasukan"
-            class="stat-tile block !p-3 text-center transition active:scale-[0.98] active:opacity-90"
-          >
-            <p class="label-caps mb-1">Income</p>
-            <p class="text-sm leading-tight text-mist">Hari ini</p>
-            <p class="money-display-sm mt-0.5">{{ formatRupiah(summary.today_income) }}</p>
-            <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
-            <p class="text-base font-semibold leading-tight text-pearl">{{ formatRupiah(summary.month_income) }}</p>
-          </router-link>
-          <router-link
-            to="/pengeluaran"
-            class="stat-tile block !p-3 text-center transition active:scale-[0.98] active:opacity-90"
-          >
-            <p class="label-caps mb-1">Expense</p>
-            <p class="text-sm leading-tight text-mist">Hari ini</p>
-            <p class="money-display-sm mt-0.5 text-debit-dim">{{ formatRupiah(summary.today_expense) }}</p>
-            <p class="mt-1 text-sm leading-tight text-mist">Bulan ini</p>
-            <p class="text-base font-semibold leading-tight text-debit-dim">{{ formatRupiah(summary.month_expense) }}</p>
-          </router-link>
-        </div>
-      </section>
-
       <!-- Portfolio vs modal investasi -->
       <section class="glass-strong relative overflow-hidden p-4 text-center shadow-glow">
         <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-ledger/10 blur-2xl" />
@@ -65,7 +39,6 @@
         >
           Input deposit sudah ada. Update snapshot portfolio untuk melihat tumbuh/rugi.
         </p>
-
       </section>
 
       <!-- Deposit & penarikan manual -->
@@ -107,10 +80,6 @@ import PageLoader from "../components/PageLoader.vue";
 const loading = ref(true);
 const error = ref("");
 const summary = ref({
-  today_income: 0,
-  month_income: 0,
-  today_expense: 0,
-  month_expense: 0,
   total_deposits: 0,
   total_withdrawals: 0,
   net_investment: 0,

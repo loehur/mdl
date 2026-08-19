@@ -535,9 +535,7 @@ const sendImage = async () => {
     }
     finally {
         isUploadingImage.value = false;
-        selectedImage.value = null;
-        selectedMediaKind.value = "image";
-        imagePreview.value = "";
+        resetImageUploadState();
     }
 };
 
@@ -560,12 +558,16 @@ const selectImage = async (event) => {
     event.target.value = "";
 };
 
-const cancelImage = () => {
+const resetImageUploadState = () => {
     selectedImage.value = null;
     selectedMediaKind.value = "image";
     imagePreview.value = "";
     showImagePreview.value = false;
     imageCaption.value = "";
+};
+
+const cancelImage = () => {
+    resetImageUploadState();
 };
 
 // Textarea Resize
@@ -752,6 +754,7 @@ watch(() => props.activeChatId, (newId, oldId) => {
     if (newId !== oldId) {
         messageInput.value = "";
         replyToMessage.value = null;
+        resetImageUploadState();
         resetTextareaHeight();
     }
 });

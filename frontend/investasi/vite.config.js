@@ -10,7 +10,7 @@ export default defineConfig({
       manifest: {
         name: "Investasi",
         short_name: "Investasi",
-        description: "Jurnal keuangan pribadi — pemasukan, aliran investasi, portfolio.",
+        description: "Aliran modal investasi dan snapshot portfolio aset.",
         start_url: "./",
         scope: "./",
         display: "standalone",

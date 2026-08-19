@@ -10,26 +10,20 @@
           Jurnal Keuangan
         </h1>
         <p class="mt-3 font-sans text-lg font-semibold text-ledger-dim">
-          Pemasukan · Investasi · Portfolio
+          Aliran Dana · Portfolio
         </p>
         <p class="mt-5 max-w-sm text-sm leading-relaxed text-mist">
-          Catat pemasukan harian, aliran deposit/penarikan, dan nilai portfolio dalam satu sistem.
+          Catat deposit/penarikan modal dan nilai portfolio aset dalam satu sistem.
         </p>
       </div>
 
       <div class="space-y-4">
         <div class="hairline" />
-        <div class="flex gap-8">
-          <div>
-            <p class="label-caps">Fitur</p>
-            <p class="mt-2 text-sm text-mist">Pemasukan harian</p>
-            <p class="text-sm text-mist">Deposit & penarikan</p>
-            <p class="text-sm text-mist">Update portfolio</p>
-          </div>
-          <div>
-            <p class="label-caps">Segera</p>
-            <p class="mt-2 text-sm text-mist">Rekap & laporan</p>
-          </div>
+        <div>
+          <p class="label-caps">Fitur</p>
+          <p class="mt-2 text-sm text-mist">Deposit & penarikan</p>
+          <p class="text-sm text-mist">Snapshot portfolio</p>
+          <p class="text-sm text-mist">Tumbuh/rugi vs modal</p>
         </div>
       </div>
 
