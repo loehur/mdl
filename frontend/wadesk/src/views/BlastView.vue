@@ -166,13 +166,19 @@
           >
             Kuota team tidak cukup: butuh {{ parsedRows.length }}, sisa {{ keyQuota.balance }}.
           </p>
+          <div
+            v-if="aiWarning"
+            class="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 mb-3 text-sm text-amber-200"
+          >
+            {{ aiWarning }}
+          </div>
           <button
             type="button"
             class="btn w-full py-3"
-            :disabled="submitting || !auth.canSendWa || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
+            :disabled="submitting || checkingAi || !auth.canSendWa || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
             @click="submitBlast"
           >
-            {{ submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. 250)` }}
+            {{ checkingAi ? 'Memeriksa AI...' : submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. 250)` }}
           </button>
           <p v-if="submitError" class="text-sm text-rose-400 mt-2">{{ submitError }}</p>
         </div>
@@ -412,7 +418,9 @@ const fileInput = ref(null);
 const keyQuota = ref(null);
 
 const submitting = ref(false);
+const checkingAi = ref(false);
 const submitError = ref('');
+const aiWarning = ref('');
 
 // blast list
 const blasts = ref([]);
@@ -586,11 +594,13 @@ function resetUpload() {
   uploadedFile.value = null;
   parsedRows.value = [];
   csvErrors.value = [];
+  aiWarning.value = '';
   if (fileInput.value) fileInput.value.value = '';
 }
 
 async function submitBlast() {
   submitError.value = '';
+  aiWarning.value = '';
   if (!auth.canSendWa) {
     submitError.value = 'Masuk team di Admin dulu untuk blast WA.';
     return;
@@ -603,11 +613,35 @@ async function submitBlast() {
     submitError.value = `Kuota team tidak cukup: butuh ${parsedRows.value.length}, sisa ${keyQuota.value.balance}.`;
     return;
   }
+
+  const rows = rowsToBlastPayload(parsedRows.value, csvParams.value);
+
+  checkingAi.value = true;
+  try {
+    const mod = await api('/WaDesk/Blast/moderateRows', {
+      method: 'POST',
+      body: {
+        template_id: Number(form.template_id),
+        rows,
+      },
+    });
+
+    if (!mod.data?.safe) {
+      aiWarning.value =
+        mod.data?.reason ||
+        mod.message ||
+        'Konten parameter blast ditolak moderasi AI.';
+      return;
+    }
+  } catch (e) {
+    aiWarning.value = e?.message ?? 'Gagal memeriksa parameter dengan AI';
+    return;
+  } finally {
+    checkingAi.value = false;
+  }
+
   submitting.value = true;
   try {
-    const tpl = filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id));
-    const rows = rowsToBlastPayload(parsedRows.value, csvParams.value);
-
     await api('/WaDesk/Blast/create', {
       method: 'POST',
       body: {

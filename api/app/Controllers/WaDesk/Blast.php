@@ -11,6 +11,7 @@ use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
  * Routes (add to your framework router):
  *   GET  /WaDesk/Blast/csvHeaders?template_id=
  *   POST /WaDesk/Blast/create
+ *   POST /WaDesk/Blast/moderateRows
  *   GET  /WaDesk/Blast/list
  *   GET  /WaDesk/Blast/detail?id=
  *   POST /WaDesk/Blast/cancel
@@ -143,6 +144,8 @@ class Blast extends WaDeskController
             $this->error('Validasi gagal: ' . implode('; ', array_slice($errors, 0, 5)), 422, ['errors' => $errors]);
         }
 
+        $this->requireBlastParamsSafe((int) $user['tenant_id'], $paramDefs, $rows);
+
         $phones = [];
         foreach ($rows as $row) {
             $phones[] = $this->normalizePhone((string) ($row['phone'] ?? ''));
@@ -200,6 +203,52 @@ class Blast extends WaDeskController
         }
 
         $this->success(['blast_id' => $blastId], 'Blast dibuat, menunggu pengiriman');
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /WaDesk/Blast/moderateRows
+    // Body: { template_id, rows: [{phone, params: {}}] }
+    // -------------------------------------------------------------------------
+    public function moderateRows()
+    {
+        $this->verifyAuth();
+        $user = $this->requireOperationalTeam();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $templateId = (int) ($body['template_id'] ?? 0);
+        $rows = $body['rows'] ?? [];
+
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
+        }
+        if (!is_array($rows) || count($rows) === 0) {
+            $this->error('rows wajib dan tidak boleh kosong', 400);
+        }
+        if (count($rows) > self::MAX_ROWS) {
+            $this->error('Maksimal ' . self::MAX_ROWS . ' baris per blast', 400);
+        }
+
+        $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
+        if (!$tpl) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+
+        if ($this->getTenantOpenAiApiKey((int) $user['tenant_id']) === '') {
+            $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
+        }
+
+        $paramDefs = $this->loadParamDefs($templateId);
+        $values = \App\Helpers\WaDesk\TemplateParamModerator::collectBlastRowValues($rows, $paramDefs);
+        $result = $this->moderateBlastParamValues((int) $user['tenant_id'], $paramDefs, $rows);
+
+        $this->success([
+            'safe' => (bool) ($result['safe'] ?? false),
+            'reason' => (string) ($result['reason'] ?? ''),
+            'value_count' => count($values),
+        ], ($result['safe'] ?? false) ? 'Parameter aman' : 'Parameter ditolak');
     }
 
     // -------------------------------------------------------------------------

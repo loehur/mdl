@@ -25,7 +25,8 @@ class TemplateSender
         array $paramDefs,
         string $phone,
         array $rawParams,
-        int $sentByUserId = 0
+        int $sentByUserId = 0,
+        bool $skipParamModeration = false
     ): array {
         try {
             $tenantId = (int) $channel['tenant_id'];
@@ -66,24 +67,26 @@ class TemplateSender
                 return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => $lengthErr];
             }
 
-            $openAiKey = $this->fetchTenantOpenAiApiKey($tenantId);
-            if ($openAiKey === '') {
-                return [
-                    'success' => false,
-                    'message_id' => 0,
-                    'conversation_id' => 0,
-                    'error' => 'OpenAI API key belum diatur. Simpan di Admin → OpenAI.',
-                ];
-            }
-            $moderator = new TemplateParamModerator($this->db);
-            $mod = $moderator->moderate($openAiKey, TemplateParamModerator::entriesFromDefs($paramDefs, $rawParams));
-            if (!$mod['safe']) {
-                return [
-                    'success' => false,
-                    'message_id' => 0,
-                    'conversation_id' => 0,
-                    'error' => $mod['reason'] ?: 'Konten parameter tidak aman',
-                ];
+            if (!$skipParamModeration) {
+                $openAiKey = $this->fetchTenantOpenAiApiKey($tenantId);
+                if ($openAiKey === '') {
+                    return [
+                        'success' => false,
+                        'message_id' => 0,
+                        'conversation_id' => 0,
+                        'error' => 'OpenAI API key belum diatur. Simpan di Admin → OpenAI.',
+                    ];
+                }
+                $moderator = new TemplateParamModerator($this->db);
+                $mod = $moderator->moderate($openAiKey, TemplateParamModerator::entriesFromDefs($paramDefs, $rawParams));
+                if (!$mod['safe']) {
+                    return [
+                        'success' => false,
+                        'message_id' => 0,
+                        'conversation_id' => 0,
+                        'error' => $mod['reason'] ?: 'Konten parameter tidak aman',
+                    ];
+                }
             }
 
             $previewSource = (string) ($tpl['body_preview'] ?? '');

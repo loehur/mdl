@@ -24,6 +24,25 @@ atau
 {"safe":false,"reason":"penjelasan singkat dalam Bahasa Indonesia, sebut parameter yang bermasalah"}
 PROMPT;
 
+    private const BLAST_SYSTEM_PROMPT = <<<'PROMPT'
+Anda moderasi nilai parameter template WhatsApp bisnis Indonesia untuk blast/campaign massal.
+Semua nilai dari CSV dikumpulkan sekaligus — bukan teks template.
+
+Format input: daftar nilai parameter dipisah "|".
+
+Tolak (safe=false) jika ADA nilai yang mengandung:
+- kata kotor / umpatan / profanity
+- hujatan, ejekan, atau penghinaan
+- ujaran kebencian, ancaman, atau pelecehan
+
+Izinkan (safe=true) nama orang, nama perusahaan, nominal, tanggal, dan teks bisnis sopan.
+
+Balas HANYA JSON valid, tanpa markdown:
+{"safe":true}
+atau
+{"safe":false,"reason":"penjelasan singkat dalam Bahasa Indonesia, sebut nilai yang bermasalah"}
+PROMPT;
+
     private $db;
 
     public function __construct($db)
@@ -66,6 +85,80 @@ PROMPT;
 
         if (!$safe && $reason === '') {
             $reason = 'Konten parameter tidak aman menurut moderasi AI.';
+        }
+
+        return [
+            'safe' => $safe,
+            'reason' => $safe ? '' : $reason,
+        ];
+    }
+
+    /**
+     * Collect all non-empty parameter values from blast rows (values only).
+     *
+     * @param array<int,array{phone?:string,params?:array}> $rows
+     * @return array<int,string>
+     */
+    public static function collectBlastRowValues(array $rows, array $paramDefs): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            $rawParams = is_array($row['params'] ?? null) ? $row['params'] : [];
+            foreach (self::entriesFromDefs($paramDefs, $rawParams) as $entry) {
+                $value = trim((string) ($entry['value'] ?? ''));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * One AI call for all blast parameter values (pipe-separated summary).
+     *
+     * @param array<int,string> $values
+     * @return array{safe:bool,reason:string,skipped?:bool}
+     */
+    public function moderateBatchValues(string $apiKey, array $values): array
+    {
+        $values = array_values(array_filter(array_map(static function ($v) {
+            return trim((string) $v);
+        }, $values), static function ($v) {
+            return $v !== '';
+        }));
+
+        if ($values === []) {
+            return ['safe' => true, 'reason' => ''];
+        }
+
+        if (trim($apiKey) === '') {
+            return ['safe' => true, 'reason' => '', 'skipped' => true];
+        }
+
+        $valuesText = '| ' . implode(' | ', $values) . ' |';
+        $userPayload = json_encode([
+            'values' => $values,
+            'values_text' => $valuesText,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $client = new OpenAi($apiKey);
+        $res = $client->chatJson(self::BLAST_SYSTEM_PROMPT, $userPayload);
+
+        if (!$res['success']) {
+            return [
+                'safe' => false,
+                'reason' => 'Moderasi AI gagal: ' . ($res['error'] ?: 'unknown'),
+            ];
+        }
+
+        $data = $res['data'];
+        $safe = !empty($data['safe']);
+        $reason = trim((string) ($data['reason'] ?? ''));
+
+        if (!$safe && $reason === '') {
+            $reason = 'Konten parameter blast tidak aman menurut moderasi AI.';
         }
 
         return [

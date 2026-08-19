@@ -419,6 +419,36 @@ abstract class WaDeskController extends BaseController
     }
 
     /**
+     * @param array<int,array{phone?:string,params?:array}> $rows
+     * @return array{safe:bool,reason:string,skipped?:bool}
+     */
+    protected function moderateBlastParamValues(int $tenantId, array $paramDefs, array $rows): array
+    {
+        $values = \App\Helpers\WaDesk\TemplateParamModerator::collectBlastRowValues($rows, $paramDefs);
+        $moderator = new \App\Helpers\WaDesk\TemplateParamModerator($this->db($this->db_index));
+
+        return $moderator->moderateBatchValues($this->getTenantOpenAiApiKey($tenantId), $values);
+    }
+
+    /**
+     * @param array<int,array{phone?:string,params?:array}> $rows
+     */
+    protected function requireBlastParamsSafe(int $tenantId, array $paramDefs, array $rows): void
+    {
+        if ($this->getTenantOpenAiApiKey($tenantId) === '') {
+            $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
+        }
+
+        $result = $this->moderateBlastParamValues($tenantId, $paramDefs, $rows);
+        if (!$result['safe']) {
+            $this->error($result['reason'] ?: 'Konten parameter blast tidak aman', 422, [
+                'safe' => false,
+                'reason' => $result['reason'],
+            ]);
+        }
+    }
+
+    /**
      * @return array{status:bool,new_words:string,reason:string}
      */
     protected function polishFreeMessageText(int $tenantId, string $message): array

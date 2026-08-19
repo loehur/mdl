@@ -112,7 +112,7 @@ class WaDeskBlast extends Controller
                     }
                 }
 
-                $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0);
+                $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0, true);
 
                 if ($result['success']) {
                     $db->update('wa_blast_recipients', [
