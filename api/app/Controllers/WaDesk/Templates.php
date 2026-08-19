@@ -84,7 +84,7 @@ class Templates extends WaDeskController
 
         $found = null;
         foreach ($fetched['templates'] ?? [] as $t) {
-            if (($t['name'] ?? '') === $tplName) {
+            if (($t['template_name'] ?? $t['name'] ?? '') === $tplName) {
                 $found = $t;
                 break;
             }
@@ -278,7 +278,7 @@ class Templates extends WaDeskController
 
         $found = null;
         foreach ($fetched['templates'] ?? [] as $t) {
-            if (($t['name'] ?? '') === $tplName) {
+            if (($t['template_name'] ?? $t['name'] ?? '') === $tplName) {
                 $found = $t;
                 break;
             }

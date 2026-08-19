@@ -91,10 +91,9 @@ class Env
     const WADESK_ENCRYPT_KEY = 'change-me-wadesk-encrypt-key-32b!!'; // Min. 32 char (legacy)
     const WADESK_VERIFY_TOKEN = 'change-me-wadesk-verify-token';     // Webhook WaDesk (Kirimin)
 
-    // Kirimin.id — satu kredensial global untuk semua channel WaDesk
-    const KIRIMIN_USER_CODE = 'YOUR-USER-CODE';
-    const KIRIMIN_SECRET = 'YOUR-SECRET-KEY';
-    const KIRIMIN_BASE_URL = 'https://api.kirimi.id';
+    // Kirimin.id — satu API key global untuk semua channel WaDesk (Bearer kc_live_...)
+    const KIRIMIN_API_KEY = 'kc_live_YOUR-API-KEY';
+    const KIRIMIN_BASE_URL = 'https://apiapp.kirimin.id';
 
     // -------------------------------------------------------------------------
     // AI

@@ -112,16 +112,16 @@ class WaDesk extends Controller
 
     private function handleKiriminInbound(array $data): void
     {
-        $from = (string) ($data['sender'] ?? $data['from'] ?? $data['phone'] ?? '');
-        $deviceId = $data['device_id'] ?? ($data['deviceId'] ?? null);
-        $businessPhone = (string) ($data['to'] ?? $data['receiver'] ?? $data['business_phone'] ?? '');
+        $from = (string) ($data['sender'] ?? $data['from'] ?? $data['phone'] ?? $data['phone_number'] ?? '');
+        $deviceId = $data['whatsapp_device_id'] ?? ($data['device_id'] ?? ($data['deviceId'] ?? null));
+        $businessPhone = (string) ($data['to'] ?? $data['receiver'] ?? $data['business_phone'] ?? $data['display_phone_number'] ?? '');
         $msgId = $data['message_id'] ?? ($data['id'] ?? ($data['inboxid'] ?? null));
-        $type = (string) ($data['type'] ?? 'text');
-        $body = (string) ($data['message'] ?? $data['text'] ?? $data['body'] ?? '');
+        $type = (string) ($data['type'] ?? $data['message_type'] ?? 'text');
+        $body = (string) ($data['message'] ?? $data['text'] ?? $data['body'] ?? $data['content'] ?? '');
         if ($body === '' && isset($data['caption'])) {
             $body = (string) $data['caption'];
         }
-        $name = $data['push_name'] ?? ($data['name'] ?? ($data['profile_name'] ?? null));
+        $name = $data['push_name'] ?? ($data['user_name'] ?? ($data['name'] ?? ($data['profile_name'] ?? null)));
 
         if (!empty($data['fromMe']) || !empty($data['from_me'])) {
             return;
@@ -420,6 +420,7 @@ class WaDesk extends Controller
     private function looksLikeKiriminInbound(array $data): bool
     {
         return isset($data['sender']) || isset($data['message']) || isset($data['text'])
+            || isset($data['whatsapp_device_id'])
             || (isset($data['device_id']) && (isset($data['from']) || isset($data['phone'])));
     }
 
