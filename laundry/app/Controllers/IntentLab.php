@@ -15,16 +15,69 @@ class IntentLab extends Controller
         return $this->db(100);
     }
 
-    private function bumpAutoreplyCache(): void
+    private function readCacheVersion(): string
+    {
+        $db = $this->dbMain();
+        $row = $db->get_where_row('wa_autoreply_meta', "meta_key = 'cache_version'");
+        if (!$row) {
+            return '0';
+        }
+
+        return (string) ($row['meta_value'] ?? '0');
+    }
+
+    /**
+     * Naikkan wa_autoreply_meta.cache_version (+1) agar API reload config intent dari DB.
+     *
+     * @return array{before:string,after:string}
+     */
+    private function bumpAutoreplyCache(): array
     {
         $db = $this->dbMain();
         $row = $db->get_where_row('wa_autoreply_meta', "meta_key = 'cache_version'");
         if (!$row) {
             $db->insert('wa_autoreply_meta', ['meta_key' => 'cache_version', 'meta_value' => '1']);
-            return;
+
+            return ['before' => '0', 'after' => '1'];
         }
-        $next = (string) ((int) ($row['meta_value'] ?? 0) + 1);
+        $before = (string) ($row['meta_value'] ?? '0');
+        $next = (string) ((int) $before + 1);
         $db->update('wa_autoreply_meta', ['meta_value' => $next], "meta_key = 'cache_version'");
+
+        return ['before' => $before, 'after' => $next];
+    }
+
+    /**
+     * GET — baca cache_version saat ini (mdl_main.wa_autoreply_meta).
+     */
+    public function cacheVersion()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'ok' => 1,
+            'cache_version' => $this->readCacheVersion(),
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * POST — bump cache_version manual (+1), kembalikan before/after.
+     */
+    public function bumpCache()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        $result = $this->bumpAutoreplyCache();
+        echo json_encode([
+            'ok' => 1,
+            'message' => 'cache_version ' . $result['before'] . ' → ' . $result['after'],
+            'cache_version_before' => $result['before'],
+            'cache_version' => $result['after'],
+        ], JSON_UNESCAPED_UNICODE);
     }
 
     /** @return list<array{id:int|string,code:string}> */
@@ -43,6 +96,7 @@ class IntentLab extends Controller
         $this->view('layout', ['data_operasi' => $data_operasi]);
         $this->view('tools/intent_lab', [
             'intents' => $this->listActiveIntents(),
+            'cache_version' => $this->readCacheVersion(),
         ]);
     }
 
@@ -249,8 +303,9 @@ class IntentLab extends Controller
             }
         }
 
+        $cacheBump = null;
         if ($patternAdded || $patternUpdated || $promptUpdated) {
-            $this->bumpAutoreplyCache();
+            $cacheBump = $this->bumpAutoreplyCache();
         }
 
         // Re-cek klasifikasi
@@ -258,7 +313,7 @@ class IntentLab extends Controller
         $check = $api->check($text);
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
 
-        echo json_encode([
+        $out = [
             'ok' => 1,
             'message' => 'Aktif',
             'pattern_added' => $patternAdded,
@@ -269,7 +324,13 @@ class IntentLab extends Controller
             'verify_intent' => $gotIntent,
             'verify_ok' => ($gotIntent === $intentCode),
             'verify' => $check,
-        ], JSON_UNESCAPED_UNICODE);
+            'cache_version' => $this->readCacheVersion(),
+        ];
+        if ($cacheBump !== null) {
+            $out['cache_version_before'] = $cacheBump['before'];
+            $out['cache_version_bumped'] = true;
+        }
+        echo json_encode($out, JSON_UNESCAPED_UNICODE);
     }
 
     /**
@@ -420,8 +481,9 @@ class IntentLab extends Controller
             }
         }
 
+        $cacheBump = null;
         if ($patternsDeactivated > 0 || $promptUpdated) {
-            $this->bumpAutoreplyCache();
+            $cacheBump = $this->bumpAutoreplyCache();
         }
 
         $api = $this->helper('IntentCheckApi');
@@ -429,7 +491,7 @@ class IntentLab extends Controller
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
         $verifyOk = ($gotIntent !== $intentCode);
 
-        echo json_encode([
+        $out = [
             'ok' => 1,
             'message' => 'Dikeluarkan',
             'patterns_deactivated' => $patternsDeactivated,
@@ -439,7 +501,13 @@ class IntentLab extends Controller
             'verify_intent' => $gotIntent,
             'verify_ok' => $verifyOk,
             'verify' => $check,
-        ], JSON_UNESCAPED_UNICODE);
+            'cache_version' => $this->readCacheVersion(),
+        ];
+        if ($cacheBump !== null) {
+            $out['cache_version_before'] = $cacheBump['before'];
+            $out['cache_version_bumped'] = true;
+        }
+        echo json_encode($out, JSON_UNESCAPED_UNICODE);
     }
 
     /**

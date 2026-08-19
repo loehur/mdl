@@ -159,6 +159,47 @@
       color: var(--il-ink);
       border-color: #cbd5e1;
     }
+    #intent-lab-root .il-btn--bump {
+      background: linear-gradient(105deg, #b45309 0%, #f59e0b 100%);
+      border-color: #b45309;
+    }
+    #intent-lab-root .il-cache-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 1px solid #fcd34d;
+      background: linear-gradient(180deg, #fffbeb, #fff);
+    }
+    #intent-lab-root .il-cache-bar__label {
+      font-weight: 900;
+      color: var(--il-yellow-deep);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    #intent-lab-root .il-cache-bar__ver {
+      font-weight: 900;
+      font-size: 1.1rem;
+      color: var(--il-ink);
+      font-variant-numeric: tabular-nums;
+    }
+    #intent-lab-root .il-cache-bar__hint {
+      flex: 1 1 180px;
+      font-weight: 600;
+      color: var(--il-muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    #intent-lab-root .il-cache-bar__msg {
+      width: 100%;
+      font-weight: 800;
+      font-size: 0.82rem;
+      color: #15803d;
+      margin: 0;
+    }
     #intent-lab-root .il-result,
     #intent-lab-root .il-teach-box,
     #intent-lab-root .il-untouch-box { margin-top: 14px; display: none; }
@@ -341,6 +382,7 @@
   </style>
 
   <?php $intentOptions = $data['intents'] ?? []; ?>
+  <?php $cacheVersion = htmlspecialchars((string) ($data['cache_version'] ?? '0')); ?>
 
   <div class="il-shell">
     <div class="il-loading" id="ilLoading" aria-live="polite" aria-busy="false">
@@ -353,6 +395,16 @@
 
     <h3 class="il-title"><i class="fas fa-flask"></i> Intent Lab</h3>
     <p class="il-lead">Tempel pesan customer — cek intent, lalu ajarin masuk intent ATAU keluarkan dari intent (AI).</p>
+
+    <div class="il-cache-bar" id="ilCacheBar">
+      <span class="il-cache-bar__label">cache_version</span>
+      <span class="il-cache-bar__ver" id="ilCacheVersion" title="wa_autoreply_meta.cache_version"><?= $cacheVersion ?></span>
+      <button type="button" class="il-btn il-btn--bump" id="ilBtnBump" title="Paksa API reload config intent dari DB">
+        <i class="fas fa-sync-alt"></i> BUMP +1
+      </button>
+      <span class="il-cache-bar__hint">Setelah edit prompt/pattern (SQL atau UI), tekan BUMP supaya worker PHP API baca ulang config. Otomatis saat Aktifkan/Terapkan — tombol ini untuk verifikasi manual.</span>
+      <p class="il-cache-bar__msg" id="ilCacheMsg" style="display:none"></p>
+    </div>
 
     <label class="il-label" for="ilText">Pesan chat</label>
     <textarea id="ilText" class="il-textarea" placeholder="Contoh: mksh byk kak"></textarea>
@@ -538,7 +590,75 @@
     var applyUrl = '<?= URL::BASE_URL; ?>IntentLab/applyTeach';
     var proposeUntouchUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeUntouch';
     var applyUntouchUrl = '<?= URL::BASE_URL; ?>IntentLab/applyUntouch';
+    var bumpCacheUrl = '<?= URL::BASE_URL; ?>IntentLab/bumpCache';
+    var cacheVersionUrl = '<?= URL::BASE_URL; ?>IntentLab/cacheVersion';
     var running = false;
+    var $cacheVersion = $('#ilCacheVersion');
+    var $cacheMsg = $('#ilCacheMsg');
+
+    function setCacheVersionDisplay(ver, msg) {
+      ver = String(ver == null ? '' : ver);
+      if (ver !== '') $cacheVersion.text(ver);
+      if (msg) {
+        $cacheMsg.text(msg).show();
+      } else {
+        $cacheMsg.hide().text('');
+      }
+    }
+
+    function applyCacheFromResponse(res) {
+      if (!res) return;
+      if (res.cache_version != null && res.cache_version !== '') {
+        var line = 'cache_version: ' + res.cache_version;
+        if (res.cache_version_bumped && res.cache_version_before != null) {
+          line = 'BUMP otomatis ' + res.cache_version_before + ' → ' + res.cache_version;
+        }
+        setCacheVersionDisplay(res.cache_version, line);
+      }
+    }
+
+    function runBumpCache() {
+      if (running) return;
+      setLoading(true, 'Bump cache_version…', 'Naikkan counter supaya API reload config intent');
+      $('#ilBtnBump').html('<i class="fas fa-spinner fa-spin"></i> Bumping…');
+      $.ajax({
+        url: bumpCacheUrl,
+        type: 'POST',
+        dataType: 'json',
+        timeout: 30000
+      }).done(function (res) {
+        if (!(res && (res.ok === 1 || res.ok === true))) {
+          toast((res && res.message) || 'Bump gagal', 'err');
+          return;
+        }
+        var msg = res.message || ('cache_version → ' + (res.cache_version || '?'));
+        setCacheVersionDisplay(res.cache_version, msg);
+        toast(msg, 'info');
+      }).fail(function (xhr) {
+        var msg = 'Bump gagal';
+        try {
+          var j = JSON.parse(xhr.responseText || '{}');
+          if (j.message) msg = j.message;
+        } catch (e) {}
+        toast(msg, 'err');
+      }).always(function () {
+        setLoading(false);
+        $('#ilBtnBump').html('<i class="fas fa-sync-alt"></i> BUMP +1');
+      });
+    }
+
+    function refreshCacheVersionQuiet() {
+      $.ajax({
+        url: cacheVersionUrl,
+        type: 'GET',
+        dataType: 'json',
+        timeout: 15000
+      }).done(function (res) {
+        if (res && res.cache_version != null) {
+          setCacheVersionDisplay(res.cache_version, '');
+        }
+      });
+    }
 
     function toast(msg, kind) {
       if (window.MdlToast) {
@@ -553,7 +673,7 @@
       running = !!on;
       $root.toggleClass('is-loading', running);
       $loading.attr('aria-busy', running ? 'true' : 'false');
-      $('#ilBtnRun, #ilBtnPropose, #ilBtnProposeUntouch, #ilBtnApply, #ilBtnApplyUntouch').prop('disabled', running);
+      $('#ilBtnRun, #ilBtnPropose, #ilBtnProposeUntouch, #ilBtnApply, #ilBtnApplyUntouch, #ilBtnBump').prop('disabled', running);
       if (title) $('#ilLoadingTitle').text(title);
       if (sub) $('#ilLoadingSub').text(sub);
       if (!running) {
@@ -856,6 +976,7 @@
         if (res.verify_ok) msg += ' Verifikasi: intent = ' + (res.verify_intent || intent);
         else msg += ' Verifikasi: dapat ' + (res.verify_intent || '—') + ' (target ' + intent + ').';
         $applyMsg.css('color', res.verify_ok ? '#15803d' : '#b45309').text(msg);
+        applyCacheFromResponse(res);
         if (res.verify) showResult(res.verify);
         toast(res.verify_ok ? 'Berhasil diajarkan' : 'Tersimpan, verifikasi belum pas', res.verify_ok ? 'info' : 'warn');
       }).fail(function () {
@@ -909,6 +1030,7 @@
         if (res.verify_ok) msg += ' Verifikasi: bukan ' + intent + ' (dapat ' + (res.verify_intent || '—') + ').';
         else msg += ' Verifikasi: masih ' + (res.verify_intent || intent) + '.';
         $untouchMsg.css('color', res.verify_ok ? '#15803d' : '#b45309').text(msg);
+        applyCacheFromResponse(res);
         if (res.verify) showResult(res.verify);
         toast(res.verify_ok ? 'Berhasil dikeluarkan' : 'Tersimpan, verifikasi masih di intent ini', res.verify_ok ? 'info' : 'warn');
       }).fail(function () {
@@ -917,6 +1039,7 @@
     }
 
     $btn.off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runCheck(); });
+    $('#ilBtnBump').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runBumpCache(); });
     $('#ilBtnPropose').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runPropose(); });
     $('#ilBtnProposeUntouch').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runProposeUntouch(); });
     $('#ilBtnApply').off('click.intentLab').on('click.intentLab', function (e) { e.preventDefault(); runApply(); });
@@ -937,6 +1060,7 @@
         runCheck();
       }
     });
+    refreshCacheVersionQuiet();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
