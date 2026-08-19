@@ -34,23 +34,7 @@ class Blast extends WaDeskController
             $this->error('template_id wajib', 400);
         }
 
-        $tpl = $this->db($this->db_index)->query(
-            "SELECT t.* FROM wa_templates t
-             WHERE t.id = ? AND EXISTS (
-                SELECT 1 FROM ycloud_keys k
-                WHERE k.tenant_id = ?
-                  " . (!$isAdmin ? "AND k.team_id = ?" : "") . "
-                  AND (
-                    (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
-                    OR k.id = t.ycloud_key_id
-                  )
-             )
-             LIMIT 1",
-            $isAdmin
-                ? [$templateId, (int) $user['tenant_id']]
-                : [$templateId, (int) $user['tenant_id'], (int) $user['team_id']]
-        )->row_array();
-
+        $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
         if (!$tpl) {
             $this->error('Template tidak ditemukan', 404);
         }
@@ -96,31 +80,30 @@ class Blast extends WaDeskController
             $this->error('campaign_name maksimal 150 karakter', 400);
         }
 
-        $keyId = (int) ($body['ycloud_key_id'] ?? 0);
+        $channelId = (int) ($body['channel_id'] ?? $body['ycloud_key_id'] ?? 0);
         $templateId = (int) ($body['template_id'] ?? 0);
 
-        if ($keyId <= 0 || $templateId <= 0) {
-            $this->error('ycloud_key_id dan template_id wajib', 400);
+        if ($channelId <= 0 || $templateId <= 0) {
+            $this->error('channel_id dan template_id wajib', 400);
         }
 
-        // Validate key ownership
-        $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys
+        $tbl = $this->channelsTable();
+        $channel = $this->db($this->db_index)->query(
+            "SELECT * FROM {$tbl}
              WHERE id = ? AND tenant_id = ? AND status = 'active'"
              . (!$isAdmin ? " AND team_id = ?" : "")
              . " LIMIT 1",
             $isAdmin
-                ? [$keyId, (int) $user['tenant_id']]
-                : [$keyId, (int) $user['tenant_id'], (int) $user['team_id']]
+                ? [$channelId, (int) $user['tenant_id']]
+                : [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
-        if (!$key) {
-            $this->error('API key tidak ditemukan atau tidak aktif', 404);
+        if (!$channel) {
+            $this->error('Channel tidak ditemukan atau tidak aktif', 404);
         }
 
-        // Validate template ownership (shared by same YCloud credential hash)
-        $tpl = $this->findTemplateForKey($templateId, $key);
+        $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
         if (!$tpl) {
-            $this->error('Template tidak ditemukan untuk API key ini', 404);
+            $this->error('Template tidak ditemukan', 404);
         }
 
         $rows = $body['rows'] ?? [];
@@ -163,7 +146,7 @@ class Blast extends WaDeskController
         }
 
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->checkBatch($keyId, $phones);
+        $quota = $limitGuard->checkBatch($channelId, $phones);
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],
@@ -174,7 +157,7 @@ class Blast extends WaDeskController
         }
 
         $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $teamId = (int) $key['team_id'];
+        $teamId = (int) $channel['team_id'];
         $teamQuota->ensureRow($teamId, (int) $user['tenant_id']);
         $rowCount = count($rows);
         if (!$teamQuota->canConsume($teamId, $rowCount)) {
@@ -192,7 +175,7 @@ class Blast extends WaDeskController
         // Insert blast job
         $blastId = (int) $this->db($this->db_index)->insert('wa_blasts', [
             'tenant_id'     => (int) $user['tenant_id'],
-            'ycloud_key_id' => $keyId,
+            'ycloud_key_id' => $channelId,
             'template_id'   => $templateId,
             'created_by'    => (int) $user['id'],
             'campaign_name' => $campaignName,
@@ -229,12 +212,13 @@ class Blast extends WaDeskController
         $page = max(1, (int) $this->query('page', 1));
         $limit = 30;
         $offset = ($page - 1) * $limit;
+        $tbl = $this->channelsTable();
 
         $sql = "SELECT b.*, t.template_name, k.label AS key_label, k.phone_number AS wa_number,
                        u.name AS created_by_name
                 FROM wa_blasts b
                 INNER JOIN wa_templates t ON t.id = b.template_id
-                INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+                INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
                 INNER JOIN users u ON u.id = b.created_by
                 WHERE b.tenant_id = ?";
         $binds = [(int) $user['tenant_id']];
@@ -254,7 +238,7 @@ class Blast extends WaDeskController
         // Count for pagination
         $countSql = "SELECT COUNT(*) AS cnt
                      FROM wa_blasts b
-                     INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+                     INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
                      WHERE b.tenant_id = ?";
         $countBinds = [(int) $user['tenant_id']];
         if (!$isAdmin) {
@@ -270,7 +254,7 @@ class Blast extends WaDeskController
         // Distinct campaign names for filter dropdown
         $campaignSql = "SELECT DISTINCT b.campaign_name
                         FROM wa_blasts b
-                        INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+                        INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
                         WHERE b.tenant_id = ?";
         $campaignBinds = [(int) $user['tenant_id']];
         if (!$isAdmin) {
@@ -302,12 +286,13 @@ class Blast extends WaDeskController
             $this->error('id wajib', 400);
         }
 
+        $tbl = $this->channelsTable();
         $blast = $this->db($this->db_index)->query(
             "SELECT b.*, t.template_name, t.body_preview, k.label AS key_label, k.phone_number AS wa_number,
                     u.name AS created_by_name
              FROM wa_blasts b
              INNER JOIN wa_templates t ON t.id = b.template_id
-             INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+             INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
              INNER JOIN users u ON u.id = b.created_by
              WHERE b.id = ? AND b.tenant_id = ?"
              . (!$isAdmin ? " AND k.team_id = ?" : "")
@@ -367,10 +352,11 @@ class Blast extends WaDeskController
             $this->error('blast_id wajib', 400);
         }
 
+        $tbl = $this->channelsTable();
         $blast = $this->db($this->db_index)->query(
             "SELECT b.*
              FROM wa_blasts b
-             INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+             INNER JOIN {$tbl} k ON k.id = b.ycloud_key_id
              WHERE b.id = ? AND b.tenant_id = ?"
              . (!$isAdmin ? " AND k.team_id = ?" : "")
              . " LIMIT 1",

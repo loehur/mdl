@@ -173,37 +173,45 @@ class Quota extends WaDeskController
         ]);
     }
 
-    /** Balance for the team that owns a YCloud key (blast UI). */
+    /** Balance for the team that owns a channel (blast UI). */
     public function forKey()
+    {
+        return $this->forChannel();
+    }
+
+    public function forChannel()
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
 
-        $keyId = (int) $this->query('ycloud_key_id', 0);
-        if ($keyId <= 0) {
-            $this->error('ycloud_key_id wajib', 400);
+        $channelId = (int) ($this->query('channel_id', 0) ?: $this->query('ycloud_key_id', 0));
+        if ($channelId <= 0) {
+            $this->error('channel_id wajib', 400);
         }
 
-        $key = $this->db($this->db_index)->query(
+        $tbl = $this->channelsTable();
+        $channel = $this->db($this->db_index)->query(
             "SELECT k.id, k.team_id, k.label, t.name AS team_name
-             FROM ycloud_keys k
+             FROM {$tbl} k
              INNER JOIN teams t ON t.id = k.team_id
              WHERE k.id = ? AND k.tenant_id = ? LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
+            [$channelId, (int) $admin['tenant_id']]
         )->row_array();
-        if (!$key) {
-            $this->error('API key tidak ditemukan', 404);
+        if (!$channel) {
+            $this->error('Channel tidak ditemukan', 404);
         }
 
         $quota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $quota->ensureRow((int) $key['team_id'], (int) $admin['tenant_id']);
+        $quota->ensureRow((int) $channel['team_id'], (int) $admin['tenant_id']);
 
         $this->success([
-            'ycloud_key_id' => (int) $key['id'],
-            'team_id' => (int) $key['team_id'],
-            'team_name' => $key['team_name'],
-            'key_label' => $key['label'],
-            'balance' => $quota->getBalance((int) $key['team_id']),
+            'channel_id' => (int) $channel['id'],
+            'ycloud_key_id' => (int) $channel['id'],
+            'team_id' => (int) $channel['team_id'],
+            'team_name' => $channel['team_name'],
+            'key_label' => $channel['label'],
+            'channel_label' => $channel['label'],
+            'balance' => $quota->getBalance((int) $channel['team_id']),
         ]);
     }
 }

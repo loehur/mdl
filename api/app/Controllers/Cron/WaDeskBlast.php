@@ -3,7 +3,6 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
-use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
 use App\Helpers\WaDesk\TemplateSender as WaDeskTemplateSender;
 
 /**
@@ -32,11 +31,12 @@ class WaDeskBlast extends Controller
         $failed = 0;
 
         // Pick pending blast jobs (oldest first)
+        $channelsTable = $this->tableExists('wa_channels') ? 'wa_channels' : 'ycloud_keys';
         $blasts = $db->query(
-            "SELECT b.*, k.api_key_enc, k.phone_number, k.tenant_id AS key_tenant_id, k.team_id,
+            "SELECT b.*, k.device_id, k.phone_number, k.tenant_id AS key_tenant_id, k.team_id,
                     t.template_name, t.language, t.body_preview
              FROM wa_blasts b
-             INNER JOIN ycloud_keys k ON k.id = b.ycloud_key_id
+             INNER JOIN {$channelsTable} k ON k.id = b.ycloud_key_id
              INNER JOIN wa_templates t ON t.id = b.template_id
              WHERE b.status IN ('pending','processing')
              ORDER BY b.id ASC
@@ -83,9 +83,9 @@ class WaDeskBlast extends Controller
                 continue;
             }
 
-            $keyRow = [
+            $channelRow = [
                 'id'          => (int) $blast['ycloud_key_id'],
-                'api_key_enc' => $blast['api_key_enc'],
+                'device_id'   => $blast['device_id'] ?? '',
                 'phone_number'=> $blast['phone_number'],
                 'tenant_id'   => (int) $blast['key_tenant_id'],
                 'team_id'     => (int) $blast['team_id'],
@@ -112,7 +112,7 @@ class WaDeskBlast extends Controller
                     }
                 }
 
-                $result = $sender->sendOne($keyRow, $tplRow, $paramDefs, $phone, $rawParams, 0);
+                $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0);
 
                 if ($result['success']) {
                     $db->update('wa_blast_recipients', [
@@ -164,6 +164,20 @@ class WaDeskBlast extends Controller
             . $output;
 
         echo $output;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            $row = $this->db(self::DB_INDEX)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                [$table]
+            )->row_array();
+            return (int) ($row['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private function finishIfComplete($db, array $blast): void

@@ -107,11 +107,11 @@ class Teams extends WaDeskController
         }
 
         $keys = $this->db($this->db_index)->query(
-            "SELECT COUNT(*) AS c FROM ycloud_keys WHERE team_id = ?",
+            "SELECT COUNT(*) AS c FROM {$this->channelsTable()} WHERE team_id = ?",
             [$id]
         )->row_array();
         if ((int) ($keys['c'] ?? 0) > 0) {
-            $this->error('Pindahkan/hapus API key team dulu', 400);
+            $this->error('Pindahkan/hapus channel team dulu', 400);
         }
 
         $this->db($this->db_index)->delete('teams', ['id' => $id]);

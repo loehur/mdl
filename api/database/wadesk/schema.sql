@@ -52,40 +52,39 @@ CREATE TABLE IF NOT EXISTS wadesk_tokens (
   CONSTRAINT fk_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS ycloud_keys (
+CREATE TABLE IF NOT EXISTS wa_channels (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
   team_id INT UNSIGNED NOT NULL,
   label VARCHAR(150) NOT NULL,
-  api_key_enc TEXT NOT NULL,
-  api_key_hash CHAR(64) NULL,
+  device_id VARCHAR(64) NULL,
+  channel_type ENUM('waba','device') NOT NULL DEFAULT 'waba',
   phone_number VARCHAR(32) NOT NULL,
-  ycloud_phone_id VARCHAR(64) NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_keys_tenant (tenant_id),
-  INDEX idx_keys_team (team_id),
-  INDEX idx_keys_phone (phone_number),
-  INDEX idx_keys_phone_id (ycloud_phone_id),
-  INDEX idx_keys_hash (api_key_hash),
-  CONSTRAINT fk_keys_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  CONSTRAINT fk_keys_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  UNIQUE KEY uq_channel_team (team_id),
+  UNIQUE KEY uq_channel_device (device_id),
+  INDEX idx_channels_tenant (tenant_id),
+  INDEX idx_channels_team (team_id),
+  INDEX idx_channels_phone (phone_number),
+  CONSTRAINT fk_channels_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+  CONSTRAINT fk_channels_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_templates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id INT UNSIGNED NULL,
   ycloud_key_id INT UNSIGNED NULL,
-  api_key_hash CHAR(64) NULL,
   template_name VARCHAR(150) NOT NULL,
   language VARCHAR(16) NOT NULL DEFAULT 'id',
   body_preview TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_tpl_tenant (tenant_id),
   INDEX idx_tpl_key (ycloud_key_id),
-  INDEX idx_tpl_hash (api_key_hash),
-  UNIQUE KEY uq_tpl_hash_name_lang (api_key_hash, template_name, language),
-  CONSTRAINT fk_tpl_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE SET NULL
+  UNIQUE KEY uq_tpl_tenant_name_lang (tenant_id, template_name, language),
+  CONSTRAINT fk_tpl_key FOREIGN KEY (ycloud_key_id) REFERENCES wa_channels(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_template_params (
@@ -122,7 +121,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   INDEX idx_conv_last (last_message_at),
   CONSTRAINT fk_conv_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_conv_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-  CONSTRAINT fk_conv_key FOREIGN KEY (ycloud_key_id) REFERENCES ycloud_keys(id) ON DELETE CASCADE
+  CONSTRAINT fk_conv_key FOREIGN KEY (ycloud_key_id) REFERENCES wa_channels(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS messages (

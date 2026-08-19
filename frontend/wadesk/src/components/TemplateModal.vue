@@ -15,9 +15,9 @@
 
       <form class="p-4 space-y-4" @submit.prevent="submit">
         <div v-if="!fixedKeyId">
-          <label class="label">API key / nomor WA</label>
-          <select v-model="form.ycloud_key_id" required class="field" :disabled="busy" @change="onKeyChange">
-            <option disabled value="">Pilih key</option>
+          <label class="label">Channel / nomor WA</label>
+          <select v-model="form.channel_id" required class="field" :disabled="busy" @change="onKeyChange">
+            <option disabled value="">Pilih channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
             </option>
@@ -127,29 +127,13 @@ const props = defineProps({
 const emit = defineEmits(["close", "submit", "load-templates"]);
 
 const form = reactive({
-  ycloud_key_id: props.fixedKeyId || "",
+  channel_id: props.fixedKeyId || "",
   phone: props.fixedPhone || "",
   template_id: "",
 });
 const paramValues = reactive({});
 
-const filteredTemplates = computed(() => {
-  const kid = Number(form.ycloud_key_id || props.fixedKeyId);
-  if (!kid) return props.templates;
-
-  const key = (props.keys || []).find((k) => Number(k.id) === kid);
-  const keyHash = key?.api_key_hash || null;
-
-  return props.templates.filter((t) => {
-    // Exact key match always works
-    if (Number(t.ycloud_key_id) === kid) return true;
-    // Hash-based sharing: same credential → show
-    if (keyHash && t.api_key_hash && t.api_key_hash === keyHash) return true;
-    // No hash info yet (not synced) → show all so user isn't blocked
-    if (!keyHash && !t.api_key_hash) return true;
-    return false;
-  });
-});
+const filteredTemplates = computed(() => props.templates);
 
 const selectedTpl = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
@@ -212,8 +196,8 @@ watch(
   () => props.fixedKeyId,
   (v) => {
     if (v) {
-      form.ycloud_key_id = v;
-      emit("load-templates", v);
+      form.channel_id = v;
+      emit("load-templates");
     }
   },
   { immediate: true }
@@ -229,7 +213,7 @@ watch(
 
 function onKeyChange() {
   form.template_id = "";
-  emit("load-templates", form.ycloud_key_id);
+  emit("load-templates");
 }
 
 function onTplChange() {
@@ -251,7 +235,8 @@ function submit() {
   }
 
   emit("submit", {
-    ycloud_key_id: Number(form.ycloud_key_id || props.fixedKeyId),
+    channel_id: Number(form.channel_id || props.fixedKeyId),
+    ycloud_key_id: Number(form.channel_id || props.fixedKeyId),
     phone: form.phone || props.fixedPhone,
     template_id: Number(form.template_id),
     template_name: tpl?.template_name,

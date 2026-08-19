@@ -2,14 +2,11 @@
 
 namespace App\Controllers\WaDesk;
 
-use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
+use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
 
 /**
- * Templates — Admin CRUD WhatsApp templates + YCloud sync.
- *
- * Synced templates are shared by api_key_hash (same YCloud credential),
- * so all team keys / phone numbers using that credential can send them.
+ * Templates — Admin CRUD WhatsApp templates + Kirimin sync (tenant-wide).
  */
 class Templates extends WaDeskController
 {
@@ -17,104 +14,29 @@ class Templates extends WaDeskController
     {
         $this->verifyAuth();
         $user = $this->requireChatUser();
-
-        $keyId = $this->query('ycloud_key_id');
         $tenantId = (int) $user['tenant_id'];
-        $isAdmin = ($user['role'] ?? '') === 'admin';
+        $hasTenantCol = $this->columnExists('wa_templates', 'tenant_id');
 
-        $hasHashCol     = $this->columnExists('wa_templates', 'api_key_hash');
-        $hasKeyHashCol  = $this->columnExists('ycloud_keys', 'api_key_hash');
-
-        if ($keyId !== null && $keyId !== '') {
-            $kid = (int) $keyId;
-            $keySql = "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ?";
-            $keyBinds = [$kid, $tenantId];
-            if (!$isAdmin) {
-                $keySql .= ' AND team_id = ?';
-                $keyBinds[] = (int) $user['team_id'];
-            }
-            $key = $this->db($this->db_index)->query($keySql, $keyBinds)->row_array();
-            if (!$key) {
-                $this->success(['templates' => []]);
-            }
-
-            if ($hasHashCol && $hasKeyHashCol) {
-                $hash = $this->ensureKeyApiHash($key);
-                $sql = "SELECT t.*,
-                               COALESCE(k.label, k2.label) AS key_label,
-                               COALESCE(k.team_id, k2.team_id) AS team_id,
-                               COALESCE(k.phone_number, k2.phone_number) AS phone_number
-                        FROM wa_templates t
-                        LEFT JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-                        LEFT JOIN ycloud_keys k2 ON k2.id = ?
-                        WHERE (
-                            (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND t.api_key_hash = ?)
-                            OR ((t.api_key_hash IS NULL OR t.api_key_hash = '') AND t.ycloud_key_id = ?)
-                        )
-                        ORDER BY t.template_name ASC";
-                $rows = $this->db($this->db_index)->query($sql, [$kid, $hash !== '' ? $hash : '__none__', $kid])->result_array();
-            } else {
-                // Legacy: no hash columns
-                $sql = "SELECT t.*, k.label AS key_label, k.team_id, k.phone_number
-                        FROM wa_templates t
-                        LEFT JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-                        WHERE t.ycloud_key_id = ?
-                        ORDER BY t.template_name ASC";
-                $rows = $this->db($this->db_index)->query($sql, [$kid])->result_array();
-            }
+        if ($hasTenantCol) {
+            $rows = $this->db($this->db_index)->query(
+                "SELECT t.* FROM wa_templates t
+                 WHERE t.tenant_id = ?
+                 ORDER BY t.template_name ASC",
+                [$tenantId]
+            )->result_array();
         } else {
-            if ($hasHashCol && $hasKeyHashCol) {
-                $sql = "SELECT t.*,
-                               (SELECT k.label FROM ycloud_keys k
-                                WHERE k.tenant_id = ?
-                                  AND (
-                                    (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
-                                    OR k.id = t.ycloud_key_id
-                                  )
-                                ORDER BY k.id ASC LIMIT 1) AS key_label,
-                               (SELECT k.team_id FROM ycloud_keys k
-                                WHERE k.tenant_id = ?
-                                  AND (
-                                    (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
-                                    OR k.id = t.ycloud_key_id
-                                  )
-                                ORDER BY k.id ASC LIMIT 1) AS team_id,
-                               (SELECT k.phone_number FROM ycloud_keys k
-                                WHERE k.tenant_id = ?
-                                  AND (
-                                    (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
-                                    OR k.id = t.ycloud_key_id
-                                  )
-                                ORDER BY k.id ASC LIMIT 1) AS phone_number
-                        FROM wa_templates t
-                        WHERE EXISTS (
-                            SELECT 1 FROM ycloud_keys k_access
-                            WHERE k_access.tenant_id = ?
-                              AND (
-                                (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k_access.api_key_hash = t.api_key_hash)
-                                OR ((t.api_key_hash IS NULL OR t.api_key_hash = '') AND k_access.id = t.ycloud_key_id)
-                              )";
-                $binds = [$tenantId, $tenantId, $tenantId, $tenantId];
-                if (!$isAdmin) {
-                    $sql .= ' AND k_access.team_id = ?';
-                    $binds[] = (int) $user['team_id'];
-                }
-                $sql .= ') ORDER BY t.template_name ASC';
-                $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
-            } else {
-                // Legacy: no hash columns
-                $sql = "SELECT t.*, k.label AS key_label, k.team_id, k.phone_number
-                        FROM wa_templates t
-                        INNER JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-                        WHERE k.tenant_id = ?";
-                $binds = [$tenantId];
-                if (!$isAdmin) {
-                    $sql .= ' AND k.team_id = ?';
-                    $binds[] = (int) $user['team_id'];
-                }
-                $sql .= ' ORDER BY t.template_name ASC';
-                $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
+            $tbl = $this->channelsTable();
+            $sql = "SELECT t.*, k.label AS key_label, k.team_id, k.phone_number
+                    FROM wa_templates t
+                    INNER JOIN {$tbl} k ON k.id = t.ycloud_key_id
+                    WHERE k.tenant_id = ?";
+            $binds = [$tenantId];
+            if (($user['role'] ?? '') !== 'admin') {
+                $sql .= ' AND k.team_id = ?';
+                $binds[] = (int) $user['team_id'];
             }
+            $sql .= ' ORDER BY t.template_name ASC';
+            $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
         }
 
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
@@ -152,35 +74,37 @@ class Templates extends WaDeskController
         $admin = $this->requireAdmin();
 
         $body = $this->isPost() ? $this->getBody() : [];
-        $keyId = (int) ($body['ycloud_key_id'] ?? $this->query('ycloud_key_id') ?? 0);
         $tplName = trim((string) ($body['template_name'] ?? $this->query('template_name') ?? ''));
-        if ($keyId <= 0 || $tplName === '') $this->error('ycloud_key_id dan template_name wajib', 400);
+        if ($tplName === '') {
+            $this->error('template_name wajib', 400);
+        }
 
-        $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
-        )->row_array();
-        if (!$key) $this->error('Key tidak ditemukan', 404);
-
-        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
-        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $client = new WaDeskKirimin();
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
 
         $found = null;
         foreach ($fetched['templates'] ?? [] as $t) {
-            if (($t['name'] ?? '') === $tplName) { $found = $t; break; }
+            if (($t['name'] ?? '') === $tplName) {
+                $found = $t;
+                break;
+            }
         }
-        if (!$found) $this->error('Template tidak ditemukan di YCloud', 404);
+        if (!$found) {
+            $this->error('Template tidak ditemukan di Kirimin', 404);
+        }
 
-        $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
+        $mapped = WaDeskKirimin::mapTemplateToWaDesk($found);
 
-        // Find ALL template rows with this name — may have duplicates from multi-key sync
         $allRows = $this->db($this->db_index)->query(
-            "SELECT id, ycloud_key_id, api_key_hash FROM wa_templates WHERE template_name = ? ORDER BY id ASC",
-            [$tplName]
+            "SELECT id FROM wa_templates
+             WHERE template_name = ? AND tenant_id = ?
+             ORDER BY id ASC",
+            [$tplName, (int) $admin['tenant_id']]
         )->result_array();
 
-        if (!$allRows) $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
+        if (!$allRows) {
+            $this->error('Template belum ada di DB, lakukan sync penuh dulu', 404);
+        }
 
         // Keep the row with the most params (or lowest id as tiebreak), delete the rest
         $bestId = (int) $allRows[0]['id'];
@@ -346,19 +270,10 @@ class Templates extends WaDeskController
     public function debugTemplate()
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $this->requireAdmin();
 
-        $keyId = (int) $this->query('ycloud_key_id');
         $tplName = trim((string) $this->query('template_name'));
-
-        $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
-        )->row_array();
-        if (!$key) $this->error('Key tidak ditemukan', 404);
-
-        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
-        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $client = new WaDeskKirimin();
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
 
         $found = null;
@@ -369,9 +284,11 @@ class Templates extends WaDeskController
             }
         }
 
-        if (!$found) $this->error('Template tidak ditemukan di YCloud', 404);
+        if (!$found) {
+            $this->error('Template tidak ditemukan di Kirimin', 404);
+        }
 
-        $mapped = WaDeskYCloud::mapTemplateToWaDesk($found);
+        $mapped = WaDeskKirimin::mapTemplateToWaDesk($found);
 
         $this->success([
             'raw_components' => $found['components'] ?? [],
@@ -380,13 +297,12 @@ class Templates extends WaDeskController
         ]);
     }
 
-    public function syncFromYCloud()
+    public function syncFromKirimin()
     {
-        // Temporary debug: wrap entire function to capture real exception
         try {
-            $this->_syncFromYCloudInner();
+            $this->_syncFromKiriminInner();
         } catch (\Throwable $e) {
-            $logLine = date('Y-m-d H:i:s') . ' syncFromYCloud EXCEPTION: '
+            $logLine = date('Y-m-d H:i:s') . ' syncFromKirimin EXCEPTION: '
                 . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
                 . "\nTrace: " . $e->getTraceAsString() . "\n---\n";
             \Log::write($logLine, 'wadesk', 'sync_exception');
@@ -394,7 +310,13 @@ class Templates extends WaDeskController
         }
     }
 
-    private function _syncFromYCloudInner()
+    /** @deprecated alias */
+    public function syncFromYCloud()
+    {
+        return $this->syncFromKirimin();
+    }
+
+    private function _syncFromKiriminInner()
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
@@ -402,57 +324,11 @@ class Templates extends WaDeskController
             $this->error('Method not allowed', 405);
         }
 
-        $body = $this->getBody();
-        $keyId = (int) ($body['ycloud_key_id'] ?? 0);
-        if ($keyId <= 0) {
-            $this->error('ycloud_key_id wajib', 400);
-        }
-
-        $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
-        )->row_array();
-        if (!$key) {
-            $this->error('API key tidak ditemukan', 404);
-        }
-
-        try {
-            $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
-        } catch (\Throwable $e) {
-            $this->error('Gagal decrypt API key', 500);
-        }
-        if ($apiKey === '') {
-            $this->error('API key kosong', 400);
-        }
-
-        $hash = WaDeskCrypto::fingerprint($apiKey);
-
-        // Detect whether migration 006 (api_key_hash columns) has been applied
-        $hashColExists = $this->columnExists('ycloud_keys', 'api_key_hash');
-
-        if ($hashColExists) {
-            $this->db($this->db_index)->update('ycloud_keys', [
-                'api_key_hash' => $hash,
-            ], ['id' => $keyId]);
-            $key['api_key_hash'] = $hash;
-
-            $siblingCount = $this->backfillTenantKeyHashes((int) $admin['tenant_id'], $hash, $apiKey);
-            // Dedupe by key_id BEFORE backfilling hash (avoids UNIQUE constraint violation on UPDATE)
-            $this->dedupeTemplatesByKeyId($hash);
-            $this->backfillTemplateHashesFromKeys($hash);
-            $merged = $this->dedupeTemplatesForHash($hash);
-        } else {
-            // Migration not yet applied — fall back to key-scoped sync (legacy behaviour)
-            $hashColExists = false;
-            $hash = '';
-            $siblingCount = 1;
-            $merged = 0;
-        }
-
-        $client = new WaDeskYCloud($apiKey, (string) ($key['phone_number'] ?? ''));
+        $tenantId = (int) $admin['tenant_id'];
+        $client = new WaDeskKirimin();
         $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
         if (!$fetched['success']) {
-            $this->error('Gagal ambil template dari YCloud: ' . ($fetched['error'] ?: 'unknown'), 502);
+            $this->error('Gagal ambil template dari Kirimin: ' . ($fetched['error'] ?: 'unknown'), 502);
         }
 
         $created = 0;
@@ -460,20 +336,16 @@ class Templates extends WaDeskController
         $skipped = 0;
         $deleted = 0;
         $synced = [];
-        $keepKeys = []; // "name|lang" still present in YCloud
+        $keepKeys = [];
+        $hasTenantCol = $this->columnExists('wa_templates', 'tenant_id');
 
         foreach ($fetched['templates'] as $remote) {
             if (!is_array($remote)) {
                 continue;
             }
-            $mapped = WaDeskYCloud::mapTemplateToWaDesk($remote);
+            $mapped = WaDeskKirimin::mapTemplateToWaDesk($remote);
             $name = $mapped['template_name'];
             $lang = $mapped['language'];
-            \Log::write('SYNC_MAPPED: ' . json_encode([
-                'name'   => $name,
-                'params' => $mapped['params'],
-                'raw_components' => $remote['components'] ?? [],
-            ], JSON_UNESCAPED_UNICODE), 'wadesk', 'sync_template_map');
             if ($name === '') {
                 $skipped++;
                 continue;
@@ -485,118 +357,69 @@ class Templates extends WaDeskController
 
             $keepKeys[$name . '|' . $lang] = true;
 
-            // Find existing row — search by hash first, then by key_id fallback
             $existing = null;
-            if ($hash !== '') {
+            if ($hasTenantCol) {
                 $existing = $this->db($this->db_index)->query(
                     "SELECT id FROM wa_templates
-                     WHERE api_key_hash = ? AND template_name = ? AND language = ?
+                     WHERE tenant_id = ? AND template_name = ? AND language = ?
                      LIMIT 1",
-                    [$hash, $name, $lang]
-                )->row_array();
-            }
-            if (!$existing) {
-                $existing = $this->db($this->db_index)->query(
-                    "SELECT id FROM wa_templates
-                     WHERE ycloud_key_id = ? AND template_name = ? AND language = ?
-                     LIMIT 1",
-                    [$keyId, $name, $lang]
+                    [$tenantId, $name, $lang]
                 )->row_array();
             }
 
             if ($existing) {
                 $tplId = (int) $existing['id'];
-                $updateData = ['body_preview' => $mapped['body_preview'], 'ycloud_key_id' => $keyId];
-                if ($hash !== '') {
-                    $updateData['api_key_hash'] = $hash;
-                }
-                $this->db($this->db_index)->update('wa_templates', $updateData, ['id' => $tplId]);
+                $this->db($this->db_index)->update('wa_templates', [
+                    'body_preview' => $mapped['body_preview'],
+                ], ['id' => $tplId]);
                 $this->replaceParams($tplId, $mapped['params']);
                 $updated++;
                 $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
             } else {
                 $insertData = [
-                    'ycloud_key_id' => $keyId,
                     'template_name' => $name,
                     'language' => $lang,
                     'body_preview' => $mapped['body_preview'],
+                    'ycloud_key_id' => null,
                 ];
-                if ($hash !== '') {
-                    $insertData['api_key_hash'] = $hash;
+                if ($hasTenantCol) {
+                    $insertData['tenant_id'] = $tenantId;
                 }
-                try {
-                    $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
-                } catch (\Throwable $insertEx) {
-                    // UNIQUE constraint hit (race / backfill already set hash) — re-fetch and update
-                    $tplId = 0;
-                    $retry = $hash !== ''
-                        ? $this->db($this->db_index)->query(
-                            "SELECT id FROM wa_templates WHERE api_key_hash = ? AND template_name = ? AND language = ? LIMIT 1",
-                            [$hash, $name, $lang]
-                          )->row_array()
-                        : $this->db($this->db_index)->query(
-                            "SELECT id FROM wa_templates WHERE ycloud_key_id = ? AND template_name = ? AND language = ? LIMIT 1",
-                            [$keyId, $name, $lang]
-                          )->row_array();
-                    if ($retry) {
-                        $tplId = (int) $retry['id'];
-                        $upd = ['body_preview' => $mapped['body_preview'], 'ycloud_key_id' => $keyId];
-                        if ($hash !== '') $upd['api_key_hash'] = $hash;
-                        $this->db($this->db_index)->update('wa_templates', $upd, ['id' => $tplId]);
-                        $updated++;
-                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
-                    } else {
-                        $skipped++;
-                    }
-                }
-                if ($tplId > 0) {
-                    $this->replaceParams($tplId, $mapped['params']);
-                    if (!isset($retry)) {
-                        $created++;
-                        $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
-                    }
-                    unset($retry);
-                }
+                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
+                $this->replaceParams($tplId, $mapped['params']);
+                $created++;
+                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
             }
         }
 
-        // Remove local templates for this credential that no longer exist in YCloud
-        $deleted = $this->pruneMissingTemplates($keyId, $hash, $keepKeys);
+        $deleted = $this->pruneMissingTemplates($tenantId, $keepKeys);
 
         $this->success([
-            'ycloud_key_id' => $keyId,
-            'api_key_hash' => $hash,
-            'shared_with_keys' => $siblingCount,
-            'merged_duplicates' => $merged,
+            'tenant_id' => $tenantId,
             'fetched' => count($fetched['templates']),
             'created' => $created,
             'updated' => $updated,
             'deleted' => $deleted,
             'skipped' => $skipped,
             'templates' => $synced,
-        ], "Sinkron selesai: {$created} baru, {$updated} diupdate, {$deleted} dihapus (dibagikan ke {$siblingCount} key dengan kredensial sama)");
+        ], "Sinkron selesai: {$created} baru, {$updated} diupdate, {$deleted} dihapus");
     }
 
-    /**
-     * Delete local templates for this API credential that are no longer APPROVED in YCloud.
-     *
-     * @param array<string,true> $keepKeys map of "template_name|language"
-     */
-    private function pruneMissingTemplates(int $keyId, string $hash, array $keepKeys): int
+    private function _syncFromYCloudInner()
     {
-        if ($hash !== '') {
-            $locals = $this->db($this->db_index)->query(
-                "SELECT id, template_name, language FROM wa_templates
-                 WHERE api_key_hash = ?
-                    OR (ycloud_key_id = ? AND (api_key_hash IS NULL OR api_key_hash = ''))",
-                [$hash, $keyId]
-            )->result_array();
-        } else {
-            $locals = $this->db($this->db_index)->query(
-                "SELECT id, template_name, language FROM wa_templates WHERE ycloud_key_id = ?",
-                [$keyId]
-            )->result_array();
+        return $this->_syncFromKiriminInner();
+    }
+
+    /** @param array<string,true> $keepKeys */
+    private function pruneMissingTemplates(int $tenantId, array $keepKeys): int
+    {
+        if (!$this->columnExists('wa_templates', 'tenant_id')) {
+            return 0;
         }
+        $locals = $this->db($this->db_index)->query(
+            "SELECT id, template_name, language FROM wa_templates WHERE tenant_id = ?",
+            [$tenantId]
+        )->result_array();
 
         $removed = 0;
         foreach ($locals as $row) {
@@ -621,26 +444,22 @@ class Templates extends WaDeskController
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['ycloud_key_id', 'template_name']);
+        $this->validate($body, ['template_name']);
 
-        $keyId = (int) $body['ycloud_key_id'];
-        $key = $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$keyId, (int) $admin['tenant_id']]
-        )->row_array();
-        if (!$key) {
-            $this->error('API key tidak ditemukan', 404);
-        }
-
-        $hash = $this->ensureKeyApiHash($key);
-
-        $tplId = (int) $this->db($this->db_index)->insert('wa_templates', [
-            'ycloud_key_id' => $keyId,
-            'api_key_hash' => $hash !== '' ? $hash : null,
+        $tenantId = (int) $admin['tenant_id'];
+        $insertData = [
             'template_name' => trim($body['template_name']),
             'language' => trim($body['language'] ?? 'id') ?: 'id',
             'body_preview' => $body['body_preview'] ?? null,
-        ]);
+            'ycloud_key_id' => null,
+        ];
+        if ($this->columnExists('wa_templates', 'tenant_id')) {
+            $insertData['tenant_id'] = $tenantId;
+        } elseif (!empty($body['channel_id']) || !empty($body['ycloud_key_id'])) {
+            $insertData['ycloud_key_id'] = (int) ($body['channel_id'] ?? $body['ycloud_key_id']);
+        }
+
+        $tplId = (int) $this->db($this->db_index)->insert('wa_templates', $insertData);
 
         $this->replaceParams($tplId, $body['params'] ?? []);
 
@@ -665,21 +484,6 @@ class Templates extends WaDeskController
         }
 
         $data = [];
-        if (isset($body['ycloud_key_id'])) {
-            $keyId = (int) $body['ycloud_key_id'];
-            $key = $this->db($this->db_index)->query(
-                "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$keyId, (int) $admin['tenant_id']]
-            )->row_array();
-            if (!$key) {
-                $this->error('API key tidak ditemukan', 404);
-            }
-            $data['ycloud_key_id'] = $keyId;
-            $hash = $this->ensureKeyApiHash($key);
-            if ($hash !== '') {
-                $data['api_key_hash'] = $hash;
-            }
-        }
         if (isset($body['template_name'])) {
             $data['template_name'] = trim($body['template_name']);
         }
@@ -787,156 +591,6 @@ class Templates extends WaDeskController
 
     private function getTenantTemplate(int $id, int $tenantId): ?array
     {
-        if ($this->columnExists('wa_templates', 'api_key_hash') && $this->columnExists('ycloud_keys', 'api_key_hash')) {
-            return $this->db($this->db_index)->query(
-                "SELECT t.* FROM wa_templates t
-                 WHERE t.id = ? AND EXISTS (
-                    SELECT 1 FROM ycloud_keys k
-                    WHERE k.tenant_id = ?
-                      AND (
-                        (t.api_key_hash IS NOT NULL AND t.api_key_hash <> '' AND k.api_key_hash = t.api_key_hash)
-                        OR k.id = t.ycloud_key_id
-                      )
-                 )
-                 LIMIT 1",
-                [$id, $tenantId]
-            )->row_array() ?: null;
-        }
-        // Legacy: no hash columns yet
-        return $this->db($this->db_index)->query(
-            "SELECT t.* FROM wa_templates t
-             INNER JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-             WHERE t.id = ? AND k.tenant_id = ? LIMIT 1",
-            [$id, $tenantId]
-        )->row_array() ?: null;
-    }
-
-    /** Set api_key_hash on other tenant keys that decrypt to the same credential. */
-    private function backfillTenantKeyHashes(int $tenantId, string $targetHash, string $plainApiKey): int
-    {
-        $keys = $this->db($this->db_index)->query(
-            "SELECT id, api_key_enc FROM ycloud_keys WHERE tenant_id = ?",
-            [$tenantId]
-        )->result_array();
-        $count = 0;
-        foreach ($keys as $k) {
-            $existing = trim((string) ($k['api_key_hash'] ?? ''));
-            if ($existing === $targetHash) {
-                $count++;
-                continue;
-            }
-            try {
-                $plain = WaDeskCrypto::decrypt((string) $k['api_key_enc']);
-            } catch (\Throwable $e) {
-                continue;
-            }
-            if (WaDeskCrypto::fingerprint($plain) !== $targetHash) {
-                continue;
-            }
-            if ($this->columnExists('ycloud_keys', 'api_key_hash')) {
-                $this->db($this->db_index)->update('ycloud_keys', [
-                    'api_key_hash' => $targetHash,
-                ], ['id' => (int) $k['id']]);
-            }
-            $count++;
-        }
-        return max(1, $count);
-    }
-
-    /**
-     * Before setting api_key_hash, remove duplicate (template_name+language) rows
-     * that belong to keys sharing the same credential — keeping the oldest row.
-     * This prevents UNIQUE constraint violation when the UPDATE sets api_key_hash.
-     */
-    private function dedupeTemplatesByKeyId(string $hash): void
-    {
-        // Find all key IDs that share this credential hash
-        $keys = $this->db($this->db_index)->query(
-            "SELECT id FROM ycloud_keys WHERE api_key_hash = ?",
-            [$hash]
-        )->result_array();
-        if (count($keys) < 2) {
-            return; // nothing to dedupe
-        }
-        $keyIds = array_column($keys, 'id');
-        $placeholders = implode(',', array_fill(0, count($keyIds), '?'));
-
-        // Find duplicates across those key_ids
-        $dupes = $this->db($this->db_index)->query(
-            "SELECT template_name, language, COUNT(*) AS cnt
-             FROM wa_templates
-             WHERE ycloud_key_id IN ($placeholders)
-             GROUP BY template_name, language
-             HAVING cnt > 1",
-            $keyIds
-        )->result_array();
-
-        foreach ($dupes as $d) {
-            // Keep the row with the most params
-            $candidates = $this->db($this->db_index)->query(
-                "SELECT t.id,
-                        (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_cnt
-                 FROM wa_templates t
-                 WHERE t.ycloud_key_id IN ($placeholders)
-                   AND t.template_name = ? AND t.language = ?
-                 ORDER BY param_cnt DESC, t.id ASC",
-                array_merge($keyIds, [$d['template_name'], $d['language']])
-            )->result_array();
-            $keepId = (int) $candidates[0]['id'];
-            foreach (array_slice($candidates, 1) as $ex) {
-                $eid = (int) $ex['id'];
-                $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $eid]);
-                $this->db($this->db_index)->delete('wa_templates', ['id' => $eid]);
-            }
-        }
-    }
-
-    private function backfillTemplateHashesFromKeys(string $hash): void
-    {
-        if (!$this->columnExists('wa_templates', 'api_key_hash')) {
-            return;
-        }
-        $this->db($this->db_index)->query(
-            "UPDATE wa_templates t
-             INNER JOIN ycloud_keys k ON k.id = t.ycloud_key_id
-             SET t.api_key_hash = k.api_key_hash
-             WHERE k.api_key_hash = ?
-               AND (t.api_key_hash IS NULL OR t.api_key_hash = '')",
-            [$hash]
-        );
-    }
-
-    /** Keep one row per (hash, name, language); delete extras. Keep the one with most params. */
-    private function dedupeTemplatesForHash(string $hash): int
-    {
-        $dupes = $this->db($this->db_index)->query(
-            "SELECT template_name, language, COUNT(*) AS cnt
-             FROM wa_templates
-             WHERE api_key_hash = ?
-             GROUP BY template_name, language
-             HAVING cnt > 1",
-            [$hash]
-        )->result_array();
-        $removed = 0;
-        foreach ($dupes as $d) {
-            // Find the row with the most params to keep
-            $candidates = $this->db($this->db_index)->query(
-                "SELECT t.id,
-                        (SELECT COUNT(*) FROM wa_template_params p WHERE p.template_id = t.id) AS param_cnt
-                 FROM wa_templates t
-                 WHERE t.api_key_hash = ? AND t.template_name = ? AND t.language = ?
-                 ORDER BY param_cnt DESC, t.id ASC",
-                [$hash, $d['template_name'], $d['language']]
-            )->result_array();
-            $keepId = (int) $candidates[0]['id'];
-            $extras = array_filter($candidates, fn($r) => (int) $r['id'] !== $keepId);
-            foreach ($extras as $ex) {
-                $eid = (int) $ex['id'];
-                $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $eid]);
-                $this->db($this->db_index)->delete('wa_templates', ['id' => $eid]);
-                $removed++;
-            }
-        }
-        return $removed;
+        return $this->findTemplateForTenant($id, $tenantId);
     }
 }

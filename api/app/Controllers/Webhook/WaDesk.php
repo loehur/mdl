@@ -6,8 +6,7 @@ use App\Core\Controller;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 
 /**
- * YCloud webhook for WaDesk — /Webhook/WaDesk
- * Resolves API key by phone / ycloud_phone_id, stores into mdl_wadesk.
+ * Kirimin.id webhook for WaDesk — /Webhook/WaDesk
  */
 class WaDesk extends Controller
 {
@@ -31,8 +30,8 @@ class WaDesk extends Controller
     private function verify(): void
     {
         $mode = $_GET['hub_mode'] ?? null;
-        $token = $_GET['hub_verify_token'] ?? null;
-        $challenge = $_GET['hub_challenge'] ?? null;
+        $token = $_GET['hub_verify_token'] ?? ($_GET['token'] ?? null);
+        $challenge = $_GET['hub_challenge'] ?? ($_GET['challenge'] ?? null);
         $verifyToken = defined('\Env::WADESK_VERIFY_TOKEN')
             ? \Env::WADESK_VERIFY_TOKEN
             : (\Env::WA_VERIFY_TOKEN ?? '');
@@ -43,6 +42,12 @@ class WaDesk extends Controller
             exit;
         }
 
+        if ($token !== null && $token === $verifyToken) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'ok']);
+            exit;
+        }
+
         http_response_code(403);
         exit;
     }
@@ -50,6 +55,10 @@ class WaDesk extends Controller
     private function receive(): void
     {
         $json = file_get_contents('php://input');
+        if (class_exists('\Log')) {
+            \Log::write('WaDesk webhook raw: ' . mb_substr((string) $json, 0, 4000), 'wadesk', 'Webhook');
+        }
+
         $data = json_decode($json, true);
         if (!$data) {
             http_response_code(200);
@@ -58,10 +67,17 @@ class WaDesk extends Controller
         }
 
         try {
-            $type = $data['type'] ?? '';
+            $type = strtolower((string) ($data['type'] ?? $data['event'] ?? ''));
+
             if ($type === 'whatsapp.inbound_message.received') {
-                $this->handleInbound($data);
-            } elseif ($type === 'whatsapp.message.status.updated' || $type === 'whatsapp.message.updated') {
+                $this->handleYCloudInbound($data);
+            } elseif (in_array($type, ['whatsapp.message.status.updated', 'whatsapp.message.updated', 'message.status', 'status'], true)) {
+                $this->handleStatus($data);
+            } elseif ($this->looksLikeKiriminInbound($data)) {
+                $this->handleKiriminInbound($data);
+            } elseif ($this->looksLikeMetaInbound($data)) {
+                $this->handleMetaInbound($data);
+            } elseif ($this->looksLikeKiriminStatus($data)) {
                 $this->handleStatus($data);
             }
         } catch (\Throwable $e) {
@@ -76,44 +92,95 @@ class WaDesk extends Controller
         exit;
     }
 
-    private function handleInbound(array $data): void
+    private function handleYCloudInbound(array $data): void
     {
         $whatsapp = $data['whatsappInboundMessage'] ?? ($data['whatsapp'] ?? []);
         if (empty($whatsapp)) {
-            // YCloud sometimes nests under `data`
             $whatsapp = $data['data']['whatsappInboundMessage'] ?? ($data['data'] ?? []);
         }
+        $this->persistInbound(
+            (string) ($whatsapp['from'] ?? ''),
+            (string) ($whatsapp['to'] ?? ''),
+            $whatsapp['fromPhoneNumberId'] ?? ($whatsapp['phoneNumberId'] ?? ($data['whatsappPhoneNumberId'] ?? null)),
+            $whatsapp['device_id'] ?? ($data['device_id'] ?? null),
+            $whatsapp['wamid'] ?? ($whatsapp['id'] ?? null),
+            (string) ($whatsapp['type'] ?? 'text'),
+            $this->extractBody($whatsapp),
+            $whatsapp['customerProfile']['name'] ?? ($whatsapp['profile']['name'] ?? null)
+        );
+    }
 
-        $from = $this->normalizePhone((string) ($whatsapp['from'] ?? ($whatsapp['wabaPhoneNumber'] ?? '')));
-        $to = $this->normalizePhone((string) ($whatsapp['to'] ?? ($whatsapp['fromPhoneNumber'] ?? '')));
-        // Typical YCloud inbound: from=customer, to=business number
-        $customerPhone = $this->normalizePhone((string) ($whatsapp['from'] ?? ''));
-        $businessPhone = $this->normalizePhone((string) ($whatsapp['to'] ?? ''));
-        $phoneId = $whatsapp['fromPhoneNumberId'] ?? ($whatsapp['phoneNumberId'] ?? ($data['whatsappPhoneNumberId'] ?? null));
+    private function handleKiriminInbound(array $data): void
+    {
+        $from = (string) ($data['sender'] ?? $data['from'] ?? $data['phone'] ?? '');
+        $deviceId = $data['device_id'] ?? ($data['deviceId'] ?? null);
+        $businessPhone = (string) ($data['to'] ?? $data['receiver'] ?? $data['business_phone'] ?? '');
+        $msgId = $data['message_id'] ?? ($data['id'] ?? ($data['inboxid'] ?? null));
+        $type = (string) ($data['type'] ?? 'text');
+        $body = (string) ($data['message'] ?? $data['text'] ?? $data['body'] ?? '');
+        if ($body === '' && isset($data['caption'])) {
+            $body = (string) $data['caption'];
+        }
+        $name = $data['push_name'] ?? ($data['name'] ?? ($data['profile_name'] ?? null));
 
+        if (!empty($data['fromMe']) || !empty($data['from_me'])) {
+            return;
+        }
+
+        $this->persistInbound($from, $businessPhone, null, $deviceId, $msgId, $type, $body, $name);
+    }
+
+    private function handleMetaInbound(array $data): void
+    {
+        $entry = $data['entry'][0]['changes'][0]['value'] ?? [];
+        $messages = $entry['messages'][0] ?? null;
+        if (!$messages || !is_array($messages)) {
+            return;
+        }
+        $metadata = $entry['metadata'] ?? [];
+        $this->persistInbound(
+            (string) ($messages['from'] ?? ''),
+            (string) ($metadata['display_phone_number'] ?? ''),
+            $metadata['phone_number_id'] ?? null,
+            $data['device_id'] ?? null,
+            $messages['id'] ?? null,
+            (string) ($messages['type'] ?? 'text'),
+            $this->extractBody($messages),
+            $entry['contacts'][0]['profile']['name'] ?? null
+        );
+    }
+
+    private function persistInbound(
+        string $fromRaw,
+        string $businessRaw,
+        $phoneId,
+        $deviceId,
+        $wamid,
+        string $type,
+        string $bodyText,
+        $profileName
+    ): void {
+        $customerPhone = $this->normalizePhone($fromRaw);
+        $businessPhone = $this->normalizePhone($businessRaw);
         if ($customerPhone === '') {
             return;
         }
 
-        // Prefer key that already has a thread / recent outbound for this customer
-        // (shared WA number across teams must not always land on the first-created key).
-        $resolved = $this->resolveInboundRoute($customerPhone, $businessPhone, $phoneId, $to, $from);
+        $resolved = $this->resolveInboundRoute($customerPhone, $businessPhone, $phoneId, $deviceId);
         if (!$resolved) {
             if (class_exists('\Log')) {
                 \Log::write(
-                    'WaDesk inbound: key not found for business=' . $businessPhone . ' phoneId=' . $phoneId,
+                    'WaDesk inbound: channel not found business=' . $businessPhone . ' device=' . ($deviceId ?? ''),
                     'wadesk',
                     'Webhook'
                 );
             }
             return;
         }
-        $key = $resolved['key'];
+        $channel = $resolved['channel'];
         $conv = $resolved['conversation'];
 
-        $wamid = $whatsapp['wamid'] ?? ($whatsapp['id'] ?? null);
         $db = $this->db($this->dbIndex);
-
         if ($wamid) {
             $dup = $db->query(
                 "SELECT id FROM messages WHERE ycloud_msg_id = ? LIMIT 1",
@@ -124,26 +191,16 @@ class WaDesk extends Controller
             }
         }
 
-        $type = $whatsapp['type'] ?? 'text';
-        $bodyText = '';
-        if ($type === 'text') {
-            $bodyText = $whatsapp['text']['body'] ?? ($whatsapp['body'] ?? '');
-        } elseif ($type === 'image') {
-            $bodyText = $whatsapp['image']['caption'] ?? '[image]';
-        } elseif ($type === 'button') {
-            $bodyText = $whatsapp['button']['text'] ?? '[button]';
-        } else {
+        if ($bodyText === '') {
             $bodyText = '[' . $type . ']';
         }
 
         $now = date('Y-m-d H:i:s');
-        $profileName = $whatsapp['customerProfile']['name'] ?? ($whatsapp['profile']['name'] ?? null);
-
         if (!$conv) {
             $convId = (int) $db->insert('conversations', [
-                'tenant_id' => (int) $key['tenant_id'],
-                'team_id' => (int) $key['team_id'],
-                'ycloud_key_id' => (int) $key['id'],
+                'tenant_id' => (int) $channel['tenant_id'],
+                'team_id' => (int) $channel['team_id'],
+                'ycloud_key_id' => (int) $channel['id'],
                 'phone' => $customerPhone,
                 'name' => $profileName,
                 'last_message' => mb_substr($bodyText, 0, 500),
@@ -171,13 +228,10 @@ class WaDesk extends Controller
             'status' => 'received',
         ]);
 
-        $teamId = (int) ($conv['team_id'] ?? $key['team_id']);
-        $tenantId = (int) ($conv['tenant_id'] ?? $key['tenant_id']);
-
         WaDeskServer::push([
             'type' => 'message_in',
-            'tenant_id' => $tenantId,
-            'team_id' => $teamId,
+            'tenant_id' => (int) ($conv['tenant_id'] ?? $channel['tenant_id']),
+            'team_id' => (int) ($conv['team_id'] ?? $channel['team_id']),
             'conversation_id' => $convId,
             'message_id' => $msgId,
             'preview' => $bodyText,
@@ -188,25 +242,27 @@ class WaDesk extends Controller
 
     private function handleStatus(array $data): void
     {
-        // YCloud uses whatsappMessageStatusUpdate (same as CRM webhook)
         $status = $data['whatsappMessageStatusUpdate']
             ?? ($data['whatsappMessageStatus'] ?? null)
             ?? ($data['whatsappMessage'] ?? null)
+            ?? ($data['status'] ?? null)
             ?? ($data['data'] ?? []);
 
+        if (is_string($status)) {
+            $status = ['status' => $status, 'id' => $data['message_id'] ?? ($data['id'] ?? null)];
+        }
         if (!is_array($status) || $status === []) {
             return;
         }
 
-        $wamid = $status['wamid'] ?? null;
+        $wamid = $status['wamid'] ?? ($status['message_id'] ?? null);
         $messageId = $status['id'] ?? ($status['messageId'] ?? null);
         $externalId = $status['externalId'] ?? ($status['external_id'] ?? null);
-        $st = strtolower((string) ($status['status'] ?? ''));
+        $st = strtolower((string) ($status['status'] ?? ($data['delivery_status'] ?? '')));
         if ($st === '') {
             return;
         }
 
-        // Normalize common aliases
         if (in_array($st, ['accepted', 'pending'], true)) {
             $st = 'sent';
         }
@@ -262,29 +318,14 @@ class WaDesk extends Controller
         }
     }
 
-    /**
-     * Pick the right ycloud_key + existing conversation for an inbound message.
-     *
-     * When several teams share the same WA business number / credential, LIMIT 1
-     * would always hit the oldest key. Prefer a conversation that already exists
-     * for this customer (especially one with recent outbound).
-     *
-     * @return array{key: array, conversation: ?array}|null
-     */
+    /** @return array{channel: array, conversation: ?array}|null */
     private function resolveInboundRoute(
         string $customerPhone,
         string $businessPhone,
         $phoneId,
-        string $altTo,
-        string $altFrom
+        $deviceId
     ): ?array {
-        $candidates = $this->findCandidateKeys($businessPhone, $phoneId);
-        if ($candidates === []) {
-            $candidates = $this->findCandidateKeys($altTo, $phoneId);
-        }
-        if ($candidates === []) {
-            $candidates = $this->findCandidateKeys($altFrom, $phoneId);
-        }
+        $candidates = $this->findCandidateChannels($businessPhone, $phoneId, $deviceId);
         if ($candidates === []) {
             return null;
         }
@@ -295,7 +336,6 @@ class WaDesk extends Controller
         }
         $ids = array_keys($byId);
         $db = $this->db($this->dbIndex);
-
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $binds = array_merge([$customerPhone], $ids);
 
@@ -315,65 +355,31 @@ class WaDesk extends Controller
         )->row_array() ?: null;
 
         if ($conv) {
-            $keyId = (int) $conv['ycloud_key_id'];
-            $key = $byId[$keyId] ?? null;
-            if (!$key) {
-                $key = $db->query(
-                    "SELECT * FROM ycloud_keys WHERE id = ? LIMIT 1",
-                    [$keyId]
-                )->row_array() ?: null;
-            }
-            if ($key) {
-                if (class_exists('\Log') && count($byId) > 1) {
-                    \Log::write(
-                        'WaDesk inbound route: customer=' . $customerPhone
-                        . ' keys=' . implode(',', $ids)
-                        . ' picked_key=' . $keyId
-                        . ' conv=' . (int) $conv['id']
-                        . ' via=existing_conversation',
-                        'wadesk',
-                        'Webhook'
-                    );
-                }
-                return ['key' => $key, 'conversation' => $conv];
+            $channelId = (int) $conv['ycloud_key_id'];
+            $channel = $byId[$channelId] ?? $db->query(
+                "SELECT * FROM {$this->channelsTable()} WHERE id = ? LIMIT 1",
+                [$channelId]
+            )->row_array();
+            if ($channel) {
+                return ['channel' => $channel, 'conversation' => $conv];
             }
         }
 
-        // No prior thread: prefer newest key (avoid always landing on first-created team)
-        usort($candidates, static function ($a, $b) {
-            return (int) $b['id'] <=> (int) $a['id'];
-        });
-        $key = $candidates[0];
-
-        if (class_exists('\Log') && count($candidates) > 1) {
-            \Log::write(
-                'WaDesk inbound route: customer=' . $customerPhone
-                . ' keys=' . implode(',', $ids)
-                . ' picked_key=' . (int) $key['id']
-                . ' via=fallback_newest_key',
-                'wadesk',
-                'Webhook'
-            );
-        }
-
-        return ['key' => $key, 'conversation' => null];
+        usort($candidates, static fn ($a, $b) => (int) $b['id'] <=> (int) $a['id']);
+        return ['channel' => $candidates[0], 'conversation' => null];
     }
 
-    /**
-     * All active keys that could own this business WA number, including siblings
-     * that share the same api_key_hash (shared YCloud credential across teams).
-     *
-     * @return list<array>
-     */
-    private function findCandidateKeys(string $businessPhone, $phoneId): array
+    /** @return list<array> */
+    private function findCandidateChannels(string $businessPhone, $phoneId, $deviceId): array
     {
         $db = $this->db($this->dbIndex);
+        $tbl = $this->channelsTable();
         $byId = [];
 
-        if ($phoneId) {
+        if ($deviceId) {
             $rows = $db->query(
-                "SELECT * FROM ycloud_keys WHERE ycloud_phone_id = ? AND status = 'active'",
-                [(string) $phoneId]
+                "SELECT * FROM {$tbl} WHERE device_id = ? AND status = 'active'",
+                [(string) $deviceId]
             )->result_array();
             foreach ($rows as $row) {
                 $byId[(int) $row['id']] = $row;
@@ -382,7 +388,7 @@ class WaDesk extends Controller
 
         if ($businessPhone !== '') {
             $rows = $db->query(
-                "SELECT * FROM ycloud_keys WHERE phone_number = ? AND status = 'active'",
+                "SELECT * FROM {$tbl} WHERE phone_number = ? AND status = 'active'",
                 [$businessPhone]
             )->result_array();
             foreach ($rows as $row) {
@@ -390,36 +396,10 @@ class WaDesk extends Controller
             }
         }
 
-        if ($byId === []) {
-            return [];
-        }
-
-        if ($this->hasApiKeyHashColumn()) {
-            $hashes = [];
-            foreach ($byId as $row) {
-                $h = trim((string) ($row['api_key_hash'] ?? ''));
-                if ($h !== '') {
-                    $hashes[$h] = true;
-                }
-            }
-            if ($hashes !== []) {
-                $hashList = array_keys($hashes);
-                $ph = implode(',', array_fill(0, count($hashList), '?'));
-                $siblings = $db->query(
-                    "SELECT * FROM ycloud_keys
-                     WHERE api_key_hash IN ($ph) AND status = 'active'",
-                    $hashList
-                )->result_array();
-                foreach ($siblings as $row) {
-                    $byId[(int) $row['id']] = $row;
-                }
-            }
-        }
-
         return array_values($byId);
     }
 
-    private function hasApiKeyHashColumn(): bool
+    private function channelsTable(): string
     {
         static $cached = null;
         if ($cached !== null) {
@@ -427,13 +407,46 @@ class WaDesk extends Controller
         }
         try {
             $row = $this->db($this->dbIndex)->query(
-                "SHOW COLUMNS FROM ycloud_keys LIKE 'api_key_hash'"
+                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_channels'"
             )->row_array();
-            $cached = !empty($row);
+            $cached = (int) ($row['cnt'] ?? 0) > 0 ? 'wa_channels' : 'ycloud_keys';
         } catch (\Throwable $e) {
-            $cached = false;
+            $cached = 'ycloud_keys';
         }
         return $cached;
+    }
+
+    private function looksLikeKiriminInbound(array $data): bool
+    {
+        return isset($data['sender']) || isset($data['message']) || isset($data['text'])
+            || (isset($data['device_id']) && (isset($data['from']) || isset($data['phone'])));
+    }
+
+    private function looksLikeMetaInbound(array $data): bool
+    {
+        return isset($data['entry'][0]['changes'][0]['value']['messages']);
+    }
+
+    private function looksLikeKiriminStatus(array $data): bool
+    {
+        $event = strtolower((string) ($data['event'] ?? $data['type'] ?? ''));
+        return str_contains($event, 'status') && (isset($data['message_id']) || isset($data['id']));
+    }
+
+    private function extractBody(array $payload): string
+    {
+        $type = $payload['type'] ?? 'text';
+        if ($type === 'text') {
+            return (string) ($payload['text']['body'] ?? ($payload['body'] ?? ''));
+        }
+        if ($type === 'image') {
+            return (string) ($payload['image']['caption'] ?? '[image]');
+        }
+        if ($type === 'button') {
+            return (string) ($payload['button']['text'] ?? '[button]');
+        }
+        return '[' . $type . ']';
     }
 
     private function normalizePhone(string $phone): string
@@ -441,6 +454,9 @@ class WaDesk extends Controller
         $digits = preg_replace('/\D+/', '', $phone) ?? '';
         if (str_starts_with($digits, '0')) {
             $digits = '62' . substr($digits, 1);
+        }
+        if (!str_starts_with($digits, '62') && strlen($digits) >= 9) {
+            $digits = '62' . ltrim($digits, '0');
         }
         return $digits;
     }

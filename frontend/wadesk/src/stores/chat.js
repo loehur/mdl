@@ -57,13 +57,10 @@ export const useChatStore = defineStore("chat", {
       }
     },
     async loadKeys() {
-      const res = await api("/WaDesk/Keys/list");
-      this.keys = res.data.keys || [];
+      const res = await api("/WaDesk/Channels/list");
+      this.keys = res.data.channels || res.data.keys || [];
     },
-    async loadTemplates(ycloudKeyId) {
-      // Load all accessible templates; server filters by team/tenant.
-      // Do NOT filter by a single key here — templates are shared across keys
-      // with the same YCloud credential, so filtering by key would hide them.
+    async loadTemplates() {
       const res = await api("/WaDesk/Templates/list");
       this.templates = res.data.templates || [];
     },

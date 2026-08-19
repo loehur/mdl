@@ -23,9 +23,9 @@
 
         <!-- API Key -->
         <div>
-          <label class="label">API key / nomor WA</label>
-          <select v-model="form.ycloud_key_id" class="field" @change="onKeyChange">
-            <option disabled value="">Pilih key</option>
+          <label class="label">Channel / nomor WA</label>
+          <select v-model="form.channel_id" class="field" @change="onKeyChange">
+            <option disabled value="">Pilih channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
             </option>
@@ -39,7 +39,7 @@
         <!-- Template -->
         <div>
           <label class="label">Template</label>
-          <select v-model="form.template_id" class="field" :disabled="!form.ycloud_key_id" @change="onTemplateChange">
+          <select v-model="form.template_id" class="field" :disabled="!form.channel_id" @change="onTemplateChange">
             <option disabled value="">Pilih template</option>
             <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
               {{ t.template_name }} ({{ t.language }})
@@ -389,7 +389,7 @@ const keys = ref([]);
 const templates = ref([]);
 
 const form = reactive({
-  ycloud_key_id: '',
+  channel_id: '',
   template_id: '',
   campaign_name: '',
 });
@@ -423,20 +423,7 @@ let detailPollTimer = null;
 let listPollTimer = null;
 
 // ---- computed -------------------------------------------------------------
-const filteredTemplates = computed(() => {
-  const kid = Number(form.ycloud_key_id);
-  if (!kid) return templates.value;
-
-  const key = keys.value.find((k) => Number(k.id) === kid);
-  const keyHash = key?.api_key_hash || null;
-
-  return templates.value.filter((t) => {
-    if (Number(t.ycloud_key_id) === kid) return true;
-    if (keyHash && t.api_key_hash && t.api_key_hash === keyHash) return true;
-    if (!keyHash && !t.api_key_hash) return true;
-    return false;
-  });
-});
+const filteredTemplates = computed(() => templates.value);
 
 const selectedTemplate = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
@@ -490,8 +477,8 @@ onUnmounted(() => {
 // ---- API calls ------------------------------------------------------------
 async function loadKeys() {
   try {
-    const res = await api('/WaDesk/Keys/list');
-    keys.value = res.data?.keys ?? [];
+    const res = await api('/WaDesk/Channels/list');
+    keys.value = res.data?.channels ?? res.data?.keys ?? [];
   } catch (_) {}
 }
 
@@ -544,14 +531,14 @@ function onKeyChange() {
   csvHeaders.value = [];
   keyQuota.value = null;
   resetUpload();
-  if (form.ycloud_key_id) {
-    loadKeyQuota(form.ycloud_key_id);
+  if (form.channel_id) {
+    loadKeyQuota(form.channel_id);
   }
 }
 
 async function loadKeyQuota(keyId) {
   try {
-    const res = await api(`/WaDesk/Quota/forKey?ycloud_key_id=${keyId}`);
+    const res = await api(`/WaDesk/Quota/forChannel?channel_id=${keyId}`);
     keyQuota.value = {
       team_id: res.data?.team_id,
       team_name: res.data?.team_name,
@@ -634,7 +621,8 @@ async function submitBlast() {
       method: 'POST',
       body: {
         campaign_name:  form.campaign_name.trim(),
-        ycloud_key_id:  Number(form.ycloud_key_id),
+        channel_id: Number(form.channel_id),
+        ycloud_key_id: Number(form.channel_id),
         template_id:    Number(form.template_id),
         rows,
       },
@@ -642,7 +630,7 @@ async function submitBlast() {
 
     resetUpload();
     form.campaign_name = '';
-    if (form.ycloud_key_id) await loadKeyQuota(form.ycloud_key_id);
+    if (form.channel_id) await loadKeyQuota(form.channel_id);
     await loadBlasts();
   } catch (e) {
     submitError.value = e?.message ?? 'Gagal membuat blast';

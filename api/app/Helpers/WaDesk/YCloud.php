@@ -467,6 +467,12 @@ class YCloud
      * @param array $parameters
      * @return array<int,array>
      */
+    /** @param array $parameters */
+    public static function buildSendComponents(array $parameters): array
+    {
+        return (new self('unused', 'unused'))->buildTemplateComponents($parameters);
+    }
+
     private function buildTemplateComponents(array $parameters): array
     {
         if ($parameters === []) {

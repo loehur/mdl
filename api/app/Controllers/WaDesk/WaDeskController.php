@@ -285,6 +285,65 @@ abstract class WaDeskController extends BaseController
         return $digits;
     }
 
+    /** wa_channels after migration 008; ycloud_keys before. */
+    protected function channelsTable(): string
+    {
+        return $this->tableExists('wa_channels') ? 'wa_channels' : 'ycloud_keys';
+    }
+
+    protected function tableExists(string $table): bool
+    {
+        try {
+            $row = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                [$table]
+            )->row_array();
+            return (int) ($row['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** Map wa_channels row for API (channel_id alias). */
+    protected function mapChannelRow(array $row): array
+    {
+        $row['channel_id'] = (int) ($row['id'] ?? 0);
+        unset($row['api_key_enc']);
+        return $row;
+    }
+
+    /** Template usable by any team in tenant (tenant-wide sync). */
+    protected function findTemplateForTenant(int $templateId, int $tenantId): ?array
+    {
+        if ($this->columnExists('wa_templates', 'tenant_id')) {
+            return $this->db($this->db_index)->query(
+                "SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$templateId, $tenantId]
+            )->row_array() ?: null;
+        }
+
+        return $this->db($this->db_index)->query(
+            "SELECT t.* FROM wa_templates t
+             INNER JOIN {$this->channelsTable()} c ON c.id = t.ycloud_key_id
+             WHERE t.id = ? AND c.tenant_id = ? LIMIT 1",
+            [$templateId, $tenantId]
+        )->row_array() ?: null;
+    }
+
+    /** @deprecated use findTemplateForTenant */
+    protected function findTemplateForKey(int $templateId, array $key): ?array
+    {
+        $tenantId = (int) ($key['tenant_id'] ?? 0);
+        if ($tenantId > 0) {
+            return $this->findTemplateForTenant($templateId, $tenantId);
+        }
+        return $this->db($this->db_index)->query(
+            "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
+            [$templateId, (int) $key['id']]
+        )->row_array() ?: null;
+    }
+
     protected function columnExists(string $table, string $column): bool
     {
         try {
@@ -297,79 +356,5 @@ abstract class WaDeskController extends BaseController
         } catch (\Throwable $e) {
             return false;
         }
-    }
-
-    /**
-     * Ensure ycloud_keys.api_key_hash is set; returns the hash.
-     * Same plaintext YCloud credential → same hash → shared templates.
-     */
-    protected function ensureKeyApiHash(array $key): string
-    {
-        $existing = trim((string) ($key['api_key_hash'] ?? ''));
-        if ($existing !== '' && strlen($existing) === 64) {
-            return $existing;
-        }
-        $enc = (string) ($key['api_key_enc'] ?? '');
-        if ($enc === '') {
-            return '';
-        }
-        try {
-            $plain = \App\Helpers\WaDesk\Crypto::decrypt($enc);
-        } catch (\Throwable $e) {
-            return '';
-        }
-        if ($plain === '') {
-            return '';
-        }
-        $hash = \App\Helpers\WaDesk\Crypto::fingerprint($plain);
-        // Only persist if migration has been applied
-        try {
-            $colCheck = $this->db($this->db_index)->query(
-                "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ycloud_keys' AND COLUMN_NAME = 'api_key_hash'"
-            )->row_array();
-            if ((int) ($colCheck['cnt'] ?? 0) > 0) {
-                $this->db($this->db_index)->update('ycloud_keys', [
-                    'api_key_hash' => $hash,
-                ], ['id' => (int) $key['id']]);
-            }
-        } catch (\Throwable $e) {
-            // ignore — migration not applied yet
-        }
-        return $hash;
-    }
-
-    /** Template usable with this WaDesk key row (shared by credential hash). */
-    protected function findTemplateForKey(int $templateId, array $key): ?array
-    {
-        $hash = $this->ensureKeyApiHash($key);
-        if ($hash !== '') {
-            try {
-                $colCheck = $this->db($this->db_index)->query(
-                    "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
-                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wa_templates' AND COLUMN_NAME = 'api_key_hash'"
-                )->row_array();
-                if ((int) ($colCheck['cnt'] ?? 0) > 0) {
-                    $tpl = $this->db($this->db_index)->query(
-                        "SELECT * FROM wa_templates
-                         WHERE id = ? AND (
-                            api_key_hash = ?
-                            OR (api_key_hash IS NULL AND ycloud_key_id = ?)
-                         )
-                         LIMIT 1",
-                        [$templateId, $hash, (int) $key['id']]
-                    )->row_array();
-                    if ($tpl) {
-                        return $tpl;
-                    }
-                }
-            } catch (\Throwable $e) {
-                // fall through to legacy lookup
-            }
-        }
-        return $this->db($this->db_index)->query(
-            "SELECT * FROM wa_templates WHERE id = ? AND ycloud_key_id = ? LIMIT 1",
-            [$templateId, (int) $key['id']]
-        )->row_array() ?: null;
     }
 }

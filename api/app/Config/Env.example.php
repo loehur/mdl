@@ -88,8 +88,13 @@ class Env
     // WaDesk
     // -------------------------------------------------------------------------
     const WADESK_SERVER_URL = 'http://127.0.0.1:3010/incoming'; // Node wadesk_server
-    const WADESK_ENCRYPT_KEY = 'change-me-wadesk-encrypt-key-32b!!'; // Min. 32 char
-    const WADESK_VERIFY_TOKEN = 'change-me-wadesk-verify-token';     // Webhook YCloud WaDesk
+    const WADESK_ENCRYPT_KEY = 'change-me-wadesk-encrypt-key-32b!!'; // Min. 32 char (legacy)
+    const WADESK_VERIFY_TOKEN = 'change-me-wadesk-verify-token';     // Webhook WaDesk (Kirimin)
+
+    // Kirimin.id — satu kredensial global untuk semua channel WaDesk
+    const KIRIMIN_USER_CODE = 'YOUR-USER-CODE';
+    const KIRIMIN_SECRET = 'YOUR-SECRET-KEY';
+    const KIRIMIN_BASE_URL = 'https://api.kirimi.id';
 
     // -------------------------------------------------------------------------
     // AI

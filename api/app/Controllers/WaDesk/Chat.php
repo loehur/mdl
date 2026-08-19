@@ -3,10 +3,9 @@
 namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
-use App\Helpers\WaDesk\Crypto as WaDeskCrypto;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
-use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
+use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 
 /**
  * Chat — conversations, messages, send free/template
@@ -21,9 +20,12 @@ class Chat extends WaDeskController
         [$visSql, $binds] = $this->visibilitySql('c');
         $q = trim((string) $this->query('q', ''));
 
-        $sql = "SELECT c.*, k.label AS key_label, k.phone_number AS wa_number, t.name AS team_name
+        $tbl = $this->channelsTable();
+        $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
+                       k.phone_number AS wa_number, t.name AS team_name,
+                       k.id AS channel_id
                 FROM conversations c
-                INNER JOIN ycloud_keys k ON k.id = c.ycloud_key_id
+                INNER JOIN {$tbl} k ON k.id = c.ycloud_key_id
                 LEFT JOIN teams t ON t.id = c.team_id
                 WHERE {$visSql}";
         if ($q !== '') {
@@ -37,7 +39,7 @@ class Chat extends WaDeskController
 
         $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
         foreach ($rows as &$row) {
-            $row['csw_open'] = WaDeskYCloud::isWithinCsw($row['last_in_at'] ?? null);
+            $row['csw_open'] = WaDeskKirimin::isWithinCsw($row['last_in_at'] ?? null);
         }
 
         $this->success(['conversations' => $rows]);
@@ -81,7 +83,7 @@ class Chat extends WaDeskController
 
         $this->success([
             'conversation' => array_merge($conv, [
-                'csw_open' => WaDeskYCloud::isWithinCsw($conv['last_in_at'] ?? null),
+                'csw_open' => WaDeskKirimin::isWithinCsw($conv['last_in_at'] ?? null),
             ]),
             'messages' => $rows,
         ]);
@@ -116,7 +118,7 @@ class Chat extends WaDeskController
 
         $body = $this->getBody();
         $mode = $body['mode'] ?? 'free';
-        $ycloudKeyId = (int) ($body['ycloud_key_id'] ?? 0);
+        $channelId = (int) ($body['channel_id'] ?? $body['ycloud_key_id'] ?? 0);
         $phone = $this->normalizePhone((string) ($body['phone'] ?? ''));
         $conversationId = (int) ($body['conversation_id'] ?? 0);
 
@@ -125,27 +127,30 @@ class Chat extends WaDeskController
             if (!$conv) {
                 $this->error('Conversation tidak ditemukan', 404);
             }
-            $ycloudKeyId = (int) $conv['ycloud_key_id'];
+            $channelId = (int) $conv['ycloud_key_id'];
             $phone = $conv['phone'];
         } else {
-            if ($ycloudKeyId <= 0 || $phone === '') {
-                $this->error('ycloud_key_id dan phone wajib untuk chat baru', 400);
+            if ($channelId <= 0 || $phone === '') {
+                $this->error('channel_id dan phone wajib untuk chat baru', 400);
             }
             $conv = null;
         }
 
-        $key = $this->findAccessibleKey($ycloudKeyId);
-        if (!$key) {
-            $this->error('API key tidak dapat diakses', 403);
+        $channel = $this->findAccessibleChannel($channelId);
+        if (!$channel) {
+            $this->error('Channel tidak dapat diakses', 403);
         }
 
         if (!$conv) {
-            $conv = $this->getOrCreateConversation($key, $phone, $body['name'] ?? null);
+            $conv = $this->getOrCreateConversation($channel, $phone, $body['name'] ?? null);
         }
 
-        $cswOpen = WaDeskYCloud::isWithinCsw($conv['last_in_at'] ?? null);
-        $apiKey = WaDeskCrypto::decrypt($key['api_key_enc']);
-        $client = new WaDeskYCloud($apiKey, $key['phone_number']);
+        $cswOpen = WaDeskKirimin::isWithinCsw($conv['last_in_at'] ?? null);
+        $deviceId = trim((string) ($channel['device_id'] ?? ''));
+        if ($deviceId === '') {
+            $this->error('Channel belum punya device_id Kirimin', 400);
+        }
+        $client = new WaDeskKirimin();
 
         if ($mode === 'template') {
             if ($cswOpen) {
@@ -164,13 +169,12 @@ class Chat extends WaDeskController
             $tpl = null;
             $tplParamDefs = [];
             if ($templateId > 0) {
-                $tpl = $this->findTemplateForKey($templateId, $key);
+                $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
                 if (!$tpl) {
                     \Log::write(json_encode([
                         'template_id'  => $templateId,
-                        'key_id'       => $key['id'] ?? null,
-                        'key_phone'    => $key['phone_number'] ?? null,
-                        'api_key_hash' => $key['api_key_hash'] ?? 'n/a',
+                        'channel_id'   => $channel['id'] ?? null,
+                        'device_id'    => $deviceId ?? null,
                     ], JSON_UNESCAPED_UNICODE), 'wadesk', 'template_not_found');
                     $this->error('Template tidak ditemukan', 404);
                 }
@@ -192,12 +196,12 @@ class Chat extends WaDeskController
             }
 
             $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-            $quota = $limitGuard->reserve((int) $key['id'], $phone, (int) $user['id'], 'template');
+            $quota = $limitGuard->reserve((int) $channel['id'], $phone, (int) $user['id'], 'template');
             if (!$quota['allowed']) {
                 $this->error($quota['error'], 422, [
                     'daily_limit' => $quota['limit'],
                     'used_today' => $quota['used'],
-                    'api_key_id' => (int) $key['id'],
+                    'channel_id' => (int) $channel['id'],
                     'phone' => $phone,
                 ]);
             }
@@ -205,9 +209,9 @@ class Chat extends WaDeskController
             // Admin has no team — skip per-team template quota (TL/agent only)
             $isAdmin = ($user['role'] ?? '') === 'admin';
             $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-            $teamId = (int) $key['team_id'];
+            $teamId = (int) $channel['team_id'];
             if (!$isAdmin) {
-                $teamQuota->ensureRow($teamId, (int) $key['tenant_id']);
+                $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
                 if (!$teamQuota->canConsume($teamId, 1)) {
                     $this->error('Kuota template team habis', 422, [
                         'team_id' => $teamId,
@@ -228,7 +232,7 @@ class Chat extends WaDeskController
             if ($previewSource === '') {
                 $previewSource = '[template] ' . $templateName;
             }
-            $preview = WaDeskYCloud::buildFilledPreview(
+            $preview = WaDeskKirimin::buildFilledPreview(
                 $previewSource,
                 $tplParamDefs,
                 $named,
@@ -239,21 +243,20 @@ class Chat extends WaDeskController
                 'phone'          => $phone,
                 'template_name'  => $templateName,
                 'language'       => $language,
-                'key_id'         => $key['id'],
-                'key_phone'      => $key['phone_number'] ?? '',
-                'api_key_hash'   => $key['api_key_hash'] ?? 'n/a',
+                'channel_id'     => $channel['id'],
+                'device_id'      => $deviceId,
                 'tpl_param_defs' => $tplParamDefs,
                 'raw_params'     => $rawParams,
                 'send_params'    => $sendParams,
             ], JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_req');
 
-            $result = $client->sendTemplate($phone, $templateName, $language, $sendParams);
+            $result = $client->sendTemplate($deviceId, $phone, $templateName, $language, $sendParams);
 
             \Log::write('RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_res');
 
             if (!$result['success']) {
                 $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
-                $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
+                $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
             }
 
             $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
@@ -263,17 +266,17 @@ class Chat extends WaDeskController
             if (!$isAdmin) {
                 $consumed = $teamQuota->consume(
                     $teamId,
-                    (int) $key['tenant_id'],
+                    (int) $channel['tenant_id'],
                     (int) $user['id'],
                     'chat',
                     'message',
                     $msgId
                 );
                 if (!$consumed['ok']) {
-                    // Race: YCloud already charged; keep message, do not fail the send response
+                    // Race: provider already charged; keep message, do not fail the send response
                     try {
                         \Log::write(
-                            'WaDesk template quota consume failed after YCloud success: team=' . $teamId . ' msg=' . $msgId,
+                            'WaDesk template quota consume failed after Kirimin success: team=' . $teamId . ' msg=' . $msgId,
                             'wadesk',
                             'Quota'
                         );
@@ -286,8 +289,8 @@ class Chat extends WaDeskController
 
             WaDeskServer::push([
                 'type' => 'message_out',
-                'tenant_id' => (int) $key['tenant_id'],
-                'team_id' => (int) $key['team_id'],
+                'tenant_id' => (int) $channel['tenant_id'],
+                'team_id' => (int) $channel['team_id'],
                 'conversation_id' => (int) $conv['id'],
                 'message_id' => $msgId,
             ]);
@@ -298,7 +301,7 @@ class Chat extends WaDeskController
                 'mode' => 'template',
                 'csw_open' => false,
                 'preview' => $preview,
-                'ycloud' => $result['data'],
+                'kirimin' => $result['data'],
                 'template_quota_balance' => $consumedBalance,
             ], 'Template terkirim');
         }
@@ -316,20 +319,20 @@ class Chat extends WaDeskController
         }
 
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->reserve((int) $key['id'], $phone, (int) $user['id'], 'free');
+        $quota = $limitGuard->reserve((int) $channel['id'], $phone, (int) $user['id'], 'free');
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],
                 'used_today' => $quota['used'],
-                'api_key_id' => (int) $key['id'],
+                'channel_id' => (int) $channel['id'],
                 'phone' => $phone,
             ]);
         }
 
-        $result = $client->sendFreeText($phone, $message, $body['reply_to'] ?? null);
+        $result = $client->sendFreeText($deviceId, $phone, $message, $body['reply_to'] ?? null);
         if (!$result['success']) {
             $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Send failed');
-            $this->error('YCloud Reject: ' . $yErr, 502, $result['data']);
+            $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
         }
 
         $msgId = $this->storeOutbound($conv, $user, 'text', $message, null, null, $result);
@@ -337,8 +340,8 @@ class Chat extends WaDeskController
 
         WaDeskServer::push([
             'type' => 'message_out',
-            'tenant_id' => (int) $key['tenant_id'],
-            'team_id' => (int) $key['team_id'],
+            'tenant_id' => (int) $channel['tenant_id'],
+            'team_id' => (int) $channel['team_id'],
             'conversation_id' => (int) $conv['id'],
             'message_id' => $msgId,
         ]);
@@ -348,7 +351,7 @@ class Chat extends WaDeskController
             'conversation_id' => (int) $conv['id'],
             'mode' => 'free',
             'csw_open' => true,
-            'ycloud' => $result['data'],
+            'kirimin' => $result['data'],
         ], 'Pesan terkirim');
     }
 
@@ -362,35 +365,36 @@ class Chat extends WaDeskController
         )->row_array() ?: null;
     }
 
-    private function findAccessibleKey(int $keyId): ?array
+    private function findAccessibleChannel(int $channelId): ?array
     {
         $user = $this->currentUser();
+        $tbl = $this->channelsTable();
         if ($user['role'] === 'admin') {
             return $this->db($this->db_index)->query(
-                "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? AND status = 'active' LIMIT 1",
-                [$keyId, (int) $user['tenant_id']]
+                "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND status = 'active' LIMIT 1",
+                [$channelId, (int) $user['tenant_id']]
             )->row_array() ?: null;
         }
         return $this->db($this->db_index)->query(
-            "SELECT * FROM ycloud_keys WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active' LIMIT 1",
-            [$keyId, (int) $user['tenant_id'], (int) $user['team_id']]
+            "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active' LIMIT 1",
+            [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array() ?: null;
     }
 
-    private function getOrCreateConversation(array $key, string $phone, ?string $name): array
+    private function getOrCreateConversation(array $channel, string $phone, ?string $name): array
     {
         $existing = $this->db($this->db_index)->query(
             "SELECT * FROM conversations WHERE ycloud_key_id = ? AND phone = ? LIMIT 1",
-            [(int) $key['id'], $phone]
+            [(int) $channel['id'], $phone]
         )->row_array();
         if ($existing) {
             return $existing;
         }
 
         $id = (int) $this->db($this->db_index)->insert('conversations', [
-            'tenant_id' => (int) $key['tenant_id'],
-            'team_id' => (int) $key['team_id'],
-            'ycloud_key_id' => (int) $key['id'],
+            'tenant_id' => (int) $channel['tenant_id'],
+            'team_id' => (int) $channel['team_id'],
+            'ycloud_key_id' => (int) $channel['id'],
             'phone' => $phone,
             'name' => $name,
             'unread' => 0,
@@ -404,7 +408,9 @@ class Chat extends WaDeskController
 
     private function storeOutbound(array $conv, array $user, string $type, string $body, ?string $templateName, ?array $params, array $result): int
     {
-        $ycloudId = $result['data']['id'] ?? ($result['data']['wamid'] ?? null);
+        $providerId = $result['data']['message_id']
+            ?? $result['data']['id']
+            ?? ($result['data']['wamid'] ?? null);
         return (int) $this->db($this->db_index)->insert('messages', [
             'conversation_id' => (int) $conv['id'],
             'direction' => 'out',
@@ -412,7 +418,7 @@ class Chat extends WaDeskController
             'body' => $body,
             'template_name' => $templateName,
             'params_json' => $params !== null ? json_encode($params, JSON_UNESCAPED_UNICODE) : null,
-            'ycloud_msg_id' => $ycloudId,
+            'ycloud_msg_id' => $providerId,
             'external_id' => $result['external_id'] ?? null,
             'status' => 'sent',
             'sent_by_user_id' => (int) $user['id'],

@@ -199,33 +199,45 @@
         </ul>
       </section>
 
-      <!-- Keys -->
+      <!-- Channels -->
       <section v-if="tab === 'keys'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">YCloud API Keys</h2>
-        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="createKey">
-          <input v-model="keyForm.label" required class="field" placeholder="Label" />
-          <input v-model="keyForm.phone_number" required class="field" placeholder="Nomor WA bisnis 628..." />
-          <input v-model="keyForm.api_key" required class="field sm:col-span-2" placeholder="API Key YCloud" />
-          <input v-model="keyForm.ycloud_phone_id" class="field" placeholder="Phone Number ID (opsional)" />
-          <select v-model="keyForm.team_id" required class="field">
+        <h2 class="font-display font-semibold text-lg">Channel / Nomor (Kirimin)</h2>
+        <p class="text-xs text-slate-400">
+          Kredensial Kirimin diatur di server (<code class="text-slate-300">Env.php</code>).
+          Sync device dari Kirimin, lalu assign <strong>1 nomor = 1 team</strong>.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn-sm" :disabled="syncingDevices" @click="syncDevicesFromKirimin">
+            {{ syncingDevices ? "Sync..." : "Sync device dari Kirimin" }}
+          </button>
+        </div>
+        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="assignChannel">
+          <select v-model="channelForm.device_id" required class="field sm:col-span-2">
+            <option disabled value="">Pilih device (sync dulu jika kosong)</option>
+            <option
+              v-for="d in availableDevices"
+              :key="d.device_id"
+              :value="d.device_id"
+              :disabled="!!d.assigned"
+            >
+              {{ d.label || d.device_id }} · {{ d.phone_number || "—" }}
+              {{ d.assigned ? "(sudah di-assign)" : "" }}
+            </option>
+          </select>
+          <input v-model="channelForm.label" required class="field" placeholder="Label tampilan" />
+          <select v-model="channelForm.team_id" required class="field">
             <option disabled value="">Assign ke team</option>
             <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
-          <button class="btn sm:col-span-2">Simpan key</button>
+          <button class="btn sm:col-span-2">Assign channel</button>
         </form>
         <ul class="divide-y divide-white/5">
           <li v-for="k in keys" :key="k.id" class="py-3">
             <template v-if="editingKeyId === k.id">
               <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveKey(k)">
                 <input v-model="editKeyForm.label" required class="field" placeholder="Label" />
-                <input v-model="editKeyForm.phone_number" required class="field" placeholder="Nomor WA bisnis 628..." />
-                <input
-                  v-model="editKeyForm.api_key"
-                  class="field sm:col-span-2"
-                  placeholder="API Key YCloud (kosongkan jika tidak diganti)"
-                />
-                <input v-model="editKeyForm.ycloud_phone_id" class="field" placeholder="Phone Number ID (opsional)" />
-                <select v-model="editKeyForm.team_id" required class="field">
+                <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
+                <select v-model="editKeyForm.team_id" required class="field sm:col-span-2">
                   <option disabled value="">Assign ke team</option>
                   <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
                 </select>
@@ -241,7 +253,7 @@
                   <p class="font-medium">{{ k.label }}</p>
                   <p class="text-xs text-slate-500">
                     {{ k.phone_number }}
-                    <span v-if="k.ycloud_phone_id"> · ID: {{ k.ycloud_phone_id }}</span>
+                    <span v-if="k.device_id"> · device: {{ k.device_id }}</span>
                     · {{ k.team_name }} · {{ k.status }}
                   </p>
                 </div>
@@ -261,24 +273,15 @@
 
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
-            Sinkron template <span class="text-slate-200">APPROVED</span> dari YCloud
-            (nama, bahasa, preview, parameter). Template dibagikan ke
-            <span class="text-slate-200">semua key/team</span> yang memakai
-            kredensial API YCloud yang sama (meski nomor WA berbeda).
-            Kelola template di YCloud lalu sync di sini.
+            Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id.
+            Template dibagikan ke <span class="text-slate-200">semua team</span> dalam tenant.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
-            <select v-model="syncKeyId" class="field flex-1" :disabled="syncing">
-              <option disabled value="">Pilih API key untuk sync</option>
-              <option v-for="k in keys" :key="k.id" :value="k.id">
-                {{ k.label }} ({{ k.phone_number }})
-              </option>
-            </select>
             <button
               type="button"
               class="btn shrink-0 inline-flex items-center justify-center gap-2 min-w-[9rem]"
-              :disabled="syncing || !syncKeyId"
-              @click="syncTemplatesFromYCloud"
+              :disabled="syncing"
+              @click="syncTemplatesFromKirimin"
             >
               <svg
                 v-if="syncing"
@@ -295,7 +298,7 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              {{ syncing ? "Sinkron..." : "Sync dari YCloud" }}
+              {{ syncing ? "Sinkron..." : "Sync dari Kirimin" }}
             </button>
           </div>
         </div>
@@ -467,7 +470,7 @@ const tab = ref("teams");
 const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
-  { id: "keys", label: "API Keys" },
+  { id: "keys", label: "Channel" },
   { id: "templates", label: "Templates" },
   { id: "quota", label: "Quota" },
 ];
@@ -475,6 +478,10 @@ const tabs = [
 const teams = ref([]);
 const users = ref([]);
 const keys = ref([]);
+const availableDevices = ref([]);
+const channelForm = reactive({ device_id: "", label: "", team_id: "" });
+const syncingDevices = ref(false);
+const editingKeyId = ref(null);
 const templates = ref([]);
 const quotas = ref([]);
 const msg = ref("");
@@ -534,11 +541,8 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const keyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
-const editingKeyId = ref(null);
-const editKeyForm = reactive({ label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
+const editKeyForm = reactive({ label: "", phone_number: "", team_id: "" });
 const savingKey = ref(false);
-const syncKeyId = ref("");
 const syncing = ref(false);
 const resyncingId = ref(null);
 const expandedTemplate = ref(null);
@@ -573,13 +577,13 @@ async function refresh() {
   const [t, u, k, tp, q] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
-    api("/WaDesk/Keys/list"),
+    api("/WaDesk/Channels/list"),
     api("/WaDesk/Templates/list"),
     api("/WaDesk/Quota/list"),
   ]);
   teams.value = t.data.teams || [];
   users.value = u.data.users || [];
-  keys.value = k.data.keys || [];
+  keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
   quotas.value = q.data.quotas || [];
 }
@@ -805,18 +809,31 @@ async function removeUser(u) {
   });
 }
 
-async function createKey() {
+async function syncDevicesFromKirimin() {
+  syncingDevices.value = true;
   try {
-    await api("/WaDesk/Keys/create", {
+    const res = await api("/WaDesk/Channels/syncFromKirimin");
+    availableDevices.value = res.data.devices || [];
+    flash(true, `Device Kirimin: ${availableDevices.value.length} ditemukan`);
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    syncingDevices.value = false;
+  }
+}
+
+async function assignChannel() {
+  try {
+    await api("/WaDesk/Channels/assign", {
       method: "POST",
       body: {
-        ...keyForm,
-        team_id: Number(keyForm.team_id),
-        ycloud_phone_id: keyForm.ycloud_phone_id || null,
+        device_id: channelForm.device_id,
+        label: channelForm.label,
+        team_id: Number(channelForm.team_id),
       },
     });
-    Object.assign(keyForm, { label: "", api_key: "", phone_number: "", ycloud_phone_id: "", team_id: "" });
-    flash(true, "API key disimpan");
+    Object.assign(channelForm, { device_id: "", label: "", team_id: "" });
+    flash(true, "Channel di-assign");
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -827,9 +844,7 @@ function startEditKey(k) {
   editingKeyId.value = k.id;
   Object.assign(editKeyForm, {
     label: k.label || "",
-    api_key: "",
     phone_number: k.phone_number || "",
-    ycloud_phone_id: k.ycloud_phone_id || "",
     team_id: String(k.team_id || ""),
   });
 }
@@ -846,14 +861,10 @@ async function saveKey(k) {
       id: k.id,
       label: editKeyForm.label,
       phone_number: editKeyForm.phone_number,
-      ycloud_phone_id: editKeyForm.ycloud_phone_id || null,
       team_id: Number(editKeyForm.team_id),
     };
-    if (editKeyForm.api_key.trim()) {
-      body.api_key = editKeyForm.api_key.trim();
-    }
-    await api("/WaDesk/Keys/update", { method: "POST", body });
-    flash(true, "API key diupdate");
+    await api("/WaDesk/Channels/update", { method: "POST", body });
+    flash(true, "Channel diupdate");
     cancelEditKey();
     await refresh();
   } catch (e) {
@@ -865,12 +876,12 @@ async function saveKey(k) {
 
 async function removeKey(id) {
   askConfirm({
-    title: "Hapus API key",
-    message: "API key yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    title: "Hapus channel",
+    message: "Mapping channel yang dihapus tidak bisa dikembalikan. Lanjutkan?",
     action: async () => {
       try {
-        await api("/WaDesk/Keys/delete", { method: "POST", body: { id } });
-        flash(true, "Key dihapus");
+        await api("/WaDesk/Channels/delete", { method: "POST", body: { id } });
+        flash(true, "Channel dihapus");
         await refresh();
       } catch (e) {
         flash(false, e.message);
@@ -880,18 +891,14 @@ async function removeKey(id) {
 }
 
 async function resyncOneTemplate(templateName) {
-  if (!syncKeyId.value) {
-    flash(false, "Pilih API key dulu sebelum resync");
-    return;
-  }
   const tpl = templates.value.find((t) => t.template_name === templateName);
   if (!tpl) return;
   resyncingId.value = tpl.id;
-  expandedTemplate.value = null; // close detail panel before refresh
+  expandedTemplate.value = null;
   try {
     const res = await api("/WaDesk/Templates/resyncOne", {
       method: "POST",
-      body: { ycloud_key_id: Number(syncKeyId.value), template_name: templateName },
+      body: { template_name: templateName },
     });
     const count = res.data?.params_synced ?? 0;
     await refresh();
@@ -906,19 +913,16 @@ async function resyncOneTemplate(templateName) {
   }
 }
 
-async function syncTemplatesFromYCloud() {
-  if (!syncKeyId.value || syncing.value) return;
+async function syncTemplatesFromKirimin() {
+  if (syncing.value) return;
   syncing.value = true;
   try {
-    const res = await api("/WaDesk/Templates/syncFromYCloud", {
-      method: "POST",
-      body: { ycloud_key_id: Number(syncKeyId.value) },
-    });
+    const res = await api("/WaDesk/Templates/syncFromKirimin", { method: "POST", body: {} });
     const created = res.data?.created ?? 0;
     const updated = res.data?.updated ?? 0;
     const deleted = res.data?.deleted ?? 0;
     const fetched = res.data?.fetched ?? 0;
-    flash(true, `Sync OK: ${fetched} dari YCloud → ${created} baru, ${updated} diupdate, ${deleted} dihapus`);
+    flash(true, `Sync OK: ${fetched} dari Kirimin → ${created} baru, ${updated} diupdate, ${deleted} dihapus`);
     await refresh();
   } catch (e) {
     flash(false, e.message);
