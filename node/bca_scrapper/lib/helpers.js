@@ -87,7 +87,22 @@ function cellMultiline(input) {
 }
 
 /**
- * Parse mutasi ibank desktop (6 kolom: Tgl, Keterangan, Cab, Nominal, CR/DB, Saldo).
+ * Parse sel "12,474.00 CR" atau "160,320.00 CR" (format ibank 4 kolom).
+ * @param {string} input
+ * @returns {{ nominal: number, mutasi: string }|null}
+ */
+function parseAmountAndDirection(input) {
+  const text = cleanCellText(input);
+  const m = text.match(/^([\d.,]+)\s*(CR|DB)\s*$/i);
+  if (!m) return null;
+  return {
+    nominal: toNumber(m[1]),
+    mutasi: m[2].toUpperCase(),
+  };
+}
+
+/**
+ * Parse mutasi ibank desktop (4 kolom: Tgl/Ket/Cab/Mutasi) atau 5–6 kolom dengan Nominal terpisah.
  * @param {string} html
  */
 function parseMutasiIbank(html) {
@@ -100,7 +115,7 @@ function parseMutasiIbank(html) {
     if (/<b>\s*Tgl\./i.test(rowHtml)) continue;
 
     const rawCells = tdValues(rowHtml);
-    if (rawCells.length < 5) continue;
+    if (rawCells.length < 4) continue;
 
     const tanggal = cleanCellText(rawCells[0]);
     if (!/^PEND$/i.test(tanggal) && !/^\d{2}\/\d{2}\/\d{4}$/.test(tanggal)) {
@@ -110,13 +125,36 @@ function parseMutasiIbank(html) {
     const keterangan = cellMultiline(rawCells[1]);
     if (!keterangan) continue;
 
+    const cab = cleanCellText(rawCells[2]);
+    let nominal = 0;
+    let mutasi = '';
+    let saldo_akhir = null;
+
+    const dirCell = rawCells.length >= 5 ? cleanCellText(rawCells[4]).toUpperCase() : '';
+    if (dirCell === 'CR' || dirCell === 'DB') {
+      nominal = toNumber(cleanCellText(rawCells[3]));
+      mutasi = dirCell;
+      if (rawCells[5]) {
+        saldo_akhir = toNumber(cleanCellText(rawCells[5]));
+      }
+    } else {
+      const parsed = parseAmountAndDirection(rawCells[3]);
+      if (!parsed) continue;
+      nominal = parsed.nominal;
+      mutasi = parsed.mutasi;
+    }
+
+    if (!mutasi || (mutasi !== 'CR' && mutasi !== 'DB') || nominal <= 0) {
+      continue;
+    }
+
     rows.push({
       tanggal,
       keterangan,
-      cab: cleanCellText(rawCells[2]),
-      nominal: toNumber(cleanCellText(rawCells[3])),
-      mutasi: cleanCellText(rawCells[4]),
-      saldo_akhir: rawCells[5] ? toNumber(cleanCellText(rawCells[5])) : null,
+      cab,
+      nominal,
+      mutasi,
+      saldo_akhir,
     });
   }
 

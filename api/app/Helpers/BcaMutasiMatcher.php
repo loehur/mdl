@@ -9,6 +9,7 @@ class BcaMutasiMatcher
 {
     /**
      * Cari mutasi CR unlinked yang cocok nominal + rentang tanggal.
+     * Termasuk baris PEND (tanggal_iso NULL) yang di-scrape hari ini / dalam rentang.
      *
      * @return array|null row bca_mutasi
      */
@@ -21,12 +22,20 @@ class BcaMutasiMatcher
              WHERE l.id IS NULL
                AND m.mutasi = ?
                AND m.nominal = ?
-               AND m.tanggal_iso IS NOT NULL
-               AND m.tanggal_iso >= ?
-               AND m.tanggal_iso <= ?
-             ORDER BY m.tanggal_iso ASC, m.id ASC
+               AND (
+                 (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)
+                 OR (
+                   UPPER(m.tanggal) = ?
+                   AND DATE(m.created_at) >= ?
+                   AND DATE(m.created_at) <= ?
+                 )
+               )
+             ORDER BY
+               CASE WHEN UPPER(m.tanggal) = ? THEN 0 ELSE 1 END,
+               m.tanggal_iso ASC,
+               m.id ASC
              LIMIT 1',
-            ['CR', $nominal, $startYmd, $endYmd]
+            ['CR', $nominal, $startYmd, $endYmd, 'PEND', $startYmd, $endYmd, 'PEND']
         )->row_array();
 
         return is_array($row) && !empty($row['id']) ? $row : null;
