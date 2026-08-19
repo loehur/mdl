@@ -70,6 +70,28 @@ export function formatGainLoss(value) {
   return abs;
 }
 
+/** Nilai portfolio dibagi 1 juta, dengan separator + suffix M (untuk chart). */
+export function formatChartMillion(value) {
+  const num = Number(value) / 1_000_000;
+  if (!Number.isFinite(num)) return "";
+  const formatted = new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: num >= 100 ? 0 : 1,
+  }).format(num);
+  return `${formatted}M`;
+}
+
+/** Sumbu Y chart: nilai sudah dalam juta. */
+export function formatChartMillionAxis(valueInMillions) {
+  const num = Number(valueInMillions);
+  if (!Number.isFinite(num)) return "";
+  const formatted = new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: num >= 100 ? 0 : 1,
+  }).format(num);
+  return `${formatted}M`;
+}
+
 export function gainLossLabel(status) {
   if (status === "profit") return "Tumbuh";
   if (status === "loss") return "Rugi";

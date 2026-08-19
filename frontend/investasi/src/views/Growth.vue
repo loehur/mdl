@@ -15,7 +15,7 @@
           </button>
         </div>
       </div>
-      <p class="mt-2 text-sm text-mist">Satu candle = agregat snapshot per bulan (OHLC)</p>
+      <p class="mt-2 text-sm text-mist">Garis nilai portfolio akhir bulan (dalam juta)</p>
     </section>
 
     <section class="glass relative min-h-[320px] overflow-hidden p-3">
@@ -27,13 +27,13 @@
       </div>
 
       <EmptyState
-        v-if="!loading && candleCount === 0"
+        v-if="!loading && pointCount === 0"
         title="Belum ada data"
         :subtitle="`Tidak ada snapshot portfolio di tahun ${year}.`"
       />
 
       <div
-        v-show="!loading && candleCount > 0"
+        v-show="!loading && pointCount > 0"
         ref="chartContainer"
         class="growth-chart"
       />
@@ -41,24 +41,8 @@
 
     <section v-if="!loading && monthSummary" class="glass-strong p-4">
       <p class="label-caps">{{ monthSummary.label }}</p>
-      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p class="text-mist">Open</p>
-          <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.open) }}</p>
-        </div>
-        <div>
-          <p class="text-mist">Close</p>
-          <p class="font-semibold text-pearl">{{ formatRupiah(monthSummary.close) }}</p>
-        </div>
-        <div>
-          <p class="text-mist">High</p>
-          <p class="font-semibold text-credit-dim">{{ formatRupiah(monthSummary.high) }}</p>
-        </div>
-        <div>
-          <p class="text-mist">Low</p>
-          <p class="font-semibold text-debit-dim">{{ formatRupiah(monthSummary.low) }}</p>
-        </div>
-      </div>
+      <p class="money-display-sm mt-2">{{ formatRupiah(monthSummary.value) }}</p>
+      <p class="mt-1 text-sm font-semibold text-credit-dim">{{ formatChartMillion(monthSummary.value) }}</p>
       <p class="mt-3 text-xs text-mist">{{ monthSummary.snapshot_count }} snapshot di bulan ini</p>
     </section>
 
@@ -68,8 +52,13 @@
 
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { createChart, CandlestickSeries } from "lightweight-charts";
-import { formatRupiah } from "../utils/format";
+import {
+  AreaSeries,
+  LineType,
+  createChart,
+  createSeriesMarkers,
+} from "lightweight-charts";
+import { formatChartMillion, formatChartMillionAxis, formatRupiah } from "../utils/format";
 import AlertBanner from "../components/AlertBanner.vue";
 import EmptyState from "../components/EmptyState.vue";
 import PageLoader from "../components/PageLoader.vue";
@@ -84,22 +73,19 @@ const year = ref(currentYear);
 const loading = ref(true);
 const error = ref("");
 const months = ref([]);
-const candleCount = ref(0);
+const pointCount = ref(0);
 const monthSummary = ref(null);
 const chartContainer = ref(null);
 
 let chart = null;
 let series = null;
+let seriesMarkers = null;
 let resizeObserver = null;
 let renderRetryTimer = null;
 let crosshairHandler = null;
 
 function monthTime(yearValue, month) {
-  return {
-    year: yearValue,
-    month,
-    day: 1,
-  };
+  return { year: yearValue, month, day: 1 };
 }
 
 function toNumber(value) {
@@ -107,35 +93,37 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
-function buildCandles(items, yearValue) {
+function buildPoints(items, yearValue) {
   return items
     .filter((item) => Number(item.snapshot_count) > 0)
-    .map((item) => ({
-      time: monthTime(yearValue, Number(item.month)),
-      open: toNumber(item.open),
-      high: toNumber(item.high),
-      low: toNumber(item.low),
-      close: toNumber(item.close),
-      month: Number(item.month),
-      snapshot_count: Number(item.snapshot_count),
-    }))
-    .filter((item) => item.open !== null && item.high !== null && item.low !== null && item.close !== null);
+    .map((item) => {
+      const rawValue = toNumber(item.close);
+      return {
+        time: monthTime(yearValue, Number(item.month)),
+        value: rawValue === null ? null : rawValue / 1_000_000,
+        rawValue,
+        month: Number(item.month),
+        snapshot_count: Number(item.snapshot_count),
+      };
+    })
+    .filter((item) => item.value !== null && item.rawValue !== null);
 }
 
-function setMonthSummary(candle) {
-  if (!candle) {
+function setMonthSummary(point) {
+  if (!point) {
     monthSummary.value = null;
     return;
   }
 
   monthSummary.value = {
-    label: MONTH_LABELS[candle.month - 1],
-    open: candle.open,
-    high: candle.high,
-    low: candle.low,
-    close: candle.close,
-    snapshot_count: candle.snapshot_count,
+    label: MONTH_LABELS[point.month - 1],
+    value: point.rawValue,
+    snapshot_count: point.snapshot_count,
   };
+}
+
+function sameTime(a, b) {
+  return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
 function destroyChart() {
@@ -147,6 +135,7 @@ function destroyChart() {
     chart.unsubscribeCrosshairMove(crosshairHandler);
   }
   crosshairHandler = null;
+  seriesMarkers = null;
   resizeObserver?.disconnect();
   resizeObserver = null;
   chart?.remove();
@@ -154,73 +143,92 @@ function destroyChart() {
   series = null;
 }
 
-function renderChart(candles) {
+function renderChart(points) {
   destroyChart();
 
-  if (!chartContainer.value || candles.length === 0) return;
+  if (!chartContainer.value || points.length === 0) return;
 
   const width = chartContainer.value.clientWidth;
   if (width <= 0) {
-    renderRetryTimer = window.setTimeout(() => renderChart(candles), 50);
+    renderRetryTimer = window.setTimeout(() => renderChart(points), 50);
     return;
   }
 
   try {
     chart = createChart(chartContainer.value, {
-    width,
-    height: 320,
-    layout: {
-      background: { color: "#ffffff" },
-      textColor: "#64748b",
-      fontFamily: '"Barlow", system-ui, sans-serif',
-      fontSize: 12,
-    },
-    grid: {
-      vertLines: { color: "rgba(209, 219, 232, 0.55)" },
-      horzLines: { color: "rgba(209, 219, 232, 0.55)" },
-    },
-    rightPriceScale: {
-      borderColor: "rgba(209, 219, 232, 0.8)",
-    },
-    timeScale: {
-      borderColor: "rgba(209, 219, 232, 0.8)",
-      fixLeftEdge: true,
-      fixRightEdge: true,
-      barSpacing: 18,
-      minBarSpacing: 8,
-    },
-    crosshair: {
-      vertLine: { color: "rgba(74, 143, 212, 0.35)" },
-      horzLine: { color: "rgba(74, 143, 212, 0.35)" },
-    },
-  });
+      width,
+      height: 320,
+      layout: {
+        background: { color: "#ffffff" },
+        textColor: "#64748b",
+        fontFamily: '"Barlow", system-ui, sans-serif',
+        fontSize: 12,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: "rgba(209, 219, 232, 0.55)" },
+        horzLines: { color: "rgba(209, 219, 232, 0.55)" },
+      },
+      rightPriceScale: {
+        borderColor: "rgba(209, 219, 232, 0.8)",
+      },
+      timeScale: {
+        borderColor: "rgba(209, 219, 232, 0.8)",
+        fixLeftEdge: true,
+        fixRightEdge: true,
+      },
+      crosshair: {
+        vertLine: { color: "rgba(74, 143, 212, 0.35)" },
+        horzLine: { color: "rgba(74, 143, 212, 0.35)" },
+      },
+      localization: {
+        priceFormatter: formatChartMillionAxis,
+      },
+    });
 
-  series = chart.addSeries(CandlestickSeries, {
-    upColor: "#0d9488",
-    downColor: "#dc2626",
-    borderUpColor: "#0f766e",
-    borderDownColor: "#b91c1c",
-    wickUpColor: "#0f766e",
-    wickDownColor: "#b91c1c",
-  });
+    series = chart.addSeries(AreaSeries, {
+      lineType: LineType.Curved,
+      lineColor: "#0d9488",
+      topColor: "rgba(13, 148, 136, 0.32)",
+      bottomColor: "rgba(13, 148, 136, 0.02)",
+      lineWidth: 2,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: true,
+    });
 
-    series.setData(candles);
+    const lineData = points.map((point) => ({
+      time: point.time,
+      value: point.value,
+    }));
+
+    series.setData(lineData);
     chart.timeScale().fitContent();
+
+    seriesMarkers = createSeriesMarkers(
+      series,
+      points.map((point) => ({
+        time: point.time,
+        position: "aboveBar",
+        shape: "circle",
+        color: "#0d9488",
+        text: formatChartMillion(point.rawValue),
+        size: 0.5,
+      })),
+      { autoScale: true }
+    );
 
     crosshairHandler = (param) => {
       if (!param.time || !param.seriesData.size) {
-        setMonthSummary(candles[candles.length - 1] ?? null);
+        setMonthSummary(points[points.length - 1] ?? null);
         return;
       }
 
-      const point = param.seriesData.get(series);
-      if (!point) return;
+      const hit = param.seriesData.get(series);
+      if (!hit) return;
 
-      const candle = candles.find((item) => {
-        const t = param.time;
-        return item.time.year === t.year && item.time.month === t.month && item.time.day === t.day;
-      });
-      if (candle) setMonthSummary(candle);
+      const point = points.find((item) => sameTime(item.time, param.time));
+      if (point) setMonthSummary(point);
     };
 
     chart.subscribeCrosshairMove(crosshairHandler);
@@ -239,11 +247,11 @@ function renderChart(candles) {
   }
 }
 
-async function scheduleRender(candles) {
+async function scheduleRender(points) {
   await nextTick();
   await new Promise((resolve) => requestAnimationFrame(resolve));
   try {
-    renderChart(candles);
+    renderChart(points);
   } catch (err) {
     error.value = err.message || "Gagal merender grafik";
     destroyChart();
@@ -254,7 +262,7 @@ async function loadChart() {
   loading.value = true;
   error.value = "";
   monthSummary.value = null;
-  candleCount.value = 0;
+  pointCount.value = 0;
   destroyChart();
 
   try {
@@ -269,21 +277,21 @@ async function loadChart() {
     }
 
     months.value = data.data.months || [];
-    const candles = buildCandles(months.value, year.value);
-    candleCount.value = candles.length;
+    const points = buildPoints(months.value, year.value);
+    pointCount.value = points.length;
 
-    if (candles.length > 0) {
-      setMonthSummary(candles[candles.length - 1]);
+    if (points.length > 0) {
+      setMonthSummary(points[points.length - 1]);
       loading.value = false;
-      await scheduleRender(candles);
+      await scheduleRender(points);
     } else {
       monthSummary.value = null;
-      candleCount.value = 0;
+      pointCount.value = 0;
     }
   } catch (err) {
     error.value = err.message || "Gagal memuat grafik";
     monthSummary.value = null;
-    candleCount.value = 0;
+    pointCount.value = 0;
     destroyChart();
   } finally {
     loading.value = false;
