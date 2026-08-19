@@ -415,6 +415,20 @@ class YCloud
         return $text;
     }
 
+    private static function placeholderInPreview(string $text, array $def): bool
+    {
+        $name = trim((string) ($def['param_name'] ?? ''));
+        if ($name !== '' && preg_match('/\{\{\s*' . preg_quote($name, '/') . '\s*\}\}/', $text)) {
+            return true;
+        }
+        $idx = (int) ($def['param_index'] ?? 0);
+        if ($idx > 0 && preg_match('/\{\{\s*' . $idx . '\s*\}\}/', $text)) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Build chat/blast preview text with values filled in.
      * Prepends missing header/body placeholders (common when body_preview
@@ -441,6 +455,10 @@ class YCloud
             if ($component !== 'body' && $component !== 'header') {
                 continue;
             }
+            if (self::placeholderInPreview($text, $def)) {
+                continue;
+            }
+
             $token = trim((string) ($def['param_name'] ?? ''));
             if ($token === '') {
                 $idx = (int) ($def['param_index'] ?? 0);
@@ -449,9 +467,7 @@ class YCloud
                 }
                 $token = (string) $idx;
             }
-            if (!preg_match('/\{\{\s*' . preg_quote($token, '/') . '\s*\}\}/', $text)) {
-                $missing[] = '{{' . $token . '}}';
-            }
+            $missing[] = '{{' . $token . '}}';
         }
 
         if ($missing !== []) {

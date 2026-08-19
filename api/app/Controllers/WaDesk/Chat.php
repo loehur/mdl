@@ -200,12 +200,12 @@ class Chat extends WaDeskController
             }
 
             $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-            $quota = $limitGuard->reserve((int) $channel['id'], $phone, (int) $user['id'], 'template');
+            $quota = $limitGuard->reserve((int) $channel['tenant_id'], $phone, (int) $user['id'], 'template');
             if (!$quota['allowed']) {
                 $this->error($quota['error'], 422, [
                     'daily_limit' => $quota['limit'],
                     'used_today' => $quota['used'],
-                    'channel_id' => (int) $channel['id'],
+                    'tenant_id' => (int) $channel['tenant_id'],
                     'phone' => $phone,
                 ]);
             }
@@ -323,12 +323,12 @@ class Chat extends WaDeskController
         }
 
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->reserve((int) $channel['id'], $phone, (int) $user['id'], 'free');
+        $quota = $limitGuard->reserve((int) $channel['tenant_id'], $phone, (int) $user['id'], 'free');
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],
                 'used_today' => $quota['used'],
-                'channel_id' => (int) $channel['id'],
+                'tenant_id' => (int) $channel['tenant_id'],
                 'phone' => $phone,
             ]);
         }

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
   kirimin_api_key VARCHAR(255) NULL,
+  daily_unique_limit INT UNSIGNED NOT NULL DEFAULT 250,
   admin_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
@@ -185,7 +186,7 @@ CREATE TABLE IF NOT EXISTS wa_blast_recipients (
 
 CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  channel_id INT UNSIGNED NOT NULL,
+  tenant_id INT UNSIGNED NOT NULL,
   contact_date DATE NOT NULL,
   phone VARCHAR(32) NOT NULL,
   first_user_id INT UNSIGNED NULL,
@@ -194,9 +195,9 @@ CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   last_source VARCHAR(32) NULL,
   first_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_channel_contact_day (channel_id, contact_date, phone),
-  INDEX idx_channel_day (channel_id, contact_date),
-  CONSTRAINT fk_channel_daily_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_tenant_contact_day (tenant_id, contact_date, phone),
+  INDEX idx_tenant_day (tenant_id, contact_date),
+  CONSTRAINT fk_tenant_daily_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_channel_daily_first_user FOREIGN KEY (first_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_channel_daily_last_user FOREIGN KEY (last_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -149,7 +149,7 @@ class Blast extends WaDeskController
         }
 
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->checkBatch($channelId, $phones);
+        $quota = $limitGuard->checkBatch((int) $user['tenant_id'], $phones);
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],

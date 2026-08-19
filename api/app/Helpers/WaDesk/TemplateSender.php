@@ -28,8 +28,9 @@ class TemplateSender
         int $sentByUserId = 0
     ): array {
         try {
+            $tenantId = (int) $channel['tenant_id'];
             $limitGuard = new DailyKeyLimit($this->db);
-            $quota = $limitGuard->reserve((int) $channel['id'], $phone, $sentByUserId ?: null, 'blast');
+            $quota = $limitGuard->reserve($tenantId, $phone, $sentByUserId ?: null, 'blast');
             if (!$quota['allowed']) {
                 return [
                     'success' => false,
@@ -40,7 +41,6 @@ class TemplateSender
             }
 
             $teamId = (int) $channel['team_id'];
-            $tenantId = (int) $channel['tenant_id'];
             $teamQuota = new TemplateQuota($this->db);
             $teamQuota->ensureRow($teamId, $tenantId);
             if (!$teamQuota->canConsume($teamId, 1)) {
