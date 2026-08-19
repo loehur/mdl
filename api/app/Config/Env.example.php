@@ -131,6 +131,10 @@ class Env
     // Cron: ?secret= atau header X-Cron-Secret (node/cron_server)
     const CRON_SECRET = 'change-me-cron-secret';
 
+    // BCA scrapper (node/bca_scrapper) — header X-Bca-Token; harus sama dengan .env service
+    const BCA_SCRAPPER_TOKEN = 'change-me-bca-scrapper-token';
+    const BCA_SCRAPPER_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
+
     // Invoice Subscriptions API: header X-Invoice-Api-Key
     const INVOICE_API_KEY = 'change-me-invoice-api-key';
 
