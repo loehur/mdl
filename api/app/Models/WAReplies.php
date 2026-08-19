@@ -7025,35 +7025,67 @@ class WAReplies
     private function replySaldoFonnte($waNumber): void
     {
         try {
-            if (!class_exists('\\App\\Helpers\\FonnteService')) {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
                 require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
+            }
+            if (!class_exists('\\App\\Config\\Fonnte')) {
+                require_once __DIR__ . '/../Config/Fonnte.php';
             }
 
             $fonnte = new \App\Helpers\CRM\FonnteService();
-            $result = $fonnte->getDeviceProfile();
+            $health = $fonnte->getGatewayHealth();
+            $device = $fonnte->getGatewayDevice();
 
-            if (!$result['success']) {
-                $this->sendSaldoAdminText($waNumber, 'Gagal mengambil profil Fonnte: ' . ($result['error'] ?? 'Unknown error'));
+            if (!$health['success'] && !$device['success']) {
+                $err = $health['error'] ?? $device['error'] ?? 'Gateway tidak dapat dihubungi';
+                $this->sendSaldoAdminText(
+                    $waNumber,
+                    "Gagal cek Fonnte Server: {$err}\nGateway: " . \App\Config\Fonnte::getBaseUrl()
+                );
                 return;
             }
 
-            $d = $result['data'];
-            $deviceStatus = $d['device_status'] ?? '-';
-            $messages = isset($d['messages']) ? number_format((int) $d['messages'], 0, ',', '.') : '-';
-            $quota = $d['quota'] ?? '-';
+            $healthData = is_array($health['data'] ?? null) ? $health['data'] : [];
+            $wa = is_array($healthData['whatsapp'] ?? null) ? $healthData['whatsapp'] : [];
+            $dev = is_array($device['data'] ?? null) ? $device['data'] : [];
+            $connected = !empty($wa['connected']) || !empty($dev['connected']) || !empty($dev['status']);
 
-            $text = "*Profile Fonnte*\n"
-                . "Nama: " . ($d['name'] ?? '-') . "\n"
-                . "Device: " . ($d['device'] ?? '-') . "\n"
-                . "Status koneksi: " . $deviceStatus . "\n"
-                . "Paket: " . ($d['package'] ?? '-') . "\n"
-                . "Kuota: " . $quota . "\n"
-                . "Total pesan: " . $messages . "\n"
-                . "Expired: " . ($d['expired'] ?? '-');
+            $state = $wa['state'] ?? ($dev['state'] ?? 'unknown');
+            $deviceNum = trim((string) ($dev['device'] ?? ($healthData['device'] ?? '')));
+            $package = $dev['package'] ?? 'self-hosted-baileys';
+            $webhook = !empty($healthData['webhook']);
+            $hasQr = !empty($wa['has_qr']) || !empty($healthData['qr']);
+            $service = $healthData['service'] ?? 'fonnte_server';
+            $messages = $dev['messages'] ?? ($connected ? 'online' : 'offline');
+            $quota = $dev['quota'] ?? 'unlimited';
 
-            $this->sendSaldoAdminText($waNumber, $text);
+            $lines = [
+                '*Fonnte Server*',
+                'Service: ' . $service,
+                'Gateway: ' . \App\Config\Fonnte::getBaseUrl(),
+                'Koneksi: ' . ($connected ? 'Terhubung' : 'Putus'),
+                'State: ' . $state,
+                'Device: ' . ($deviceNum !== '' ? $deviceNum : '-'),
+                'Paket: ' . $package,
+                'Kuota: ' . $quota,
+                'Pesan: ' . $messages,
+                'Webhook: ' . ($webhook ? 'aktif' : 'belum'),
+            ];
+
+            if (!$connected) {
+                $lines[] = 'QR: ' . ($hasQr ? 'tersedia (scan via panel)' : 'belum tersedia');
+                if ($state === 'connecting') {
+                    $lines[] = 'Hint: tunggu QR atau logout/scan ulang';
+                } else {
+                    $lines[] = 'Hint: logout/scan ulang atau restart fonnte_server';
+                }
+            }
+
+            $lines[] = 'Cek: ' . $this->saldoCheckedAtLabel();
+
+            $this->sendSaldoAdminText($waNumber, implode("\n", $lines));
         } catch (\Throwable $e) {
-            \Log::write('handleInfo_fonnte ERROR: ' . $e->getMessage(), 'wa_error', 'Fonnte');
+            \Log::write('replySaldoFonnte ERROR: ' . $e->getMessage(), 'wa_error', 'Fonnte');
             $this->sendSaldoAdminText($waNumber, 'Error: ' . $e->getMessage());
         }
     }
