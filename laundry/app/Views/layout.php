@@ -2677,6 +2677,7 @@ if ($privUi === 100) {
         <span data-bs-dismiss="modal"></span>
         <div class="content-wrapper px-2 pt-2" style="min-width: 0; max-width: 100vw;">
             <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
+            <script src="<?= URL::IN_ASSETS ?>js/mdl-modal-a11y.js"></script>
             <script src="<?= URL::IN_ASSETS ?>js/mdl-wa-chat.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/adminLTE-3.1.0/js/adminlte.js"></script>
             <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
