@@ -4,21 +4,14 @@ namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
 use App\Helpers\Payment\DokuSignature;
-use App\Helpers\Payment\QrisWebhookHandler;
+use App\Helpers\Payment\QrisWebhookProcessor;
 
 /**
  * Webhook DOKU — HTTP Notification untuk pembayaran QRIS.
  * URL: /Webhook/Doku
- *
- * Daftarkan URL ini di DOKU Back Office sebagai Notification URL.
- * Path harus sama dengan Env::DOKU_WEBHOOK_PATH (default: /Webhook/Doku).
  */
 class Doku extends Controller
 {
-    use QrisWebhookHandler;
-
-    protected $webhookLogChannel = 'Doku';
-
     public function index()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -36,19 +29,21 @@ class Doku extends Controller
             return;
         }
 
+        $processor = new QrisWebhookProcessor($this, 'Doku');
+
         $rawBody = file_get_contents('php://input');
         if (!is_string($rawBody) || trim($rawBody) === '') {
-            $this->logWebhook('Incoming: (empty body) method=' . $method);
+            \Log::write('Incoming: (empty body) method=' . $method, 'webhook', 'Doku');
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Empty body']);
             return;
         }
 
-        $this->logWebhook('Incoming: ' . $rawBody);
+        \Log::write('Incoming: ' . $rawBody, 'webhook', 'Doku');
 
         $data = json_decode($rawBody, true);
         if (!is_array($data)) {
-            $this->logWebhook('Err: Invalid JSON');
+            \Log::write('Err: Invalid JSON', 'webhook', 'Doku');
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Invalid JSON']);
             return;
@@ -72,7 +67,7 @@ class Doku extends Controller
             if (!$verify['valid']) {
                 http_response_code(401);
                 echo json_encode(['status' => false, 'message' => $verify['message']]);
-                $this->logWebhook('Err: Sign — ' . $verify['message']);
+                \Log::write('Err: Sign — ' . $verify['message'], 'webhook', 'Doku');
                 return;
             }
         }
@@ -90,14 +85,14 @@ class Doku extends Controller
         if ($invoiceNumber === '') {
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Missing order.invoice_number']);
-            $this->logWebhook('Err: Param — missing invoice_number');
+            \Log::write('Err: Param — missing invoice_number', 'webhook', 'Doku');
             return;
         }
 
         if ($txStatus === '') {
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Missing transaction.status']);
-            $this->logWebhook('Err: Param — missing transaction.status ref=' . $invoiceNumber);
+            \Log::write('Err: Param — missing transaction.status ref=' . $invoiceNumber, 'webhook', 'Doku');
             return;
         }
 
@@ -113,39 +108,36 @@ class Doku extends Controller
                 'channel' => $data['channel']['id'] ?? null,
                 'timestamp' => date('Y-m-d H:i:s'),
             ];
-            $this->logWebhook('TEST: Webhook received — ' . json_encode($logData, JSON_UNESCAPED_SLASHES));
+            \Log::write('TEST: Webhook received — ' . json_encode($logData, JSON_UNESCAPED_SLASHES), 'webhook', 'Doku');
             http_response_code(200);
             echo json_encode(['status' => true, 'message' => 'TEST webhook logged', 'logged' => true]);
             return;
         }
 
-        $this->logWebhook("Incoming QRIS ref=$invoiceNumber tx=$txStatus mapped=$status");
+        \Log::write("Incoming QRIS ref=$invoiceNumber tx=$txStatus mapped=$status", 'webhook', 'Doku');
 
         if ($parts[0] === 'SALONSUB') {
-            $this->handleSalonSubscription($invoiceNumber, $status);
+            $processor->handleSalonSubscription($invoiceNumber, $status);
             http_response_code(200);
             echo json_encode(['status' => true, 'message' => 'Processed SALONSUB']);
             return;
         }
         if ($parts[0] === 'MDLINV') {
-            $this->handleInvoicePayment($invoiceNumber, $status);
+            $processor->handleInvoicePayment($invoiceNumber, $status);
             http_response_code(200);
             echo json_encode(['status' => true, 'message' => 'Processed MDLINV']);
             return;
         }
         if ($parts[0] === 'RESTOKAS') {
-            $this->handleRestoKas($invoiceNumber, $status);
+            $processor->handleRestoKas($invoiceNumber, $status);
             http_response_code(200);
             echo json_encode(['status' => true, 'message' => 'Processed RESTOKAS']);
             return;
         }
 
-        $this->handleKasLaundry($invoiceNumber, $status);
+        $processor->handleKasLaundry($invoiceNumber, $status);
     }
 
-    /**
-     * Map DOKU transaction.status ke status internal (selaras dengan Tokopay webhook).
-     */
     private function mapDokuStatus(string $dokuStatus): string
     {
         $s = strtoupper(trim($dokuStatus));
@@ -159,9 +151,6 @@ class Doku extends Controller
         return strtolower($dokuStatus);
     }
 
-    /**
-     * Coba path alternatif jika nginx menambah/menghilangkan prefix /api.
-     */
     private function alternateRequestTarget(string $current): ?string
     {
         if (strpos($current, '/api/') === 0) {
