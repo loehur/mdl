@@ -323,13 +323,13 @@ const applyTheme = (themeName) => {
   const root = document.documentElement;
 
   if (themeName === "light") {
-    // Light theme — firmer contrast (not solid/harsh)
-    root.style.setProperty("--wa-bg-primary", "#eef0f3");
+    // Light theme — clean white panels (sedikit lebih terang, kurang berkabut)
+    root.style.setProperty("--wa-bg-primary", "#f7f8fa");
     root.style.setProperty("--wa-bg-secondary", "#ffffff");
-    root.style.setProperty("--wa-bg-tertiary", "#e8ebef");
+    root.style.setProperty("--wa-bg-tertiary", "#f5f6f8");
     root.style.setProperty("--wa-bg-panel", "#ffffff");
-    root.style.setProperty("--wa-bg-chat", "#e8e4dc");
-    root.style.setProperty("--wa-border", "#cfd6db");
+    root.style.setProperty("--wa-bg-chat", "#ece8df");
+    root.style.setProperty("--wa-border", "#e2e6ea");
     root.style.setProperty("--wa-text-primary", "#0b141a");
     root.style.setProperty("--wa-text-secondary", "#3b4a54");
     root.style.setProperty("--wa-text-tertiary", "#5e6e78");
@@ -339,21 +339,21 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-bubble-in", "#ffffff");
     root.style.setProperty("--wa-bubble-incoming", "#ffffff");
     root.style.setProperty("--wa-bubble-in-text", "#0b141a");
-    root.style.setProperty("--wa-hover", "#e8ebef");
-    root.style.setProperty("--wa-active", "#dde3e8");
+    root.style.setProperty("--wa-hover", "#f5f6f8");
+    root.style.setProperty("--wa-active", "#f0f2f5");
     root.style.setProperty("--wa-bubble-out-meta", "#3b4a54");
     root.style.setProperty("--wa-bubble-out-quoted-bg", "rgba(0, 0, 0, 0.07)");
     root.style.setProperty("--wa-bubble-out-quoted-text", "#3b4a54");
     root.style.setProperty("--wa-icon-default", "#3b4a54");
     root.style.setProperty("--wa-accent-green", "#008f72");
     root.style.setProperty("--wa-accent-blue", "#0277bd");
-    root.style.setProperty("--wa-divider", "#d8dee3");
+    root.style.setProperty("--wa-divider", "#eceff1");
     root.style.setProperty("--wa-link-color", "#015f96");
     root.style.setProperty("--wa-date-badge", "#ffffff");
     root.style.setProperty("--wa-date-badge-text", "#3b4a54");
-    root.style.setProperty("--wa-header-bg", "#eef0f3");
+    root.style.setProperty("--wa-header-bg", "#ffffff");
     root.style.setProperty("--wa-input-bg", "#ffffff");
-    root.style.setProperty("--wa-conversation-active", "#dde3e8");
+    root.style.setProperty("--wa-conversation-active", "#f0f2f5");
     root.style.setProperty("--wa-cabang-text", "#015f96");
     root.style.setProperty("--wa-cabang-bg", "#c8e8f8");
     root.style.setProperty("--wa-cabang-hq-text", "#ad1457");
@@ -363,7 +363,7 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-active-bg", "#c8f0c4");
     root.style.setProperty("--wa-filter-active-text", "#006b54");
     root.style.setProperty("--wa-filter-inactive-bg", "transparent");
-    root.style.setProperty("--wa-filter-inactive-border", "#cfd6db");
+    root.style.setProperty("--wa-filter-inactive-border", "#e2e6ea");
     root.style.setProperty("--wa-filter-inactive-text", "#3b4a54");
     root.style.setProperty("--wa-caption-overlay-bg", "rgba(255, 255, 255, 0.85)");
     root.style.setProperty("--wa-caption-overlay-text", "#000000");

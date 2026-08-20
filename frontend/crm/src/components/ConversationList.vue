@@ -173,7 +173,7 @@ const parseEmoji = (text) => {
     class="flex flex-col border-r border-[var(--wa-border)] bg-[var(--wa-bg-panel)] transition-all duration-300 absolute md:static z-0 h-full w-full md:w-96"
   >
     <!-- Search Header -->
-    <div class="px-4 pt-4 pb-1 bg-[var(--wa-bg-panel)] backdrop-blur-md sticky top-0 z-10 transition-colors duration-300">
+    <div class="px-4 pt-4 pb-1 bg-[var(--wa-bg-panel)] sticky top-0 z-10 transition-colors duration-300">
       <div class="flex items-center gap-2">
         <div class="relative group flex-1">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -186,7 +186,7 @@ const parseEmoji = (text) => {
             @input="onSearchInput"
             type="text"
             placeholder="Search or start new chat"
-            class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-tertiary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-tertiary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
+            class="block w-full pl-10 pr-10 py-2.5 border border-[var(--wa-border)] rounded-lg leading-5 bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:bg-[var(--wa-bg-secondary)] focus:border-[var(--wa-accent-green)] focus:ring-0 sm:text-sm transition-all"
           />
           <!-- Searching Spinner -->
           <div v-if="isSearching" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -308,7 +308,7 @@ const parseEmoji = (text) => {
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-0.5 gap-2">
             <h3
-              class="text-[17px] leading-snug truncate max-w-[240px] font-normal uppercase"
+              class="text-[17px] leading-snug truncate max-w-[240px] font-medium uppercase"
               style="color: var(--wa-conv-name);"
               :title="chat.name"
             >
