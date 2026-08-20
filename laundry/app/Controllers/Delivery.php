@@ -2313,10 +2313,7 @@ class Delivery extends Controller
           FROM sale s
           WHERE s.bin = 0
             AND s.id_pelanggan IN ($idsIn)
-            AND (
-              s.tuntas = 0
-              OR (s.tuntas = 1 AND s.tuntasTime IS NOT NULL AND s.tuntasTime >= (NOW() - INTERVAL 2 DAY))
-            )
+            AND s.tuntas = 0
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 5000"
       );
@@ -3021,10 +3018,7 @@ class Delivery extends Controller
           FROM sale s
           WHERE s.bin = 0
             AND s.id_pelanggan IN ($idsIn)
-            AND (
-              s.tuntas = 0
-              OR (s.tuntas = 1 AND s.tuntasTime IS NOT NULL AND s.tuntasTime >= (NOW() - INTERVAL 2 DAY))
-            )
+            AND s.tuntas = 0
             $eligibilityClause
           ORDER BY s.insertTime DESC, s.id_penjualan DESC
           LIMIT 300"
@@ -3745,11 +3739,29 @@ class Delivery extends Controller
 
       $saleRows = $this->db(0)->get_where(
          'sale',
-         'bin = 0 AND id_pelanggan = ' . $idPelanggan
+         'bin = 0 AND tuntas = 0 AND id_pelanggan = ' . $idPelanggan
             . ' AND id_penjualan IN (' . implode(',', $safe) . ')'
       );
       if (!is_array($saleRows)) {
-         return;
+         $saleRows = [];
+      }
+      $eligibleIds = [];
+      foreach ($saleRows as $sr) {
+         $sid = (int) ($sr['id_penjualan'] ?? 0);
+         if ($sid > 0) {
+            $eligibleIds[$sid] = true;
+         }
+      }
+      foreach ($safe as $idSale) {
+         $idSale = (int) $idSale;
+         if (isset($existing[$idSale])) {
+            continue;
+         }
+         if (!isset($eligibleIds[$idSale])) {
+            throw new Exception(
+               'Item #' . $idSale . ' tidak eligible — order sudah tuntas atau tidak valid'
+            );
+         }
       }
       foreach ($saleRows as $sr) {
          $idSale = (int) ($sr['id_penjualan'] ?? 0);
