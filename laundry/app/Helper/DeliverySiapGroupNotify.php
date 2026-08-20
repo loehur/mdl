@@ -116,7 +116,7 @@ class DeliverySiapGroupNotify
         }
 
         $jenisLabel = !empty($req['sekalian_jemput']) ? 'Antar & Jemput' : 'Antar';
-        $text = $nama . ' - ' . $kode . "\n*" . $jenisLabel . "*\n#" . $idRequest . ' siap diantar';
+        $text = 'Info dari ' . $kode . "\n*" . $nama . "*\nSiap " . $jenisLabel;
 
         if (!class_exists('FonnteService')) {
             // Dipanggil dari controller yang sudah load helper
