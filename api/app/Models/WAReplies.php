@@ -4325,6 +4325,10 @@ class WAReplies
         if (strtoupper($intent) !== 'ESTIMASI_SELESAI') {
             return $intent;
         }
+        // Intent Lab = klasifikasi teks saja; jangan remap ke PERMINTAAN karena nomor lab tanpa sale aktif.
+        if ($this->intentLabMode) {
+            return $intent;
+        }
         if ($this->pelangganHasActiveSale($phoneIn, $waNumber)) {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'ESTIMASI_SELESAI keep (ada sale aktif)');
             return 'ESTIMASI_SELESAI';

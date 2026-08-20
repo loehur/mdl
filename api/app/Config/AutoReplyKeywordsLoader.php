@@ -40,11 +40,17 @@ class AutoReplyKeywordsLoader
         }
     }
 
-    /** Paksa reload (setelah admin save dari proses yang sama). */
-    public static function invalidate(): void
+    /** Kosongkan cache in-memory saja (tanpa bump cache_version). */
+    public static function clearCache(): void
     {
         self::$config = null;
         self::$version = null;
+    }
+
+    /** Paksa reload (setelah admin save dari proses yang sama). */
+    public static function invalidate(): void
+    {
+        self::clearCache();
         try {
             self::bumpCacheVersion();
         } catch (\Throwable $e) {

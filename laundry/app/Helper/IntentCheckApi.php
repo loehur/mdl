@@ -10,9 +10,13 @@ class IntentCheckApi
     /**
      * @return array{ok:bool,intent?:?string,source?:?string,case?:mixed,notify?:bool,trace?:list<string>,message?:string}
      */
-    public function check(string $text): array
+    public function check(string $text, bool $reload = false): array
     {
-        $payload = json_encode(['text' => $text], JSON_UNESCAPED_UNICODE);
+        $body = ['text' => $text];
+        if ($reload) {
+            $body['reload'] = 1;
+        }
+        $payload = json_encode($body, JSON_UNESCAPED_UNICODE);
         return $this->request('check', $payload, true);
     }
 

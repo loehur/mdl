@@ -1185,6 +1185,7 @@ class IntentTeachHelper
     public static function normalizePatternForText(string $pattern, string $text): string
     {
         $pattern = trim($pattern);
+        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
         $text = trim($text);
         if ($pattern === '' || $text === '') {
             return $pattern;

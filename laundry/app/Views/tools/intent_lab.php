@@ -587,7 +587,9 @@
 
     /** PCRE: \\b setelah ?!., di akhir pattern tidak match teks yang diakhiri tanda baca. */
     function fixPatternBoundaries(pattern) {
-      return String(pattern || '').replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
+      pattern = String(pattern || '').trim();
+      pattern = pattern.replace(/\s+(?=\/[a-z]*$)/i, '');
+      return pattern.replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
     }
 
     var checkUrl = '<?= URL::BASE_URL; ?>IntentLab/check';
@@ -980,11 +982,16 @@
         if (res.pattern_added) msg += ' Pattern ditambah.';
         if (res.prompt_updated) msg += ' Prompt diupdate.';
         if (res.verify_ok) msg += ' Verifikasi: intent = ' + (res.verify_intent || intent);
-        else msg += ' Verifikasi: dapat ' + (res.verify_intent || '—') + ' (target ' + intent + ').';
+        else {
+          msg += ' Verifikasi: dapat ' + (res.verify_intent || '—') + ' (target ' + intent + ').';
+          if (res.verify && res.verify.source === 'ai') {
+            msg += ' Pattern sudah tersimpan; AI masih override — cek TRACE atau perkuat ai_prompt.';
+          }
+        }
         $applyMsg.css('color', res.verify_ok ? '#15803d' : '#b45309').text(msg);
         applyCacheFromResponse(res);
         if (res.verify) showResult(res.verify);
-        toast(res.verify_ok ? 'Berhasil diajarkan' : 'Tersimpan, verifikasi belum pas', res.verify_ok ? 'info' : 'warn');
+        toast(res.verify_ok ? 'Berhasil diajarkan' : 'Tersimpan — cek hasil Cek Intent di bawah', res.verify_ok ? 'info' : 'warn');
       }).fail(function () {
         toast('Request aktifkan gagal', 'err');
       }).always(function () { setLoading(false); });

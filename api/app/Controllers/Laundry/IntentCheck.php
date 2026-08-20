@@ -71,6 +71,11 @@ class IntentCheck extends Controller
         }
 
         try {
+            $forceReload = !empty($data['reload']) || !empty($data['force_reload']);
+            if ($forceReload && class_exists('\\App\\Config\\AutoReplyKeywordsLoader')) {
+                \App\Config\AutoReplyKeywordsLoader::clearCache();
+            }
+
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }

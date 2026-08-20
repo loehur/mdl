@@ -311,10 +311,11 @@ class IntentLab extends Controller
             $cacheBump = $this->bumpAutoreplyCache();
         }
 
-        // Re-cek klasifikasi
+        // Re-cek klasifikasi (paksa API reload config bila baru bump cache)
         $api = $this->helper('IntentCheckApi');
-        $check = $api->check($text);
+        $check = $api->check($text, $cacheBump !== null);
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
+        $verifyOk = $this->verifyTeachIntent($check, $intentCode, $addPattern ? $pattern : '');
 
         $out = [
             'ok' => 1,
@@ -325,7 +326,7 @@ class IntentLab extends Controller
             'prompt_updated' => $promptUpdated,
             'target_intent' => $intentCode,
             'verify_intent' => $gotIntent,
-            'verify_ok' => ($gotIntent === $intentCode),
+            'verify_ok' => $verifyOk,
             'verify' => $check,
             'cache_version' => $this->readCacheVersion(),
         ];
@@ -530,11 +531,43 @@ class IntentLab extends Controller
     }
 
     /**
+     * Verifikasi setelah Aktifkan: intent final atau regex match ke target.
+     *
+     * @param array<string,mixed> $check
+     */
+    private function verifyTeachIntent(array $check, string $targetIntent, string $pattern = ''): bool
+    {
+        $targetIntent = strtoupper(trim($targetIntent));
+        $got = strtoupper(trim((string) ($check['intent'] ?? '')));
+        if ($got === $targetIntent) {
+            return true;
+        }
+
+        $trace = $check['trace'] ?? [];
+        if (is_array($trace)) {
+            foreach ($trace as $line) {
+                $line = (string) $line;
+                if (preg_match('/REGEX_MATCH.*(?:handler|regex_source)=' . preg_quote($targetIntent, '/') . '\b/i', $line)) {
+                    return true;
+                }
+            }
+        }
+
+        $text = trim((string) ($check['text'] ?? ''));
+        if ($pattern !== '' && $text !== '' && @preg_match($pattern, $text) === 1) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * PCRE: trailing \\b setelah ?!., di akhir string tidak pernah match — perbaiki sebelum simpan.
      */
     private function normalizePatternForText(string $pattern, string $text): string
     {
         $pattern = trim($pattern);
+        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
         $text = trim($text);
         if ($pattern === '' || $text === '') {
             return $pattern;
