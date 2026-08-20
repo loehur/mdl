@@ -53,7 +53,7 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
     min-width: 140px;
     max-width: min(380px, 100%);
   }
-  .operasi-chat-btn {
+  .operasi-toolbar-btn {
     box-sizing: border-box;
     flex: 0 0 auto;
     width: 36px;
@@ -61,24 +61,49 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
     min-width: 36px;
     padding: 0;
     margin: 0;
-    border: 1px solid #93c5fd;
     border-radius: 0;
-    background: linear-gradient(180deg, #eff6ff, #fff);
-    color: #1d4ed8;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     font-size: 15px;
+    text-decoration: none;
   }
-  .operasi-chat-btn:hover:not(:disabled) {
+  .operasi-toolbar-btn:disabled,
+  .operasi-toolbar-btn.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .operasi-chat-btn {
+    border: 1px solid #93c5fd;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+    color: #1d4ed8;
+  }
+  .operasi-chat-btn:hover:not(:disabled):not(.is-disabled) {
     background: linear-gradient(180deg, #2563eb, #1d4ed8);
     border-color: #1d4ed8;
     color: #fff;
   }
-  .operasi-chat-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
+  .operasi-label-btn {
+    border: 1px solid #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fef3c7);
+    color: #d97706;
+  }
+  .operasi-label-btn:hover:not(:disabled):not(.is-disabled) {
+    background: linear-gradient(180deg, #fde68a, #fcd34d);
+    border-color: #f59e0b;
+    color: #78350f;
+  }
+  .operasi-bill-btn {
+    border: 1px solid #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fef3c7);
+    color: #d97706;
+  }
+  .operasi-bill-btn:hover:not(:disabled):not(.is-disabled) {
+    background: linear-gradient(180deg, #fde68a, #fcd34d);
+    border-color: #f59e0b;
+    color: #78350f;
   }
   /* Selectize height align — sama persis 36px; satu border saja */
   .operasi-filter .id_pelanggan.form-control,
@@ -363,7 +388,7 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
           </select>
         </div>
         <button type="button"
-          class="operasi-chat-btn"
+          class="operasi-toolbar-btn operasi-chat-btn"
           id="btnOperasiChat"
           title="Riwayat Chat"
           aria-label="Riwayat Chat"
@@ -372,6 +397,24 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
           <?= ($id_pelanggan > 0 && $chatHp !== '') ? '' : 'disabled' ?>>
           <i class="fas fa-comments"></i>
         </button>
+        <button type="button"
+          class="operasi-toolbar-btn operasi-label-btn"
+          id="btnOperasiLabel"
+          title="Cetak Label"
+          aria-label="Cetak Label"
+          data-print-id="Label"
+          <?= $id_pelanggan > 0 ? '' : 'disabled' ?>>
+          <i class="fas fa-tags"></i>
+        </button>
+        <a class="operasi-toolbar-btn operasi-bill-btn<?= $id_pelanggan > 0 ? '' : ' is-disabled' ?>"
+          id="btnOperasiTagihan"
+          href="<?= $id_pelanggan > 0 ? URL::BASE_URL . 'I/' . $id_pelanggan : '#' ?>"
+          target="_blank"
+          title="Tagihan"
+          aria-label="Tagihan"
+          <?= $id_pelanggan > 0 ? '' : 'aria-disabled="true" tabindex="-1"' ?>>
+          <i class="fas fa-receipt"></i>
+        </a>
       </div>
     </div>
 
