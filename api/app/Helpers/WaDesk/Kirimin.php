@@ -136,7 +136,7 @@ class Kirimin
             'channel' => 'whatsapp',
             'whatsapp_device_id' => $deviceId,
             'message_type' => 'text',
-            'message' => $message,
+            'content' => $message,
         ];
         if ($userName !== null && trim($userName) !== '') {
             $payload['user_name'] = trim($userName);
