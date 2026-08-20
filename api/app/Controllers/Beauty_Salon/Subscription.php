@@ -639,10 +639,11 @@ class Subscription extends Controller
             }
 
             $amount_int = (int)floatval($payment['amount']);
-            $tokopay = new \App\Models\Tokopay();
-            $response = $tokopay->checkStatus($payment_ref, $amount_int, 'QRIS');
-            $data = json_decode($response, true);
-            $parsed = $this->parseTokopayStatus($data);
+            $qris = new \App\Helpers\Payment\QrisService();
+            $checked = $qris->checkStatus($payment_ref, $amount_int);
+            $parsed = $checked['connection_error']
+                ? ['connection_error' => true, 'message' => $checked['message'] ?? 'Gagal terhubung ke payment gateway']
+                : $this->parseTokopayStatus($checked['raw'] ?? []);
 
             if (!empty($parsed['connection_error'])) {
                 $this->json([
@@ -936,55 +937,44 @@ class Subscription extends Controller
 
     private function createTokopayOrder($amount_int, $payment_ref)
     {
-        $tokopay = new \App\Models\Tokopay();
-        $response = $tokopay->createOrder((int)$amount_int, $payment_ref, 'QRIS');
-        $data = json_decode($response, true);
+        $qris = new \App\Helpers\Payment\QrisService();
+        $order = $qris->generate((int) $amount_int, $payment_ref, false);
 
-        $apiOk = false;
-        if (isset($data['status'])) {
-            $status = is_string($data['status']) ? strtolower($data['status']) : $data['status'];
-            if ($status === 'success' || $status === 'true' || $status === true || $status === 1) {
-                $apiOk = true;
-            }
-        }
-
-        $qr_string = $this->extractQrString($data);
-        if ($apiOk && !empty($qr_string)) {
+        if (!$order['failed'] && $order['status'] && !empty($order['qr_string'])) {
             return [
                 'ok' => true,
-                'qr_string' => $qr_string,
-                'raw' => $response
+                'qr_string' => $order['qr_string'],
+                'gateway' => $order['gateway'],
+                'raw' => isset($order['raw']) ? json_encode($order['raw']) : '',
             ];
-        }
-
-        $message = 'Gagal membuat QRIS';
-        if (!empty($data['message'])) {
-            $message = $data['message'];
-        } elseif (!empty($data['error_msg'])) {
-            $message = $data['error_msg'];
-        } elseif ($apiOk && empty($qr_string)) {
-            $message = 'QR String tidak ditemukan dari payment gateway';
         }
 
         return [
             'ok' => false,
             'qr_string' => '',
-            'message' => $message,
-            'raw' => is_string($response) ? substr($response, 0, 300) : ''
+            'message' => $order['message'] ?? 'Gagal membuat QRIS',
+            'raw' => isset($order['raw']) ? json_encode($order['raw']) : '',
         ];
     }
 
     private function fetchTokopayPaymentStatus($payment_ref, $amount_int)
     {
         try {
-            $tokopay = new \App\Models\Tokopay();
-            $response = $tokopay->checkStatus($payment_ref, (int)$amount_int, 'QRIS');
-            $data = json_decode($response, true);
-            return $this->parseTokopayStatus($data);
+            $qris = new \App\Helpers\Payment\QrisService();
+            $checked = $qris->checkStatus($payment_ref, (int) $amount_int);
+
+            if ($checked['connection_error']) {
+                return [
+                    'connection_error' => true,
+                    'message' => $checked['message'] ?? 'Gagal terhubung ke payment gateway',
+                ];
+            }
+
+            return $this->parseTokopayStatus($checked['raw'] ?? []);
         } catch (\Exception $e) {
             return [
                 'connection_error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ];
         }
     }

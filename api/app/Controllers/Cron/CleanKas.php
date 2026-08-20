@@ -3,7 +3,7 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
-use App\Models\Tokopay;
+use App\Helpers\Payment\QrisService;
 
 /**
  * CleanKas Controller
@@ -84,7 +84,7 @@ class CleanKas extends Controller
                 . " GROUP BY ref_finance, payment_trx_id, jumlah, id_client"
             )->result_array();
 
-            $tokopay = new Tokopay();
+            $qris = new QrisService();
             $processed = [];
 
             foreach ($rows as $row) {
@@ -101,7 +101,7 @@ class CleanKas extends Controller
                     continue;
                 }
 
-                $result = $this->applyTokopayStatus($db, $tokopay, $row, $stats);
+                $result = $this->applyQrisStatus($db, $qris, $row, $stats);
                 if (isset($stats[$result])) {
                     $stats[$result]++;
                 }
@@ -132,7 +132,7 @@ class CleanKas extends Controller
     /**
      * @return string paid|failed|skipped_pending|errors
      */
-    private function applyTokopayStatus($db, Tokopay $tokopay, array $row, array &$stats)
+    private function applyQrisStatus($db, QrisService $qris, array $row, array &$stats)
     {
         $refFinance = trim($row['ref_finance'] ?? '');
         $trxId = trim($row['payment_trx_id'] ?? '');
@@ -144,18 +144,17 @@ class CleanKas extends Controller
             return 'errors';
         }
 
-        $response = $tokopay->checkStatus($trxId, $nominal, 'QRIS');
-        $data = json_decode($response, true);
+        $checked = $qris->checkStatus($trxId, $nominal);
 
-        if (!is_array($data) || (isset($data['status']) && $data['status'] === false)) {
-            $rawData = (isset($data['data']) && is_array($data['data'])) ? $data['data'] : [];
-            if ($this->upsertCleanupLog($db, $refFinance, $insertTime, 'error', $idClient, $rawData)) {
+        if ($checked['connection_error'] || !is_array($checked['raw'])) {
+            if ($this->upsertCleanupLog($db, $refFinance, $insertTime, 'error', $idClient, [])) {
                 $stats['logged']++;
             }
             return 'errors';
         }
 
-        $statusTrx = $this->parseTokopayStatus($data);
+        $data = $checked['raw'];
+        $statusTrx = $qris->parseTrxStatus($data);
         $bucket = $this->classifyStatus($statusTrx);
         $rawData = isset($data['data']) && is_array($data['data']) ? $data['data'] : [];
 
@@ -231,46 +230,6 @@ class CleanKas extends Controller
             (int) $idClient,
             $rawJson,
         ]);
-    }
-
-    private function parseTokopayStatus(array $data)
-    {
-        $statusTrx = '';
-
-        // Prioritas: data.status (Unpaid/Paid/Expired) — jangan tertimpa status_pembayaran "pending"
-        if (isset($data['data']) && is_array($data['data'])) {
-            if (!empty($data['data']['status']) && is_string($data['data']['status'])) {
-                $statusTrx = strtolower(trim($data['data']['status']));
-            } elseif (!empty($data['data']['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['data']['status_pembayaran']));
-            } elseif (!empty($data['data']['status_detail'])) {
-                $statusTrx = strtolower(trim($data['data']['status_detail']));
-            }
-        }
-
-        if ($statusTrx === '') {
-            if (!empty($data['trx_status'])) {
-                $statusTrx = strtolower(trim($data['trx_status']));
-            } elseif (!empty($data['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['status_pembayaran']));
-            } elseif (!empty($data['status_detail'])) {
-                $statusTrx = strtolower(trim($data['status_detail']));
-            } elseif (!empty($data['payment_status'])) {
-                $statusTrx = strtolower(trim($data['payment_status']));
-            }
-        }
-
-        // trx_status unpaid lebih spesifik daripada payment_status pending (format API wrapper)
-        $trxStatus = isset($data['trx_status']) ? strtolower(trim((string) $data['trx_status'])) : '';
-        if ($trxStatus === 'unpaid' && ($statusTrx === '' || $statusTrx === 'pending')) {
-            $statusTrx = 'unpaid';
-        }
-
-        if ($statusTrx === '') {
-            $statusTrx = 'pending';
-        }
-
-        return $statusTrx;
     }
 
     /**

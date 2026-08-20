@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Invoice;
 
-use App\Models\Tokopay;
+use App\Helpers\Payment\QrisService;
 
 /**
  * Public invoice — tanpa autentikasi.
@@ -120,27 +120,22 @@ class PublicView extends InvoiceController
                 'payment_status' => 'pending',
             ], ['id' => $invoiceId]);
 
-            $tokopay = new Tokopay();
-            $response = $tokopay->createOrder($amount, $paymentRef, 'QRIS');
-            $data = json_decode($response, true);
+            $qris = new QrisService();
+            $order = $qris->generate($amount, $paymentRef, false);
 
-            if (!$this->isTokopaySuccess($data)) {
-                $errorMsg = $data['message'] ?? 'Gagal membuat QRIS';
+            if ($order['failed'] || !$order['status']) {
                 $this->db($this->db_index)->update('invoice_payments', [
                     'payment_status' => 'failed',
                 ], ['payment_ref' => $paymentRef]);
 
-                $this->error('Tokopay Error: ' . $errorMsg, 500);
+                $this->error('QRIS Error: ' . ($order['message'] ?? 'Gagal membuat QRIS'), 500);
             }
 
-            $qrString = $this->extractQrString($data);
-            if ($qrString === '') {
-                $this->error('QR String tidak ditemukan dari Tokopay', 500);
-            }
+            $qrString = $order['qr_string'];
 
             $this->db($this->db_index)->update('invoice_payments', [
                 'qr_string' => $qrString,
-                'trx_id' => $paymentRef,
+                'trx_id' => $order['trx_id'],
             ], ['payment_ref' => $paymentRef]);
 
             $this->success([
@@ -185,11 +180,14 @@ class PublicView extends InvoiceController
             }
 
             $amount = (int) round((float) $payment['amount']);
-            $tokopay = new Tokopay();
-            $response = $tokopay->checkStatus($paymentRef, $amount, 'QRIS');
-            $data = json_decode($response, true);
+            $qris = new QrisService();
+            $checked = $qris->checkStatus($paymentRef, $amount);
 
-            $status = $this->parsePaymentStatus($data);
+            if ($checked['connection_error']) {
+                $this->error('Gagal cek pembayaran: ' . $checked['message'], 500);
+            }
+
+            $status = $checked['payment_status'];
 
             if ($status === 'paid') {
                 $this->markInvoicePaid((int) $payment['invoice_id'], $paymentRef);
