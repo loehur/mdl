@@ -184,7 +184,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-2" style="font-weight:700">Keyword sederhana digabung jadi satu regex. Pattern frasa (ada spasi / <code>\s</code>) tidak diubah.</p>
+        <p class="mb-2" style="font-weight:700">Perbaiki pattern rusak (mis. <code>\?\//iu</code>, <code>\?\b</code> di akhir) dan gabung keyword sederhana jadi satu regex. Pattern frasa (ada spasi / <code>\s</code>) tidak diubah.</p>
         <div id="compactPreview" style="max-height:320px;overflow:auto;font-size:.85rem"></div>
       </div>
       <div class="modal-footer">
@@ -304,17 +304,35 @@ $(function() {
         toast((res && res.message) || 'Gagal preview', 'err');
         return;
       }
-      var plans = res.plans || [];
-      if (!plans.length) {
-        $('#compactPreview').html('<p class="mb-0">' + (res.message || 'Tidak ada yang perlu digabung.') + '</p>');
-        return;
+      var html = '';
+      function esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       }
-      var p = plans[0];
-      var html = '<div style="font-weight:900;margin-bottom:6px">Hapus ' + ((p.delete_ids && p.delete_ids.length) || 0) + ' row, sisakan #' + (p.keeper_id || '') + '</div>';
-      html += '<code style="word-break:break-all">' + String(p.merged_pattern || '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>';
+      var repairs = res.repair_plans || [];
+      if (repairs.length) {
+        html += '<p style="font-weight:900;margin-bottom:8px">Perbaiki pattern rusak (' + repairs.length + ')</p>';
+        repairs.forEach(function (r) {
+          html += '<div class="mb-2 p-2" style="border:1px solid #fca5a5;background:#fff1f2">';
+          html += '<div style="font-weight:800">#' + (r.id || '') + '</div>';
+          html += '<div style="font-size:.78rem;color:#64748b">' + esc((r.reasons || []).join(', ')) + '</div>';
+          html += '<div><s style="color:#94a3b8;word-break:break-all">' + esc(r.before) + '</s></div>';
+          html += '<div style="word-break:break-all"><code>' + esc(r.after) + '</code></div>';
+          html += '</div>';
+        });
+      }
+      var plans = res.plans || [];
+      if (plans.length) {
+        var p = plans[0];
+        html += '<p style="font-weight:900;margin:12px 0 6px">Gabung keyword</p>';
+        html += '<div style="font-weight:900;margin-bottom:6px">Hapus ' + ((p.delete_ids && p.delete_ids.length) || 0) + ' row, sisakan #' + (p.keeper_id || '') + '</div>';
+        html += '<code style="word-break:break-all">' + esc(p.merged_pattern || '') + '</code>';
+      }
+      if (!html) {
+        html = '<p class="mb-0">' + (res.message || 'Tidak ada yang perlu dirapikan.') + '</p>';
+      }
       $('#compactPreview').html(html);
-      $('#btnCompactApply').prop('disabled', false);
+      $('#btnCompactApply').prop('disabled', !((res.needed_count || 0) > 0));
+      if (!(res.needed_count > 0)) toast(res.message || 'Sudah rapi', 'warn');
     }).fail(function () { toast('Request gagal', 'err'); });
   });
   $('#btnCompactApply').on('click', function() {

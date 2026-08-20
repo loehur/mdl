@@ -412,4 +412,76 @@ class IntentPatternBag
         }
         return $out;
     }
+
+    /**
+     * Bersihkan korupsi umum regex PHP (AI / copy-paste).
+     * - spasi sebelum /delimiter
+     * - \\?/ sebelum penutup (slash ekstra)
+     * - \\b setelah ?!., di akhir (PCRE tidak match)
+     */
+    public static function sanitizePatternString(string $pattern): string
+    {
+        $pattern = trim($pattern);
+        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        $pattern = preg_replace('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        $pattern = preg_replace('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+
+        return $pattern;
+    }
+
+    /**
+     * @param list<array{id:int|string,pattern:string,note?:string}> $rows
+     * @return list<array{id:int,before:string,after:string,needed:bool,reasons:list<string>,note?:string}>
+     */
+    public static function repairPlansForRows(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $before = (string) ($row['pattern'] ?? '');
+            if ($id <= 0 || trim($before) === '') {
+                continue;
+            }
+            $beforeTrim = trim($before);
+            $after = self::sanitizePatternString($before);
+            $reasons = [];
+            if ($before !== $beforeTrim) {
+                $reasons[] = 'trim spasi';
+            }
+            if (preg_match('/\s+(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
+                $reasons[] = 'spasi sebelum delimiter';
+            }
+            if (preg_match('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
+                $reasons[] = 'korupsi \\?/ sebelum penutup';
+            }
+            if (preg_match('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
+                $reasons[] = '\\b setelah tanda baca akhir';
+            }
+            $needed = ($after !== $beforeTrim);
+            if (!$needed) {
+                continue;
+            }
+            if (@preg_match($after, '') === false) {
+                $out[] = [
+                    'id' => $id,
+                    'before' => $beforeTrim,
+                    'after' => $after,
+                    'needed' => false,
+                    'reasons' => array_merge($reasons, ['SKIP: hasil perbaikan tidak valid']),
+                    'note' => (string) ($row['note'] ?? ''),
+                ];
+                continue;
+            }
+            $out[] = [
+                'id' => $id,
+                'before' => $beforeTrim,
+                'after' => $after,
+                'needed' => true,
+                'reasons' => $reasons !== [] ? $reasons : ['normalisasi regex'],
+                'note' => (string) ($row['note'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
 }

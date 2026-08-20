@@ -428,10 +428,12 @@ class AutoReplyKeywords extends Controller
         }
 
         $plans = [];
+        $repairPlans = [];
         $db = $this->dbMain();
         $changed = false;
         $deletedTotal = 0;
         $intentsTouched = 0;
+        $repairsApplied = 0;
 
         foreach ($intents as $intent) {
             $iid = (int) ($intent['id'] ?? 0);
@@ -440,11 +442,51 @@ class AutoReplyKeywords extends Controller
                 continue;
             }
             $patRows = $db->query_array(
-                "SELECT id, pattern, is_active FROM wa_autoreply_patterns WHERE intent_id = {$iid} ORDER BY sort_order ASC, id ASC"
+                "SELECT id, pattern, is_active, note FROM wa_autoreply_patterns WHERE intent_id = {$iid} ORDER BY sort_order ASC, id ASC"
             );
             if (!is_array($patRows)) {
                 $patRows = [];
             }
+
+            $repairs = IntentPatternBag::repairPlansForRows($patRows);
+            foreach ($repairs as $rp) {
+                $rp['intent_id'] = $iid;
+                $rp['intent'] = $code;
+                $repairPlans[] = $rp;
+                if (!$apply || empty($rp['needed'])) {
+                    continue;
+                }
+                $pid = (int) ($rp['id'] ?? 0);
+                $fixed = (string) ($rp['after'] ?? '');
+                if ($pid <= 0 || $fixed === '' || @preg_match($fixed, '') === false) {
+                    continue;
+                }
+                $oldNote = trim((string) ($rp['note'] ?? ''));
+                $tag = 'Rapikan: perbaiki regex';
+                $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
+                $up = $db->update(
+                    'wa_autoreply_patterns',
+                    [
+                        'pattern' => $fixed,
+                        'is_active' => 1,
+                        'note' => mb_substr($newNote, 0, 250),
+                    ],
+                    "id = {$pid} AND intent_id = {$iid}"
+                );
+                if (($up['errno'] ?? 1) != 0) {
+                    continue;
+                }
+                $repairsApplied++;
+                $changed = true;
+                foreach ($patRows as &$pr) {
+                    if ((int) ($pr['id'] ?? 0) === $pid) {
+                        $pr['pattern'] = $fixed;
+                        break;
+                    }
+                }
+                unset($pr);
+            }
+
             $plan = IntentPatternBag::compactRows($patRows);
             $plan['intent_id'] = $iid;
             $plan['intent'] = $code;
@@ -497,21 +539,45 @@ class AutoReplyKeywords extends Controller
         }
 
         $needed = array_values(array_filter($plans, static fn ($p) => !empty($p['needed'])));
+        $repairsNeeded = array_values(array_filter($repairPlans, static fn ($p) => !empty($p['needed'])));
+        $totalNeeded = count($needed) + count($repairsNeeded);
+
+        $message = '';
+        if ($apply) {
+            $bits = [];
+            if ($repairsApplied > 0) {
+                $bits[] = "perbaiki {$repairsApplied} pattern rusak";
+            }
+            if ($intentsTouched > 0) {
+                $bits[] = "gabung keyword {$intentsTouched} intent (hapus {$deletedTotal} row)";
+            }
+            $message = $bits !== []
+                ? 'Dirapikan: ' . implode(', ', $bits) . '.'
+                : 'Tidak ada yang perlu dirapikan.';
+        } elseif ($totalNeeded > 0) {
+            $bits = [];
+            if (count($repairsNeeded) > 0) {
+                $bits[] = count($repairsNeeded) . ' pattern rusak';
+            }
+            if (count($needed) > 0) {
+                $bits[] = count($needed) . ' intent bisa digabung';
+            }
+            $message = 'Bisa dirapikan: ' . implode(', ', $bits) . '.';
+        } else {
+            $message = 'Tidak ada pattern rusak atau keyword sederhana yang perlu digabung.';
+        }
 
         echo json_encode([
             'ok' => 1,
             'applied' => $apply,
             'intents_touched' => $intentsTouched,
             'patterns_deleted' => $deletedTotal,
-            'needed_count' => count($needed),
+            'repairs_applied' => $repairsApplied,
+            'repair_needed_count' => count($repairsNeeded),
+            'needed_count' => $totalNeeded,
             'plans' => $needed,
-            'message' => $apply
-                ? ($intentsTouched > 0
-                    ? "Dirapikan: {$intentsTouched} intent, hapus {$deletedTotal} pattern duplikat."
-                    : 'Tidak ada yang perlu dirapikan.')
-                : (count($needed) > 0
-                    ? count($needed) . ' intent bisa dirapikan.'
-                    : 'Tidak ada pattern keyword sederhana yang bisa digabung.'),
+            'repair_plans' => $repairsNeeded,
+            'message' => $message,
         ], JSON_UNESCAPED_UNICODE);
     }
 }
