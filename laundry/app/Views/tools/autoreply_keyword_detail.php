@@ -184,7 +184,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-2" style="font-weight:700">Perbaiki pattern rusak (mis. <code>\?\//iu</code>, <code>\?\b</code> di akhir) dan gabung keyword sederhana jadi satu regex. Pattern frasa (ada spasi / <code>\s</code>) tidak diubah.</p>
+        <p class="mb-2" style="font-weight:700">Perbaiki pattern rusak (mis. <code>\?\//iu</code>, <code>\?\b</code> di akhir) dan rebuild dari teks contoh di kolom note. Gabung keyword sederhana jadi satu regex.</p>
         <div id="compactPreview" style="max-height:320px;overflow:auto;font-size:.85rem"></div>
       </div>
       <div class="modal-footer">
@@ -312,8 +312,10 @@ $(function() {
       if (repairs.length) {
         html += '<p style="font-weight:900;margin-bottom:8px">Perbaiki pattern rusak (' + repairs.length + ')</p>';
         repairs.forEach(function (r) {
-          html += '<div class="mb-2 p-2" style="border:1px solid #fca5a5;background:#fff1f2">';
-          html += '<div style="font-weight:800">#' + (r.id || '') + '</div>';
+          var ok = r.needed ? '#fff1f2' : '#fffbeb';
+          var border = r.needed ? '#fca5a5' : '#fcd34d';
+          html += '<div class="mb-2 p-2" style="border:1px solid ' + border + ';background:' + ok + '">';
+          html += '<div style="font-weight:800">#' + (r.id || '') + (r.needed ? '' : ' (preview)') + '</div>';
           html += '<div style="font-size:.78rem;color:#64748b">' + esc((r.reasons || []).join(', ')) + '</div>';
           html += '<div><s style="color:#94a3b8;word-break:break-all">' + esc(r.before) + '</s></div>';
           html += '<div style="word-break:break-all"><code>' + esc(r.after) + '</code></div>';
@@ -328,11 +330,14 @@ $(function() {
         html += '<code style="word-break:break-all">' + esc(p.merged_pattern || '') + '</code>';
       }
       if (!html) {
-        html = '<p class="mb-0">' + (res.message || 'Tidak ada yang perlu dirapikan.') + '</p>';
+        html = '<p class="mb-0">' + esc(res.message || 'Tidak ada yang perlu dirapikan.') + '</p>';
+        if ((res.needed_count || 0) === 0) {
+          html += '<p class="mb-0 mt-2" style="color:#64748b;font-size:.85rem">Tip: isi kolom note dengan teks contoh (mis. dari Intent Lab) agar Rapikan bisa rebuild pattern yang tidak match.</p>';
+        }
       }
       $('#compactPreview').html(html);
-      $('#btnCompactApply').prop('disabled', !((res.needed_count || 0) > 0));
-      if (!(res.needed_count > 0)) toast(res.message || 'Sudah rapi', 'warn');
+      $('#btnCompactApply').prop('disabled', false);
+      toast(res.message || 'Preview selesai', (res.needed_count || 0) > 0 ? 'info' : 'warn');
     }).fail(function () { toast('Request gagal', 'err'); });
   });
   $('#btnCompactApply').on('click', function() {

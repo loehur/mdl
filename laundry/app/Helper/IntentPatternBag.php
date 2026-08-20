@@ -422,11 +422,114 @@ class IntentPatternBag
     public static function sanitizePatternString(string $pattern): string
     {
         $pattern = trim($pattern);
+        // spasi sebelum penutup delimiter /flags
         $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        // \?/ \/! dll sebelum penutup — slash ekstra dari AI
         $pattern = preg_replace('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        // literal \?/ sebelum penutup (tanpa double-escape di source)
+        $pattern = preg_replace('/\\\\([?!.,;:])\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        // \b setelah tanda baca di akhir (PCRE tidak match teks berakhir ?!)
         $pattern = preg_replace('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        // flags invalid ganda: //iu → /iu
+        $pattern = preg_replace('/\/\/+([a-zA-Z]*)$/', '/$1', $pattern) ?? $pattern;
 
         return $pattern;
+    }
+
+    /** Pattern mentah terlihat korup / invalid — perlu dirapikan. */
+    public static function patternLooksBroken(string $pattern): bool
+    {
+        $p = trim($pattern);
+        if ($p === '') {
+            return false;
+        }
+        if (@preg_match($p, '') === false) {
+            return true;
+        }
+        if (self::sanitizePatternString($p) !== $p) {
+            return true;
+        }
+        if (preg_match('/\\\\[?!.,;:]\s*\\\\\//', $p)) {
+            return true;
+        }
+        if (preg_match('/\\\\[?!.,;:]\s*\\\\b\s*\//', $p)) {
+            return true;
+        }
+        if (preg_match('/\s+\/[a-zA-Z]*$/', $p)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Ambil teks contoh dari kolom note (Intent Lab teach, dll). */
+    public static function extractSampleFromNote(string $note): string
+    {
+        $note = trim($note);
+        if ($note === '') {
+            return '';
+        }
+        if (preg_match('/^Intent Lab teach:\s*(.+)$/iu', $note, $m)) {
+            return trim((string) ($m[1] ?? ''));
+        }
+        if (preg_match('/^(Rapikan:|Intent Lab|Gabung)/i', $note)) {
+            return '';
+        }
+        if (mb_strlen($note) >= 4) {
+            return $note;
+        }
+
+        return '';
+    }
+
+    /** Perbaiki pattern agar match teks contoh (pakai IntentTeachHelper jika ada). */
+    public static function normalizePatternForSample(string $pattern, string $sampleText): string
+    {
+        $pattern = self::sanitizePatternString($pattern);
+        $sampleText = trim($sampleText);
+        if ($pattern === '' || $sampleText === '') {
+            return $pattern;
+        }
+        if (@preg_match($pattern, $sampleText) === 1) {
+            return $pattern;
+        }
+
+        $helper = self::loadTeachHelperClass();
+        if ($helper !== null) {
+            $fixed = $helper::normalizePatternForText($pattern, $sampleText);
+            if ($fixed !== '' && @preg_match($fixed, $sampleText) === 1) {
+                return $fixed;
+            }
+        }
+
+        $fixed = preg_replace(
+            '/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/',
+            '\\\\$1',
+            $pattern
+        );
+        if (is_string($fixed) && $fixed !== '' && @preg_match($fixed, $sampleText) === 1) {
+            return $fixed;
+        }
+
+        return $pattern;
+    }
+
+    /** @return class-string|null */
+    private static function loadTeachHelperClass(): ?string
+    {
+        static $loaded = false;
+        if (!$loaded) {
+            $loaded = true;
+            $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
+            if (is_file($helper)) {
+                require_once $helper;
+            }
+        }
+        if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+            return '\\App\\Helpers\\Laundry\\IntentTeachHelper';
+        }
+
+        return null;
     }
 
     /**
@@ -443,22 +546,53 @@ class IntentPatternBag
                 continue;
             }
             $beforeTrim = trim($before);
-            $after = self::sanitizePatternString($before);
+            $sample = self::extractSampleFromNote((string) ($row['note'] ?? ''));
+            $looksBroken = self::patternLooksBroken($beforeTrim);
+            $sampleMismatch = $sample !== '' && @preg_match($beforeTrim, $sample) !== 1;
+            if (!$looksBroken && !$sampleMismatch) {
+                continue;
+            }
+
+            $after = self::sanitizePatternString($beforeTrim);
             $reasons = [];
             if ($before !== $beforeTrim) {
                 $reasons[] = 'trim spasi';
             }
+            if (@preg_match($beforeTrim, '') === false) {
+                $reasons[] = 'regex invalid';
+            }
             if (preg_match('/\s+(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
                 $reasons[] = 'spasi sebelum delimiter';
             }
-            if (preg_match('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
+            if (preg_match('/\\\\[?!.,;:][\\\\\/]/', $beforeTrim)) {
                 $reasons[] = 'korupsi \\?/ sebelum penutup';
             }
-            if (preg_match('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
+            if (preg_match('/\\\\[?!.,;:]\s*\\\\b(?=\/[a-zA-Z]*$)/', $beforeTrim)) {
                 $reasons[] = '\\b setelah tanda baca akhir';
             }
+            if ($sampleMismatch) {
+                $reasons[] = 'tidak match teks contoh: "' . mb_substr($sample, 0, 60) . '"';
+                $normalized = self::normalizePatternForSample($after, $sample);
+                if ($normalized !== $after && @preg_match($normalized, $sample) === 1) {
+                    $after = $normalized;
+                    $reasons[] = 'rebuild dari teks contoh';
+                }
+            }
+            if ($after === $beforeTrim && $looksBroken) {
+                $reasons[] = 'terdeteksi rusak (perlu cek manual)';
+            }
+
             $needed = ($after !== $beforeTrim);
             if (!$needed) {
+                $out[] = [
+                    'id' => $id,
+                    'before' => $beforeTrim,
+                    'after' => $after,
+                    'needed' => false,
+                    'reasons' => $reasons,
+                    'note' => (string) ($row['note'] ?? ''),
+                    'sample' => $sample,
+                ];
                 continue;
             }
             if (@preg_match($after, '') === false) {
@@ -469,6 +603,19 @@ class IntentPatternBag
                     'needed' => false,
                     'reasons' => array_merge($reasons, ['SKIP: hasil perbaikan tidak valid']),
                     'note' => (string) ($row['note'] ?? ''),
+                    'sample' => $sample,
+                ];
+                continue;
+            }
+            if ($sample !== '' && @preg_match($after, $sample) !== 1) {
+                $out[] = [
+                    'id' => $id,
+                    'before' => $beforeTrim,
+                    'after' => $after,
+                    'needed' => false,
+                    'reasons' => array_merge($reasons, ['SKIP: masih tidak match teks contoh']),
+                    'note' => (string) ($row['note'] ?? ''),
+                    'sample' => $sample,
                 ];
                 continue;
             }
@@ -479,6 +626,7 @@ class IntentPatternBag
                 'needed' => true,
                 'reasons' => $reasons !== [] ? $reasons : ['normalisasi regex'],
                 'note' => (string) ($row['note'] ?? ''),
+                'sample' => $sample,
             ];
         }
 

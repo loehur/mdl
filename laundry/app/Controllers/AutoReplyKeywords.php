@@ -449,19 +449,24 @@ class AutoReplyKeywords extends Controller
             }
 
             $repairs = IntentPatternBag::repairPlansForRows($patRows);
-            foreach ($repairs as $rp) {
-                $rp['intent_id'] = $iid;
-                $rp['intent'] = $code;
-                $repairPlans[] = $rp;
-                if (!$apply || empty($rp['needed'])) {
+            foreach ($patRows as $row) {
+                $pid = (int) ($row['id'] ?? 0);
+                if ($pid <= 0 || !$apply) {
                     continue;
                 }
-                $pid = (int) ($rp['id'] ?? 0);
-                $fixed = (string) ($rp['after'] ?? '');
-                if ($pid <= 0 || $fixed === '' || @preg_match($fixed, '') === false) {
+                $beforeTrim = trim((string) ($row['pattern'] ?? ''));
+                $sample = IntentPatternBag::extractSampleFromNote((string) ($row['note'] ?? ''));
+                $fixed = IntentPatternBag::sanitizePatternString($beforeTrim);
+                if ($sample !== '') {
+                    $fixed = IntentPatternBag::normalizePatternForSample($fixed, $sample);
+                }
+                if ($fixed === $beforeTrim || $fixed === '' || @preg_match($fixed, '') === false) {
                     continue;
                 }
-                $oldNote = trim((string) ($rp['note'] ?? ''));
+                if ($sample !== '' && @preg_match($fixed, $sample) !== 1) {
+                    continue;
+                }
+                $oldNote = trim((string) ($row['note'] ?? ''));
                 $tag = 'Rapikan: perbaiki regex';
                 $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
                 $up = $db->update(
@@ -485,6 +490,11 @@ class AutoReplyKeywords extends Controller
                     }
                 }
                 unset($pr);
+            }
+            foreach ($repairs as $rp) {
+                $rp['intent_id'] = $iid;
+                $rp['intent'] = $code;
+                $repairPlans[] = $rp;
             }
 
             $plan = IntentPatternBag::compactRows($patRows);
@@ -540,7 +550,9 @@ class AutoReplyKeywords extends Controller
 
         $needed = array_values(array_filter($plans, static fn ($p) => !empty($p['needed'])));
         $repairsNeeded = array_values(array_filter($repairPlans, static fn ($p) => !empty($p['needed'])));
+        $repairsPreview = array_values(array_filter($repairPlans, static fn ($p) => !empty($p['needed']) || !empty($p['reasons'])));
         $totalNeeded = count($needed) + count($repairsNeeded);
+        $canApply = $totalNeeded > 0 || count($repairsPreview) > 0;
 
         $message = '';
         if ($apply) {
@@ -553,18 +565,20 @@ class AutoReplyKeywords extends Controller
             }
             $message = $bits !== []
                 ? 'Dirapikan: ' . implode(', ', $bits) . '.'
-                : 'Tidak ada yang perlu dirapikan.';
-        } elseif ($totalNeeded > 0) {
+                : 'Tidak ada pattern yang berhasil diperbaiki. Cek pattern manual di Intent Lab.';
+        } elseif (count($repairsNeeded) > 0 || count($needed) > 0) {
             $bits = [];
             if (count($repairsNeeded) > 0) {
-                $bits[] = count($repairsNeeded) . ' pattern rusak';
+                $bits[] = count($repairsNeeded) . ' pattern rusak siap diperbaiki';
             }
             if (count($needed) > 0) {
                 $bits[] = count($needed) . ' intent bisa digabung';
             }
-            $message = 'Bisa dirapikan: ' . implode(', ', $bits) . '.';
+            $message = implode(', ', $bits) . '. Klik Ya, rapikan.';
+        } elseif (count($repairsPreview) > 0) {
+            $message = count($repairsPreview) . ' pattern terdeteksi aneh — klik Ya, rapikan untuk coba perbaiki otomatis.';
         } else {
-            $message = 'Tidak ada pattern rusak atau keyword sederhana yang perlu digabung.';
+            $message = 'Semua pattern sudah bersih (tidak ada korupsi \\?/ , \\?\\b, atau spasi aneh).';
         }
 
         echo json_encode([
@@ -575,8 +589,9 @@ class AutoReplyKeywords extends Controller
             'repairs_applied' => $repairsApplied,
             'repair_needed_count' => count($repairsNeeded),
             'needed_count' => $totalNeeded,
+            'can_apply' => $canApply,
             'plans' => $needed,
-            'repair_plans' => $repairsNeeded,
+            'repair_plans' => $repairsPreview,
             'message' => $message,
         ], JSON_UNESCAPED_UNICODE);
     }
