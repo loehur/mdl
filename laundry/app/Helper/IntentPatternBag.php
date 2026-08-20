@@ -470,12 +470,29 @@ class IntentPatternBag
             return '';
         }
         if (preg_match('/^Intent Lab teach:\s*(.+)$/iu', $note, $m)) {
-            return trim((string) ($m[1] ?? ''));
+            $sample = trim((string) ($m[1] ?? ''));
+            if (($pipe = strpos($sample, ' | ')) !== false) {
+                $sample = trim(substr($sample, 0, $pipe));
+            }
+
+            return $sample;
+        }
+        if (preg_match('/^Intent Lab untouch [^:]+:\s*(.+)$/iu', $note, $m)) {
+            $sample = trim((string) ($m[1] ?? ''));
+            if (($pipe = strpos($sample, ' | ')) !== false) {
+                $sample = trim(substr($sample, 0, $pipe));
+            }
+
+            return $sample;
         }
         if (preg_match('/^(Rapikan:|Intent Lab|Gabung)/i', $note)) {
             return '';
         }
         if (mb_strlen($note) >= 4) {
+            if (($pipe = strpos($note, ' | ')) !== false) {
+                return trim(substr($note, 0, $pipe));
+            }
+
             return $note;
         }
 
