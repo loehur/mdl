@@ -159,6 +159,15 @@ class Chat extends Controller
                 array_pop($conversations); // For conversations, last is OK (DESC order)
             }
             
+            // Batch last message: 4 query untuk seluruh halaman (bukan N query per conversation)
+            $conversationPhones = array_map(
+                static function ($conv) {
+                    return (string) ($conv->wa_number ?? '');
+                },
+                $conversations
+            );
+            $latestMessageBatch = CrmChatMergeHelper::fetchLatestMessageMetaBatch($db, $conversationPhones);
+
             // Normalize Case (Handle JSON Array List)
             foreach ($conversations as &$conv) {
                 // Default values
@@ -166,7 +175,12 @@ class Chat extends Controller
                 $conv->case_status = null;
                 $conv->case_history = []; // New field for full history
 
-                $mergedLast = CrmChatMergeHelper::mergeLastMessageMeta($db, (string) ($conv->wa_number ?? ''), $conv);
+                $mergedLast = CrmChatMergeHelper::resolveLastMessageMeta(
+                    $db,
+                    (string) ($conv->wa_number ?? ''),
+                    $conv,
+                    $latestMessageBatch
+                );
                 if (!empty($mergedLast['last_message'])) {
                     $conv->last_message = $mergedLast['last_message'];
                 }

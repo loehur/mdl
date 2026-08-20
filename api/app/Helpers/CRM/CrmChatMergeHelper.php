@@ -359,18 +359,181 @@ class CrmChatMergeHelper
     }
 
     /**
+     * Placeholder IN (?,?) untuk daftar variant phone.
+     *
+     * @param string[] $variants
+     * @return array{0:string,1:string[]}
+     */
+    public static function variantsInClause(array $variants): array
+    {
+        $variants = array_values(array_unique(array_filter(array_map('strval', $variants))));
+        if ($variants === []) {
+            return ['', []];
+        }
+
+        return [implode(',', array_fill(0, count($variants), '?')), $variants];
+    }
+
+    /**
      * Placeholder IN (?,?) untuk phoneVariants.
      *
      * @return array{0:string,1:string[]}
      */
     public static function phoneInClause(string $phone): array
     {
-        $variants = self::phoneVariants($phone);
-        if ($variants === []) {
-            return ['', []];
+        return self::variantsInClause(self::phoneVariants($phone));
+    }
+
+    /**
+     * @param string[] $phones
+     * @return array{variants:string[],keyByVariant:array<string,string>}
+     */
+    private static function buildPhoneKeyMaps(array $phones): array
+    {
+        if (!class_exists(WaSenderContext::class)) {
+            require_once __DIR__ . '/WaSenderContext.php';
         }
 
-        return [implode(',', array_fill(0, count($variants), '?')), $variants];
+        $allVariants = [];
+        $keyByVariant = [];
+        foreach ($phones as $phone) {
+            $phone = (string) $phone;
+            if ($phone === '') {
+                continue;
+            }
+            $key = WaSenderContext::key($phone);
+            if ($key === '') {
+                continue;
+            }
+            foreach (self::phoneVariants($phone) as $variant) {
+                $allVariants[$variant] = true;
+                $keyByVariant[$variant] = $key;
+            }
+        }
+
+        return [
+            'variants' => array_keys($allVariants),
+            'keyByVariant' => $keyByVariant,
+        ];
+    }
+
+    /**
+     * @param string[] $variants
+     * @return object[]
+     */
+    private static function fetchLatestRowsPerPhoneFromTable(
+        $db,
+        string $table,
+        string $bodyColumn,
+        string $sender,
+        array $variants
+    ): array {
+        static $allowed = [
+            'wa_messages_in' => 'text',
+            'wa_messages_out' => 'content',
+            'wa_fonnte_messages_in' => 'text',
+            'wa_fonnte_messages_out' => 'text',
+        ];
+        if (!isset($allowed[$table]) || $allowed[$table] !== $bodyColumn) {
+            return [];
+        }
+
+        [$inSql, $params] = self::variantsInClause($variants);
+        if ($inSql === '') {
+            return [];
+        }
+
+        $bodyExpr = $bodyColumn === 'content'
+            ? 'COALESCE(m.content, \'\')'
+            : 'COALESCE(m.text, \'\')';
+        $sql = "SELECT m.phone, {$bodyExpr} AS body, m.type, m.created_at AS ts
+                FROM {$table} m
+                INNER JOIN (
+                    SELECT phone, MAX(created_at) AS max_ts
+                    FROM {$table}
+                    WHERE phone IN ({$inSql})
+                    GROUP BY phone
+                ) latest ON m.phone = latest.phone AND m.created_at = latest.max_ts
+                WHERE m.phone IN ({$inSql})";
+
+        try {
+            $q = $db->query($sql, array_merge($params, $params));
+            if (!$q || $q->num_rows() === 0) {
+                return [];
+            }
+
+            $rows = [];
+            foreach ($q->result() as $row) {
+                $row->sender = $sender;
+                $rows[] = $row;
+            }
+
+            return $rows;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Batch: preview pesan terakhir per phone key (yCloud + Fonnte), max 4 query/halaman.
+     *
+     * @param string[] $phones
+     * @return array<string, array{last_message:string,last_message_time:string}>
+     */
+    public static function fetchLatestMessageMetaBatch($db, array $phones): array
+    {
+        $maps = self::buildPhoneKeyMaps($phones);
+        $variants = $maps['variants'];
+        $keyByVariant = $maps['keyByVariant'];
+        if ($variants === []) {
+            return [];
+        }
+
+        $best = [];
+        $sources = [
+            ['wa_messages_in', 'text', 'customer'],
+            ['wa_messages_out', 'content', 'me'],
+        ];
+        if (self::fonnteMessageTablesReady($db)) {
+            $sources[] = ['wa_fonnte_messages_in', 'text', 'customer'];
+            $sources[] = ['wa_fonnte_messages_out', 'text', 'me'];
+        }
+
+        foreach ($sources as [$table, $bodyColumn, $sender]) {
+            foreach (self::fetchLatestRowsPerPhoneFromTable($db, $table, $bodyColumn, $sender, $variants) as $row) {
+                $key = $keyByVariant[(string) ($row->phone ?? '')] ?? '';
+                if ($key === '' && class_exists(WaSenderContext::class)) {
+                    $key = WaSenderContext::key((string) ($row->phone ?? ''));
+                }
+                if ($key === '') {
+                    continue;
+                }
+
+                $ts = (string) ($row->ts ?? '');
+                if ($ts === '') {
+                    continue;
+                }
+
+                if (!isset($best[$key]) || $ts > $best[$key]['ts']) {
+                    $best[$key] = [
+                        'body' => (string) ($row->body ?? ''),
+                        'type' => (string) ($row->type ?? 'text'),
+                        'sender' => (string) ($row->sender ?? $sender),
+                        'ts' => $ts,
+                    ];
+                }
+            }
+        }
+
+        $result = [];
+        foreach ($best as $key => $row) {
+            $result[$key] = [
+                'last_message' => self::formatMessagePreview($row['body'], $row['type'], $row['sender']),
+                'last_message_time' => $row['ts'],
+            ];
+        }
+
+        return $result;
     }
 
     /** Unread yCloud (wa_messages_in) + Fonnte (status=received). */
@@ -462,55 +625,15 @@ class CrmChatMergeHelper
         if (!class_exists(WaSenderContext::class)) {
             require_once __DIR__ . '/WaSenderContext.php';
         }
-        $nomor = WaSenderContext::toNomorNasional($phone);
-        if ($nomor === null) {
-            return null;
-        }
-        $like = '%' . $nomor;
-        $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
 
-        $unions = [];
-        $params = [];
-
-        $unions[] = "(SELECT text as body, type, 'customer' as sender, created_at as ts FROM wa_messages_in WHERE {$phoneExpr} LIKE ?)";
-        $params[] = $like;
-        $unions[] = "(SELECT COALESCE(content, '') as body, type, 'me' as sender, created_at as ts FROM wa_messages_out WHERE {$phoneExpr} LIKE ?)";
-        $params[] = $like;
-
-        if (self::fonnteMessageTablesReady($db)) {
-            $unions[] = "(SELECT COALESCE(text, '') as body, type, 'customer' as sender, created_at as ts FROM wa_fonnte_messages_in WHERE {$phoneExpr} LIKE ?)";
-            $params[] = $like;
-            $unions[] = "(SELECT COALESCE(text, '') as body, type, 'me' as sender, created_at as ts FROM wa_fonnte_messages_out WHERE {$phoneExpr} LIKE ?)";
-            $params[] = $like;
-        }
-
-        if ($unions === []) {
+        $key = WaSenderContext::key($phone);
+        if ($key === '') {
             return null;
         }
 
-        $sql = 'SELECT body, type, sender, ts FROM (' . implode(' UNION ALL ', $unions) . ') AS all_msgs ORDER BY ts DESC LIMIT 1';
+        $batch = self::fetchLatestMessageMetaBatch($db, [$phone]);
 
-        try {
-            $q = $db->query($sql, $params);
-            if (!$q || $q->num_rows() === 0) {
-                return null;
-            }
-            $row = $q->row();
-            if (!$row || empty($row->ts)) {
-                return null;
-            }
-
-            return [
-                'last_message' => self::formatMessagePreview(
-                    (string) ($row->body ?? ''),
-                    (string) ($row->type ?? 'text'),
-                    (string) ($row->sender ?? 'customer')
-                ),
-                'last_message_time' => (string) $row->ts,
-            ];
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return $batch[$key] ?? null;
     }
 
     private static function formatMessagePreview(string $body, string $type, string $sender): string
@@ -539,15 +662,12 @@ class CrmChatMergeHelper
     }
 
     /**
+     * Fallback metadata wa_conversations vs wa_fonnte_conversations (tanpa scan pesan).
+     *
      * @return array{last_message:?string,last_message_time:?string}
      */
-    public static function mergeLastMessageMeta($db, string $phone, ?object $conv): array
+    public static function mergeLastMessageMetaFromMetadata($db, string $phone, ?object $conv): array
     {
-        $fromMessages = self::fetchLatestMessageMeta($db, $phone);
-        if ($fromMessages !== null) {
-            return $fromMessages;
-        }
-
         $yMsg = $conv ? ($conv->last_message ?? null) : null;
         $yTime = $conv ? ($conv->last_message_at ?? null) : null;
 
@@ -581,5 +701,38 @@ class CrmChatMergeHelper
             'last_message' => $yMsg,
             'last_message_time' => $yTime,
         ];
+    }
+
+    /**
+     * @param array<string, array{last_message:?string,last_message_time:?string}>|null $batchCache
+     * @return array{last_message:?string,last_message_time:?string}
+     */
+    public static function resolveLastMessageMeta($db, string $phone, ?object $conv, ?array $batchCache = null): array
+    {
+        if (!class_exists(WaSenderContext::class)) {
+            require_once __DIR__ . '/WaSenderContext.php';
+        }
+
+        $key = WaSenderContext::key($phone);
+        if ($batchCache !== null && $key !== '' && isset($batchCache[$key])) {
+            return $batchCache[$key];
+        }
+
+        if ($batchCache === null) {
+            $fromMessages = self::fetchLatestMessageMeta($db, $phone);
+            if ($fromMessages !== null) {
+                return $fromMessages;
+            }
+        }
+
+        return self::mergeLastMessageMetaFromMetadata($db, $phone, $conv);
+    }
+
+    /**
+     * @return array{last_message:?string,last_message_time:?string}
+     */
+    public static function mergeLastMessageMeta($db, string $phone, ?object $conv): array
+    {
+        return self::resolveLastMessageMeta($db, $phone, $conv, null);
     }
 }
