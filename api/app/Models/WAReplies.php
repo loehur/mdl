@@ -477,30 +477,25 @@ class WAReplies
         return $max > 0 && $messageLength > $max;
     }
 
-    /** Konfirmasi bayar / ucapan thanks tetap boleh masuk PENUTUP meski panjang. */
-    private function intentSkipsChatMaxlengthForMessage(string $handler, string $textBodyToCheck): bool
+    /** Intent boleh diproses (regex/AI/handler) untuk panjang pesan ini. */
+    private function intentAllowedForMessageLength(string $handler, array $fullKeywordConfig, int $messageLength): bool
     {
-        if ($handler !== 'PENUTUP') {
-            return false;
+        if ($handler === '' || $handler === 'FALSE') {
+            return true;
         }
 
-        return $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
-            || $this->messageLooksLikeThanksPenutup($textBodyToCheck);
+        return !$this->intentExceedsChatMaxlength($fullKeywordConfig[$handler] ?? [], $messageLength);
     }
 
     /**
      * @param array<string, mixed> $keywordConfig
      * @return array<string, mixed>
      */
-    private function filterKeywordConfigByChatMaxlength(array $keywordConfig, int $messageLength, string $textBodyToCheck): array
+    private function filterKeywordConfigByChatMaxlength(array $keywordConfig, int $messageLength): array
     {
         $out = [];
         foreach ($keywordConfig as $code => $config) {
             if (!is_array($config)) {
-                continue;
-            }
-            if ($this->intentSkipsChatMaxlengthForMessage((string) $code, $textBodyToCheck)) {
-                $out[$code] = $config;
                 continue;
             }
             if ($this->intentExceedsChatMaxlength($config, $messageLength)) {
@@ -2250,6 +2245,12 @@ class WAReplies
             'GATE_FILTER',
             'intents=' . count($keywordConfig) . '/' . count($fullKeywordConfig)
         );
+        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'MAXLENGTH_FILTER',
+            'intents=' . count($keywordConfig) . '/' . count($fullKeywordConfig) . ' len=' . $messageLength
+        );
 
         // Permintaan/instruksi: jangan auto-reply, biarkan CS manusia yang merespon
         $permintaanPatterns = [
@@ -2304,7 +2305,9 @@ class WAReplies
         if (!$this->intentLabMode) {
         // Session PERMINTAAN aktif: standby rangkum AI (tanpa autoreply), case 3
         if ($this->getPermintaanSession($waNumber) !== null
-            && !$this->messageBreaksPermintaanSession($textBodyToCheck, $fullKeywordConfig)) {
+            && !$this->messageBreaksPermintaanSession($textBodyToCheck, $fullKeywordConfig)
+            && $this->intentAllowedForMessageLength('PERMINTAAN', $fullKeywordConfig, $messageLength)
+        ) {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'permintaan_session_followup→PERMINTAAN case=3');
             $this->currentHandler = 'PERMINTAAN';
             $this->handlePermintaan($phoneIn, $waNumber, $textBody);
@@ -2331,6 +2334,9 @@ class WAReplies
             if ($pendingClarifyJemput
                 || !$this->messageBreaksEstimasiSession($textBodyToCheck, $fullKeywordConfig)
             ) {
+                if (!$this->intentAllowedForMessageLength('ESTIMASI_SELESAI', $fullKeywordConfig, $messageLength)) {
+                    $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_skip→exceeds_chat_maxlength');
+                } else {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_followup→ESTIMASI_SELESAI case=4');
                 $this->currentHandler = 'ESTIMASI_SELESAI';
                 $consumed = $this->handleEstimasi_Selesai($phoneIn, $waNumber, $textBody);
@@ -2348,13 +2354,16 @@ class WAReplies
                 }
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'estimasi_session_unrelated→continue_routing');
                 // fall through ke regex/AI intent lain
+                }
             }
         }
 
         // Session HARGA aktif: follow-up parameter (durasi, paket, layanan, dll.)
         $hargaSessionEarly = $this->getHargaSession($waNumber);
         if ($hargaSessionEarly !== null) {
-            if (!$this->messageBreaksHargaSession($textBodyToCheck, $fullKeywordConfig)) {
+            if (!$this->messageBreaksHargaSession($textBodyToCheck, $fullKeywordConfig)
+                && $this->intentAllowedForMessageLength('HARGA', $fullKeywordConfig, $messageLength)
+            ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_followup→HARGA');
                 $this->currentHandler = 'HARGA';
                 $this->handleHarga($phoneIn, $waNumber, $textBody);
@@ -2378,6 +2387,7 @@ class WAReplies
             if ($this->getLokasiSession($waNumber) !== null
                 && !$this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)
                 && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
+                && $this->intentAllowedForMessageLength('LOKASI', $fullKeywordConfig, $messageLength)
             ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
                 $this->currentHandler = 'LOKASI';
@@ -2416,6 +2426,7 @@ class WAReplies
                     if ($this->getLokasiSession($waNumber) !== null
                         && !$this->messageLooksLikeKurir($textBodyToCheck, $fullKeywordConfig)
                         && !$this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
+                        && $this->intentAllowedForMessageLength('LOKASI', $fullKeywordConfig, $messageLength)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
                         $this->currentHandler = 'LOKASI';
@@ -2449,7 +2460,7 @@ class WAReplies
                 $this->clearKurirSession($waNumber);
                 $this->clearLokasiSession($waNumber);
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→other_intent');
-            } else {
+            } elseif ($this->intentAllowedForMessageLength('KURIR', $fullKeywordConfig, $messageLength)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→KURIR case=2');
                 $this->currentHandler = 'KURIR';
                 // Bypass cooldown for active session
@@ -2469,6 +2480,8 @@ class WAReplies
                 }
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_unrelated→continue_routing');
                 // fall through ke regex/AI intent lain
+            } else {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_skip→exceeds_chat_maxlength');
             }
         }
         } // end !$intentLabMode session followups
@@ -2478,6 +2491,9 @@ class WAReplies
         $masihBisaTerimaPattern = '/\b(masih|msh|mash|masi|msih)\s*(bisa|bs|bis|b\s*s)(?:\s*(terima|trima|nerima|antar|masukin|masuk)\s*(kain|baju|laundry|cuci|gosok|setrika|strika)?\s*(aja|aj)?)?\s*\??\s*$/i';
         $masihTerimaGosokPattern = '/\b(masih|msh|mash|masi|msih)\s*(nerima|terima|trima).*(gosok|setrika|strika)\s*(aja|aj)?/i';
         if (preg_match($masihBisaTerimaPattern, $textBodyToCheck) || preg_match($masihTerimaGosokPattern, $textBodyToCheck)) {
+            if (!$this->intentAllowedForMessageLength('JAM_OPERASIONAL', $fullKeywordConfig, $messageLength)) {
+                $this->logAutoreplyTrace($waNumber, 'SKIP', 'masih_bisa_terima→JAM_OPERASIONAL exceeds_chat_maxlength');
+            } else {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'masih_bisa_terima_kain→JAM_OPERASIONAL+notify');
             if ($this->shouldHandle($waNumber, 'JAM_OPERASIONAL')) {
                 $this->currentHandler = 'JAM_OPERASIONAL';
@@ -2492,6 +2508,7 @@ class WAReplies
                 'notify' => $fullKeywordConfig['JAM_OPERASIONAL']['notify'] ?? false,
                 'conversation_id' => $conversationId
             ];
+            }
         }
         
         $matchPattern = [];
@@ -2506,13 +2523,16 @@ class WAReplies
                     if ($handler === 'REKENING' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
                         continue;
                     }
-                    if ($handler !== 'PENUTUP' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
+                    if ($handler !== 'PENUTUP' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
+                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+                    ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP payment_confirm');
                         $handler = 'PENUTUP';
                     }
                     if ($handler !== 'PENUTUP'
                         && $this->messageLooksLikeThanksPenutup($textBodyToCheck)
                         && !$this->messageLooksLikeQuestion($textBody)
+                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP thanks');
                         $handler = 'PENUTUP';
@@ -2678,15 +2698,12 @@ class WAReplies
                         continue;
                     }
 
-                    // Human agent aktif: hanya intent data/self-service (dan admin) yang boleh balas
-                    $cfgForMax = $fullKeywordConfig[$handler] ?? $config;
-                    if (!$this->intentSkipsChatMaxlengthForMessage($handler, $textBodyToCheck)
-                        && $this->intentExceedsChatMaxlength($cfgForMax, $messageLength)
-                    ) {
+                    // Pesan melebihi chat_maxlength intent (termasuk hasil remap) → skip
+                    if (!$this->intentAllowedForMessageLength($handler, $fullKeywordConfig, $messageLength)) {
                         $this->logAutoreplyTrace(
                             $waNumber,
                             'REGEX_SKIP',
-                            $handler . '→exceeds_chat_maxlength max=' . (int) ($cfgForMax['chat_maxlength'] ?? 0)
+                            $handler . '→exceeds_chat_maxlength max=' . (int) (($fullKeywordConfig[$handler]['chat_maxlength'] ?? 0))
                         );
                         continue;
                     }
@@ -2828,20 +2845,11 @@ class WAReplies
         }
 
         $this->logAutoreplyTrace($waNumber, 'AI_PATH', 'no_regex_match len=' . $messageLength);
-        // Pass filtered keywordConfig to AI (keywords yang sudah match di regex sudah di-unset)
-        // Intent yang melebihi chat_maxlength juga di-skip dari AI classifier
-        $keywordConfigForAi = $this->filterKeywordConfigByChatMaxlength(
-            $keywordConfig,
-            $messageLength,
-            $textBodyToCheck
-        );
-        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfigForAi);
+        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
 
-        if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)) {
-            $penutupCfg = $fullKeywordConfig['PENUTUP'] ?? [];
-            if (!$this->intentExceedsChatMaxlength($penutupCfg, $messageLength)
-                || $this->intentSkipsChatMaxlengthForMessage('PENUTUP', $textBodyToCheck)
-            ) {
+        if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
+            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+        ) {
                 if (!is_array($aiResult)) {
                     $aiResult = [];
                 }
@@ -2850,14 +2858,10 @@ class WAReplies
                     $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP payment_confirm was=' . $prevAi);
                 }
                 $aiResult['intent'] = 'PENUTUP';
-            }
         } elseif ($this->messageLooksLikeThanksPenutup($textBodyToCheck)
             && !$this->messageLooksLikeQuestion($textBody)
+            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
         ) {
-            $penutupCfg = $fullKeywordConfig['PENUTUP'] ?? [];
-            if (!$this->intentExceedsChatMaxlength($penutupCfg, $messageLength)
-                || $this->intentSkipsChatMaxlengthForMessage('PENUTUP', $textBodyToCheck)
-            ) {
                 if (!is_array($aiResult)) {
                     $aiResult = [];
                 }
@@ -2866,7 +2870,6 @@ class WAReplies
                     $this->logAutoreplyTrace($waNumber, 'BRANCH', 'force_PENUTUP thanks was=' . $prevAi);
                 }
                 $aiResult['intent'] = 'PENUTUP';
-            }
         }
 
         // Check if AI successfully detected a valid intent
@@ -3073,8 +3076,7 @@ class WAReplies
             }
 
             if ($aiIntent !== 'FALSE'
-                && !$this->intentSkipsChatMaxlengthForMessage($aiIntent, $textBodyToCheck)
-                && $this->intentExceedsChatMaxlength($fullKeywordConfig[$aiIntent] ?? [], $messageLength)
+                && !$this->intentAllowedForMessageLength($aiIntent, $fullKeywordConfig, $messageLength)
             ) {
                 $this->logAutoreplyTrace(
                     $waNumber,
@@ -3732,8 +3734,14 @@ class WAReplies
     /** Sapaan + intent lain: jalankan handler berikutnya tanpa mengulang PEMBUKA. */
     private function pembukaTryRunOtherIntent($phoneIn, string $waNumber, string $textBody): void
     {
+        $textBodyToCheck = preg_replace('/[*_~`]/', '', $textBody);
+        $textBodyToCheck = preg_replace('/^>\s*/m', '', $textBodyToCheck);
+        $textBodyToCheck = strtolower(trim($textBodyToCheck));
+        $messageLength = mb_strlen($textBodyToCheck);
+
         $keywordConfig = $this->loadAutoreplyKeywordConfig();
         unset($keywordConfig['PEMBUKA']);
+        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
         if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
@@ -8007,6 +8015,10 @@ class WAReplies
                 $keywordConfig = $this->loadAutoreplyKeywordConfig();
             }
             $keywordConfig = $this->filterKeywordConfigBySenderGate($keywordConfig);
+            $textBodyNorm = preg_replace('/[*_~`]/', '', (string) $textBody);
+            $textBodyNorm = preg_replace('/^>\s*/m', '', $textBodyNorm ?? '');
+            $messageLength = mb_strlen(strtolower(trim($textBodyNorm ?? '')));
+            $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
 
             $prompt = $this->buildAiIntentClassifierPrompt($textBody, $keywordConfig);
 
@@ -8084,7 +8096,9 @@ class WAReplies
 
             // FALSE / STATUS / MINTA padahal tanya kapan/jam berapa siap = ESTIMASI_SELESAI
             if (in_array($intent, ['FALSE', 'STATUS', 'KURIR', 'JAM_OPERASIONAL'], true)
-                && $this->messageLooksLikeEstimasiSelesai($textBody)) {
+                && $this->messageLooksLikeEstimasiSelesai($textBody)
+                && isset($keywordConfig['ESTIMASI_SELESAI'])
+            ) {
                 $intent = 'ESTIMASI_SELESAI';
                 $reason = 'remap kapan/jam berapa siap → ESTIMASI_SELESAI';
             }
@@ -8092,6 +8106,7 @@ class WAReplies
             // FALSE padahal konfirmasi sudah bayar/lunas → PENUTUP
             if (($intent === 'FALSE' || $intent === 'REKENING')
                 && $this->messageLooksLikePaymentConfirmationPenutup($textBody)
+                && isset($keywordConfig['PENUTUP'])
             ) {
                 $intent = 'PENUTUP';
                 $reason = 'remap konfirmasi sudah bayar → PENUTUP';
@@ -8101,6 +8116,7 @@ class WAReplies
             if ($intent === 'FALSE'
                 && $this->messageLooksLikeThanksPenutup($textBody)
                 && !$this->messageLooksLikeQuestion($textBody)
+                && isset($keywordConfig['PENUTUP'])
             ) {
                 $intent = 'PENUTUP';
                 $reason = 'remap ucapan terima kasih → PENUTUP';
