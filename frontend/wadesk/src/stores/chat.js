@@ -9,6 +9,7 @@ export const useChatStore = defineStore("chat", {
     loadingList: false,
     loadingMessages: false,
     search: "",
+    listFilter: "all",
     keys: [],
     templates: [],
     ws: null,
@@ -24,8 +25,11 @@ export const useChatStore = defineStore("chat", {
       const showLoading = !silent && this.conversations.length === 0;
       if (showLoading) this.loadingList = true;
       try {
-        const q = this.search ? `?q=${encodeURIComponent(this.search)}` : "";
-        const res = await api(`/WaDesk/Chat/getConversations${q}`);
+        const params = new URLSearchParams();
+        if (this.search.trim()) params.set("q", this.search.trim());
+        if (this.listFilter === "unread") params.set("filter", "unread");
+        const qs = params.toString();
+        const res = await api(`/WaDesk/Chat/getConversations${qs ? `?${qs}` : ""}`);
         this.conversations = res.data.conversations || [];
       } finally {
         if (showLoading) this.loadingList = false;

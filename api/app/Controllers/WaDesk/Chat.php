@@ -19,6 +19,7 @@ class Chat extends WaDeskController
 
         [$visSql, $binds] = $this->visibilitySql('c');
         $q = trim((string) $this->query('q', ''));
+        $filter = strtolower(trim((string) $this->query('filter', 'all')));
 
         $tbl = $this->channelsTable();
         $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
@@ -28,6 +29,9 @@ class Chat extends WaDeskController
                 INNER JOIN {$tbl} k ON k.id = c.channel_id
                 LEFT JOIN teams t ON t.id = c.team_id
                 WHERE {$visSql}";
+        if ($filter === 'unread') {
+            $sql .= ' AND c.unread > 0';
+        }
         if ($q !== '') {
             $sql .= ' AND (c.phone LIKE ? OR c.name LIKE ? OR c.last_message LIKE ?)';
             $like = '%' . $q . '%';

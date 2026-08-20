@@ -69,6 +69,24 @@
               +
             </button>
           </div>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
+              :class="chat.listFilter === 'all' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
+              @click="setListFilter('all')"
+            >
+              All
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
+              :class="chat.listFilter === 'unread' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
+              @click="setListFilter('unread')"
+            >
+              Unread
+            </button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto">
           <div v-if="chat.loadingList && !chat.conversations.length" class="p-4 text-sm text-slate-500">Memuat...</div>
@@ -100,7 +118,7 @@
             </div>
           </button>
           <p v-if="!chat.loadingList && !chat.conversations.length" class="p-6 text-center text-sm text-slate-500">
-            Belum ada percakapan
+            {{ chat.listFilter === 'unread' ? 'Tidak ada chat belum dibaca' : 'Belum ada percakapan' }}
           </p>
         </div>
       </aside>
@@ -353,6 +371,12 @@ function scrollToBottom() {
 async function openChat(id) {
   await chat.selectConversation(id);
   scrollToBottom();
+}
+
+function setListFilter(filter) {
+  if (chat.listFilter === filter) return;
+  chat.listFilter = filter;
+  chat.loadConversations();
 }
 
 async function sendFree() {
