@@ -56,10 +56,10 @@ class IntentLab extends Controller
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
         }
-        echo json_encode([
+        $this->jsonOut([
             'ok' => 1,
             'cache_version' => $this->readCacheVersion(),
-        ], JSON_UNESCAPED_UNICODE);
+        ]);
     }
 
     /**
@@ -72,12 +72,12 @@ class IntentLab extends Controller
             header('Content-Type: application/json; charset=utf-8');
         }
         $result = $this->bumpAutoreplyCache();
-        echo json_encode([
+        $this->jsonOut([
             'ok' => 1,
             'message' => 'cache_version ' . $result['before'] . ' → ' . $result['after'],
             'cache_version_before' => $result['before'],
             'cache_version' => $result['after'],
-        ], JSON_UNESCAPED_UNICODE);
+        ]);
     }
 
     /** @return list<array{id:int|string,code:string}> */
@@ -157,7 +157,7 @@ class IntentLab extends Controller
         $text = trim((string) ($data['text'] ?? ''));
         $intent = strtoupper(trim((string) ($data['intent'] ?? '')));
         if ($text === '' || $intent === '') {
-            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'text dan intent wajib']);
             return;
         }
 
@@ -171,7 +171,7 @@ class IntentLab extends Controller
         } elseif ($res['ok'] === false) {
             $res['ok'] = 0;
         }
-        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+        $this->jsonOut($res);
     }
 
     /**
@@ -196,28 +196,28 @@ class IntentLab extends Controller
         $addPattern = !isset($data['add_pattern']) || !empty($data['add_pattern']);
 
         if ($text === '' || $intentCode === '') {
-            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'text dan intent wajib']);
             return;
         }
         if ($addPattern && $pattern === '') {
-            echo json_encode(['ok' => 0, 'message' => 'pattern wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'pattern wajib']);
             return;
         }
         if ($addPattern) {
             $pattern = $this->normalizePatternForText($pattern, $text);
         }
         if ($addPattern && @preg_match($pattern, '') === false) {
-            echo json_encode([
+            $this->jsonOut([
                 'ok' => 0,
                 'message' => 'Regex tidak valid: ' . preg_last_error_msg(),
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
             return;
         }
         if ($addPattern && @preg_match($pattern, $text) !== 1) {
-            echo json_encode([
+            $this->jsonOut([
                 'ok' => 0,
                 'message' => 'Pattern tidak match teks contoh. Perbaiki dulu sebelum aktifkan.',
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
             return;
         }
 
@@ -227,7 +227,7 @@ class IntentLab extends Controller
             "code = '" . $db->escape($intentCode) . "' AND is_active = 1"
         );
         if (!$intent || empty($intent['id'])) {
-            echo json_encode(['ok' => 0, 'message' => 'Intent tidak ditemukan'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'Intent tidak ditemukan']);
             return;
         }
         $intentId = (int) $intent['id'];
@@ -244,10 +244,10 @@ class IntentLab extends Controller
                      WHERE id = {$patternId} AND intent_id = {$intentId} LIMIT 1"
                 );
                 if (!is_array($existing) || count($existing) === 0) {
-                    echo json_encode([
+                    $this->jsonOut([
                         'ok' => 0,
                         'message' => 'Pattern existing tidak ditemukan (id=' . $patternId . ')',
-                    ], JSON_UNESCAPED_UNICODE);
+                    ]);
                     return;
                 }
                 $oldNote = trim((string) ($existing[0]['note'] ?? ''));
@@ -263,10 +263,10 @@ class IntentLab extends Controller
                     "id = {$patternId} AND intent_id = {$intentId}"
                 );
                 if (($up['errno'] ?? 1) != 0) {
-                    echo json_encode([
+                    $this->jsonOut([
                         'ok' => 0,
                         'message' => $up['error'] ?? 'Gagal ubah pattern',
-                    ], JSON_UNESCAPED_UNICODE);
+                    ]);
                     return;
                 }
                 $patternUpdated = true;
@@ -310,10 +310,10 @@ class IntentLab extends Controller
                         'note' => 'Intent Lab teach: ' . mb_substr($text, 0, 120),
                     ]);
                     if (($in['errno'] ?? 1) != 0) {
-                        echo json_encode([
+                        $this->jsonOut([
                             'ok' => 0,
                             'message' => $in['error'] ?? 'Gagal insert pattern',
-                        ], JSON_UNESCAPED_UNICODE);
+                        ]);
                         return;
                     }
                     $patternAdded = true;
@@ -331,10 +331,10 @@ class IntentLab extends Controller
                     "id = {$intentId}"
                 );
                 if (($up['errno'] ?? 1) != 0) {
-                    echo json_encode([
+                    $this->jsonOut([
                         'ok' => 0,
                         'message' => $up['error'] ?? 'Gagal update ai_prompt',
-                    ], JSON_UNESCAPED_UNICODE);
+                    ]);
                     return;
                 }
                 $promptUpdated = true;
@@ -399,7 +399,7 @@ class IntentLab extends Controller
         $text = trim((string) ($data['text'] ?? ''));
         $intent = strtoupper(trim((string) ($data['intent'] ?? '')));
         if ($text === '' || $intent === '') {
-            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'text dan intent wajib']);
             return;
         }
 
@@ -413,7 +413,7 @@ class IntentLab extends Controller
         } elseif ($res['ok'] === false) {
             $res['ok'] = 0;
         }
-        echo json_encode($res, JSON_UNESCAPED_UNICODE);
+        $this->jsonOut($res);
     }
 
     /**
@@ -442,20 +442,20 @@ class IntentLab extends Controller
         $patternIds = array_values(array_unique(array_filter(array_map('intval', $patternIds), static fn ($id) => $id > 0)));
 
         if ($text === '' || $intentCode === '') {
-            echo json_encode(['ok' => 0, 'message' => 'text dan intent wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'text dan intent wajib']);
             return;
         }
         if (!$deactivatePatterns && !$updatePrompt) {
-            echo json_encode(['ok' => 0, 'message' => 'Centang minimal satu aksi'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'Centang minimal satu aksi']);
             return;
         }
         if ($deactivatePatterns && $patternIds === []) {
             $hasPrompt = $aiPrompt !== null || $promptAppend !== '';
             if (!$updatePrompt || !$hasPrompt) {
-                echo json_encode([
+                $this->jsonOut([
                     'ok' => 0,
                     'message' => 'Tidak ada pattern untuk dinonaktifkan. Centang Update ai_prompt atau pilih pattern.',
-                ], JSON_UNESCAPED_UNICODE);
+                ]);
                 return;
             }
         }
@@ -466,7 +466,7 @@ class IntentLab extends Controller
             "code = '" . $db->escape($intentCode) . "' AND is_active = 1"
         );
         if (!$intent || empty($intent['id'])) {
-            echo json_encode(['ok' => 0, 'message' => 'Intent tidak ditemukan'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'Intent tidak ditemukan']);
             return;
         }
         $intentId = (int) $intent['id'];
@@ -523,10 +523,10 @@ class IntentLab extends Controller
                     "id = {$intentId}"
                 );
                 if (($up['errno'] ?? 1) != 0) {
-                    echo json_encode([
+                    $this->jsonOut([
                         'ok' => 0,
                         'message' => $up['error'] ?? 'Gagal update ai_prompt',
-                    ], JSON_UNESCAPED_UNICODE);
+                    ]);
                     return;
                 }
                 $promptUpdated = true;
@@ -559,7 +559,7 @@ class IntentLab extends Controller
             $out['cache_version_before'] = $cacheBump['before'];
             $out['cache_version_bumped'] = true;
         }
-        echo json_encode($out, JSON_UNESCAPED_UNICODE);
+        $this->jsonOut($out);
     }
 
     /**
@@ -592,7 +592,7 @@ class IntentLab extends Controller
         $text = trim((string) ($data['text'] ?? ''));
         $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
         if ($text === '') {
-            echo json_encode(['ok' => 0, 'message' => 'text wajib'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'text wajib']);
             return;
         }
 
@@ -626,7 +626,7 @@ class IntentLab extends Controller
             ];
         }
 
-        echo json_encode([
+        $this->jsonOut([
             'ok' => 1,
             'text' => $text,
             'text_normalized' => $textCheck,
@@ -636,7 +636,7 @@ class IntentLab extends Controller
             'local_classify_intent' => $intentCode !== ''
                 ? $this->localRegexClassifyForIntent($text, $intentCode) : null,
             'patterns' => $items,
-        ], JSON_UNESCAPED_UNICODE);
+        ]);
     }
 
     /**
@@ -919,8 +919,8 @@ class IntentLab extends Controller
     /** @param array<string,mixed> $data */
     private function jsonOut(array $data): void
     {
-        while (ob_get_level() > 0) {
-            ob_end_clean();
+        if (ob_get_level() > 0) {
+            ob_clean();
         }
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
@@ -932,17 +932,43 @@ class IntentLab extends Controller
                 $data['ok'] = 0;
             }
         }
+        $data = $this->sanitizeForJson($data);
         $flags = JSON_UNESCAPED_UNICODE;
         if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
             $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
         }
+        if (defined('JSON_PARTIAL_OUTPUT_ON_ERROR')) {
+            $flags |= JSON_PARTIAL_OUTPUT_ON_ERROR;
+        }
         $json = json_encode($data, $flags);
-        if ($json === false) {
+        if ($json === false || $json === '') {
             $json = json_encode([
                 'ok' => 0,
                 'message' => 'JSON encode gagal: ' . json_last_error_msg(),
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         }
         echo $json;
+        exit;
+    }
+
+    /** @return mixed */
+    private function sanitizeForJson($value)
+    {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $k => $v) {
+                $out[$k] = $this->sanitizeForJson($v);
+            }
+            return $out;
+        }
+        if (is_string($value)) {
+            if (function_exists('mb_convert_encoding')) {
+                $clean = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+                return is_string($clean) ? $clean : $value;
+            }
+            return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? $value;
+        }
+
+        return $value;
     }
 }

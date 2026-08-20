@@ -384,11 +384,17 @@ class WAReplies
                 if ($pattern === '' || @preg_match($pattern, '') === false) {
                     continue;
                 }
-                if (\App\Helpers\Laundry\IntentTeachHelper::patternMatchesText(
-                    $pattern,
-                    $textBody,
-                    $textCheck
-                )) {
+                $matched = false;
+                if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                    $matched = \App\Helpers\Laundry\IntentTeachHelper::patternMatchesText(
+                        $pattern,
+                        $textBody,
+                        $textCheck
+                    );
+                } elseif (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $textBody) === 1) {
+                    $matched = true;
+                }
+                if ($matched) {
                     return [
                         'ok' => true,
                         'text' => $textBody,

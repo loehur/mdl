@@ -593,15 +593,22 @@
       return pattern.replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
     }
 
-    function parseAjaxJson(xhr) {
-      var raw = xhr && xhr.responseText != null ? String(xhr.responseText) : '';
-      raw = raw.replace(/^\uFEFF/, '').trim();
+    function parseAjaxJson(xhrOrRaw) {
+      var raw = xhrOrRaw;
+      if (xhrOrRaw && xhrOrRaw.responseText != null) {
+        raw = xhrOrRaw.responseText;
+      }
+      raw = String(raw == null ? '' : raw).replace(/^\uFEFF/, '').trim();
       if (!raw) return null;
       try {
         return JSON.parse(raw);
-      } catch (e) {
-        return null;
+      } catch (e1) {
+        var m = raw.match(/\{[\s\S]*\}\s*$/);
+        if (m) {
+          try { return JSON.parse(m[0]); } catch (e2) {}
+        }
       }
+      return null;
     }
 
     function ajaxFailMessage(xhr, fallback) {
@@ -789,11 +796,10 @@
       $.ajax({
         url: checkUrl, type: 'POST', data: { text: text }, dataType: 'text', timeout: 70000
       }).done(function (raw) {
-        var res = null;
-        try {
-          res = JSON.parse(String(raw || '').replace(/^\uFEFF/, '').trim());
-        } catch (e) {
-          showResult({ ok: 0, message: 'Respon bukan JSON valid' });
+        var res = parseAjaxJson(raw);
+        if (!res) {
+          var preview = String(raw || '').replace(/^\uFEFF/, '').trim().slice(0, 240);
+          showResult({ ok: 0, message: 'Respon bukan JSON valid', trace: preview || '(kosong)' });
           toast('Respon server bukan JSON — coba refresh halaman', 'err');
           return;
         }
@@ -1006,11 +1012,11 @@
         dataType: 'text',
         timeout: 90000
       }).done(function (raw) {
-        var res = null;
-        try {
-          res = JSON.parse(String(raw || '').replace(/^\uFEFF/, '').trim());
-        } catch (e) {
-          toast('Respon aktifkan bukan JSON valid', 'err');
+        var res = parseAjaxJson(raw);
+        if (!res) {
+          var preview = String(raw || '').replace(/^\uFEFF/, '').trim().slice(0, 240);
+          toast('Respon aktifkan bukan JSON valid' + (preview ? (': ' + preview) : ''), 'err');
+          $applyMsg.css('color', '#dc2626').text('Respon aktifkan bukan JSON valid');
           return;
         }
         if (!(res && (res.ok === 1 || res.ok === true))) {
