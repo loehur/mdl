@@ -308,7 +308,7 @@ const parseEmoji = (text) => {
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-0.5 gap-2">
             <h3
-              class="text-[17px] leading-snug truncate max-w-[240px] font-normal"
+              class="text-[17px] leading-snug truncate max-w-[240px] font-normal uppercase"
               style="color: var(--wa-conv-name);"
               :title="chat.name"
             >
