@@ -119,6 +119,7 @@ class IntentLab extends Controller
 
         $api = $this->helper('IntentCheckApi');
         $res = $api->check($text);
+        $res = $this->mergeLocalRegexClassify($text, $res);
         if (!isset($res['ok'])) {
             $res['ok'] = false;
         }
@@ -311,11 +312,14 @@ class IntentLab extends Controller
             $cacheBump = $this->bumpAutoreplyCache();
         }
 
-        // Re-cek klasifikasi (paksa API reload config bila baru bump cache)
-        $api = $this->helper('IntentCheckApi');
-        $check = $api->check($text, $cacheBump !== null);
+        // Re-cek: regex langsung dari DB lokal (sumber kebenaran setelah simpan)
+        $check = $this->localRegexClassify($text);
+        if ($check === null) {
+            $api = $this->helper('IntentCheckApi');
+            $check = $api->check($text, $cacheBump !== null);
+        }
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
-        $verifyOk = $this->verifyTeachIntent($check, $intentCode, $addPattern ? $pattern : '');
+        $verifyOk = ($gotIntent === $intentCode);
 
         $out = [
             'ok' => 1,
@@ -531,34 +535,89 @@ class IntentLab extends Controller
     }
 
     /**
-     * Verifikasi setelah Aktifkan: intent final atau regex match ke target.
+     * Intent Lab — regex DB lokal menang atas API bila API jatuh ke AI/FALSE.
      *
-     * @param array<string,mixed> $check
+     * @param array<string,mixed> $apiRes
+     * @return array<string,mixed>
      */
-    private function verifyTeachIntent(array $check, string $targetIntent, string $pattern = ''): bool
+    private function mergeLocalRegexClassify(string $text, array $apiRes): array
     {
-        $targetIntent = strtoupper(trim($targetIntent));
-        $got = strtoupper(trim((string) ($check['intent'] ?? '')));
-        if ($got === $targetIntent) {
-            return true;
+        $local = $this->localRegexClassify($text);
+        if ($local === null) {
+            return $apiRes;
         }
+        $apiSource = (string) ($apiRes['source'] ?? '');
+        $apiIntent = strtoupper(trim((string) ($apiRes['intent'] ?? '')));
+        $localIntent = strtoupper(trim((string) ($local['intent'] ?? '')));
+        if ($apiSource === 'regex' && $apiIntent === $localIntent) {
+            return $apiRes;
+        }
+        $trace = is_array($apiRes['trace'] ?? null) ? $apiRes['trace'] : [];
+        if ($apiIntent !== '' && $apiIntent !== $localIntent) {
+            $trace[] = 'API=' . $apiIntent . ' source=' . ($apiSource !== '' ? $apiSource : '?')
+                . ' → lab pakai regex ' . $localIntent;
+        }
+        return array_merge($apiRes, $local, [
+            'trace' => array_merge($local['trace'] ?? [], $trace),
+        ]);
+    }
 
-        $trace = $check['trace'] ?? [];
-        if (is_array($trace)) {
-            foreach ($trace as $line) {
-                $line = (string) $line;
-                if (preg_match('/REGEX_MATCH.*(?:handler|regex_source)=' . preg_quote($targetIntent, '/') . '\b/i', $line)) {
-                    return true;
-                }
+    /**
+     * Scan pattern aktif dari DB (sama sumber dengan autoreply). Tanpa skip/remap produksi.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function localRegexClassify(string $text): ?array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return null;
+        }
+        $textCheck = $this->normalizeTextForRegex($text);
+        $db = $this->dbMain();
+        $rows = $db->query_array(
+            "SELECT i.code, i.case_value, i.notify, p.pattern
+             FROM wa_autoreply_patterns p
+             INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
+             WHERE p.is_active = 1 AND i.is_active = 1
+             ORDER BY i.sort_order ASC, i.id ASC, p.sort_order ASC, p.id ASC"
+        );
+        if (!is_array($rows)) {
+            return null;
+        }
+        foreach ($rows as $row) {
+            $pattern = trim((string) ($row['pattern'] ?? ''));
+            $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+            if ($pattern === '' || @preg_match($pattern, '') === false) {
+                continue;
+            }
+            if (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $text) === 1) {
+                $code = strtoupper(trim((string) ($row['code'] ?? '')));
+                return [
+                    'ok' => 1,
+                    'text' => $text,
+                    'intent' => $code,
+                    'source' => 'regex',
+                    'case' => isset($row['case_value']) && $row['case_value'] !== '' && $row['case_value'] !== null
+                        ? (int) $row['case_value'] : null,
+                    'notify' => ((int) ($row['notify'] ?? 0)) === 1,
+                    'no_handler' => false,
+                    'ask' => null,
+                    'trace' => ['LAB_REGEX_MATCH handler=' . $code],
+                    'replies' => [],
+                ];
             }
         }
 
-        $text = trim((string) ($check['text'] ?? ''));
-        if ($pattern !== '' && $text !== '' && @preg_match($pattern, $text) === 1) {
-            return true;
-        }
+        return null;
+    }
 
-        return false;
+    private function normalizeTextForRegex(string $text): string
+    {
+        $t = preg_replace('/[*_~`]/', '', $text) ?? $text;
+        $t = preg_replace('/^>\s*/m', '', $t) ?? $t;
+
+        return strtolower(trim($t));
     }
 
     /**

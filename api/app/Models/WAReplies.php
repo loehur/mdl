@@ -273,6 +273,13 @@ class WAReplies
         $this->humanActiveCache = false;
         $this->setSkipConversationPersist(true);
 
+        // Intent Lab: regex DB menang dulu — tanpa REGEX_SKIP/remap produksi (AI hanya jika tidak ada match).
+        $regexFirst = $this->classifyIntentLabRegexFirst($textBody);
+        if ($regexFirst !== null) {
+            $this->intentLabMode = false;
+            return $regexFirst;
+        }
+
         $waNumber = '6289990000001';
         $phoneIn = "'6289990000001','089990000001','+6289990000001','89990000001'";
         $result = null;
@@ -339,6 +346,65 @@ class WAReplies
             'trace' => $this->intentLabTraces,
             'replies' => $replies,
         ];
+    }
+
+    /**
+     * Intent Lab — scan pattern DB mentah (urut sort_order). Tanpa skip/remap produksi.
+     *
+     * @return array{ok:bool,text:string,intent:string,source:string,case:mixed,notify:bool,no_handler:bool,ask:null,trace:list<string>,replies:list<string>}|null
+     */
+    private function classifyIntentLabRegexFirst(string $textBody): ?array
+    {
+        $textBody = trim($textBody);
+        if ($textBody === '') {
+            return null;
+        }
+        $textCheck = $this->normalizeTextBodyForRegex($textBody);
+        $keywordConfig = $this->loadAutoreplyKeywordConfig();
+        if ($keywordConfig === []) {
+            return null;
+        }
+
+        foreach ($keywordConfig as $handler => $config) {
+            if (!is_array($config)) {
+                continue;
+            }
+            $code = strtoupper(trim((string) $handler));
+            if ($code === '') {
+                continue;
+            }
+            foreach ($config['patterns'] ?? [] as $pattern) {
+                $pattern = trim((string) $pattern);
+                $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+                if ($pattern === '' || @preg_match($pattern, '') === false) {
+                    continue;
+                }
+                if (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $textBody) === 1) {
+                    return [
+                        'ok' => true,
+                        'text' => $textBody,
+                        'intent' => $code,
+                        'source' => 'regex',
+                        'case' => $config['case'] ?? null,
+                        'notify' => (bool) ($config['notify'] ?? false),
+                        'no_handler' => false,
+                        'ask' => null,
+                        'trace' => ['LAB_REGEX_MATCH handler=' . $code],
+                        'replies' => [],
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeTextBodyForRegex(string $textBody): string
+    {
+        $t = preg_replace('/[*_~`]/', '', $textBody) ?? $textBody;
+        $t = preg_replace('/^>\s*/m', '', $t) ?? $t;
+
+        return strtolower(trim($t));
     }
 
     private function intentLabMark(string $intent, string $source): void

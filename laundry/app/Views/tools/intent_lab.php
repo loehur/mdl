@@ -981,11 +981,13 @@
         if (res.pattern_updated) msg += ' Pattern diubah.';
         if (res.pattern_added) msg += ' Pattern ditambah.';
         if (res.prompt_updated) msg += ' Prompt diupdate.';
-        if (res.verify_ok) msg += ' Verifikasi: intent = ' + (res.verify_intent || intent);
-        else {
+        if (res.verify_ok) {
+          var src = (res.verify && res.verify.source) ? res.verify.source : '';
+          msg += ' Verifikasi: intent = ' + (res.verify_intent || intent) + (src ? ' (' + src + ')' : '');
+        } else {
           msg += ' Verifikasi: dapat ' + (res.verify_intent || '—') + ' (target ' + intent + ').';
           if (res.verify && res.verify.source === 'ai') {
-            msg += ' Pattern sudah tersimpan; AI masih override — cek TRACE atau perkuat ai_prompt.';
+            msg += ' Regex belum menang — cek urutan pattern intent lain atau perkuat ai_prompt.';
           }
         }
         $applyMsg.css('color', res.verify_ok ? '#15803d' : '#b45309').text(msg);
