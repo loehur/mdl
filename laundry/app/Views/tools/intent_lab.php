@@ -585,6 +585,11 @@
       }
     }
 
+    /** PCRE: \\b setelah ?!., di akhir pattern tidak match teks yang diakhiri tanda baca. */
+    function fixPatternBoundaries(pattern) {
+      return String(pattern || '').replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
+    }
+
     var checkUrl = '<?= URL::BASE_URL; ?>IntentLab/check';
     var proposeUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeTeach';
     var applyUrl = '<?= URL::BASE_URL; ?>IntentLab/applyTeach';
@@ -809,7 +814,7 @@
         }
         $teachMeta.html(bits.join(''));
         $teachReason.text(res.reason || '');
-        $teachPattern.val(res.pattern || '');
+        $teachPattern.val(fixPatternBoundaries(res.pattern || ''));
         var teachFull = fullProposedPrompt(res);
         $teachPrompt.val(teachFull);
         $('#ilTeachPatternId').val(pid > 0 && action === 'update' ? String(pid) : '');
@@ -938,7 +943,8 @@
       if (running) return;
       var text = $.trim($text.val() || '');
       var intent = getTeachIntent();
-      var pattern = $.trim($teachPattern.val() || '');
+      var pattern = fixPatternBoundaries($.trim($teachPattern.val() || ''));
+      $teachPattern.val(pattern);
       var promptAppend = $.trim($teachPrompt.val() || '');
       var addPattern = $('#ilAddPattern').is(':checked') ? 1 : 0;
       var updatePrompt = $('#ilUpdatePrompt').is(':checked') ? 1 : 0;

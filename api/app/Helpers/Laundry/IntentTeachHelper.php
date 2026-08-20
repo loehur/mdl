@@ -177,6 +177,8 @@ class IntentTeachHelper
                 $promptAppend = '| ' . self::shortExample($text) . ' |';
             }
 
+            $pattern = self::normalizePatternForText($pattern, $text);
+            $valid = @preg_match($pattern, $text);
             $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
             return [
                 'ok' => true,
@@ -533,6 +535,7 @@ class IntentTeachHelper
             . "- Harus match PESAN contoh (case-insensitive)\n"
             . "- Tangkap slang/typo wajar, JANGAN terlalu luas (hindari .*)\n"
             . "- Prefer \\b untuk kata kunci; izinkan spasi fleksibel \\s*\n"
+            . "- JANGAN \\b setelah tanda baca akhir (? ! . ,); cukup akhiri dengan \\? atau \\! literal\n"
             . "- Jangan bentrok intent lain secara agresif\n"
             . "Aturan prompt_append:\n"
             . "- Jika action=update karena huruf berulang, prompt_append boleh string kosong\n"
@@ -1176,6 +1179,37 @@ class IntentTeachHelper
         return $t;
     }
 
+    /**
+     * Perbaiki pattern agar match teks contoh (PCRE: \\b setelah ?!., di akhir string selalu gagal).
+     */
+    public static function normalizePatternForText(string $pattern, string $text): string
+    {
+        $pattern = trim($pattern);
+        $text = trim($text);
+        if ($pattern === '' || $text === '') {
+            return $pattern;
+        }
+        if (@preg_match($pattern, $text) === 1) {
+            return $pattern;
+        }
+
+        $fixed = preg_replace(
+            '/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/',
+            '\\\\$1',
+            $pattern
+        );
+        if (is_string($fixed) && $fixed !== '' && @preg_match($fixed, $text) === 1) {
+            return $fixed;
+        }
+
+        $fallback = self::buildFallbackPattern($text);
+        if (@preg_match($fallback, $text) === 1) {
+            return $fallback;
+        }
+
+        return $pattern;
+    }
+
     /** Regex aman: literal case-insensitive, spasi fleksibel, huruf berulang → +. */
     public static function buildFallbackPattern(string $text): string
     {
@@ -1192,7 +1226,9 @@ class IntentTeachHelper
             return '/.^/u'; // never matches
         }
         $body = implode('\\s+', $escaped);
-        return '/\\b' . $body . '\\b/iu';
+        $suffix = preg_match('/\p{L}$/u', $t) ? '\\b' : '';
+
+        return '/\\b' . $body . $suffix . '/iu';
     }
 
     private static function tokenToFlexibleRegex(string $token): string

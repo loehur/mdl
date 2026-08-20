@@ -190,6 +190,9 @@ class IntentLab extends Controller
             echo json_encode(['ok' => 0, 'message' => 'pattern wajib'], JSON_UNESCAPED_UNICODE);
             return;
         }
+        if ($addPattern) {
+            $pattern = $this->normalizePatternForText($pattern, $text);
+        }
         if ($addPattern && @preg_match($pattern, '') === false) {
             echo json_encode([
                 'ok' => 0,
@@ -524,6 +527,40 @@ class IntentLab extends Controller
         }
         $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
         return $current . $sep . $promptAppend;
+    }
+
+    /**
+     * PCRE: trailing \\b setelah ?!., di akhir string tidak pernah match — perbaiki sebelum simpan.
+     */
+    private function normalizePatternForText(string $pattern, string $text): string
+    {
+        $pattern = trim($pattern);
+        $text = trim($text);
+        if ($pattern === '' || $text === '') {
+            return $pattern;
+        }
+        if (@preg_match($pattern, $text) === 1) {
+            return $pattern;
+        }
+
+        $fixed = preg_replace(
+            '/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/',
+            '\\\\$1',
+            $pattern
+        );
+        if (is_string($fixed) && $fixed !== '' && @preg_match($fixed, $text) === 1) {
+            return $fixed;
+        }
+
+        $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+            if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                return \App\Helpers\Laundry\IntentTeachHelper::normalizePatternForText($pattern, $text);
+            }
+        }
+
+        return $pattern;
     }
 
     /** @return array<string,mixed> */
