@@ -120,6 +120,16 @@ class Env
     const QRIS_STATUS_EXPIRED = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'];
 
     // -------------------------------------------------------------------------
+    // Payment — DOKU (QRIS webhook)
+    // -------------------------------------------------------------------------
+    const DOKU_CLIENT_ID = 'MCH-0001-xxxxxxxxxxxx';
+    const DOKU_SECRET_KEY = 'change-me-doku-secret-key';
+    // Path notification URL (harus sama dengan yang didaftarkan di DOKU Back Office)
+    const DOKU_WEBHOOK_PATH = '/Webhook/Doku';
+    // true = skip verifikasi signature (hanya untuk development lokal)
+    const DOKU_SKIP_SIGNATURE_VERIFY = false;
+
+    // -------------------------------------------------------------------------
     // Shipping — Biteship (Kurir Instant laundry)
     // -------------------------------------------------------------------------
     const BITESHIP_API_KEY = 'change-me-biteship-api-key';
