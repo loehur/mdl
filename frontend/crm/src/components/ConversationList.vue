@@ -306,15 +306,29 @@ const parseEmoji = (text) => {
 
         <!-- Kolom Kanan: Nama + Message -->
         <div class="flex-1 min-w-0">
-          <div class="flex justify-between items-baseline mb-1 gap-2">
-            <h3 class="text-[16px] truncate text-[var(--wa-text-primary)] max-w-[240px] uppercase" style="font-weight: 650;" :title="chat.name">
+          <div class="flex justify-between items-baseline mb-0.5 gap-2">
+            <h3
+              class="text-[17px] leading-snug truncate max-w-[240px] font-normal"
+              style="color: var(--wa-conv-name);"
+              :title="chat.name"
+            >
               {{ chat.name }}
             </h3>
-            <span class="text-xs text-[var(--wa-text-tertiary)] flex-shrink-0">{{ chat.lastTime }}</span>
+            <span
+              class="text-xs leading-none flex-shrink-0 font-normal"
+              :style="{ color: chat.unread > 0 ? 'var(--wa-conv-unread-time)' : 'var(--wa-conv-time)' }"
+            >{{ chat.lastTime }}</span>
           </div>
 
-          <div class="flex justify-between items-center">
-            <p class="text-sm text-[var(--wa-text-secondary)] truncate w-64" :class="{ 'font-medium text-[var(--wa-text-primary)]': chat.unread > 0 }" v-html="parseEmoji(chat.lastMessage)"></p>
+          <div class="flex justify-between items-center gap-2">
+            <p
+              class="text-[14px] leading-snug truncate w-64 font-normal"
+              :style="{
+                color: chat.unread > 0 ? 'var(--wa-conv-unread-preview)' : 'var(--wa-conv-preview)',
+                fontWeight: chat.unread > 0 ? '500' : '400',
+              }"
+              v-html="parseEmoji(chat.lastMessage)"
+            ></p>
             <span v-if="chat.unread > 0" class="bg-[var(--wa-accent-green)] text-white text-[11px] font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">{{ chat.unread }}</span>
           </div>
         </div>

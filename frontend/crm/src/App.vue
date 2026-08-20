@@ -367,6 +367,12 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-text", "#3b4a54");
     root.style.setProperty("--wa-caption-overlay-bg", "rgba(255, 255, 255, 0.85)");
     root.style.setProperty("--wa-caption-overlay-text", "#000000");
+    // Conversation list (WhatsApp Web light)
+    root.style.setProperty("--wa-conv-name", "#111b21");
+    root.style.setProperty("--wa-conv-preview", "#667781");
+    root.style.setProperty("--wa-conv-time", "#667781");
+    root.style.setProperty("--wa-conv-unread-preview", "#111b21");
+    root.style.setProperty("--wa-conv-unread-time", "#008069");
   } else {
     // Dark theme colors - Soft black/gray like WhatsApp (no blue tint)
     root.style.setProperty("--wa-bg-primary", "#0d0d0d");
@@ -415,6 +421,12 @@ const applyTheme = (themeName) => {
     root.style.setProperty("--wa-filter-inactive-text", "#c5c9cc");
     root.style.setProperty("--wa-caption-overlay-bg", "rgba(0, 0, 0, 0.75)");
     root.style.setProperty("--wa-caption-overlay-text", "#ffffff");
+    // Conversation list (WhatsApp Web dark)
+    root.style.setProperty("--wa-conv-name", "#e9edef");
+    root.style.setProperty("--wa-conv-preview", "#8696a0");
+    root.style.setProperty("--wa-conv-time", "#8696a0");
+    root.style.setProperty("--wa-conv-unread-preview", "#e9edef");
+    root.style.setProperty("--wa-conv-unread-time", "#00a884");
   }
 };
 
