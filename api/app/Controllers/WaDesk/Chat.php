@@ -17,11 +17,21 @@ class Chat extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
 
-        [$visSql, $binds] = $this->visibilitySql('c');
+        [$visSql, $visBinds] = $this->visibilitySql('c');
         $q = trim((string) $this->query('q', ''));
         $filter = strtolower(trim((string) $this->query('filter', 'all')));
 
         $tbl = $this->channelsTable();
+        $unreadRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS cnt
+             FROM conversations c
+             INNER JOIN {$tbl} k ON k.id = c.channel_id
+             WHERE {$visSql} AND c.unread > 0",
+            $visBinds
+        )->row_array();
+        $unreadCount = (int) ($unreadRow['cnt'] ?? 0);
+
+        $binds = $visBinds;
         $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
                        k.phone_number AS wa_number, t.name AS team_name,
                        c.channel_id AS channel_id
@@ -46,7 +56,10 @@ class Chat extends WaDeskController
             $row['csw_open'] = WaDeskKirimin::isWithinCsw($row['last_in_at'] ?? null);
         }
 
-        $this->success(['conversations' => $rows]);
+        $this->success([
+            'conversations' => $rows,
+            'unread_count' => $unreadCount,
+        ]);
     }
 
     public function getMessages()

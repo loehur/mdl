@@ -80,11 +80,18 @@
             </button>
             <button
               type="button"
-              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition inline-flex items-center justify-center gap-1.5"
               :class="chat.listFilter === 'unread' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
               @click="setListFilter('unread')"
             >
               Unread
+              <span
+                v-if="chat.unreadCount > 0"
+                class="min-w-[1.125rem] h-[1.125rem] px-1 rounded-full text-[10px] font-bold leading-none inline-flex items-center justify-center"
+                :class="chat.listFilter === 'unread' ? 'bg-white/20 text-white' : 'bg-accent text-white'"
+              >
+                {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
+              </span>
             </button>
           </div>
         </div>

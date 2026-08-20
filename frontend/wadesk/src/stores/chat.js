@@ -10,6 +10,7 @@ export const useChatStore = defineStore("chat", {
     loadingMessages: false,
     search: "",
     listFilter: "all",
+    unreadCount: 0,
     keys: [],
     templates: [],
     ws: null,
@@ -31,6 +32,7 @@ export const useChatStore = defineStore("chat", {
         const qs = params.toString();
         const res = await api(`/WaDesk/Chat/getConversations${qs ? `?${qs}` : ""}`);
         this.conversations = res.data.conversations || [];
+        this.unreadCount = Number(res.data.unread_count ?? 0);
       } finally {
         if (showLoading) this.loadingList = false;
       }
@@ -55,7 +57,10 @@ export const useChatStore = defineStore("chat", {
           body: { conversation_id: id },
         });
         const c = this.conversations.find((x) => Number(x.id) === Number(id));
-        if (c) c.unread = 0;
+        if (c && Number(c.unread) > 0) {
+          c.unread = 0;
+          if (this.unreadCount > 0) this.unreadCount -= 1;
+        }
       } finally {
         if (showLoading) this.loadingMessages = false;
       }
