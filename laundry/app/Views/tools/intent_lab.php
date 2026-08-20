@@ -585,10 +585,11 @@
       }
     }
 
-    /** PCRE: \\b setelah ?!., di akhir pattern tidak match teks yang diakhiri tanda baca. */
+    /** PCRE: bersihkan \\b setelah ? dan \\?/ korupsi AI sebelum delimiter. */
     function fixPatternBoundaries(pattern) {
       pattern = String(pattern || '').trim();
       pattern = pattern.replace(/\s+(?=\/[a-z]*$)/i, '');
+      pattern = pattern.replace(/\\([?!.,;:])\\\/(?=\/[a-z]*$)/i, '\\$1');
       return pattern.replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
     }
 
@@ -978,8 +979,10 @@
           return;
         }
         var msg = 'Aktif.';
+        if (res.saved_pattern) msg += ' DB: ' + res.saved_pattern;
         if (res.pattern_updated) msg += ' Pattern diubah.';
         if (res.pattern_added) msg += ' Pattern ditambah.';
+        if (res.pattern_dup_skipped) msg += ' Pattern sudah ada (reaktivasi).';
         if (res.prompt_updated) msg += ' Prompt diupdate.';
         if (res.verify_ok) {
           var src = (res.verify && res.verify.source) ? res.verify.source : '';

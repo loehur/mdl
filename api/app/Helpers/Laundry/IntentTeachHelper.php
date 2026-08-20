@@ -1180,12 +1180,25 @@ class IntentTeachHelper
     }
 
     /**
+     * Bersihkan korupsi umum dari usulan AI (spasi, \\b setelah ?, \\?/ sebelum delimiter).
+     */
+    public static function sanitizePatternString(string $pattern): string
+    {
+        $pattern = trim($pattern);
+        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        // AI kadang menulis \?/iu — slash ekstra sebelum penutup delimiter
+        $pattern = preg_replace('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        $pattern = preg_replace('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+
+        return $pattern;
+    }
+
+    /**
      * Perbaiki pattern agar match teks contoh (PCRE: \\b setelah ?!., di akhir string selalu gagal).
      */
     public static function normalizePatternForText(string $pattern, string $text): string
     {
-        $pattern = trim($pattern);
-        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        $pattern = self::sanitizePatternString($pattern);
         $text = trim($text);
         if ($pattern === '' || $text === '') {
             return $pattern;

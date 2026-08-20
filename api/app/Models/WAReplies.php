@@ -375,7 +375,12 @@ class WAReplies
             }
             foreach ($config['patterns'] ?? [] as $pattern) {
                 $pattern = trim((string) $pattern);
-                $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+                if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                    $pattern = \App\Helpers\Laundry\IntentTeachHelper::sanitizePatternString($pattern);
+                } else {
+                    $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+                    $pattern = preg_replace('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+                }
                 if ($pattern === '' || @preg_match($pattern, '') === false) {
                     continue;
                 }

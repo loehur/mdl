@@ -223,6 +223,7 @@ class IntentLab extends Controller
         $patternAdded = false;
         $patternUpdated = false;
         $promptUpdated = false;
+        $patternDupSkipped = false;
 
         if ($addPattern) {
             if ($patternId > 0) {
@@ -262,7 +263,15 @@ class IntentLab extends Controller
                     "SELECT id FROM wa_autoreply_patterns WHERE intent_id = {$intentId} AND pattern = '" . $db->escape($pattern) . "' LIMIT 1"
                 );
                 if (is_array($dup) && count($dup) > 0) {
-                    // sudah ada — skip insert
+                    $dupId = (int) ($dup[0]['id'] ?? 0);
+                    if ($dupId > 0) {
+                        $db->update(
+                            'wa_autoreply_patterns',
+                            ['is_active' => 1],
+                            "id = {$dupId} AND intent_id = {$intentId}"
+                        );
+                    }
+                    $patternDupSkipped = true;
                 } else {
                     $max = $db->query_array(
                         "SELECT COALESCE(MAX(sort_order),0) AS m FROM wa_autoreply_patterns WHERE intent_id = {$intentId}"
@@ -312,8 +321,14 @@ class IntentLab extends Controller
             $cacheBump = $this->bumpAutoreplyCache();
         }
 
-        // Re-cek: regex langsung dari DB lokal (sumber kebenaran setelah simpan)
-        $check = $this->localRegexClassify($text);
+        // Re-cek: regex dari DB lokal (intent target dulu, lalu global)
+        $check = $this->localRegexClassifyForIntent($text, $intentCode);
+        if ($check === null) {
+            $check = $this->localRegexClassify($text);
+        }
+        if ($check === null && $addPattern && $pattern !== '') {
+            $check = $this->buildLocalRegexResult($text, $intentCode, $pattern);
+        }
         if ($check === null) {
             $api = $this->helper('IntentCheckApi');
             $check = $api->check($text, $cacheBump !== null);
@@ -324,8 +339,11 @@ class IntentLab extends Controller
         $out = [
             'ok' => 1,
             'message' => 'Aktif',
+            'saved_pattern' => $addPattern ? $pattern : null,
             'pattern_added' => $patternAdded,
             'pattern_updated' => $patternUpdated,
+            'pattern_dup_skipped' => $patternDupSkipped,
+            'prompt_updated' => $promptUpdated,
             'pattern_id' => $patternId > 0 ? $patternId : null,
             'prompt_updated' => $promptUpdated,
             'target_intent' => $intentCode,
@@ -535,6 +553,169 @@ class IntentLab extends Controller
     }
 
     /**
+     * POST { text, intent? } — debug: pattern DB + match per baris (admin).
+     */
+    public function debugMatch()
+    {
+        $this->session_cek(1);
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $data = $this->readRequestData();
+        $text = trim((string) ($data['text'] ?? ''));
+        $intentCode = strtoupper(trim((string) ($data['intent'] ?? '')));
+        if ($text === '') {
+            echo json_encode(['ok' => 0, 'message' => 'text wajib'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $db = $this->dbMain();
+        $where = $intentCode !== '' ? " AND i.code = '" . $db->escape($intentCode) . "'" : '';
+        $rows = $db->query_array(
+            "SELECT p.id, p.pattern, p.is_active, p.note, i.code AS intent_code
+             FROM wa_autoreply_patterns p
+             INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
+             WHERE i.is_active = 1{$where}
+             ORDER BY i.sort_order ASC, i.id ASC, p.sort_order ASC, p.id ASC"
+        );
+        $textCheck = $this->normalizeTextForRegex($text);
+        $items = [];
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            $raw = (string) ($row['pattern'] ?? '');
+            $pat = $this->sanitizePatternString($raw);
+            $valid = @preg_match($pat, '') !== false;
+            $match = $valid && (
+                @preg_match($pat, $textCheck) === 1 || @preg_match($pat, $text) === 1
+            );
+            $items[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'intent' => strtoupper((string) ($row['intent_code'] ?? '')),
+                'is_active' => (int) ($row['is_active'] ?? 0),
+                'pattern' => $raw,
+                'pattern_sanitized' => $pat,
+                'regex_valid' => $valid,
+                'matches' => $match,
+                'note' => (string) ($row['note'] ?? ''),
+            ];
+        }
+
+        echo json_encode([
+            'ok' => 1,
+            'text' => $text,
+            'text_normalized' => $textCheck,
+            'intent_filter' => $intentCode !== '' ? $intentCode : null,
+            'cache_version' => $this->readCacheVersion(),
+            'local_classify' => $this->localRegexClassify($text),
+            'local_classify_intent' => $intentCode !== ''
+                ? $this->localRegexClassifyForIntent($text, $intentCode) : null,
+            'patterns' => $items,
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function buildLocalRegexResult(string $text, string $intentCode, string $pattern): ?array
+    {
+        $intentCode = strtoupper(trim($intentCode));
+        $pattern = $this->sanitizePatternString($pattern);
+        if ($pattern === '' || @preg_match($pattern, '') === false) {
+            return null;
+        }
+        $textCheck = $this->normalizeTextForRegex($text);
+        if (@preg_match($pattern, $textCheck) !== 1 && @preg_match($pattern, $text) !== 1) {
+            return null;
+        }
+        $row = $this->dbMain()->get_where_row(
+            'wa_autoreply_intents',
+            "code = '" . $this->dbMain()->escape($intentCode) . "' AND is_active = 1"
+        );
+
+        return [
+            'ok' => 1,
+            'text' => $text,
+            'intent' => $intentCode,
+            'source' => 'regex',
+            'case' => isset($row['case_value']) && $row['case_value'] !== '' && $row['case_value'] !== null
+                ? (int) $row['case_value'] : null,
+            'notify' => ((int) ($row['notify'] ?? 0)) === 1,
+            'no_handler' => false,
+            'ask' => null,
+            'trace' => ['LAB_SAVED_PATTERN handler=' . $intentCode],
+            'replies' => [],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function localRegexClassifyForIntent(string $text, string $intentCode): ?array
+    {
+        $intentCode = strtoupper(trim($intentCode));
+        if ($intentCode === '') {
+            return null;
+        }
+        $text = trim($text);
+        if ($text === '') {
+            return null;
+        }
+        $textCheck = $this->normalizeTextForRegex($text);
+        $db = $this->dbMain();
+        $rows = $db->query_array(
+            "SELECT i.code, i.case_value, i.notify, p.pattern
+             FROM wa_autoreply_patterns p
+             INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
+             WHERE p.is_active = 1 AND i.is_active = 1 AND i.code = '" . $db->escape($intentCode) . "'
+             ORDER BY p.sort_order ASC, p.id ASC"
+        );
+        if (!is_array($rows)) {
+            return null;
+        }
+        foreach ($rows as $row) {
+            $pattern = $this->sanitizePatternString((string) ($row['pattern'] ?? ''));
+            if ($pattern === '' || @preg_match($pattern, '') === false) {
+                continue;
+            }
+            if (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $text) === 1) {
+                $code = strtoupper(trim((string) ($row['code'] ?? '')));
+                return [
+                    'ok' => 1,
+                    'text' => $text,
+                    'intent' => $code,
+                    'source' => 'regex',
+                    'case' => isset($row['case_value']) && $row['case_value'] !== '' && $row['case_value'] !== null
+                        ? (int) $row['case_value'] : null,
+                    'notify' => ((int) ($row['notify'] ?? 0)) === 1,
+                    'no_handler' => false,
+                    'ask' => null,
+                    'trace' => ['LAB_REGEX_MATCH handler=' . $code],
+                    'replies' => [],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function sanitizePatternString(string $pattern): string
+    {
+        $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+            if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                return \App\Helpers\Laundry\IntentTeachHelper::sanitizePatternString($pattern);
+            }
+        }
+        $pattern = trim($pattern);
+        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        $pattern = preg_replace('/\\\\([?!.,;:])\\\\\/(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+        $pattern = preg_replace('/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/', '\\\\$1', $pattern) ?? $pattern;
+
+        return $pattern;
+    }
+
+    /**
      * Intent Lab — regex DB lokal menang atas API bila API jatuh ke AI/FALSE.
      *
      * @param array<string,mixed> $apiRes
@@ -586,8 +767,7 @@ class IntentLab extends Controller
             return null;
         }
         foreach ($rows as $row) {
-            $pattern = trim((string) ($row['pattern'] ?? ''));
-            $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+            $pattern = $this->sanitizePatternString((string) ($row['pattern'] ?? ''));
             if ($pattern === '' || @preg_match($pattern, '') === false) {
                 continue;
             }
@@ -625,23 +805,13 @@ class IntentLab extends Controller
      */
     private function normalizePatternForText(string $pattern, string $text): string
     {
-        $pattern = trim($pattern);
-        $pattern = preg_replace('/\s+(?=\/[a-zA-Z]*$)/', '', $pattern) ?? $pattern;
+        $pattern = $this->sanitizePatternString($pattern);
         $text = trim($text);
         if ($pattern === '' || $text === '') {
             return $pattern;
         }
         if (@preg_match($pattern, $text) === 1) {
             return $pattern;
-        }
-
-        $fixed = preg_replace(
-            '/\\\\([?!.,;:])\s*\\\\b(?=\/[a-zA-Z]*$)/',
-            '\\\\$1',
-            $pattern
-        );
-        if (is_string($fixed) && $fixed !== '' && @preg_match($fixed, $text) === 1) {
-            return $fixed;
         }
 
         $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
