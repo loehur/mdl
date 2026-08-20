@@ -1179,6 +1179,47 @@ class IntentTeachHelper
         return $t;
     }
 
+    /** Cek match regex + toleransi typo slesainya ↔ selesainya. */
+    public static function patternMatchesText(string $pattern, string $text, ?string $textCheck = null): bool
+    {
+        $text = trim($text);
+        if ($text === '' || $pattern === '') {
+            return false;
+        }
+        $textCheck = $textCheck ?? self::normalizeTextBodyForRegex($text);
+        if (@preg_match($pattern, $textCheck) === 1) {
+            return true;
+        }
+        if (@preg_match($pattern, $text) === 1) {
+            return true;
+        }
+        if (@preg_match($pattern, mb_strtolower($text)) === 1) {
+            return true;
+        }
+        if (preg_match('/slesainya/u', $pattern) && preg_match('/selesainya/u', $text)) {
+            $alt = preg_replace('/slesainya/u', 'selesainya', $pattern);
+            if (is_string($alt) && @preg_match($alt, $textCheck) === 1) {
+                return true;
+            }
+        }
+        if (preg_match('/selesainya/u', $pattern) && preg_match('/slesainya/u', $text)) {
+            $alt = preg_replace('/selesainya/u', 'slesainya', $pattern);
+            if (is_string($alt) && @preg_match($alt, $textCheck) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function normalizeTextBodyForRegex(string $text): string
+    {
+        $t = preg_replace('/[*_~`]/', '', $text) ?? $text;
+        $t = preg_replace('/^>\s*/m', '', $t) ?? $t;
+
+        return strtolower(trim($t));
+    }
+
     /**
      * Bersihkan korupsi umum dari usulan AI (spasi, \\b setelah ?, \\?/ sebelum delimiter).
      */

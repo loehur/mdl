@@ -593,6 +593,35 @@
       return pattern.replace(/\\([?!.,;:])\s*\\b(?=\/[a-z]*$)/i, '\\$1');
     }
 
+    function parseAjaxJson(xhr) {
+      var raw = xhr && xhr.responseText != null ? String(xhr.responseText) : '';
+      raw = raw.replace(/^\uFEFF/, '').trim();
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function ajaxFailMessage(xhr, fallback) {
+      var parsed = parseAjaxJson(xhr);
+      if (parsed && (parsed.message || parsed.error)) {
+        return parsed.message || parsed.error;
+      }
+      if (xhr && xhr.statusText === 'timeout') {
+        return 'Timeout — server terlalu lama merespons';
+      }
+      var raw = xhr && xhr.responseText ? String(xhr.responseText).trim() : '';
+      if (raw && raw.charAt(0) !== '<') {
+        return raw.length > 180 ? raw.slice(0, 180) + '…' : raw;
+      }
+      if (xhr && xhr.status) {
+        return fallback + ' (HTTP ' + xhr.status + ')';
+      }
+      return fallback;
+    }
+
     var checkUrl = '<?= URL::BASE_URL; ?>IntentLab/check';
     var proposeUrl = '<?= URL::BASE_URL; ?>IntentLab/proposeTeach';
     var applyUrl = '<?= URL::BASE_URL; ?>IntentLab/applyTeach';
@@ -758,23 +787,24 @@
       setLoading(true, 'Menganalisis intent…', 'Regex + AI, mohon tunggu sebentar');
       $btn.html('<i class="fas fa-spinner fa-spin"></i> Mengecek…');
       $.ajax({
-        url: checkUrl, type: 'POST', data: { text: text }, dataType: 'json', timeout: 70000
-      }).done(function (res) {
+        url: checkUrl, type: 'POST', data: { text: text }, dataType: 'text', timeout: 70000
+      }).done(function (raw) {
+        var res = null;
+        try {
+          res = JSON.parse(String(raw || '').replace(/^\uFEFF/, '').trim());
+        } catch (e) {
+          showResult({ ok: 0, message: 'Respon bukan JSON valid' });
+          toast('Respon server bukan JSON — coba refresh halaman', 'err');
+          return;
+        }
         showResult(res || {});
         if (!(res && (res.ok === 1 || res.ok === true)) && res && res.message) {
           toast(res.message, 'err');
         }
       }).fail(function (xhr) {
-        var msg = 'Request gagal';
-        if (xhr.statusText === 'timeout') msg = 'Timeout — API terlalu lama merespons';
-        else {
-          try {
-            var j = JSON.parse(xhr.responseText || '{}');
-            if (j.message) msg = j.message;
-            else if (j.error) msg = j.error;
-          } catch (e) { if (xhr.status) msg = 'HTTP ' + xhr.status; }
-        }
-        showResult({ ok: 0, message: msg });
+        var res = parseAjaxJson(xhr);
+        var msg = ajaxFailMessage(xhr, 'Request gagal');
+        showResult(res || { ok: 0, message: msg });
         toast(msg, 'err');
       }).always(function () { setLoading(false); });
     }
@@ -973,9 +1003,16 @@
           add_pattern: addPattern,
           update_prompt: updatePrompt
         }),
-        dataType: 'json',
+        dataType: 'text',
         timeout: 90000
-      }).done(function (res) {
+      }).done(function (raw) {
+        var res = null;
+        try {
+          res = JSON.parse(String(raw || '').replace(/^\uFEFF/, '').trim());
+        } catch (e) {
+          toast('Respon aktifkan bukan JSON valid', 'err');
+          return;
+        }
         if (!(res && (res.ok === 1 || res.ok === true))) {
           $applyMsg.css('color', '#dc2626').text((res && res.message) || 'Gagal aktifkan');
           toast((res && res.message) || 'Gagal aktifkan', 'err');
@@ -1000,8 +1037,10 @@
         applyCacheFromResponse(res);
         if (res.verify) showResult(res.verify);
         toast(res.verify_ok ? 'Berhasil diajarkan' : 'Tersimpan — cek hasil Cek Intent di bawah', res.verify_ok ? 'info' : 'warn');
-      }).fail(function () {
-        toast('Request aktifkan gagal', 'err');
+      }).fail(function (xhr) {
+        var msg = ajaxFailMessage(xhr, 'Request aktifkan gagal');
+        $applyMsg.css('color', '#dc2626').text(msg);
+        toast(msg, 'err');
       }).always(function () { setLoading(false); });
     }
 

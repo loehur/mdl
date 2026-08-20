@@ -113,7 +113,7 @@ class IntentLab extends Controller
         $data = $this->readRequestData();
         $text = trim((string) ($data['text'] ?? $_POST['text'] ?? ''));
         if ($text === '') {
-            echo json_encode(['ok' => 0, 'message' => 'Teks kosong'], JSON_UNESCAPED_UNICODE);
+            $this->jsonOut(['ok' => 0, 'message' => 'Teks kosong']);
             return;
         }
 
@@ -121,7 +121,7 @@ class IntentLab extends Controller
             // Regex DB lokal dulu — tidak bergantung API remote (sering timeout/error).
             $local = $this->localRegexClassify($text);
             if ($local !== null) {
-                echo json_encode($local, JSON_UNESCAPED_UNICODE);
+                $this->jsonOut($local);
                 return;
             }
 
@@ -132,19 +132,14 @@ class IntentLab extends Controller
             }
             $res = $this->mergeLocalRegexClassify($text, $res);
             if (!isset($res['ok'])) {
-                $res['ok'] = false;
-            }
-            if ($res['ok'] === true) {
-                $res['ok'] = 1;
-            } elseif ($res['ok'] === false) {
                 $res['ok'] = 0;
             }
-            echo json_encode($res, JSON_UNESCAPED_UNICODE);
+            $this->jsonOut($res);
         } catch (\Throwable $e) {
-            echo json_encode([
+            $this->jsonOut([
                 'ok' => 0,
                 'message' => 'Error Intent Lab: ' . $e->getMessage(),
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
         }
     }
 
@@ -282,11 +277,24 @@ class IntentLab extends Controller
                 if (is_array($dup) && count($dup) > 0) {
                     $dupId = (int) ($dup[0]['id'] ?? 0);
                     if ($dupId > 0) {
-                        $db->update(
+                        $existingDup = $db->query_array(
+                            "SELECT note FROM wa_autoreply_patterns WHERE id = {$dupId} AND intent_id = {$intentId} LIMIT 1"
+                        );
+                        $oldNote = trim((string) ($existingDup[0]['note'] ?? ''));
+                        $tag = 'Intent Lab teach: ' . mb_substr($text, 0, 80);
+                        $newNote = $oldNote !== '' ? ($oldNote . ' | ' . $tag) : $tag;
+                        $up = $db->update(
                             'wa_autoreply_patterns',
-                            ['is_active' => 1],
+                            [
+                                'pattern' => $pattern,
+                                'is_active' => 1,
+                                'note' => mb_substr($newNote, 0, 250),
+                            ],
                             "id = {$dupId} AND intent_id = {$intentId}"
                         );
+                        if (($up['errno'] ?? 1) == 0) {
+                            $patternUpdated = true;
+                        }
                     }
                     $patternDupSkipped = true;
                 } else {
@@ -336,6 +344,8 @@ class IntentLab extends Controller
         $cacheBump = null;
         if ($patternAdded || $patternUpdated || $promptUpdated) {
             $cacheBump = $this->bumpAutoreplyCache();
+        } elseif ($patternDupSkipped) {
+            $cacheBump = $this->bumpAutoreplyCache();
         }
 
         // Re-cek: regex dari DB lokal (intent target dulu, lalu global)
@@ -362,7 +372,6 @@ class IntentLab extends Controller
             'pattern_dup_skipped' => $patternDupSkipped,
             'prompt_updated' => $promptUpdated,
             'pattern_id' => $patternId > 0 ? $patternId : null,
-            'prompt_updated' => $promptUpdated,
             'target_intent' => $intentCode,
             'verify_intent' => $gotIntent,
             'verify_ok' => $verifyOk,
@@ -373,7 +382,7 @@ class IntentLab extends Controller
             $out['cache_version_before'] = $cacheBump['before'];
             $out['cache_version_bumped'] = true;
         }
-        echo json_encode($out, JSON_UNESCAPED_UNICODE);
+        $this->jsonOut($out);
     }
 
     /**
@@ -820,6 +829,17 @@ class IntentLab extends Controller
 
     private function patternMatchesText(string $pattern, string $text, ?string $textCheck = null): bool
     {
+        $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+            if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                return \App\Helpers\Laundry\IntentTeachHelper::patternMatchesText(
+                    $pattern,
+                    $text,
+                    $textCheck ?? $this->normalizeTextForRegex($text)
+                );
+            }
+        }
         $textCheck = $textCheck ?? $this->normalizeTextForRegex($text);
         if (@preg_match($pattern, $textCheck) === 1) {
             return true;
@@ -830,7 +850,6 @@ class IntentLab extends Controller
         if (@preg_match($pattern, mb_strtolower($text)) === 1) {
             return true;
         }
-        // Typo satu huruf: slesainya vs selesainya
         if (preg_match('/slesainya/u', $pattern) && preg_match('/selesainya/u', $text)) {
             $alt = preg_replace('/slesainya/u', 'selesainya', $pattern);
             if (is_string($alt) && @preg_match($alt, $textCheck) === 1) {
@@ -895,5 +914,35 @@ class IntentLab extends Controller
             $data = $_POST;
         }
         return is_array($data) ? $data : [];
+    }
+
+    /** @param array<string,mixed> $data */
+    private function jsonOut(array $data): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        if (array_key_exists('ok', $data)) {
+            if ($data['ok'] === true) {
+                $data['ok'] = 1;
+            } elseif ($data['ok'] === false) {
+                $data['ok'] = 0;
+            }
+        }
+        $flags = JSON_UNESCAPED_UNICODE;
+        if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+            $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
+        }
+        $json = json_encode($data, $flags);
+        if ($json === false) {
+            $json = json_encode([
+                'ok' => 0,
+                'message' => 'JSON encode gagal: ' . json_last_error_msg(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        echo $json;
     }
 }
