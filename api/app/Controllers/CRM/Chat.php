@@ -1904,16 +1904,25 @@ class Chat extends Controller
                 $this->error('Phone number is required');
             }
             
-            // Get last_message_at from conversation
-            $conversation = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+            // Get last_message_at from conversation (merged yCloud + Fonnte)
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+            }
+            $conversation = \App\Helpers\CRM\CrmChatMergeHelper::findWaConversation($db, (string) $phone);
             
             if (!$conversation) {
                 $this->error('Conversation not found');
             }
+
+            $mergedLast = \App\Helpers\CRM\CrmChatMergeHelper::mergeLastMessageMeta(
+                $db,
+                (string) $phone,
+                $conversation
+            );
             
             $this->success([
                 'phone' => $phone,
-                'last_message_at' => $conversation->last_message_at ?? null,
+                'last_message_at' => $mergedLast['last_message_time'] ?? ($conversation->last_message_at ?? null),
                 'conversation_id' => $conversation->id ?? null,
                 'status' => $conversation->status ?? null,
             ], 'Last message time retrieved');

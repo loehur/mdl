@@ -453,10 +453,101 @@ class CrmChatMergeHelper
     }
 
     /**
+     * Ambil preview pesan terakhir dari semua tabel pesan (yCloud + Fonnte).
+     *
+     * @return array{last_message:?string,last_message_time:?string}|null
+     */
+    public static function fetchLatestMessageMeta($db, string $phone): ?array
+    {
+        if (!class_exists(WaSenderContext::class)) {
+            require_once __DIR__ . '/WaSenderContext.php';
+        }
+        $nomor = WaSenderContext::toNomorNasional($phone);
+        if ($nomor === null) {
+            return null;
+        }
+        $like = '%' . $nomor;
+        $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
+
+        $unions = [];
+        $params = [];
+
+        $unions[] = "(SELECT text as body, type, 'customer' as sender, created_at as ts FROM wa_messages_in WHERE {$phoneExpr} LIKE ?)";
+        $params[] = $like;
+        $unions[] = "(SELECT COALESCE(content, '') as body, type, 'me' as sender, created_at as ts FROM wa_messages_out WHERE {$phoneExpr} LIKE ?)";
+        $params[] = $like;
+
+        if (self::fonnteMessageTablesReady($db)) {
+            $unions[] = "(SELECT COALESCE(text, '') as body, type, 'customer' as sender, created_at as ts FROM wa_fonnte_messages_in WHERE {$phoneExpr} LIKE ?)";
+            $params[] = $like;
+            $unions[] = "(SELECT COALESCE(text, '') as body, type, 'me' as sender, created_at as ts FROM wa_fonnte_messages_out WHERE {$phoneExpr} LIKE ?)";
+            $params[] = $like;
+        }
+
+        if ($unions === []) {
+            return null;
+        }
+
+        $sql = 'SELECT body, type, sender, ts FROM (' . implode(' UNION ALL ', $unions) . ') AS all_msgs ORDER BY ts DESC LIMIT 1';
+
+        try {
+            $q = $db->query($sql, $params);
+            if (!$q || $q->num_rows() === 0) {
+                return null;
+            }
+            $row = $q->row();
+            if (!$row || empty($row->ts)) {
+                return null;
+            }
+
+            return [
+                'last_message' => self::formatMessagePreview(
+                    (string) ($row->body ?? ''),
+                    (string) ($row->type ?? 'text'),
+                    (string) ($row->sender ?? 'customer')
+                ),
+                'last_message_time' => (string) $row->ts,
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private static function formatMessagePreview(string $body, string $type, string $sender): string
+    {
+        $body = trim($body);
+        $isOut = $sender === 'me';
+        $prefix = $isOut ? 'o- ' : '';
+
+        if ($body !== '' && !preg_match('/^\[[a-z_]+\]$/i', $body)) {
+            return $prefix . mb_substr($body, 0, 50);
+        }
+
+        $labels = [
+            'location' => '📍 Lokasi',
+            'image' => '🖼 Gambar',
+            'audio' => '🎤 Audio',
+            'voice' => '🎤 Audio',
+            'video' => '🎬 Video',
+            'document' => '📎 Dokumen',
+            'sticker' => '🎨 Sticker',
+            'template' => 'Template',
+        ];
+        $label = $labels[$type] ?? '📎 Media';
+
+        return $prefix . $label;
+    }
+
+    /**
      * @return array{last_message:?string,last_message_time:?string}
      */
     public static function mergeLastMessageMeta($db, string $phone, ?object $conv): array
     {
+        $fromMessages = self::fetchLatestMessageMeta($db, $phone);
+        if ($fromMessages !== null) {
+            return $fromMessages;
+        }
+
         $yMsg = $conv ? ($conv->last_message ?? null) : null;
         $yTime = $conv ? ($conv->last_message_at ?? null) : null;
 
@@ -477,7 +568,9 @@ class CrmChatMergeHelper
         }
 
         $fTime = $fonnteConv->last_message_at ?? null;
-        if ($fTime !== null && $fTime !== '' && ($yTime === null || $yTime === '' || $fTime >= $yTime)) {
+        $yTs = ($yTime !== null && $yTime !== '') ? strtotime((string) $yTime) : false;
+        $fTs = ($fTime !== null && $fTime !== '') ? strtotime((string) $fTime) : false;
+        if ($fTs !== false && ($yTs === false || $fTs >= $yTs)) {
             return [
                 'last_message' => $fonnteConv->last_message ?? $yMsg,
                 'last_message_time' => $fTime,

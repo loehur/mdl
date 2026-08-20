@@ -3,6 +3,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import EmojiPicker from "./EmojiPicker.vue";
 import CustomerPanel from "./CustomerPanel.vue";
+import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
 import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel } from "../stores/chatStore.js";
 
@@ -1160,7 +1161,17 @@ onUnmounted(() => {
                                       />
                                       <div v-else class="px-3 py-4 min-h-32 flex items-center justify-center text-sm text-[var(--wa-text-tertiary)] italic bg-[var(--wa-bg-secondary)] rounded-lg">📷 Gambar tidak tersedia</div>
                                       <div
-                                        v-if="mediaCaptionText(msg) || msg.time"
+                                        v-if="!mediaCaptionText(msg) && (msg.time || msg.sender === 'me')"
+                                        class="absolute bottom-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] text-white pointer-events-none"
+                                        style="background: rgba(0, 0, 0, 0.45);"
+                                      >
+                                           <span v-if="providerTag(msg)" class="opacity-90">~{{ providerTag(msg) }}</span>
+                                           <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                           <span>{{ msg.time }}</span>
+                                           <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" light />
+                                      </div>
+                                      <div
+                                        v-if="mediaCaptionText(msg)"
                                         class="mt-1.5 px-2.5 py-2 rounded-lg"
                                         style="background: var(--wa-caption-overlay-bg); color: var(--wa-caption-overlay-text);"
                                       >
@@ -1176,6 +1187,7 @@ onUnmounted(() => {
                                               <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
+                                              <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
                                            </div>
                                       </div>
                                   </div>
@@ -1207,7 +1219,17 @@ onUnmounted(() => {
                                         preload="metadata"
                                       ></video>
                                       <div
-                                        v-if="mediaCaptionText(msg) || msg.time"
+                                        v-if="!mediaCaptionText(msg) && (msg.time || msg.sender === 'me')"
+                                        class="absolute bottom-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] text-white pointer-events-none"
+                                        style="background: rgba(0, 0, 0, 0.45);"
+                                      >
+                                           <span v-if="providerTag(msg)" class="opacity-90">~{{ providerTag(msg) }}</span>
+                                           <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                           <span>{{ msg.time }}</span>
+                                           <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" light />
+                                      </div>
+                                      <div
+                                        v-if="mediaCaptionText(msg)"
                                         class="mt-1.5 px-2.5 py-2 rounded-lg"
                                         style="background: var(--wa-caption-overlay-bg); color: var(--wa-caption-overlay-text);"
                                       >
@@ -1223,6 +1245,7 @@ onUnmounted(() => {
                                               <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                               <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                               <span>{{ msg.time }}</span>
+                                              <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
                                            </div>
                                       </div>
                                   </div>
@@ -1253,10 +1276,11 @@ onUnmounted(() => {
                                                 preload="metadata"
                                               ></audio>
                                               <p class="text-xs text-[var(--wa-text-secondary)]">Voice message</p>
-                                              <div v-if="msg.time || msg.sender_code || providerTag(msg)" class="flex justify-end items-center gap-1 text-[10px] mt-0.5 text-[var(--wa-text-tertiary)]">
+                                              <div v-if="msg.time || msg.sender_code || providerTag(msg) || msg.sender === 'me'" class="flex justify-end items-center gap-1 text-[10px] mt-0.5 text-[var(--wa-text-tertiary)]">
                                                   <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                                   <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                                   <span>{{ msg.time }}</span>
+                                                  <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
                                               </div>
                                           </div>
                                       </div>
@@ -1288,12 +1312,13 @@ onUnmounted(() => {
                                       />
                                       <div v-else class="px-2.5 py-1 text-sm text-[var(--wa-text-tertiary)] italic">Sticker</div>
                                       <div
-                                        v-if="msg.time || msg.sender_code || providerTag(msg)"
+                                        v-if="msg.time || msg.sender_code || providerTag(msg) || msg.sender === 'me'"
                                         class="flex justify-end items-center gap-1 text-[10px] mt-0.5 px-1 text-[var(--wa-text-tertiary)]"
                                       >
                                            <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
                                            <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
                                            <span>{{ msg.time }}</span>
+                                           <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
                                       </div>
                                   </div>
 
@@ -1317,10 +1342,11 @@ onUnmounted(() => {
                                                      </div>
                                                 </div>
                                            </div>
-                                           <div v-if="msg.time || msg.sender_code" class="flex justify-end items-center gap-1 text-[10px] mt-1 pt-1 border-t border-green-200 dark:border-green-800">
+                                           <div v-if="msg.time || msg.sender_code || msg.sender === 'me'" class="flex justify-end items-center gap-1 text-[10px] mt-1 pt-1 border-t border-green-200 dark:border-green-800">
                                                 <span v-if="providerTag(msg)" class="text-[var(--wa-text-tertiary)] opacity-80">~{{ providerTag(msg) }}</span>
                                                 <span v-if="msg.sender_code" class="text-[var(--wa-text-tertiary)]">~{{ msg.sender_code }}</span>
                                                 <span class="text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
+                                                <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
                                            </div>
                                       </div>
                                   </div>
@@ -1344,13 +1370,7 @@ onUnmounted(() => {
                                                  <span v-if="providerTag(msg)" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-85">~{{ providerTag(msg) }}</span>
                                                  <span v-if="msg.sender_code" class="text-[10px] text-[var(--wa-bubble-out-meta)] opacity-85">~{{ msg.sender_code }}</span>
                                                  <span class="text-[10px] text-[var(--wa-text-tertiary)]">{{ msg.time }}</span>
-                                                 <!-- Status Icon for outgoing -->
-                                                 <span v-if="msg.sender === 'me'" class="text-[var(--wa-bubble-out-meta)]">
-                                                      <span v-if="msg.status === 'read'"><svg class="w-4 h-3 inline" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="#53bdeb"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="#53bdeb"/></svg></span>
-                                                      <span v-else-if="msg.status === 'delivered'"><svg class="w-4 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.73L4.51 7.29L1.79 4.57L0.38 5.98L4.51 10.12L12.48 2.14L11.07 0.73Z" fill="currentColor"/><path d="M14.07 0.73L7.51 7.29L6.79 6.57L5.38 7.98L7.51 10.12L15.48 2.14L14.07 0.73Z" fill="currentColor"/></svg></span>
-                                                      <span v-else-if="msg.status === 'sent'"><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 11" fill="none"><path d="M10.07 0.73L3.51 7.29L0.79 4.57L0 5.36L3.51 8.87L10.86 1.52L10.07 0.73Z" fill="currentColor"/></svg></span>
-                                                      <span v-else><svg class="w-3 h-3 inline text-[var(--wa-text-tertiary)]" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 3v3.5l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
-                                                 </span>
+                                                 <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" class="text-[var(--wa-bubble-out-meta)]" />
                                             </span>
                                        </div>
                                   </div>

@@ -560,10 +560,10 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
           convo.fonnte_open = !!c.fonnte_open;
           convo.default_reply_channel = c.default_reply_channel || null;
           convo.can_reply = c.can_reply ?? (convo.ycloud_open || convo.fonnte_open);
-          convo.lastMessage =
-            c.last_message || c.last_message_text || "No messages yet";
-          convo.lastTime = formatLastTime(c.last_message_time);
-          convo.lastMessageTime = c.last_message_time; // Raw timestamp for sorting
+          applyConversationLastMessage(convo, {
+            message: c.last_message || c.last_message_text || "No messages yet",
+            time: c.last_message_time,
+          });
           convo.unread = parseInt(c.unread_count) || 0;
           convo.assignment_user_id = c.assigned_user_id; // Fix: map from backend assigned_user_id
           // MESSAGES PRESERVED AUTOMATICALLY as we are modifying the object ref
@@ -601,7 +601,10 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
         newOrder.push(convo);
       });
 
-      // Re-assign to update list order/membership
+      newOrder.sort(
+        (a, b) => messageTimeMs(b.lastMessageTime) - messageTimeMs(a.lastMessageTime)
+      );
+
       // Re-assign to update list order/membership
       conversations.value = newOrder;
 
@@ -1137,6 +1140,34 @@ const formatDateSeparator = (dateString) => {
       month: "long",
       year: "numeric",
     });
+  }
+};
+
+const messageTimeMs = (dateString) => {
+  if (!dateString) return 0;
+  const ms = new Date(dateString).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+const isNewerMessageTime = (candidate, current) => {
+  const cMs = messageTimeMs(candidate);
+  const curMs = messageTimeMs(current);
+  if (cMs <= 0) return false;
+  if (curMs <= 0) return true;
+  return cMs >= curMs;
+};
+
+/** Hanya terapkan preview jika timestamp kandidat >= yang sudah ada (cegah flip Fonnte/yCloud). */
+const applyConversationLastMessage = (convo, { message, time } = {}) => {
+  if (!convo) return;
+  const nextTime = time || null;
+  if (!isNewerMessageTime(nextTime, convo.lastMessageTime)) return;
+  if (message != null && message !== "") {
+    convo.lastMessage = message;
+  }
+  if (nextTime) {
+    convo.lastMessageTime = nextTime;
+    convo.lastTime = formatLastTime(nextTime);
   }
 };
 
@@ -1874,10 +1905,10 @@ const syncActiveChatMessages = async (chat, { forceScroll = false } = {}) => {
       newest.text ||
       mediaTypeLastMessageLabel(newest.type) ||
       "Message";
-    chat.lastMessage =
-      newest.sender === "me" ? `You: ${previewText}` : previewText;
-    chat.lastTime = formatLastTime(newest.rawTime);
-    if (newest.rawTime) chat.lastMessageTime = newest.rawTime;
+    applyConversationLastMessage(chat, {
+      message: newest.sender === "me" ? `You: ${previewText}` : previewText,
+      time: newest.rawTime,
+    });
   }
 
   messageUpdateTrigger.value++;
@@ -2006,13 +2037,14 @@ const refreshActiveChat = async () => {
         conversation.fonnte_open = !!updatedConv.fonnte_open;
         conversation.default_reply_channel = updatedConv.default_reply_channel || null;
         conversation.can_reply = updatedConv.can_reply ?? (conversation.ycloud_open || conversation.fonnte_open);
-        if (updatedConv.last_message_time) {
-          conversation.lastMessageTime = updatedConv.last_message_time;
-          conversation.lastTime = formatLastTime(updatedConv.last_message_time);
-          localLastMessageAt.value = updatedConv.last_message_time;
-        }
-        if (updatedConv.last_message) {
-          conversation.lastMessage = updatedConv.last_message;
+        if (updatedConv.last_message_time || updatedConv.last_message) {
+          applyConversationLastMessage(conversation, {
+            message: updatedConv.last_message,
+            time: updatedConv.last_message_time,
+          });
+          if (updatedConv.last_message_time) {
+            localLastMessageAt.value = updatedConv.last_message_time;
+          }
         }
       }
     }
@@ -3053,12 +3085,14 @@ const handleIncomingMessage = (payload) => {
     // Re-sanitize entire conversation to be sure
     conversation.messages = sanitizeMessages(conversation.messages);
 
-    conversation.lastMessage =
-      displayText ||
-      (sender === "me"
-        ? "You: " + (mediaTypeLastMessageLabel(type) || "Message")
-        : mediaTypeLastMessageLabel(type) || displayText || "Message");
-    conversation.lastTime = formatLastTime(newMsg.rawTime);
+    applyConversationLastMessage(conversation, {
+      message:
+        displayText ||
+        (sender === "me"
+          ? "You: " + (mediaTypeLastMessageLabel(type) || "Message")
+          : mediaTypeLastMessageLabel(type) || displayText || "Message"),
+      time: newMsg.rawTime,
+    });
     
     // Update local last_message_at if this is the active chat
     if (activeChatId.value == conversationId && newMsg.rawTime) {
@@ -3624,11 +3658,13 @@ const connectWebSocket = () => {
                 return new Date(a.rawTime) - new Date(b.rawTime);
               });
 
-              conversation.lastMessage =
-                messageData.type === "image"
-                  ? "You: 📷 Image"
-                  : "You: " + messageData.text;
-              conversation.lastTime = newMsg.time;
+              applyConversationLastMessage(conversation, {
+                message:
+                  messageData.type === "image"
+                    ? "You: 📷 Image"
+                    : "You: " + messageData.text,
+                time: messageData.time,
+              });
               
               // Update local last_message_at if this is the active chat
               if (activeChatId.value == conversationId && messageData.time) {
@@ -4137,9 +4173,10 @@ const resumeChatState = async () => {
           convo.fonnte_open = !!c.fonnte_open;
           convo.default_reply_channel = c.default_reply_channel || null;
           convo.can_reply = c.can_reply ?? (convo.ycloud_open || convo.fonnte_open);
-          convo.lastMessage = c.last_message || c.last_message_text || "No messages yet";
-          convo.lastTime = formatLastTime(c.last_message_time);
-          convo.lastMessageTime = c.last_message_time;
+          applyConversationLastMessage(convo, {
+            message: c.last_message || c.last_message_text || "No messages yet",
+            time: c.last_message_time,
+          });
           convo.unread = parseInt(c.unread_count) || 0;
           convo.assignment_user_id = c.assigned_user_id;
         }
