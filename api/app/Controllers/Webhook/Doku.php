@@ -38,13 +38,17 @@ class Doku extends Controller
 
         $rawBody = file_get_contents('php://input');
         if (!is_string($rawBody) || trim($rawBody) === '') {
+            $this->logWebhook('Incoming: (empty body) method=' . $method);
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Empty body']);
             return;
         }
 
+        $this->logWebhook('Incoming: ' . $rawBody);
+
         $data = json_decode($rawBody, true);
         if (!is_array($data)) {
+            $this->logWebhook('Err: Invalid JSON');
             http_response_code(400);
             echo json_encode(['status' => false, 'message' => 'Invalid JSON']);
             return;
