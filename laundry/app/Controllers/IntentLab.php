@@ -117,18 +117,35 @@ class IntentLab extends Controller
             return;
         }
 
-        $api = $this->helper('IntentCheckApi');
-        $res = $api->check($text);
-        $res = $this->mergeLocalRegexClassify($text, $res);
-        if (!isset($res['ok'])) {
-            $res['ok'] = false;
+        try {
+            // Regex DB lokal dulu — tidak bergantung API remote (sering timeout/error).
+            $local = $this->localRegexClassify($text);
+            if ($local !== null) {
+                echo json_encode($local, JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $api = $this->helper('IntentCheckApi');
+            $res = $api->check($text);
+            if (!is_array($res)) {
+                $res = ['ok' => 0, 'message' => 'Respon API tidak valid'];
+            }
+            $res = $this->mergeLocalRegexClassify($text, $res);
+            if (!isset($res['ok'])) {
+                $res['ok'] = false;
+            }
+            if ($res['ok'] === true) {
+                $res['ok'] = 1;
+            } elseif ($res['ok'] === false) {
+                $res['ok'] = 0;
+            }
+            echo json_encode($res, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode([
+                'ok' => 0,
+                'message' => 'Error Intent Lab: ' . $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
         }
-        if ($res['ok'] === true) {
-            $res['ok'] = 1;
-        } elseif ($res['ok'] === false) {
-            $res['ok'] = 0;
-        }
-        echo json_encode($res, JSON_UNESCAPED_UNICODE);
     }
 
     /**
@@ -623,8 +640,7 @@ class IntentLab extends Controller
         if ($pattern === '' || @preg_match($pattern, '') === false) {
             return null;
         }
-        $textCheck = $this->normalizeTextForRegex($text);
-        if (@preg_match($pattern, $textCheck) !== 1 && @preg_match($pattern, $text) !== 1) {
+        if (!$this->patternMatchesText($pattern, $text, $this->normalizeTextForRegex($text))) {
             return null;
         }
         $row = $this->dbMain()->get_where_row(
@@ -677,7 +693,7 @@ class IntentLab extends Controller
             if ($pattern === '' || @preg_match($pattern, '') === false) {
                 continue;
             }
-            if (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $text) === 1) {
+            if ($this->patternMatchesText($pattern, $text, $textCheck)) {
                 $code = strtoupper(trim((string) ($row['code'] ?? '')));
                 return [
                     'ok' => 1,
@@ -725,20 +741,30 @@ class IntentLab extends Controller
     {
         $local = $this->localRegexClassify($text);
         if ($local === null) {
+            if (empty($apiRes['ok']) && empty($apiRes['message']) && empty($apiRes['error'])) {
+                $apiRes['message'] = 'API gagal dan tidak ada pattern regex yang match teks ini.';
+            }
             return $apiRes;
+        }
+        $local['ok'] = 1;
+        if (!empty($apiRes['ok']) || empty($apiRes['message'])) {
+            return $local;
         }
         $apiSource = (string) ($apiRes['source'] ?? '');
         $apiIntent = strtoupper(trim((string) ($apiRes['intent'] ?? '')));
         $localIntent = strtoupper(trim((string) ($local['intent'] ?? '')));
         if ($apiSource === 'regex' && $apiIntent === $localIntent) {
-            return $apiRes;
+            return array_merge($apiRes, ['ok' => 1]);
         }
         $trace = is_array($apiRes['trace'] ?? null) ? $apiRes['trace'] : [];
-        if ($apiIntent !== '' && $apiIntent !== $localIntent) {
+        if (!empty($apiRes['message'])) {
+            $trace[] = 'API: ' . (string) $apiRes['message'];
+        } elseif ($apiIntent !== '' && $apiIntent !== $localIntent) {
             $trace[] = 'API=' . $apiIntent . ' source=' . ($apiSource !== '' ? $apiSource : '?')
                 . ' → lab pakai regex ' . $localIntent;
         }
         return array_merge($apiRes, $local, [
+            'ok' => 1,
             'trace' => array_merge($local['trace'] ?? [], $trace),
         ]);
     }
@@ -771,7 +797,7 @@ class IntentLab extends Controller
             if ($pattern === '' || @preg_match($pattern, '') === false) {
                 continue;
             }
-            if (@preg_match($pattern, $textCheck) === 1 || @preg_match($pattern, $text) === 1) {
+            if ($this->patternMatchesText($pattern, $text, $textCheck)) {
                 $code = strtoupper(trim((string) ($row['code'] ?? '')));
                 return [
                     'ok' => 1,
@@ -790,6 +816,35 @@ class IntentLab extends Controller
         }
 
         return null;
+    }
+
+    private function patternMatchesText(string $pattern, string $text, ?string $textCheck = null): bool
+    {
+        $textCheck = $textCheck ?? $this->normalizeTextForRegex($text);
+        if (@preg_match($pattern, $textCheck) === 1) {
+            return true;
+        }
+        if (@preg_match($pattern, $text) === 1) {
+            return true;
+        }
+        if (@preg_match($pattern, mb_strtolower($text)) === 1) {
+            return true;
+        }
+        // Typo satu huruf: slesainya vs selesainya
+        if (preg_match('/slesainya/u', $pattern) && preg_match('/selesainya/u', $text)) {
+            $alt = preg_replace('/slesainya/u', 'selesainya', $pattern);
+            if (is_string($alt) && @preg_match($alt, $textCheck) === 1) {
+                return true;
+            }
+        }
+        if (preg_match('/selesainya/u', $pattern) && preg_match('/slesainya/u', $text)) {
+            $alt = preg_replace('/selesainya/u', 'slesainya', $pattern);
+            if (is_string($alt) && @preg_match($alt, $textCheck) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeTextForRegex(string $text): string

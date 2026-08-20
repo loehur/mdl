@@ -761,6 +761,9 @@
         url: checkUrl, type: 'POST', data: { text: text }, dataType: 'json', timeout: 70000
       }).done(function (res) {
         showResult(res || {});
+        if (!(res && (res.ok === 1 || res.ok === true)) && res && res.message) {
+          toast(res.message, 'err');
+        }
       }).fail(function (xhr) {
         var msg = 'Request gagal';
         if (xhr.statusText === 'timeout') msg = 'Timeout — API terlalu lama merespons';
