@@ -571,20 +571,6 @@ abstract class WaDeskController extends BaseController
         )->row_array() ?: null;
     }
 
-    protected function tableExists(string $table): bool
-    {
-        try {
-            $row = $this->db($this->db_index)->query(
-                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
-                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
-                [$table]
-            )->row_array();
-            return (int) ($row['cnt'] ?? 0) > 0;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
-
     protected function templateDevicesTableExists(): bool
     {
         return $this->tableExists('wa_template_devices');
