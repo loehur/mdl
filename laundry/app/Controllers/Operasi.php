@@ -586,8 +586,8 @@ class Operasi extends Controller
    }
 
    /**
-    * Soft-delete one item from a multi-item nota.
-    * The checks are intentionally repeated server-side; UI eligibility is only a convenience.
+    * Hapus permanen satu item dari nota multi-item (bukan ke bin).
+    * Syarat: belum tuntas, bukan item tunggal, tidak overpay, belum ada penyelesai operasi.
     */
    public function hapusItem()
    {
@@ -607,12 +607,18 @@ class Operasi extends Controller
          return;
       }
 
+      if ($this->saleHasOperasi($idPenjualan)) {
+         echo json_encode(['status' => 'error', 'message' => 'Hapus penyelesai item ini dulu sebelum menghapus item.']);
+         return;
+      }
+
       $ref = trim((string) ($sale['no_ref'] ?? ''));
       if ($ref === '') {
          echo json_encode(['status' => 'error', 'message' => 'Nota item tidak ditemukan.']);
          return;
       }
       $refEsc = $this->db(0)->escape($ref);
+      $idEsc = $this->db(0)->escape($idPenjualan);
       $saleWhere = $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0";
       $items = $this->db(0)->get_where('sale', $saleWhere);
       if (!is_array($items) || count($items) <= 1) {
@@ -637,16 +643,19 @@ class Operasi extends Controller
          return;
       }
 
-      $update = $this->db(0)->update('sale', ['bin' => 1, 'bin_note' => $note], $this->whereSaleById($idPenjualan) . ' AND bin = 0');
-      if (($update['errno'] ?? 1) != 0) {
-         $this->model('Log')->write("[Operasi::hapusItem] Gagal hapus item id=$idPenjualan: " . ($update['error'] ?? ''));
+      $whereItem = $this->whereSaleById($idPenjualan) . ' AND bin = 0';
+      $this->db(0)->delete('notif', $this->wCabang . " AND no_ref = '$idEsc' AND tipe = 2");
+      $this->resetBonNotif($ref);
+
+      $del = $this->db(0)->delete('sale', $whereItem);
+      if (($del['errno'] ?? 1) != 0) {
+         $this->model('Log')->write("[Operasi::hapusItem] Gagal hapus permanen item id=$idPenjualan: " . ($del['error'] ?? ''));
          echo json_encode(['status' => 'error', 'message' => 'Gagal menghapus item. Silakan coba lagi.']);
          return;
       }
 
-      $this->resetBonNotif($ref);
-      $this->model('Log')->write("[Operasi::hapusItem] Item id=$idPenjualan dari nota $ref dihapus. Alasan: $note");
-      echo json_encode(['status' => 'success', 'message' => 'Item berhasil dihapus.']);
+      $this->model('Log')->write("[Operasi::hapusItem] Item id=$idPenjualan dari nota $ref dihapus permanen. Alasan: $note");
+      echo json_encode(['status' => 'success', 'message' => 'Item berhasil dihapus permanen.']);
    }
 
    /**

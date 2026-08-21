@@ -1302,13 +1302,13 @@ $labeled = false;
   <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="hapusItemModalTitle">
     <div class="op-modal__head op-modal__head--red">
       <div>
-        <h3 id="hapusItemModalTitle">Hapus item dari nota?</h3>
-        <small>Syarat: belum tuntas, tidak overpay (boleh sudah ada bayar)</small>
+        <h3 id="hapusItemModalTitle">Hapus item permanen?</h3>
+        <small>Syarat: belum tuntas, belum ada penyelesai, tidak overpay</small>
       </div>
       <button type="button" class="op-modal__close" data-op-close data-close-hapus-item aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
     <div class="op-modal__body">
-      <p style="margin:0 0 12px;">Item <strong id="hapusItemNama"></strong> akan dihapus dari nota <strong id="hapusItemRef"></strong>.</p>
+      <p style="margin:0 0 12px;">Item <strong id="hapusItemNama"></strong> akan dihapus permanen dari nota <strong id="hapusItemRef"></strong> (tidak masuk antrean hapus).</p>
       <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
         <i class="fas fa-shield-alt"></i>
         Total nota setelah hapus tidak boleh lebih kecil dari pembayaran Cek/Berhasil.
