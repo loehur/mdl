@@ -11,8 +11,10 @@ class PengeluaranAiReview
      * @param callable(int):string $kodeFn
      * @return array{ok:bool,analysis?:string,message?:string,history_count?:int,history_shown?:int,pending?:array<string,mixed>,ai_source?:string,jenis_filter?:string}
      */
-    public function analyze(array $pending, array $historyRows, callable $kodeFn): array
+    public function analyze(array $pending, array $historyRows, callable $kodeFn, string $reqId = ''): array
     {
+        require_once dirname(__DIR__) . '/Helper/PengeluaranAiLog.php';
+
         $pendingPayload = $this->pendingPayload($pending, $kodeFn);
         $jenisFilter = (string) ($pendingPayload['jenis_pengeluaran'] ?? '');
         $historyCount = count($historyRows);
@@ -52,11 +54,19 @@ SYS;
 
         try {
             require_once dirname(__DIR__) . '/Helper/AiChat.php';
+            PengeluaranAiLog::info('AI_CALL', ['req' => $reqId, 'jenis' => $jenisFilter, 'history' => $historyCount]);
             $ai = new AiChat();
-            $analysis = trim($ai->chat([
+            $raw = $ai->chat([
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
-            ], 480, 0.25, 35));
+            ], 480, 0.25, 35);
+            $analysis = trim($raw);
+
+            PengeluaranAiLog::info('AI_OK', [
+                'req' => $reqId,
+                'len' => strlen($analysis),
+                'preview' => substr($analysis, 0, 120),
+            ]);
 
             if ($analysis === '') {
                 $fallback = $this->localFallbackAnalysis($pendingPayload, $historyRows);
@@ -65,6 +75,7 @@ SYS;
 
             return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $analysis, null, 'ai', $jenisFilter);
         } catch (\Throwable $e) {
+            PengeluaranAiLog::error('AI_FAIL', ['req' => $reqId, 'msg' => $e->getMessage()]);
             $fallback = $this->localFallbackAnalysis($pendingPayload, $historyRows);
             return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $fallback, 'AI tidak tersedia — analisa otomatis.', 'local', $jenisFilter);
         }
@@ -208,6 +219,8 @@ SYS;
      */
     public function fetchHistory30Days($db, string $wCabangAll, string $jenisPengeluaran, callable $kodeFn, string $excludeIdKas = ''): array
     {
+        require_once dirname(__DIR__) . '/Helper/PengeluaranAiLog.php';
+
         $jenisPengeluaran = trim($jenisPengeluaran);
         if ($jenisPengeluaran === '') {
             return [];
@@ -225,6 +238,11 @@ SYS;
         }
 
         $where .= ' ORDER BY insertTime DESC LIMIT ' . self::HISTORY_LIMIT;
+
+        PengeluaranAiLog::info('HISTORY_SQL', [
+            'jenis' => $jenisPengeluaran,
+            'where' => substr($where, 0, 400),
+        ]);
 
         $rows = $db->get_where('kas', $where);
         if (!is_array($rows)) {

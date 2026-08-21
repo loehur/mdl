@@ -137,7 +137,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     if (res && res.pending) {
       pgAiShowPending(res.pending);
     }
-    if (res && res.ok && res.analysis) {
+    if (res && res.analysis) {
       $('#pgAiResult').removeClass('d-none');
       $('#pgAiAnalysis').text(res.analysis);
       var meta = '';
@@ -152,6 +152,9 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
       if (res.jenis_filter) {
         meta += (meta ? ' · ' : '') + 'Jenis: ' + res.jenis_filter;
       }
+      if (res.req_id) {
+        meta += (meta ? ' · ' : '') + 'Log: ' + res.req_id;
+      }
       $('#pgAiMeta').text(meta);
       if (res.ai_source === 'local' && res.message) {
         $('#pgAiError').removeClass('d-none').text(res.message);
@@ -160,6 +163,9 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
       return;
     }
     var msg = (res && res.message) ? res.message : 'Analisa gagal.';
+    if (res && res.req_id) {
+      msg += ' (log: ' + res.req_id + ')';
+    }
     $('#pgAiError').removeClass('d-none').text(msg + ' Anda tetap bisa konfirmasi jika sudah yakin.');
     $('#btnPgAiKonfirmasi').removeClass('d-none');
   }
