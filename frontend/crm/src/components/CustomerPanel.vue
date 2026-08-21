@@ -13,7 +13,7 @@ const props = defineProps({
 const isAdmin = computed(() => props.currentUserRole === "admin");
 
 const copiedPhone = ref(false);
-const isUpdatingPartner = ref(false);
+const isUpdatingAutoReply = ref(false);
 
 const lokasiItems = ref([]);
 const lokasiLoading = ref(false);
@@ -56,9 +56,9 @@ const canSaveLokasi = computed(() => {
 
 const custId = computed(() => Number(props.conversation?.cust_id) || 0);
 
-const isPartnerActive = computed(() => {
+const isAutoReplyActive = computed(() => {
   const p = props.conversation?.partner;
-  return p === 1 || p === "1";
+  return !(p === 1 || p === "1");
 });
 
 const formatPhoneTo08 = (phone) => {
@@ -156,32 +156,33 @@ const copyPhoneNumber = async () => {
   }, 2000);
 };
 
-const onPartnerToggle = async (e) => {
+const onAutoReplyToggle = async (e) => {
   if (!isAdmin.value) return;
-  if (!props.conversation?.wa_number || isUpdatingPartner.value) return;
-  const wantOn = e.target.checked;
+  if (!props.conversation?.wa_number || isUpdatingAutoReply.value) return;
+  const wantAutoReplyOn = e.target.checked;
+  const wantPartnerOn = !wantAutoReplyOn;
   const prevPartner = props.conversation.partner;
-  props.conversation.partner = wantOn ? 1 : null;
-  isUpdatingPartner.value = true;
+  props.conversation.partner = wantPartnerOn ? 1 : null;
+  isUpdatingAutoReply.value = true;
   try {
     const res = await fetch(`${props.apiBase}/CRM/Chat/setPartner`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         phone: props.conversation.wa_number,
-        partner: wantOn,
+        partner: wantPartnerOn,
         user_id: props.authId,
       }),
     }).then((r) => r.json());
     if (!res.status) {
       props.conversation.partner = prevPartner;
-      e.target.checked = prevPartner === 1 || prevPartner === "1";
+      e.target.checked = !(prevPartner === 1 || prevPartner === "1");
     }
   } catch (_) {
     props.conversation.partner = prevPartner;
-    e.target.checked = prevPartner === 1 || prevPartner === "1";
+    e.target.checked = !(prevPartner === 1 || prevPartner === "1");
   } finally {
-    isUpdatingPartner.value = false;
+    isUpdatingAutoReply.value = false;
   }
 };
 
@@ -613,23 +614,23 @@ onUnmounted(() => {
           </div>
 
           <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] flex items-center justify-between gap-2">
-            <span class="text-sm font-medium text-[var(--wa-text-primary)]">Partner</span>
+            <span class="text-sm font-medium text-[var(--wa-text-primary)]">Auto Reply</span>
             <label
               v-if="isAdmin"
               class="relative inline-flex cursor-pointer items-center flex-shrink-0"
-              :class="{ 'pointer-events-none opacity-50': isUpdatingPartner }"
+              :class="{ 'pointer-events-none opacity-50': isUpdatingAutoReply }"
             >
               <input
                 type="checkbox"
                 class="peer sr-only"
-                :checked="isPartnerActive"
-                :disabled="isUpdatingPartner"
-                @change="onPartnerToggle"
+                :checked="isAutoReplyActive"
+                :disabled="isUpdatingAutoReply"
+                @change="onAutoReplyToggle"
               />
               <div class="relative peer h-6 w-11 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
             </label>
             <span v-else class="text-sm text-[var(--wa-text-secondary)]">
-              {{ isPartnerActive ? "Ya" : "Tidak" }}
+              {{ isAutoReplyActive ? "Ya" : "Tidak" }}
             </span>
           </div>
         </section>
