@@ -14,9 +14,48 @@ class NonTunai extends Controller
       $view = 'non_tunai/nt_main';
       $cols = "id_cabang, ref_finance, MAX(ref_transaksi) AS ref_transaksi, note, id_user, id_client, status_mutasi, jenis_transaksi, SUM(jumlah) AS total, MIN(insertTime) AS insertTime";
       $where = $this->wCabangAll() . " AND metode_mutasi = 2 AND status_mutasi = 2 AND ref_finance <> '' GROUP BY id_cabang, ref_finance ORDER BY insertTime DESC LIMIT $limit";
-      $list['cek'] = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      $cek = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      if (!is_array($cek)) {
+         $cek = [];
+      }
 
-      $this->view($view, $list);
+      $this->view($view, [
+         'cek' => $cek,
+         'pelangganById' => $this->loadPelangganMapForNonTunai($cek),
+      ]);
+   }
+
+   /**
+    * Nama pelanggan lintas cabang — tidak bergantung session cabang aktif.
+    *
+    * @param list<array<string,mixed>> $rows
+    * @return array<int,array<string,mixed>>
+    */
+   private function loadPelangganMapForNonTunai(array $rows): array
+   {
+      $ids = [];
+      foreach ($rows as $row) {
+         if (!is_array($row)) {
+            continue;
+         }
+         $jenis = (int) ($row['jenis_transaksi'] ?? 0);
+         if (!in_array($jenis, [1, 3, 6], true)) {
+            continue;
+         }
+         $id = (int) ($row['id_client'] ?? 0);
+         if ($id > 0) {
+            $ids[$id] = $id;
+         }
+      }
+
+      if ($ids === []) {
+         return [];
+      }
+
+      $in = implode(',', array_values($ids));
+      $map = $this->db(0)->get_where('pelanggan', "id_pelanggan IN ($in)", 'id_pelanggan');
+
+      return is_array($map) ? $map : [];
    }
 
    /**

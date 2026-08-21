@@ -1,4 +1,5 @@
 <?php
+$pelangganById = is_array($data['pelangganById'] ?? null) ? $data['pelangganById'] : [];
 if (count($data['cek']) == 0) { ?>
   <div class="aa-empty">
     <i class="fas fa-check-circle"></i>
@@ -30,15 +31,18 @@ if (count($data['cek']) == 0) { ?>
         break;
       }
     }
+    if ($karyawan === '' && isset($this->userAll[$f3]['nama_user'])) {
+      $karyawan = (string) $this->userAll[$f3]['nama_user'];
+    }
 
     $pelanggan = $f17;
     $jenis_bill = '';
     $hp = '';
     $pRow = null;
-    if (isset($this->pelanggan[$f17]) && is_array($this->pelanggan[$f17])) {
+    if (isset($pelangganById[$f17]) && is_array($pelangganById[$f17])) {
+      $pRow = $pelangganById[$f17];
+    } elseif (isset($this->pelanggan[$f17]) && is_array($this->pelanggan[$f17])) {
       $pRow = $this->pelanggan[$f17];
-    } elseif (isset($this->pelangganLaundry[$f17]) && is_array($this->pelangganLaundry[$f17])) {
-      $pRow = $this->pelangganLaundry[$f17];
     }
 
     switch ($jenisT) {
@@ -50,7 +54,11 @@ if (count($data['cek']) == 0) { ?>
         break;
       case 5:
         $jenis_bill = "Kasbon";
-        if (isset($this->user[$f17])) $pelanggan = $this->user[$f17]['nama_user'];
+        if (isset($this->userAll[$f17]['nama_user'])) {
+          $pelanggan = $this->userAll[$f17]['nama_user'];
+        } elseif (isset($this->user[$f17]['nama_user'])) {
+          $pelanggan = $this->user[$f17]['nama_user'];
+        }
         $pRow = null;
         break;
       case 6:
