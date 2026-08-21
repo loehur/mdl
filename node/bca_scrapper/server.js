@@ -266,16 +266,18 @@ async function handleQrisTransactions(req, res) {
     );
 
     const fromCache = Boolean(result.data.from_cache);
+    const authMethod = String(result.data.auth_method || (fromCache ? 'cache' : 'puppeteer'));
     console.log(
       `[bca_scrapper] /qris/transactions ok count=${result.data.transactions.length}`
-      + ` auth=${fromCache ? 'CACHE' : 'PUPPETEER'}`
+      + ` auth=${authMethod.toUpperCase()}`
       + ` ${validatedDates.startDate}..${validatedDates.endDate}`
     );
 
     return res.json({
       ok: true,
       method: result.method,
-      from_cache: Boolean(result.data.from_cache),
+      auth_method: authMethod,
+      from_cache: fromCache,
       start_date: result.data.start,
       end_date: result.data.end,
       transactions: result.data.transactions,

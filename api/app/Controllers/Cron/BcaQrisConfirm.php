@@ -62,7 +62,9 @@ class BcaQrisConfirm extends Controller
                 !empty($sync['skipped_scrape']) ? 'yes' : 'no',
                 !empty($sync['skipped_scrape'])
                     ? 'skip'
-                    : (!empty($sync['from_cache']) ? 'cache' : 'puppeteer'),
+                    : (trim((string) ($sync['auth_method'] ?? '')) !== ''
+                        ? strtolower((string) $sync['auth_method'])
+                        : (!empty($sync['from_cache']) ? 'cache' : 'puppeteer')),
                 (string) ($sync['start'] ?? $scrapeWindow['start']),
                 (string) ($sync['end'] ?? $scrapeWindow['end'])
             );

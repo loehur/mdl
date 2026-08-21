@@ -61,7 +61,16 @@ async function fetchToken(loginForm, timeoutMs) {
       (json && (json.error_description || json.error)) ||
       `token_http_${res.status}`;
     const err = new Error(msg);
-    err.code = json && json.error === 'invalid_grant' ? 'login_failed' : 'token_failed';
+    const oauthError = json && json.error ? String(json.error) : '';
+    err.code =
+      oauthError === 'invalid_grant' || oauthError === 'invalid_token'
+        ? 'token_failed'
+        : res.status === 401
+          ? 'token_failed'
+          : 'token_failed';
+    if (oauthError === 'invalid_grant' && /password|credential/i.test(msg)) {
+      err.code = 'login_failed';
+    }
     err.response = json;
     throw err;
   }
@@ -224,6 +233,34 @@ function isAuthError(err) {
 }
 
 /**
+ * @param {import('./qrms-session').QrmsSessionEntry} entry
+ * @param {number} timeoutMs
+ */
+async function refreshAccessToken(entry, timeoutMs) {
+  if (!entry.refreshToken) {
+    throw new Error('refresh_token_missing');
+  }
+  /** @type {Record<string, string>} */
+  const form = {
+    grant_type: 'refresh_token',
+    client_id: String(entry.clientId || 'bca-qrms'),
+    refresh_token: entry.refreshToken,
+  };
+  if (entry.clientSecret) {
+    form.client_secret = entry.clientSecret;
+  }
+  return fetchToken(form, timeoutMs);
+}
+
+/**
+ * @param {'cache'|'refresh'|'puppeteer'} authMethod
+ */
+function logAuthMethod(authMethod, extra = '') {
+  const tag = authMethod.toUpperCase();
+  console.log(`[bca_scrapper][qris] auth=${tag}${extra ? ` ${extra}` : ''}`);
+}
+
+/**
  * @param {{
  *   email: string,
  *   password: string,
@@ -234,69 +271,124 @@ function isAuthError(err) {
  * @param {boolean} forceLogin
  */
 async function resolveAuth(opts, run, forceLogin = false) {
+  const timeoutMs = Number(opts.timeoutMs || 30000);
+
   if (!forceLogin) {
     const cached = qrmsSession.getValid(opts.email);
     if (cached) {
       const expiresInSec = Math.max(0, Math.floor((cached.expiresAt - Date.now()) / 1000));
       debug.step(run, 'session_cache_hit', { expires_in_sec: expiresInSec });
-      console.log(
-        `[bca_scrapper][qris] auth=CACHE expires_in=${expiresInSec}s`
-      );
+      logAuthMethod('cache', `expires_in=${expiresInSec}s`);
       return {
         token: cached.accessToken,
         appVersion: cached.appVersion,
         outlets: Array.isArray(cached.outlets) ? cached.outlets : null,
-        fromCache: true,
+        authMethod: 'cache',
         releaseBrowser: null,
         dashboardPage: null,
       };
     }
+
+    const stale = qrmsSession.getForRefresh(opts.email);
+    if (stale) {
+      try {
+        debug.step(run, 'session_refresh_start');
+        logAuthMethod('refresh');
+        const tokenJson = await refreshAccessToken(stale, timeoutMs);
+        debug.saveJson(run, 'token_refresh_response', {
+          expires_in: tokenJson.expires_in,
+          has_refresh_token: Boolean(tokenJson.refresh_token),
+          refresh_expires_in: tokenJson.refresh_expires_in,
+        });
+
+        const token = tokenJson.access_token;
+        qrmsSession.save(opts.email, {
+          accessToken: token,
+          refreshToken: tokenJson.refresh_token || stale.refreshToken,
+          clientId: stale.clientId,
+          clientSecret: stale.clientSecret,
+          appVersion: stale.appVersion,
+          expiresIn: tokenJson.expires_in,
+          refreshExpiresIn: tokenJson.refresh_expires_in,
+          outlets: stale.outlets,
+        });
+        console.log(
+          `[bca_scrapper][qris] session=REFRESHED expires_in=${tokenJson.expires_in ?? '?'}s`
+        );
+
+        return {
+          token,
+          appVersion: stale.appVersion,
+          outlets: Array.isArray(stale.outlets) ? stale.outlets : null,
+          authMethod: 'refresh',
+          releaseBrowser: null,
+          dashboardPage: null,
+        };
+      } catch (err) {
+        debug.step(run, 'session_refresh_failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        console.warn(
+          '[bca_scrapper][qris] refresh=FAILED',
+          err instanceof Error ? err.message : err,
+          '→ Puppeteer'
+        );
+        qrmsSession.invalidate(opts.email);
+      }
+    }
   }
 
   debug.step(run, forceLogin ? 'session_cache_miss_forced_login' : 'session_cache_miss_puppeteer_login');
-  console.log(
-    `[bca_scrapper][qris] auth=PUPPETEER${forceLogin ? ' (retry)' : ''}`
-  );
+  logAuthMethod('puppeteer', forceLogin ? '(retry)' : '');
   const loginPayload = await buildEncryptedLoginPayload(opts.email, opts.password, {
     headless: opts.headless,
-    timeoutMs: Number(opts.timeoutMs || 30000),
+    timeoutMs,
     keepBrowser: true,
   });
 
+  const loginForm = loginPayload.loginForm || {};
   debug.saveJson(run, 'login_form_keys', {
-    grant_type: loginPayload.loginForm?.grant_type,
+    grant_type: loginForm.grant_type,
+    client_id: loginForm.client_id,
+    has_client_secret: Boolean(loginForm.client_secret),
     has_app_version: Boolean(loginPayload.appVersion),
   });
 
-  const tokenJson = await fetchToken(loginPayload.loginForm, Number(opts.timeoutMs || 30000));
+  const tokenJson = await fetchToken(loginForm, timeoutMs);
   debug.saveJson(run, 'token_response', {
     token_type: tokenJson.token_type,
     expires_in: tokenJson.expires_in,
-    from_cache: false,
+    has_refresh_token: Boolean(tokenJson.refresh_token),
+    refresh_expires_in: tokenJson.refresh_expires_in,
   });
 
   const token = tokenJson.access_token;
   const appVersion = loginPayload.appVersion;
 
   debug.step(run, 'fetch_outlets');
-  const outlets = await fetchOutlets(token, Number(opts.timeoutMs || 30000), appVersion);
+  const outlets = await fetchOutlets(token, timeoutMs, appVersion);
   debug.saveJson(run, 'outlets', outlets);
 
   qrmsSession.save(opts.email, {
     accessToken: token,
+    refreshToken: tokenJson.refresh_token,
+    clientId: loginForm.client_id,
+    clientSecret: loginForm.client_secret,
     appVersion,
     expiresIn: tokenJson.expires_in,
+    refreshExpiresIn: tokenJson.refresh_expires_in,
     outlets,
   });
   console.log(
     `[bca_scrapper][qris] session=SAVED expires_in=${tokenJson.expires_in ?? '?'}s`
+    + ` refresh=${tokenJson.refresh_token ? 'yes' : 'no'}`
   );
 
   return {
     token,
     appVersion,
     outlets,
-    fromCache: false,
+    authMethod: 'puppeteer',
     releaseBrowser: loginPayload.release || null,
     dashboardPage: loginPayload.page || null,
   };
@@ -352,7 +444,7 @@ async function fetchQrisTransactionsHttp(opts) {
             mid,
             start: opts.startDate,
             end: opts.endDate,
-            from_cache: auth.fromCache,
+            auth: auth.authMethod,
           });
           const rows = await fetchTransactionsForMid(
             auth.token,
@@ -383,7 +475,7 @@ async function fetchQrisTransactionsHttp(opts) {
         debug.saveJson(run, 'transactions_parsed', {
           count: transactions.length,
           transactions,
-          from_cache: auth.fromCache,
+          auth: auth.authMethod,
         });
 
         transactions = filterByDateRange(transactions, opts.startDate, opts.endDate);
@@ -392,10 +484,10 @@ async function fetchQrisTransactionsHttp(opts) {
           ok: true,
           count: transactions.length,
           usedDomFallback,
-          from_cache: auth.fromCache,
+          auth: auth.authMethod,
         });
         console.log(
-          `[bca_scrapper][qris] done auth=${auth.fromCache ? 'CACHE' : 'PUPPETEER'}`
+          `[bca_scrapper][qris] done auth=${auth.authMethod.toUpperCase()}`
           + ` count=${transactions.length} dom_fallback=${usedDomFallback ? 'yes' : 'no'}`
           + ` range=${opts.startDate}..${opts.endDate}`
         );
@@ -404,7 +496,8 @@ async function fetchQrisTransactionsHttp(opts) {
           end: opts.endDate,
           transactions,
           used_dom_fallback: usedDomFallback,
-          from_cache: auth.fromCache,
+          auth_method: auth.authMethod,
+          from_cache: auth.authMethod === 'cache' || auth.authMethod === 'refresh',
           outlets: outlets.map((o) => ({
             mid: o.mid,
             name: o.outlet_name || o.outletName,

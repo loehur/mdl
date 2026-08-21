@@ -772,6 +772,7 @@ class BcaScrapper
             'trimmed' => !empty($trimmed['trimmed']),
             'method' => (string) ($remote['method'] ?? 'unknown'),
             'from_cache' => !empty($remote['from_cache']),
+            'auth_method' => (string) ($remote['auth_method'] ?? ''),
         ];
     }
 
@@ -908,6 +909,7 @@ class BcaScrapper
             return [
                 'ok' => true,
                 'method' => (string) ($remote['method'] ?? 'unknown'),
+                'auth_method' => (string) ($remote['auth_method'] ?? ''),
                 'from_cache' => !empty($remote['from_cache']),
                 'start_date' => (string) ($remote['start_date'] ?? ''),
                 'end_date' => (string) ($remote['end_date'] ?? ''),
