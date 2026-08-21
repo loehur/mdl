@@ -2,6 +2,7 @@
  * Launch Puppeteer — satu tempat untuk opsi Linux VPS + Chrome path.
  */
 
+const fs = require('fs');
 const puppeteer = require('puppeteer');
 
 const DEFAULT_ARGS = [
@@ -39,11 +40,17 @@ async function launchBrowser(headless = true) {
     return await puppeteer.launch(buildLaunchOptions(headless));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/could not find chrome/i.test(msg)) {
+    if (/could not find chrome|browser was not found/i.test(msg)) {
+      const user = process.env.USER || process.env.LOGNAME || 'service-user';
       const installHint =
-        'Chrome Puppeteer belum terinstall. Di VPS jalankan:\n'
-        + '  cd node/bca_scrapper && npm run install:chrome\n'
-        + 'Atau set PUPPETEER_EXECUTABLE_PATH ke chromium system (/usr/bin/chromium-browser).';
+        'Chrome Puppeteer belum terinstall atau tidak bisa diakses user proses ini.\n'
+        + `Proses saat ini: ${user}\n`
+        + 'Jangan arahkan cache ke /root/.cache jika service jalan sebagai www.\n'
+        + 'Perbaikan (VPS, sebagai root):\n'
+        + '  su -s /bin/bash www -c \'cd /path/to/node/bca_scrapper && '
+        + 'PUPPETEER_CACHE_DIR=$HOME/.cache/puppeteer npm run install:chrome\'\n'
+        + 'Lalu .env: PUPPETEER_CACHE_DIR=/home/www/.cache/puppeteer '
+        + '(hapus PUPPETEER_EXECUTABLE_PATH agar auto-detect).';
       const wrapped = new Error(`${msg}\n\n${installHint}`);
       wrapped.code = 'chrome_not_found';
       wrapped.cause = err;
@@ -54,16 +61,34 @@ async function launchBrowser(headless = true) {
 }
 
 /**
- * @returns {Promise<{ok:boolean,path?:string,error?:string}>}
+ * @returns {Promise<{ok:boolean,path?:string,error?:string,user?:string}>}
  */
 async function chromeStatus() {
+  const user = process.env.USER || process.env.LOGNAME || '';
   try {
-    const path = await puppeteer.executablePath();
-    return { ok: Boolean(path), path: path || undefined };
+    const chromePath = await puppeteer.executablePath();
+    if (!chromePath) {
+      return { ok: false, user, error: 'executablePath kosong' };
+    }
+    await fs.promises.access(chromePath, fs.constants.X_OK);
+    return { ok: true, path: chromePath, user: user || undefined };
   } catch (err) {
+    let chromePath = '';
+    try {
+      chromePath = await puppeteer.executablePath();
+    } catch (_) {
+      /* ignore */
+    }
+    const base = err instanceof Error ? err.message : String(err);
+    const hint =
+      chromePath && String(process.env.PUPPETEER_EXECUTABLE_PATH || '').includes('/root/')
+        ? ' Path di /root/ — service www tidak bisa baca. Install Chrome sebagai user www.'
+        : '';
     return {
       ok: false,
-      error: err instanceof Error ? err.message : String(err),
+      path: chromePath || undefined,
+      user: user || undefined,
+      error: base + hint,
     };
   }
 }

@@ -23,28 +23,30 @@ npm start
 
 Default: `http://127.0.0.1:3021`
 
-### VPS Linux (Chrome tidak ditemukan)
+### VPS Linux (Chrome tidak ditemukan / download corrupt)
 
-Jika cron/API menampilkan `Could not find Chrome`:
+Error `end of central directory record signature not found` = file Chrome corrupt (download putus).
 
-```bash
-cd node/bca_scrapper
-npm run install:chrome
-# restart service bca_scrapper
-curl http://127.0.0.1:3021/health   # cek field chrome.ok = true
-```
-
-Alternatif pakai Chromium system:
+**Perbaikan cepat (root, user www):**
 
 ```bash
-apt install -y chromium-browser   # Debian/Ubuntu
+rm -rf /home/www/.cache/puppeteer/chrome
+cd /www/wwwroot/mdl/node/bca_scrapper
+su -s /bin/bash www -c 'PUPPETEER_CACHE_DIR=/home/www/.cache/puppeteer npm run install:chrome'
 ```
 
-Lalu di `.env`:
+**Atau pakai Chromium system (lebih stabil di VPS):**
 
-```env
-PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+```bash
+apt update && apt install -y chromium-browser
+# edit .env:
+# PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# hapus PUPPETEER_EXECUTABLE_PATH ke /root/ dan PUPPETEER_CACHE_DIR ke /root/
 ```
+
+**Otomatis (root):** `bash scripts/setup-chrome-vps-www.sh`
+
+Service aaPanel jalan sebagai **www** — jangan arahkan cache ke `/root/.cache`.
 
 ## Endpoints
 
