@@ -79,7 +79,6 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         <div id="pgAiResult" class="d-none">
           <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-comment-dots"></i> Komentar AI untuk Admin</div>
           <div id="pgAiAnalysis" style="font-size:.88rem;line-height:1.55;color:#0f172a;"></div>
-          <div id="pgAiMeta" class="text-muted mt-2" style="font-size:.75rem;"></div>
         </div>
         <div id="pgAiError" class="d-none alert alert-warning mb-0 py-2 small"></div>
       </div>
@@ -137,7 +136,6 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     $('#pgAiResult').addClass('d-none');
     $('#pgAiError').addClass('d-none').text('');
     $('#pgAiAnalysis').html('');
-    $('#pgAiMeta').text('');
   }
 
   function pgPendingHtml(p) {
@@ -190,25 +188,6 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     if (res && res.analysis) {
       $('#pgAiResult').removeClass('d-none');
       pgAiSetAnalysis(res.analysis);
-      var meta = '';
-      if (res.ai_source === 'local') {
-        meta = 'Analisa otomatis (AI tidak tersedia)';
-      } else {
-        meta = 'Analisa AI';
-      }
-      if (res.history_count != null) {
-        meta += (meta ? ' · ' : '') + 'Riwayat jenis sama: ' + res.history_count + ' baris (30 hari, berhasil)';
-      }
-      if (res.jenis_filter) {
-        meta += (meta ? ' · ' : '') + 'Jenis: ' + res.jenis_filter;
-      }
-      if (res.req_id) {
-        meta += (meta ? ' · ' : '') + 'Log: ' + res.req_id;
-      }
-      $('#pgAiMeta').text(meta);
-      if (res.ai_source === 'local' && res.message) {
-        $('#pgAiError').removeClass('d-none').text(res.message);
-      }
       return;
     }
     var msg = (res && res.message) ? res.message : 'Analisa gagal.';
