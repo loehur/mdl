@@ -13,14 +13,14 @@ class AdminApproval extends Controller
    {
       $data_operasi = ['title' => 'Approval'];
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangAll();
 
       // Badge hanya butuh count — hindari SELECT * (data isi dimuat AJAX di controller masing-masing)
       $kasAgg = $db->query_array(
          "SELECT
             SUM(CASE WHEN jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2 THEN 1 ELSE 0 END) AS setoran,
             SUM(CASE WHEN jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4 THEN 1 ELSE 0 END) AS pengeluaran,
-            COUNT(DISTINCT CASE WHEN metode_mutasi = 2 AND ref_finance <> '' THEN ref_finance END) AS non_tunai
+            COUNT(DISTINCT CASE WHEN metode_mutasi = 2 AND ref_finance <> '' THEN CONCAT(id_cabang, ':', ref_finance) END) AS non_tunai
           FROM kas
           WHERE {$wc}
             AND status_mutasi = 2

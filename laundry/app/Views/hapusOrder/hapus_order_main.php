@@ -7,14 +7,17 @@ $notifBonAll = is_array($data['notif_bon'] ?? null) ? $data['notif_bon'] : [];
 
 $byRef = [];
 foreach ($dataMain as $row) {
+  $idCabang = (int) ($row['id_cabang'] ?? 0);
   $ref = trim((string) ($row['no_ref'] ?? ''));
   if ($ref === '') {
-    $ref = '_id_' . (int) ($row['id_penjualan'] ?? 0);
+    $refKey = $idCabang . ':_id_' . (int) ($row['id_penjualan'] ?? 0);
+  } else {
+    $refKey = $idCabang . ':' . $ref;
   }
-  if (!isset($byRef[$ref])) {
-    $byRef[$ref] = [];
+  if (!isset($byRef[$refKey])) {
+    $byRef[$refKey] = [];
   }
-  $byRef[$ref][] = $row;
+  $byRef[$refKey][] = $row;
 }
 
 $operasiBySale = [];
@@ -42,6 +45,11 @@ $userName = function ($id) {
 $pelangganName = function ($id) {
   $id = (int) $id;
   foreach ($this->pelanggan as $p) {
+    if ((int) ($p['id_pelanggan'] ?? 0) === $id) {
+      return (string) ($p['nama_pelanggan'] ?? '');
+    }
+  }
+  foreach ($this->pelangganLaundry as $p) {
     if ((int) ($p['id_pelanggan'] ?? 0) === $id) {
       return (string) ($p['nama_pelanggan'] ?? '');
     }
@@ -456,8 +464,11 @@ $totalRef = count($byRef);
   <?php } else { ?>
     <div class="ho-grid">
       <?php foreach ($byRef as $refKey => $items) {
+        $refParts = explode(':', (string) $refKey, 2);
+        $idCabang = (int) ($refParts[0] ?? 0);
+        $refPart = (string) ($refParts[1] ?? $refKey);
+        $refDisplay = (strpos($refPart, '_id_') === 0) ? '-' : $refPart;
         $first = $items[0];
-        $refDisplay = (strpos($refKey, '_id_') === 0) ? '-' : $refKey;
         $pelanggan = $pelangganName($first['id_pelanggan'] ?? 0);
         $kasir = $userName($first['id_user'] ?? 0);
         $waktu = substr((string) ($first['insertTime'] ?? ''), 5, 11);
@@ -467,6 +478,9 @@ $totalRef = count($byRef);
         $payRows = [];
         $totalBayar = 0;
         foreach ($kasAll as $ka) {
+          if ((int) ($ka['id_cabang'] ?? 0) !== $idCabang) {
+            continue;
+          }
           if ((string) ($ka['ref_transaksi'] ?? '') !== (string) $refDisplay && $refDisplay !== '-') {
             continue;
           }
@@ -482,6 +496,9 @@ $totalRef = count($byRef);
 
         $hasNotifBon = false;
         foreach ($notifBonAll as $nb) {
+          if ((int) ($nb['id_cabang'] ?? 0) !== $idCabang) {
+            continue;
+          }
           if ((string) ($nb['no_ref'] ?? '') === (string) $refDisplay) {
             $hasNotifBon = true;
             break;
@@ -489,21 +506,28 @@ $totalRef = count($byRef);
         }
         $hasSurcas = false;
         foreach ($surcasAll as $sc) {
+          if ((int) ($sc['id_cabang'] ?? 0) !== $idCabang) {
+            continue;
+          }
           if ((string) ($sc['no_ref'] ?? '') === (string) $refDisplay) {
             $hasSurcas = true;
             $subTotal += (int) ($sc['jumlah'] ?? 0);
           }
         }
       ?>
-        <article class="ho-card" data-ref="<?= htmlspecialchars((string) $refDisplay, ENT_QUOTES, 'UTF-8') ?>">
+        <article class="ho-card" data-ref="<?= htmlspecialchars((string) $refDisplay, ENT_QUOTES, 'UTF-8') ?>" data-id-cabang="<?= $idCabang ?>">
           <div class="ho-card__head">
             <div>
+              <?php if ($idCabang > 0) { ?>
+                <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+              <?php } ?>
               <h3><?= htmlspecialchars(strtoupper($pelanggan !== '' ? $pelanggan : 'Pelanggan'), ENT_QUOTES, 'UTF-8') ?></h3>
               <small>REF #<?= htmlspecialchars((string) $refDisplay, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($waktu, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($kasir, ENT_QUOTES, 'UTF-8') ?></small>
             </div>
             <?php if ($refDisplay !== '-') { ?>
               <button type="button" class="ho-btn ho-btn--ok ho-btn--sm ho-btn-restore"
-                data-ref="<?= htmlspecialchars((string) $refDisplay, ENT_QUOTES, 'UTF-8') ?>">
+                data-ref="<?= htmlspecialchars((string) $refDisplay, ENT_QUOTES, 'UTF-8') ?>"
+                data-id-cabang="<?= $idCabang ?>">
                 <i class="fas fa-recycle"></i> Restore
               </button>
             <?php } ?>
@@ -625,7 +649,9 @@ $totalRef = count($byRef);
                 }
               }
 
-              $ops = $operasiBySale[(string) $id] ?? [];
+              $ops = array_values(array_filter($operasiBySale[(string) $id] ?? [], static function ($op) use ($idCabang) {
+                return (int) ($op['id_cabang'] ?? 0) === $idCabang;
+              }));
               $hasOps = count($ops) > 0;
 
               $layananPending = [];
@@ -828,6 +854,7 @@ $totalRef = count($byRef);
 
   $root.on('click', '.ho-btn-restore', function() {
     var ref = $(this).attr('data-ref') || '';
+    var idCabang = $(this).attr('data-id-cabang') || $(this).closest('.ho-card').attr('data-id-cabang') || '';
     if (!ref) return;
     openConfirm({
       title: 'Restore Nota',
@@ -835,7 +862,7 @@ $totalRef = count($byRef);
       okLabel: 'Ya, Restore',
       okHead: true,
       run: function() {
-        postJson(BASE + 'HapusOrder/restoreRef', { ref: ref }, 'Nota dikembalikan');
+        postJson(BASE + 'HapusOrder/restoreRef', { ref: ref, id_cabang: idCabang }, 'Nota dikembalikan');
       }
     });
   });

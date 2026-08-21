@@ -8,7 +8,6 @@ $tabs = [
 ];
 $counts = $data['counts'] ?? [];
 $mode = (string) ($data['mode'] ?? 'Setoran');
-$kodeCabang = strtoupper((string) ($this->dCabang['kode_cabang'] ?? ''));
 $totalPending = 0;
 foreach ($tabs as $key => $_meta) {
   $totalPending += (int) ($counts[$key] ?? 0);
@@ -212,6 +211,22 @@ foreach ($tabs as $key => $_meta) {
       text-transform: uppercase;
       color: var(--aa-muted);
     }
+    #aa-root #load .aa-cabang-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      padding: 3px 8px;
+      margin: 0 0 8px;
+      border: 1px solid #1d4ed8;
+      background: linear-gradient(180deg, #dbeafe, #eff6ff);
+      color: #1e3a8a;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
     #aa-root #load .aa-card {
       background: #fff;
       border: 1px solid var(--aa-line-soft);
@@ -370,7 +385,7 @@ foreach ($tabs as $key => $_meta) {
           <span class="aa-ico" aria-hidden="true"><i class="fas fa-clipboard-check"></i></span>
           Admin Approval
         </h2>
-        <small>Konfirmasi antrean cabang <?= htmlspecialchars($kodeCabang !== '' ? $kodeCabang : '-', ENT_QUOTES, 'UTF-8') ?></small>
+        <small>Konfirmasi antrean semua cabang</small>
       </div>
       <div class="aa-head-meta">
         <?php if ($totalPending > 0) { ?>
@@ -479,7 +494,10 @@ foreach ($tabs as $key => $_meta) {
     $.ajax({
       url: url,
       type: 'POST',
-      data: { id: id }
+      data: {
+        id: id,
+        id_cabang: $btn.attr('data-id-cabang') || $card.attr('data-id-cabang') || ''
+      }
     }).done(function(res) {
       var txt = String(res == null ? '' : res).trim();
       if (txt === '0' || txt === 'success' || txt === '') {

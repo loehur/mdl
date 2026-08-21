@@ -12,14 +12,10 @@ class Setoran extends Controller
    {
       $view = 'setoran/setoran_main';
       $db = $this->db(0);
-      $base = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2";
+      $base = $this->wCabangAll() . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 2";
 
-      // Pisah pending vs riwayat agar LIMIT 20 tidak menelan antrean approve
-      $pending = $db->get_where('kas', $base . " AND status_mutasi = 2 ORDER BY insertTime DESC LIMIT 20");
-      $riwayat = $db->get_where('kas', $base . " AND status_mutasi <> 2 ORDER BY insertTime DESC LIMIT 20");
-      $list = array_merge(is_array($pending) ? $pending : [], is_array($riwayat) ? $riwayat : []);
-
-      $this->view($view, ['list' => $list]);
+      $list = $db->get_where('kas', $base . " AND status_mutasi = 2 ORDER BY insertTime DESC LIMIT 50");
+      $this->view($view, ['list' => is_array($list) ? $list : []]);
    }
 
    public function operasi($tipe)
@@ -37,7 +33,12 @@ class Setoran extends Controller
       }
 
       $idEsc = $this->db(0)->escape($id);
-      $where = $this->wCabang . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 2 AND status_mutasi = 2";
+      $wc = $this->wCabangForApprovalAction('kas', 'id_kas', $id, ['jenis_transaksi' => 2, 'status_mutasi' => 2]);
+      if ($wc === null) {
+         echo 'Setoran tidak ditemukan atau sudah diproses';
+         return;
+      }
+      $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 2 AND status_mutasi = 2";
       $count = $this->db(0)->count_where('kas', $where);
       if ($count == 0) {
          echo 'Setoran tidak ditemukan atau sudah diproses';

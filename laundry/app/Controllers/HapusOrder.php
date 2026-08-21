@@ -12,7 +12,7 @@ class HapusOrder extends Controller
    {
       $viewData = 'hapusOrder/hapus_order_main';
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangAll();
 
       $where = $wc . " AND id_pelanggan <> 0 AND bin = 1 ORDER BY id_penjualan DESC LIMIT 50";
       $data_main = $db->get_where('sale', $where);
@@ -91,7 +91,7 @@ class HapusOrder extends Controller
       header('Content-Type: application/json; charset=utf-8');
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangAll();
       $rows = $db->get_where('sale', $wc . ' AND id_pelanggan <> 0 AND bin = 1');
       if (!is_array($rows) || count($rows) === 0) {
          echo json_encode(['status' => 'error', 'message' => 'Tidak ada order yang diantrekan hapus']);
@@ -99,73 +99,87 @@ class HapusOrder extends Controller
       }
 
       $ids = [];
-      $refs = [];
+      $refsByCabang = [];
       foreach ($rows as $r) {
+         $cid = (int) ($r['id_cabang'] ?? 0);
+         if ($cid <= 0) {
+            continue;
+         }
          $id = (int) ($r['id_penjualan'] ?? 0);
          if ($id > 0) {
-            $ids[$id] = $id;
+            $ids[$id] = ['id' => $id, 'id_cabang' => $cid];
          }
          $ref = trim((string) ($r['no_ref'] ?? ''));
          if ($ref !== '') {
-            $refs[$ref] = $ref;
+            $refsByCabang[$cid][$ref] = $ref;
          }
       }
 
-      // 1) Pembayaran dulu — gagal = stop
-      foreach ($refs as $ref) {
-         $refEsc = $db->escape($ref);
-         $whereKas = $wc . " AND ref_transaksi = '" . $refEsc . "' AND jenis_transaksi = 1";
-         $kasResult = $this->deleteKasSafe($whereKas, false);
-         if (empty($kasResult['ok'])) {
-            echo json_encode([
-               'status' => 'error',
-               'message' => $kasResult['msg'] !== ''
-                  ? $kasResult['msg']
-                  : ('Gagal hapus pembayaran REF #' . $ref),
-            ]);
-            return;
-         }
-         $keptPaid = (int) ($kasResult['kept_paid'] ?? 0);
-         $keptPending = (int) ($kasResult['kept_pending'] ?? 0);
-         $keptUnknown = (int) ($kasResult['kept_unknown'] ?? 0);
-         $keptLunas = (int) ($kasResult['kept_lunas'] ?? 0);
-         $kept = $keptPaid + $keptPending + $keptUnknown + $keptLunas;
-         $action = (string) ($kasResult['action'] ?? '');
-         if ($kept > 0 || in_array($action, ['paid', 'blocked', 'lunas', 'partial'], true)) {
-            $msg = trim((string) ($kasResult['msg'] ?? ''));
-            if ($msg === '') {
-               if ($keptPaid > 0 || $keptLunas > 0 || $action === 'paid' || $action === 'lunas') {
-                  $msg = 'Pembayaran QRIS sudah berhasil — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
-               } elseif ($keptPending > 0) {
-                  $msg = 'Pembayaran QRIS masih pending — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
-               } else {
-                  $msg = 'Pembayaran tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
-               }
-            } elseif (stripos($msg, 'layanan') === false) {
-               $msg .= ' Layanan tidak dihapus.';
+      // 1) Pembayaran dulu — gagal = stop (per cabang)
+      foreach ($refsByCabang as $cid => $refs) {
+         $wcBranch = 'id_cabang = ' . (int) $cid;
+         foreach ($refs as $ref) {
+            $refEsc = $db->escape($ref);
+            $whereKas = $wcBranch . " AND ref_transaksi = '" . $refEsc . "' AND jenis_transaksi = 1";
+            $kasResult = $this->deleteKasSafe($whereKas, false);
+            if (empty($kasResult['ok'])) {
+               echo json_encode([
+                  'status' => 'error',
+                  'message' => $kasResult['msg'] !== ''
+                     ? $kasResult['msg']
+                     : ('Gagal hapus pembayaran REF #' . $ref),
+               ]);
+               return;
             }
-            echo json_encode(['status' => 'error', 'message' => $msg]);
-            return;
+            $keptPaid = (int) ($kasResult['kept_paid'] ?? 0);
+            $keptPending = (int) ($kasResult['kept_pending'] ?? 0);
+            $keptUnknown = (int) ($kasResult['kept_unknown'] ?? 0);
+            $keptLunas = (int) ($kasResult['kept_lunas'] ?? 0);
+            $kept = $keptPaid + $keptPending + $keptUnknown + $keptLunas;
+            $action = (string) ($kasResult['action'] ?? '');
+            if ($kept > 0 || in_array($action, ['paid', 'blocked', 'lunas', 'partial'], true)) {
+               $msg = trim((string) ($kasResult['msg'] ?? ''));
+               if ($msg === '') {
+                  if ($keptPaid > 0 || $keptLunas > 0 || $action === 'paid' || $action === 'lunas') {
+                     $msg = 'Pembayaran QRIS sudah berhasil — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+                  } elseif ($keptPending > 0) {
+                     $msg = 'Pembayaran QRIS masih pending — tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+                  } else {
+                     $msg = 'Pembayaran tidak bisa dihapus (REF #' . $ref . '). Layanan tidak dihapus.';
+                  }
+               } elseif (stripos($msg, 'layanan') === false) {
+                  $msg .= ' Layanan tidak dihapus.';
+               }
+               echo json_encode(['status' => 'error', 'message' => $msg]);
+               return;
+            }
          }
       }
 
       // 2) Related non-layanan (notif bon + surcas)
-      foreach ($refs as $ref) {
-         $refEsc = $db->escape($ref);
-         $db->delete('notif', $wc . " AND no_ref = '" . $refEsc . "' AND tipe = 1");
-         $db->delete('surcas', $wc . " AND no_ref = '" . $refEsc . "' AND transaksi_jenis = 1");
+      foreach ($refsByCabang as $cid => $refs) {
+         $wcBranch = 'id_cabang = ' . (int) $cid;
+         foreach ($refs as $ref) {
+            $refEsc = $db->escape($ref);
+            $db->delete('notif', $wcBranch . " AND no_ref = '" . $refEsc . "' AND tipe = 1");
+            $db->delete('surcas', $wcBranch . " AND no_ref = '" . $refEsc . "' AND transaksi_jenis = 1");
+         }
       }
 
       // 3) Layanan (operasi + notif selesai)
-      foreach ($ids as $id) {
+      foreach ($ids as $item) {
+         $id = (int) ($item['id'] ?? 0);
+         $wcBranch = 'id_cabang = ' . (int) ($item['id_cabang'] ?? 0);
          $idEsc = $db->escape((string) $id);
-         $db->delete('operasi', $wc . " AND id_penjualan = '" . $idEsc . "'");
-         $db->delete('notif', $wc . " AND no_ref = '" . $idEsc . "' AND tipe = 2");
+         $db->delete('operasi', $wcBranch . " AND id_penjualan = '" . $idEsc . "'");
+         $db->delete('notif', $wcBranch . " AND no_ref = '" . $idEsc . "' AND tipe = 2");
       }
 
       // 4) Hapus permanen sale
-      foreach ($ids as $id) {
-         $del = $db->delete('sale', $wc . ' AND id_penjualan = ' . (int) $id . ' AND bin = 1');
+      foreach ($ids as $item) {
+         $id = (int) ($item['id'] ?? 0);
+         $wcBranch = 'id_cabang = ' . (int) ($item['id_cabang'] ?? 0);
+         $del = $db->delete('sale', $wcBranch . ' AND id_penjualan = ' . $id . ' AND bin = 1');
          if (isset($del['errno']) && (int) $del['errno'] !== 0) {
             echo json_encode([
                'status' => 'error',
@@ -175,7 +189,11 @@ class HapusOrder extends Controller
          }
       }
 
-      $this->model('Log')->write('[HapusOrder::hapusSemua] hapus ' . count($ids) . ' item, ' . count($refs) . ' ref');
+      $refCount = 0;
+      foreach ($refsByCabang as $refs) {
+         $refCount += count($refs);
+      }
+      $this->model('Log')->write('[HapusOrder::hapusSemua] hapus ' . count($ids) . ' item, ' . $refCount . ' ref');
       echo json_encode([
          'status' => 'success',
          'message' => 'Berhasil hapus ' . count($ids) . ' item',
@@ -196,7 +214,11 @@ class HapusOrder extends Controller
       }
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangForApprovalAction('sale', 'id_penjualan', (string) $id, ['bin' => 1]);
+      if ($wc === null) {
+         echo json_encode(['status' => 'error', 'message' => 'Item tidak ditemukan di antrean hapus']);
+         return;
+      }
       $sale = $db->get_where_row('sale', $wc . ' AND id_penjualan = ' . $id . ' AND bin = 1');
       if (!is_array($sale) || empty($sale['id_penjualan'])) {
          echo json_encode(['status' => 'error', 'message' => 'Item tidak ditemukan di antrean hapus']);
@@ -214,9 +236,10 @@ class HapusOrder extends Controller
       }
 
       $ref = trim((string) ($sale['no_ref'] ?? ''));
+      $idCabang = (int) ($sale['id_cabang'] ?? 0);
       if ($ref !== '') {
-         $dibayar = $this->sumDibayarRef($ref);
-         $tagihanAktif = $this->sumTagihanRefBin0($ref);
+         $dibayar = $this->sumDibayarRef($ref, $idCabang);
+         $tagihanAktif = $this->sumTagihanRefBin0($ref, $idCabang);
          if ($dibayar > $tagihanAktif) {
             echo json_encode([
                'status' => 'error',
@@ -253,7 +276,11 @@ class HapusOrder extends Controller
       }
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangForApprovalAction('kas', 'id_kas', $idKas, ['jenis_transaksi' => 1]);
+      if ($wc === null) {
+         echo json_encode(['status' => 'error', 'message' => 'Pembayaran tidak ditemukan']);
+         return;
+      }
       $idEsc = $db->escape($idKas);
       $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 1";
       $kas = $db->get_where_row('kas', $where);
@@ -344,7 +371,11 @@ class HapusOrder extends Controller
       }
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangForApprovalAction('operasi', 'id_operasi', $idOperasi);
+      if ($wc === null) {
+         echo json_encode(['status' => 'error', 'message' => 'Penyelesai tidak ditemukan']);
+         return;
+      }
       $idEsc = $db->escape($idOperasi);
       $row = $db->get_where_row('operasi', $wc . " AND id_operasi = '" . $idEsc . "'");
       if (!is_array($row) || empty($row['id_operasi'])) {
@@ -375,15 +406,17 @@ class HapusOrder extends Controller
    {
       header('Content-Type: application/json; charset=utf-8');
       $ref = trim((string) ($_POST['ref'] ?? ''));
-      if ($ref === '') {
+      $idCabang = (int) ($_POST['id_cabang'] ?? 0);
+      if ($ref === '' || $idCabang <= 0) {
          echo json_encode(['status' => 'error', 'message' => 'REF tidak valid']);
          return;
       }
       $refEsc = $this->db(0)->escape($ref);
+      $wc = 'id_cabang = ' . $idCabang;
       $up = $this->db(0)->update(
          'sale',
          ['bin' => 0],
-         $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 1"
+         $wc . " AND no_ref = '" . $refEsc . "' AND bin = 1"
       );
       if (isset($up['errno']) && (int) $up['errno'] !== 0) {
          echo json_encode(['status' => 'error', 'message' => $up['error'] ?? 'Gagal restore']);
@@ -405,12 +438,13 @@ class HapusOrder extends Controller
       echo json_encode(['status' => 'error', 'message' => 'Gunakan Hapus Semua (alur baru)']);
    }
 
-   private function sumDibayarRef(string $ref): int
+   private function sumDibayarRef(string $ref, int $idCabang = 0): int
    {
+      $wc = $idCabang > 0 ? ('id_cabang = ' . $idCabang) : $this->wCabangAll();
       $refEsc = $this->db(0)->escape($ref);
       $kas = $this->db(0)->get_where(
          'kas',
-         $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi = '" . $refEsc . "'"
+         $wc . " AND jenis_transaksi = 1 AND ref_transaksi = '" . $refEsc . "'"
       );
       if (!is_array($kas)) {
          return 0;
@@ -425,12 +459,13 @@ class HapusOrder extends Controller
       return $sum;
    }
 
-   private function sumTagihanRefBin0(string $ref): int
+   private function sumTagihanRefBin0(string $ref, int $idCabang = 0): int
    {
+      $wc = $idCabang > 0 ? ('id_cabang = ' . $idCabang) : $this->wCabangAll();
       $refEsc = $this->db(0)->escape($ref);
       $sales = $this->db(0)->get_where(
          'sale',
-         $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 0"
+         $wc . " AND no_ref = '" . $refEsc . "' AND bin = 0"
       );
       if (!is_array($sales)) {
          $sales = [];
@@ -454,7 +489,7 @@ class HapusOrder extends Controller
          }
          $sub += (int) round($total);
       }
-      $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref = '" . $refEsc . "'");
+      $surcas = $this->db(0)->get_where('surcas', $wc . " AND no_ref = '" . $refEsc . "'");
       if (is_array($surcas)) {
          foreach ($surcas as $sc) {
             $sub += (int) ($sc['jumlah'] ?? 0);

@@ -12,12 +12,9 @@ class Pengeluaran extends Controller
    {
       $view = 'admin_approval/pengeluaran';
 
-      $where = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4 AND status_mutasi = 2 ORDER BY insertTime DESC LIMIT 20";
-      $list[0] = $this->db(0)->get_where('kas', $where);
-
-      $where = $this->wCabang . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4 AND status_mutasi <> 2 ORDER BY insertTime DESC LIMIT 20";
-      $list[1] = $this->db(0)->get_where('kas', $where);
-      $this->view($view, $list);
+      $where = $this->wCabangAll() . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4 AND status_mutasi = 2 ORDER BY insertTime DESC LIMIT 50";
+      $list = $this->db(0)->get_where('kas', $where);
+      $this->view($view, ['list' => is_array($list) ? $list : []]);
    }
 
    public function operasi($tipe)
@@ -35,7 +32,12 @@ class Pengeluaran extends Controller
       }
 
       $idEsc = $this->db(0)->escape($id);
-      $where = $this->wCabang . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 4 AND status_mutasi = 2";
+      $wc = $this->wCabangForApprovalAction('kas', 'id_kas', $id, ['jenis_transaksi' => 4, 'status_mutasi' => 2]);
+      if ($wc === null) {
+         echo 'Pengeluaran tidak ditemukan atau sudah diproses';
+         return;
+      }
+      $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 4 AND status_mutasi = 2";
       $count = $this->db(0)->count_where('kas', $where);
       if ($count == 0) {
          echo 'Pengeluaran tidak ditemukan atau sudah diproses';

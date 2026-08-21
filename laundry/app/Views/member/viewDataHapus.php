@@ -280,6 +280,7 @@ $statusMutasiLabel = function ($sts) {
     <div class="hd-grid">
       <?php foreach ($rows as $z) {
         $id = (int) ($z['id_member'] ?? 0);
+        $idCabang = (int) ($z['id_cabang'] ?? 0);
         $harga = (float) ($z['harga'] ?? 0);
         $qty = $z['qty'] ?? '';
         $idUser = (int) ($z['id_user'] ?? 0);
@@ -290,6 +291,14 @@ $statusMutasiLabel = function ($sts) {
           if ((int) ($dp['id_pelanggan'] ?? 0) === $pelangganId) {
             $namaPelanggan = (string) ($dp['nama_pelanggan'] ?? '');
             break;
+          }
+        }
+        if ($namaPelanggan === '') {
+          foreach ($this->pelangganLaundry as $dp) {
+            if ((int) ($dp['id_pelanggan'] ?? 0) === $pelangganId) {
+              $namaPelanggan = (string) ($dp['nama_pelanggan'] ?? '');
+              break;
+            }
           }
         }
 
@@ -343,6 +352,9 @@ $statusMutasiLabel = function ($sts) {
         $payRows = [];
         $totalBayar = 0;
         foreach ($kasAll as $ka) {
+          if ((int) ($ka['id_cabang'] ?? 0) !== $idCabang) {
+            continue;
+          }
           if ((int) ($ka['ref_transaksi'] ?? 0) !== $id) {
             continue;
           }
@@ -357,9 +369,12 @@ $statusMutasiLabel = function ($sts) {
         $paketLabel = preg_replace('/\s*·\s*·\s*/', ' · ', $paketLabel);
         $paketLabel = trim($paketLabel, " ·");
       ?>
-        <article class="hd-card" data-id="<?= $id ?>">
+        <article class="hd-card" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>">
           <div class="hd-card__head">
             <div style="min-width:0;flex:1">
+              <?php if ($idCabang > 0) { ?>
+                <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+              <?php } ?>
               <h3><?= htmlspecialchars(strtoupper($namaPelanggan !== '' ? $namaPelanggan : 'Pelanggan'), ENT_QUOTES, 'UTF-8') ?></h3>
               <small>#<?= $id ?> · <?= htmlspecialchars(substr((string) ($z['insertTime'] ?? ''), 5, 11), ENT_QUOTES, 'UTF-8') ?> · CS <?= htmlspecialchars($cs, ENT_QUOTES, 'UTF-8') ?></small>
             </div>
@@ -394,10 +409,10 @@ $statusMutasiLabel = function ($sts) {
             <?php } ?>
 
             <div class="hd-actions">
-              <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>">
+              <button type="button" class="hd-btn hd-btn--ok hd-btn--sm hd-btn-restore" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>">
                 <i class="fas fa-recycle"></i> Restore
               </button>
-              <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>">
+              <button type="button" class="hd-btn hd-btn--danger hd-btn--sm hd-btn-hapus" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>">
                 <i class="fas fa-trash"></i> Hapus
               </button>
             </div>
@@ -521,6 +536,7 @@ $statusMutasiLabel = function ($sts) {
 
   $root.on('click', '.hd-btn-restore', function() {
     var id = $(this).attr('data-id') || '';
+    var idCabang = $(this).attr('data-id-cabang') || $(this).closest('.hd-card').attr('data-id-cabang') || '';
     if (!id) return;
     openConfirm({
       title: 'Restore Deposit',
@@ -528,20 +544,21 @@ $statusMutasiLabel = function ($sts) {
       okLabel: 'Ya, Restore',
       okHead: true,
       run: function() {
-        postJson(BASE + 'HapusDeposit/restoreRef', { id: id }, 'Deposit dikembalikan');
+        postJson(BASE + 'HapusDeposit/restoreRef', { id: id, id_cabang: idCabang }, 'Deposit dikembalikan');
       }
     });
   });
 
   $root.on('click', '.hd-btn-hapus', function() {
     var id = $(this).attr('data-id') || '';
+    var idCabang = $(this).attr('data-id-cabang') || $(this).closest('.hd-card').attr('data-id-cabang') || '';
     if (!id) return;
     openConfirm({
       title: 'Hapus Deposit',
       message: 'Hapus permanen deposit #' + id + '? Pembayaran terkait dihapus dulu; jika gagal, deposit tidak dihapus.',
       okLabel: 'Ya, Hapus',
       run: function() {
-        postJson(BASE + 'HapusDeposit/hapusItem', { id: id }, 'Deposit dihapus');
+        postJson(BASE + 'HapusDeposit/hapusItem', { id: id, id_cabang: idCabang }, 'Deposit dihapus');
       }
     });
   });

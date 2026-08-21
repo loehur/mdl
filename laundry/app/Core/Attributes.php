@@ -237,6 +237,89 @@ trait Attributes
         return array_values($out);
     }
 
+    /** @return array<int, array> */
+    public function cabangOperasionalMap()
+    {
+        $list = $this->getCabangOperasional();
+        if (!is_array($list)) {
+            return [];
+        }
+        $map = [];
+        foreach ($list as $cabang) {
+            if (!is_array($cabang) || !isset($cabang['id_cabang'])) {
+                continue;
+            }
+            $map[(int) $cabang['id_cabang']] = $cabang;
+        }
+        return $map;
+    }
+
+    public function cabangKode($cabang)
+    {
+        if (!is_array($cabang)) {
+            return 'C' . (int) $cabang;
+        }
+        $kode = trim((string) ($cabang['kode_cabang'] ?? ''));
+        if ($kode !== '') {
+            return strtoupper($kode);
+        }
+        return 'C' . (int) ($cabang['id_cabang'] ?? 0);
+    }
+
+    public function cabangKodeById($idCabang)
+    {
+        $idCabang = (int) $idCabang;
+        $map = $this->cabangOperasionalMap();
+        if (isset($map[$idCabang])) {
+            return $this->cabangKode($map[$idCabang]);
+        }
+        return 'C' . $idCabang;
+    }
+
+    public function wCabangAll($column = 'id_cabang')
+    {
+        $ids = array_keys($this->cabangOperasionalMap());
+        if (count($ids) === 0) {
+            return isset($this->wCabang) ? $this->wCabang : ($column . ' = 0');
+        }
+        if (count($ids) === 1) {
+            return $column . ' = ' . (int) $ids[0];
+        }
+        return $column . ' IN (' . implode(',', array_map('intval', $ids)) . ')';
+    }
+
+    /**
+     * WHERE id_cabang untuk aksi approval multi-cabang (POST id_cabang atau lookup tunggal).
+     */
+    public function wCabangForApprovalAction(string $table, string $idColumn, string $idValue, array $and = []): ?string
+    {
+        $idCabang = (int) ($_POST['id_cabang'] ?? 0);
+        $map = $this->cabangOperasionalMap();
+        if ($idCabang > 0 && isset($map[$idCabang])) {
+            return 'id_cabang = ' . $idCabang;
+        }
+
+        $db = $this->db(0);
+        $idEsc = $db->escape($idValue);
+        $where = $this->wCabangAll() . " AND {$idColumn} = '" . $idEsc . "'";
+        foreach ($and as $col => $val) {
+            if (is_int($val)) {
+                $where .= " AND {$col} = {$val}";
+            } else {
+                $where .= " AND {$col} = '" . $db->escape((string) $val) . "'";
+            }
+        }
+        $rows = $db->get_where($table, $where . ' LIMIT 2');
+        if (!is_array($rows) || count($rows) !== 1) {
+            return null;
+        }
+        $found = (int) ($rows[0]['id_cabang'] ?? 0);
+        if ($found <= 0 || !isset($map[$found])) {
+            return null;
+        }
+        return 'id_cabang = ' . $found;
+    }
+
     /**
      * Filter daftar pelanggan sesuai mode Live / Training.
      */

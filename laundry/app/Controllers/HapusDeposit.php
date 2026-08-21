@@ -12,7 +12,7 @@ class HapusDeposit extends Controller
    {
       $viewData = 'member/viewDataHapus';
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangAll();
 
       $data_manual = $db->get_where_order('member', $wc . ' AND bin = 1', 'id_member DESC');
       if (!is_array($data_manual)) {
@@ -47,7 +47,7 @@ class HapusDeposit extends Controller
       header('Content-Type: application/json; charset=utf-8');
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangAll();
       $rows = $db->get_where('member', $wc . ' AND bin = 1');
       if (!is_array($rows) || count($rows) === 0) {
          echo json_encode(['status' => 'error', 'message' => 'Tidak ada deposit di antrean hapus']);
@@ -58,20 +58,22 @@ class HapusDeposit extends Controller
       foreach ($rows as $r) {
          $id = (int) ($r['id_member'] ?? 0);
          if ($id > 0) {
-            $ids[$id] = $id;
+            $ids[$id] = ['id' => $id, 'id_cabang' => (int) ($r['id_cabang'] ?? 0)];
          }
       }
 
-      foreach ($ids as $id) {
-         $err = $this->deleteKasForMember($id);
+      foreach ($ids as $item) {
+         $err = $this->deleteKasForMember((int) $item['id'], (int) $item['id_cabang']);
          if ($err !== null) {
             echo json_encode(['status' => 'error', 'message' => $err]);
             return;
          }
       }
 
-      foreach ($ids as $id) {
-         $del = $db->delete('member', $wc . ' AND id_member = ' . (int) $id . ' AND bin = 1');
+      foreach ($ids as $item) {
+         $id = (int) $item['id'];
+         $wcBranch = 'id_cabang = ' . (int) $item['id_cabang'];
+         $del = $db->delete('member', $wcBranch . ' AND id_member = ' . $id . ' AND bin = 1');
          if (isset($del['errno']) && (int) $del['errno'] !== 0) {
             echo json_encode([
                'status' => 'error',
@@ -98,14 +100,18 @@ class HapusDeposit extends Controller
       }
 
       $db = $this->db(0);
-      $wc = $this->wCabang;
+      $wc = $this->wCabangForApprovalAction('member', 'id_member', (string) $id, ['bin' => 1]);
+      if ($wc === null) {
+         echo json_encode(['status' => 'error', 'message' => 'Deposit tidak ditemukan di antrean']);
+         return;
+      }
       $row = $db->get_where_row('member', $wc . ' AND id_member = ' . $id . ' AND bin = 1');
       if (!is_array($row) || empty($row['id_member'])) {
          echo json_encode(['status' => 'error', 'message' => 'Deposit tidak ditemukan di antrean']);
          return;
       }
 
-      $err = $this->deleteKasForMember($id);
+      $err = $this->deleteKasForMember($id, (int) ($row['id_cabang'] ?? 0));
       if ($err !== null) {
          echo json_encode(['status' => 'error', 'message' => $err]);
          return;
@@ -130,10 +136,19 @@ class HapusDeposit extends Controller
          return;
       }
 
+      $idCabang = (int) ($_POST['id_cabang'] ?? 0);
+      $wc = $idCabang > 0
+         ? ('id_cabang = ' . $idCabang)
+         : $this->wCabangForApprovalAction('member', 'id_member', (string) $id, ['bin' => 1]);
+      if ($wc === null) {
+         echo json_encode(['status' => 'error', 'message' => 'Deposit tidak ditemukan di antrean']);
+         return;
+      }
+
       $up = $this->db(0)->update(
          'member',
          ['bin' => 0],
-         $this->wCabang . ' AND id_member = ' . $id . ' AND bin = 1'
+         $wc . ' AND id_member = ' . $id . ' AND bin = 1'
       );
       if (isset($up['errno']) && (int) $up['errno'] !== 0) {
          echo json_encode(['status' => 'error', 'message' => $up['error'] ?? 'Gagal restore']);
@@ -144,9 +159,10 @@ class HapusDeposit extends Controller
    }
 
    /** @return string|null error message, or null on success */
-   private function deleteKasForMember(int $idMember): ?string
+   private function deleteKasForMember(int $idMember, int $idCabang = 0): ?string
    {
-      $whereKas = $this->wCabang
+      $wc = $idCabang > 0 ? ('id_cabang = ' . $idCabang) : $this->wCabangAll();
+      $whereKas = $wc
          . " AND ref_transaksi = '" . $this->db(0)->escape((string) $idMember) . "'"
          . ' AND jenis_transaksi = 3';
       $kasResult = $this->deleteKasSafe($whereKas, false);

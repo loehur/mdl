@@ -10,6 +10,7 @@ if (count($data['cek']) == 0) { ?>
 <div class="aa-grid" style="grid-template-columns: 1fr;">
   <?php foreach ($data['cek'] as $a) {
     $id = $a['ref_finance'];
+    $idCabang = (int) ($a['id_cabang'] ?? 0);
     $f1 = $a['ref_finance'];
     $f2 = $a['note'];
     $f3 = $a['id_user'];
@@ -74,9 +75,12 @@ if (count($data['cek']) == 0) { ?>
       $invoiceTitle = 'Jualan #' . $refTransaksi;
     }
   ?>
-  <div class="aa-card aa-card--pending nt-row">
+  <div class="aa-card aa-card--pending nt-row" data-id-cabang="<?= $idCabang ?>">
     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
       <div class="flex-grow-1" style="min-width:0">
+        <?php if ($idCabang > 0) { ?>
+          <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+        <?php } ?>
         <a href="#" class="text-decoration-none nt-invoice-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
           <div class="aa-card__title" style="margin:0"><?= strtoupper($pelanggan) ?> <i class="fas fa-expand-alt small" title="Lihat tagihan"></i></div>
         </a>
@@ -96,12 +100,13 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-comments"></i>
         </button>
         <?php } ?>
-        <button class="aa-btn aa-btn--danger nTolak" data-id="<?= $id ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
+        <button class="aa-btn aa-btn--danger nTolak" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
           <i class="fas fa-times"></i>
         </button>
         <?php $isBca = strtoupper(trim((string) $f2)) === 'BCA'; ?>
         <button class="aa-btn aa-btn--ok nTerima"
           data-id="<?= $id ?>"
+          data-id-cabang="<?= $idCabang ?>"
           data-nama="<?= strtoupper($pelanggan) ?>"
           data-note="<?= htmlspecialchars(strtoupper((string) $f2), ENT_QUOTES, 'UTF-8') ?>"
           data-nominal="<?= (float) $f4 ?>"
@@ -378,7 +383,10 @@ if (count($data['cek']) == 0) { ?>
 
   function ntPostOperasi(target, id, extra, btn, okMsg) {
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-    var payload = $.extend({ id: id }, extra || {});
+    var payload = $.extend({
+      id: id,
+      id_cabang: btn.attr('data-id-cabang') || btn.closest('.nt-row').attr('data-id-cabang') || ''
+    }, extra || {});
     $.ajax({
       url: target,
       data: payload,
@@ -439,6 +447,7 @@ if (count($data['cek']) == 0) { ?>
 
   function ntOpenBcaOffcanvas($btn) {
     terimaBcaData.id = $btn.attr('data-id');
+    terimaBcaData.id_cabang = $btn.attr('data-id-cabang') || $btn.closest('.nt-row').attr('data-id-cabang') || '';
     terimaBcaData.target = $btn.attr('data-target');
     terimaBcaData.btn = $btn;
     terimaBcaData.nama = $btn.attr('data-nama') || '';
@@ -459,7 +468,7 @@ if (count($data['cek']) == 0) { ?>
     $.ajax({
       url: $btn.attr('data-mutasi-url'),
       type: 'POST',
-      data: { id: terimaBcaData.id },
+      data: { id: terimaBcaData.id, id_cabang: terimaBcaData.id_cabang || '' },
       dataType: 'json',
       success: function(res) {
         if (!res || !res.ok) {
@@ -519,6 +528,7 @@ if (count($data['cek']) == 0) { ?>
   $(".nTolak").on("click", function(e) {
     e.preventDefault();
     tolakData.id = $(this).attr('data-id');
+    tolakData.id_cabang = $(this).attr('data-id-cabang') || $(this).closest('.nt-row').attr('data-id-cabang') || '';
     tolakData.target = $(this).attr('data-target');
     tolakData.btn = $(this);
     $('#namaTolak').text($(this).attr('data-nama'));
@@ -533,7 +543,7 @@ if (count($data['cek']) == 0) { ?>
     
     $.ajax({
       url: tolakData.target,
-      data: { id: tolakData.id },
+      data: { id: tolakData.id, id_cabang: tolakData.id_cabang || '' },
       type: "POST",
       success: function(response) {
         if (String(response).trim() !== '0') {
