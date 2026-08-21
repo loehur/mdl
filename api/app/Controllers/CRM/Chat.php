@@ -189,6 +189,8 @@ class Chat extends Controller
                 }
 
                 $csw = CrmChatMergeHelper::getCswStatus($db, (string) ($conv->wa_number ?? ''));
+                $conv->line_csw = $csw['line_csw'] ?? [];
+                $conv->default_reply_line = $csw['default_reply_line'] ?? null;
                 $conv->ycloud_open = $csw['ycloud_open'];
                 $conv->fonnte_open = $csw['fonnte_open'];
                 $conv->last_in_at_ycloud = $csw['last_in_at_ycloud'];
@@ -421,11 +423,6 @@ class Chat extends Controller
             $phoneExpr = WaSenderContext::sqlDigitsExpr('phone');
             $fetchLimit = $limit + 1;
 
-            $includeFonnte = CrmChatMergeHelper::fonnteMessageTablesReady($db);
-            $fonnteInStatusSql = CrmChatMergeHelper::fonnteInboundStatusReady($db)
-                ? "COALESCE(status, 'received') as status"
-                : "'received' as status";
-
             $ycloudUnion = "
                     (SELECT 
                         id,
@@ -442,7 +439,7 @@ class Chat extends Controller
                         quoted_message_body,
                         NULL as sender_code,
                         0 as `private`,
-                        'Y' as provider
+                        COALESCE(business_phone, '+6281170706611') as business_phone
                      FROM wa_messages_in 
                      WHERE {$phoneExpr} LIKE ?)
                     UNION ALL
@@ -461,55 +458,14 @@ class Chat extends Controller
                         quoted_message_body,
                         sender_code,
                         COALESCE(`private`, 0) as `private`,
-                        'Y' as provider
+                        COALESCE(business_phone, '+6281170706611') as business_phone
                      FROM wa_messages_out 
-                     WHERE {$phoneExpr} LIKE ?)";
-
-            $fonnteUnion = "
-                    UNION ALL
-                    (SELECT 
-                        id,
-                        CAST(inboxid AS CHAR) as wamid,
-                        text,
-                        type,
-                        'customer' as sender,
-                        created_at as time,
-                        {$fonnteInStatusSql},
-                        NULL as media_id,
-                        media_url,
-                        NULL as caption,
-                        NULL as quoted_message_id,
-                        NULL as quoted_message_body,
-                        NULL as sender_code,
-                        0 as `private`,
-                        'F' as provider
-                     FROM wa_fonnte_messages_in
-                     WHERE {$phoneExpr} LIKE ?)
-                    UNION ALL
-                    (SELECT 
-                        id,
-                        fonnte_message_id as wamid,
-                        COALESCE(text, '') as text,
-                        type,
-                        'me' as sender,
-                        created_at as time,
-                        status,
-                        NULL as media_id,
-                        media_url,
-                        NULL as caption,
-                        CAST(reply_inboxid AS CHAR) as quoted_message_id,
-                        NULL as quoted_message_body,
-                        sender_code,
-                        0 as `private`,
-                        'F' as provider
-                     FROM wa_fonnte_messages_out
                      WHERE {$phoneExpr} LIKE ?)";
 
             $sql = "
             SELECT * FROM (
                 SELECT * FROM (
                     {$ycloudUnion}
-                    " . ($includeFonnte ? $fonnteUnion : '') . "
                 ) AS combined_msgs
                 ORDER BY time DESC
                 LIMIT ? OFFSET ?
@@ -517,13 +473,7 @@ class Chat extends Controller
             ORDER BY time ASC
         ";
 
-            $params = [$like, $like];
-            if ($includeFonnte) {
-                $params[] = $like;
-                $params[] = $like;
-            }
-            $params[] = $fetchLimit;
-            $params[] = $offset;
+            $params = [$like, $like, $fetchLimit, $offset];
 
             $messages = $db->query($sql, $params)->result_array();
 
@@ -543,10 +493,8 @@ class Chat extends Controller
                     $msg['private'] = 0;
                 }
 
-                $provider = strtoupper((string) ($msg['provider'] ?? 'Y'));
-                $msg['provider'] = ($provider === 'F') ? 'F' : 'Y';
-                $rawId = $msg['id'] ?? 0;
-                $msg['id'] = $msg['provider'] . '-' . $rawId;
+                $provider = strtoupper((string) ($msg['provider'] ?? ''));
+                $msg = CrmChatMergeHelper::enrichMessageLineFields($msg);
             }
             unset($msg);
 
@@ -561,7 +509,6 @@ class Chat extends Controller
                 'offset' => $offset,
                 'limit' => $limit,
                 'total_returned' => count($messages),
-                'fonnte_merged' => $includeFonnte,
             ]);
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -585,7 +532,7 @@ class Chat extends Controller
         $phone = $body['phone'] ?? null;
         $message = $body['message'] ?? null;
         $replyTo = $body['reply_to'] ?? null; // WAMID / inboxid
-        $channelReq = $body['channel'] ?? 'auto';
+        $channelReq = $body['channel'] ?? $body['line'] ?? $body['line_key'] ?? 'auto';
 
         if (!$phone || !$message) $this->error('Missing required fields (phone, message)');
 
@@ -595,11 +542,14 @@ class Chat extends Controller
         if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
             require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
         }
+        if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaLineResolver.php';
+        }
 
         $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
-        $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
-        if ($channel === null) {
-            $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send free text.', 400);
+        $lineKey = CrmChatMergeHelper::resolveReplyLine($csw, is_string($channelReq) ? $channelReq : 'auto');
+        if ($lineKey === null) {
+            $this->error('Customer Service Window (CSW) expired for all lines. Cannot send free text.', 400);
         }
 
         $senderCode = $body['sender_code'] ?? null;
@@ -610,17 +560,12 @@ class Chat extends Controller
             $senderCode = $_SESSION['mdl_crm_session']['user']['code'];
         }
 
-        if ($channel === 'fonnte') {
-            $this->replyViaFonnte($db, $phone, $message, $replyTo, $senderCode);
-            return;
-        }
-
         if (!class_exists('\\App\\Helpers\\CRM\\WhatsAppService')) {
             require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
         }
 
         $wa = new \App\Helpers\CRM\WhatsAppService();
-        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode);
+        $res = $wa->sendFreeText($phone, $message, $replyTo, $senderCode, null, $lineKey);
 
         if ($res['success']) {
             if ($replyTo && isset($res['local_id'])) {
@@ -640,8 +585,10 @@ class Chat extends Controller
 
             $data = $res['data'];
             $data['local_id'] = $res['local_id'] ?? null;
-            $data['channel'] = 'ycloud';
-            $data['provider'] = 'Y';
+            $data['line_key'] = $lineKey;
+            $data['channel'] = $lineKey;
+            $data['provider'] = $lineKey;
+            $data = array_merge($data, \App\Helpers\CRM\WaLineResolver::messageApiFields($lineKey));
 
             $this->success($data, 'Reply sent');
         } else {
@@ -650,105 +597,13 @@ class Chat extends Controller
     }
 
     /**
-     * Balasan CRM via Fonnte (CSW Fonnte terbuka).
+     * @deprecated personal chat via Fonnte removed — use reply() with line_key
      */
     private function replyViaFonnte($db, string $phone, string $message, $replyTo, ?string $senderCode): void
     {
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-            require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
-        }
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
-            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
-        }
-        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
-            require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
-        }
-
-        $fonnte = new \App\Helpers\CRM\FonnteService();
-        $options = [];
-        if ($replyTo !== null && $replyTo !== '' && is_numeric($replyTo)) {
-            $options['inboxid'] = (int) $replyTo;
-        }
-        $result = $fonnte->sendMessage($phone, $message, $options);
-        if (empty($result['success'])) {
-            $this->error('Failed to send via Fonnte: ' . ($result['error'] ?? 'Unknown error'), 500);
-        }
-
-        $waNumber = CrmChatMergeHelper::normalizeWaNumber($phone);
-        $code = ($senderCode !== null && trim($senderCode) !== '')
-            ? trim($senderCode)
-            : \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
-        $isHuman = \App\Helpers\CRM\SapaanStatsHelper::isHumanSenderCode($code);
-
-        $store = new \App\Helpers\CRM\FonnteMessageStore($db);
-        $responseData = is_array($result['data'] ?? null) ? $result['data'] : null;
-        $fonnteId = \App\Helpers\CRM\FonnteService::extractMessageId($responseData);
-        $stateId = \App\Helpers\CRM\FonnteService::extractStateId($responseData);
-        $localId = $store->saveOutgoing($waNumber, $message, [
-            'fonnte_message_id' => $fonnteId,
-            'fonnte_stateid' => $stateId,
-            'reply_inboxid' => !empty($options['inboxid']) ? (int) $options['inboxid'] : null,
-            'source' => $isHuman ? 'human' : 'autoreply',
-            'sender_code' => $code,
-            'status' => 'sent',
-        ]);
-
-        if ($isHuman) {
-            try {
-                \App\Helpers\CRM\SapaanStatsHelper::recordStatsIfHuman($db, $waNumber, $message, $code);
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
-
-        $now = date('Y-m-d H:i:s');
-        $conv = CrmChatMergeHelper::findWaConversation($db, $phone);
-        $conversationId = 0;
-        $kodeCabang = '00';
-        $custId = null;
-        $assignedUserId = null;
-        if ($conv) {
-            $conversationId = (int) ($conv->id ?? 0);
-            $kodeCabang = $conv->code ?? '00';
-            $custId = $conv->cust_id ?? null;
-            $assignedUserId = $conv->assigned_user_id ?? null;
-            $db->update('wa_conversations', [
-                'last_message' => 'o- ' . mb_substr($message, 0, 50),
-                'last_message_at' => $now,
-                'updated_at' => $now,
-            ], ['wa_number' => $conv->wa_number]);
-        }
-
-        CrmChatMergeHelper::pushWebSocket([
-            'type' => 'agent_message_sent',
-            'target_id' => '0',
-            'notify' => false,
-            'conversation_id' => $conversationId,
-            'phone' => $waNumber,
-            'contact_name' => $conv->contact_name ?? null,
-            'kode_cabang' => $kodeCabang,
-            'cust_id' => $custId,
-            'assignment_user_id' => $assignedUserId,
-            'message' => [
-                'id' => $localId !== null ? ('F-' . $localId) : null,
-                'wamid' => $fonnteId !== null ? (string) $fonnteId : null,
-                'text' => $message,
-                'type' => 'text',
-                'sender_code' => $code,
-                'quoted_message_id' => !empty($options['inboxid']) ? (string) $options['inboxid'] : null,
-                'time' => $now,
-                'status' => 'sent',
-                'provider' => 'F',
-            ],
-        ]);
-
-        $this->success([
-            'local_id' => $localId,
-            'message_id' => $fonnteId,
-            'channel' => 'fonnte',
-            'provider' => 'F',
-        ], 'Reply sent via Fonnte');
+        $this->error('Personal chat via Fonnte is disabled. Use YCloud line (admin/cs).', 410);
     }
+
     public function markRead()
     {
        try {
@@ -1414,23 +1269,26 @@ class Chat extends Controller
             $phone = $body['phone'] ?? null;
             $userId = $body['user_id'] ?? null;
             $caption = $body['caption'] ?? '';
-            $channelReq = $body['channel'] ?? 'auto';
-            
+            $channelReq = $body['channel'] ?? $body['line_key'] ?? 'auto';
+
             if (!$phone) {
                 $this->error('Missing phone number');
             }
-            
+
             $db = $this->db(0);
             $this->assertAdminCanReply($db, $body['user_id'] ?? null);
 
             if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
                 require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
             }
+            if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WaLineResolver.php';
+            }
 
             $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
-            $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
-            if ($channel === null) {
-                $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send image.', 400);
+            $lineKey = CrmChatMergeHelper::resolveReplyLine($csw, is_string($channelReq) ? $channelReq : 'auto');
+            if ($lineKey === null) {
+                $this->error('Customer Service Window (CSW) expired for all lines. Cannot send image.', 400);
             }
 
             $senderCode = $body['sender_code'] ?? null;
@@ -1449,11 +1307,6 @@ class Chat extends Controller
             
             $mediaUrl = $uploaded['url'];
 
-            if ($channel === 'fonnte') {
-                $this->sendMediaViaFonnte($db, (string) $phone, $mediaUrl, (string) $caption, $senderCode, $uploaded['path'] ?? null, 'image');
-                return;
-            }
-
             $conv = CrmChatMergeHelper::findWaConversation($db, (string) $phone);
             if (!$conv) {
                 $this->error('Conversation not found');
@@ -1467,7 +1320,7 @@ class Chat extends Controller
             
             try {
                 $waService = new \App\Helpers\CRM\WhatsAppService();
-                $result = $waService->sendImage($waNumber, $mediaUrl, $caption, $senderCode);
+                $result = $waService->sendImage($waNumber, $mediaUrl, $caption, $senderCode, $lineKey);
                 
             } catch (\Throwable $e) {
                 \Log::write("CRITICAL ERROR calling sendImage: " . $e->getMessage(), 'cms_error', 'Chat');
@@ -1525,9 +1378,10 @@ class Chat extends Controller
                     'local_id' => $msgId,
                     'media_url' => $mediaUrl,
                     'wamid' => $result['data']['wamid'] ?? null,
-                    'channel' => 'ycloud',
-                    'provider' => 'Y',
-                ], 'Image sent successfully');
+                    'line_key' => $lineKey,
+                    'channel' => $lineKey,
+                    'provider' => $lineKey,
+                ] + \App\Helpers\CRM\WaLineResolver::messageApiFields($lineKey), 'Image sent successfully');
             } else {
                 $this->error($result['error'] ?? 'Failed to send image', 500);
             }
@@ -1552,7 +1406,7 @@ class Chat extends Controller
             $phone = $body['phone'] ?? null;
             $userId = $body['user_id'] ?? null;
             $caption = $body['caption'] ?? '';
-            $channelReq = $body['channel'] ?? 'auto';
+            $channelReq = $body['channel'] ?? $body['line_key'] ?? 'auto';
 
             if (!$phone) {
                 $this->error('Missing phone number');
@@ -1566,9 +1420,9 @@ class Chat extends Controller
             }
 
             $csw = CrmChatMergeHelper::getCswStatus($db, (string) $phone);
-            $channel = CrmChatMergeHelper::resolveReplyChannel($csw, is_string($channelReq) ? $channelReq : 'auto');
-            if ($channel === null) {
-                $this->error('Customer Service Window (CSW) expired for yCloud and Fonnte. Cannot send video.', 400);
+            $lineKey = CrmChatMergeHelper::resolveReplyLine($csw, is_string($channelReq) ? $channelReq : 'auto');
+            if ($lineKey === null) {
+                $this->error('Customer Service Window (CSW) expired for all lines. Cannot send video.', 400);
             }
 
             $senderCode = $body['sender_code'] ?? null;
@@ -1586,11 +1440,6 @@ class Chat extends Controller
 
             $mediaUrl = $uploaded['url'];
 
-            if ($channel === 'fonnte') {
-                $this->sendMediaViaFonnte($db, (string) $phone, $mediaUrl, (string) $caption, $senderCode, $uploaded['path'] ?? null, 'video');
-                return;
-            }
-
             $conv = CrmChatMergeHelper::findWaConversation($db, (string) $phone);
             if (!$conv) {
                 $this->error('Conversation not found');
@@ -1603,7 +1452,7 @@ class Chat extends Controller
 
             try {
                 $waService = new \App\Helpers\CRM\WhatsAppService();
-                $result = $waService->sendVideo($waNumber, $mediaUrl, $caption, $senderCode);
+                $result = $waService->sendVideo($waNumber, $mediaUrl, $caption, $senderCode, $lineKey);
             } catch (\Throwable $e) {
                 \Log::write('CRITICAL ERROR calling sendVideo: ' . $e->getMessage(), 'cms_error', 'Chat');
                 $this->error('WhatsApp API error: ' . $e->getMessage(), 500);
@@ -1647,9 +1496,10 @@ class Chat extends Controller
                     'local_id' => $msgId,
                     'media_url' => $mediaUrl,
                     'wamid' => $result['data']['wamid'] ?? null,
-                    'channel' => 'ycloud',
-                    'provider' => 'Y',
-                ], 'Video sent successfully');
+                    'line_key' => $lineKey,
+                    'channel' => $lineKey,
+                    'provider' => $lineKey,
+                ] + \App\Helpers\CRM\WaLineResolver::messageApiFields($lineKey), 'Video sent successfully');
             } else {
                 $this->error($result['error'] ?? 'Failed to send video', 500);
             }
@@ -1660,127 +1510,11 @@ class Chat extends Controller
     }
 
     /**
-     * Kirim media (gambar/video) via Fonnte (CSW Fonnte terbuka).
+     * @deprecated Fonnte personal chat removed
      */
     private function sendMediaViaFonnte($db, string $phone, string $mediaUrl, string $caption, ?string $senderCode, ?string $localPath, string $mediaType = 'image'): void
     {
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-            require_once __DIR__ . '/../../Helpers/CRM/FonnteService.php';
-        }
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
-            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
-        }
-        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
-            require_once __DIR__ . '/../../Helpers/CRM/SapaanStatsHelper.php';
-        }
-
-        $mediaType = $mediaType === 'video' ? 'video' : 'image';
-        $defaultExt = $mediaType === 'video' ? 'video.mp4' : 'image.jpg';
-        $filename = null;
-        if ($localPath && is_file($localPath)) {
-            $filename = basename($localPath);
-        } elseif ($mediaUrl !== '') {
-            $filename = basename(parse_url($mediaUrl, PHP_URL_PATH) ?: $defaultExt);
-        }
-
-        $fonnte = new \App\Helpers\CRM\FonnteService();
-        $options = ['url' => $mediaUrl];
-        if ($filename) {
-            $options['filename'] = $filename;
-        }
-
-        $messageText = $caption !== '' ? $caption : ' ';
-        $result = $fonnte->sendMessage($phone, $messageText, $options);
-        if (empty($result['success'])) {
-            $label = $mediaType === 'video' ? 'video' : 'image';
-            $this->error('Failed to send ' . $label . ' via Fonnte: ' . ($result['error'] ?? 'Unknown error'), 500);
-        }
-
-        $waNumber = CrmChatMergeHelper::normalizeWaNumber($phone);
-        $code = ($senderCode !== null && trim($senderCode) !== '')
-            ? trim($senderCode)
-            : \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
-        $isHuman = \App\Helpers\CRM\SapaanStatsHelper::isHumanSenderCode($code);
-
-        $statsFallback = $mediaType === 'video' ? '🎥 Video' : '📷 Image';
-        $lastPreview = $mediaType === 'video' ? 'o- 🎥 Video' : 'o- 📷 Image';
-
-        $store = new \App\Helpers\CRM\FonnteMessageStore($db);
-        $responseData = is_array($result['data'] ?? null) ? $result['data'] : null;
-        $fonnteId = \App\Helpers\CRM\FonnteService::extractMessageId($responseData);
-        $stateId = \App\Helpers\CRM\FonnteService::extractStateId($responseData);
-        $localId = $store->saveOutgoing($waNumber, trim($caption), [
-            'type' => $mediaType,
-            'media_url' => $mediaUrl,
-            'fonnte_message_id' => $fonnteId,
-            'fonnte_stateid' => $stateId,
-            'source' => $isHuman ? 'human' : 'autoreply',
-            'sender_code' => $code,
-            'status' => 'sent',
-        ]);
-
-        if ($isHuman) {
-            try {
-                \App\Helpers\CRM\SapaanStatsHelper::recordStatsIfHuman(
-                    $db,
-                    $waNumber,
-                    trim($caption) !== '' ? trim($caption) : $statsFallback,
-                    $code
-                );
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        }
-
-        $now = date('Y-m-d H:i:s');
-        $conv = CrmChatMergeHelper::findWaConversation($db, $phone);
-        $conversationId = 0;
-        $kodeCabang = '00';
-        $custId = null;
-        $assignedUserId = null;
-        if ($conv) {
-            $conversationId = (int) ($conv->id ?? 0);
-            $kodeCabang = $conv->code ?? '00';
-            $custId = $conv->cust_id ?? null;
-            $assignedUserId = $conv->assigned_user_id ?? null;
-            $db->update('wa_conversations', [
-                'last_message' => $lastPreview,
-                'last_message_at' => $now,
-                'updated_at' => $now,
-            ], ['wa_number' => $conv->wa_number]);
-        }
-
-        CrmChatMergeHelper::pushWebSocket([
-            'type' => 'agent_message_sent',
-            'target_id' => '0',
-            'notify' => false,
-            'conversation_id' => $conversationId,
-            'phone' => $waNumber,
-            'contact_name' => $conv->contact_name ?? null,
-            'kode_cabang' => $kodeCabang,
-            'cust_id' => $custId,
-            'assignment_user_id' => $assignedUserId,
-            'message' => [
-                'id' => $localId !== null ? ('F-' . $localId) : null,
-                'wamid' => $fonnteId !== null ? (string) $fonnteId : null,
-                'text' => $caption,
-                'type' => $mediaType,
-                'media_url' => $mediaUrl,
-                'sender_code' => $code,
-                'time' => $now,
-                'status' => 'sent',
-                'provider' => 'F',
-            ],
-        ]);
-
-        $successMsg = $mediaType === 'video' ? 'Video sent via Fonnte' : 'Image sent via Fonnte';
-        $this->success([
-            'local_id' => $localId,
-            'media_url' => $mediaUrl,
-            'message_id' => $fonnteId,
-            'channel' => 'fonnte',
-            'provider' => 'F',
-        ], $successMsg);
+        $this->error('Personal chat via Fonnte is disabled. Use YCloud line (admin/cs).', 410);
     }
 
     /**

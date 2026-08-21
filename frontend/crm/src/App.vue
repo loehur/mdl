@@ -568,6 +568,8 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             .toUpperCase();
           convo.color = getAvatarColor(c.id);
           convo.status = c.status;
+          convo.line_csw = c.line_csw || {};
+          convo.default_reply_line = c.default_reply_line || null;
           convo.ycloud_open = !!c.ycloud_open;
           convo.fonnte_open = !!c.fonnte_open;
           convo.default_reply_channel = c.default_reply_channel || null;
@@ -597,10 +599,12 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
               .toUpperCase(),
             color: getAvatarColor(c.id),
             status: c.status,
-            ycloud_open: !!c.ycloud_open,
-            fonnte_open: !!c.fonnte_open,
-            default_reply_channel: c.default_reply_channel || null,
-            can_reply: c.can_reply ?? (!!c.ycloud_open || !!c.fonnte_open),
+      ycloud_open: !!(c.line_csw?.cs?.open ?? c.ycloud_open),
+      fonnte_open: !!(c.line_csw?.admin?.open ?? c.fonnte_open),
+      line_csw: c.line_csw || {},
+      default_reply_line: c.default_reply_line || null,
+      default_reply_channel: c.default_reply_channel || null,
+      can_reply: c.can_reply ?? (!!(c.line_csw?.cs?.open ?? c.ycloud_open) || !!(c.line_csw?.admin?.open ?? c.fonnte_open)),
             lastMessage:
               c.last_message || c.last_message_text || "No messages yet",
             lastTime: formatLastTime(c.last_message_time),
@@ -1229,15 +1233,44 @@ const mediaTypeLastMessageLabel = (type) => {
 const isMediaMessage = (m) =>
   ["image", "video", "audio", "document", "sticker"].includes(m?.type);
 
-const isProviderPrefixedId = (id) => /^[FY]-\d+$/.test(String(id || ""));
+const LINE_ADMIN = "admin";
+const LINE_CS = "cs";
 
-/** YCloud WS historically sent numeric DB id; getMessages sends Y-{id} / F-{id}. */
+const providerToLineKey = (provider) => {
+  if (provider === LINE_ADMIN || provider === "F" || provider === "A") return LINE_ADMIN;
+  if (provider === LINE_CS || provider === "Y" || provider === "B") return LINE_CS;
+  const s = String(provider || "");
+  if (s.startsWith("admin")) return LINE_ADMIN;
+  if (s.startsWith("cs")) return LINE_CS;
+  return LINE_CS;
+};
+
+const isProviderPrefixedId = (id) => /^(admin|cs|F|Y)-\d+$/.test(String(id || ""));
+
+/** WS/getMessages: admin-{id} / cs-{id} (legacy F-/Y-). */
 const resolveMessageProvider = (provider, id) => {
-  if (provider === "F" || provider === "Y") return provider;
   const s = String(id || "");
-  if (s.startsWith("F-")) return "F";
-  if (s.startsWith("Y-")) return "Y";
-  return "Y";
+  if (s.startsWith("admin-") || s.startsWith("F-")) return LINE_ADMIN;
+  if (s.startsWith("cs-") || s.startsWith("Y-")) return LINE_CS;
+  if (provider === LINE_ADMIN || provider === LINE_CS) return provider;
+  if (provider === "F" || provider === "Y") return providerToLineKey(provider);
+  return LINE_CS;
+};
+
+const applyLineCswOpen = (conversation, messageData) => {
+  const lineKey = messageData?.line_key || providerToLineKey(messageData?.provider);
+  const label = messageData?.line_label || (lineKey === LINE_ADMIN ? "A" : "B");
+  if (!conversation.line_csw) conversation.line_csw = {};
+  conversation.line_csw[lineKey] = {
+    ...(conversation.line_csw[lineKey] || {}),
+    open: true,
+    line_label: label,
+  };
+  conversation.ycloud_open = !!conversation.line_csw[LINE_CS]?.open;
+  conversation.fonnte_open = !!conversation.line_csw[LINE_ADMIN]?.open;
+  conversation.default_reply_line = lineKey;
+  conversation.default_reply_channel = lineKey === LINE_ADMIN ? "fonnte" : "ycloud";
+  conversation.can_reply = conversation.ycloud_open || conversation.fonnte_open;
 };
 
 const canonicalMessageId = (id, provider) => {
@@ -1482,7 +1515,9 @@ const fetchMessages = async (phone, offset = 0, limit = 20) => {
           sender_code: m.sender_code,
           quoted_message_id: m.quoted_message_id || null,
           quoted_message_body: m.quoted_message_body || null,
-          provider: m.provider === "F" ? "F" : "Y",
+          provider: resolveMessageProvider(m.provider, m.id),
+          line_key: m.line_key || resolveMessageProvider(m.provider, m.id),
+          line_label: m.line_label || (resolveMessageProvider(m.provider, m.id) === LINE_ADMIN ? "A" : "B"),
         };
       });
 
@@ -2927,30 +2962,22 @@ const handleIncomingMessage = (payload) => {
       initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
       color: getAvatarColor(conversationId),
       status: payload.status || "open",
-      ycloud_open: messageData.provider !== "F",
-      fonnte_open: messageData.provider === "F",
-      default_reply_channel: messageData.provider === "F" ? "fonnte" : "ycloud",
+      ycloud_open: messageData.line_key ? messageData.line_key === LINE_CS : messageData.provider !== "F" && messageData.provider !== LINE_ADMIN,
+      fonnte_open: messageData.line_key ? messageData.line_key === LINE_ADMIN : messageData.provider === "F" || messageData.provider === LINE_ADMIN,
+      line_csw: {},
+      default_reply_line: messageData.line_key || providerToLineKey(messageData.provider),
+      default_reply_channel: (messageData.line_key || providerToLineKey(messageData.provider)) === LINE_ADMIN ? "fonnte" : "ycloud",
       can_reply: true,
       messages: [],
       unread: 0,
     };
     conversations.value.unshift(conversation);
+    applyLineCswOpen(conversation, messageData);
   } else {
     // Inbound message always re-opens CSW (DB already set status=open before WS push)
     if (sender === "customer" || payload.type === "wa_masuk") {
       conversation.status = payload.status || "open";
-      if (messageData.provider === "F") {
-        conversation.fonnte_open = true;
-        conversation.default_reply_channel = conversation.ycloud_open
-          ? conversation.default_reply_channel || "fonnte"
-          : "fonnte";
-      } else {
-        conversation.ycloud_open = true;
-        if (!conversation.fonnte_open) {
-          conversation.default_reply_channel = "ycloud";
-        }
-      }
-      conversation.can_reply = !!(conversation.ycloud_open || conversation.fonnte_open);
+      applyLineCswOpen(conversation, messageData);
     } else if (payload.status) {
       conversation.status = payload.status;
     }
@@ -3002,7 +3029,7 @@ const handleIncomingMessage = (payload) => {
     }
   }
 
-  const msgProvider = messageData.provider === "F" ? "F" : "Y";
+  const msgProvider = resolveMessageProvider(messageData.provider, messageData.id);
   const newMsg = {
     id: canonicalMessageId(messageData.id, msgProvider) || Date.now(),
     wamid: messageData.wamid, // WhatsApp Message ID
@@ -3636,8 +3663,7 @@ const connectWebSocket = () => {
               }
 
               // Add new message (from another agent/device / system outbound)
-              const outProvider =
-                messageData.provider === "F" ? "F" : "Y";
+              const outProvider = resolveMessageProvider(messageData.provider, messageData.id);
               const newMsg = {
                 id:
                   canonicalMessageId(messageData.id, outProvider) ||
@@ -4181,6 +4207,8 @@ const resumeChatState = async () => {
             .toUpperCase();
           convo.color = getAvatarColor(c.id);
           convo.status = c.status;
+          convo.line_csw = c.line_csw || {};
+          convo.default_reply_line = c.default_reply_line || null;
           convo.ycloud_open = !!c.ycloud_open;
           convo.fonnte_open = !!c.fonnte_open;
           convo.default_reply_channel = c.default_reply_channel || null;

@@ -92,11 +92,11 @@ class WhatsAppService
         }
     }
 
-    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null)
+    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null, $lineKey = null)
     {
         $externalIdToUse = !empty($externalId) ? (string)$externalId : $this->generateExternalId();
         $payload = [
-            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'from' => $this->formatPhoneNumber($this->resolveFromPhone($lineKey)),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'text',
             // Recommended id to reconcile webhook status with internal systems
@@ -113,10 +113,10 @@ class WhatsAppService
             ];
         }
         
-        return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode);
+        return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode, $lineKey);
     }
     
-    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null)
+    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null, $lineKey = null)
     {        
         $components = [];
         
@@ -144,7 +144,7 @@ class WhatsAppService
         }
         
         $payload = [
-            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'from' => $this->formatPhoneNumber($this->resolveFromPhone($lineKey)),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'template',
             'template' => [
@@ -547,6 +547,24 @@ class WhatsAppService
         // Default to adding + if missing
         return '+' . $phone;
     }
+
+    /**
+     * Nomor bisnis pengirim (from) berdasarkan line_key config.
+     */
+    public function resolveFromPhone(?string $lineKey = null): string
+    {
+        if ($lineKey !== null && trim($lineKey) !== '') {
+            if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+                require_once __DIR__ . '/WaLineResolver.php';
+            }
+            $line = \App\Helpers\CRM\WaLineResolver::fromLineKey($lineKey);
+            if ($line && !empty($line['phone'])) {
+                return $line['phone'];
+            }
+        }
+
+        return $this->whatsappNumber;
+    }
     
     /**
      * Send HTTP request to yCloud API
@@ -559,7 +577,7 @@ class WhatsAppService
      * @param string|null $senderCode Optional sender code
      * @return array API response
      */
-    private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null, $replyToMessageId = null, $senderCode = null)
+    private function sendRequest($endpoint, $payload, $method = 'POST', $messageText = null, $replyToMessageId = null, $senderCode = null, $lineKey = null)
     {
         $url = $this->baseUrl . $endpoint;
         $maxAttempts = 3;
@@ -597,7 +615,7 @@ class WhatsAppService
             if ($success && isset($responseData['id'])) {
                 $localId = null;
                 try {
-                    $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId);
+                    $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId, $lineKey);
                 } catch (\Throwable $e) {
                     if (class_exists('\Log')) {
                         \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -796,7 +814,7 @@ class WhatsAppService
      * @param string|null $senderCode Sender code
      * @param string|null $quotedMessageId Quoted/reply-to message ID
      */
-    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null, $quotedMessageId = null)
+    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null, $quotedMessageId = null, $lineKey = null)
     {       
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
@@ -992,9 +1010,19 @@ class WhatsAppService
             $isPrivate = $this->checkPrivateWords($content ?? '', $messageText ?? '', $lastMessageText ?? '', 'db_insert', $templateName);
 
             // Save outbound message to wa_messages_out
+            $fromRaw = $payload['from'] ?? $this->resolveFromPhone($lineKey);
+            if (!class_exists('\\App\\Config\\WaLines')) {
+                require_once __DIR__ . '/../../Config/WaLines.php';
+            }
+            $businessPhone = \App\Config\WaLines::normalizeE164((string) $fromRaw);
+            if ($businessPhone === '') {
+                $businessPhone = \App\Config\WaLines::defaultLine()['phone'];
+            }
+
             $messageData = [
                 // 'conversation_id' => $conversationId, // Removed as column deleted
                 'phone' => $waNumber,
+                'business_phone' => $businessPhone,
                 'wamid' => $wamid,
                 'message_id' => $messageId,
                 'type' => $messageType, // Direct use - no mapping needed if column is VARCHAR
@@ -1075,6 +1103,16 @@ class WhatsAppService
                     
                     // Log WebSocket push with quote info
 
+                    if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+                        require_once __DIR__ . '/WaLineResolver.php';
+                    }
+                    $wsLineKey = $lineKey;
+                    if ($wsLineKey === null || $wsLineKey === '') {
+                        $resolved = \App\Helpers\CRM\WaLineResolver::fromBusinessPhoneOrDefault($businessPhone);
+                        $wsLineKey = $resolved['key'];
+                    }
+                    $wsLineMeta = \App\Helpers\CRM\WaLineResolver::messageApiFields($wsLineKey);
+
                     $wsPayload = [
                         'type' => 'agent_message_sent',
                         'target_id' => '0', // Broadcast — wa_server filters crew by assignment_user_id
@@ -1087,7 +1125,7 @@ class WhatsAppService
                         'assignment_user_id' => $wsAssignedUserId,
                         'sender_id' => 0, // System/Auto = 0, or can be passed as parameter
                         'message' => [
-                            'id' => $msgId, // Use local DB ID
+                            'id' => $wsLineKey . '-' . $msgId,
                             'wamid' => $wamid,
                             'text' => $content,
                             'type' => $messageType,
@@ -1096,7 +1134,11 @@ class WhatsAppService
                             'quoted_message_id' => $quotedMessageId, // Reply-to reference
                             'quoted_message_body' => $quotedMessageBody, // Quoted message content
                             'time' => date('Y-m-d H:i:s'),
-                            'status' => 'sent'
+                            'status' => 'sent',
+                            'line_key' => $wsLineKey,
+                            'business_phone' => $businessPhone,
+                            'line_label' => $wsLineMeta['line_label'] ?? null,
+                            'provider' => $wsLineKey,
                         ]
                     ];
                     
@@ -1181,12 +1223,12 @@ class WhatsAppService
      * @param string $caption Optional caption
      * @return array Response with success status and data
      */
-    public function sendImage($to, $imageUrl, $caption = '', $senderCode = null)
+    public function sendImage($to, $imageUrl, $caption = '', $senderCode = null, $lineKey = null)
     {
 
         
         $payload = [
-            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'from' => $this->formatPhoneNumber($this->resolveFromPhone($lineKey)),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'image',
             'image' => [
@@ -1200,7 +1242,7 @@ class WhatsAppService
         
         try {
             // Use correct YCloud endpoint: /whatsapp/messages
-            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, null, $senderCode);
+            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, null, $senderCode, $lineKey);
             
             // Parse response - check http_code (underscore, not camelCase!)
             if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {
@@ -1256,10 +1298,10 @@ class WhatsAppService
      * @param string $caption Optional caption
      * @return array Response with success status and data
      */
-    public function sendVideo($to, $videoUrl, $caption = '', $senderCode = null)
+    public function sendVideo($to, $videoUrl, $caption = '', $senderCode = null, $lineKey = null)
     {
         $payload = [
-            'from' => $this->formatPhoneNumber($this->whatsappNumber),
+            'from' => $this->formatPhoneNumber($this->resolveFromPhone($lineKey)),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'video',
             'video' => [
@@ -1272,7 +1314,7 @@ class WhatsAppService
         }
 
         try {
-            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', $caption ?: null, null, $senderCode);
+            $response = $this->sendRequest('/whatsapp/messages', $payload, 'POST', $caption ?: null, null, $senderCode, $lineKey);
 
             if ($response['success'] && ($response['http_code'] == 200 || $response['http_code'] == 201)) {
                 $data = $response['data'];

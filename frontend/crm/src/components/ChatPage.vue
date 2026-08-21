@@ -182,36 +182,62 @@ const resolveableCases = computed(() => {
   return [];
 });
 
+const LINE_ADMIN = "admin";
+const LINE_CS = "cs";
+
+const lineCswRow = (key) => {
+  const lc = props.activeConversation?.line_csw?.[key];
+  if (lc) return lc;
+  if (key === LINE_CS && props.activeConversation?.ycloud_open != null) {
+    return { open: !!props.activeConversation.ycloud_open, line_label: "B" };
+  }
+  if (key === LINE_ADMIN && props.activeConversation?.fonnte_open != null) {
+    return { open: !!props.activeConversation.fonnte_open, line_label: "A" };
+  }
+  return { open: false, line_label: key === LINE_ADMIN ? "A" : "B" };
+};
+
+const lineOpen = (key) => !!lineCswRow(key).open;
+
+const lineLabel = (key) => lineCswRow(key).line_label || (key === LINE_ADMIN ? "A" : "B");
+
 const cswOpen = computed(() => {
   if (!props.activeConversation) return false;
   if (props.activeConversation.can_reply === true) return true;
   if (props.activeConversation.can_reply === false) return false;
-  return !!(props.activeConversation.ycloud_open || props.activeConversation.fonnte_open);
+  return lineOpen(LINE_ADMIN) || lineOpen(LINE_CS);
 });
 
 const canReplyChat = computed(() => {
   return props.currentUserRole === "admin" && cswOpen.value;
 });
 
-const bothChannelsOpen = computed(() => {
+const bothLinesOpen = computed(() => {
   if (!props.activeConversation) return false;
-  return !!(props.activeConversation.ycloud_open && props.activeConversation.fonnte_open);
+  return lineOpen(LINE_ADMIN) && lineOpen(LINE_CS);
 });
 
-const replyChannel = ref("auto");
+const replyLine = ref("auto");
 
 watch(
   () => props.activeConversation?.id,
   () => {
+    const ln = props.activeConversation?.default_reply_line;
+    if (ln === LINE_ADMIN || ln === LINE_CS) {
+      replyLine.value = ln;
+      return;
+    }
     const ch = props.activeConversation?.default_reply_channel;
-    replyChannel.value = ch === "fonnte" || ch === "ycloud" ? ch : "ycloud";
+    replyLine.value = ch === "fonnte" ? LINE_ADMIN : ch === "ycloud" ? LINE_CS : LINE_CS;
   },
   { immediate: true }
 );
 
 const providerTag = (msg) => {
-  if (!msg?.provider) return "";
-  return msg.provider === "F" ? "F" : "Y";
+  if (msg?.line_label) return msg.line_label;
+  if (msg?.line_key === LINE_ADMIN || msg?.provider === LINE_ADMIN || msg?.provider === "F") return "A";
+  if (msg?.line_key === LINE_CS || msg?.provider === LINE_CS || msg?.provider === "Y") return "B";
+  return "";
 };
 
 // Check if user is admin
@@ -418,7 +444,9 @@ const sendMessage = async () => {
       quoted_message_id: replyingTo?.wamid || null,
       quoted_message_body: replyingTo?.text || replyingTo?.caption || null,
       sender_code: props.senderCode || localStorage.getItem("cms_chat_sender_code") || "",
-      provider: replyChannel.value === "fonnte" ? "F" : "Y",
+      provider: replyLine.value === LINE_ADMIN ? LINE_ADMIN : LINE_CS,
+      line_key: replyLine.value === LINE_ADMIN ? LINE_ADMIN : LINE_CS,
+      line_label: lineLabel(replyLine.value === LINE_ADMIN ? LINE_ADMIN : LINE_CS),
     };
 
     props.activeConversation.messages.push(newMsg);
@@ -436,19 +464,23 @@ const sendMessage = async () => {
         body: JSON.stringify({
           phone: props.activeConversation.wa_number, message: text, user_id: props.authId,
           sender_code: props.senderCode, reply_to: replyingTo?.wamid || null,
-          channel: bothChannelsOpen.value ? replyChannel.value : "auto",
+          channel: bothLinesOpen.value ? replyLine.value : "auto",
+          line_key: bothLinesOpen.value ? replyLine.value : "auto",
         }),
       }).then(r => r.json());
 
       // Use object reference (not find-by-id) — polling/sanitize may change id mid-flight
       if (res.status) {
-        const sentProvider = res.data?.provider === "F" ? "F" : "Y";
+        const sentLine = res.data?.line_key || res.data?.provider || LINE_CS;
+        const sentLabel = res.data?.line_label || lineLabel(sentLine);
         bumpMessageStatus(newMsg, "sent", {
-          ...(res.data?.local_id != null ? { id: sentProvider + "-" + res.data.local_id } : {}),
+          ...(res.data?.local_id != null ? { id: sentLine + "-" + res.data.local_id } : {}),
           ...(res.data?.wamid || res.data?.id || res.data?.message_id
             ? { wamid: res.data.wamid || res.data.id || res.data.message_id }
             : {}),
-          provider: sentProvider,
+          provider: sentLine,
+          line_key: sentLine,
+          line_label: sentLabel,
         });
       } else {
         bumpMessageStatus(newMsg, "failed");
@@ -486,7 +518,7 @@ const sendImage = async () => {
     showImagePreview.value = false;
 
     const tempId = Date.now();
-    const sentProvider = replyChannel.value === "fonnte" ? "F" : "Y";
+    const sentLine = replyLine.value === LINE_ADMIN ? LINE_ADMIN : LINE_CS;
     const newMsg = {
       id: tempId,
       text: caption || "",
@@ -497,7 +529,9 @@ const sendImage = async () => {
       rawTime: formatLocalDateTime(),
       sender_code: props.senderCode,
       status: "pending",
-      provider: sentProvider,
+      provider: sentLine,
+      line_key: sentLine,
+      line_label: lineLabel(sentLine),
     };
     props.activeConversation.messages.push(newMsg);
     props.activeConversation.lastMessage = isVideo ? "You: 🎥 Video" : "You: 📷 Image";
@@ -510,13 +544,14 @@ const sendImage = async () => {
         formData.append("phone", props.activeConversation.wa_number);
         formData.append("user_id", props.authId);
         formData.append("sender_code", props.senderCode);
-        formData.append("channel", bothChannelsOpen.value ? replyChannel.value : "auto");
+        formData.append("channel", bothLinesOpen.value ? replyLine.value : "auto");
+        formData.append("line_key", bothLinesOpen.value ? replyLine.value : "auto");
         if(caption) formData.append("caption", caption);
 
         const endpoint = isVideo ? "sendVideo" : "sendImage";
         const res = await fetch(`${props.API_BASE}/CRM/Chat/${endpoint}`, { method: "POST", body: formData }).then(r => r.json());
         if (res.status) {
-            const provider = res.data?.provider === "F" ? "F" : "Y";
+            const provider = res.data?.line_key || res.data?.provider || sentLine;
             const localId = res.data?.local_id;
             bumpMessageStatus(newMsg, "sent", {
               ...(localId != null ? { id: provider + "-" + localId } : {}),
@@ -525,6 +560,8 @@ const sendImage = async () => {
                 ? { wamid: res.data.wamid || res.data.message_id || res.data.id }
                 : {}),
               provider,
+              line_key: provider,
+              line_label: res.data?.line_label || lineLabel(provider),
               type: isVideo ? "video" : "image",
             });
         } else {
@@ -1486,23 +1523,23 @@ onUnmounted(() => {
 
              <!-- Active Chat Input (CSW yCloud and/or Fonnte open) -->
              <div class="flex flex-col gap-2">
-             <div v-if="bothChannelsOpen" class="flex items-center gap-2 text-xs">
+             <div v-if="bothLinesOpen" class="flex items-center gap-2 text-xs">
                <span class="text-[var(--wa-text-tertiary)]">Kirim via:</span>
                <button
                  type="button"
-                 @click="replyChannel = 'ycloud'"
+                 @click="replyLine = LINE_ADMIN"
                  class="px-2 py-1 rounded-md border transition-colors"
-                 :class="replyChannel === 'ycloud' ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
-               >~Y</button>
+                 :class="replyLine === LINE_ADMIN ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
+               >~{{ lineLabel(LINE_ADMIN) }}</button>
                <button
                  type="button"
-                 @click="replyChannel = 'fonnte'"
+                 @click="replyLine = LINE_CS"
                  class="px-2 py-1 rounded-md border transition-colors"
-                 :class="replyChannel === 'fonnte' ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
-               >~F</button>
+                 :class="replyLine === LINE_CS ? 'border-[var(--wa-accent-green)] text-[var(--wa-accent-green)] bg-[var(--wa-hover)]' : 'border-[var(--wa-border)] text-[var(--wa-text-secondary)]'"
+               >~{{ lineLabel(LINE_CS) }}</button>
              </div>
-             <div v-else-if="activeConversation.fonnte_open && !activeConversation.ycloud_open" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW Fonnte (~F)</div>
-             <div v-else-if="activeConversation.ycloud_open && !activeConversation.fonnte_open" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW yCloud (~Y)</div>
+             <div v-else-if="lineOpen(LINE_ADMIN) && !lineOpen(LINE_CS)" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW Line ~{{ lineLabel(LINE_ADMIN) }}</div>
+             <div v-else-if="lineOpen(LINE_CS) && !lineOpen(LINE_ADMIN)" class="text-[10px] text-[var(--wa-text-tertiary)]">CSW Line ~{{ lineLabel(LINE_CS) }}</div>
              <div class="flex gap-2 items-end">
                   <!-- Attachment buttons (left side) -->
                   <div class="flex items-center gap-2">

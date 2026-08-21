@@ -49,7 +49,13 @@ class Env
     // -------------------------------------------------------------------------
     const WA_VERIFY_TOKEN = 'change-me-wa-verify-token';   // Webhook verify token
     const WA_API_KEY = 'change-me-ycloud-api-key';          // API key YCloud
-    const WA_PHONE_NUMBER = '+628xxxxxxxxxx';              // Nomor WA bisnis (E.164)
+    const WA_PHONE_NUMBER = '+628xxxxxxxxxx';              // Nomor WA bisnis legacy (alias line CS)
+    const WA_LINE_ADMIN_PHONE = '+628117686252';           // Line admin (YCloud)
+    const WA_LINE_CS_PHONE = '+6281170706611';             // Line CS (YCloud)
+    const WA_LINE_ADMIN_LABEL = 'A';                       // Label UI — ganti tanpa migrasi DB
+    const WA_LINE_CS_LABEL = 'B';
+    const WA_LINE_ADMIN_NAME = 'Admin';
+    const WA_LINE_CS_NAME = 'CS';
     const WA_SERVER_URL = 'http://127.0.0.1:3003/incoming'; // Node wa_server
 
     // Node maps_server — resolve URL Google Maps → lat/lng (KURIR, dll.)
@@ -73,18 +79,12 @@ class Env
         'data karyawan',
     ];
 
-    // -------------------------------------------------------------------------
-    // WhatsApp — Fonnte (self-hosted node/fonnte_server)
-    // -------------------------------------------------------------------------
+    // Fonnte: group WA only (fonnte_server POST /send). Kosongkan WEBHOOK_URL di node .env.
     const FONNTE_TOKEN = 'change-me-fonnte-token';
     // API Baileys lokal (POST /send, /device). Production VPS: http://127.0.0.1:3025
     const FONNTE_BASE_URL = 'http://127.0.0.1:3025';
-    // Referensi webhook (fonnte_server → PHP). Set di node/fonnte_server/.env WEBHOOK_URL
-    // Dev XAMPP: http://localhost/mdl/api/Webhook/WA_Fonnte
-    // Production: https://api.nalju.com/Webhook/WA_Fonnte
-    const FONNTE_WEBHOOK_URL = 'http://localhost/mdl/api/Webhook/WA_Fonnte';
-    // LID → HP map (sync dari fonnte_server). Kosong = api/data/lid_phone_map.json
-    const FONNTE_LID_MAP_FILE = '';
+    // Jangan set webhook personal — group send only
+    const FONNTE_WEBHOOK_URL = '';
 
     // -------------------------------------------------------------------------
     // WaDesk

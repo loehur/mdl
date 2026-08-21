@@ -3,7 +3,7 @@
 namespace App\Helpers\CRM;
 
 /**
- * Gabung CRM chat yCloud + Fonnte (fase 1): CSW ganda, bubble merge, routing balasan.
+ * CRM chat YCloud multi-line (business_phone) + CSW per line.
  */
 class CrmChatMergeHelper
 {
@@ -75,7 +75,7 @@ class CrmChatMergeHelper
         return null;
     }
 
-    public static function getYcloudLastInAt($db, string $phone): ?string
+    public static function getLegacyConversationLastInAt($db, string $phone): ?string
     {
         $conv = self::findWaConversation($db, $phone);
         if (!$conv || empty($conv->last_in_at)) {
@@ -85,7 +85,13 @@ class CrmChatMergeHelper
         return (string) $conv->last_in_at;
     }
 
-    public static function getFonnteLastInAt($db, string $phone): ?string
+    /** @deprecated use WaCswLine */
+    public static function getYcloudLastInAt($db, string $phone): ?string
+    {
+        return self::getLegacyConversationLastInAt($db, $phone);
+    }
+
+    public static function getLegacyFonnteCswLastInAt($db, string $phone): ?string
     {
         $clean = preg_replace('/[^0-9]/', '', $phone);
         if ($clean === '') {
@@ -114,6 +120,28 @@ class CrmChatMergeHelper
         return null;
     }
 
+    /** @deprecated use WaCswLine */
+    public static function getFonnteLastInAt($db, string $phone): ?string
+    {
+        return self::getLegacyFonnteCswLastInAt($db, $phone);
+    }
+
+    public static function getLineLastInAt($db, string $phone, string $lineKey): ?string
+    {
+        if (!class_exists(WaCswLine::class)) {
+            require_once __DIR__ . '/WaCswLine.php';
+        }
+        if (!class_exists(\App\Config\WaLines::class)) {
+            require_once __DIR__ . '/../../Config/WaLines.php';
+        }
+        $line = \App\Config\WaLines::get($lineKey);
+        if (!$line) {
+            return null;
+        }
+
+        return WaCswLine::getLastInAt($db, $phone, $line['phone']);
+    }
+
     public static function isWithinCsw(?string $lastInAt): bool
     {
         if ($lastInAt === null || $lastInAt === '') {
@@ -129,64 +157,145 @@ class CrmChatMergeHelper
 
     /**
      * @return array{
+     *   line_csw: array<string, array{open:bool,last_in_at:?string,line_label:string,line_name:string,business_phone:string}>,
+     *   default_reply_line: ?string,
+     *   can_reply: bool,
      *   ycloud_open: bool,
      *   fonnte_open: bool,
      *   last_in_at_ycloud: ?string,
      *   last_in_at_fonnte: ?string,
-     *   default_reply_channel: ?string,
-     *   can_reply: bool
+     *   default_reply_channel: ?string
      * }
      */
     public static function getCswStatus($db, string $phone): array
     {
-        $lastY = self::getYcloudLastInAt($db, $phone);
-        $lastF = self::getFonnteLastInAt($db, $phone);
-        $ycloudOpen = self::isWithinCsw($lastY);
-        $fonnteOpen = self::isWithinCsw($lastF);
+        if (!class_exists(\App\Config\WaLines::class)) {
+            require_once __DIR__ . '/../../Config/WaLines.php';
+        }
+        if (!class_exists(WaLineResolver::class)) {
+            require_once __DIR__ . '/WaLineResolver.php';
+        }
 
-        $default = null;
-        if ($ycloudOpen && !$fonnteOpen) {
-            $default = 'ycloud';
-        } elseif (!$ycloudOpen && $fonnteOpen) {
-            $default = 'fonnte';
-        } elseif ($ycloudOpen && $fonnteOpen) {
-            if ($lastF !== null && ($lastY === null || strtotime($lastF) >= strtotime($lastY))) {
-                $default = 'fonnte';
-            } else {
-                $default = 'ycloud';
+        $lineCsw = [];
+        $defaultLine = null;
+        $defaultTs = null;
+        $canReply = false;
+
+        foreach (\App\Config\WaLines::all() as $lineKey => $line) {
+            $lastIn = self::getLineLastInAt($db, $phone, $lineKey);
+            $open = self::isWithinCsw($lastIn);
+            $lineCsw[$lineKey] = [
+                'open' => $open,
+                'last_in_at' => $lastIn,
+                'line_label' => $line['short_label'],
+                'line_name' => $line['display_name'],
+                'business_phone' => $line['phone'],
+            ];
+            if ($open) {
+                $canReply = true;
+            }
+            if ($open && ($defaultTs === null || ($lastIn !== null && strtotime($lastIn) >= $defaultTs))) {
+                $defaultTs = $lastIn !== null ? strtotime($lastIn) : time();
+                $defaultLine = $lineKey;
             }
         }
 
+        if ($defaultLine === null && $canReply) {
+            foreach ($lineCsw as $key => $row) {
+                if (!empty($row['open'])) {
+                    $defaultLine = $key;
+                    break;
+                }
+            }
+        }
+
+        $admin = $lineCsw[\App\Config\WaLines::KEY_ADMIN] ?? null;
+        $cs = $lineCsw[\App\Config\WaLines::KEY_CS] ?? null;
+
         return [
-            'ycloud_open' => $ycloudOpen,
-            'fonnte_open' => $fonnteOpen,
-            'last_in_at_ycloud' => $lastY,
-            'last_in_at_fonnte' => $lastF,
-            'default_reply_channel' => $default,
-            'can_reply' => $ycloudOpen || $fonnteOpen,
+            'line_csw' => $lineCsw,
+            'default_reply_line' => $defaultLine,
+            'can_reply' => $canReply,
+            // Legacy aliases for gradual UI migration
+            'ycloud_open' => (bool) ($cs['open'] ?? false),
+            'fonnte_open' => (bool) ($admin['open'] ?? false),
+            'last_in_at_ycloud' => $cs['last_in_at'] ?? null,
+            'last_in_at_fonnte' => $admin['last_in_at'] ?? null,
+            'default_reply_channel' => $defaultLine === \App\Config\WaLines::KEY_ADMIN ? 'fonnte'
+                : ($defaultLine === \App\Config\WaLines::KEY_CS ? 'ycloud' : null),
         ];
     }
 
     /**
-     * @param 'auto'|'ycloud'|'fonnte'|null $requested
-     * @return 'ycloud'|'fonnte'|null
+     * @param 'auto'|string|null $requested line_key, business_phone, or legacy ycloud/fonnte
+     * @return string|null line_key
      */
+    public static function resolveReplyLine(array $csw, ?string $requested): ?string
+    {
+        if (!class_exists(WaLineResolver::class)) {
+            require_once __DIR__ . '/WaLineResolver.php';
+        }
+
+        $req = $requested !== null ? trim($requested) : 'auto';
+        if ($req === '' || strtolower($req) === 'auto') {
+            $def = $csw['default_reply_line'] ?? null;
+
+            return is_string($def) && $def !== '' ? $def : null;
+        }
+
+        $line = WaLineResolver::fromRequest($req);
+        if (!$line) {
+            return null;
+        }
+
+        $row = $csw['line_csw'][$line['key']] ?? null;
+        if (empty($row['open'])) {
+            return null;
+        }
+
+        return $line['key'];
+    }
+
+    /** @deprecated use resolveReplyLine */
     public static function resolveReplyChannel(array $csw, ?string $requested): ?string
     {
-        $req = $requested !== null ? strtolower(trim($requested)) : 'auto';
-        if ($req === '' || $req === 'auto') {
-            $ch = $csw['default_reply_channel'] ?? null;
-
-            return ($ch === 'ycloud' || $ch === 'fonnte') ? $ch : null;
-        }
-        if ($req === 'ycloud' && !empty($csw['ycloud_open'])) {
-            return 'ycloud';
-        }
-        if ($req === 'fonnte' && !empty($csw['fonnte_open'])) {
+        $lineKey = self::resolveReplyLine($csw, $requested);
+        if ($lineKey === \App\Config\WaLines::KEY_ADMIN) {
             return 'fonnte';
+        }
+        if ($lineKey === \App\Config\WaLines::KEY_CS) {
+            return 'ycloud';
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $msgRow from getMessages */
+    public static function enrichMessageLineFields(array $msgRow): array
+    {
+        if (!class_exists(\App\Config\WaLines::class)) {
+            require_once __DIR__ . '/../../Config/WaLines.php';
+        }
+        if (!class_exists(WaLineResolver::class)) {
+            require_once __DIR__ . '/WaLineResolver.php';
+        }
+
+        $businessPhone = (string) ($msgRow['business_phone'] ?? '');
+        $line = WaLineResolver::fromBusinessPhoneOrDefault($businessPhone !== '' ? $businessPhone : null);
+        $lineKey = $line['key'];
+        $rawId = $msgRow['id'] ?? 0;
+        if (is_string($rawId) && str_contains($rawId, '-')) {
+            $msgRow['id'] = $rawId;
+        } else {
+            $msgRow['id'] = $lineKey . '-' . $rawId;
+        }
+        $msgRow['line_key'] = $lineKey;
+        $msgRow['business_phone'] = $line['phone'];
+        $msgRow['line_label'] = $line['short_label'];
+        $msgRow['line_name'] = $line['display_name'];
+        $msgRow['provider'] = $lineKey;
+
+        return $msgRow;
     }
 
     /**
@@ -494,10 +603,6 @@ class CrmChatMergeHelper
             ['wa_messages_in', 'text', 'customer'],
             ['wa_messages_out', 'content', 'me'],
         ];
-        if (self::fonnteMessageTablesReady($db)) {
-            $sources[] = ['wa_fonnte_messages_in', 'text', 'customer'];
-            $sources[] = ['wa_fonnte_messages_out', 'text', 'me'];
-        }
 
         foreach ($sources as [$table, $bodyColumn, $sender]) {
             foreach (self::fetchLatestRowsPerPhoneFromTable($db, $table, $bodyColumn, $sender, $variants) as $row) {

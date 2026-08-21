@@ -196,7 +196,7 @@
   <div class="wg-shell">
     <h1 class="wg-title"><i class="fab fa-whatsapp text-success"></i> WhatsApp Gateway</h1>
     <p class="wg-lead">
-      Login &amp; status <strong>fonnte_server</strong> (Baileys). Pesan masuk → webhook CRM; balasan otomatis via API yang sama.
+      Login &amp; status <strong>fonnte_server</strong> (Baileys) — <strong>hanya kirim ke grup WA</strong>. Chat personal pelanggan lewat YCloud (line A/B).
     </p>
 
     <div id="wg-error" class="wg-error"></div>

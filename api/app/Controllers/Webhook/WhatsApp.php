@@ -109,16 +109,24 @@ class WhatsApp extends Controller
     private function handleInboundMessage($db, $data)
     {
         $msg = $data['whatsappInboundMessage'] ?? [];
-        
-        // DEBUG LOG removed for performance
 
-        $textBodyToCheck = $msg['text']['body'] ?? '';
-        
         if (empty($msg)) {
             \Log::write("No whatsappInboundMessage", 'wa_error', 'Webhook');
             return;
         }
 
+        if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaLineResolver.php';
+        }
+        if (!class_exists('\\App\\Helpers\\CRM\\WaCswLine')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaCswLine.php';
+        }
+        $inboundLine = \App\Helpers\CRM\WaLineResolver::fromBusinessPhoneOrDefault($msg['to'] ?? null);
+        $businessPhone = $inboundLine['phone'];
+        $inboundLineKey = $inboundLine['key'];
+
+        $textBodyToCheck = $msg['text']['body'] ?? '';
+        
         $waNumber = $this->normalizePhoneNumber($msg['from'] ?? null);
         if (!class_exists('\\App\\Helpers\\CRM\\WaConversationAlias')) {
             require_once __DIR__ . '/../../Helpers/CRM/WaConversationAlias.php';
@@ -370,6 +378,7 @@ class WhatsApp extends Controller
         // Step 4: Save message to wa_messages_in
         $messageData = [
             'phone' => $waNumber,
+            'business_phone' => $businessPhone,
             'type' => $messageType,
             'text' => $textBody,
             'media_id' => $mediaId,
@@ -391,6 +400,10 @@ class WhatsApp extends Controller
         }
 
         $msgId = $db->insert('wa_messages_in', $messageData);
+
+        if ($msgId) {
+            \App\Helpers\CRM\WaCswLine::touch($db, $waNumber, $businessPhone);
+        }
 
         if (!$msgId) {
             $error = $db->conn()->error;
@@ -454,7 +467,7 @@ class WhatsApp extends Controller
                     'assignment_user_id' => $assigned_user_id,
                     'status' => 'open',
                     'message' => [
-                        'id' => 'Y-' . $msgId,
+                        'id' => $inboundLineKey . '-' . $msgId,
                         'wamid' => $wamid ?: $messageId,
                         'text' => $textBody,
                         'type' => $messageType,
@@ -466,7 +479,10 @@ class WhatsApp extends Controller
                         'quoted_message_from' => $quotedMessageFrom,
                         'time' => date('Y-m-d H:i:s'),
                         'sender' => 'customer',
-                        'provider' => 'Y',
+                        'line_key' => $inboundLineKey,
+                        'business_phone' => $businessPhone,
+                        'line_label' => $inboundLine['short_label'],
+                        'provider' => $inboundLineKey,
                     ],
                     'target_id' => '0',
                     'kode_cabang' => $code,
@@ -631,7 +647,7 @@ class WhatsApp extends Controller
                         'assignment_user_id' => $assigned_user_id,
                         'status' => 'open',
                         'message' => [
-                            'id' => 'Y-' . $msgId,
+                            'id' => $inboundLineKey . '-' . $msgId,
                             'wamid' => $wamid ?: $messageId,
                             'text' => $textBody,
                             'type' => $messageType,
@@ -643,7 +659,10 @@ class WhatsApp extends Controller
                             'quoted_message_from' => $quotedMessageFrom,
                             'time' => date('Y-m-d H:i:s'),
                             'sender' => 'customer',
-                            'provider' => 'Y',
+                            'line_key' => $inboundLineKey,
+                            'business_phone' => $businessPhone,
+                            'line_label' => $inboundLine['short_label'],
+                            'provider' => $inboundLineKey,
                         ],
                         'target_id' => '0',
                         'kode_cabang' => $code,

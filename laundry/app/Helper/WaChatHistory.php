@@ -1,21 +1,16 @@
 <?php
 
 /**
- * Sumber tunggal riwayat chat WA (in + out) untuk Laundry UI.
- * Gabung yCloud (wa_messages_*) + Fonnte (wa_fonnte_messages_*) sesuai timeline.
- * Dipakai Delivery customer_detail, Estimasi notifikasi permintaan, dll.
+ * Riwayat chat WA (in + out) untuk Laundry UI — YCloud multi-line only.
  */
 class WaChatHistory
 {
-    /** Default per sumber (yCloud / Fonnte). */
+    /** Default limit. */
     public const LIMIT_PER_SOURCE = 30;
 
     /**
-     * Ambil pesan gabungan (ASC): N terbaru yCloud + N terbaru Fonnte, digabung timeline.
-     * Exclude outgoing yCloud private.
-     *
      * @param object $db Instance DB CRM (biasanya db(100))
-     * @param int $limitPerSource Jumlah pesan terbaru per sumber (default 30)
+     * @param int $limitPerSource Jumlah pesan terbaru (default 30)
      * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string}>
      */
     public function fetchMessages($db, string $phone, int $limitPerSource = self::LIMIT_PER_SOURCE): array
@@ -27,10 +22,7 @@ class WaChatHistory
 
         $limitPerSource = max(1, min(100, (int) $limitPerSource));
 
-        $ycloud = $this->fetchYcloudMessages($db, $digits, $limitPerSource);
-        $fonnte = $this->fetchFonnteMessages($db, $digits, $limitPerSource);
-
-        $merged = array_merge($ycloud, $fonnte);
+        $merged = $this->fetchYcloudMessages($db, $digits, $limitPerSource);
         usort($merged, function (array $a, array $b): int {
             return $this->compareTimeline($a, $b);
         });
