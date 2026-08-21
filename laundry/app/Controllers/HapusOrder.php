@@ -203,6 +203,7 @@ class HapusOrder extends Controller
    /**
     * Hapus permanen satu item (bin=1).
     * Syarat: tidak ada penyelesai di item ini; nota aktif (bin=0) tidak overpay.
+    * Notif selesai item + notif bon REF ikut dihapus.
     */
    public function hapusItemPermanent()
    {
@@ -251,6 +252,10 @@ class HapusOrder extends Controller
       }
 
       $db->delete('notif', $wc . " AND no_ref = '" . $idEsc . "' AND tipe = 2");
+      if ($ref !== '') {
+         $refEsc = $db->escape($ref);
+         $db->delete('notif', $wc . " AND no_ref = '" . $refEsc . "' AND tipe = 1");
+      }
       $del = $db->delete('sale', $wc . ' AND id_penjualan = ' . $id . ' AND bin = 1');
       if (isset($del['errno']) && (int) $del['errno'] !== 0) {
          echo json_encode(['status' => 'error', 'message' => $del['error'] ?? 'Gagal hapus item']);
