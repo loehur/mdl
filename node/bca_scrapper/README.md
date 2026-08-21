@@ -1,15 +1,21 @@
-# BCA Scrapper — KlikBCA mutasi & saldo
+# BCA Scrapper — KlikBCA mutasi & saldo + QRMS transaksi QRIS
 
-Microservice Node.js untuk mengambil **saldo** dan **mutasi rekening BCA** via KlikBCA Individual ([ibank.klikbca.com](https://ibank.klikbca.com/)).
+Microservice Node.js untuk:
+- **Saldo & mutasi rekening BCA** via KlikBCA Individual ([ibank.klikbca.com](https://ibank.klikbca.com/))
+- **Transaksi QRIS merchant** via QR Merchant Service ([qr.klikbca.com](https://qr.klikbca.com/login))
 
-Strategi: **HTTP dulu** (login ke ibank + enkripsi RSA PIN). Jika gagal → **Puppeteer** sebagai cadangan (browser isi form login asli).
+Strategi ibank: **HTTP dulu** (login + enkripsi RSA PIN). Jika gagal → **Puppeteer** fallback.
+
+Strategi QRMS: **HTTP API** ke `mssi.ebanksvc.bca.co.id` — payload login dienkripsi via browser headless singkat (~5–10 detik), lalu token + daftar transaksi murni HTTP.
 
 ## Setup
 
 ```bash
 cd node/bca_scrapper
 cp .env.example .env
-# isi BCA_USERNAME, BCA_PASSWORD, BCA_SCRAPPER_TOKEN (opsional)
+# isi BCA_USERNAME, BCA_PASSWORD (ibank)
+# isi BCA_QRMS_EMAIL, BCA_QRMS_PASSWORD (qr.klikbca.com)
+# BCA_SCRAPPER_TOKEN (opsional)
 npm install
 npm start
 ```
@@ -93,6 +99,52 @@ Sukses:
 ```
 
 Jika HTTP gagal tapi Puppeteer berhasil, field `method` = `"puppeteer"` dan `http_error` berisi alasan kegagalan HTTP.
+
+### `POST /qris/transactions`
+
+Ambil daftar transaksi QRIS merchant dari qr.klikbca.com per rentang tanggal.
+
+Body:
+
+| Field | Wajib | Keterangan |
+|-------|-------|------------|
+| `email` | Ya* | Email akun QR Merchant Service |
+| `password` | Ya* | Password QRMS |
+| `start_date` | Tidak | `YYYY-MM-DD`, default hari ini |
+| `end_date` | Tidak | `YYYY-MM-DD`, default = start_date |
+
+\* Bisa juga lewat env `BCA_QRMS_EMAIL` / `BCA_QRMS_PASSWORD`.
+
+```bash
+curl -X POST http://127.0.0.1:3021/qris/transactions \
+  -H "Content-Type: application/json" \
+  -H "X-Bca-Token: YOUR_TOKEN" \
+  -d "{\"start_date\":\"2026-08-21\"}"
+```
+
+Sukses:
+
+```json
+{
+  "ok": true,
+  "method": "puppeteer",
+  "start_date": "2026-08-21",
+  "end_date": "2026-08-21",
+  "count": 1,
+  "transactions": [
+    {
+      "tanggal": "21/08/2026",
+      "waktu": "14:30:15",
+      "nominal": 50000,
+      "status": "SUCCESS",
+      "keterangan": null,
+      "rrn": "..."
+    }
+  ]
+}
+```
+
+Aktifkan `BCA_DEBUG=true` untuk dump HTML + JSON API ke folder `debug/` jika parser perlu disesuaikan.
 
 ## PHP
 

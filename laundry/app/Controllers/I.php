@@ -449,7 +449,7 @@ class I extends Controller
 
    function q() //gambar qris
    {
-      $qrisUrl = URL::IN_ASSETS . 'img/qris/qris.jpg';
+      $qrisUrl = URL::IN_ASSETS . 'img/qris/qris_1.jpeg';
       $this->view('qris/qris', ['qris_url' => $qrisUrl]);
    }
 

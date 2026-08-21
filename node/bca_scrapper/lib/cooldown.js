@@ -19,16 +19,18 @@ function parseMs(envKey, fallbackMs = DEFAULT_MS) {
 const limits = {
   balance: parseMs('BALANCE_COOLDOWN_MS'),
   mutasi: parseMs('MUTASI_COOLDOWN_MS'),
+  qris: parseMs('QRIS_COOLDOWN_MS'),
 };
 
-/** @type {Record<'balance'|'mutasi', number|null>} */
+/** @type {Record<'balance'|'mutasi'|'qris', number|null>} */
 const lastRunAt = {
   balance: null,
   mutasi: null,
+  qris: null,
 };
 
 /**
- * @param {'balance'|'mutasi'} kind
+ * @param {'balance'|'mutasi'|'qris'} kind
  * @returns {{ allowed: boolean, retry_after_ms?: number, retry_after_sec?: number, cooldown_ms: number }}
  */
 function check(kind) {
@@ -56,7 +58,7 @@ function check(kind) {
   };
 }
 
-/** @param {'balance'|'mutasi'} kind */
+/** @param {'balance'|'mutasi'|'qris'} kind */
 function mark(kind) {
   lastRunAt[kind] = Date.now();
 }
@@ -82,6 +84,7 @@ function status() {
   return {
     balance: build('balance'),
     mutasi: build('mutasi'),
+    qris: build('qris'),
   };
 }
 

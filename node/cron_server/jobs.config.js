@@ -41,6 +41,14 @@ module.exports = [
     enabled: true,
   },
   {
+    id: 'bca-qris-confirm',
+    description: 'Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS static pending',
+    schedule: '*/14 * * * *', // setiap 14 menit
+    method: 'GET',
+    url: '/Cron/BcaQrisConfirm/index',
+    enabled: true,
+  },
+  {
     id: 'rekap-snapshot-bulanan',
     description: 'Snapshot rekap laundry bulan lalu per cabang operasional (untuk fee jaga malam)',
     schedule: '15 3 1 * *', // tanggal 1 tiap bulan jam 03:15 (hindari 01:00, 08:00, dan */11)

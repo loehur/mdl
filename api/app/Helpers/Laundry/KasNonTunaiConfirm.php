@@ -41,6 +41,48 @@ class KasNonTunaiConfirm
             }
         }
 
+        return self::approveNonTunaiPaid($laundryDb, $refFinance, $crmDb, 'BcaKasConfirm');
+    }
+
+    /**
+     * Setujui kas QRIS static (merchant BCA) pending setelah transaksi QRMS terikat.
+     *
+     * @param object $laundryDb
+     * @param object|null $crmDb
+     * @return array{ok:bool,message?:string,updated?:int}
+     */
+    public static function approveQrisMerchant($laundryDb, string $refFinance, $crmDb = null): array
+    {
+        $refFinance = trim($refFinance);
+        if ($refFinance === '') {
+            return ['ok' => false, 'message' => 'ref_finance kosong'];
+        }
+
+        $rows = $laundryDb->query(
+            'SELECT * FROM kas
+             WHERE ref_finance = ?
+               AND status_mutasi = 2
+               AND metode_mutasi = 2
+               AND UPPER(IFNULL(note, \'\')) = ?
+               AND (payment_trx_id IS NULL OR payment_trx_id = \'\')
+             LIMIT 20',
+            [$refFinance, 'QRIS']
+        )->result_array();
+
+        if (!is_array($rows) || empty($rows)) {
+            return ['ok' => false, 'message' => 'kas pending QRIS static tidak ditemukan'];
+        }
+
+        return self::approveNonTunaiPaid($laundryDb, $refFinance, $crmDb, 'BcaQrisConfirm');
+    }
+
+    /**
+     * @param object $laundryDb
+     * @param object|null $crmDb
+     * @return array{ok:bool,message?:string,updated?:int,ref_finance?:string}
+     */
+    private static function approveNonTunaiPaid($laundryDb, string $refFinance, $crmDb, string $logTag): array
+    {
         $updated = $laundryDb->update('kas', ['status_mutasi' => 3], [
             'ref_finance' => $refFinance,
             'status_mutasi' => 2,
@@ -58,7 +100,7 @@ class KasNonTunaiConfirm
         )->result_array();
 
         if (!is_array($freshRows)) {
-            $freshRows = $rows;
+            $freshRows = [];
         }
 
         $seenRef = [];
@@ -78,17 +120,17 @@ class KasNonTunaiConfirm
                     $result = InstantKurir::activateAfterPayment($laundryDb, $kasRow);
                     if (class_exists('\\Log', false)) {
                         \Log::write(
-                            'BcaKasConfirm Instant ref=' . $refFinance . ' ' . json_encode($result),
+                            $logTag . ' Instant ref=' . $refFinance . ' ' . json_encode($result),
                             'cron',
-                            'BcaKasConfirm'
+                            $logTag
                         );
                     }
                 } catch (\Throwable $e) {
                     if (class_exists('\\Log', false)) {
                         \Log::write(
-                            'BcaKasConfirm Instant err ref=' . $refFinance . ' ' . $e->getMessage(),
+                            $logTag . ' Instant err ref=' . $refFinance . ' ' . $e->getMessage(),
                             'cron',
-                            'BcaKasConfirm'
+                            $logTag
                         );
                     }
                 }
@@ -96,8 +138,8 @@ class KasNonTunaiConfirm
             }
         }
 
-        self::resetWaPaymentPriority($laundryDb, $crmDb, $freshRows[0] ?? $rows[0]);
-        self::pushWebSocketPriorityReset($freshRows[0] ?? $rows[0]);
+        self::resetWaPaymentPriority($laundryDb, $crmDb, $freshRows[0] ?? []);
+        self::pushWebSocketPriorityReset($freshRows[0] ?? []);
 
         return [
             'ok' => true,

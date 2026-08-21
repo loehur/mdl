@@ -146,6 +146,7 @@ class Env
     // BCA scrapper (node/bca_scrapper) — header X-Bca-Token; harus sama dengan .env service
     const BCA_SCRAPPER_TOKEN = 'change-me-bca-scrapper-token';
     const BCA_SCRAPPER_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
+    const BCA_SCRAPPER_QRIS_URL = 'http://127.0.0.1:3021/qris/transactions';
 
     // Invoice Subscriptions API: header X-Invoice-Api-Key
     const INVOICE_API_KEY = 'change-me-invoice-api-key';

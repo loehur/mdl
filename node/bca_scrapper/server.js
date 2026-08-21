@@ -3,8 +3,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { getBalance, getMutasi } = require('./lib/scraper');
+const { getQrisTransactions } = require('./lib/qrms-scraper');
 const debug = require('./lib/debug');
-const { validateMutasiDateRange, MAX_RANGE_DAYS, MAX_LOOKBACK_DAYS, TZ } = require('./lib/date-range');
+const { validateMutasiDateRange, validateQrisDateRange, MAX_RANGE_DAYS, MAX_LOOKBACK_DAYS, QRIS_MAX_RANGE_DAYS, QRIS_MAX_LOOKBACK_DAYS, TZ } = require('./lib/date-range');
 const cooldown = require('./lib/cooldown');
 
 const app = express();
@@ -17,6 +18,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 const AUTH_TOKEN = String(process.env.BCA_SCRAPPER_TOKEN || '').trim();
 const DEFAULT_USERNAME = String(process.env.BCA_USERNAME || '').trim();
 const DEFAULT_PASSWORD = String(process.env.BCA_PASSWORD || '').trim();
+const DEFAULT_QRMS_EMAIL = String(process.env.BCA_QRMS_EMAIL || '').trim();
+const DEFAULT_QRMS_PASSWORD = String(process.env.BCA_QRMS_PASSWORD || '').trim();
 const HTTP_TIMEOUT_MS = Number(process.env.HTTP_TIMEOUT_MS || 30000);
 const PUPPETEER_HEADLESS = String(process.env.PUPPETEER_HEADLESS || 'true').toLowerCase() !== 'false';
 const PUPPETEER_TIMEOUT_MS = Number(process.env.PUPPETEER_TIMEOUT_MS || 60000);
@@ -52,6 +55,16 @@ function pickCredentials(req) {
   return { username, password };
 }
 
+function pickQrmsCredentials(req) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const q = req.query || {};
+  const email = String(
+    body.email || q.email || body.username || q.username || DEFAULT_QRMS_EMAIL || ''
+  ).trim();
+  const password = String(body.password || q.password || DEFAULT_QRMS_PASSWORD || '').trim();
+  return { email, password };
+}
+
 function pickDateRange(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const q = req.query || {};
@@ -83,7 +96,8 @@ async function withScrapeLock(handler) {
 }
 
 function rejectCooldown(res, kind, gate) {
-  const label = kind === 'balance' ? 'saldo' : 'mutasi';
+  const labels = { balance: 'saldo', mutasi: 'mutasi', qris: 'transaksi QRIS' };
+  const label = labels[kind] || kind;
   const sec = gate.retry_after_sec ?? 0;
   const min = Math.max(1, Math.ceil(sec / 60));
   return res.status(429).json({
@@ -205,6 +219,76 @@ async function handleMutasi(req, res) {
   }
 }
 
+async function handleQrisTransactions(req, res) {
+  const { email, password } = pickQrmsCredentials(req);
+  const { startDate, endDate } = pickDateRange(req);
+
+  if (!email || !password) {
+    return res.status(400).json({
+      ok: false,
+      error: 'credentials_required',
+      message: 'email dan password QRMS wajib (body atau env BCA_QRMS_EMAIL/BCA_QRMS_PASSWORD)',
+    });
+  }
+
+  let validatedDates;
+  try {
+    validatedDates = validateQrisDateRange(startDate, endDate);
+  } catch (err) {
+    const code = err && err.code ? err.code : 'invalid_date';
+    return res.status(400).json({
+      ok: false,
+      error: code,
+      message: err instanceof Error ? err.message : 'Rentang tanggal tidak valid',
+    });
+  }
+
+  const cd = cooldown.check('qris');
+  if (!cd.allowed) {
+    return rejectCooldown(res, 'qris', cd);
+  }
+  cooldown.mark('qris');
+
+  try {
+    const result = await withScrapeLock(() =>
+      getQrisTransactions({
+        email,
+        password,
+        startDate: validatedDates.startDate,
+        endDate: validatedDates.endDate,
+        httpTimeoutMs: HTTP_TIMEOUT_MS,
+        puppeteerHeadless: PUPPETEER_HEADLESS,
+      })
+    );
+
+    return res.json({
+      ok: true,
+      method: result.method,
+      start_date: result.data.start,
+      end_date: result.data.end,
+      transactions: result.data.transactions,
+      count: result.data.transactions.length,
+      outlets: result.data.outlets || [],
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const code = err && err.code ? err.code : 'scrape_failed';
+    const status = code === 'scraper_busy' || code === 'cooldown' ? 429 : 502;
+    const message =
+      err instanceof Error && err.message === 'login_failed'
+        ? 'Login QRMS gagal. Periksa BCA_QRMS_EMAIL dan BCA_QRMS_PASSWORD.'
+        : err instanceof Error
+          ? err.message
+          : 'Gagal mengambil transaksi QRIS';
+    return res.status(status).json({
+      ok: false,
+      error: err instanceof Error && err.message === 'login_failed' ? 'login_failed' : code,
+      message,
+      puppeteer_error: err instanceof Error ? err.message : null,
+    });
+  }
+}
+
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
@@ -226,20 +310,25 @@ app.get('/balance', requireToken, handleBalance);
 app.post('/mutasi', requireToken, handleMutasi);
 app.get('/mutasi', requireToken, handleMutasi);
 
+app.post('/qris/transactions', requireToken, handleQrisTransactions);
+app.get('/qris/transactions', requireToken, handleQrisTransactions);
+
 app.listen(PORT, HOST, () => {
   console.log('========================================');
-  console.log('  BCA Scrapper (KlikBCA mutasi)');
+  console.log('  BCA Scrapper (KlikBCA mutasi + QRMS transaksi)');
   console.log('========================================');
   console.log(`  HTTP: http://${HOST}:${PORT}`);
   console.log(`  Auth: ${AUTH_TOKEN ? 'X-Bca-Token required' : 'open (set BCA_SCRAPPER_TOKEN)'}`);
   console.log('  POST /balance  { username, password }');
   console.log('  POST /mutasi   { username, password, start_date?, end_date? }');
+  console.log('  POST /qris/transactions { start_date?, end_date? } — max 2 hari, lookback 30 hari');
   console.log('  GET  /health');
   console.log(`  Debug: ${debug.isEnabled() ? 'ON → saves to debug/' : 'off (set BCA_DEBUG=true)'}`);
   console.log(`  Mutasi limits: end<=today (${TZ}), max ${MAX_RANGE_DAYS} days range, max ${MAX_LOOKBACK_DAYS} days lookback`);
+  console.log(`  QRIS limits: max ${QRIS_MAX_RANGE_DAYS} days range, max ${QRIS_MAX_LOOKBACK_DAYS} days lookback (${TZ})`);
   console.log(
-    `  Cooldown: balance ${Math.round(cooldown.limits.balance / 60000)}m, mutasi ${Math.round(cooldown.limits.mutasi / 60000)}m`
+    `  Cooldown: balance ${Math.round(cooldown.limits.balance / 60000)}m, mutasi ${Math.round(cooldown.limits.mutasi / 60000)}m, qris ${Math.round(cooldown.limits.qris / 60000)}m`
   );
-  console.log('  Strategy: HTTP (ibank.klikbca.com) → Puppeteer fallback');
+  console.log('  Strategy: ibank HTTP → Puppeteer fallback; QRMS HTTP (encrypt + MSSI API)');
   console.log('========================================');
 });

@@ -1,5 +1,7 @@
 const MAX_RANGE_DAYS = Number(process.env.MUTASI_MAX_RANGE_DAYS || 6);
 const MAX_LOOKBACK_DAYS = Number(process.env.MUTASI_MAX_LOOKBACK_DAYS || 30);
+const QRIS_MAX_RANGE_DAYS = Number(process.env.QRIS_MAX_RANGE_DAYS || 2);
+const QRIS_MAX_LOOKBACK_DAYS = Number(process.env.QRIS_MAX_LOOKBACK_DAYS || 30);
 const TZ = process.env.TZ || 'Asia/Jakarta';
 
 function todayYmd() {
@@ -96,10 +98,67 @@ function validateMutasiDateRange(startDate, endDate) {
   return { startDate: start, endDate: end };
 }
 
+/**
+ * Validasi tanggal transaksi QRIS — rentang maks 2 hari, lookback max 30 hari (sama BCA).
+ * @param {string|null|undefined} startDate
+ * @param {string|null|undefined} endDate
+ * @returns {{ startDate: string, endDate: string }}
+ */
+function validateQrisDateRange(startDate, endDate) {
+  const today = todayYmd();
+
+  if (startDate != null && String(startDate).trim() !== '' && !parseYmd(startDate)) {
+    const err = new Error('start_date tidak valid (gunakan YYYY-MM-DD)');
+    err.code = 'invalid_date';
+    throw err;
+  }
+  if (endDate != null && String(endDate).trim() !== '' && !parseYmd(endDate)) {
+    const err = new Error('end_date tidak valid (gunakan YYYY-MM-DD)');
+    err.code = 'invalid_date';
+    throw err;
+  }
+
+  const start = parseYmd(startDate) || today;
+  const end = parseYmd(endDate) || start;
+
+  if (end > today) {
+    const err = new Error('end_date tidak boleh melebihi hari ini');
+    err.code = 'end_date_future';
+    throw err;
+  }
+
+  if (start > end) {
+    const err = new Error('start_date tidak boleh setelah end_date');
+    err.code = 'invalid_date';
+    throw err;
+  }
+
+  const minStart = addDaysYmd(today, -QRIS_MAX_LOOKBACK_DAYS);
+  if (start < minStart) {
+    const err = new Error(`start_date tidak boleh lebih dari ${QRIS_MAX_LOOKBACK_DAYS} hari yang lalu`);
+    err.code = 'start_date_too_old';
+    throw err;
+  }
+
+  const rangeDays = daysBetweenYmd(start, end) + 1;
+  if (rangeDays > QRIS_MAX_RANGE_DAYS) {
+    const err = new Error(`rentang QRIS maksimum ${QRIS_MAX_RANGE_DAYS} hari`);
+    err.code = 'date_range_too_large';
+    throw err;
+  }
+
+  return { startDate: start, endDate: end };
+}
+
 module.exports = {
   validateMutasiDateRange,
+  validateQrisDateRange,
   todayYmd,
+  addDaysYmd,
+  daysBetweenYmd,
   MAX_RANGE_DAYS,
   MAX_LOOKBACK_DAYS,
+  QRIS_MAX_RANGE_DAYS,
+  QRIS_MAX_LOOKBACK_DAYS,
   TZ,
 };

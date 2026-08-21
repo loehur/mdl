@@ -9,11 +9,15 @@ class BcaScrapper
 {
     public const MAX_RANGE_DAYS = 6;
     public const MAX_LOOKBACK_DAYS = 30;
+    public const QRIS_MAX_RANGE_DAYS = 2; // scrape portal: max kemarin + hari ini
+    public const QRIS_DB_MATCH_RANGE_DAYS = 6; // cek DB saat matching kas (sama mutasi BCA)
+    public const QRIS_MAX_LOOKBACK_DAYS = 30;
     public const MAX_SYNC_CHUNKS = 10;
 
     public const ENTITY_KAS_LAUNDRY = 'kas_laundry';
 
     private const DEFAULT_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
+    private const DEFAULT_QRIS_URL = 'http://127.0.0.1:3021/qris/transactions';
     private const DEFAULT_TIMEOUT = 90;
 
     /**
@@ -526,6 +530,408 @@ class BcaScrapper
         }
 
         return self::failFromRemote($remote);
+    }
+
+    /**
+     * Sync transaksi QRIS merchant ke DB — pangkas hari yang sudah ada, scrape sisanya.
+     *
+     * @param object|null $db
+     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,skipped_scrape?:bool,errors?:array,message?:string}
+     */
+    public static function syncQrisTransactions($db = null, ?string $startDate = null, ?string $endDate = null): array
+    {
+        if ($db === null) {
+            if (!class_exists('\\App\\Core\\DB', false)) {
+                require_once __DIR__ . '/../Core/DB.php';
+            }
+            $db = \App\Core\DB::getInstance(0);
+        }
+
+        if (!$db) {
+            return ['ok' => false, 'message' => 'Database mdl_main tidak tersedia'];
+        }
+
+        try {
+            $db->query('SELECT 1 FROM bca_qris_transaksi LIMIT 1');
+            $db->query('SELECT 1 FROM bca_qris_hari LIMIT 1');
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'message' => 'Tabel bca_qris belum ada. Jalankan migration 004_bca_qris_transaksi.sql',
+            ];
+        }
+
+        $today = date('Y-m-d');
+        if ($startDate === null && $endDate === null) {
+            $startDate = self::lookbackMinStart();
+            $endDate = $today;
+        }
+
+        $clamped = self::clampQrisDateRange(
+            $startDate !== null && $startDate !== '' ? $startDate : $today,
+            $endDate !== null && $endDate !== '' ? $endDate : ($startDate ?: $today)
+        );
+        if (empty($clamped['valid'])) {
+            return [
+                'ok' => false,
+                'message' => (string) ($clamped['reason'] ?? 'invalid_date_range'),
+            ];
+        }
+
+        return self::fetchAndStoreQrisRange($db, (string) $clamped['start'], (string) $clamped['end']);
+    }
+
+    /**
+     * Pangkas rentang QRIS: lewati hari yang sudah di-sync, kecuali hari ini.
+     *
+     * @return array{skip:bool,start?:string,end?:string,trimmed?:bool,reason?:string}
+     */
+    public static function trimQrisFetchRangeByDb($db, string $startYmd, string $endYmd): array
+    {
+        $clamped = self::clampQrisDateRange($startYmd, $endYmd);
+        if (empty($clamped['valid'])) {
+            return [
+                'skip' => true,
+                'reason' => (string) ($clamped['reason'] ?? 'invalid_range'),
+            ];
+        }
+
+        $start = (string) $clamped['start'];
+        $end = (string) $clamped['end'];
+        $today = date('Y-m-d');
+
+        $fetchStart = null;
+        for ($d = $start; $d <= $end; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            if ($d === $today) {
+                $fetchStart = $today;
+                break;
+            }
+            if (!self::hasQrisForDate($db, $d)) {
+                $fetchStart = $d;
+                break;
+            }
+        }
+
+        if ($fetchStart === null) {
+            return [
+                'skip' => true,
+                'reason' => 'range_already_synced',
+                'start' => $start,
+                'end' => $end,
+            ];
+        }
+
+        $fetchEnd = $fetchStart === $today ? $today : $end;
+        $rangeDays = self::daysBetween($fetchStart, $fetchEnd) + 1;
+        if ($rangeDays > self::QRIS_MAX_RANGE_DAYS) {
+            $fetchEnd = date('Y-m-d', strtotime($fetchStart . ' +' . (self::QRIS_MAX_RANGE_DAYS - 1) . ' days'));
+            if ($fetchEnd > $end) {
+                $fetchEnd = $end;
+            }
+        }
+
+        return [
+            'skip' => false,
+            'start' => $fetchStart,
+            'end' => $fetchEnd,
+            'trimmed' => $fetchStart > $start || $fetchEnd < $end,
+        ];
+    }
+
+    public static function hasQrisForDate($db, string $ymd): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) {
+            return false;
+        }
+
+        $row = $db->query(
+            'SELECT 1 FROM bca_qris_hari WHERE tanggal = ? LIMIT 1',
+            [$ymd]
+        )->row_array();
+
+        return is_array($row) && !empty($row);
+    }
+
+    /**
+     * @return array{valid:bool,start?:string,end?:string,reason?:string}
+     */
+    public static function clampQrisDateRange(string $start, string $end): array
+    {
+        $today = date('Y-m-d');
+        $minStart = date('Y-m-d', strtotime($today . ' -' . self::QRIS_MAX_LOOKBACK_DAYS . ' days'));
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
+            return ['valid' => false, 'reason' => 'invalid_date_format'];
+        }
+
+        if ($end > $today) {
+            $end = $today;
+        }
+        if ($start < $minStart) {
+            $start = $minStart;
+        }
+        if ($start > $end) {
+            return ['valid' => false, 'reason' => 'empty_range_after_clamp'];
+        }
+
+        $days = self::daysBetween($start, $end) + 1;
+        if ($days > self::QRIS_MAX_RANGE_DAYS) {
+            return ['valid' => false, 'reason' => 'date_range_too_large'];
+        }
+
+        return [
+            'valid' => true,
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    /**
+     * Rentang scrape portal QRMS — hanya kemarin + hari ini.
+     *
+     * @return array{start:string,end:string}
+     */
+    public static function qrisScrapeWindow(): array
+    {
+        $today = date('Y-m-d');
+
+        return [
+            'start' => date('Y-m-d', strtotime($today . ' -1 day')),
+            'end' => $today,
+        ];
+    }
+
+    /**
+     * Fetch dari bca_scrapper + simpan ke DB (dengan pangkas).
+     *
+     * @return array{ok:bool,fetched?:int,inserted?:int,skipped_dup?:int,skipped_scrape?:bool,error?:string,start?:string,end?:string,trimmed?:bool}
+     */
+    public static function fetchAndStoreQrisRange($db, string $startYmd, string $endYmd): array
+    {
+        $trimmed = self::trimQrisFetchRangeByDb($db, $startYmd, $endYmd);
+        if (!empty($trimmed['skip'])) {
+            return [
+                'ok' => true,
+                'fetched' => 0,
+                'inserted' => 0,
+                'skipped_dup' => 0,
+                'skipped_scrape' => true,
+                'start' => (string) ($trimmed['start'] ?? $startYmd),
+                'end' => (string) ($trimmed['end'] ?? $endYmd),
+                'reason' => (string) ($trimmed['reason'] ?? 'already_synced'),
+            ];
+        }
+
+        $fetchStart = (string) $trimmed['start'];
+        $fetchEnd = (string) $trimmed['end'];
+
+        $remote = self::qrisTransactions($fetchStart, $fetchEnd);
+        if (empty($remote['ok'])) {
+            return [
+                'ok' => false,
+                'error' => (string) ($remote['message'] ?? $remote['error'] ?? 'scrape_failed'),
+            ];
+        }
+
+        $rows = is_array($remote['transactions'] ?? null) ? $remote['transactions'] : [];
+        $outlets = is_array($remote['outlets'] ?? null) ? $remote['outlets'] : [];
+        $mid = trim((string) ($outlets[0]['mid'] ?? ''));
+        $outletName = trim((string) ($outlets[0]['name'] ?? ''));
+
+        $save = self::saveQrisRows($db, $rows, $mid, $outletName);
+        self::markQrisDaysSynced($db, $fetchStart, $fetchEnd);
+
+        return [
+            'ok' => true,
+            'fetched' => count($rows),
+            'inserted' => (int) ($save['inserted'] ?? 0),
+            'skipped_dup' => (int) ($save['skipped_dup'] ?? 0),
+            'start' => $fetchStart,
+            'end' => $fetchEnd,
+            'trimmed' => !empty($trimmed['trimmed']),
+            'method' => (string) ($remote['method'] ?? 'unknown'),
+        ];
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    public static function getQrisRowsFromDb($db, string $startYmd, string $endYmd): array
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startYmd) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endYmd)) {
+            return [];
+        }
+
+        $rows = $db->query(
+            'SELECT id, tanggal, waktu, rrn, nominal, status, keterangan, mid, outlet_name, created_at
+             FROM bca_qris_transaksi
+             WHERE tanggal >= ? AND tanggal <= ?
+             ORDER BY tanggal DESC, waktu DESC, id DESC',
+            [$startYmd, $endYmd]
+        )->result_array();
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array{inserted:int,skipped_dup:int}
+     */
+    public static function saveQrisRows($db, array $rows, string $mid = '', string $outletName = ''): array
+    {
+        $inserted = 0;
+        $skippedDup = 0;
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $tanggal = self::parseQrisTanggal($row);
+            $rrn = trim((string) ($row['rrn'] ?? ''));
+            $nominal = self::normalizeNominal($row['nominal'] ?? 0);
+            $waktu = trim((string) ($row['waktu'] ?? ''));
+            $status = trim((string) ($row['status'] ?? ''));
+            $keterangan = trim((string) ($row['keterangan'] ?? ''));
+
+            if ($tanggal === null || $rrn === '' || (float) $nominal <= 0) {
+                continue;
+            }
+
+            $fingerprint = self::qrisFingerprint($tanggal, $rrn, $nominal, $waktu);
+
+            $db->insertIgnore('bca_qris_transaksi', [
+                'tanggal' => $tanggal,
+                'waktu' => $waktu !== '' ? $waktu : null,
+                'rrn' => $rrn,
+                'nominal' => $nominal,
+                'status' => $status !== '' ? $status : null,
+                'keterangan' => $keterangan !== '' ? $keterangan : null,
+                'mid' => $mid !== '' ? $mid : null,
+                'outlet_name' => $outletName !== '' ? $outletName : null,
+                'fingerprint' => $fingerprint,
+            ]);
+
+            if ($db->conn()->affected_rows > 0) {
+                $inserted++;
+            } else {
+                $skippedDup++;
+            }
+        }
+
+        return [
+            'inserted' => $inserted,
+            'skipped_dup' => $skippedDup,
+        ];
+    }
+
+    public static function qrisFingerprint(string $tanggal, string $rrn, $nominal, string $waktu = ''): string
+    {
+        $payload = $tanggal . '|' . $rrn . '|' . self::normalizeNominal($nominal) . '|' . $waktu;
+
+        return hash('sha256', $payload);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    public static function parseQrisTanggal(array $row): ?string
+    {
+        $raw = trim((string) ($row['tanggal'] ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            return $raw;
+        }
+
+        $iso = self::parseTanggalIso($raw);
+        if ($iso !== null) {
+            return $iso;
+        }
+
+        return null;
+    }
+
+    /**
+     * Ambil transaksi QRIS dari node service (tanpa DB).
+     *
+     * @param array{email?:string,password?:string} $credentials
+     * @return array{ok:bool,method?:string,transactions?:array,count?:int,error?:string,message?:string}
+     */
+    public static function qrisTransactions(
+        ?string $startDate = null,
+        ?string $endDate = null,
+        array $credentials = []
+    ): array {
+        $payload = self::buildQrisPayload($credentials);
+        if ($startDate !== null && $startDate !== '') {
+            $payload['start_date'] = $startDate;
+        }
+        if ($endDate !== null && $endDate !== '') {
+            $payload['end_date'] = $endDate;
+        }
+
+        $remote = self::callService(
+            self::configString('BCA_SCRAPPER_QRIS_URL', self::DEFAULT_QRIS_URL),
+            $payload
+        );
+
+        if ($remote === null) {
+            return [
+                'ok' => false,
+                'error' => 'bca_scrapper_unreachable',
+                'message' => 'Gagal menghubungi bca_scrapper. Pastikan service berjalan.',
+            ];
+        }
+
+        if (!empty($remote['ok'])) {
+            return [
+                'ok' => true,
+                'method' => (string) ($remote['method'] ?? 'unknown'),
+                'start_date' => (string) ($remote['start_date'] ?? ''),
+                'end_date' => (string) ($remote['end_date'] ?? ''),
+                'transactions' => is_array($remote['transactions'] ?? null) ? $remote['transactions'] : [],
+                'outlets' => is_array($remote['outlets'] ?? null) ? $remote['outlets'] : [],
+                'count' => (int) ($remote['count'] ?? 0),
+            ];
+        }
+
+        return self::failFromRemote($remote);
+    }
+
+    private static function markQrisDaysSynced($db, string $startYmd, string $endYmd): void
+    {
+        for ($d = $startYmd; $d <= $endYmd; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            $countRow = $db->query(
+                'SELECT COUNT(*) AS c FROM bca_qris_transaksi WHERE tanggal = ?',
+                [$d]
+            )->row_array();
+            $count = is_array($countRow) ? (int) ($countRow['c'] ?? 0) : 0;
+
+            $db->query(
+                'INSERT INTO bca_qris_hari (tanggal, tx_count, synced_at)
+                 VALUES (?, ?, NOW())
+                 ON DUPLICATE KEY UPDATE tx_count = VALUES(tx_count), synced_at = NOW()',
+                [$d, $count]
+            );
+        }
+    }
+
+    /**
+     * @param array{email?:string,password?:string} $credentials
+     * @return array<string,string>
+     */
+    private static function buildQrisPayload(array $credentials): array
+    {
+        $payload = [];
+        $email = trim((string) ($credentials['email'] ?? ''));
+        $password = trim((string) ($credentials['password'] ?? ''));
+        if ($email !== '') {
+            $payload['email'] = $email;
+        }
+        if ($password !== '') {
+            $payload['password'] = $password;
+        }
+
+        return $payload;
     }
 
     public static function parseTanggalIso(string $tanggal): ?string

@@ -111,16 +111,26 @@ if (count($data['cek']) == 0) { ?>
         <button class="aa-btn aa-btn--danger nTolak" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
           <i class="fas fa-times"></i>
         </button>
-        <?php $isBca = strtoupper(trim((string) $f2)) === 'BCA'; ?>
+        <?php
+          $isBca = strtoupper(trim((string) $f2)) === 'BCA';
+          $isQrisStatic = strtoupper(trim((string) $f2)) === 'QRIS'
+            && trim((string) ($a['payment_trx_id'] ?? '')) === '';
+          $needsBind = $isBca || $isQrisStatic;
+          $bindMode = $isBca ? 'bca' : ($isQrisStatic ? 'qris' : '');
+          $bindListUrl = $isBca
+            ? (URL::BASE_URL . 'NonTunai/mutasiList')
+            : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
+        ?>
         <button class="aa-btn aa-btn--ok nTerima"
           data-id="<?= $id ?>"
           data-id-cabang="<?= $idCabang ?>"
           data-nama="<?= strtoupper($pelanggan) ?>"
           data-note="<?= htmlspecialchars(strtoupper((string) $f2), ENT_QUOTES, 'UTF-8') ?>"
           data-nominal="<?= (float) $f4 ?>"
-          data-bca="<?= $isBca ? '1' : '0' ?>"
+          data-bind="<?= $needsBind ? '1' : '0' ?>"
+          data-bind-mode="<?= htmlspecialchars($bindMode, ENT_QUOTES, 'UTF-8') ?>"
           data-target="<?= URL::BASE_URL ?>NonTunai/operasi/3"
-          data-mutasi-url="<?= URL::BASE_URL ?>NonTunai/mutasiList">
+          data-list-url="<?= htmlspecialchars($bindListUrl, ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-check"></i>
         </button>
       </div>
@@ -308,12 +318,12 @@ if (count($data['cek']) == 0) { ?>
   </div>
 </div>
 
-<!-- Offcanvas pilih mutasi BCA -->
+<!-- Offcanvas pilih mutasi BCA / transaksi QRIS merchant -->
 <div class="offcanvas offcanvas-end nt-bca-offcanvas" tabindex="-1" id="offcanvasBcaMutasi" aria-labelledby="offcanvasBcaMutasiLabel">
   <div class="offcanvas-header border-bottom py-2">
     <div>
-      <h6 class="offcanvas-title fw-bold mb-0" id="offcanvasBcaMutasiLabel">Pilih Mutasi BCA</h6>
-      <small class="text-muted" id="ntBcaOffcanvasSub">Nominal ± Rp 10.000 · posted + PEND</small>
+      <h6 class="offcanvas-title fw-bold mb-0" id="offcanvasBcaMutasiLabel">Pilih Mutasi</h6>
+      <small class="text-muted" id="ntBcaOffcanvasSub">Nominal ± Rp 10.000</small>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
   </div>
@@ -325,16 +335,16 @@ if (count($data['cek']) == 0) { ?>
   </div>
 </div>
 
-<!-- Modal konfirmasi terima + bind BCA -->
+<!-- Modal konfirmasi terima + bind BCA / QRIS -->
 <div class="modal fade" id="modalTerimaBca" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header border-0 pb-0">
-        <h6 class="modal-title text-success"><i class="fas fa-link me-2"></i>Konfirmasi Bind & Terima</h6>
+        <h6 class="modal-title text-success"><i class="fas fa-link me-2"></i><span id="ntTerimaModalTitle">Konfirmasi Bind & Terima</span></h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body py-3">
-        <p class="mb-2">Yakin bind mutasi berikut ke transaksi <strong id="ntTerimaNama"></strong>?</p>
+        <p class="mb-2">Yakin bind <span id="ntTerimaBindLabel">mutasi</span> berikut ke transaksi <strong id="ntTerimaNama"></strong>?</p>
         <div class="border p-2 mb-2 small bg-light" id="ntTerimaMutasiDetail"></div>
         <div class="small text-muted mb-0" id="ntTerimaNominalCompare"></div>
       </div>
@@ -350,15 +360,41 @@ if (count($data['cek']) == 0) { ?>
 
 <script>
   var tolakData = { id: '', target: '', btn: null };
-  var terimaBcaData = {
+  var terimaBindData = {
     id: '',
     target: '',
     btn: null,
     nama: '',
     kasNominalFmt: '',
-    mutasi: null
+    bindMode: '',
+    item: null
   };
-  var ntBcaMutasiCache = {};
+  var ntBindItemCache = {};
+
+  function ntBindLabels(mode) {
+    if (mode === 'qris') {
+      return {
+        offcanvasTitle: 'Pilih Transaksi QRIS',
+        offcanvasSub: 'Nominal ± Rp 10.000 · 6 hari terakhir',
+        bindLabel: 'transaksi QRIS',
+        emptyHint: 'Belum ada transaksi QRIS dalam toleransi ± Rp ',
+        emptyTail: 'Pastikan data sudah di-sync ke bca_qris_transaksi.',
+        loadFail: 'Gagal memuat daftar transaksi QRIS',
+        okMsg: 'QRIS bind & dikonfirmasi',
+        compareMutasi: 'QRIS'
+      };
+    }
+    return {
+      offcanvasTitle: 'Pilih Mutasi BCA',
+      offcanvasSub: 'Nominal ± Rp 10.000 · posted + PEND',
+      bindLabel: 'mutasi',
+      emptyHint: 'Belum ada mutasi CR dalam toleransi ± Rp ',
+      emptyTail: 'Pastikan data sudah di-sync ke bca_mutasi (posted atau PEND).',
+      loadFail: 'Gagal memuat daftar mutasi BCA',
+      okMsg: 'BCA bind & dikonfirmasi',
+      compareMutasi: 'Mutasi'
+    };
+  }
 
   function ntToast(msg, type) {
     msg = String(msg || '').trim();
@@ -415,17 +451,19 @@ if (count($data['cek']) == 0) { ?>
     });
   }
 
-  function ntRenderBcaMutasiList(items, kasNominalFmt, range, toleranceFmt) {
+  function ntRenderBindList(items, kasNominalFmt, range, toleranceFmt, mode) {
     var $list = $('#ntBcaMutasiList');
-    ntBcaMutasiCache = {};
+    var labels = ntBindLabels(mode);
+    ntBindItemCache = {};
     toleranceFmt = toleranceFmt || '10.000';
     if (!items || !items.length) {
-      $list.html('<div class="text-center text-muted py-4 px-2"><i class="fas fa-inbox d-block mb-2"></i>Belum ada mutasi CR dalam toleransi ± Rp ' + toleranceFmt + '.<br><small>Pastikan data sudah di-sync ke bca_mutasi (posted atau PEND).</small></div>');
+      $list.html('<div class="text-center text-muted py-4 px-2"><i class="fas fa-inbox d-block mb-2"></i>'
+        + labels.emptyHint + toleranceFmt + '.<br><small>' + labels.emptyTail + '</small></div>');
       return;
     }
     var html = '';
     items.forEach(function(it) {
-      ntBcaMutasiCache[String(it.id)] = it;
+      ntBindItemCache[String(it.id)] = it;
       var cls = 'nt-bca-item';
       if (it.is_pend) cls += ' is-pend';
       if (it.nominal_match) cls += ' is-match';
@@ -434,39 +472,49 @@ if (count($data['cek']) == 0) { ?>
         badge += '<span class="nt-bca-badge-selisih">± Rp ' + (it.selisih_fmt || it.selisih) + '</span>';
       }
       if (it.is_pend) badge += '<span class="nt-bca-badge-pend">PEND</span>';
-      var dateLabel = it.tanggal || it.tanggal_iso || '-';
+      var dateLabel = it.date_label || it.tanggal || it.tanggal_iso || '-';
       if (it.is_pend && it.created_at) {
         var pendDate = String(it.created_at).substring(0, 10);
         if (pendDate) dateLabel += ' · sync ' + pendDate;
       }
-      html += '<div class="' + cls + '" data-mutasi-id="' + it.id + '">';
+      html += '<div class="' + cls + '" data-bind-id="' + it.id + '">';
       html += '<div class="nt-bca-item__row"><div><span class="nt-bca-item__date">' + dateLabel + badge + '</span></div>';
       html += '<div class="nt-bca-item__amt">Rp ' + (it.nominal_fmt || it.nominal) + '</div></div>';
+      if (it.rrn) {
+        html += '<div class="small text-muted">RRN: ' + $('<div>').text(it.rrn).html() + '</div>';
+      }
       html += '<div class="nt-bca-item__ket">' + $('<div>').text(it.keterangan || '').html() + '</div>';
       html += '</div>';
     });
     $list.html(html);
     if (range && range.start && range.end) {
-      var sub = 'Toleransi ± Rp ' + toleranceFmt + ' · posted ' + range.start + ' s/d ' + range.end;
+      var sub = 'Toleransi ± Rp ' + toleranceFmt + ' · ' + range.start + ' s/d ' + range.end;
       if (range.pend_start) sub += ' · PEND dari ' + range.pend_start;
       $('#ntBcaOffcanvasSub').text(sub);
+    } else {
+      $('#ntBcaOffcanvasSub').text(labels.offcanvasSub);
     }
   }
 
-  function ntOpenBcaOffcanvas($btn) {
-    terimaBcaData.id = $btn.attr('data-id');
-    terimaBcaData.id_cabang = $btn.attr('data-id-cabang') || $btn.closest('.nt-row').attr('data-id-cabang') || '';
-    terimaBcaData.target = $btn.attr('data-target');
-    terimaBcaData.btn = $btn;
-    terimaBcaData.nama = $btn.attr('data-nama') || '';
-    terimaBcaData.mutasi = null;
+  function ntOpenBindOffcanvas($btn) {
+    var mode = String($btn.attr('data-bind-mode') || 'bca');
+    var labels = ntBindLabels(mode);
+    terimaBindData.id = $btn.attr('data-id');
+    terimaBindData.id_cabang = $btn.attr('data-id-cabang') || $btn.closest('.nt-row').attr('data-id-cabang') || '';
+    terimaBindData.target = $btn.attr('data-target');
+    terimaBindData.btn = $btn;
+    terimaBindData.nama = $btn.attr('data-nama') || '';
+    terimaBindData.bindMode = mode;
+    terimaBindData.item = null;
 
+    $('#offcanvasBcaMutasiLabel').text(labels.offcanvasTitle);
+    $('#ntBcaOffcanvasSub').text(labels.offcanvasSub);
     $('#ntBcaKasInfo').html(
-      '<strong>' + terimaBcaData.nama + '</strong> · Ref #' + terimaBcaData.id +
+      '<strong>' + terimaBindData.nama + '</strong> · Ref #' + terimaBindData.id +
       '<br>Nominal kas: <strong>Rp ' + Number($btn.attr('data-nominal') || 0).toLocaleString('id-ID') + '</strong>' +
       ' · toleransi ± Rp 10.000'
     );
-    $('#ntBcaMutasiList').html('<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Memuat mutasi…</div>');
+    $('#ntBcaMutasiList').html('<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Memuat…</div>');
 
     var ocEl = document.getElementById('offcanvasBcaMutasi');
     if (ocEl && window.bootstrap && bootstrap.Offcanvas) {
@@ -474,25 +522,26 @@ if (count($data['cek']) == 0) { ?>
     }
 
     $.ajax({
-      url: $btn.attr('data-mutasi-url'),
+      url: $btn.attr('data-list-url'),
       type: 'POST',
-      data: { id: terimaBcaData.id, id_cabang: terimaBcaData.id_cabang || '' },
+      data: { id: terimaBindData.id, id_cabang: terimaBindData.id_cabang || '' },
       dataType: 'json',
       success: function(res) {
         if (!res || !res.ok) {
-          $('#ntBcaMutasiList').html('<div class="text-danger small p-3">' + (res && res.message ? res.message : 'Gagal memuat mutasi') + '</div>');
+          $('#ntBcaMutasiList').html('<div class="text-danger small p-3">' + (res && res.message ? res.message : 'Gagal memuat data') + '</div>');
           return;
         }
-        terimaBcaData.kasNominalFmt = res.kas_nominal_fmt || '';
-        ntRenderBcaMutasiList(
+        terimaBindData.kasNominalFmt = res.kas_nominal_fmt || '';
+        ntRenderBindList(
           res.items || [],
           res.kas_nominal_fmt,
           res.range,
-          res.nominal_tolerance_fmt || '10.000'
+          res.nominal_tolerance_fmt || '10.000',
+          mode
         );
       },
       error: function() {
-        $('#ntBcaMutasiList').html('<div class="text-danger small p-3">Gagal memuat daftar mutasi BCA</div>');
+        $('#ntBcaMutasiList').html('<div class="text-danger small p-3">' + labels.loadFail + '</div>');
       }
     });
   }
@@ -569,13 +618,14 @@ if (count($data['cek']) == 0) { ?>
     });
   });
 
-  // Pilih mutasi di offcanvas → modal konfirmasi
+  // Pilih item di offcanvas → modal konfirmasi
   $(document).on('click', '.nt-bca-item', function() {
-    var mutasiId = String($(this).attr('data-mutasi-id') || '');
-    var mutasi = ntBcaMutasiCache[mutasiId];
-    if (!mutasi) return;
+    var bindId = String($(this).attr('data-bind-id') || '');
+    var item = ntBindItemCache[bindId];
+    if (!item) return;
 
-    terimaBcaData.mutasi = mutasi;
+    var labels = ntBindLabels(terimaBindData.bindMode || 'bca');
+    terimaBindData.item = item;
     $('.nt-bca-item').removeClass('is-selected');
     $(this).addClass('is-selected');
 
@@ -584,43 +634,51 @@ if (count($data['cek']) == 0) { ?>
       bootstrap.Offcanvas.getInstance(ocEl)?.hide();
     }
 
-    $('#ntTerimaNama').text(terimaBcaData.nama || '-');
+    $('#ntTerimaModalTitle').text('Konfirmasi Bind & Terima');
+    $('#ntTerimaBindLabel').text(labels.bindLabel);
+    $('#ntTerimaNama').text(terimaBindData.nama || '-');
     var warn = '';
-    if (!mutasi.nominal_match && mutasi.selisih > 0) {
-      warn = '<span class="text-info">Selisih nominal Rp ' + (mutasi.selisih_fmt || mutasi.selisih) + ' (masih dalam toleransi ± Rp 10.000)</span><br>';
+    if (!item.nominal_match && item.selisih > 0) {
+      warn = '<span class="text-info">Selisih nominal Rp ' + (item.selisih_fmt || item.selisih) + ' (masih dalam toleransi ± Rp 10.000)</span><br>';
     }
-    var dateDetail = mutasi.tanggal || mutasi.tanggal_iso || '-';
-    if (mutasi.is_pend && mutasi.created_at) {
-      var pendSync = String(mutasi.created_at).substring(0, 10);
+    var dateDetail = item.date_label || item.tanggal || item.tanggal_iso || '-';
+    if (item.is_pend && item.created_at) {
+      var pendSync = String(item.created_at).substring(0, 10);
       if (pendSync) dateDetail += ' (sync ' + pendSync + ')';
     }
-    $('#ntTerimaMutasiDetail').html(
-      warn +
-      '<div><strong>Tanggal:</strong> ' + dateDetail + (mutasi.is_pend ? ' <span class="nt-bca-badge-pend">PEND</span>' : '') + '</div>' +
-      '<div><strong>Nominal:</strong> Rp ' + (mutasi.nominal_fmt || mutasi.nominal) + '</div>' +
-      '<div class="mt-1"><strong>Keterangan:</strong><br>' + $('<div>').text(mutasi.keterangan_full || mutasi.keterangan || '').html().replace(/\n/g, '<br>') + '</div>'
-    );
+    var detailHtml = warn +
+      '<div><strong>Tanggal:</strong> ' + dateDetail + (item.is_pend ? ' <span class="nt-bca-badge-pend">PEND</span>' : '') + '</div>' +
+      '<div><strong>Nominal:</strong> Rp ' + (item.nominal_fmt || item.nominal) + '</div>';
+    if (item.rrn) {
+      detailHtml += '<div><strong>RRN:</strong> ' + $('<div>').text(item.rrn).html() + '</div>';
+    }
+    detailHtml += '<div class="mt-1"><strong>Keterangan:</strong><br>' + $('<div>').text(item.keterangan_full || item.keterangan || '').html().replace(/\n/g, '<br>') + '</div>';
+    $('#ntTerimaMutasiDetail').html(detailHtml);
     $('#ntTerimaNominalCompare').html(
-      'Kas: Rp ' + (terimaBcaData.kasNominalFmt || Number(terimaBcaData.btn.attr('data-nominal') || 0).toLocaleString('id-ID')) +
-      ' · Mutasi: Rp ' + (mutasi.nominal_fmt || mutasi.nominal) +
-      (mutasi.selisih > 0 ? ' · selisih Rp ' + (mutasi.selisih_fmt || mutasi.selisih) : '')
+      'Kas: Rp ' + (terimaBindData.kasNominalFmt || Number(terimaBindData.btn.attr('data-nominal') || 0).toLocaleString('id-ID')) +
+      ' · ' + labels.compareMutasi + ': Rp ' + (item.nominal_fmt || item.nominal) +
+      (item.selisih > 0 ? ' · selisih Rp ' + (item.selisih_fmt || item.selisih) : '')
     );
     $('#modalTerimaBca').modal('show');
   });
 
   $('#btnKonfirmasiTerimaBca').on('click', function() {
-    if (!terimaBcaData.mutasi || !terimaBcaData.mutasi.id) {
-      ntToast('Pilih mutasi terlebih dahulu', 'warn');
+    if (!terimaBindData.item || !terimaBindData.item.id) {
+      ntToast('Pilih transaksi terlebih dahulu', 'warn');
       return;
     }
+    var labels = ntBindLabels(terimaBindData.bindMode || 'bca');
+    var extra = terimaBindData.bindMode === 'qris'
+      ? { qris_id: terimaBindData.item.id }
+      : { mutasi_id: terimaBindData.item.id };
     $('#modalTerimaBca').modal('hide');
-    var btn = terimaBcaData.btn;
+    var btn = terimaBindData.btn;
     ntPostOperasi(
-      terimaBcaData.target,
-      terimaBcaData.id,
-      { mutasi_id: terimaBcaData.mutasi.id },
+      terimaBindData.target,
+      terimaBindData.id,
+      extra,
       btn,
-      'BCA bind & dikonfirmasi'
+      labels.okMsg
     );
   });
 
@@ -628,8 +686,8 @@ if (count($data['cek']) == 0) { ?>
   $(document).on("click", ".nTerima", function(e) {
     e.preventDefault();
     var btn = $(this);
-    if (String(btn.attr('data-bca')) === '1') {
-      ntOpenBcaOffcanvas(btn);
+    if (String(btn.attr('data-bind')) === '1') {
+      ntOpenBindOffcanvas(btn);
       return;
     }
     ntPostOperasi(btn.attr('data-target'), btn.attr('data-id'), {}, btn, 'Transaksi dikonfirmasi');
