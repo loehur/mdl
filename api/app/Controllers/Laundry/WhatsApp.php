@@ -148,25 +148,20 @@ class WhatsApp extends Controller
             $this->error($res['http_message'], $res['http_code'] ?? 400, $res['http_data'] ?? null);
         }
         
-        // Business Logic: Template mode — jika CSW yCloud ATAU CSW Fonnte terbuka: batalkan template, kirim free text saja
+        // Business Logic: Template mode — jika CSW yCloud terbuka (line manapun): batalkan template, kirim free text
         if ($messageMode === 'template') {
-            $fonnteLastInTpl = $this->getFonnteCswLastInAt($db, $phone1);
-            $fonnteHoursElapsedTpl = 99999;
-            if ($fonnteLastInTpl) {
-                $fonnteHoursElapsedTpl = $this->whatsappService->diffHours(date('Y-m-d H:i:s'), $fonnteLastInTpl);
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
             }
-            $isFonnteCswOpenTpl = $this->whatsappService->isWithinCsw($fonnteLastInTpl);
+            $csw = \App\Helpers\CRM\CrmChatMergeHelper::getCswStatus($db, $phone);
 
-            $eitherCswOpen = $isWithinCsw || $isFonnteCswOpenTpl;
-
-            if ($eitherCswOpen) {
+            if (!empty($csw['can_reply'])) {
                 if (empty($body['message'])) {
                     $this->error(
-                        'Saat CSW yCloud atau Fonnte terbuka, pengiriman template dibatalkan — field message wajib diisi untuk free text.',
+                        'Saat CSW YCloud terbuka, pengiriman template dibatalkan — field message wajib diisi untuk free text.',
                         400,
                         [
-                            'csw_ycloud_open' => $isWithinCsw,
-                            'csw_fonnte_open' => $isFonnteCswOpenTpl,
+                            'line_csw' => $csw['line_csw'] ?? [],
                             'template_cancelled' => true,
                         ]
                     );
@@ -192,7 +187,7 @@ class WhatsApp extends Controller
                 $this->error($resTpl['http_message'], $resTpl['http_code'] ?? 400, $resTpl['http_data'] ?? null);
             }
 
-            // CSW tertutup di yCloud DAN Fonnte — kirim template (yCloud)
+            // CSW tertutup — kirim template (yCloud)
             $this->validateIpWhitelist();
 
             // Validate template name (template_params can be empty array)
@@ -237,36 +232,13 @@ class WhatsApp extends Controller
                 'template_name' => $templateName,
                 'to' => $phone,
                 'csw_status' => [
-                    'ycloud_within_csw' => false,
-                    'fonnte_within_csw' => false,
-                    'hours_elapsed_ycloud' => round($hoursElapsed, 2),
-                    'hours_elapsed_fonnte' => round($fonnteHoursElapsedTpl, 2),
-                    'note' => 'Template via yCloud: CSW tertutup di yCloud dan Fonnte (jendela 24 jam)',
+                    'within_csw' => false,
+                    'hours_elapsed' => round($hoursElapsed, 2),
+                    'note' => 'Template via yCloud: CSW tertutup (jendela 24 jam)',
                 ],
             ], 'WhatsApp template sent successfully');
         }
         
         $this->error('Invalid message_mode. Use "free" or "template"', 400);
-    }
-
-    /**
-     * last_in_at dari wa_fonnte_csw (format phone: +628… atau 628…).
-     */
-    private function getFonnteCswLastInAt($db, string $phone628): ?string
-    {
-        try {
-            $phonePlus = '+' . $phone628;
-            $q = $db->query(
-                "SELECT last_in_at FROM wa_fonnte_csw WHERE phone IN (?, ?) ORDER BY id DESC LIMIT 1",
-                [$phonePlus, $phone628]
-            );
-            if ($q->num_rows() > 0) {
-                return (string) $q->row()->last_in_at;
-            }
-        } catch (\Throwable $e) {
-            \Log::write('getFonnteCswLastInAt: ' . $e->getMessage(), 'whatsapp', 'api');
-        }
-
-        return null;
     }
 }

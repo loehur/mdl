@@ -477,13 +477,13 @@ class Chat extends Controller
 
             $messages = $db->query($sql, $params)->result_array();
 
-            if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
-                require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+            if (!class_exists('\\App\\Helpers\\CRM\\WaMediaHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WaMediaHelper.php';
             }
 
             foreach ($messages as &$msg) {
                 if (!empty($msg['media_url'])) {
-                    $msg['media_url'] = \App\Helpers\CRM\FonnteMessageStore::normalizeMediaUrl((string) $msg['media_url']);
+                    $msg['media_url'] = \App\Helpers\CRM\WaMediaHelper::normalizeMediaUrl((string) $msg['media_url']);
                 }
 
                 $privateValue = $msg['private'] ?? $msg['`private`'] ?? null;
@@ -633,9 +633,8 @@ class Chat extends Controller
             $variants
         )->result_array();
 
-        // 2. Mark read lokal (yCloud + Fonnte)
+        // 2. Mark read lokal (yCloud)
         CrmChatMergeHelper::markYcloudInboundRead($db, (string) $phone);
-        CrmChatMergeHelper::markFonnteInboundRead($db, (string) $phone);
         
         // ALWAYS Push WS to sync status (Broadcast to ALL via target_id='0')
         $userId = $_SERVER['HTTP_USER_ID'] ?? $body['user_id'] ?? null;
@@ -1181,13 +1180,13 @@ class Chat extends Controller
             die('URL required');
         }
 
-        if (!class_exists('\\App\\Helpers\\CRM\\FonnteMessageStore')) {
-            require_once __DIR__ . '/../../Helpers/CRM/FonnteMessageStore.php';
+        if (!class_exists('\\App\\Helpers\\CRM\\WaMediaHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaMediaHelper.php';
         }
 
         $parts = parse_url($url);
         $host = strtolower((string) ($parts['host'] ?? ''));
-        if ($host === '' || !\App\Helpers\CRM\FonnteMessageStore::isProxyAllowedMediaHost($host)) {
+        if ($host === '' || !\App\Helpers\CRM\WaMediaHelper::isProxyAllowedMediaHost($host)) {
             http_response_code(403);
             die('Host not allowed');
         }

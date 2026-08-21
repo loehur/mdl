@@ -96,16 +96,14 @@ class WaCswLine
     /** Fallback sebelum migration / baris belum ada. */
     private static function legacyLastInAt($db, string $customerPhone, string $businessPhone): ?string
     {
-        $business = WaLines::normalizeE164($businessPhone);
-        $csPhone = WaLines::get(WaLines::KEY_CS)['phone'] ?? '';
-        $adminPhone = WaLines::get(WaLines::KEY_ADMIN)['phone'] ?? '';
+        if (!class_exists(\App\Config\WaLines::class)) {
+            require_once __DIR__ . '/../../Config/WaLines.php';
+        }
+        $business = \App\Config\WaLines::normalizeE164($businessPhone);
+        $csPhone = \App\Config\WaLines::get(\App\Config\WaLines::KEY_CS)['phone'] ?? '';
 
         if ($business === $csPhone) {
             return CrmChatMergeHelper::getLegacyConversationLastInAt($db, $customerPhone);
-        }
-
-        if ($business === $adminPhone) {
-            return CrmChatMergeHelper::getLegacyFonnteCswLastInAt($db, $customerPhone);
         }
 
         return null;

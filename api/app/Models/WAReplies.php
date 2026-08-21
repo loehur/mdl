@@ -38,8 +38,6 @@ class WAReplies
     private $currentContactName = null;
     /** @var array Cache sapaan AI per nama (nama => kak/bang) untuk hindari panggilan berulang */
     private $sapaanAiCache = [];
-    /** @var object|null Custom sender (FonnteReplyAdapter) - bila set, pakai ini instead of YCloud */
-    private $customSender = null;
 
     /**
      * ID pesan masuk yang sedang dijawab (yCloud wamid / Fonnte inboxid) untuk quote-reply.
@@ -54,7 +52,7 @@ class WAReplies
     private $inboundBusinessPhone = null;
 
     /**
-     * Jika true: tidak INSERT/UPDATE wa_conversations (webhook Fonnte — CSW Fonnte di wa_fonnte_csw saja).
+     * Jika true: tidak INSERT/UPDATE wa_conversations (intent lab / skip persist).
      */
     private $skipConversationPersist = false;
 
@@ -97,12 +95,17 @@ class WAReplies
     private $autoreplyKeywordConfig = null;
 
     /**
-     * Set custom sender untuk Fonnte (bila webhook dari Fonnte, bukan YCloud)
-     * @param object $adapter Instance FonnteReplyAdapter
+     * Get WhatsApp Service instance (lazy loading)
      */
-    public function setCustomSender($adapter)
+    private function getWaService()
     {
-        $this->customSender = $adapter;
+        if ($this->waService === null) {
+            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
+                require_once __DIR__ . '/../Helpers/CRM/WhatsAppService.php';
+            }
+            $this->waService = new \App\Helpers\CRM\WhatsAppService();
+        }
+        return $this->waService;
     }
 
     public function setSkipConversationPersist(bool $skip): void
@@ -467,24 +470,6 @@ class WAReplies
     }
 
     /**
-     * Get WhatsApp Service instance (lazy loading)
-     * Bila setCustomSender() dipanggil, return adapter tersebut
-     */
-    private function getWaService()
-    {
-        if ($this->customSender !== null) {
-            return $this->customSender;
-        }
-        if ($this->waService === null) {
-            if (!class_exists('\\App\\Helpers\\WhatsAppService')) {
-                require_once __DIR__ . '/../Helpers/CRM/WhatsAppService.php';
-            }
-            $this->waService = new \App\Helpers\CRM\WhatsAppService();
-        }
-        return $this->waService;
-    }
-
-    /**
      * Kirim teks ke customer sebagai quote-reply ke pesan masuk yang sedang diproses.
      */
     private function sendQuotedFreeText($waNumber, $text, $senderCode = null): array
@@ -524,10 +509,7 @@ class WAReplies
         }
         $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
-            // Jangan push WS di sini untuk yCloud: WhatsAppService::saveOutboundMessage
-            // sudah broadcast agent_message_sent (id = DB). Push kedua pakai id provider
-            // membuat CRM tampil double sampai refresh.
-            // Fonnte (customSender): pushToWebSocket memang no-op.
+            // WhatsAppService::saveOutboundMessage sudah broadcast agent_message_sent.
         } else {
             $handler = $this->currentHandler ?? 'unknown';
             if (class_exists('\Log')) {
@@ -771,7 +753,7 @@ class WAReplies
         $db = DB::getInstance(0);
         $placeholders = implode(',', array_fill(0, count($phones), '?'));
         $params = array_merge(array_values($phones), [$minutes]);
-        $tables = ['wa_messages_out', 'wa_fonnte_messages_out'];
+        $tables = ['wa_messages_out'];
         foreach ($tables as $table) {
             try {
                 $res = $db->query(
@@ -7626,11 +7608,6 @@ class WAReplies
 
     private function pushToWebSocket($data)
     {
-        // Autoreply Fonnte (FonnteReplyAdapter): tidak push ke waserver — WebSocket hanya untuk yCloud
-        if ($this->customSender !== null) {
-            return null;
-        }
-
         $url = \App\Helpers\CRM\WaServer::incomingUrl();
 
 

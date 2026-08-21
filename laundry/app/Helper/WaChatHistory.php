@@ -89,67 +89,6 @@ class WaChatHistory
     }
 
     /**
-     * In/out Fonnte tabel terpisah — jangan UNION+ORDER BY id.
-     * Ambil N terbaru tiap arah, lalu urutkan dengan pasangan inboxid / reply_inboxid.
-     *
-     * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int,inboxid:int,reply_inboxid:int}>
-     */
-    private function fetchFonnteMessages($db, string $digits, int $limit): array
-    {
-        $like = $this->phoneLikeSql($db, $digits, 'phone');
-        $limit = (int) $limit;
-
-        try {
-            $ins = $db->query_array(
-                "SELECT
-                    id,
-                    text,
-                    type,
-                    'customer' AS sender,
-                    created_at AS time,
-                    NULL AS status,
-                    NULL AS media_id,
-                    media_url,
-                    inboxid,
-                    NULL AS reply_inboxid
-                 FROM wa_fonnte_messages_in
-                 WHERE {$like}
-                 ORDER BY created_at DESC, id DESC
-                 LIMIT {$limit}"
-            );
-            $outs = $db->query_array(
-                "SELECT
-                    id,
-                    COALESCE(text, '') AS text,
-                    type,
-                    'me' AS sender,
-                    created_at AS time,
-                    status,
-                    NULL AS media_id,
-                    media_url,
-                    NULL AS inboxid,
-                    reply_inboxid
-                 FROM wa_fonnte_messages_out
-                 WHERE {$like}
-                 ORDER BY created_at DESC, id DESC
-                 LIMIT {$limit}"
-            );
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        $rows = array_merge(
-            $this->normalizeRows(is_array($ins) ? $ins : [], 'fonnte'),
-            $this->normalizeRows(is_array($outs) ? $outs : [], 'fonnte')
-        );
-        usort($rows, function (array $a, array $b): int {
-            return $this->compareTimeline($a, $b);
-        });
-
-        return $rows;
-    }
-
-    /**
      * @param list<array<string,mixed>> $messages
      * @return list<array{sender:string,text:string,type:string,time:string,media_url:?string,media_id:?string,source:string,_id:int,inboxid:int,reply_inboxid:int}>
      */

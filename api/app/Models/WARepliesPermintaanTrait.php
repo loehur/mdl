@@ -319,29 +319,6 @@ trait WARepliesPermintaanTrait
             // ignore
         }
 
-        try {
-            $db = DB::getInstance(0);
-            $rows = $db->query(
-                "SELECT text AS body, created_at AS at FROM wa_fonnte_messages_in
-                 WHERE phone IN ($placeholders)
-                   AND created_at >= (NOW() - INTERVAL ? MINUTE)
-                 ORDER BY created_at DESC
-                 LIMIT ?",
-                $params
-            );
-            if ($rows) {
-                foreach ($rows->result_array() as $r) {
-                    $body = $this->permintaanStripPreviewPrefix(trim((string) ($r['body'] ?? '')));
-                    if ($body === '' || mb_strlen($body) < 2) {
-                        continue;
-                    }
-                    $out[] = ['at' => (string) ($r['at'] ?? ''), 'body' => mb_substr($body, 0, 500)];
-                }
-            }
-        } catch (\Throwable $e) {
-            // tabel fonnte belum ada
-        }
-
         if ($out === []) {
             return [];
         }
