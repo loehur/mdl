@@ -1,5 +1,6 @@
 /**
  * Cooldown antar scrape ke KlikBCA (cegah spam).
+ * Mutasi ibank dan QRIS QRMS masing-masing punya counter sendiri.
  */
 
 const DEFAULT_MS = 9 * 60 * 1000;

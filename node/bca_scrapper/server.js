@@ -103,7 +103,7 @@ function rejectCooldown(res, kind, gate) {
   return res.status(429).json({
     ok: false,
     error: 'cooldown',
-    message: `Cek ${label} BCA cooldown aktif. Coba lagi dalam ~${min} menit (${sec} detik).`,
+    message: `Scrape ${label} BCA cooldown aktif. Coba lagi dalam ~${min} menit (${sec} detik).`,
     cooldown_ms: gate.cooldown_ms,
     retry_after_ms: gate.retry_after_ms,
     retry_after_sec: sec,
