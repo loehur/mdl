@@ -428,6 +428,7 @@ class WhatsApp extends Controller
 
                 $replies = new \App\Models\WAReplies();
                 $replies->setInboundReplyToMessageId($wamid ?: $messageId);
+                $replies->setInboundLine($inboundLineKey, $businessPhone);
                 if (is_array($senderCtxEarly)) {
                     $replies->setSenderContext($senderCtxEarly);
                 }

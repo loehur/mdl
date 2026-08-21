@@ -47,6 +47,12 @@ class WAReplies
      */
     private $inboundReplyToId = null;
 
+    /** Line YCloud penerima inbound (admin/cs) — autoreply harus from nomor yang sama. */
+    private $inboundLineKey = null;
+
+    /** @var string|null E.164 business phone dari webhook to */
+    private $inboundBusinessPhone = null;
+
     /**
      * Jika true: tidak INSERT/UPDATE wa_conversations (webhook Fonnte — CSW Fonnte di wa_fonnte_csw saja).
      */
@@ -125,6 +131,32 @@ class WAReplies
             return;
         }
         $this->inboundReplyToId = $id;
+    }
+
+    /**
+     * Set line bisnis dari webhook YCloud (msg.to) agar autoreply from = line penerima.
+     */
+    public function setInboundLine(?string $lineKey, ?string $businessPhone = null): void
+    {
+        $this->inboundLineKey = ($lineKey !== null && trim($lineKey) !== '') ? trim($lineKey) : null;
+        $this->inboundBusinessPhone = ($businessPhone !== null && trim($businessPhone) !== '') ? trim($businessPhone) : null;
+    }
+
+    private function resolveOutboundLineKey(): ?string
+    {
+        if ($this->inboundLineKey !== null && $this->inboundLineKey !== '') {
+            return $this->inboundLineKey;
+        }
+        if ($this->inboundBusinessPhone !== null && $this->inboundBusinessPhone !== '') {
+            if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+                require_once __DIR__ . '/../Helpers/CRM/WaLineResolver.php';
+            }
+            $line = \App\Helpers\CRM\WaLineResolver::fromBusinessPhone($this->inboundBusinessPhone);
+
+            return $line['key'] ?? null;
+        }
+
+        return null;
     }
 
     /** @var array|null Hasil WaSenderContext::resolve() */
@@ -468,7 +500,9 @@ class WAReplies
             $waNumber,
             $text,
             $this->inboundReplyToId,
-            $code
+            $code,
+            null,
+            $this->resolveOutboundLineKey()
         );
     }
 
