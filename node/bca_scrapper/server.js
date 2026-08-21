@@ -1,4 +1,6 @@
 require('dotenv').config();
+const { initChromeRuntime } = require('./lib/puppeteer-launch');
+initChromeRuntime();
 
 const express = require('express');
 const cors = require('cors');

@@ -18,28 +18,41 @@ const DEFAULT_ARGS = [
   '--disable-gpu',
   '--disable-crash-reporter',
   '--disable-breakpad',
+  '--disable-features=Crashpad',
 ];
 
 /**
- * Chrome butuh direktori writable (crashpad/XDG). VPS aaPanel sering gagal tanpa ini.
- * @returns {string} userDataDir
+ * @returns {string} base runtime dir
  */
-function ensureChromeRuntimeDirs() {
-  const base = String(process.env.PUPPETEER_RUNTIME_DIR || '').trim()
+function chromeRuntimeBase() {
+  return String(process.env.PUPPETEER_RUNTIME_DIR || '').trim()
     || path.join(os.tmpdir(), 'bca-scrapper-chrome');
+}
+
+/**
+ * Set env + folder writable sebelum Chrome spawn (wajib di startup server).
+ * @returns {string} base runtime dir
+ */
+function initChromeRuntime() {
+  const base = chromeRuntimeBase();
   const configHome = path.join(base, 'xdg-config');
   const cacheHome = path.join(base, 'xdg-cache');
-  const profileDir = path.join(base, 'profile');
-  for (const dir of [configHome, cacheHome, profileDir]) {
-    fs.mkdirSync(dir, { recursive: true });
+  const crashDir = path.join(base, 'crash');
+  for (const dir of [base, configHome, cacheHome, crashDir]) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
   }
-  if (!process.env.XDG_CONFIG_HOME) {
-    process.env.XDG_CONFIG_HOME = configHome;
-  }
-  if (!process.env.XDG_CACHE_HOME) {
-    process.env.XDG_CACHE_HOME = cacheHome;
-  }
-  return profileDir;
+  process.env.XDG_CONFIG_HOME = configHome;
+  process.env.XDG_CACHE_HOME = cacheHome;
+  process.env.CHROME_CRASHPAD_HANDLER_DATABASE = path.join(crashDir, 'crashpad.db');
+  return base;
+}
+
+/**
+ * @returns {string} userDataDir (unik per launch)
+ */
+function createChromeProfileDir() {
+  const base = initChromeRuntime();
+  return fs.mkdtempSync(path.join(base, 'profile-'));
 }
 
 /**
@@ -47,11 +60,13 @@ function ensureChromeRuntimeDirs() {
  * @returns {import('puppeteer').LaunchOptions}
  */
 function buildLaunchOptions(headless = true) {
+  const base = initChromeRuntime();
+  const crashDir = path.join(base, 'crash');
   /** @type {import('puppeteer').LaunchOptions} */
   const options = {
     headless,
-    args: [...DEFAULT_ARGS],
-    userDataDir: ensureChromeRuntimeDirs(),
+    args: [...DEFAULT_ARGS, `--crash-dumps-dir=${crashDir}`],
+    userDataDir: createChromeProfileDir(),
   };
 
   const executablePath = String(process.env.PUPPETEER_EXECUTABLE_PATH || '').trim();
@@ -115,6 +130,7 @@ async function missingSharedLibs(chromePath) {
  */
 async function chromeStatus() {
   const user = process.env.USER || process.env.LOGNAME || '';
+  initChromeRuntime();
   try {
     const chromePath = await puppeteer.executablePath();
     if (!chromePath) {
@@ -159,5 +175,6 @@ module.exports = {
   launchBrowser,
   buildLaunchOptions,
   chromeStatus,
+  initChromeRuntime,
   DEFAULT_ARGS,
 };
