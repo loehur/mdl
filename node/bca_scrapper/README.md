@@ -56,6 +56,40 @@ apt install -y libnspr4 libnss3 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-
 # atau: bash scripts/install-chrome-deps.sh
 ```
 
+Error `chrome_crashpad_handler: --database is required` = direktori Chrome tidak writable:
+
+```bash
+mkdir -p /tmp/bca-scrapper-chrome
+# di .env bca_scrapper:
+# PUPPETEER_RUNTIME_DIR=/tmp/bca-scrapper-chrome
+# restart service
+```
+
+### Tes manual di VPS (tanpa tunggu cron 14 menit)
+
+**1. Full flow (sync QRIS + match kas)** — sama seperti cron:
+
+```bash
+# via cron_server (paling gampang)
+curl -X POST http://127.0.0.1:3011/run/bca-qris-confirm
+
+# atau langsung ke API PHP (ganti SECRET dari api/app/Config/Env.php)
+curl -s "http://127.0.0.1/api/Cron/BcaQrisConfirm/index?secret=ISI_CRON_SECRET"
+```
+
+**2. Scrape QRIS saja** (test Chrome/Puppeteer langsung):
+
+```bash
+TOKEN=$(grep -E '^BCA_SCRAPPER_TOKEN=' /www/wwwroot/mdl/node/bca_scrapper/.env | cut -d= -f2-)
+curl -s -X POST http://127.0.0.1:3021/qris/transactions \
+  -H "Content-Type: application/json" \
+  -H "X-Bca-Token: $TOKEN" \
+  -d '{}'
+```
+
+**3. Health + cooldown:** `curl -s http://127.0.0.1:3021/health`  
+Cooldown QRIS 9 menit — **restart bca_scrapper** di aaPanel untuk reset.
+
 Service aaPanel jalan sebagai **www** — jangan arahkan cache ke `/root/.cache`.
 
 ## Endpoints

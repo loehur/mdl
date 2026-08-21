@@ -4,6 +4,8 @@
 
 const { execFile } = require('child_process');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { promisify } = require('util');
 const puppeteer = require('puppeteer');
 
@@ -14,7 +16,31 @@ const DEFAULT_ARGS = [
   '--disable-setuid-sandbox',
   '--disable-dev-shm-usage',
   '--disable-gpu',
+  '--disable-crash-reporter',
+  '--disable-breakpad',
 ];
+
+/**
+ * Chrome butuh direktori writable (crashpad/XDG). VPS aaPanel sering gagal tanpa ini.
+ * @returns {string} userDataDir
+ */
+function ensureChromeRuntimeDirs() {
+  const base = String(process.env.PUPPETEER_RUNTIME_DIR || '').trim()
+    || path.join(os.tmpdir(), 'bca-scrapper-chrome');
+  const configHome = path.join(base, 'xdg-config');
+  const cacheHome = path.join(base, 'xdg-cache');
+  const profileDir = path.join(base, 'profile');
+  for (const dir of [configHome, cacheHome, profileDir]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!process.env.XDG_CONFIG_HOME) {
+    process.env.XDG_CONFIG_HOME = configHome;
+  }
+  if (!process.env.XDG_CACHE_HOME) {
+    process.env.XDG_CACHE_HOME = cacheHome;
+  }
+  return profileDir;
+}
 
 /**
  * @param {boolean} [headless]
@@ -25,6 +51,7 @@ function buildLaunchOptions(headless = true) {
   const options = {
     headless,
     args: [...DEFAULT_ARGS],
+    userDataDir: ensureChromeRuntimeDirs(),
   };
 
   const executablePath = String(process.env.PUPPETEER_EXECUTABLE_PATH || '').trim();
