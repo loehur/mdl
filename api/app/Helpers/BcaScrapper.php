@@ -9,9 +9,9 @@ class BcaScrapper
 {
     public const MAX_RANGE_DAYS = 6;
     public const MAX_LOOKBACK_DAYS = 30;
-    public const QRIS_MAX_RANGE_DAYS = 2; // scrape portal: max kemarin + hari ini
+    public const QRIS_MAX_RANGE_DAYS = 2; // scrape portal: hari ini + kemarin
+    public const QRIS_SCRAPE_LOOKBACK_DAYS = 1; // lookback max kemarin (bukan kemarin lusa)
     public const QRIS_DB_MATCH_RANGE_DAYS = 6; // cek DB saat matching kas (sama mutasi BCA)
-    public const QRIS_MAX_LOOKBACK_DAYS = 30;
     public const MAX_SYNC_CHUNKS = 10;
 
     public const ENTITY_KAS_LAUNDRY = 'kas_laundry';
@@ -563,8 +563,9 @@ class BcaScrapper
 
         $today = date('Y-m-d');
         if ($startDate === null && $endDate === null) {
-            $startDate = self::lookbackMinStart();
-            $endDate = $today;
+            $window = self::qrisScrapeWindow();
+            $startDate = $window['start'];
+            $endDate = $window['end'];
         }
 
         $clamped = self::clampQrisDateRange(
@@ -658,7 +659,7 @@ class BcaScrapper
     public static function clampQrisDateRange(string $start, string $end): array
     {
         $today = date('Y-m-d');
-        $minStart = date('Y-m-d', strtotime($today . ' -' . self::QRIS_MAX_LOOKBACK_DAYS . ' days'));
+        $minStart = date('Y-m-d', strtotime($today . ' -' . self::QRIS_SCRAPE_LOOKBACK_DAYS . ' days'));
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
             return ['valid' => false, 'reason' => 'invalid_date_format'];
@@ -687,7 +688,7 @@ class BcaScrapper
     }
 
     /**
-     * Rentang scrape portal QRMS — hanya kemarin + hari ini.
+     * Rentang scrape portal QRMS — kemarin s/d hari ini (lookback max 1 hari).
      *
      * @return array{start:string,end:string}
      */
@@ -724,6 +725,26 @@ class BcaScrapper
 
         $fetchStart = (string) $trimmed['start'];
         $fetchEnd = (string) $trimmed['end'];
+
+        $scrapeWindow = self::qrisScrapeWindow();
+        if ($fetchStart < $scrapeWindow['start']) {
+            $fetchStart = $scrapeWindow['start'];
+        }
+        if ($fetchEnd > $scrapeWindow['end']) {
+            $fetchEnd = $scrapeWindow['end'];
+        }
+        if ($fetchStart > $fetchEnd) {
+            return [
+                'ok' => true,
+                'fetched' => 0,
+                'inserted' => 0,
+                'skipped_dup' => 0,
+                'skipped_scrape' => true,
+                'start' => $fetchStart,
+                'end' => $fetchEnd,
+                'reason' => 'outside_scrape_window',
+            ];
+        }
 
         $remote = self::qrisTransactions($fetchStart, $fetchEnd);
         if (empty($remote['ok'])) {

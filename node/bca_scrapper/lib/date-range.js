@@ -1,7 +1,7 @@
 const MAX_RANGE_DAYS = Number(process.env.MUTASI_MAX_RANGE_DAYS || 6);
 const MAX_LOOKBACK_DAYS = Number(process.env.MUTASI_MAX_LOOKBACK_DAYS || 30);
 const QRIS_MAX_RANGE_DAYS = Number(process.env.QRIS_MAX_RANGE_DAYS || 2);
-const QRIS_MAX_LOOKBACK_DAYS = Number(process.env.QRIS_MAX_LOOKBACK_DAYS || 30);
+const QRIS_MAX_LOOKBACK_DAYS = Number(process.env.QRIS_MAX_LOOKBACK_DAYS || 1);
 const TZ = process.env.TZ || 'Asia/Jakarta';
 
 function todayYmd() {
@@ -99,7 +99,7 @@ function validateMutasiDateRange(startDate, endDate) {
 }
 
 /**
- * Validasi tanggal transaksi QRIS — rentang maks 2 hari, lookback max 30 hari (sama BCA).
+ * Validasi tanggal transaksi QRIS — max kemarin + hari ini (2 hari), lookback max 1 hari (kemarin).
  * @param {string|null|undefined} startDate
  * @param {string|null|undefined} endDate
  * @returns {{ startDate: string, endDate: string }}

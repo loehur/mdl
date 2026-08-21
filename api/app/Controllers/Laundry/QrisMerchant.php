@@ -23,12 +23,12 @@ class QrisMerchant extends Controller
         $startDate = trim((string) ($body['start_date'] ?? $_GET['start_date'] ?? ''));
         $endDate = trim((string) ($body['end_date'] ?? $_GET['end_date'] ?? ''));
 
-        $today = date('Y-m-d');
+        $window = BcaScrapper::qrisScrapeWindow();
         if ($startDate === '') {
-            $startDate = $today;
+            $startDate = $window['start'];
         }
         if ($endDate === '') {
-            $endDate = $startDate;
+            $endDate = $window['end'];
         }
 
         $clamped = BcaScrapper::clampQrisDateRange($startDate, $endDate);
@@ -37,7 +37,7 @@ class QrisMerchant extends Controller
             echo json_encode([
                 'ok' => false,
                 'error' => (string) ($clamped['reason'] ?? 'invalid_date'),
-                'message' => 'Rentang tanggal tidak valid (max 2 hari, lookback 30 hari, end <= hari ini)',
+                'message' => 'Rentang tanggal tidak valid (max kemarin–hari ini, 2 hari, lookback max kemarin)',
             ], JSON_UNESCAPED_UNICODE);
             return;
         }

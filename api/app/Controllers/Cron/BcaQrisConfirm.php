@@ -9,7 +9,7 @@ use App\Helpers\Laundry\KasNonTunaiConfirm;
 
 /**
  * Konfirmasi otomatis kas QRIS static (merchant BCA / QRMS) jika transaksi cocok.
- * Scrape portal: kemarin + hari ini. Cek DB matching: max 6 hari (sama mutasi BCA).
+ * Scrape portal: kemarin + hari ini (lookback max kemarin). Cek DB matching: max 6 hari.
  *
  * URL:
  * /Cron/BcaQrisConfirm/index?secret=YOUR_CRON_SECRET

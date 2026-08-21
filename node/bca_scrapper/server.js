@@ -321,7 +321,7 @@ app.listen(PORT, HOST, () => {
   console.log(`  Auth: ${AUTH_TOKEN ? 'X-Bca-Token required' : 'open (set BCA_SCRAPPER_TOKEN)'}`);
   console.log('  POST /balance  { username, password }');
   console.log('  POST /mutasi   { username, password, start_date?, end_date? }');
-  console.log('  POST /qris/transactions { start_date?, end_date? } — max 2 hari, lookback 30 hari');
+  console.log('  POST /qris/transactions { start_date?, end_date? } — max kemarin+hari ini, lookback 1 hari');
   console.log('  GET  /health');
   console.log(`  Debug: ${debug.isEnabled() ? 'ON → saves to debug/' : 'off (set BCA_DEBUG=true)'}`);
   console.log(`  Mutasi limits: end<=today (${TZ}), max ${MAX_RANGE_DAYS} days range, max ${MAX_LOOKBACK_DAYS} days lookback`);
