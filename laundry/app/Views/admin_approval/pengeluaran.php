@@ -115,7 +115,11 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     html += '<div class="mt-1">' + pgAiEsc(p.keterangan || '-') + '</div>';
     html += '<div class="fw-bold mt-1">Rp ' + pgAiEsc(p.jumlah_fmt || '0') + '</div>';
     $('#pgAiPending').html(html);
-    $('#pgAiSub').text('Riwayat pengeluaran 30 hari terakhir (semua cabang)');
+    var sub = 'Riwayat 30 hari · jenis sama · status berhasil';
+    if (p.jenis_pengeluaran) {
+      sub += ' (' + p.jenis_pengeluaran + ')';
+    }
+    $('#pgAiSub').text(sub);
   }
 
   function pgAiShowPendingFromBtn($btn) {
@@ -143,7 +147,10 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         meta = 'Analisa AI';
       }
       if (res.history_count != null) {
-        meta += (meta ? ' · ' : '') + 'Riwayat: ' + res.history_count + ' baris (30 hari)';
+        meta += (meta ? ' · ' : '') + 'Riwayat jenis sama: ' + res.history_count + ' baris (30 hari, berhasil)';
+      }
+      if (res.jenis_filter) {
+        meta += (meta ? ' · ' : '') + 'Jenis: ' + res.jenis_filter;
       }
       $('#pgAiMeta').text(meta);
       if (res.ai_source === 'local' && res.message) {

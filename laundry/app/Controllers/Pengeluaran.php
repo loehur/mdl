@@ -26,6 +26,7 @@ class Pengeluaran extends Controller
       header('Content-Type: application/json; charset=utf-8');
 
       try {
+         $pending = null;
          $id = trim((string) ($_POST['id'] ?? $_GET['id'] ?? ''));
          if ($id === '' || !preg_match('/^[A-Za-z0-9]+$/', $id)) {
             echo json_encode(['ok' => false, 'message' => 'ID tidak valid'], JSON_UNESCAPED_UNICODE);
@@ -49,10 +50,11 @@ class Pengeluaran extends Controller
          /** @var PengeluaranAiReview $review */
          $review = $this->helper('PengeluaranAiReview');
          $kodeFn = [$this, 'cabangKodeById'];
-         $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $kodeFn);
+         $jenis = trim((string) ($pending['note_primary'] ?? ''));
+         $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $jenis, $kodeFn, $id);
          $result = $review->analyze($pending, $history, $kodeFn);
 
-         if (empty($result['ok']) || empty($result['analysis'])) {
+         if (empty($result['analysis'])) {
             $pendingPayload = $review->pendingPayload($pending, $kodeFn);
             $result = [
                'ok' => true,
@@ -61,13 +63,38 @@ class Pengeluaran extends Controller
                'history_shown' => min(count($history), 60),
                'pending' => $pendingPayload,
                'ai_source' => 'local',
-               'message' => $result['message'] ?? 'AI tidak tersedia, menampilkan analisa otomatis.',
+               'jenis_filter' => $jenis,
+               'message' => $result['message'] ?? 'Menampilkan analisa otomatis.',
             ];
          }
 
          echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
       } catch (\Throwable $e) {
          $this->model('Log')->write('[Pengeluaran::analisaAi] ' . $e->getMessage());
+         $fallbackPayload = null;
+         $history = [];
+         try {
+            if (!empty($pending) && is_array($pending)) {
+               /** @var PengeluaranAiReview $review */
+               $review = $this->helper('PengeluaranAiReview');
+               $kodeFn = [$this, 'cabangKodeById'];
+               $jenis = trim((string) ($pending['note_primary'] ?? ''));
+               $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $jenis, $kodeFn, (string) ($pending['id_kas'] ?? ''));
+               $fallbackPayload = $review->pendingPayload($pending, $kodeFn);
+               echo json_encode([
+                  'ok' => true,
+                  'analysis' => $review->localFallbackAnalysis($fallbackPayload, $history),
+                  'history_count' => count($history),
+                  'history_shown' => min(count($history), 60),
+                  'pending' => $fallbackPayload,
+                  'ai_source' => 'local',
+                  'jenis_filter' => $jenis,
+                  'message' => 'Error server — analisa otomatis.',
+               ], JSON_UNESCAPED_UNICODE);
+               return;
+            }
+         } catch (\Throwable $ignored) {
+         }
          echo json_encode([
             'ok' => false,
             'message' => 'Gagal analisa: ' . $e->getMessage(),

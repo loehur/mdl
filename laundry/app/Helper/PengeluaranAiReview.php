@@ -9,11 +9,12 @@ class PengeluaranAiReview
 
     /**
      * @param callable(int):string $kodeFn
-     * @return array{ok:bool,analysis?:string,message?:string,history_count?:int,history_shown?:int,pending?:array<string,mixed>,ai_source?:string}
+     * @return array{ok:bool,analysis?:string,message?:string,history_count?:int,history_shown?:int,pending?:array<string,mixed>,ai_source?:string,jenis_filter?:string}
      */
     public function analyze(array $pending, array $historyRows, callable $kodeFn): array
     {
         $pendingPayload = $this->pendingPayload($pending, $kodeFn);
+        $jenisFilter = (string) ($pendingPayload['jenis_pengeluaran'] ?? '');
         $historyCount = count($historyRows);
         $shown = min($historyCount, self::HISTORY_LIMIT);
         $historyForAi = array_slice($historyRows, 0, self::HISTORY_LIMIT);
@@ -25,9 +26,11 @@ class PengeluaranAiReview
         $system = <<<'SYS'
 Kamu analis pengeluaran operasional laundry (cabang/counter). Admin akan membaca komentarmu sebelum konfirmasi pengeluaran pending.
 
+Konteks riwayat: HANYA pengeluaran JENIS SAMA dengan pending, status sudah BERHASIL/dikonfirmasi, 30 hari terakhir (semua cabang).
+
 Tugas:
-- Bandingkan pengeluaran PENDING dengan riwayat 30 hari (semua cabang operasional).
-- Komentari: wajar/tidak wajar, duplikasi potensial, nominal vs pola, frekuensi jenis pengeluaran, keterangan kurang jelas, atau anomali cabang tertentu.
+- Bandingkan pengeluaran PENDING dengan riwayat jenis yang sama.
+- Komentari: wajar/tidak wajar, duplikasi potensial, nominal vs pola, frekuensi, keterangan kurang jelas, perbedaan antar cabang.
 - Beri insight praktis untuk admin (bukan keputusan otomatis).
 
 Format respons (Bahasa Indonesia, rapi):
@@ -41,8 +44,9 @@ SYS;
 
         $user = "PENGELUARAN PENDING (yang akan dikonfirmasi):\n"
             . $pendingLine . "\n\n"
+            . "JENIS YANG DIBANDINGKAN: {$jenisFilter}\n"
             . "STATISTIK RINGKAS:\n" . $stats . "\n"
-            . "RIWAYAT 30 HARI TERAKHIR (kolom: kode_cabang | jenis_pengeluaran | keterangan | jumlah):\n"
+            . "RIWAYAT 30 HARI — JENIS SAMA, STATUS BERHASIL (kode_cabang | jenis_pengeluaran | keterangan | jumlah):\n"
             . "Total baris: {$historyCount}" . ($historyCount > $shown ? " (AI membaca {$shown} terbaru)" : '') . "\n"
             . $table;
 
@@ -55,19 +59,17 @@ SYS;
             ], 480, 0.25, 35));
 
             if ($analysis === '') {
-                return $this->wrapResult(false, $pendingPayload, $historyCount, $shown, null, 'AI tidak mengembalikan analisa.');
+                $fallback = $this->localFallbackAnalysis($pendingPayload, $historyRows);
+                return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $fallback, 'AI kosong — analisa otomatis.', 'local', $jenisFilter);
             }
 
-            return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $analysis, null, 'ai');
+            return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $analysis, null, 'ai', $jenisFilter);
         } catch (\Throwable $e) {
             $fallback = $this->localFallbackAnalysis($pendingPayload, $historyRows);
-            return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $fallback, null, 'local');
+            return $this->wrapResult(true, $pendingPayload, $historyCount, $shown, $fallback, 'AI tidak tersedia — analisa otomatis.', 'local', $jenisFilter);
         }
     }
 
-    /**
-     * @param callable(int):string $kodeFn
-     */
     public function localFallbackAnalysis(array $pending, array $historyRows): string
     {
         $kode = (string) ($pending['kode_cabang'] ?? '-');
@@ -78,28 +80,28 @@ SYS;
         $sameJenisCabang = 0;
         $sameAmountWeek = 0;
         $amountsSameJenis = [];
-        $cabangTotal = 0;
+        $amountsAllJenis = [];
         $weekCut = strtotime('-7 days');
 
         foreach ($historyRows as $row) {
-            $rowJenis = trim((string) ($row['jenis_pengeluaran'] ?? ''));
             $rowKode = (string) ($row['kode_cabang'] ?? '');
             $rowAmt = (int) round((float) ($row['jumlah'] ?? 0));
             $rowTime = strtotime((string) ($row['insertTime'] ?? ''));
 
+            $amountsAllJenis[] = $rowAmt;
             if ($rowKode === $kode) {
-                $cabangTotal += $rowAmt;
-            }
-            if ($rowJenis === $jenis && $rowKode === $kode) {
                 $sameJenisCabang++;
                 $amountsSameJenis[] = $rowAmt;
             }
-            if ($rowAmt === $jumlah && $rowJenis === $jenis && $rowTime !== false && $rowTime >= $weekCut) {
+            if ($rowAmt === $jumlah && $rowTime !== false && $rowTime >= $weekCut) {
                 $sameAmountWeek++;
             }
         }
 
-        $avgJenis = $amountsSameJenis !== []
+        $avgAll = $amountsAllJenis !== []
+            ? (int) round(array_sum($amountsAllJenis) / count($amountsAllJenis))
+            : 0;
+        $avgCabang = $amountsSameJenis !== []
             ? (int) round(array_sum($amountsSameJenis) / count($amountsSameJenis))
             : 0;
 
@@ -107,25 +109,30 @@ SYS;
         $lines[] = 'Ringkasan pending: Pengeluaran ' . $jenis . ' cabang ' . $kode . ' sebesar Rp '
             . number_format($jumlah, 0, ',', '.') . '.';
         $lines[] = '';
-        $lines[] = 'Temuan otomatis (AI tidak tersedia):';
-        $lines[] = '• Riwayat 30 hari: ' . count($historyRows) . ' baris pengeluaran.';
-        $lines[] = '• Jenis "' . $jenis . '" di cabang ' . $kode . ' muncul ' . $sameJenisCabang . ' kali (30 hari).';
-        if ($avgJenis > 0) {
-            $diff = $jumlah - $avgJenis;
-            $lines[] = '• Rata-rata jenis ini di cabang sama: Rp ' . number_format($avgJenis, 0, ',', '.')
-                . ($diff !== 0 ? ' (pending ' . ($diff > 0 ? 'lebih' : 'kurang') . ' Rp ' . number_format(abs($diff), 0, ',', '.') . ')' : ' (sama rata-rata)');
+        $lines[] = 'Temuan otomatis (jenis sama, status berhasil, 30 hari):';
+        $lines[] = '• Riwayat jenis "' . $jenis . '": ' . count($historyRows) . ' transaksi berhasil.';
+        if ($sameJenisCabang > 0) {
+            $lines[] = '• Di cabang ' . $kode . ': ' . $sameJenisCabang . ' kali.';
+        }
+        if ($avgAll > 0) {
+            $diff = $jumlah - $avgAll;
+            $lines[] = '• Rata-rata semua cabang (jenis ini): Rp ' . number_format($avgAll, 0, ',', '.')
+                . ($diff !== 0 ? ' — pending ' . ($diff > 0 ? 'lebih' : 'kurang') . ' Rp ' . number_format(abs($diff), 0, ',', '.') : ' — sejajar rata-rata');
+        }
+        if ($avgCabang > 0 && $avgCabang !== $avgAll) {
+            $lines[] = '• Rata-rata cabang ' . $kode . ': Rp ' . number_format($avgCabang, 0, ',', '.') . '.';
         }
         if ($sameAmountWeek > 0) {
-            $lines[] = '• Perhatian: ada ' . $sameAmountWeek . ' pengeluaran serupa (jenis+nominal) dalam 7 hari terakhir.';
+            $lines[] = '• Perhatian: nominal sama (Rp ' . number_format($jumlah, 0, ',', '.') . ') sudah muncul ' . $sameAmountWeek . 'x dalam 7 hari.';
         }
-        if ($cabangTotal > 0) {
-            $lines[] = '• Total pengeluaran cabang ' . $kode . ' (30 hari): Rp ' . number_format($cabangTotal, 0, ',', '.') . '.';
+        if (count($historyRows) === 0) {
+            $lines[] = '• Belum ada riwayat berhasil jenis ini dalam 30 hari — tinjau extra hati-hati.';
         }
         if ($ket === '' || $ket === '-') {
-            $lines[] = '• Keterangan kosong — pertimbangkan minta detail ke staff.';
+            $lines[] = '• Keterangan kosong — minta detail ke staff jika perlu.';
         }
         $lines[] = '';
-        $lines[] = 'Catatan: analisa ini otomatis; silakan tinjau manual sebelum konfirmasi.';
+        $lines[] = 'Catatan: analisa otomatis; silakan tinjau manual sebelum konfirmasi.';
 
         return implode("\n", $lines);
     }
@@ -136,27 +143,35 @@ SYS;
         $kode = (string) ($pending['kode_cabang'] ?? '-');
         $jenis = (string) ($pending['jenis_pengeluaran'] ?? '-');
         $jumlah = (int) round((float) ($pending['jumlah'] ?? 0));
-        $sameJenis = 0;
+        $sameCabang = 0;
         $sameNominal = 0;
+        $amounts = [];
 
         foreach ($historyRows as $row) {
-            if ((string) ($row['jenis_pengeluaran'] ?? '') === $jenis && (string) ($row['kode_cabang'] ?? '') === $kode) {
-                $sameJenis++;
+            $amt = (int) round((float) ($row['jumlah'] ?? 0));
+            $amounts[] = $amt;
+            if ((string) ($row['kode_cabang'] ?? '') === $kode) {
+                $sameCabang++;
             }
-            if ((int) round((float) ($row['jumlah'] ?? 0)) === $jumlah && (string) ($row['jenis_pengeluaran'] ?? '') === $jenis) {
+            if ($amt === $jumlah) {
                 $sameNominal++;
             }
         }
 
-        return "- Cabang pending: {$kode}\n"
-            . "- Jenis pending: {$jenis}\n"
+        $avg = $amounts !== [] ? (int) round(array_sum($amounts) / count($amounts)) : 0;
+        $min = $amounts !== [] ? min($amounts) : 0;
+        $max = $amounts !== [] ? max($amounts) : 0;
+
+        return "- Jenis: {$jenis}\n"
+            . "- Cabang pending: {$kode}\n"
             . "- Nominal pending: {$jumlah}\n"
-            . "- Frekuensi jenis+cabang sama (30 hari): {$sameJenis}\n"
-            . "- Frekuensi jenis+nominal sama (30 hari): {$sameNominal}\n"
-            . '- Total baris riwayat: ' . count($historyRows);
+            . "- Riwayat berhasil jenis sama: " . count($historyRows) . " baris\n"
+            . "- Frekuensi cabang pending: {$sameCabang}\n"
+            . "- Frekuensi nominal sama: {$sameNominal}\n"
+            . "- Rentang nominal riwayat: {$min} – {$max}, rata-rata {$avg}";
     }
 
-    /** @return array{ok:bool,analysis?:string,message?:string,history_count:int,history_shown:int,pending:array<string,mixed>,ai_source?:string} */
+    /** @return array{ok:bool,analysis?:string,message?:string,history_count:int,history_shown:int,pending:array<string,mixed>,ai_source?:string,jenis_filter?:string} */
     private function wrapResult(
         bool $ok,
         array $pendingPayload,
@@ -164,7 +179,8 @@ SYS;
         int $shown,
         ?string $analysis,
         ?string $message,
-        string $source = 'local'
+        string $source = 'local',
+        string $jenisFilter = ''
     ): array {
         $out = [
             'ok' => $ok,
@@ -172,6 +188,7 @@ SYS;
             'history_shown' => $shown,
             'pending' => $pendingPayload,
             'ai_source' => $source,
+            'jenis_filter' => $jenisFilter,
         ];
         if ($analysis !== null) {
             $out['analysis'] = $analysis;
@@ -184,16 +201,30 @@ SYS;
     }
 
     /**
+     * Riwayat 30 hari: jenis pengeluaran sama + status berhasil (status_mutasi=3).
+     *
      * @param callable(int):string $kodeFn
      * @return list<array<string,mixed>>
      */
-    public function fetchHistory30Days($db, string $wCabangAll, callable $kodeFn): array
+    public function fetchHistory30Days($db, string $wCabangAll, string $jenisPengeluaran, callable $kodeFn, string $excludeIdKas = ''): array
     {
+        $jenisPengeluaran = trim($jenisPengeluaran);
+        if ($jenisPengeluaran === '') {
+            return [];
+        }
+
+        $jenisEsc = $db->escape($jenisPengeluaran);
         $where = $wCabangAll
             . " AND jenis_mutasi = 2 AND metode_mutasi = 1 AND jenis_transaksi = 4"
-            . " AND status_mutasi IN (2, 3)"
-            . " AND insertTime >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
-            . " ORDER BY insertTime DESC LIMIT " . self::HISTORY_LIMIT;
+            . " AND status_mutasi = 3"
+            . " AND UPPER(TRIM(note_primary)) = UPPER(TRIM('" . $jenisEsc . "'))"
+            . " AND insertTime >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+
+        if ($excludeIdKas !== '') {
+            $where .= " AND id_kas <> '" . $db->escape($excludeIdKas) . "'";
+        }
+
+        $where .= ' ORDER BY insertTime DESC LIMIT ' . self::HISTORY_LIMIT;
 
         $rows = $db->get_where('kas', $where);
         if (!is_array($rows)) {
@@ -240,7 +271,7 @@ SYS;
     private function formatHistoryTable(array $rows, callable $kodeFn): string
     {
         if ($rows === []) {
-            return "(belum ada riwayat pengeluaran 30 hari)\n";
+            return "(belum ada riwayat berhasil jenis yang sama dalam 30 hari)\n";
         }
 
         $lines = ["kode_cabang\tjenis_pengeluaran\tketerangan\tjumlah"];
