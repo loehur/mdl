@@ -497,7 +497,7 @@ onUnmounted(() => {
 watch(showNew, (v) => {
   if (v) {
     chat.loadKeys();
-    chat.loadTemplates();
+    chat.templates = [];
   }
 });
 </script>

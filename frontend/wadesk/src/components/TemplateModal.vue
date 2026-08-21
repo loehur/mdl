@@ -34,12 +34,21 @@
 
             <div>
               <label class="label">Template</label>
-              <select v-model="form.template_id" required class="field" :disabled="busy || checking" @change="onTplChange">
+              <select
+                v-model="form.template_id"
+                required
+                class="field"
+                :disabled="busy || checking || !hasChannel"
+                @change="onTplChange"
+              >
                 <option disabled value="">Pilih template</option>
                 <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
                   {{ t.template_name }} ({{ t.language }})
                 </option>
               </select>
+              <p v-if="hasChannel && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
+                Tidak ada template untuk nomor WA ini. Sync ulang di Admin → Templates.
+              </p>
               <p v-if="livePreview" class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-3 border border-white/5 min-h-[5rem]">
                 {{ livePreview }}
               </p>
@@ -170,6 +179,8 @@ const aiWarning = ref("");
 
 const filteredTemplates = computed(() => props.templates);
 
+const hasChannel = computed(() => Boolean(form.channel_id || props.fixedKeyId));
+
 const selectedTpl = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
 );
@@ -196,7 +207,7 @@ watch(
   (v) => {
     if (v) {
       form.channel_id = v;
-      emit("load-templates");
+      emit("load-templates", v);
     }
   },
   { immediate: true }
@@ -220,7 +231,7 @@ watch(
 function onKeyChange() {
   form.template_id = "";
   clearAiWarning();
-  emit("load-templates");
+  emit("load-templates", form.channel_id || props.fixedKeyId);
 }
 
 function onTplChange() {

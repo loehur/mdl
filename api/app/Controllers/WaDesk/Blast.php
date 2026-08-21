@@ -101,6 +101,7 @@ class Blast extends WaDeskController
         if (!$tpl) {
             $this->error('Template tidak ditemukan', 404);
         }
+        $this->assertTemplateOnChannel($templateId, $channel, (int) $user['tenant_id']);
 
         $rows = $body['rows'] ?? [];
         if (!is_array($rows) || count($rows) === 0) {

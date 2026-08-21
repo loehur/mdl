@@ -571,6 +571,61 @@ abstract class WaDeskController extends BaseController
         )->row_array() ?: null;
     }
 
+    protected function tableExists(string $table): bool
+    {
+        try {
+            $row = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS cnt FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                [$table]
+            )->row_array();
+            return (int) ($row['cnt'] ?? 0) > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    protected function templateDevicesTableExists(): bool
+    {
+        return $this->tableExists('wa_template_devices');
+    }
+
+    protected function isTemplateAvailableOnDevice(int $templateId, string $deviceId): bool
+    {
+        $deviceId = trim($deviceId);
+        if ($templateId <= 0 || $deviceId === '') {
+            return false;
+        }
+        if (!$this->templateDevicesTableExists()) {
+            return true;
+        }
+        $row = $this->db($this->db_index)->query(
+            "SELECT 1 AS ok FROM wa_template_devices WHERE template_id = ? AND device_id = ? LIMIT 1",
+            [$templateId, $deviceId]
+        )->row_array();
+        return !empty($row);
+    }
+
+    protected function assertTemplateOnChannel(int $templateId, array $channel, int $tenantId): void
+    {
+        $tpl = $this->findTemplateForTenant($templateId, $tenantId);
+        if (!$tpl) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+        $deviceId = trim((string) ($channel['device_id'] ?? ''));
+        if ($deviceId === '') {
+            $this->error('Channel belum punya device_id Kirimin', 400);
+        }
+        if (!$this->isTemplateAvailableOnDevice($templateId, $deviceId)) {
+            $label = trim((string) ($channel['label'] ?? $channel['phone_number'] ?? 'channel ini'));
+            $this->error(
+                'Template "' . ($tpl['template_name'] ?? '') . '" tidak tersedia di nomor WA '
+                . $label . '. Pilih template lain atau sync ulang di Admin.',
+                422
+            );
+        }
+    }
+
     protected function columnExists(string $table, string $column): bool
     {
         try {

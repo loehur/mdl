@@ -53,6 +53,9 @@
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
+          <p v-if="form.channel_id && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
+            Tidak ada template untuk nomor WA ini. Sync ulang di Admin → Templates.
+          </p>
           <div
             v-if="blastTemplatePreview"
             class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-3 border border-white/5"
@@ -456,7 +459,6 @@ const blastTemplatePreview = computed(() => {
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {
   await loadKeys();
-  await loadTemplates();
   await loadBlasts();
   // Poll list every 10s to refresh active blast progress
   listPollTimer = setInterval(() => {
@@ -477,11 +479,15 @@ async function loadKeys() {
   } catch (_) {}
 }
 
-async function loadTemplates() {
+async function loadTemplates(channelId = null) {
   try {
-    const res = await api('/WaDesk/Templates/list');
+    const cid = Number(channelId);
+    const qs = cid > 0 ? `?channel_id=${encodeURIComponent(cid)}` : "";
+    const res = await api(`/WaDesk/Templates/list${qs}`);
     templates.value = res.data?.templates ?? [];
-  } catch (_) {}
+  } catch (_) {
+    templates.value = [];
+  }
 }
 
 async function loadCsvHeaders(templateId) {
@@ -528,6 +534,9 @@ function onKeyChange() {
   resetUpload();
   if (form.channel_id) {
     loadKeyQuota(form.channel_id);
+    loadTemplates(form.channel_id);
+  } else {
+    templates.value = [];
   }
 }
 

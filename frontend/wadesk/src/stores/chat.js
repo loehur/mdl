@@ -69,8 +69,10 @@ export const useChatStore = defineStore("chat", {
       const res = await api("/WaDesk/Channels/list");
       this.keys = res.data.channels || res.data.keys || [];
     },
-    async loadTemplates() {
-      const res = await api("/WaDesk/Templates/list");
+    async loadTemplates(channelId = null) {
+      const cid = Number(channelId);
+      const qs = cid > 0 ? `?channel_id=${encodeURIComponent(cid)}` : "";
+      const res = await api(`/WaDesk/Templates/list${qs}`);
       this.templates = res.data.templates || [];
     },
     async sendFree(message) {

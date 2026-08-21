@@ -343,7 +343,7 @@
 
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
-            Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id.
+            Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id per nomor WA (device).
             Template dibagikan ke <span class="text-slate-200">semua team</span> dalam tenant.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
@@ -381,7 +381,9 @@
                 <p class="font-medium">
                   {{ t.template_name }}
                   <span class="text-xs text-slate-500 ml-1">{{ t.language }}</span>
-                  <span class="text-xs text-slate-500 ml-1">· {{ t.key_label }}</span>
+                  <span v-if="(t.channels || []).length" class="text-xs text-slate-500 ml-1">
+                    · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
+                  </span>
                 </p>
                 <p class="text-xs text-slate-500 mt-0.5">
                   {{ (t.params || []).length }} param ·

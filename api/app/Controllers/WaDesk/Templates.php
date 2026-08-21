@@ -15,13 +15,46 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         $tenantId = (int) $user['tenant_id'];
+        $channelId = (int) $this->query('channel_id', 0);
+        $deviceId = null;
 
-        $rows = $this->db($this->db_index)->query(
-            "SELECT t.* FROM wa_templates t
-             WHERE t.tenant_id = ?
-             ORDER BY t.template_name ASC, t.id ASC",
-            [$tenantId]
-        )->result_array();
+        if ($channelId > 0) {
+            if (!$this->hasOperationalTeam($user)) {
+                $this->error('Anda belum join team', 403);
+            }
+            $tbl = $this->channelsTable();
+            $channel = $this->db($this->db_index)->query(
+                "SELECT device_id FROM {$tbl}
+                 WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active'
+                 LIMIT 1",
+                [$channelId, $tenantId, (int) $user['team_id']]
+            )->row_array();
+            if (!$channel) {
+                $this->error('Channel tidak ditemukan', 404);
+            }
+            $deviceId = trim((string) ($channel['device_id'] ?? ''));
+            if ($deviceId === '') {
+                $this->success(['templates' => []]);
+                return;
+            }
+        }
+
+        if ($deviceId !== null && $deviceId !== '' && $this->templateDevicesTableExists()) {
+            $rows = $this->db($this->db_index)->query(
+                "SELECT DISTINCT t.* FROM wa_templates t
+                 INNER JOIN wa_template_devices td ON td.template_id = t.id AND td.device_id = ?
+                 WHERE t.tenant_id = ?
+                 ORDER BY t.template_name ASC, t.id ASC",
+                [$deviceId, $tenantId]
+            )->result_array();
+        } else {
+            $rows = $this->db($this->db_index)->query(
+                "SELECT t.* FROM wa_templates t
+                 WHERE t.tenant_id = ?
+                 ORDER BY t.template_name ASC, t.id ASC",
+                [$tenantId]
+            )->result_array();
+        }
         $rows = $this->dedupeTemplateListRows($rows, $tenantId);
 
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
@@ -40,6 +73,9 @@ class Templates extends WaDeskController
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
             )->result_array();
+            if ($channelId <= 0 && $this->templateDevicesTableExists()) {
+                $row['channels'] = $this->loadTemplateChannelLabels((int) $row['id'], $tenantId);
+            }
         }
 
         $this->success(['templates' => $rows]);
@@ -69,15 +105,30 @@ class Templates extends WaDeskController
         }
 
         $client = $this->requireKiriminConfigured((int) $admin['tenant_id']);
-        $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
-
+        $tenantId = (int) $admin['tenant_id'];
+        $deviceIds = $this->collectSyncDeviceIds($tenantId, $client);
         $found = null;
-        foreach ($fetched['templates'] ?? [] as $t) {
-            if (($t['template_name'] ?? $t['name'] ?? '') === $tplName) {
-                $found = $t;
-                break;
+        $linkedDevices = [];
+
+        foreach ($deviceIds as $deviceId) {
+            $fetched = $client->listAllTemplates([
+                'status' => 'APPROVED',
+                'device_id' => $deviceId,
+            ]);
+            if (!$fetched['success']) {
+                continue;
+            }
+            foreach ($fetched['templates'] ?? [] as $t) {
+                if (($t['template_name'] ?? $t['name'] ?? '') !== $tplName) {
+                    continue;
+                }
+                if ($found === null) {
+                    $found = $t;
+                }
+                $linkedDevices[$deviceId] = true;
             }
         }
+
         if (!$found) {
             $this->error('Template tidak ditemukan di Kirimin', 404);
         }
@@ -121,12 +172,14 @@ class Templates extends WaDeskController
             'body_preview' => $mapped['body_preview'],
         ], ['id' => $bestId]);
         $this->replaceParams($bestId, $mapped['params']);
+        $this->replaceTemplateDeviceLinks($bestId, array_keys($linkedDevices));
 
         $this->success([
             'template_id'   => $bestId,
             'deleted_dupes' => $deletedIds,
             'params_synced' => count($mapped['params']),
             'params'        => $mapped['params'],
+            'devices'       => array_keys($linkedDevices),
         ], 'Params template berhasil di-resync');
     }
 
@@ -316,9 +369,9 @@ class Templates extends WaDeskController
 
         $tenantId = (int) $admin['tenant_id'];
         $client = $this->requireKiriminConfigured($tenantId);
-        $fetched = $client->listAllTemplates(['status' => 'APPROVED']);
-        if (!$fetched['success']) {
-            $this->error('Gagal ambil template dari Kirimin: ' . ($fetched['error'] ?: 'unknown'), 502);
+        $deviceIds = $this->collectSyncDeviceIds($tenantId, $client);
+        if ($deviceIds === []) {
+            $this->error('Tidak ada device Kirimin untuk di-sync', 400);
         }
 
         $created = 0;
@@ -327,60 +380,92 @@ class Templates extends WaDeskController
         $deleted = 0;
         $synced = [];
         $keepKeys = [];
+        $newLinks = [];
+        $fetchedTotal = 0;
 
-        foreach ($fetched['templates'] as $remote) {
-            if (!is_array($remote)) {
-                continue;
-            }
-            $mapped = WaDeskKirimin::mapTemplateToWaDesk($remote);
-            $name = $mapped['template_name'];
-            $lang = $mapped['language'];
-            if ($name === '') {
-                $skipped++;
-                continue;
-            }
-            if ($mapped['status'] !== '' && $mapped['status'] !== 'APPROVED') {
+        foreach ($deviceIds as $deviceId) {
+            $fetched = $client->listAllTemplates([
+                'status' => 'APPROVED',
+                'device_id' => $deviceId,
+            ]);
+            if (!$fetched['success']) {
                 $skipped++;
                 continue;
             }
 
-            $keepKeys[$name . '|' . $lang] = true;
+            foreach ($fetched['templates'] as $remote) {
+                if (!is_array($remote)) {
+                    continue;
+                }
+                $mapped = WaDeskKirimin::mapTemplateToWaDesk($remote);
+                $name = $mapped['template_name'];
+                $lang = $mapped['language'];
+                if ($name === '') {
+                    $skipped++;
+                    continue;
+                }
+                if ($mapped['status'] !== '' && $mapped['status'] !== 'APPROVED') {
+                    $skipped++;
+                    continue;
+                }
 
-            $existing = $this->findSyncedTemplateRow($tenantId, $name, $lang);
+                $fetchedTotal++;
+                $keepKeys[$name . '|' . $lang] = true;
 
-            if ($existing) {
-                $tplId = (int) $existing['id'];
-                $this->db($this->db_index)->update('wa_templates', [
-                    'tenant_id' => $tenantId,
-                    'body_preview' => $mapped['body_preview'],
-                ], ['id' => $tplId]);
-                $this->replaceParams($tplId, $mapped['params']);
-                $updated++;
-                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'updated'];
-            } else {
-                $tplId = (int) $this->db($this->db_index)->insert('wa_templates', [
-                    'tenant_id' => $tenantId,
-                    'template_name' => $name,
-                    'language' => $lang,
-                    'body_preview' => $mapped['body_preview'],
-                ]);
-                $this->replaceParams($tplId, $mapped['params']);
-                $created++;
-                $synced[] = ['id' => $tplId, 'template_name' => $name, 'language' => $lang, 'action' => 'created'];
+                $existing = $this->findSyncedTemplateRow($tenantId, $name, $lang);
+
+                if ($existing) {
+                    $tplId = (int) $existing['id'];
+                    $this->db($this->db_index)->update('wa_templates', [
+                        'tenant_id' => $tenantId,
+                        'body_preview' => $mapped['body_preview'],
+                    ], ['id' => $tplId]);
+                    $this->replaceParams($tplId, $mapped['params']);
+                    $updated++;
+                    $synced[] = [
+                        'id' => $tplId,
+                        'template_name' => $name,
+                        'language' => $lang,
+                        'device_id' => $deviceId,
+                        'action' => 'updated',
+                    ];
+                } else {
+                    $tplId = (int) $this->db($this->db_index)->insert('wa_templates', [
+                        'tenant_id' => $tenantId,
+                        'template_name' => $name,
+                        'language' => $lang,
+                        'body_preview' => $mapped['body_preview'],
+                    ]);
+                    $this->replaceParams($tplId, $mapped['params']);
+                    $created++;
+                    $synced[] = [
+                        'id' => $tplId,
+                        'template_name' => $name,
+                        'language' => $lang,
+                        'device_id' => $deviceId,
+                        'action' => 'created',
+                    ];
+                }
+
+                $newLinks[] = ['template_id' => $tplId, 'device_id' => $deviceId];
             }
         }
+
+        $this->applyTemplateDeviceLinks($tenantId, $newLinks);
 
         $deleted = $this->pruneMissingTemplates($tenantId, $keepKeys);
 
         $this->success([
             'tenant_id' => $tenantId,
-            'fetched' => count($fetched['templates']),
+            'devices' => count($deviceIds),
+            'fetched' => $fetchedTotal,
             'created' => $created,
             'updated' => $updated,
             'deleted' => $deleted,
             'skipped' => $skipped,
+            'links' => count($newLinks),
             'templates' => $synced,
-        ], "Sinkron selesai: {$created} baru, {$updated} diupdate, {$deleted} dihapus");
+        ], "Sinkron selesai: {$created} baru, {$updated} diupdate, {$deleted} dihapus, " . count($newLinks) . ' link device');
     }
 
     private function _syncFromYCloudInner()
@@ -701,7 +786,114 @@ class Templates extends WaDeskController
         if ($id <= 0) {
             return;
         }
+        if ($this->templateDevicesTableExists()) {
+            $this->db($this->db_index)->delete('wa_template_devices', ['template_id' => $id]);
+        }
         $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $id]);
         $this->db($this->db_index)->delete('wa_templates', ['id' => $id]);
+    }
+
+    /** @return list<string> */
+    private function collectSyncDeviceIds(int $tenantId, WaDeskKirimin $client): array
+    {
+        $ids = [];
+        $devRes = $client->listDevices();
+        foreach ($devRes['devices'] ?? [] as $dev) {
+            if (!is_array($dev)) {
+                continue;
+            }
+            $did = trim((string) ($dev['device_id'] ?? $dev['id'] ?? ''));
+            if ($did !== '') {
+                $ids[$did] = true;
+            }
+        }
+
+        $tbl = $this->channelsTable();
+        $rows = $this->db($this->db_index)->query(
+            "SELECT DISTINCT device_id FROM {$tbl}
+             WHERE tenant_id = ? AND device_id IS NOT NULL AND TRIM(device_id) != ''",
+            [$tenantId]
+        )->result_array();
+        foreach ($rows as $row) {
+            $did = trim((string) ($row['device_id'] ?? ''));
+            if ($did !== '') {
+                $ids[$did] = true;
+            }
+        }
+
+        return array_keys($ids);
+    }
+
+    /** @param list<array{template_id:int,device_id:string}> $links */
+    private function applyTemplateDeviceLinks(int $tenantId, array $links): void
+    {
+        if (!$this->templateDevicesTableExists()) {
+            return;
+        }
+
+        $this->db($this->db_index)->query(
+            "DELETE td FROM wa_template_devices td
+             INNER JOIN wa_templates t ON t.id = td.template_id
+             WHERE t.tenant_id = ?",
+            [$tenantId]
+        );
+
+        $seen = [];
+        foreach ($links as $link) {
+            $tplId = (int) ($link['template_id'] ?? 0);
+            $deviceId = trim((string) ($link['device_id'] ?? ''));
+            if ($tplId <= 0 || $deviceId === '') {
+                continue;
+            }
+            $key = $tplId . '|' . $deviceId;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $this->db($this->db_index)->insert('wa_template_devices', [
+                'template_id' => $tplId,
+                'device_id' => $deviceId,
+            ]);
+        }
+    }
+
+    /** @param list<string> $deviceIds */
+    private function replaceTemplateDeviceLinks(int $templateId, array $deviceIds): void
+    {
+        if (!$this->templateDevicesTableExists() || $templateId <= 0) {
+            return;
+        }
+
+        $this->db($this->db_index)->delete('wa_template_devices', ['template_id' => $templateId]);
+        $seen = [];
+        foreach ($deviceIds as $deviceId) {
+            $deviceId = trim((string) $deviceId);
+            if ($deviceId === '' || isset($seen[$deviceId])) {
+                continue;
+            }
+            $seen[$deviceId] = true;
+            $this->db($this->db_index)->insert('wa_template_devices', [
+                'template_id' => $templateId,
+                'device_id' => $deviceId,
+            ]);
+        }
+    }
+
+    /** @return list<array{id:int,label:string,phone_number:string}> */
+    private function loadTemplateChannelLabels(int $templateId, int $tenantId): array
+    {
+        if (!$this->templateDevicesTableExists()) {
+            return [];
+        }
+
+        $tbl = $this->channelsTable();
+        return $this->db($this->db_index)->query(
+            "SELECT DISTINCT c.id, c.label, c.phone_number
+             FROM wa_template_devices td
+             INNER JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = ?
+             WHERE td.template_id = ?
+             ORDER BY c.label ASC, c.phone_number ASC",
+            [$tenantId, $templateId]
+        )->result_array();
     }
 }
