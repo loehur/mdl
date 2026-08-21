@@ -1010,15 +1010,39 @@
 
   // --- Logika Modal Hapus Order ---
 
+  function hideOpModalFeedback(prefix) {
+    $('#' + prefix + 'Feedback').addClass('d-none');
+    $('#' + prefix + 'FeedbackMessage').text('');
+    var $ul = $('#' + prefix + 'FeedbackAlternatives');
+    if ($ul.length) {
+      $ul.empty().hide();
+    }
+  }
+
+  function showOpModalFeedback(prefix, message, options) {
+    options = options || {};
+    var title = options.title || '<i class="fas fa-exclamation-circle"></i> Perhatian';
+    var alternatives = options.alternatives || [];
+    hideOpModalFeedback(prefix);
+    $('#' + prefix + 'FeedbackTitle').html(title);
+    $('#' + prefix + 'FeedbackMessage').text(message || '');
+    var $ul = $('#' + prefix + 'FeedbackAlternatives');
+    if ($ul.length && alternatives.length) {
+      alternatives.forEach(function (alt) {
+        $ul.append($('<li></li>').text(alt));
+      });
+      $ul.show();
+    }
+    $('#' + prefix + 'Feedback').removeClass('d-none');
+  }
+
   // Fungsi untuk membuka modal
   window.bukaModalHapus = function (ref) {
     var modal = $('#modalHapusOrderInline');
     if (modal.length > 0) {
       $('#hapusRefText').text('#' + ref);
       $('#inputAlasanHapus').val('').css('borderColor', '#ccc');
-      $('#hapusRefAiReject').addClass('d-none');
-      $('#hapusRefAiMessage').text('');
-      $('#hapusRefAiAlternatives').empty();
+      hideOpModalFeedback('hapusRef');
       $('#btnHapusKonfirm').data('ref', ref);
       if (window.OpModal) {
         window.OpModal.open('modalHapusOrderInline', { static: true });
@@ -1044,20 +1068,9 @@
   });
 
   $(document).on('input', '#inputAlasanHapus', function () {
-    $('#hapusRefAiReject').addClass('d-none');
+    hideOpModalFeedback('hapusRef');
     $(this).css('borderColor', '#ccc');
   });
-
-  function showHapusRefAiReject(message, alternatives) {
-    $('#hapusRefAiMessage').text(message || 'Alasan tidak memenuhi syarat hapus nota.');
-    var $ul = $('#hapusRefAiAlternatives').empty();
-    if (alternatives && alternatives.length) {
-      alternatives.forEach(function (alt) {
-        $ul.append($('<li></li>').text(alt));
-      });
-    }
-    $('#hapusRefAiReject').removeClass('d-none');
-  }
 
   // Event handler konfirmasi hapus
   $(document).on('click', '#btnHapusKonfirm', function () {
@@ -1066,13 +1079,16 @@
 
     if (note.length === 0) {
       $('#inputAlasanHapus').css('borderColor', '#dc3545').focus();
+      showOpModalFeedback('hapusRef', 'Alasan hapus wajib diisi.', {
+        title: '<i class="fas fa-info-circle"></i> Lengkapi alasan'
+      });
       return;
     }
 
     var btn = $(this);
     var oldHtml = btn.html();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Validasi AI…');
-    $('#hapusRefAiReject').addClass('d-none');
+    hideOpModalFeedback('hapusRef');
 
     $.ajax({
       url: BASE_URL + "Antrian/hapusRef",
@@ -1082,9 +1098,12 @@
       },
       type: "POST",
       dataType: "json",
+      timeout: 25000,
       success: function (res) {
         if (!res || typeof res !== 'object') {
-          alert('Respons tidak valid');
+          showOpModalFeedback('hapusRef', 'Respons server tidak valid. Muat ulang halaman lalu coba lagi.', {
+            title: '<i class="fas fa-exclamation-triangle"></i> Gagal'
+          });
           return;
         }
         if (res.status === 'success') {
@@ -1095,20 +1114,41 @@
           loadDiv();
           return;
         }
-        if (res.status === 'rejected') {
-          showHapusRefAiReject(res.message, res.alternatives || []);
+        if (res.status === 'rejected' || (res.status === 'error' && res.alternatives && res.alternatives.length)) {
+          showOpModalFeedback('hapusRef', res.message, {
+            title: '<i class="fas fa-robot"></i> Hapus nota ditolak',
+            alternatives: res.alternatives || []
+          });
           $('#inputAlasanHapus').css('borderColor', '#dc3545').focus();
           return;
         }
-        var msg = res.message || 'Gagal menghapus nota';
-        if (window.MdlToast) {
-          MdlToast.warn(msg);
-        } else {
-          alert(msg);
-        }
+        showOpModalFeedback('hapusRef', res.message || 'Gagal menghapus nota.', {
+          title: '<i class="fas fa-exclamation-triangle"></i> Gagal'
+        });
       },
-      error: function () {
-        alert("Gagal menghapus via network");
+      error: function (xhr, textStatus) {
+        var msg = 'Gagal validasi/hapus nota.';
+        var alternatives = [];
+        if (textStatus === 'timeout') {
+          msg = 'Validasi AI timeout. Coba lagi atau perjelas alasan (batal / salah pelanggan).';
+        } else if (xhr && xhr.responseText) {
+          try {
+            var parsed = JSON.parse(xhr.responseText);
+            if (parsed && parsed.message) {
+              msg = parsed.message;
+              alternatives = parsed.alternatives || [];
+            }
+          } catch (err) {
+            if (xhr.status >= 500) {
+              msg = 'Error server saat validasi. Muat ulang halaman lalu coba lagi.';
+            }
+          }
+        }
+        showOpModalFeedback('hapusRef', msg, {
+          title: '<i class="fas fa-exclamation-triangle"></i> Gagal',
+          alternatives: alternatives
+        });
+        $('#inputAlasanHapus').css('borderColor', '#dc3545').focus();
       },
       complete: function () {
         btn.prop('disabled', false).html(oldHtml);
@@ -1429,6 +1469,7 @@
     $('#hapusItemNama').text(itemName || ('ID ' + id));
     $('#hapusItemRef').text('#' + ref);
     $('#hapusItemNote').val('').css('border-color', '');
+    hideOpModalFeedback('hapusItem');
     $('#btnKonfirmasiHapusItem').attr('data-id', id);
     if (window.OpModal) window.OpModal.open('modalHapusItemNota', { static: true });
     else $modal.addClass('is-open').attr('aria-hidden', 'false');
@@ -1451,21 +1492,32 @@
     tutupModalHapusItem();
   });
 
+  $(document).on('input', '#hapusItemNote', function () {
+    hideOpModalFeedback('hapusItem');
+    $(this).css('border-color', '');
+  });
+
   $(document).on('click', '#btnKonfirmasiHapusItem', function () {
     var $button = $(this);
     var id = $button.attr('data-id');
     var note = $('#hapusItemNote').val().trim();
     if (!id) {
-      alert('Item tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+      showOpModalFeedback('hapusItem', 'Item tidak ditemukan. Muat ulang halaman lalu coba lagi.', {
+        title: '<i class="fas fa-exclamation-triangle"></i> Gagal'
+      });
       return;
     }
     if (!note) {
       $('#hapusItemNote').css('border-color', '#dc2626').focus();
+      showOpModalFeedback('hapusItem', 'Alasan hapus wajib diisi.', {
+        title: '<i class="fas fa-info-circle"></i> Lengkapi alasan'
+      });
       return;
     }
 
     var original = $button.html();
     $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menghapus...');
+    hideOpModalFeedback('hapusItem');
     $.ajax({
       url: BASE_URL + 'Operasi/hapusItem',
       method: 'POST',
@@ -1477,7 +1529,9 @@
           loadDiv();
           return;
         }
-        alert((response && response.message) || 'Item tidak dapat dihapus.');
+        showOpModalFeedback('hapusItem', (response && response.message) || 'Item tidak dapat dihapus.', {
+          title: '<i class="fas fa-exclamation-triangle"></i> Gagal'
+        });
       },
       error: function (xhr) {
         var msg = 'Gagal menghapus item. Periksa koneksi lalu coba lagi.';
@@ -1487,7 +1541,9 @@
             msg = parsed.message;
           }
         } catch (err) { }
-        alert(msg);
+        showOpModalFeedback('hapusItem', msg, {
+          title: '<i class="fas fa-exclamation-triangle"></i> Gagal'
+        });
       },
       complete: function () {
         $button.prop('disabled', false).html(original);

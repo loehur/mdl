@@ -848,8 +848,8 @@ class Antrian extends Controller
          echo json_encode([
             'status' => 'error',
             'message' => $ai['message'] ?? 'Validasi AI gagal',
-            'ai' => $ai,
-         ]);
+            'alternatives' => $ai['alternatives'] ?? [],
+         ], JSON_UNESCAPED_UNICODE);
          return;
       }
 
@@ -858,7 +858,7 @@ class Antrian extends Controller
             'status' => 'rejected',
             'message' => $ai['message'] ?? 'Alasan tidak memenuhi syarat hapus nota',
             'alternatives' => $ai['alternatives'] ?? [],
-         ]);
+         ], JSON_UNESCAPED_UNICODE);
          return;
       }
 
@@ -874,7 +874,7 @@ class Antrian extends Controller
       }
 
       $this->model('Log')->write('[Antrian::hapusRef] ref=' . $ref . ' note=' . mb_substr($note, 0, 200));
-      echo json_encode(['status' => 'success', 'message' => 'Nota #' . $ref . ' diantrekan hapus']);
+      echo json_encode(['status' => 'success', 'message' => 'Nota #' . $ref . ' diantrekan hapus'], JSON_UNESCAPED_UNICODE);
    }
 
    public function restoreRef()

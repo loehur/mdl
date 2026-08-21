@@ -28,6 +28,11 @@ class HapusRefAiGuard
             ];
         }
 
+        $local = $this->localPrefilter($note);
+        if ($local !== null) {
+            return $local;
+        }
+
         $system = <<<'SYS'
 Kamu validator alasan hapus nota laundry di sistem operasional.
 
@@ -66,12 +71,15 @@ SYS;
 
             $parsed = $this->parseJsonResponse($raw);
             if ($parsed === null) {
+                $fallback = $this->localPrefilter($note, true);
+                if ($fallback !== null) {
+                    return $fallback;
+                }
                 return [
                     'ok' => false,
                     'allowed' => false,
                     'message' => 'Validasi AI gagal memproses respons. Coba lagi sebentar.',
-                    'alternatives' => [],
-                    'raw' => $raw,
+                    'alternatives' => $this->fallbackAlternatives($note),
                 ];
             }
 
@@ -112,13 +120,82 @@ SYS;
                 'alternatives' => $alternatives,
             ];
         } catch (\Throwable $e) {
+            $fallback = $this->localPrefilter($note, true);
+            if ($fallback !== null) {
+                return $fallback;
+            }
             return [
                 'ok' => false,
                 'allowed' => false,
-                'message' => 'Validasi AI tidak tersedia: ' . $e->getMessage(),
-                'alternatives' => [],
+                'message' => 'Validasi AI tidak tersedia. Periksa koneksi atau coba lagi.',
+                'alternatives' => $this->fallbackAlternatives($note),
             ];
         }
+    }
+
+    /**
+     * Deteksi cepat tanpa AI — untuk koreksi data order yang jelas.
+     *
+     * @return array{ok:bool,allowed:bool,message:string,alternatives:array<int,string>}|null
+     */
+    private function localPrefilter(string $note, bool $forceRejectOnCorrection = false): ?array
+    {
+        $n = mb_strtolower($note);
+
+        $isWrongCustomer = (bool) preg_match(
+            '/salah\s*(input|pilih|ketik|klik).*(pelanggan|nama|customer|orang)|'
+            . '(pelanggan|nama|customer|orang)\s*(salah|keliru|bukan)|'
+            . 'nota\s*(salah|keliru)\s*(orang|pelanggan)|'
+            . 'bukan\s*(pelanggan|customer|namanya)/u',
+            $n
+        );
+        if ($isWrongCustomer) {
+            return null;
+        }
+
+        $isCancel = (bool) preg_match(
+            '/\b(batal|gak jadi|ga jadi|tidak jadi|cancel|batalin|batalkan|nggak jadi|gak jadi|tidak jadi laundry)\b/u',
+            $n
+        );
+        if ($isCancel && !$this->looksLikeDataCorrection($n)) {
+            return null;
+        }
+
+        if (!$this->looksLikeDataCorrection($n)) {
+            return null;
+        }
+
+        $alternatives = $this->fallbackAlternatives($note);
+        return [
+            'ok' => true,
+            'allowed' => false,
+            'message' => 'Alasan ini termasuk koreksi data order, bukan batal order atau salah pelanggan. Nota tidak perlu dihapus — perbaiki item saja.',
+            'alternatives' => $alternatives,
+        ];
+    }
+
+    private function looksLikeDataCorrection(string $n): bool
+    {
+        if (preg_match('/durasi|reguler|ekspres|ekpress|kilat|premium|express/u', $n)) {
+            return true;
+        }
+        if (preg_match('/qty|quantity|kilo|kg|pcs|jumlah|berat/u', $n)) {
+            return true;
+        }
+        if (preg_match('/layanan|cuci|setrika|gosok|lipat|pack/u', $n)) {
+            return true;
+        }
+        if (preg_match('/pakaian|kain tebal|kategori laundry|jenis laundry/u', $n)) {
+            return true;
+        }
+        if (preg_match('/harusnya|seharusnya|bukan\s*(reguler|ekspres|kilat|premium)/u', $n)) {
+            return true;
+        }
+        if (preg_match('/salah\s*(input|pilih|klik|tekan)/u', $n)) {
+            return true;
+        }
+
+        return false;
     }
 
     /** @return array<string,mixed>|null */

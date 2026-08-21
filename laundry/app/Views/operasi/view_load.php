@@ -1280,10 +1280,10 @@ $labeled = false;
         <label class="op-label" for="inputAlasanHapus">Alasan Hapus <span style="color:#dc2626;">*</span></label>
         <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Contoh: pelanggan batal / salah pilih nama pelanggan">
       </div>
-      <div id="hapusRefAiReject" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;">
-        <div style="font-weight:900;margin-bottom:6px;"><i class="fas fa-robot"></i> AI menolak hapus nota</div>
-        <div id="hapusRefAiMessage"></div>
-        <ul id="hapusRefAiAlternatives" style="margin:8px 0 0;padding-left:18px;"></ul>
+      <div id="hapusRefFeedback" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;border-radius:8px;">
+        <div id="hapusRefFeedbackTitle" style="font-weight:900;margin-bottom:6px;"></div>
+        <div id="hapusRefFeedbackMessage"></div>
+        <ul id="hapusRefFeedbackAlternatives" style="margin:8px 0 0;padding-left:18px;display:none;"></ul>
       </div>
       <p class="op-muted" style="color:#b91c1c;margin:10px 0 0;"><i class="fas fa-exclamation-triangle"></i> Hapus nota hanya untuk <strong>batal order</strong> atau <strong>salah pelanggan</strong>. Salah durasi/qty/layanan → edit item, jangan hapus.</p>
     </div>
@@ -1316,6 +1316,10 @@ $labeled = false;
       <div class="op-field">
         <label class="op-label" for="hapusItemNote">Alasan hapus <span style="color:#dc2626;">*</span></label>
         <input type="text" id="hapusItemNote" class="op-input" autocomplete="off" maxlength="255" placeholder="Contoh: salah input item">
+      </div>
+      <div id="hapusItemFeedback" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;border-radius:8px;">
+        <div id="hapusItemFeedbackTitle" style="font-weight:900;margin-bottom:6px;"></div>
+        <div id="hapusItemFeedbackMessage"></div>
       </div>
     </div>
     <div class="op-modal__foot">
