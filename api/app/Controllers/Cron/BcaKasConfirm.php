@@ -10,7 +10,7 @@ use App\Helpers\Laundry\KasNonTunaiConfirm;
 /**
  * Konfirmasi otomatis kas BCA pending jika mutasi CR cocok ditemukan.
  * Mutasi PEND dianggap valid — tidak menunggu tanggal_iso/posted.
- * Tidak scrape kecuali ada kas pending BCA.
+ * Scrape on-demand hanya rentang kas (max 6 hari sekitar insertTime), jika ada kas pending BCA.
  *
  * URL:
  * /Cron/BcaKasConfirm/index?secret=YOUR_CRON_SECRET

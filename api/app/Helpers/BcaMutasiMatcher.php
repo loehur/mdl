@@ -94,68 +94,6 @@ class BcaMutasiMatcher
     }
 
     /**
-     * Scrape lookback penuh (30 hari → hari ini), per chunk max 6 hari.
-     * Berhenti lebih awal jika mutasi sudah ketemu. Hormati pangkas DB per chunk.
-     *
-     * @return array{ok:bool,fetched?:int,inserted?:int,updated?:int,skipped_dup?:int,chunks?:int,skipped_scrape?:bool,error?:string}
-     */
-    public static function fetchAndStoreLookback(
-        $mainDb,
-        string $nominal,
-        string $matchStartYmd,
-        string $matchEndYmd
-    ): array {
-        $today = date('Y-m-d');
-        $lookbackStart = BcaScrapper::lookbackMinStart();
-        $chunks = BcaScrapper::splitDateRangeIntoChunks($lookbackStart, $today);
-        if ($chunks !== []) {
-            $chunks = array_reverse($chunks);
-        }
-
-        $stats = [
-            'ok' => true,
-            'fetched' => 0,
-            'inserted' => 0,
-            'updated' => 0,
-            'skipped_dup' => 0,
-            'chunks' => 0,
-            'skipped_scrape' => true,
-        ];
-
-        if ($chunks === []) {
-            return $stats;
-        }
-
-        $maxChunks = min(count($chunks), BcaScrapper::MAX_SYNC_CHUNKS);
-        for ($i = 0; $i < $maxChunks; $i++) {
-            $chunk = $chunks[$i];
-            $fetch = self::fetchAndStoreRange($mainDb, $chunk['start'], $chunk['end']);
-            if (empty($fetch['ok'])) {
-                return array_merge($stats, [
-                    'ok' => false,
-                    'error' => (string) ($fetch['error'] ?? 'fetch_failed'),
-                ]);
-            }
-
-            $stats['fetched'] += (int) ($fetch['fetched'] ?? 0);
-            $stats['inserted'] += (int) ($fetch['inserted'] ?? 0);
-            $stats['updated'] += (int) ($fetch['updated'] ?? 0);
-            $stats['skipped_dup'] += (int) ($fetch['skipped_dup'] ?? 0);
-            $stats['chunks']++;
-
-            if (empty($fetch['skipped_scrape'])) {
-                $stats['skipped_scrape'] = false;
-            }
-
-            if (self::findUnlinkedMatch($mainDb, $nominal, $matchStartYmd, $matchEndYmd) !== null) {
-                break;
-            }
-        }
-
-        return $stats;
-    }
-
-    /**
      * Bind mutasi ke entitas (atomik). Satu mutasi = satu entitas.
      */
     public static function bindMutasi($mainDb, int $mutasiId, string $entityType, string $entityRef): bool
@@ -225,7 +163,7 @@ class BcaMutasiMatcher
     }
 
     /**
-     * Proses satu kas BCA pending: cari di DB → scrape jika perlu → bind.
+     * Proses satu kas BCA pending: cari di DB → scrape rentang kas (max 6 hari) jika perlu → bind.
      *
      * @param array<string,mixed> $kasRow grouped row (ref_finance, total/jumlah, insertTime)
      * @return array{ok:bool,matched?:bool,confirmed?:bool,scraped?:bool,mutasi_id?:int,message?:string}
@@ -257,12 +195,14 @@ class BcaMutasiMatcher
         $scraped = false;
 
         if ($mutasi === null) {
-            $fetch = self::fetchAndStoreLookback($mainDb, $nominal, $start, $end);
+            $fetch = self::fetchAndStoreRange($mainDb, $start, $end);
             if (empty($fetch['ok'])) {
                 return [
                     'ok' => false,
                     'scraped' => false,
                     'message' => (string) ($fetch['error'] ?? 'fetch_failed'),
+                    'range_start' => $start,
+                    'range_end' => $end,
                 ];
             }
             $scraped = empty($fetch['skipped_scrape']);
@@ -274,6 +214,8 @@ class BcaMutasiMatcher
                 'ok' => true,
                 'matched' => false,
                 'scraped' => $scraped,
+                'range_start' => $start,
+                'range_end' => $end,
             ];
         }
 
