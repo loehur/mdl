@@ -19,38 +19,24 @@ class PengeluaranAiReview
         $jenisFilter = (string) ($pendingPayload['jenis_pengeluaran'] ?? '');
         $historyCount = count($historyRows);
         $shown = min($historyCount, self::HISTORY_LIMIT);
-        $historyForAi = array_slice($historyRows, 0, self::HISTORY_LIMIT);
 
         $pendingLine = $this->rowToLine($pendingPayload, $kodeFn, true);
-        $table = $this->formatHistoryTable($historyForAi, $kodeFn);
         $stats = $this->buildStatsSummary($pendingPayload, $historyRows);
 
         $system = <<<'SYS'
-Kamu analis pengeluaran operasional laundry (cabang/counter). Admin akan membaca komentarmu sebelum konfirmasi pengeluaran pending.
+Kamu analis pengeluaran operasional laundry. Admin butuh analisa SINGKAT — hanya 2 poin:
 
-Konteks riwayat: HANYA pengeluaran JENIS SAMA dengan pending, status sudah BERHASIL/dikonfirmasi, 30 hari terakhir (semua cabang).
+1) Cabang yang dicek: rata-rata harian (total jenis sama 30 hari ÷ 30). Bandingkan nominal PENDING dengan rata-rata harian & rata-rata per transaksi cabang itu. Nyatakan wajar/tidak. Jika tidak wajar, tulis peringatan dengan HTML: <span style="color:#dc2626"><strong>Peringatan:</strong> ...</span>
 
-Tugas:
-- Bandingkan pengeluaran PENDING dengan riwayat jenis yang sama.
-- Komentari: wajar/tidak wajar, duplikasi potensial, nominal vs pola, frekuensi, keterangan kurang jelas, perbedaan antar cabang.
-- Beri insight praktis untuk admin (bukan keputusan otomatis).
+2) Perbandingan rata-rata harian cabang lain (jenis sama, 30 hari). Ringkas, bullet "•", max 5 cabang (selain cabang pending jika perlu).
 
-Format respons (Bahasa Indonesia, rapi):
-1. Ringkasan pending (1 kalimat)
-2. Temuan utama (bullet 2-5 poin)
-3. Catatan untuk admin (1-2 kalimat, netral & profesional)
-
-Jangan pakai markdown heading (#). Bullet pakai "•". Maks ~220 kata.
-Jangan menyuruh admin wajib tolak/terima — hanya analisa informatif.
+Jangan sebut total "X transaksi berhasil", frekuensi detail, atau narasi panjang.
+Jangan ulang jenis pengeluaran berkali-kali. Maks ~120 kata.
+Format plain text + HTML merah hanya untuk peringatan.
 SYS;
 
-        $user = "PENGELUARAN PENDING (yang akan dikonfirmasi):\n"
-            . $pendingLine . "\n\n"
-            . "JENIS YANG DIBANDINGKAN: {$jenisFilter}\n"
-            . "STATISTIK RINGKAS:\n" . $stats . "\n"
-            . "RIWAYAT 30 HARI — JENIS SAMA, STATUS BERHASIL (kode_cabang | jenis_pengeluaran | keterangan | jumlah):\n"
-            . "Total baris: {$historyCount}" . ($historyCount > $shown ? " (AI membaca {$shown} terbaru)" : '') . "\n"
-            . $table;
+        $user = "PENDING:\n" . $pendingLine . "\n\n"
+            . "STATISTIK RATA-RATA HARIAN (30 hari, jenis sama):\n" . $stats . "\n";
 
         try {
             require_once dirname(__DIR__) . '/Helper/AiChat.php';
@@ -84,102 +70,139 @@ SYS;
     public function localFallbackAnalysis(array $pending, array $historyRows): string
     {
         $kode = (string) ($pending['kode_cabang'] ?? '-');
-        $jenis = (string) ($pending['jenis_pengeluaran'] ?? '-');
         $jumlah = (int) round((float) ($pending['jumlah'] ?? 0));
-        $ket = trim((string) ($pending['keterangan'] ?? ''));
+        $days = 30;
+        $byBranch = $this->aggregateByBranch($historyRows);
+        $cur = $byBranch[$kode] ?? null;
+        $curDaily = $cur ? (int) round($cur['total'] / $days) : 0;
+        $curTrxAvg = ($cur && $cur['count'] > 0) ? (int) round($cur['total'] / $cur['count']) : 0;
 
-        $sameJenisCabang = 0;
-        $sameAmountWeek = 0;
-        $amountsSameJenis = [];
-        $amountsAllJenis = [];
-        $weekCut = strtotime('-7 days');
+        $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
+        $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
+        $html = [];
+
+        $html[] = '<div style="margin-bottom:10px">';
+        $html[] = '<div><strong>Cabang ' . $esc($kode) . '</strong> · Rp ' . $fmt($jumlah) . '</div>';
+
+        if ($cur === null || $cur['count'] === 0) {
+            $html[] = '<div style="color:#dc2626;margin-top:6px"><strong>Peringatan:</strong> Belum ada riwayat jenis ini di cabang ini (30 hari).</div>';
+        } else {
+            $html[] = '<div style="margin-top:4px">Rata-rata harian: <strong>Rp ' . $fmt($curDaily) . '/hari</strong></div>';
+            $html[] = $this->buildWajarLine($jumlah, $curDaily, $curTrxAvg);
+        }
+        $html[] = '</div>';
+
+        if ($byBranch !== []) {
+            uasort($byBranch, static fn(array $a, array $b): int => (int) round($b['total'] / $days) <=> (int) round($a['total'] / $days));
+            $html[] = '<div><strong>Perbandingan cabang lain</strong> (rata-rata/hari):</div>';
+            $html[] = '<ul style="margin:4px 0 0;padding-left:18px;line-height:1.45">';
+            foreach ($byBranch as $bk => $bd) {
+                if ($bk === $kode) {
+                    continue;
+                }
+                $daily = (int) round($bd['total'] / $days);
+                $html[] = '<li>' . $esc($bk) . ': Rp ' . $fmt($daily) . '/hari</li>';
+            }
+            $html[] = '</ul>';
+
+            if ($curDaily > 0 && count($byBranch) > 1) {
+                $othersDaily = [];
+                foreach ($byBranch as $bk => $bd) {
+                    if ($bk === $kode) {
+                        continue;
+                    }
+                    $othersDaily[] = (int) round($bd['total'] / $days);
+                }
+                if ($othersDaily !== []) {
+                    $avgOthers = (int) round(array_sum($othersDaily) / count($othersDaily));
+                    if ($avgOthers > 0) {
+                        $diffPct = (int) round((($curDaily - $avgOthers) / $avgOthers) * 100);
+                        if (abs($diffPct) >= 20) {
+                            $dir = $diffPct > 0 ? 'di atas' : 'di bawah';
+                            $color = abs($diffPct) >= 40 ? '#dc2626' : '#64748b';
+                            $html[] = '<div style="margin-top:6px;color:' . $color . '">Cabang ini ' . abs($diffPct) . '% ' . $dir . ' rata-rata cabang lain (Rp ' . $fmt($avgOthers) . '/hari).</div>';
+                        }
+                    }
+                }
+            }
+        } else {
+            $html[] = '<div style="color:#64748b">Belum ada data perbandingan antar cabang.</div>';
+        }
+
+        return implode("\n", $html);
+    }
+
+    /** @return array<string, array{total:int,count:int}> */
+    private function aggregateByBranch(array $historyRows): array
+    {
+        $byBranch = [];
         foreach ($historyRows as $row) {
-            $rowKode = (string) ($row['kode_cabang'] ?? '');
-            $rowAmt = (int) round((float) ($row['jumlah'] ?? 0));
-            $rowTime = strtotime((string) ($row['insertTime'] ?? ''));
-
-            $amountsAllJenis[] = $rowAmt;
-            if ($rowKode === $kode) {
-                $sameJenisCabang++;
-                $amountsSameJenis[] = $rowAmt;
+            $bk = (string) ($row['kode_cabang'] ?? '-');
+            $amt = (int) round((float) ($row['jumlah'] ?? 0));
+            if (!isset($byBranch[$bk])) {
+                $byBranch[$bk] = ['total' => 0, 'count' => 0];
             }
-            if ($rowAmt === $jumlah && $rowTime !== false && $rowTime >= $weekCut) {
-                $sameAmountWeek++;
+            $byBranch[$bk]['total'] += $amt;
+            $byBranch[$bk]['count']++;
+        }
+
+        return $byBranch;
+    }
+
+    private function buildWajarLine(int $pending, int $dailyAvg, int $trxAvg): string
+    {
+        $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
+
+        if ($trxAvg <= 0 && $dailyAvg <= 0) {
+            return '<div style="color:#64748b;margin-top:4px">Data belum cukup untuk penilaian kewajaran.</div>';
+        }
+
+        $tooHighTrx = $trxAvg > 0 && $pending > (int) round($trxAvg * 1.75);
+        $tooLowTrx = $trxAvg > 0 && $pending < (int) round($trxAvg * 0.4);
+        $tooHighDaily = $dailyAvg > 0 && $pending > ($dailyAvg * 4);
+
+        if ($tooHighTrx || $tooHighDaily) {
+            $parts = [];
+            if ($tooHighTrx) {
+                $parts[] = round($pending / $trxAvg, 1) . '× rata-rata transaksi cabang (Rp ' . $fmt($trxAvg) . ')';
             }
+            if ($tooHighDaily) {
+                $parts[] = 'setara ' . round($pending / $dailyAvg, 1) . ' hari rata-rata harian';
+            }
+
+            return '<div style="color:#dc2626;margin-top:6px"><strong>Peringatan:</strong> Nominal di atas pola wajar — '
+                . implode(', ', $parts) . '.</div>';
         }
 
-        $avgAll = $amountsAllJenis !== []
-            ? (int) round(array_sum($amountsAllJenis) / count($amountsAllJenis))
-            : 0;
-        $avgCabang = $amountsSameJenis !== []
-            ? (int) round(array_sum($amountsSameJenis) / count($amountsSameJenis))
-            : 0;
+        if ($tooLowTrx) {
+            return '<div style="color:#dc2626;margin-top:6px"><strong>Peringatan:</strong> Nominal jauh di bawah rata-rata transaksi cabang (Rp '
+                . $fmt($trxAvg) . ').</div>';
+        }
 
-        $lines = [];
-        $lines[] = 'Ringkasan pending: Pengeluaran ' . $jenis . ' cabang ' . $kode . ' sebesar Rp '
-            . number_format($jumlah, 0, ',', '.') . '.';
-        $lines[] = '';
-        $lines[] = 'Temuan otomatis (jenis sama, status berhasil, 30 hari):';
-        $lines[] = '• Riwayat jenis "' . $jenis . '": ' . count($historyRows) . ' transaksi berhasil.';
-        if ($sameJenisCabang > 0) {
-            $lines[] = '• Di cabang ' . $kode . ': ' . $sameJenisCabang . ' kali.';
-        }
-        if ($avgAll > 0) {
-            $diff = $jumlah - $avgAll;
-            $lines[] = '• Rata-rata semua cabang (jenis ini): Rp ' . number_format($avgAll, 0, ',', '.')
-                . ($diff !== 0 ? ' — pending ' . ($diff > 0 ? 'lebih' : 'kurang') . ' Rp ' . number_format(abs($diff), 0, ',', '.') : ' — sejajar rata-rata');
-        }
-        if ($avgCabang > 0 && $avgCabang !== $avgAll) {
-            $lines[] = '• Rata-rata cabang ' . $kode . ': Rp ' . number_format($avgCabang, 0, ',', '.') . '.';
-        }
-        if ($sameAmountWeek > 0) {
-            $lines[] = '• Perhatian: nominal sama (Rp ' . number_format($jumlah, 0, ',', '.') . ') sudah muncul ' . $sameAmountWeek . 'x dalam 7 hari.';
-        }
-        if (count($historyRows) === 0) {
-            $lines[] = '• Belum ada riwayat berhasil jenis ini dalam 30 hari — tinjau extra hati-hati.';
-        }
-        if ($ket === '' || $ket === '-') {
-            $lines[] = '• Keterangan kosong — minta detail ke staff jika perlu.';
-        }
-        $lines[] = '';
-        $lines[] = 'Catatan: analisa otomatis; silakan tinjau manual sebelum konfirmasi.';
-
-        return implode("\n", $lines);
+        return '<div style="color:#15803d;margin-top:4px">Masih wajar terhadap rata-rata cabang ini.</div>';
     }
 
     /** @param list<array<string,mixed>> $historyRows */
     private function buildStatsSummary(array $pending, array $historyRows): string
     {
         $kode = (string) ($pending['kode_cabang'] ?? '-');
-        $jenis = (string) ($pending['jenis_pengeluaran'] ?? '-');
         $jumlah = (int) round((float) ($pending['jumlah'] ?? 0));
-        $sameCabang = 0;
-        $sameNominal = 0;
-        $amounts = [];
+        $days = 30;
+        $byBranch = $this->aggregateByBranch($historyRows);
+        $lines = [
+            '- Cabang pending: ' . $kode,
+            '- Nominal pending: ' . $jumlah,
+        ];
 
-        foreach ($historyRows as $row) {
-            $amt = (int) round((float) ($row['jumlah'] ?? 0));
-            $amounts[] = $amt;
-            if ((string) ($row['kode_cabang'] ?? '') === $kode) {
-                $sameCabang++;
-            }
-            if ($amt === $jumlah) {
-                $sameNominal++;
-            }
+        foreach ($byBranch as $bk => $bd) {
+            $daily = (int) round($bd['total'] / $days);
+            $trxAvg = $bd['count'] > 0 ? (int) round($bd['total'] / $bd['count']) : 0;
+            $mark = $bk === $kode ? ' (cabang ini)' : '';
+            $lines[] = "- {$bk}{$mark}: Rp {$daily}/hari, rata-rata/transaksi Rp {$trxAvg}";
         }
 
-        $avg = $amounts !== [] ? (int) round(array_sum($amounts) / count($amounts)) : 0;
-        $min = $amounts !== [] ? min($amounts) : 0;
-        $max = $amounts !== [] ? max($amounts) : 0;
-
-        return "- Jenis: {$jenis}\n"
-            . "- Cabang pending: {$kode}\n"
-            . "- Nominal pending: {$jumlah}\n"
-            . "- Riwayat berhasil jenis sama: " . count($historyRows) . " baris\n"
-            . "- Frekuensi cabang pending: {$sameCabang}\n"
-            . "- Frekuensi nominal sama: {$sameNominal}\n"
-            . "- Rentang nominal riwayat: {$min} – {$max}, rata-rata {$avg}";
+        return implode("\n", $lines);
     }
 
     /** @return array{ok:bool,analysis?:string,message?:string,history_count:int,history_shown:int,pending:array<string,mixed>,ai_source?:string,jenis_filter?:string} */
@@ -283,21 +306,6 @@ SYS;
             'jumlah_fmt' => number_format((float) ($row['jumlah'] ?? 0), 0, ',', '.'),
             'insertTime' => (string) ($row['insertTime'] ?? ''),
         ];
-    }
-
-    /** @param list<array<string,mixed>> $rows */
-    private function formatHistoryTable(array $rows, callable $kodeFn): string
-    {
-        if ($rows === []) {
-            return "(belum ada riwayat berhasil jenis yang sama dalam 30 hari)\n";
-        }
-
-        $lines = ["kode_cabang\tjenis_pengeluaran\tketerangan\tjumlah"];
-        foreach ($rows as $row) {
-            $lines[] = $this->rowToLine($row, $kodeFn, false);
-        }
-
-        return implode("\n", $lines) . "\n";
     }
 
     /** @param array<string,mixed> $row */
