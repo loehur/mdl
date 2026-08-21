@@ -1278,14 +1278,13 @@ $labeled = false;
       <p style="margin:0 0 12px;">Yakin ingin menghapus order <strong id="hapusRefText"></strong>?</p>
       <div class="op-field">
         <label class="op-label" for="inputAlasanHapus">Alasan Hapus <span style="color:#dc2626;">*</span></label>
-        <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Contoh: pelanggan batal / salah pilih nama pelanggan">
+        <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Masukkan alasan hapus...">
       </div>
       <div id="hapusRefFeedback" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;border-radius:8px;">
         <div id="hapusRefFeedbackTitle" style="font-weight:900;margin-bottom:6px;"></div>
         <div id="hapusRefFeedbackMessage"></div>
         <ul id="hapusRefFeedbackAlternatives" style="margin:8px 0 0;padding-left:18px;display:none;"></ul>
       </div>
-      <p class="op-muted" style="color:#b91c1c;margin:10px 0 0;"><i class="fas fa-exclamation-triangle"></i> Hapus nota hanya untuk <strong>batal order</strong> atau <strong>salah pelanggan</strong>. Salah durasi/qty/layanan → edit item, jangan hapus.</p>
     </div>
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost tutupModalHapusBtn" data-op-close>Batal</button>

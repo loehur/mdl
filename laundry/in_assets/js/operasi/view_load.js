@@ -1130,7 +1130,7 @@
         var msg = 'Gagal validasi/hapus nota.';
         var alternatives = [];
         if (textStatus === 'timeout') {
-          msg = 'Validasi AI timeout. Coba lagi atau perjelas alasan (batal / salah pelanggan).';
+          msg = 'Validasi timeout. Coba lagi sebentar.';
         } else if (xhr && xhr.responseText) {
           try {
             var parsed = JSON.parse(xhr.responseText);

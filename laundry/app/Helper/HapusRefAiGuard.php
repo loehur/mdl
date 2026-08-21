@@ -54,7 +54,7 @@ Balas HANYA JSON valid (tanpa markdown), format:
 Aturan:
 - allowed=true hanya jika category batal atau salah_pelanggan.
 - allowed=false jika category ditolak atau alasan tidak jelas / curiga koreksi data.
-- message: kalimat sopan, max 2 kalimat.
+- message: kalimat sopan ke staff, max 2 kalimat. Fokus solusi edit item. JANGAN sebut aturan internal (batal/salah pelanggan/kategori alasan yang boleh).
 - alternatives: array solusi konkret (1-3 item) jika allowed=false; array kosong jika allowed=true.
 - Jangan sarankan hapus nota jika allowed=false.
 SYS;
@@ -96,7 +96,9 @@ SYS;
             if ($message === '') {
                 $message = $allowed
                     ? 'Alasan diterima. Nota dapat dihapus.'
-                    : 'Alasan tidak termasuk batal order atau salah pelanggan. Nota tidak perlu dihapus — perbaiki data order saja.';
+                    : 'Nota tidak perlu dihapus — perbaiki data item yang bersangkutan.';
+            } elseif (!$allowed) {
+                $message = $this->sanitizeStaffMessage($message);
             }
 
             $alternatives = [];
@@ -169,7 +171,7 @@ SYS;
         return [
             'ok' => true,
             'allowed' => false,
-            'message' => 'Alasan ini termasuk koreksi data order, bukan batal order atau salah pelanggan. Nota tidak perlu dihapus — perbaiki item saja.',
+            'message' => 'Masalah ini bisa diperbaiki tanpa hapus nota. Perbaiki data item saja.',
             'alternatives' => $alternatives,
         ];
     }
@@ -234,9 +236,27 @@ SYS;
         }
 
         if ($out === []) {
-            $out[] = 'Periksa kembali: ubah durasi, qty, layanan, atau kategori pada item — hapus nota hanya untuk batal order atau salah pelanggan.';
+            $out[] = 'Periksa kembali: ubah durasi, qty, layanan, atau kategori pada item langsung di operasi.';
         }
 
         return $out;
+    }
+
+    private function sanitizeStaffMessage(string $message): string
+    {
+        $patterns = [
+            '/\b(batal order|salah pelanggan|salah pilih nama pelanggan|bukan batal|bukan salah pelanggan)\b/iu',
+            '/\b(hanya|harus)\s+(batal|salah pelanggan)[^.]*/iu',
+            '/kategori\s*(alasan|hapus)[^.]*/iu',
+        ];
+        $clean = preg_replace($patterns, '', $message) ?? $message;
+        $clean = preg_replace('/\s+/u', ' ', trim($clean)) ?? trim($clean);
+        $clean = trim($clean, " \t\n\r\0\x0B.,;:-");
+
+        if ($clean === '' || mb_strlen($clean) < 8) {
+            return 'Nota tidak perlu dihapus — perbaiki data item yang bersangkutan.';
+        }
+
+        return $clean;
     }
 }
