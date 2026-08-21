@@ -45,17 +45,41 @@ class AiChat
 
     private function bootAiConfig(): void
     {
-        $envPath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR
-            . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Env.php';
-        if (is_file($envPath) && !class_exists('Env', false)) {
+        $configDir = $this->resolveApiConfigDir();
+        if ($configDir === null) {
+            throw new \RuntimeException(
+                'AI config tidak dapat diakses (cek open_basedir laundry — harus include folder api)'
+            );
+        }
+
+        $envPath = $configDir . DIRECTORY_SEPARATOR . 'Env.php';
+        if (!class_exists('Env', false)) {
             ob_start();
             require_once $envPath;
             ob_end_clean();
         }
         if (!class_exists('\\App\\Config\\AI', false)) {
-            require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR
-                . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'AI.php';
+            require_once $configDir . DIRECTORY_SEPARATOR . 'AI.php';
         }
+    }
+
+    /** @return non-empty-string|null */
+    private function resolveApiConfigDir(): ?string
+    {
+        $candidates = [
+            dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'api' . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config',
+            dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Api',
+        ];
+
+        foreach ($candidates as $dir) {
+            $env = $dir . DIRECTORY_SEPARATOR . 'Env.php';
+            $ai = $dir . DIRECTORY_SEPARATOR . 'AI.php';
+            if (@is_readable($env) && @is_readable($ai)) {
+                return $dir;
+            }
+        }
+
+        return null;
     }
 
     private function request(string $url, string $apiKey, array $data, string $label, int $timeout): string
