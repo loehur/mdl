@@ -6,6 +6,8 @@
  */
 class HapusRefAiGuard
 {
+    private const MSG_UNCLEAR = 'Alasan hapus belum cukup jelas. Mohon jelaskan lebih detail apa yang terjadi.';
+
     /** @return array{ok:bool,allowed:bool,message:string,alternatives:array<int,string>,raw?:string} */
     public function validate(string $note): array
     {
@@ -20,12 +22,11 @@ class HapusRefAiGuard
         }
 
         if (mb_strlen($note) < 4) {
-            return [
-                'ok' => true,
-                'allowed' => false,
-                'message' => 'Alasan terlalu singkat. Jelaskan mengapa nota perlu dihapus.',
-                'alternatives' => [],
-            ];
+            return $this->unclearReasonResponse('Alasan terlalu singkat. Mohon jelaskan lebih detail apa yang terjadi.');
+        }
+
+        if ($this->isUnclearReason($note)) {
+            return $this->unclearReasonResponse();
         }
 
         $local = $this->localPrefilter($note);
@@ -54,6 +55,7 @@ Balas HANYA JSON valid (tanpa markdown), format:
 Aturan:
 - allowed=true hanya jika category batal atau salah_pelanggan.
 - allowed=false jika category ditolak atau alasan tidak jelas / curiga koreksi data.
+- Jika alasan terlalu singkat atau vague (mis. hanya "salah", "keliru"), allowed=false dan message minta staff jelaskan lebih detail (tanpa sebut aturan internal).
 - message: kalimat sopan ke staff, max 2 kalimat. Fokus solusi edit item. JANGAN sebut aturan internal (batal/salah pelanggan/kategori alasan yang boleh).
 - alternatives: array solusi konkret (1-3 item) jika allowed=false; array kosong jika allowed=true.
 - Jangan sarankan hapus nota jika allowed=false.
@@ -71,15 +73,18 @@ SYS;
 
             $parsed = $this->parseJsonResponse($raw);
             if ($parsed === null) {
+                if ($this->isUnclearReason($note)) {
+                    return $this->unclearReasonResponse();
+                }
                 $fallback = $this->localPrefilter($note, true);
                 if ($fallback !== null) {
                     return $fallback;
                 }
                 return [
-                    'ok' => false,
+                    'ok' => true,
                     'allowed' => false,
-                    'message' => 'Validasi AI gagal memproses respons. Coba lagi sebentar.',
-                    'alternatives' => $this->fallbackAlternatives($note),
+                    'message' => self::MSG_UNCLEAR,
+                    'alternatives' => [],
                 ];
             }
 
@@ -111,7 +116,12 @@ SYS;
                 }
             }
 
-            if (!$allowed && $alternatives === []) {
+            if (!$allowed && ($category === 'ditolak' || $category === '') && $this->isUnclearReason($note)) {
+                $message = self::MSG_UNCLEAR;
+                $alternatives = [];
+            }
+
+            if (!$allowed && $alternatives === [] && $message !== self::MSG_UNCLEAR) {
                 $alternatives = $this->fallbackAlternatives($note);
             }
 
@@ -122,17 +132,61 @@ SYS;
                 'alternatives' => $alternatives,
             ];
         } catch (\Throwable $e) {
+            if ($this->isUnclearReason($note)) {
+                return $this->unclearReasonResponse();
+            }
             $fallback = $this->localPrefilter($note, true);
             if ($fallback !== null) {
                 return $fallback;
             }
             return [
-                'ok' => false,
+                'ok' => true,
                 'allowed' => false,
-                'message' => 'Validasi AI tidak tersedia. Periksa koneksi atau coba lagi.',
-                'alternatives' => $this->fallbackAlternatives($note),
+                'message' => 'Validasi sementara tidak tersedia. Mohon coba lagi sebentar.',
+                'alternatives' => [],
             ];
         }
+    }
+
+    /** @return array{ok:bool,allowed:bool,message:string,alternatives:array<int,string>} */
+    private function unclearReasonResponse(?string $message = null): array
+    {
+        return [
+            'ok' => true,
+            'allowed' => false,
+            'message' => $message ?? self::MSG_UNCLEAR,
+            'alternatives' => [],
+        ];
+    }
+
+    private function isUnclearReason(string $note): bool
+    {
+        $n = mb_strtolower(trim($note));
+        $n = preg_replace('/\s+/u', ' ', $n) ?? $n;
+
+        if (preg_match('/\b(batal|gak jadi|ga jadi|tidak jadi|cancel|batalin|batalkan|nggak jadi)\b/u', $n)) {
+            return false;
+        }
+        if (preg_match('/(pelanggan|nama|customer|orang)/u', $n)) {
+            return false;
+        }
+        if ($this->looksLikeDataCorrection($n)) {
+            return false;
+        }
+
+        if (mb_strlen($n) <= 12) {
+            return true;
+        }
+
+        if (preg_match('/^(salah|keliru|typo|error|salah input|salah ketik|salah pilih|salah order|salah nota|salah buat|salah enter)$/u', $n)) {
+            return true;
+        }
+
+        if (!preg_match('/\s/u', $n) && mb_strlen($n) <= 24) {
+            return (bool) preg_match('/^(salah|keliru|typo|error|hapus|cancel)$/u', $n);
+        }
+
+        return false;
     }
 
     /**

@@ -1114,9 +1114,12 @@
           loadDiv();
           return;
         }
-        if (res.status === 'rejected' || (res.status === 'error' && res.alternatives && res.alternatives.length)) {
+        if (res.status === 'rejected' || res.status === 'error') {
+          var hasAlt = res.alternatives && res.alternatives.length;
           showOpModalFeedback('hapusRef', res.message, {
-            title: '<i class="fas fa-robot"></i> Hapus nota ditolak',
+            title: hasAlt
+              ? '<i class="fas fa-robot"></i> Hapus nota ditolak'
+              : '<i class="fas fa-info-circle"></i> Perlu penjelasan',
             alternatives: res.alternatives || []
           });
           $('#inputAlasanHapus').css('borderColor', '#dc3545').focus();
