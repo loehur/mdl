@@ -7,6 +7,7 @@ const { getQrisTransactions } = require('./lib/qrms-scraper');
 const debug = require('./lib/debug');
 const { validateMutasiDateRange, validateQrisDateRange, MAX_RANGE_DAYS, MAX_LOOKBACK_DAYS, QRIS_MAX_RANGE_DAYS, QRIS_MAX_LOOKBACK_DAYS, TZ } = require('./lib/date-range');
 const cooldown = require('./lib/cooldown');
+const { chromeStatus } = require('./lib/puppeteer-launch');
 
 const app = express();
 app.use(express.json({ limit: '16kb' }));
@@ -289,7 +290,8 @@ async function handleQrisTransactions(req, res) {
   }
 }
 
-app.get('/health', (_req, res) => {
+app.get('/health', async (_req, res) => {
+  const chrome = await chromeStatus();
   res.json({
     ok: true,
     status: 'running',
@@ -297,6 +299,7 @@ app.get('/health', (_req, res) => {
     auth_required: Boolean(AUTH_TOKEN),
     busy: scrapeBusy,
     cooldown: cooldown.status(),
+    chrome,
     strategy: 'http_first_then_puppeteer',
     timestamp: new Date().toISOString(),
   });

@@ -17,10 +17,34 @@ cp .env.example .env
 # isi BCA_QRMS_EMAIL, BCA_QRMS_PASSWORD (qr.klikbca.com)
 # BCA_SCRAPPER_TOKEN (opsional)
 npm install
+npm run install:chrome   # wajib di VPS Linux (headless Chrome untuk QRIS + fallback mutasi)
 npm start
 ```
 
 Default: `http://127.0.0.1:3021`
+
+### VPS Linux (Chrome tidak ditemukan)
+
+Jika cron/API menampilkan `Could not find Chrome`:
+
+```bash
+cd node/bca_scrapper
+npm run install:chrome
+# restart service bca_scrapper
+curl http://127.0.0.1:3021/health   # cek field chrome.ok = true
+```
+
+Alternatif pakai Chromium system:
+
+```bash
+apt install -y chromium-browser   # Debian/Ubuntu
+```
+
+Lalu di `.env`:
+
+```env
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+```
 
 ## Endpoints
 

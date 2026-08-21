@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "install:chrome": "node scripts/install-chrome.js",
+    "postinstall": "node scripts/install-chrome.js"
   },
   "engines": {
     "node": ">=20.17.0"

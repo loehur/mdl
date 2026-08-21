@@ -1,5 +1,5 @@
-const puppeteer = require('puppeteer');
 const { submitLoginForm } = require('./qrms-puppeteer');
+const { launchBrowser: launchPuppeteerBrowser } = require('./puppeteer-launch');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -18,10 +18,7 @@ async function buildEncryptedLoginPayload(email, password, opts = {}) {
   const keepBrowser = opts.keepBrowser === true;
   let appVersion = null;
 
-  const browser = await puppeteer.launch({
-    headless,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await launchPuppeteerBrowser(headless);
 
   try {
     const page = await browser.newPage();

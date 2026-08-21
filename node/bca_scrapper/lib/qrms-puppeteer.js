@@ -1,4 +1,3 @@
-const puppeteer = require('puppeteer');
 const { USER_AGENT, URLS } = require('./qrms-config');
 const {
   parseTransactionsFromApiBodies,
@@ -7,6 +6,7 @@ const {
   ymdToParts,
 } = require('./qrms-parser');
 const debug = require('./debug');
+const { launchBrowser: launchPuppeteerBrowser } = require('./puppeteer-launch');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -18,10 +18,7 @@ function sleep(ms) {
 async function launchBrowser(options = {}) {
   const headless = options.headless !== false;
   const timeoutMs = Number(options.timeoutMs || 60000);
-  const browser = await puppeteer.launch({
-    headless,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await launchPuppeteerBrowser(headless);
   return { browser, timeoutMs };
 }
 

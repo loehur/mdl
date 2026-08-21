@@ -1,8 +1,8 @@
-const puppeteer = require('puppeteer');
 const { parseDateParts, parseMutasiHtml, parseBalanceHtml, isValidBalance } = require('./helpers');
 const { USER_AGENT, URLS } = require('./config');
 const { isLoginSuccess } = require('./ibank-auth');
 const debug = require('./debug');
+const { launchBrowser: launchPuppeteerBrowser } = require('./puppeteer-launch');
 
 /**
  * @param {{ headless?: boolean, timeoutMs?: number }} options
@@ -10,10 +10,7 @@ const debug = require('./debug');
 async function launchBrowser(options = {}) {
   const headless = options.headless !== false;
   const timeoutMs = Number(options.timeoutMs || 60000);
-  const browser = await puppeteer.launch({
-    headless,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await launchPuppeteerBrowser(headless);
   return { browser, timeoutMs };
 }
 
