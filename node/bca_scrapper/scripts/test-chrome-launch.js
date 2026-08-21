@@ -7,6 +7,7 @@ const { initChromeRuntime, launchBrowser } = require('../lib/puppeteer-launch');
 async function main() {
   const base = initChromeRuntime();
   console.log('[test] runtime dir:', base);
+  console.log('[test] OS user:', process.env.USER || process.env.LOGNAME || process.getuid?.());
   console.log('[test] XDG_CONFIG_HOME:', process.env.XDG_CONFIG_HOME);
   console.log('[test] XDG_CACHE_HOME:', process.env.XDG_CACHE_HOME);
 

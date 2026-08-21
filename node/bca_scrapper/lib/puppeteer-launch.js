@@ -25,8 +25,12 @@ const DEFAULT_ARGS = [
  * @returns {string} base runtime dir
  */
 function chromeRuntimeBase() {
-  return String(process.env.PUPPETEER_RUNTIME_DIR || '').trim()
+  const configured = String(process.env.PUPPETEER_RUNTIME_DIR || '').trim()
     || path.join(os.tmpdir(), 'bca-scrapper-chrome');
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
+  const user = String(process.env.USER || process.env.LOGNAME || `uid${uid}`).trim() || `uid${uid}`;
+  // Pisah per user OS — hindari root test merusak folder service www (crashpad/XDG).
+  return path.join(configured, user);
 }
 
 /**
@@ -40,6 +44,11 @@ function initChromeRuntime() {
   const crashDir = path.join(base, 'crash');
   for (const dir of [base, configHome, cacheHome, crashDir]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o777 });
+    try {
+      fs.chmodSync(dir, 0o777);
+    } catch {
+      /* ignore jika bukan owner */
+    }
   }
   process.env.XDG_CONFIG_HOME = configHome;
   process.env.XDG_CACHE_HOME = cacheHome;
