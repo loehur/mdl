@@ -22,37 +22,57 @@ class Pengeluaran extends Controller
     */
    public function analisaAi()
    {
+      @set_time_limit(120);
       header('Content-Type: application/json; charset=utf-8');
 
-      $id = trim((string) ($_POST['id'] ?? $_GET['id'] ?? ''));
-      if ($id === '' || !preg_match('/^[A-Za-z0-9]+$/', $id)) {
-         echo json_encode(['ok' => false, 'message' => 'ID tidak valid'], JSON_UNESCAPED_UNICODE);
-         return;
+      try {
+         $id = trim((string) ($_POST['id'] ?? $_GET['id'] ?? ''));
+         if ($id === '' || !preg_match('/^[A-Za-z0-9]+$/', $id)) {
+            echo json_encode(['ok' => false, 'message' => 'ID tidak valid'], JSON_UNESCAPED_UNICODE);
+            return;
+         }
+
+         $idEsc = $this->db(0)->escape($id);
+         $wc = $this->wCabangForApprovalAction('kas', 'id_kas', $id, ['jenis_transaksi' => 4, 'status_mutasi' => 2]);
+         if ($wc === null) {
+            echo json_encode(['ok' => false, 'message' => 'Pengeluaran tidak ditemukan atau sudah diproses'], JSON_UNESCAPED_UNICODE);
+            return;
+         }
+
+         $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 4 AND status_mutasi = 2";
+         $pending = $this->db(0)->get_where_row('kas', $where);
+         if (!is_array($pending) || empty($pending['id_kas'])) {
+            echo json_encode(['ok' => false, 'message' => 'Pengeluaran tidak ditemukan atau sudah diproses'], JSON_UNESCAPED_UNICODE);
+            return;
+         }
+
+         /** @var PengeluaranAiReview $review */
+         $review = $this->helper('PengeluaranAiReview');
+         $kodeFn = [$this, 'cabangKodeById'];
+         $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $kodeFn);
+         $result = $review->analyze($pending, $history, $kodeFn);
+
+         if (empty($result['ok']) || empty($result['analysis'])) {
+            $pendingPayload = $review->pendingPayload($pending, $kodeFn);
+            $result = [
+               'ok' => true,
+               'analysis' => $review->localFallbackAnalysis($pendingPayload, $history),
+               'history_count' => count($history),
+               'history_shown' => min(count($history), 60),
+               'pending' => $pendingPayload,
+               'ai_source' => 'local',
+               'message' => $result['message'] ?? 'AI tidak tersedia, menampilkan analisa otomatis.',
+            ];
+         }
+
+         echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+      } catch (\Throwable $e) {
+         $this->model('Log')->write('[Pengeluaran::analisaAi] ' . $e->getMessage());
+         echo json_encode([
+            'ok' => false,
+            'message' => 'Gagal analisa: ' . $e->getMessage(),
+         ], JSON_UNESCAPED_UNICODE);
       }
-
-      $idEsc = $this->db(0)->escape($id);
-      $wc = $this->wCabangForApprovalAction('kas', 'id_kas', $id, ['jenis_transaksi' => 4, 'status_mutasi' => 2]);
-      if ($wc === null) {
-         echo json_encode(['ok' => false, 'message' => 'Pengeluaran tidak ditemukan atau sudah diproses'], JSON_UNESCAPED_UNICODE);
-         return;
-      }
-
-      $where = $wc . " AND id_kas = '" . $idEsc . "' AND jenis_transaksi = 4 AND status_mutasi = 2";
-      $pending = $this->db(0)->get_where_row('kas', $where);
-      if (!is_array($pending) || empty($pending['id_kas'])) {
-         echo json_encode(['ok' => false, 'message' => 'Pengeluaran tidak ditemukan atau sudah diproses'], JSON_UNESCAPED_UNICODE);
-         return;
-      }
-
-      /** @var PengeluaranAiReview $review */
-      $review = $this->helper('PengeluaranAiReview');
-      $kodeFn = function (int $idCabang): string {
-         return $this->cabangKodeById($idCabang);
-      };
-      $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $kodeFn);
-      $result = $review->analyze($pending, $history, $kodeFn);
-
-      echo json_encode($result, JSON_UNESCAPED_UNICODE);
    }
 
    public function operasi($tipe)

@@ -33,7 +33,15 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
         <div class="aa-actions">
           <span class="aa-btn aa-btn--danger nTunai" role="button" data-id="<?= $idAttr ?>" data-id-cabang="<?= $idCabang ?>" data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/4">Tolak</span>
-          <span class="aa-btn aa-btn--ok nTunai nTunaiKonfirm" role="button" data-id="<?= $idAttr ?>" data-id-cabang="<?= $idCabang ?>" data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/3" data-analisa-url="<?= URL::BASE_URL ?>Pengeluaran/analisaAi">Konfirmasi</span>
+          <span class="aa-btn aa-btn--ok nTunai nTunaiKonfirm" role="button"
+            data-id="<?= $idAttr ?>"
+            data-id-cabang="<?= $idCabang ?>"
+            data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/3"
+            data-analisa-url="<?= URL::BASE_URL ?>Pengeluaran/analisaAi"
+            data-pg-jenis="<?= htmlspecialchars(strtoupper((string) $note), ENT_QUOTES, 'UTF-8') ?>"
+            data-pg-ket="<?= htmlspecialchars(ucwords((string) $f2), ENT_QUOTES, 'UTF-8') ?>"
+            data-pg-jumlah="<?= number_format((float) $f4, 0, ',', '.') ?>"
+            data-pg-kode="<?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?>">Konfirmasi</span>
         </div>
       </div>
     <?php } ?>
@@ -110,6 +118,45 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     $('#pgAiSub').text('Riwayat pengeluaran 30 hari terakhir (semua cabang)');
   }
 
+  function pgAiShowPendingFromBtn($btn) {
+    pgAiShowPending({
+      id_kas: $btn.attr('data-id') || '',
+      kode_cabang: $btn.attr('data-pg-kode') || '-',
+      jenis_pengeluaran: $btn.attr('data-pg-jenis') || '-',
+      keterangan: $btn.attr('data-pg-ket') || '-',
+      jumlah_fmt: $btn.attr('data-pg-jumlah') || '0'
+    });
+  }
+
+  function pgAiRenderResult(res) {
+    $('#pgAiLoading').addClass('d-none');
+    if (res && res.pending) {
+      pgAiShowPending(res.pending);
+    }
+    if (res && res.ok && res.analysis) {
+      $('#pgAiResult').removeClass('d-none');
+      $('#pgAiAnalysis').text(res.analysis);
+      var meta = '';
+      if (res.ai_source === 'local') {
+        meta = 'Analisa otomatis (AI tidak tersedia)';
+      } else {
+        meta = 'Analisa AI';
+      }
+      if (res.history_count != null) {
+        meta += (meta ? ' · ' : '') + 'Riwayat: ' + res.history_count + ' baris (30 hari)';
+      }
+      $('#pgAiMeta').text(meta);
+      if (res.ai_source === 'local' && res.message) {
+        $('#pgAiError').removeClass('d-none').text(res.message);
+      }
+      $('#btnPgAiKonfirmasi').removeClass('d-none');
+      return;
+    }
+    var msg = (res && res.message) ? res.message : 'Analisa gagal.';
+    $('#pgAiError').removeClass('d-none').text(msg + ' Anda tetap bisa konfirmasi jika sudah yakin.');
+    $('#btnPgAiKonfirmasi').removeClass('d-none');
+  }
+
   function pgAiOpenAnalisa($btn) {
     var url = $btn.attr('data-analisa-url');
     var id = $btn.attr('data-id');
@@ -122,8 +169,8 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     pgAiState.btn = $btn;
     pgAiState.card = $card;
     pgAiResetModal();
-    $('#pgAiPending').html('');
-    $('#pgAiSub').text('Memuat…');
+    pgAiShowPendingFromBtn($btn);
+    $('#pgAiSub').text('Memuat analisa…');
 
     var modalEl = document.getElementById('modalPengeluaranAi');
     if (modalEl && window.bootstrap && bootstrap.Modal) {
@@ -134,36 +181,32 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
       url: url,
       type: 'POST',
       dataType: 'json',
-      timeout: 35000,
+      timeout: 65000,
       data: {
         id: id,
         id_cabang: $btn.attr('data-id-cabang') || $card.attr('data-id-cabang') || ''
       }
     }).done(function (res) {
+      pgAiRenderResult(res);
+    }).fail(function (xhr, textStatus) {
       $('#pgAiLoading').addClass('d-none');
-      if (res && res.pending) {
-        pgAiShowPending(res.pending);
+      var res = null;
+      if (xhr && xhr.responseText) {
+        try {
+          res = JSON.parse(xhr.responseText);
+        } catch (err) { }
       }
-      if (res && res.ok && res.analysis) {
-        $('#pgAiResult').removeClass('d-none');
-        $('#pgAiAnalysis').text(res.analysis);
-        var meta = '';
-        if (res.history_count != null) {
-          meta = 'Data riwayat: ' + res.history_count + ' baris (30 hari)';
-          if (res.history_shown != null && res.history_shown < res.history_count) {
-            meta += ', AI membaca ' + res.history_shown + ' terbaru';
-          }
-        }
-        $('#pgAiMeta').text(meta);
-        $('#btnPgAiKonfirmasi').removeClass('d-none');
+      if (res) {
+        pgAiRenderResult(res);
         return;
       }
-      var msg = (res && res.message) ? res.message : 'Analisa AI gagal.';
-      $('#pgAiError').removeClass('d-none').text(msg + ' Anda tetap bisa konfirmasi jika sudah yakin.');
-      $('#btnPgAiKonfirmasi').removeClass('d-none');
-    }).fail(function () {
-      $('#pgAiLoading').addClass('d-none');
-      $('#pgAiError').removeClass('d-none').text('Gagal memuat analisa AI (timeout/jaringan). Anda tetap bisa konfirmasi jika sudah yakin.');
+      var msg = 'Gagal memuat analisa';
+      if (textStatus === 'timeout') {
+        msg = 'Analisa timeout — coba lagi atau lanjut konfirmasi manual';
+      } else if (xhr && xhr.status >= 500) {
+        msg = 'Error server saat analisa — pastikan file PengeluaranAiReview sudah ter-deploy';
+      }
+      $('#pgAiError').removeClass('d-none').text(msg + '. Anda tetap bisa konfirmasi jika sudah yakin.');
       $('#btnPgAiKonfirmasi').removeClass('d-none');
     });
   }
