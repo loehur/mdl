@@ -19,6 +19,9 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
           $karyawan = $c['nama_user'];
         }
       }
+      if ($karyawan === '' && isset($this->userAll[$f3]['nama_user'])) {
+        $karyawan = (string) $this->userAll[$f3]['nama_user'];
+      }
     ?>
       <div class="aa-card aa-card--pending" data-id-cabang="<?= $idCabang ?>">
         <?php if ($idCabang > 0) { ?>
@@ -30,7 +33,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
         <div class="aa-actions">
           <span class="aa-btn aa-btn--danger nTunai" role="button" data-id="<?= $idAttr ?>" data-id-cabang="<?= $idCabang ?>" data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/4">Tolak</span>
-          <span class="aa-btn aa-btn--ok nTunai" role="button" data-id="<?= $idAttr ?>" data-id-cabang="<?= $idCabang ?>" data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/3">Konfirmasi</span>
+          <span class="aa-btn aa-btn--ok nTunai nTunaiKonfirm" role="button" data-id="<?= $idAttr ?>" data-id-cabang="<?= $idCabang ?>" data-target="<?= URL::BASE_URL ?>Pengeluaran/operasi/3" data-analisa-url="<?= URL::BASE_URL ?>Pengeluaran/analisaAi">Konfirmasi</span>
         </div>
       </div>
     <?php } ?>
@@ -39,16 +42,167 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
   <div class="aa-empty" style="margin-bottom:14px"><i class="fas fa-check-circle"></i>Tidak ada pengeluaran pending</div>
 <?php } ?>
 
+<!-- Modal analisa AI sebelum konfirmasi pengeluaran -->
+<div class="modal fade" id="modalPengeluaranAi" tabindex="-1" aria-labelledby="modalPengeluaranAiLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:0;border:1px solid #cbd5e1;">
+      <div class="modal-header py-2 border-bottom" style="background:linear-gradient(105deg,#1d4ed8,#2563eb);color:#fff;">
+        <div>
+          <h6 class="modal-title fw-bold mb-0" id="modalPengeluaranAiLabel"><i class="fas fa-robot me-2"></i>Analisa AI Pengeluaran</h6>
+          <small id="pgAiSub" style="opacity:.9;">Memuat…</small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body py-3">
+        <div id="pgAiPending" class="border p-2 mb-3 small" style="background:#f8fafc;border-color:#cbd5e1 !important;"></div>
+        <div id="pgAiLoading" class="text-center text-muted py-4">
+          <i class="fas fa-spinner fa-spin fa-lg d-block mb-2"></i>
+          AI sedang menganalisa riwayat 30 hari…
+        </div>
+        <div id="pgAiResult" class="d-none">
+          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-comment-dots"></i> Komentar AI untuk Admin</div>
+          <div id="pgAiAnalysis" style="font-size:.88rem;line-height:1.55;white-space:pre-wrap;color:#0f172a;"></div>
+          <div id="pgAiMeta" class="text-muted mt-2" style="font-size:.75rem;"></div>
+        </div>
+        <div id="pgAiError" class="d-none alert alert-warning mb-0 py-2 small"></div>
+      </div>
+      <div class="modal-footer py-2 border-top">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-success btn-sm d-none" id="btnPgAiKonfirmasi">
+          <i class="fas fa-check me-1"></i>Lanjut Konfirmasi
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-  $("#load").off("click.aaPengeluaran").on("click.aaPengeluaran", "span.nTunai", function(e) {
-    e.preventDefault();
-    var $btn = $(this);
-    var isOk = $btn.hasClass("aa-btn--ok");
+(function () {
+  var pgAiState = { btn: null, card: null };
+
+  $('body > #modalPengeluaranAi').remove();
+  $('#modalPengeluaranAi').appendTo('body');
+
+  function pgAiEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function pgAiResetModal() {
+    $('#pgAiLoading').removeClass('d-none');
+    $('#pgAiResult').addClass('d-none');
+    $('#pgAiError').addClass('d-none').text('');
+    $('#pgAiAnalysis').text('');
+    $('#pgAiMeta').text('');
+    $('#btnPgAiKonfirmasi').addClass('d-none').prop('disabled', false);
+  }
+
+  function pgAiShowPending(p) {
+    if (!p) return;
+    var html = '<div><strong>' + pgAiEsc(p.jenis_pengeluaran || '-') + '</strong></div>';
+    html += '<div class="text-muted">' + pgAiEsc(p.kode_cabang || '-') + ' · #' + pgAiEsc(p.id_kas || '') + '</div>';
+    html += '<div class="mt-1">' + pgAiEsc(p.keterangan || '-') + '</div>';
+    html += '<div class="fw-bold mt-1">Rp ' + pgAiEsc(p.jumlah_fmt || '0') + '</div>';
+    $('#pgAiPending').html(html);
+    $('#pgAiSub').text('Riwayat pengeluaran 30 hari terakhir (semua cabang)');
+  }
+
+  function pgAiOpenAnalisa($btn) {
+    var url = $btn.attr('data-analisa-url');
+    var id = $btn.attr('data-id');
+    var $card = $btn.closest('.aa-card');
+    if (!url || !id || !$card.length) {
+      if (typeof aaToast === 'function') aaToast('Data konfirmasi tidak lengkap', 'error');
+      return;
+    }
+
+    pgAiState.btn = $btn;
+    pgAiState.card = $card;
+    pgAiResetModal();
+    $('#pgAiPending').html('');
+    $('#pgAiSub').text('Memuat…');
+
+    var modalEl = document.getElementById('modalPengeluaranAi');
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    $.ajax({
+      url: url,
+      type: 'POST',
+      dataType: 'json',
+      timeout: 35000,
+      data: {
+        id: id,
+        id_cabang: $btn.attr('data-id-cabang') || $card.attr('data-id-cabang') || ''
+      }
+    }).done(function (res) {
+      $('#pgAiLoading').addClass('d-none');
+      if (res && res.pending) {
+        pgAiShowPending(res.pending);
+      }
+      if (res && res.ok && res.analysis) {
+        $('#pgAiResult').removeClass('d-none');
+        $('#pgAiAnalysis').text(res.analysis);
+        var meta = '';
+        if (res.history_count != null) {
+          meta = 'Data riwayat: ' + res.history_count + ' baris (30 hari)';
+          if (res.history_shown != null && res.history_shown < res.history_count) {
+            meta += ', AI membaca ' + res.history_shown + ' terbaru';
+          }
+        }
+        $('#pgAiMeta').text(meta);
+        $('#btnPgAiKonfirmasi').removeClass('d-none');
+        return;
+      }
+      var msg = (res && res.message) ? res.message : 'Analisa AI gagal.';
+      $('#pgAiError').removeClass('d-none').text(msg + ' Anda tetap bisa konfirmasi jika sudah yakin.');
+      $('#btnPgAiKonfirmasi').removeClass('d-none');
+    }).fail(function () {
+      $('#pgAiLoading').addClass('d-none');
+      $('#pgAiError').removeClass('d-none').text('Gagal memuat analisa AI (timeout/jaringan). Anda tetap bisa konfirmasi jika sudah yakin.');
+      $('#btnPgAiKonfirmasi').removeClass('d-none');
+    });
+  }
+
+  $('#btnPgAiKonfirmasi').on('click', function () {
+    var $btn = pgAiState.btn;
+    if (!$btn || !$btn.length) return;
+    $(this).prop('disabled', true);
+    var modalEl = document.getElementById('modalPengeluaranAi');
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+    }
     aaApproveAjax($btn, {
-      tabKey: "Pengeluaran",
-      okMsg: isOk ? "Pengeluaran dikonfirmasi" : "Pengeluaran ditolak",
-      failMsg: isOk ? "Gagal konfirmasi pengeluaran" : "Gagal menolak pengeluaran",
+      tabKey: 'Pengeluaran',
+      okMsg: 'Pengeluaran dikonfirmasi',
+      failMsg: 'Gagal konfirmasi pengeluaran',
       emptyHtml: '<div class="aa-empty" style="margin-bottom:14px"><i class="fas fa-check-circle"></i>Tidak ada pengeluaran pending</div>'
     });
   });
+
+  $('#modalPengeluaranAi').on('hidden.bs.modal', function () {
+    pgAiState.btn = null;
+    pgAiState.card = null;
+    $('#btnPgAiKonfirmasi').prop('disabled', false);
+  });
+
+  $("#load").off("click.aaPengeluaran").on("click.aaPengeluaran", "span.nTunai", function (e) {
+    e.preventDefault();
+    var $btn = $(this);
+    if ($btn.hasClass('nTunaiKonfirm')) {
+      pgAiOpenAnalisa($btn);
+      return;
+    }
+    aaApproveAjax($btn, {
+      tabKey: "Pengeluaran",
+      okMsg: "Pengeluaran ditolak",
+      failMsg: "Gagal menolak pengeluaran",
+      emptyHtml: '<div class="aa-empty" style="margin-bottom:14px"><i class="fas fa-check-circle"></i>Tidak ada pengeluaran pending</div>'
+    });
+  });
+})();
 </script>
