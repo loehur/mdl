@@ -30,7 +30,7 @@ $qrisUrl = $data['qris_url'] ?? '';
          display: block;
          width: auto;
          height: auto;
-         max-width: min(100%, calc(100vw - 24px));
+         max-width: min(100%, 420px);
          max-height: min(100%, calc(100dvh - 24px));
          object-fit: contain;
          object-position: center;
