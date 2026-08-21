@@ -139,7 +139,7 @@
 
 <!-- Modal Pengeluaran -->
 <div class="modal" id="modalPengeluaran" tabindex="-1" aria-labelledby="modalPengeluaranLabel" aria-hidden="true">
-  <?php require __DIR__ . '/_pengeluaran_modal_styles.php'; ?>
+  <?php require __DIR__ . '/_kas_modal_theme.php'; ?>
   <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
     <div class="modal-content">
       <div class="modal-header bg-danger text-white">

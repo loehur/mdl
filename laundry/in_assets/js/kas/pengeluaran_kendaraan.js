@@ -50,6 +50,14 @@
     }
   }
 
+  function toastWarn(msg) {
+    if (window.MdlToast) {
+      window.MdlToast.warn(msg);
+    } else {
+      alert(msg);
+    }
+  }
+
   function prepareSubmit($form) {
     if (($form.attr('action') || '').indexOf('insert_pengeluaran') < 0) {
       return true;
@@ -61,7 +69,7 @@
     var $sel = $form.find('.pg-ket-kendaraan-select');
     var id = $sel.val();
     if (!id) {
-      alert('Pilih kendaraan terlebih dahulu.');
+      toastWarn('Pilih kendaraan terlebih dahulu.');
       $sel.focus();
       return false;
     }
@@ -74,7 +82,7 @@
     if (lainnya) {
       var text = $.trim($lain.val());
       if (!text) {
-        alert('Keterangan wajib diisi untuk opsi Lainnya.');
+        toastWarn('Keterangan wajib diisi untuk opsi Lainnya.');
         $lain.focus();
         return false;
       }
@@ -112,8 +120,10 @@
       syncLainnyaField($(this).closest('form'));
     });
 
-    $('.modal').on('show.bs.modal', function () {
-      var $form = $(this).find('form[action*="insert_pengeluaran"]');
+    document.addEventListener('op-modal:open', function (e) {
+      var modal = e.target;
+      if (!modal || !modal.querySelector) return;
+      var $form = $(modal).find('form[action*="insert_pengeluaran"]');
       if ($form.length) {
         syncKeteranganMode($form);
         syncLainnyaField($form);

@@ -15,9 +15,9 @@
                   Menu Kas
                 </button>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#exampleModal">Pengeluaran</a>
-                  <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#exampleModal3">Penarikan</a>
-                  <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#exampleModal2">Kasbon</a>
+                  <a class="dropdown-item" href="#" data-op-target="#exampleModal">Pengeluaran</a>
+                  <a class="dropdown-item" href="#" data-op-target="#exampleModal3">Penarikan</a>
+                  <a class="dropdown-item" href="#" data-op-target="#exampleModal2">Kasbon</a>
                 </div>
               </div>
             </div>
@@ -202,208 +202,218 @@
   </div>
 </div>
 
-<div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <?php require __DIR__ . '/_pengeluaran_modal_styles.php'; ?>
-  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">Pengeluaran</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
-      </div>
-      <div class="modal-body">
-        <!-- ====================== FORM ========================= -->
-        <form action="<?= URL::BASE_URL; ?>Kas/insert_pengeluaran" method="POST">
-          <div class="kas-pg-modal-grid">
-            <div class="form-group kas-pg-span-2">
-              <label class="small text-muted">Saldo Kas</label>
-              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
-              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
-            </div>
-            <div class="form-group" id="jenisKeluar">
-              <label for="exampleInputEmail1">Jenis Pengeluaran</label>
-              <select name="f1a" class="form-control form-control-sm jenisKeluar" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="💸 Biaya Operasional">
-                  <?php foreach ($this->dItemPengeluaran as $ip) { 
-                    if (isset($ip['is_expense']) && $ip['is_expense'] == 1) { ?>
-                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                  <?php } 
-                  } ?>
-                </optgroup>
-                <optgroup label="💰 Non-Biaya (Prive/Aset)">
-                  <?php foreach ($this->dItemPengeluaran as $ip) { 
-                    if (isset($ip['is_expense']) && $ip['is_expense'] == 0) { ?>
-                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                  <?php } 
-                  } ?>
-                </optgroup>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Jumlah Rp</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahPengeluaran" placeholder="" required>
-              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
-            </div>
-            <div class="form-group">
-              <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
-            </div>
-            <div class="form-group" id="userKeluar">
-              <label for="exampleInputEmail1">Penarik Kas</label>
-              <select name="f3" class="form-control form-control-sm userKeluar" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="----- Cabang Lain -----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
-                <?php } ?>
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer px-0 pb-0">
-            <button type="submit" class="btn w-100 btn-danger">Buat Pengeluaran</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
+<?php require __DIR__ . '/_kas_modal_theme.php'; ?>
 
-<div class="modal" id="exampleModal3" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">Penarikan Kas</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
+<!-- Modal Pengeluaran -->
+<div class="op-modal" id="exampleModal" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--kas op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="kasPgTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h5 id="kasPgTitle"><i class="fas fa-minus-circle"></i> Pengeluaran</h5>
+        <small>Catat pengeluaran kas cabang</small>
       </div>
-      <div class="modal-body">
-        <form action="<?= URL::BASE_URL; ?>Kas/insert" method="POST">
-          <div class="kas-pg-modal-grid">
-            <div class="form-group kas-pg-span-2">
-              <label class="small text-muted">Saldo Kas</label>
-              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
-              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Jumlah Rp</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahPenarikan" placeholder="" required>
-              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Keterangan</label>
-              <input type="text" name="f1" class="form-control" placeholder="" required>
-            </div>
-            <div class="form-group kas-pg-span-2">
-              <label for="exampleInputEmail1">Penarik Kas</label>
-              <select name="f3" class="tarik form-control form-control-sm" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="----- Cabang Lain -----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
-                <?php } ?>
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer flex-column align-items-stretch px-0 pb-0">
-            <small class="text-danger mb-2">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</small>
-            <button type="submit" class="btn w-100 btn-primary">Tarik Kas</button>
-          </div>
-        </form>
-      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
-  </div>
-</div>
-
-<div class="modal" id="exampleModal2" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalLabel">Penginputan Kasbon</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
-      </div>
-      <div class="modal-body">
-        <form action="<?= URL::BASE_URL; ?>Kasbon/insert" method="POST">
-          <div class="kas-pg-modal-grid">
-            <div class="form-group kas-pg-span-2">
-              <label class="small text-muted">Saldo Kas</label>
-              <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
-              <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Karyawan Kasbon</label>
-              <select name="f1" class="form-control form-control-sm" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
-                    <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                  <?php } ?>
-                </optgroup>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Jumlah</label>
-              <input type="number" name="f2" min="1000" class="form-control jumlahTarik jumlahKasbon" placeholder="" required>
-              <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Metode</label>
-              <select name="metode" class="form-control form-control-sm metodeBayar" style="width: 100%;" required>
-                <?php foreach ($this->dMetodeMutasi as $a) {
-                  if ($a['id_metode_mutasi'] <> 3) { ?>
-                    <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
+    <form class="op-modal__form-wrap" action="<?= URL::BASE_URL; ?>Kas/insert_pengeluaran" method="POST">
+      <div class="op-modal__body">
+        <div class="kas-pg-modal-grid">
+          <div class="op-field kas-pg-span-2">
+            <label class="op-label">Saldo Kas</label>
+            <div class="kas-saldo-box saldoKas">Rp <?= number_format($kas); ?></div>
+            <input type="hidden" name="kas" class="saldoKasHidden" value="<?= $kas ?>">
+          </div>
+          <div class="op-field" id="jenisKeluar">
+            <label class="op-label">Jenis Pengeluaran</label>
+            <select name="f1a" class="tize jenisKeluar" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="Biaya Operasional">
+                <?php foreach ($this->dItemPengeluaran as $ip) {
+                  if (isset($ip['is_expense']) && $ip['is_expense'] == 1) { ?>
+                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
                 <?php }
                 } ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="exampleInputEmail1">Penginput</label>
-              <select name="f3" class="kasbon form-control form-control-sm userChange" style="width: 100%;" required>
-                <option value="" selected disabled></option>
-                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                  <?php foreach ($this->user as $a) { ?>
+              </optgroup>
+              <optgroup label="Non-Biaya (Prive/Aset)">
+                <?php foreach ($this->dItemPengeluaran as $ip) {
+                  if (isset($ip['is_expense']) && $ip['is_expense'] == 0) { ?>
+                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                <?php }
+                } ?>
+              </optgroup>
+            </select>
+          </div>
+          <div class="op-field">
+            <label class="op-label">Jumlah Rp</label>
+            <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahPengeluaran" required>
+            <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
+          </div>
+          <div class="op-field">
+            <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
+          </div>
+          <div class="op-field" id="userKeluar">
+            <label class="op-label">Penarik Kas</label>
+            <select name="f3" class="tize userKeluar" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
                     <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
-                <?php if (count($this->userCabang) > 0) { ?>
-                  <optgroup label="----- Cabang Lain -----">
-                    <?php foreach ($this->userCabang as $a) { ?>
-                      <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                    <?php } ?>
-                  </optgroup>
-                <?php } ?>
-              </select>
-            </div>
-            <div class="form-group kas-pg-span-2" id="nTunai">
-              <label for="exampleInputEmail1" class="text-danger">Catatan Non Tunai <small>(Contoh: BRI)</small></label>
-              <input type="text" name="note" maxlength="10" class="form-control border-danger" placeholder="" style="text-transform:uppercase">
-            </div>
+              <?php } ?>
+            </select>
           </div>
-          <div class="modal-footer px-0 pb-0">
-            <button type="submit" class="btn w-100 btn-warning">Buat Kasbon</button>
-          </div>
-        </form>
+        </div>
       </div>
+      <div class="op-modal__foot">
+        <button type="submit" class="op-btn op-btn--danger op-btn--block">Buat Pengeluaran</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Penarikan -->
+<div class="op-modal" id="exampleModal3" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--kas op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="kasTarikTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h5 id="kasTarikTitle"><i class="fas fa-hand-holding-usd"></i> Penarikan Kas</h5>
+        <small>Tarik kas untuk disetor ke admin</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
+    <form class="op-modal__form-wrap" action="<?= URL::BASE_URL; ?>Kas/insert" method="POST">
+      <div class="op-modal__body">
+        <div class="kas-pg-modal-grid">
+          <div class="op-field kas-pg-span-2">
+            <label class="op-label">Saldo Kas</label>
+            <div class="kas-saldo-box saldoKas">Rp <?= number_format($kas); ?></div>
+            <input type="hidden" name="kas" class="saldoKasHidden" value="<?= $kas ?>">
+          </div>
+          <div class="op-field">
+            <label class="op-label">Jumlah Rp</label>
+            <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahPenarikan" required>
+            <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
+          </div>
+          <div class="op-field">
+            <label class="op-label">Keterangan</label>
+            <input type="text" name="f1" class="op-input" required>
+          </div>
+          <div class="op-field kas-pg-span-2">
+            <label class="op-label">Penarik Kas</label>
+            <select name="f3" class="tize tarik" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
+                    <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+              <?php } ?>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="op-modal__foot">
+        <p class="kas-hint-warn">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</p>
+        <button type="submit" class="op-btn op-btn--blue op-btn--block">Tarik Kas</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Kasbon -->
+<div class="op-modal" id="exampleModal2" aria-hidden="true">
+  <div class="op-modal__backdrop" data-op-close></div>
+  <div class="op-modal__panel op-modal__panel--kas op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="kasBonTitle">
+    <div class="op-modal__head op-modal__head--yellow">
+      <div>
+        <h5 id="kasBonTitle"><i class="fas fa-file-invoice-dollar"></i> Penginputan Kasbon</h5>
+        <small>Catat kasbon karyawan</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <form class="op-modal__form-wrap" action="<?= URL::BASE_URL; ?>Kasbon/insert" method="POST">
+      <div class="op-modal__body">
+        <div class="kas-pg-modal-grid">
+          <div class="op-field kas-pg-span-2">
+            <label class="op-label">Saldo Kas</label>
+            <div class="kas-saldo-box saldoKas">Rp <?= number_format($kas); ?></div>
+            <input type="hidden" name="kas" class="saldoKasHidden" value="<?= $kas ?>">
+          </div>
+          <div class="op-field">
+            <label class="op-label">Karyawan Kasbon</label>
+            <select name="f1" class="tize kasbonKaryawan" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+            </select>
+          </div>
+          <div class="op-field">
+            <label class="op-label">Jumlah</label>
+            <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahKasbon" required>
+            <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
+          </div>
+          <div class="op-field">
+            <label class="op-label">Metode</label>
+            <select name="metode" class="op-input metodeBayar" required>
+              <?php foreach ($this->dMetodeMutasi as $a) {
+                if ($a['id_metode_mutasi'] <> 3) { ?>
+                  <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
+              <?php }
+              } ?>
+            </select>
+          </div>
+          <div class="op-field">
+            <label class="op-label">Penginput</label>
+            <select name="f3" class="tize kasbon userChange" style="width: 100%;" required>
+              <option value="" selected disabled></option>
+              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                <?php foreach ($this->user as $a) { ?>
+                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                <?php } ?>
+              </optgroup>
+              <?php if (count($this->userCabang) > 0) { ?>
+                <optgroup label="----- Cabang Lain -----">
+                  <?php foreach ($this->userCabang as $a) { ?>
+                    <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                  <?php } ?>
+                </optgroup>
+              <?php } ?>
+            </select>
+          </div>
+          <div class="op-field kas-pg-span-2" id="nTunai">
+            <label class="op-label op-label--danger">Catatan Non Tunai <span style="text-transform:none;letter-spacing:0;">(Contoh: BRI)</span></label>
+            <input type="text" name="note" maxlength="10" class="op-input op-input--danger" style="text-transform:uppercase">
+          </div>
+        </div>
+      </div>
+      <div class="op-modal__foot">
+        <button type="submit" class="op-btn op-btn--warn op-btn--block">Buat Kasbon</button>
+      </div>
+    </form>
   </div>
 </div>
 
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/kas/kas_modal.js"></script>
 <script src="<?= URL::IN_ASSETS ?>js/kas/pengeluaran_kendaraan.js"></script>
 
 <script>
@@ -429,7 +439,7 @@
     $('.saldoKasHidden').val(saldoKas);
     $('.liveAmount').text('Rp 0');
 
-    $('.modal button[type="submit"]').each(function() {
+    $('.op-modal button[type="submit"]').each(function() {
       $(this).data('original-text', $(this).html());
     });
   });
@@ -468,7 +478,11 @@
             msg = r422.error || msg;
           } catch (e2) {}
         }
-        alert(msg);
+        if (window.MdlToast) {
+          window.MdlToast.error(msg);
+        } else {
+          alert(msg);
+        }
       }
     });
   });
@@ -490,9 +504,9 @@
     $(this).closest('form').find('.saldoKasHidden').val(sisaKas);
 
     if (sisaKas < 0) {
-      $(this).closest('form').find('.saldoKas').addClass('text-danger').removeClass('text-success');
+      $(this).closest('form').find('.saldoKas').addClass('kas-saldo--minus');
     } else {
-      $(this).closest('form').find('.saldoKas').removeClass('text-danger').addClass('text-success');
+      $(this).closest('form').find('.saldoKas').removeClass('kas-saldo--minus');
     }
 
     $(this).siblings('small').find('.liveAmount').text(formatRupiah(potong));
@@ -501,33 +515,33 @@
   $("button.dropdown-toggle").on("click", function() {
     saldoKas = <?= $kas ?>;
     $('.saldoKas').each(function() {
-      $(this).text(formatRupiah(saldoKas)).removeClass('text-danger').addClass('text-success');
+      $(this).text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
     });
     $('.saldoKasHidden').val(saldoKas);
     $('.liveAmount').text('Rp 0');
     $('input.jumlahTarik').val('');
   });
 
-  $('.modal').on('show.bs.modal', function() {
+  function resetKasModalSaldo($root) {
     saldoKas = <?= $kas ?>;
-    $(this).find('.saldoKas').text(formatRupiah(saldoKas)).removeClass('text-danger').addClass('text-success');
-    $(this).find('.saldoKasHidden').val(saldoKas);
-    $(this).find('.liveAmount').text('Rp 0');
+    $root.find('.saldoKas').text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
+    $root.find('.saldoKasHidden').val(saldoKas);
+    $root.find('.liveAmount').text('Rp 0');
+    $root.find('input.jumlahTarik').val('');
+  }
+
+  document.addEventListener('op-modal:open', function(e) {
+    if (e.target && e.target.classList && e.target.classList.contains('op-modal')) {
+      resetKasModalSaldo($(e.target));
+    }
   });
 
   function selectList() {
-    $('select.userKeluar').selectize({
-      sortField: 'text'
-    });
-    $('select.jenisKeluar').selectize({
-      sortField: []
-    });
-    $('select.tarik').selectize({
-      sortField: 'text'
-    });
-    $('select.kasbon').selectize({
-      sortField: 'text'
-    });
+    $('select.userKeluar').selectize({ sortField: 'text' });
+    $('select.jenisKeluar').selectize({ sortField: [] });
+    $('select.tarik').selectize({ sortField: 'text' });
+    $('select.kasbon').selectize({ sortField: 'text' });
+    $('select.kasbonKaryawan').selectize({ sortField: 'text' });
   }
 
   function tarik(idnya) {
