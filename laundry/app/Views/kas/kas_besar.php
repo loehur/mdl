@@ -139,7 +139,8 @@
 
 <!-- Modal Pengeluaran -->
 <div class="modal" id="modalPengeluaran" tabindex="-1" aria-labelledby="modalPengeluaranLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <?php require __DIR__ . '/_pengeluaran_modal_styles.php'; ?>
+  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
     <div class="modal-content">
       <div class="modal-header bg-danger text-white">
         <h5 class="modal-title" id="modalPengeluaranLabel"><i class="fas fa-minus-circle me-2"></i>Pengeluaran Kas Besar</h5>
@@ -147,48 +148,50 @@
       </div>
       <div class="modal-body">
         <form id="formPengeluaran" action="<?= URL::BASE_URL; ?>Kas_Besar/insert_pengeluaran" method="POST">
-          <div class="mb-3">
-            <label class="form-label fw-bold">Saldo Saat Ini</label>
-            <input type="text" class="form-control text-center text-bold saldoKas bg-light" readonly>
-          </div>
-          <div class="mb-3" id="jenisKeluarBesar">
-            <label class="form-label fw-bold">Jenis Pengeluaran</label>
-            <select name="f1a" class="form-control form-control-sm jenisKeluarBesar" style="width: 100%;" required>
-              <option value="" selected disabled>-- Pilih Jenis --</option>
-              <optgroup label="💸 Biaya Operasional">
-                <?php foreach ($this->dItemPengeluaran as $ip) { 
-                  if (isset($ip['is_expense']) && $ip['is_expense'] == 1) { ?>
-                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                <?php } 
+          <div class="kas-pg-modal-grid">
+            <div class="mb-3 kas-pg-span-2">
+              <label class="form-label fw-bold">Saldo Saat Ini</label>
+              <input type="text" class="form-control text-center text-bold saldoKas bg-light" readonly>
+            </div>
+            <div class="mb-3" id="jenisKeluarBesar">
+              <label class="form-label fw-bold">Jenis Pengeluaran</label>
+              <select name="f1a" class="form-control form-control-sm jenisKeluarBesar" style="width: 100%;" required>
+                <option value="" selected disabled>-- Pilih Jenis --</option>
+                <optgroup label="💸 Biaya Operasional">
+                  <?php foreach ($this->dItemPengeluaran as $ip) { 
+                    if (isset($ip['is_expense']) && $ip['is_expense'] == 1) { ?>
+                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                  <?php } 
+                  } ?>
+                </optgroup>
+                <optgroup label="💰 Non-Biaya (Prive/Aset)">
+                  <?php foreach ($this->dItemPengeluaran as $ip) { 
+                    if (isset($ip['is_expense']) && $ip['is_expense'] == 0) { ?>
+                    <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
+                  <?php } 
+                  } ?>
+                </optgroup>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Metode</label>
+              <select name="metode" class="form-control form-control-sm" required>
+                <?php foreach ($this->dMetodeMutasi as $a) {
+                  if ($a['id_metode_mutasi'] <> 3) { ?>
+                    <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
+                <?php }
                 } ?>
-              </optgroup>
-              <optgroup label="💰 Non-Biaya (Prive/Aset)">
-                <?php foreach ($this->dItemPengeluaran as $ip) { 
-                  if (isset($ip['is_expense']) && $ip['is_expense'] == 0) { ?>
-                  <option value="<?= $ip['id_item_pengeluaran'] ?><explode><?= $ip['item_pengeluaran'] ?>"><?= $ip['item_pengeluaran'] ?></option>
-                <?php } 
-                } ?>
-              </optgroup>
-            </select>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Jumlah Rp</label>
+              <input type="number" name="f2" min="1000" class="form-control jumlahTarik" placeholder="0" required>
+            </div>
+            <div class="mb-3">
+              <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label fw-bold">Metode</label>
-            <select name="metode" class="form-control form-control-sm" required>
-              <?php foreach ($this->dMetodeMutasi as $a) {
-                if ($a['id_metode_mutasi'] <> 3) { ?>
-                  <option value="<?= $a['id_metode_mutasi'] ?>"><?= $a['metode_mutasi'] ?></option>
-              <?php }
-              } ?>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-bold">Jumlah Rp</label>
-            <input type="number" name="f2" min="1000" class="form-control jumlahTarik" placeholder="0" required>
-          </div>
-          <div class="mb-3">
-            <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
-          </div>
-          <div class="d-grid">
+          <div class="d-grid mt-3">
             <button type="submit" class="btn btn-danger"><i class="fas fa-save me-2"></i>Simpan Pengeluaran</button>
           </div>
         </form>

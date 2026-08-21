@@ -203,7 +203,8 @@
 </div>
 
 <div class="modal" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <?php require __DIR__ . '/_pengeluaran_modal_styles.php'; ?>
+  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="exampleModalLabel">Pengeluaran</h5>
@@ -212,8 +213,8 @@
       <div class="modal-body">
         <!-- ====================== FORM ========================= -->
         <form action="<?= URL::BASE_URL; ?>Kas/insert_pengeluaran" method="POST">
-          <div class="card-body">
-            <div class="form-group">
+          <div class="kas-pg-modal-grid">
+            <div class="form-group kas-pg-span-2">
               <label class="small text-muted">Saldo Kas</label>
               <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
               <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
@@ -265,7 +266,7 @@
               </select>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer px-0 pb-0">
             <button type="submit" class="btn w-100 btn-danger">Buat Pengeluaran</button>
           </div>
         </form>
@@ -275,17 +276,16 @@
 </div>
 
 <div class="modal" id="exampleModal3" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="exampleModalLabel">Penarikan Kas</h5>
         <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <!-- ====================== FORM ========================= -->
         <form action="<?= URL::BASE_URL; ?>Kas/insert" method="POST">
-          <div class="card-body">
-            <div class="form-group">
+          <div class="kas-pg-modal-grid">
+            <div class="form-group kas-pg-span-2">
               <label class="small text-muted">Saldo Kas</label>
               <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
               <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
@@ -297,27 +297,29 @@
             </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Keterangan</label>
-              <input type="text" name="f1" class="form-control" id="exampleInputEmail1" placeholder="" required>
+              <input type="text" name="f1" class="form-control" placeholder="" required>
             </div>
-            <label for="exampleInputEmail1">Penarik Kas</label>
-            <select name="f3" class="tarik form-control form-control-sm" style="width: 100%;" required>
-              <option value="" selected disabled></option>
-              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                <?php foreach ($this->user as $a) { ?>
-                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                <?php } ?>
-              </optgroup>
-              <?php if (count($this->userCabang) > 0) { ?>
-                <optgroup label="----- Cabang Lain -----">
-                  <?php foreach ($this->userCabang as $a) { ?>
+            <div class="form-group kas-pg-span-2">
+              <label for="exampleInputEmail1">Penarik Kas</label>
+              <select name="f3" class="tarik form-control form-control-sm" style="width: 100%;" required>
+                <option value="" selected disabled></option>
+                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                  <?php foreach ($this->user as $a) { ?>
                     <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
-              <?php } ?>
-            </select>
+                <?php if (count($this->userCabang) > 0) { ?>
+                  <optgroup label="----- Cabang Lain -----">
+                    <?php foreach ($this->userCabang as $a) { ?>
+                      <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                    <?php } ?>
+                  </optgroup>
+                <?php } ?>
+              </select>
+            </div>
           </div>
-          <div class="modal-footer">
-            <small class="text-danger">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</small>
+          <div class="modal-footer flex-column align-items-stretch px-0 pb-0">
+            <small class="text-danger mb-2">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</small>
             <button type="submit" class="btn w-100 btn-primary">Tarik Kas</button>
           </div>
         </form>
@@ -327,17 +329,16 @@
 </div>
 
 <div class="modal" id="exampleModal2" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <div class="modal-dialog modal-dialog-centered kas-pg-modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="exampleModalLabel">Penginputan Kasbon</h5>
         <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"> <span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <!-- ====================== FORM ========================= -->
         <form action="<?= URL::BASE_URL; ?>Kasbon/insert" method="POST">
-          <div class="card-body">
-            <div class="form-group">
+          <div class="kas-pg-modal-grid">
+            <div class="form-group kas-pg-span-2">
               <label class="small text-muted">Saldo Kas</label>
               <div class="form-control text-center text-bold saldoKas py-2" style="font-size:1.1rem;background:#f8f9fa;">Rp <?= number_format($kas); ?></div>
               <input type="hidden" name='kas' class="saldoKasHidden" value="<?= $kas ?>">
@@ -368,34 +369,30 @@
                 } ?>
               </select>
             </div>
-            <label for="exampleInputEmail1">Penginput</label>
-            <select name="f3" class="kasbon form-control form-control-sm userChange" style="width: 100%;" required>
-              <option value="" selected disabled></option>
-              <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-                <?php foreach ($this->user as $a) { ?>
-                  <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                <?php } ?>
-              </optgroup>
-              <?php if (count($this->userCabang) > 0) { ?>
-                <optgroup label="----- Cabang Lain -----">
-                  <?php foreach ($this->userCabang as $a) { ?>
+            <div class="form-group">
+              <label for="exampleInputEmail1">Penginput</label>
+              <select name="f3" class="kasbon form-control form-control-sm userChange" style="width: 100%;" required>
+                <option value="" selected disabled></option>
+                <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
+                  <?php foreach ($this->user as $a) { ?>
                     <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
                   <?php } ?>
                 </optgroup>
-              <?php } ?>
-            </select>
-            <div class="row mt-4" id="nTunai">
-              <div class="col-sm-12">
-                <div class="form-group">
-                  <div class="form-group">
-                    <label for="exampleInputEmail1" class="text-danger">Catatan Non Tunai <small>(Contoh: BRI)</small></label>
-                    <input type="text" name="note" maxlength="10" class="form-control border-danger" id="exampleInputEmail1" placeholder="" style="text-transform:uppercase">
-                  </div>
-                </div>
-              </div>
+                <?php if (count($this->userCabang) > 0) { ?>
+                  <optgroup label="----- Cabang Lain -----">
+                    <?php foreach ($this->userCabang as $a) { ?>
+                      <option value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
+                    <?php } ?>
+                  </optgroup>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="form-group kas-pg-span-2" id="nTunai">
+              <label for="exampleInputEmail1" class="text-danger">Catatan Non Tunai <small>(Contoh: BRI)</small></label>
+              <input type="text" name="note" maxlength="10" class="form-control border-danger" placeholder="" style="text-transform:uppercase">
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer px-0 pb-0">
             <button type="submit" class="btn w-100 btn-warning">Buat Kasbon</button>
           </div>
         </form>

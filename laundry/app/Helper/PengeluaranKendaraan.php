@@ -67,9 +67,10 @@ class PengeluaranKendaraan
     }
 
     /** @return list<array<string,mixed>> */
-    public static function refreshSessionList($db): array
+    public static function fetchActiveList($db): array
     {
         $rows = $db->get_where_order('pengeluaran_kendaraan', 'aktif = 1', 'freq DESC, sort_order ASC, id_kendaraan ASC');
+
         return is_array($rows) ? $rows : [];
     }
 }

@@ -182,7 +182,6 @@ class Kas extends Controller
             $this->bumpItemPengeluaranFreq($id_jenis);
             if (!empty($resolved['id_kendaraan'])) {
                PengeluaranKendaraan::bumpFreq($this->db(0), (int) $resolved['id_kendaraan']);
-               $this->refreshPengeluaranKendaraanSession();
             }
             echo 1;
          } else {

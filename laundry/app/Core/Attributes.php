@@ -369,8 +369,8 @@ trait Attributes
                 $this->dSatuan = $_SESSION[URL::SESSID]['data']['satuan'];
                 $this->dItem = $_SESSION[URL::SESSID]['data']['item'];
                 $this->dKota = $_SESSION[URL::SESSID]['data']['kota'];
-                $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
-                $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] ?? [];
+                $this->dItemPengeluaran = $this->loadItemPengeluaranList();
+                $this->dPengeluaranKendaraan = $this->loadPengeluaranKendaraanList();
                 $this->dMetodeMutasi = $_SESSION[URL::SESSID]['data']['mutasi_metode'];
                 $this->dStatusMutasi = $_SESSION[URL::SESSID]['data']['mutasi_status'];
 
@@ -411,8 +411,8 @@ trait Attributes
                     $this->dSatuan = $_SESSION[URL::SESSID]['data']['satuan'];
                     $this->dItem = $_SESSION[URL::SESSID]['data']['item'];
                     $this->dKota = $_SESSION[URL::SESSID]['data']['kota'];
-                    $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
-                $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] ?? [];
+                    $this->dItemPengeluaran = $this->loadItemPengeluaranList();
+                    $this->dPengeluaranKendaraan = $this->loadPengeluaranKendaraanList();
                     $this->dMetodeMutasi = $_SESSION[URL::SESSID]['data']['mutasi_metode'];
                     $this->dStatusMutasi = $_SESSION[URL::SESSID]['data']['mutasi_status'];
                 }
@@ -420,7 +420,7 @@ trait Attributes
         }
     }
 
-    /** Naikkan freq jenis pengeluaran + refresh urutan di session. */
+    /** Naikkan freq jenis pengeluaran (data di-load fresh tiap request). */
     protected function bumpItemPengeluaranFreq(int $idJenis): void
     {
         if ($idJenis <= 0) {
@@ -428,16 +428,14 @@ trait Attributes
         }
 
         $this->db(0)->update('item_pengeluaran', 'freq = freq + 1', 'id_item_pengeluaran = ' . $idJenis);
+    }
 
-        if (!isset($_SESSION[URL::SESSID]['data'])) {
-            return;
-        }
+    /** @return list<array<string,mixed>> */
+    protected function loadItemPengeluaranList(): array
+    {
+        $rows = $this->db(0)->get_order('item_pengeluaran', 'freq DESC, id_item_pengeluaran ASC');
 
-        $_SESSION[URL::SESSID]['data']['item_pengeluaran'] = $this->db(0)->get_order(
-            'item_pengeluaran',
-            'freq DESC, id_item_pengeluaran ASC'
-        );
-        $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
+        return is_array($rows) ? $rows : [];
     }
 
     /** @return list<array<string,mixed>> */
@@ -445,17 +443,7 @@ trait Attributes
     {
         require_once 'app/Helper/PengeluaranKendaraan.php';
 
-        return PengeluaranKendaraan::refreshSessionList($this->db(0));
-    }
-
-    protected function refreshPengeluaranKendaraanSession(): void
-    {
-        if (!isset($_SESSION[URL::SESSID]['data'])) {
-            return;
-        }
-
-        $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] = $this->loadPengeluaranKendaraanList();
-        $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'];
+        return PengeluaranKendaraan::fetchActiveList($this->db(0));
     }
 
     public function public_data($pelanggan)
@@ -561,8 +549,6 @@ trait Attributes
             'mutasi_status' => $this->db(0)->get('mutasi_status'),
             'item' => $this->db(0)->get("item"),
             'kota' => $this->db(0)->get("kota"),
-            'item_pengeluaran' => $this->db(0)->get_order('item_pengeluaran', 'freq DESC, id_item_pengeluaran ASC'),
-            'pengeluaran_kendaraan' => $this->loadPengeluaranKendaraanList(),
         );
 
         $setting = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $effectiveCabangId);
