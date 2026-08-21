@@ -20,7 +20,7 @@ class NonTunai extends Controller
    }
 
    /**
-    * JSON: daftar mutasi BCA CR belum ter-link (6 hari terakhir).
+    * JSON: daftar mutasi BCA CR belum ter-link (6 hari terakhir + PEND).
     */
    public function mutasiList()
    {
@@ -70,20 +70,29 @@ class NonTunai extends Controller
             continue;
          }
          $nom = BcaMutasiBind::formatNominal($row['nominal'] ?? 0);
+         if (!BcaMutasiBind::isNominalWithinTolerance($kasNominal, $nom)) {
+            continue;
+         }
+         $selisih = BcaMutasiBind::nominalDiff($kasNominal, $nom);
          $ket = trim((string) ($row['keterangan'] ?? ''));
          $ketShort = $ket;
          if (strlen($ketShort) > 120) {
             $ketShort = substr($ketShort, 0, 117) . '…';
          }
+         $isPend = strtoupper(trim((string) ($row['tanggal'] ?? ''))) === 'PEND';
          $items[] = [
             'id' => (int) ($row['id'] ?? 0),
             'tanggal' => (string) ($row['tanggal'] ?? ''),
             'tanggal_iso' => (string) ($row['tanggal_iso'] ?? ''),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+            'is_pend' => $isPend,
             'nominal' => $nom,
             'nominal_fmt' => number_format((float) $nom, 0, ',', '.'),
             'keterangan' => $ketShort,
             'keterangan_full' => $ket,
             'nominal_match' => ($nom === $kasNominal),
+            'selisih' => $selisih,
+            'selisih_fmt' => number_format($selisih, 0, ',', '.'),
          ];
       }
 
@@ -93,7 +102,19 @@ class NonTunai extends Controller
          if ($am !== $bm) {
             return $am <=> $bm;
          }
-         return strcmp((string) ($b['tanggal_iso'] ?? ''), (string) ($a['tanggal_iso'] ?? ''));
+         $as = (float) ($a['selisih'] ?? 0);
+         $bs = (float) ($b['selisih'] ?? 0);
+         if ($as !== $bs) {
+            return $as <=> $bs;
+         }
+         $ap = !empty($a['is_pend']) ? 0 : 1;
+         $bp = !empty($b['is_pend']) ? 0 : 1;
+         if ($ap !== $bp) {
+            return $ap <=> $bp;
+         }
+         $aDate = !empty($a['tanggal_iso']) ? (string) $a['tanggal_iso'] : substr((string) ($a['created_at'] ?? ''), 0, 10);
+         $bDate = !empty($b['tanggal_iso']) ? (string) $b['tanggal_iso'] : substr((string) ($b['created_at'] ?? ''), 0, 10);
+         return strcmp($bDate, $aDate);
       });
 
       echo json_encode([
@@ -101,7 +122,9 @@ class NonTunai extends Controller
          'ref_finance' => $refFinance,
          'kas_nominal' => $kasNominal,
          'kas_nominal_fmt' => number_format((float) $kasNominal, 0, ',', '.'),
-         'range' => $range,
+         'nominal_tolerance' => BcaMutasiBind::NOMINAL_TOLERANCE,
+         'nominal_tolerance_fmt' => number_format(BcaMutasiBind::NOMINAL_TOLERANCE, 0, ',', '.'),
+         'range' => array_merge($range, ['pend_start' => BcaMutasiBind::pendLookbackStart()]),
          'count' => count($items),
          'items' => $items,
       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -158,6 +181,11 @@ class NonTunai extends Controller
       $this->helper('BcaMutasiBind');
       $this->helper('KasBcaConfirm');
 
+      $cols = "SUM(jumlah) AS total";
+      $agg = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+      $kasTotal = is_array($agg) && isset($agg[0]['total']) ? (float) $agg[0]['total'] : 0;
+      $kasNominal = BcaMutasiBind::formatNominal($kasTotal);
+
       $dbMain = $this->db(100);
 
       $existingLink = $dbMain->get_where_row(
@@ -177,7 +205,13 @@ class NonTunai extends Controller
          echo 'Wajib pilih mutasi BCA terlebih dahulu';
          return;
       } else {
-         if (!BcaMutasiBind::bindMutasi($dbMain, $mutasiId, $refFinance)) {
+         if (!BcaMutasiBind::bindMutasi($dbMain, $mutasiId, $refFinance, $kasNominal)) {
+            $mutasiRow = BcaMutasiBind::getMutasiRow($dbMain, $mutasiId);
+            if ($mutasiRow && !BcaMutasiBind::isNominalWithinTolerance($kasNominal, $mutasiRow['nominal'] ?? 0)) {
+               echo 'Selisih nominal mutasi melebihi toleransi Rp '
+                  . number_format(BcaMutasiBind::NOMINAL_TOLERANCE, 0, ',', '.');
+               return;
+            }
             echo 'Gagal bind mutasi (tidak valid atau sudah terpakai)';
             return;
          }
