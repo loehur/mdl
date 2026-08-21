@@ -251,7 +251,7 @@
     
     // Initialize selectize for jenis pengeluaran
     $('select.jenisKeluarBesar').selectize({
-      sortField: 'text'
+      sortField: []
     });
   });
 

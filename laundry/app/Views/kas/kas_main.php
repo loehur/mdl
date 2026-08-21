@@ -512,7 +512,7 @@
       sortField: 'text'
     });
     $('select.jenisKeluar').selectize({
-      sortField: 'text'
+      sortField: []
     });
     $('select.tarik').selectize({
       sortField: 'text'

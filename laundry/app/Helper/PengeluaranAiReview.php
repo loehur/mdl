@@ -85,7 +85,6 @@ class PengeluaranAiReview
         $html = [];
 
         $html[] = '<div style="margin-bottom:10px">';
-        $html[] = '<div><strong>Cabang ' . $esc($kode) . '</strong> · Rp ' . $fmt($jumlah) . '</div>';
 
         if ($cur === null || $cur['count'] === 0) {
             $html[] = '<div style="color:#dc2626;margin-top:6px"><strong>Peringatan:</strong> Belum ada riwayat jenis ini di cabang ini (30 hari).</div>';
@@ -154,7 +153,6 @@ class PengeluaranAiReview
 
         $html = [];
         $html[] = '<div style="margin-bottom:10px">';
-        $html[] = '<div><strong>Cabang ' . $esc($kode) . '</strong> · Rp ' . $fmt($jumlah) . '</div>';
         $html[] = '<div class="text-muted" style="margin-top:2px">Keterangan: ' . $esc($ketLabel) . '</div>';
 
         if ($cur === null || $cur['count'] === 0) {
@@ -227,7 +225,7 @@ class PengeluaranAiReview
         return <<<'SYS'
 Kamu analis pengeluaran operasional laundry. Admin butuh analisa SINGKAT — hanya 2 poin:
 
-1) Cabang yang dicek: rata-rata harian (total jenis sama 30 hari ÷ 30). Bandingkan nominal PENDING dengan rata-rata harian & rata-rata per transaksi cabang itu. Nyatakan wajar/tidak. Jika tidak wajar, tulis peringatan dengan HTML: <span style="color:#dc2626"><strong>Peringatan:</strong> ...</span>
+1) Cabang yang dicek: rata-rata harian (total jenis sama 30 hari ÷ 30). Bandingkan nominal PENDING dengan rata-rata harian & rata-rata per transaksi cabang itu. Nyatakan wajar/tidak. Jangan ulangi cabang/nominal pending — sudah tampil di atas. Jika tidak wajar, tulis peringatan dengan HTML: <span style="color:#dc2626"><strong>Peringatan:</strong> ...</span>
 
 2) Perbandingan rata-rata harian cabang lain (jenis sama, 30 hari). Ringkas, bullet "•", max 5 cabang (selain cabang pending jika perlu).
 
@@ -242,7 +240,7 @@ SYS;
         return <<<'SYS'
 Kamu analis pengeluaran minyak kendaraan laundry. Admin butuh analisa SINGKAT — hanya 2 poin:
 
-1) Cabang pending + keterangan (nama/plat kendaraan): bandingkan nominal PENDING dengan rata-rata harian & rata-rata per isi untuk KETERANGAN yang sama — gabungan SEMUA cabang (30 hari). Nyatakan wajar/tidak. Jika tidak wajar: <span style="color:#dc2626"><strong>Peringatan:</strong> ...</span>
+1) Keterangan kendaraan pending: bandingkan nominal PENDING dengan rata-rata harian & rata-rata per isi untuk KETERANGAN yang sama — gabungan SEMUA cabang (30 hari). Nyatakan wajar/tidak. Jangan ulangi cabang/nominal pending. Jika tidak wajar: <span style="color:#dc2626"><strong>Peringatan:</strong> ...</span>
 
 2) Jangan bandingkan per cabang. Tampilkan rata-rata harian SEMUA cabang per keterangan/kendaraan (bullet "•"). Tandai keterangan pending.
 

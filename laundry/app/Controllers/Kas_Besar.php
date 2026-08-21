@@ -78,8 +78,8 @@ class Kas_Besar extends Controller
       $jenis = $_POST['f1a'];
 
       $jenisEXP = explode("<explode>", $jenis);
-      $id_jenis = $jenisEXP[0];
-      $jenis_nama = $jenisEXP[1];
+      $id_jenis = isset($jenisEXP[0]) ? (int) $jenisEXP[0] : 0;
+      $jenis_nama = $jenisEXP[1] ?? '';
 
       // Kas Besar pengeluaran langsung disetujui admin
       $status_mutasi = 3;
@@ -104,6 +104,7 @@ class Kas_Besar extends Controller
          $this->model('Log')->write("[Kas_Besar::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);
          echo $do['error'];
       } else {
+         $this->bumpItemPengeluaranFreq($id_jenis);
          echo 1;
       }
    }

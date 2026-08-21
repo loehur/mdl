@@ -172,6 +172,7 @@ class Kas extends Controller
          ];
          $do = $this->db(0)->insert('kas', $data);
          if ($do['errno'] == 0) {
+            $this->bumpItemPengeluaranFreq($id_jenis);
             echo 1;
          } else {
             $this->model('Log')->write("[Kas::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);

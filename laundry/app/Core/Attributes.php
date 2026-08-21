@@ -418,6 +418,26 @@ trait Attributes
         }
     }
 
+    /** Naikkan freq jenis pengeluaran + refresh urutan di session. */
+    protected function bumpItemPengeluaranFreq(int $idJenis): void
+    {
+        if ($idJenis <= 0) {
+            return;
+        }
+
+        $this->db(0)->update('item_pengeluaran', 'freq = freq + 1', 'id_item_pengeluaran = ' . $idJenis);
+
+        if (!isset($_SESSION[URL::SESSID]['data'])) {
+            return;
+        }
+
+        $_SESSION[URL::SESSID]['data']['item_pengeluaran'] = $this->db(0)->get_order(
+            'item_pengeluaran',
+            'freq DESC, id_item_pengeluaran ASC'
+        );
+        $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
+    }
+
     public function public_data($pelanggan)
     {
         $this->dLayanan = $this->db(0)->get('layanan');
@@ -521,7 +541,7 @@ trait Attributes
             'mutasi_status' => $this->db(0)->get('mutasi_status'),
             'item' => $this->db(0)->get("item"),
             'kota' => $this->db(0)->get("kota"),
-            'item_pengeluaran' => $this->db(0)->get("item_pengeluaran"),
+            'item_pengeluaran' => $this->db(0)->get_order('item_pengeluaran', 'freq DESC, id_item_pengeluaran ASC'),
         );
 
         $setting = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $effectiveCabangId);
