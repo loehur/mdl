@@ -56,10 +56,13 @@ class BcaQrisConfirm extends Controller
             echo 'WARN sync: ' . ($sync['message'] ?? $sync['error'] ?? 'sync_failed') . "\n";
         } else {
             echo sprintf(
-                "SYNC fetched=%d inserted=%d skipped_scrape=%s scrape=%s..%s\n",
+                "SYNC fetched=%d inserted=%d skipped_scrape=%s auth=%s scrape=%s..%s\n",
                 (int) ($sync['fetched'] ?? 0),
                 (int) ($sync['inserted'] ?? 0),
                 !empty($sync['skipped_scrape']) ? 'yes' : 'no',
+                !empty($sync['skipped_scrape'])
+                    ? 'skip'
+                    : (!empty($sync['from_cache']) ? 'cache' : 'puppeteer'),
                 (string) ($sync['start'] ?? $scrapeWindow['start']),
                 (string) ($sync['end'] ?? $scrapeWindow['end'])
             );

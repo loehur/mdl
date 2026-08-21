@@ -1,5 +1,6 @@
 const { API, URLS, USER_AGENT } = require('./qrms-config');
 const { buildEncryptedLoginPayload } = require('./qrms-auth');
+const qrmsSession = require('./qrms-session');
 const { scrapeTransactionsForDateRange } = require('./qrms-dom');
 const {
   parseTransactionsFromJson,
@@ -97,7 +98,7 @@ async function getJson(token, url, timeoutMs, headerOpts = {}) {
 
   if (!res.ok) {
     const err = new Error(`api_http_${res.status}`);
-    err.code = 'api_failed';
+    err.code = res.status === 401 ? 'token_failed' : 'api_failed';
     err.response = json;
     err.url = url;
     throw err;
@@ -213,6 +214,94 @@ async function fetchTransactionsForMid(token, mid, startYmd, endYmd, timeoutMs, 
   return all;
 }
 
+function isAuthError(err) {
+  if (!err) return false;
+  const code = err.code || '';
+  if (code === 'login_failed' || code === 'token_failed') return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/api_http_401/i.test(msg)) return true;
+  return /invalid_grant|invalid_token|unauthorized|401/i.test(msg);
+}
+
+/**
+ * @param {{
+ *   email: string,
+ *   password: string,
+ *   timeoutMs?: number,
+ *   headless?: boolean,
+ * }} opts
+ * @param {ReturnType<typeof debug.beginRun>} run
+ * @param {boolean} forceLogin
+ */
+async function resolveAuth(opts, run, forceLogin = false) {
+  if (!forceLogin) {
+    const cached = qrmsSession.getValid(opts.email);
+    if (cached) {
+      const expiresInSec = Math.max(0, Math.floor((cached.expiresAt - Date.now()) / 1000));
+      debug.step(run, 'session_cache_hit', { expires_in_sec: expiresInSec });
+      console.log(
+        `[bca_scrapper][qris] auth=CACHE expires_in=${expiresInSec}s`
+      );
+      return {
+        token: cached.accessToken,
+        appVersion: cached.appVersion,
+        outlets: Array.isArray(cached.outlets) ? cached.outlets : null,
+        fromCache: true,
+        releaseBrowser: null,
+        dashboardPage: null,
+      };
+    }
+  }
+
+  debug.step(run, forceLogin ? 'session_cache_miss_forced_login' : 'session_cache_miss_puppeteer_login');
+  console.log(
+    `[bca_scrapper][qris] auth=PUPPETEER${forceLogin ? ' (retry)' : ''}`
+  );
+  const loginPayload = await buildEncryptedLoginPayload(opts.email, opts.password, {
+    headless: opts.headless,
+    timeoutMs: Number(opts.timeoutMs || 30000),
+    keepBrowser: true,
+  });
+
+  debug.saveJson(run, 'login_form_keys', {
+    grant_type: loginPayload.loginForm?.grant_type,
+    has_app_version: Boolean(loginPayload.appVersion),
+  });
+
+  const tokenJson = await fetchToken(loginPayload.loginForm, Number(opts.timeoutMs || 30000));
+  debug.saveJson(run, 'token_response', {
+    token_type: tokenJson.token_type,
+    expires_in: tokenJson.expires_in,
+    from_cache: false,
+  });
+
+  const token = tokenJson.access_token;
+  const appVersion = loginPayload.appVersion;
+
+  debug.step(run, 'fetch_outlets');
+  const outlets = await fetchOutlets(token, Number(opts.timeoutMs || 30000), appVersion);
+  debug.saveJson(run, 'outlets', outlets);
+
+  qrmsSession.save(opts.email, {
+    accessToken: token,
+    appVersion,
+    expiresIn: tokenJson.expires_in,
+    outlets,
+  });
+  console.log(
+    `[bca_scrapper][qris] session=SAVED expires_in=${tokenJson.expires_in ?? '?'}s`
+  );
+
+  return {
+    token,
+    appVersion,
+    outlets,
+    fromCache: false,
+    releaseBrowser: loginPayload.release || null,
+    dashboardPage: loginPayload.page || null,
+  };
+}
+
 /**
  * @param {{
  *   email: string,
@@ -228,99 +317,125 @@ async function fetchQrisTransactionsHttp(opts) {
   const timeoutMs = Number(opts.timeoutMs || 30000);
   /** @type {(() => Promise<void>) | null} */
   let releaseBrowser = null;
-  /** @type {import('puppeteer').Page | null} */
-  let dashboardPage = null;
 
   try {
-    debug.step(run, 'encrypt_login_payload');
-    const loginPayload = await buildEncryptedLoginPayload(opts.email, opts.password, {
-      headless: opts.headless,
-      timeoutMs,
-      keepBrowser: true,
-    });
-    releaseBrowser = loginPayload.release || null;
-    dashboardPage = loginPayload.page || null;
-    const { loginForm, appVersion } = loginPayload;
-    debug.saveJson(run, 'login_form_keys', {
-      keys: Object.keys(loginForm),
-      grant_type: loginForm.grant_type,
-      has_app_version: Boolean(appVersion),
-    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const forceLogin = attempt > 0;
+      /** @type {import('puppeteer').Page | null} */
+      let dashboardPage = null;
+      try {
+        const auth = await resolveAuth(opts, run, forceLogin);
+        releaseBrowser = auth.releaseBrowser;
+        dashboardPage = auth.dashboardPage || null;
 
-    debug.step(run, 'fetch_token');
-    const tokenJson = await fetchToken(loginForm, timeoutMs);
-    debug.saveJson(run, 'token_response', {
-      token_type: tokenJson.token_type,
-      expires_in: tokenJson.expires_in,
-    });
+        let outlets = auth.outlets;
+        if (!outlets || outlets.length === 0) {
+          debug.step(run, 'fetch_outlets');
+          outlets = await fetchOutlets(auth.token, timeoutMs, auth.appVersion);
+          qrmsSession.save(opts.email, {
+            accessToken: auth.token,
+            appVersion: auth.appVersion,
+            outlets,
+          });
+        }
 
-    const token = tokenJson.access_token;
+        if (outlets.length === 0) {
+          throw new Error('no_outlets_found');
+        }
 
-    debug.step(run, 'fetch_outlets');
-    const outlets = await fetchOutlets(token, timeoutMs, appVersion);
-    debug.saveJson(run, 'outlets', outlets);
+        let transactions = [];
+        let usedDomFallback = false;
+        for (const outlet of outlets) {
+          const mid = outlet.mid || outlet.outlet_id || outlet.outletId;
+          if (!mid) continue;
+          debug.step(run, 'fetch_transactions', {
+            mid,
+            start: opts.startDate,
+            end: opts.endDate,
+            from_cache: auth.fromCache,
+          });
+          const rows = await fetchTransactionsForMid(
+            auth.token,
+            mid,
+            opts.startDate,
+            opts.endDate,
+            timeoutMs,
+            auth.appVersion,
+            run
+          );
+          transactions.push(...rows);
+        }
 
-    if (outlets.length === 0) {
-      throw new Error('no_outlets_found');
-    }
+        if (transactions.length === 0 && dashboardPage) {
+          debug.step(run, 'dom_fallback_scrape', { start: opts.startDate, end: opts.endDate });
+          const domRows = await scrapeTransactionsForDateRange(
+            dashboardPage,
+            opts.startDate,
+            opts.endDate
+          );
+          debug.saveJson(run, 'transactions_dom', { count: domRows.length, transactions: domRows });
+          if (domRows.length > 0) {
+            transactions = domRows;
+            usedDomFallback = true;
+          }
+        }
 
-    let transactions = [];
-    let usedDomFallback = false;
-    for (const outlet of outlets) {
-      const mid = outlet.mid || outlet.outlet_id || outlet.outletId;
-      if (!mid) continue;
-      debug.step(run, 'fetch_transactions', { mid, start: opts.startDate, end: opts.endDate });
-      const rows = await fetchTransactionsForMid(
-        token,
-        mid,
-        opts.startDate,
-        opts.endDate,
-        timeoutMs,
-        appVersion,
-        run
-      );
-      transactions.push(...rows);
-    }
+        debug.saveJson(run, 'transactions_parsed', {
+          count: transactions.length,
+          transactions,
+          from_cache: auth.fromCache,
+        });
 
-    if (transactions.length === 0 && dashboardPage) {
-      debug.step(run, 'dom_fallback_scrape', { start: opts.startDate, end: opts.endDate });
-      const domRows = await scrapeTransactionsForDateRange(
-        dashboardPage,
-        opts.startDate,
-        opts.endDate
-      );
-      debug.saveJson(run, 'transactions_dom', { count: domRows.length, transactions: domRows });
-      if (domRows.length > 0) {
-        transactions = domRows;
-        usedDomFallback = true;
+        transactions = filterByDateRange(transactions, opts.startDate, opts.endDate);
+
+        debug.finishRun(run, {
+          ok: true,
+          count: transactions.length,
+          usedDomFallback,
+          from_cache: auth.fromCache,
+        });
+        console.log(
+          `[bca_scrapper][qris] done auth=${auth.fromCache ? 'CACHE' : 'PUPPETEER'}`
+          + ` count=${transactions.length} dom_fallback=${usedDomFallback ? 'yes' : 'no'}`
+          + ` range=${opts.startDate}..${opts.endDate}`
+        );
+        return {
+          start: opts.startDate,
+          end: opts.endDate,
+          transactions,
+          used_dom_fallback: usedDomFallback,
+          from_cache: auth.fromCache,
+          outlets: outlets.map((o) => ({
+            mid: o.mid,
+            name: o.outlet_name || o.outletName,
+            type: o.outlet_type || o.outletType,
+          })),
+        };
+      } catch (err) {
+        if (attempt === 0 && isAuthError(err)) {
+          qrmsSession.invalidate(opts.email);
+          debug.step(run, 'session_cache_invalidate_retry');
+          console.warn('[bca_scrapper][qris] session=INVALIDATED retrying with Puppeteer');
+          if (releaseBrowser) {
+            await releaseBrowser().catch(() => {});
+            releaseBrowser = null;
+          }
+          continue;
+        }
+        throw err;
+      } finally {
+        if (releaseBrowser) {
+          await releaseBrowser().catch(() => {});
+          releaseBrowser = null;
+        }
       }
     }
 
-    debug.saveJson(run, 'transactions_parsed', {
-      count: transactions.length,
-      transactions,
-    });
-
-    transactions = filterByDateRange(transactions, opts.startDate, opts.endDate);
-
-    debug.finishRun(run, { ok: true, count: transactions.length, usedDomFallback });
-    return {
-      start: opts.startDate,
-      end: opts.endDate,
-      transactions,
-      used_dom_fallback: usedDomFallback,
-      outlets: outlets.map((o) => ({
-        mid: o.mid,
-        name: o.outlet_name || o.outletName,
-        type: o.outlet_type || o.outletType,
-      })),
-    };
+    throw new Error('auth_retry_exhausted');
   } catch (err) {
     debug.step(run, 'run_failed', { error: err instanceof Error ? err.message : String(err) });
     debug.finishRun(run, { ok: false, error: err instanceof Error ? err.message : String(err) });
     throw err;
-  } finally {
-    if (releaseBrowser) await releaseBrowser();
   }
 }
 
