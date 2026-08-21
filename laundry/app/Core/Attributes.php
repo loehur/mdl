@@ -3,7 +3,7 @@
 trait Attributes
 {
     public $v_load, $v_content, $v_viewer;
-    public $user_login, $nama_user, $id_cabang, $id_cabang_p, $id_privilege, $wUser, $wCabang, $dKota, $dPrivilege, $dLayanan, $dDurasi, $dPenjualan, $dSatuan, $dItem, $dItemPengeluaran;
+    public $user_login, $nama_user, $id_cabang, $id_cabang_p, $id_privilege, $wUser, $wCabang, $dKota, $dPrivilege, $dLayanan, $dDurasi, $dPenjualan, $dSatuan, $dItem, $dItemPengeluaran, $dPengeluaranKendaraan;
     public $dMetodeMutasi, $dStatusMutasi;
     public $user, $userAll, $userCabang, $userMerge, $pelanggan, $pelangganLaundry, $harga, $itemGroup, $surcas, $diskon, $langganan, $cabang_registered;
     public $dLaundry, $dCabang, $listCabang, $surcasPublic, $mdl_setting;
@@ -370,6 +370,7 @@ trait Attributes
                 $this->dItem = $_SESSION[URL::SESSID]['data']['item'];
                 $this->dKota = $_SESSION[URL::SESSID]['data']['kota'];
                 $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
+                $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] ?? [];
                 $this->dMetodeMutasi = $_SESSION[URL::SESSID]['data']['mutasi_metode'];
                 $this->dStatusMutasi = $_SESSION[URL::SESSID]['data']['mutasi_status'];
 
@@ -411,6 +412,7 @@ trait Attributes
                     $this->dItem = $_SESSION[URL::SESSID]['data']['item'];
                     $this->dKota = $_SESSION[URL::SESSID]['data']['kota'];
                     $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
+                $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] ?? [];
                     $this->dMetodeMutasi = $_SESSION[URL::SESSID]['data']['mutasi_metode'];
                     $this->dStatusMutasi = $_SESSION[URL::SESSID]['data']['mutasi_status'];
                 }
@@ -436,6 +438,24 @@ trait Attributes
             'freq DESC, id_item_pengeluaran ASC'
         );
         $this->dItemPengeluaran = $_SESSION[URL::SESSID]['data']['item_pengeluaran'];
+    }
+
+    /** @return list<array<string,mixed>> */
+    protected function loadPengeluaranKendaraanList(): array
+    {
+        require_once 'app/Helper/PengeluaranKendaraan.php';
+
+        return PengeluaranKendaraan::refreshSessionList($this->db(0));
+    }
+
+    protected function refreshPengeluaranKendaraanSession(): void
+    {
+        if (!isset($_SESSION[URL::SESSID]['data'])) {
+            return;
+        }
+
+        $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'] = $this->loadPengeluaranKendaraanList();
+        $this->dPengeluaranKendaraan = $_SESSION[URL::SESSID]['data']['pengeluaran_kendaraan'];
     }
 
     public function public_data($pelanggan)
@@ -542,6 +562,7 @@ trait Attributes
             'item' => $this->db(0)->get("item"),
             'kota' => $this->db(0)->get("kota"),
             'item_pengeluaran' => $this->db(0)->get_order('item_pengeluaran', 'freq DESC, id_item_pengeluaran ASC'),
+            'pengeluaran_kendaraan' => $this->loadPengeluaranKendaraanList(),
         );
 
         $setting = $this->db(0)->get_where_row('setting', 'id_cabang = ' . $effectiveCabangId);

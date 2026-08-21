@@ -135,15 +135,22 @@ class Kas extends Controller
 
    public function insert_pengeluaran()
    {
-      $keterangan = $_POST['f1'] ?? '';
       $jumlah = intval($_POST['f2'] ?? 0);
       $penarik = intval($_POST['f3'] ?? 0);
-      $today = date('Y-m-d');
-      $jenis = $_POST['f1a'] ?? '';
+      $jenisRaw = $_POST['f1a'] ?? '';
 
-      $jenisEXP = explode("<explode>", $jenis);
+      $jenisEXP = explode("<explode>", $jenisRaw);
       $id_jenis = isset($jenisEXP[0]) ? intval($jenisEXP[0]) : 0;
       $jenis = $jenisEXP[1] ?? '';
+
+      require_once 'app/Helper/PengeluaranKendaraan.php';
+      $resolved = PengeluaranKendaraan::resolveKeteranganFromPost($_POST, $jenis, $this->db(0));
+      if (empty($resolved['ok'])) {
+         header('HTTP/1.1 422 Unprocessable Entity');
+         echo json_encode(['error' => $resolved['message'] ?? 'Keterangan tidak valid.']);
+         return;
+      }
+      $keterangan = (string) ($resolved['note'] ?? '');
 
       $status_mutasi = 2;
       if ($this->id_privilege == 100) {
@@ -173,6 +180,10 @@ class Kas extends Controller
          $do = $this->db(0)->insert('kas', $data);
          if ($do['errno'] == 0) {
             $this->bumpItemPengeluaranFreq($id_jenis);
+            if (!empty($resolved['id_kendaraan'])) {
+               PengeluaranKendaraan::bumpFreq($this->db(0), (int) $resolved['id_kendaraan']);
+               $this->refreshPengeluaranKendaraanSession();
+            }
             echo 1;
          } else {
             $this->model('Log')->write("[Kas::insert_pengeluaran] Error: " . $do['error'] . " | Query: " . $do['query']);

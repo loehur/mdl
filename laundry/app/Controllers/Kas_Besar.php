@@ -72,14 +72,23 @@ class Kas_Besar extends Controller
          return;
       }
 
-      $keterangan = $_POST['f1'];
-      $jumlah = $_POST['f2'];
+      $keterangan = $_POST['f1'] ?? '';
+      $jumlah = $_POST['f2'] ?? 0;
       $metode = $_POST['metode'] ?? 2; // Default non-tunai
-      $jenis = $_POST['f1a'];
+      $jenisRaw = $_POST['f1a'] ?? '';
 
-      $jenisEXP = explode("<explode>", $jenis);
+      $jenisEXP = explode("<explode>", $jenisRaw);
       $id_jenis = isset($jenisEXP[0]) ? (int) $jenisEXP[0] : 0;
       $jenis_nama = $jenisEXP[1] ?? '';
+
+      require_once 'app/Helper/PengeluaranKendaraan.php';
+      $resolved = PengeluaranKendaraan::resolveKeteranganFromPost($_POST, $jenis_nama, $this->db(0));
+      if (empty($resolved['ok'])) {
+         header('HTTP/1.1 422 Unprocessable Entity');
+         echo json_encode(['error' => $resolved['message'] ?? 'Keterangan tidak valid.']);
+         return;
+      }
+      $keterangan = (string) ($resolved['note'] ?? '');
 
       // Kas Besar pengeluaran langsung disetujui admin
       $status_mutasi = 3;
@@ -105,6 +114,10 @@ class Kas_Besar extends Controller
          echo $do['error'];
       } else {
          $this->bumpItemPengeluaranFreq($id_jenis);
+         if (!empty($resolved['id_kendaraan'])) {
+            PengeluaranKendaraan::bumpFreq($this->db(0), (int) $resolved['id_kendaraan']);
+            $this->refreshPengeluaranKendaraanSession();
+         }
          echo 1;
       }
    }

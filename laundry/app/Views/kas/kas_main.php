@@ -244,8 +244,7 @@
               <small class="text-success mt-1 d-block"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
             </div>
             <div class="form-group">
-              <label for="exampleInputEmail1">Keterangan/Banyak</label>
-              <input type="text" name="f1" class="form-control" id="exampleInputEmail1" placeholder="">
+              <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
             </div>
             <div class="form-group" id="userKeluar">
               <label for="exampleInputEmail1">Penarik Kas</label>
@@ -408,6 +407,7 @@
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/kas/pengeluaran_kendaraan.js"></script>
 
 <script>
   var saldoKas = <?= $kas ?>;
@@ -421,6 +421,9 @@
 
   $(document).ready(function() {
     selectList();
+    if (window.KasPengeluaranKendaraan) {
+      KasPengeluaranKendaraan.init();
+    }
     $("div#nTunai").hide();
 
     $('.saldoKas').each(function() {
@@ -437,6 +440,9 @@
   $("form").on("submit", function(e) {
     e.preventDefault();
     var $form = $(this);
+    if (window.KasPengeluaranKendaraan && !KasPengeluaranKendaraan.prepareSubmit($form)) {
+      return;
+    }
     var $btn = $form.find('button[type="submit"]');
     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
 
@@ -459,6 +465,11 @@
             var r = JSON.parse(xhr.responseText);
             msg = r.error || msg;
           } catch (e) {}
+        } else if (xhr.status === 422) {
+          try {
+            var r422 = JSON.parse(xhr.responseText);
+            msg = r422.error || msg;
+          } catch (e2) {}
         }
         alert(msg);
       }

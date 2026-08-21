@@ -186,8 +186,7 @@
             <input type="number" name="f2" min="1000" class="form-control jumlahTarik" placeholder="0" required>
           </div>
           <div class="mb-3">
-            <label class="form-label fw-bold">Keterangan</label>
-            <input type="text" name="f1" class="form-control" placeholder="Keterangan tambahan">
+            <?php require __DIR__ . '/_keterangan_pengeluaran.php'; ?>
           </div>
           <div class="d-grid">
             <button type="submit" class="btn btn-danger"><i class="fas fa-save me-2"></i>Simpan Pengeluaran</button>
@@ -242,6 +241,7 @@
 <!-- SCRIPT -->
 <script src="<?= URL::EX_ASSETS ?>js/popper.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/selectize.min.js"></script>
+<script src="<?= URL::IN_ASSETS ?>js/kas/pengeluaran_kendaraan.js"></script>
 
 <script>
   var saldoKas = <?= $kas ?>;
@@ -253,11 +253,17 @@
     $('select.jenisKeluarBesar').selectize({
       sortField: []
     });
+    if (window.KasPengeluaranKendaraan) {
+      KasPengeluaranKendaraan.init();
+    }
   });
 
   $("form").on("submit", function(e) {
     e.preventDefault();
     var form = $(this);
+    if (window.KasPengeluaranKendaraan && !KasPengeluaranKendaraan.prepareSubmit(form)) {
+      return;
+    }
     $.ajax({
       url: form.attr('action'),
       data: form.serialize(),
@@ -269,8 +275,15 @@
           alert('Error: ' + res);
         }
       },
-      error: function() {
-        alert('Terjadi kesalahan');
+      error: function(xhr) {
+        var msg = 'Terjadi kesalahan';
+        if (xhr.status === 422) {
+          try {
+            var r = JSON.parse(xhr.responseText);
+            msg = r.error || msg;
+          } catch (e) {}
+        }
+        alert(msg);
       }
     });
   });
