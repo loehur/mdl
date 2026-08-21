@@ -817,13 +817,64 @@ class Antrian extends Controller
 
    public function hapusRef()
    {
-      $ref = $_POST['ref'];
-      $note = $_POST['note'];
+      header('Content-Type: application/json; charset=utf-8');
 
-      $setOne = "no_ref = '" . $ref . "'";
-      $where = $this->wCabang . " AND " . $setOne;
-      $set = ['bin' => 1, 'bin_note' => $note];
-      $this->db(0)->update('sale', $set, $where);
+      $ref = trim((string) ($_POST['ref'] ?? ''));
+      $note = trim((string) ($_POST['note'] ?? ''));
+
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'REF tidak valid']);
+         return;
+      }
+
+      if ($note === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Alasan hapus wajib diisi']);
+         return;
+      }
+
+      $refEsc = $this->db(0)->escape($ref);
+      $where = $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 0";
+      $count = (int) ($this->db(0)->count_where('sale', $where) ?? 0);
+      if ($count <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Nota tidak ditemukan atau sudah dihapus']);
+         return;
+      }
+
+      /** @var HapusRefAiGuard $guard */
+      $guard = $this->helper('HapusRefAiGuard');
+      $ai = $guard->validate($note);
+
+      if (empty($ai['ok'])) {
+         echo json_encode([
+            'status' => 'error',
+            'message' => $ai['message'] ?? 'Validasi AI gagal',
+            'ai' => $ai,
+         ]);
+         return;
+      }
+
+      if (empty($ai['allowed'])) {
+         echo json_encode([
+            'status' => 'rejected',
+            'message' => $ai['message'] ?? 'Alasan tidak memenuhi syarat hapus nota',
+            'alternatives' => $ai['alternatives'] ?? [],
+         ]);
+         return;
+      }
+
+      $up = $this->db(0)->update(
+         'sale',
+         ['bin' => 1, 'bin_note' => $note],
+         $this->wCabang . " AND no_ref = '" . $refEsc . "' AND bin = 0"
+      );
+
+      if (isset($up['errno']) && (int) $up['errno'] !== 0) {
+         echo json_encode(['status' => 'error', 'message' => $up['error'] ?? 'Gagal menghapus nota']);
+         return;
+      }
+
+      $this->model('Log')->write('[Antrian::hapusRef] ref=' . $ref . ' note=' . mb_substr($note, 0, 200));
+      echo json_encode(['status' => 'success', 'message' => 'Nota #' . $ref . ' diantrekan hapus']);
    }
 
    public function restoreRef()

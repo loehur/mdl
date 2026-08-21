@@ -15,6 +15,9 @@
   $(document).off("click", ".editDurasi");
   $(document).off("change", "#ubahDurasiSelect");
   $(document).off("click", "#btnSimpanDurasi");
+  $(document).off("click", ".editKategori");
+  $(document).off("change", "#ubahKategoriSelect");
+  $(document).off("click", "#btnSimpanKategori");
   $(document).off("click", ".editQty");
   $(document).off("input", "#ubahQtyInput");
   $(document).off("click", "#btnSimpanQty");
@@ -1013,6 +1016,9 @@
     if (modal.length > 0) {
       $('#hapusRefText').text('#' + ref);
       $('#inputAlasanHapus').val('').css('borderColor', '#ccc');
+      $('#hapusRefAiReject').addClass('d-none');
+      $('#hapusRefAiMessage').text('');
+      $('#hapusRefAiAlternatives').empty();
       $('#btnHapusKonfirm').data('ref', ref);
       if (window.OpModal) {
         window.OpModal.open('modalHapusOrderInline', { static: true });
@@ -1037,6 +1043,22 @@
     if (window.OpModal) window.OpModal.close('modalHapusOrderInline');
   });
 
+  $(document).on('input', '#inputAlasanHapus', function () {
+    $('#hapusRefAiReject').addClass('d-none');
+    $(this).css('borderColor', '#ccc');
+  });
+
+  function showHapusRefAiReject(message, alternatives) {
+    $('#hapusRefAiMessage').text(message || 'Alasan tidak memenuhi syarat hapus nota.');
+    var $ul = $('#hapusRefAiAlternatives').empty();
+    if (alternatives && alternatives.length) {
+      alternatives.forEach(function (alt) {
+        $ul.append($('<li></li>').text(alt));
+      });
+    }
+    $('#hapusRefAiReject').removeClass('d-none');
+  }
+
   // Event handler konfirmasi hapus
   $(document).on('click', '#btnHapusKonfirm', function () {
     var ref = $(this).data('ref');
@@ -1049,7 +1071,8 @@
 
     var btn = $(this);
     var oldHtml = btn.html();
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Validasi AI…');
+    $('#hapusRefAiReject').addClass('d-none');
 
     $.ajax({
       url: BASE_URL + "Antrian/hapusRef",
@@ -1058,9 +1081,31 @@
         note: note,
       },
       type: "POST",
-      success: function (response) {
-        if (window.OpModal) window.OpModal.close('modalHapusOrderInline');
-        loadDiv();
+      dataType: "json",
+      success: function (res) {
+        if (!res || typeof res !== 'object') {
+          alert('Respons tidak valid');
+          return;
+        }
+        if (res.status === 'success') {
+          if (window.OpModal) window.OpModal.close('modalHapusOrderInline');
+          if (window.MdlToast) {
+            MdlToast.ok(res.message || 'Nota dihapus');
+          }
+          loadDiv();
+          return;
+        }
+        if (res.status === 'rejected') {
+          showHapusRefAiReject(res.message, res.alternatives || []);
+          $('#inputAlasanHapus').css('borderColor', '#dc3545').focus();
+          return;
+        }
+        var msg = res.message || 'Gagal menghapus nota';
+        if (window.MdlToast) {
+          MdlToast.warn(msg);
+        } else {
+          alert(msg);
+        }
       },
       error: function () {
         alert("Gagal menghapus via network");
@@ -2193,6 +2238,176 @@
       error: function () {
         showAlert("Gagal mengubah durasi", "error");
         updateUbahDurasiPreview();
+      },
+      complete: function () {
+        $(".loaderDiv").fadeOut("slow");
+      },
+    });
+  });
+
+  var ubahKategoriState = { id: 0, options: [], dibayar: 0 };
+
+  function renderUbahKategoriOption(opt) {
+    var label = opt.kategori + " - Rp" + formatRp(opt.harga);
+    if (opt.min_order > 0) {
+      label += " (min " + opt.min_order + ")";
+    }
+    if (!opt.can_select) {
+      label += " [min. total Rp" + formatRp(ubahKategoriState.dibayar) + "]";
+    }
+    return label;
+  }
+
+  function updateUbahKategoriPreview() {
+    var val = $("#ubahKategoriSelect").val();
+    var opt = null;
+    for (var i = 0; i < ubahKategoriState.options.length; i++) {
+      if (String(ubahKategoriState.options[i].id_harga) === String(val)) {
+        opt = ubahKategoriState.options[i];
+        break;
+      }
+    }
+
+    $("#ubahKategoriAlert").addClass("d-none").text("");
+
+    if (!opt) {
+      $("#btnSimpanKategori").prop("disabled", true);
+      return;
+    }
+
+    $("#ubahKategoriItemHarga").text("Rp" + formatRp(opt.item_total));
+    $("#ubahKategoriRefTotal").text("Rp" + formatRp(opt.ref_total));
+
+    if (!opt.can_select) {
+      $("#ubahKategoriAlert")
+        .removeClass("d-none")
+        .text(
+          "Total order setelah ubah kategori (Rp" +
+            formatRp(opt.ref_total) +
+            ") kurang dari pembayaran Cek/Berhasil (Rp" +
+            formatRp(ubahKategoriState.dibayar) +
+            ")."
+        );
+      $("#btnSimpanKategori").prop("disabled", true);
+      return;
+    }
+
+    $("#btnSimpanKategori").prop("disabled", false);
+  }
+
+  function loadUbahKategoriOptions(idPenjualan) {
+    ubahKategoriState = { id: idPenjualan, options: [], dibayar: 0 };
+    $("#ubahKategoriLoading").removeClass("d-none");
+    $("#ubahKategoriContent").addClass("d-none");
+    $("#btnSimpanKategori").prop("disabled", true);
+
+    $.ajax({
+      url: BASE_URL + "Operasi/kategori_options",
+      data: { id: idPenjualan },
+      type: "POST",
+      dataType: "json",
+      success: function (res) {
+        $("#ubahKategoriLoading").addClass("d-none");
+        if (!res || res.status !== "success") {
+          showAlert((res && res.message) || "Gagal memuat pilihan kategori", "error");
+          try {
+            if (window.OpModal) window.OpModal.close("modalUbahKategori");
+          } catch (e) {}
+          return;
+        }
+
+        ubahKategoriState.id = res.id_penjualan || idPenjualan;
+        ubahKategoriState.options = res.options || [];
+        ubahKategoriState.dibayar = res.dibayar || 0;
+
+        $("#ubahKategoriItem").text("#" + res.id_penjualan + " " + (res.current_kategori || ""));
+        $("#ubahKategoriInfo").text(
+          "Kategori sekarang: " +
+            (res.current_kategori || "-") +
+            " | Durasi: " +
+            (res.current_durasi || "-") +
+            " | Layanan: " +
+            (res.current_layanan || "-") +
+            " | Total order: Rp" +
+            formatRp(res.current_ref_total)
+        );
+
+        var $sel = $("#ubahKategoriSelect").empty();
+        ubahKategoriState.options.forEach(function (opt) {
+          $sel.append(
+            $("<option></option>")
+              .val(opt.id_harga)
+              .prop("disabled", !opt.can_select)
+              .text(renderUbahKategoriOption(opt))
+          );
+        });
+
+        if (ubahKategoriState.options.length > 0) {
+          $sel.val(ubahKategoriState.options[0].id_harga);
+        }
+
+        if (res.dibayar > 0) {
+          $("#ubahKategoriBayarInfo").removeClass("d-none");
+          $("#ubahKategoriDibayar").text("Rp" + formatRp(res.dibayar));
+        } else {
+          $("#ubahKategoriBayarInfo").addClass("d-none");
+        }
+
+        $("#ubahKategoriContent").removeClass("d-none");
+        updateUbahKategoriPreview();
+      },
+      error: function () {
+        $("#ubahKategoriLoading").addClass("d-none");
+        showAlert("Gagal memuat pilihan kategori", "error");
+      },
+    });
+  }
+
+  $(document).on("click", ".editKategori", function (e) {
+    e.preventDefault();
+    var idPenjualan = $(this).attr("data-id");
+    if (!idPenjualan) {
+      return;
+    }
+    loadUbahKategoriOptions(idPenjualan);
+  });
+
+  $(document).on("change", "#ubahKategoriSelect", function () {
+    updateUbahKategoriPreview();
+  });
+
+  $(document).on("click", "#btnSimpanKategori", function () {
+    var idHarga = $("#ubahKategoriSelect").val();
+    if (!ubahKategoriState.id || !idHarga) {
+      return;
+    }
+
+    $("#btnSimpanKategori").prop("disabled", true);
+    $.ajax({
+      url: BASE_URL + "Operasi/ubah_kategori",
+      data: {
+        id: ubahKategoriState.id,
+        id_harga: idHarga,
+      },
+      type: "POST",
+      dataType: "json",
+      beforeSend: function () {
+        $(".loaderDiv").fadeIn("fast");
+      },
+      success: function (res) {
+        if (res && res.status === "success") {
+          try {
+            if (window.OpModal) window.OpModal.close("modalUbahKategori");
+          } catch (e) {}
+          loadDiv();
+        } else {
+          showAlert((res && res.message) || "Gagal mengubah kategori", "error");
+          updateUbahKategoriPreview();
+        }
+      },
+      error: function () {
+        showAlert("Gagal mengubah kategori", "error");
+        updateUbahKategoriPreview();
       },
       complete: function () {
         $(".loaderDiv").fadeOut("slow");

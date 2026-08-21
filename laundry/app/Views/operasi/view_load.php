@@ -422,6 +422,11 @@ $labeled = false;
               $classDurasi = "fw-bold text-danger";
             }
 
+            $kategoriHtml = "<span style='white-space: nowrap;'>" . htmlspecialchars((string) $kategori, ENT_QUOTES, 'UTF-8') . "</span>";
+            if ($canEditItem) {
+              $kategoriHtml = "<span class='editKategori' style='cursor:pointer; white-space: nowrap;' data-id='" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "' data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "' data-op-target='#modalUbahKategori' title='Klik untuk ubah laundry'>" . htmlspecialchars((string) $kategori, ENT_QUOTES, 'UTF-8') . "</span>";
+            }
+
             $durasiHtml = "<span class='" . $classDurasi . "' style='white-space: pre;'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
             if ($canEditItem) {
               $durasiHtml = "<span class='" . $classDurasi . " editDurasi' style='cursor:pointer; white-space: pre;' data-id='" . $id . "' data-ref='" . $ref . "' data-op-target='#modalUbahDurasi' title='Klik untuk ubah durasi'>" . $durasi . $f12 . "h " . $f13 . "j</span>";
@@ -488,7 +493,7 @@ $labeled = false;
                     $dlvClass = $dlvBadge === 'JA' ? 'mdl-dlv-badge--ja' : ($dlvBadge === 'J' ? 'mdl-dlv-badge--j' : 'mdl-dlv-badge--a');
                     echo " <span class='mdl-dlv-badge " . $dlvClass . "' title='" . htmlspecialchars($dlvTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($dlvBadge, ENT_QUOTES, 'UTF-8') . "</span>";
                   }
-                ?></small><br><b><span style='white-space: nowrap;'><?= $kategori ?></span></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
+                ?></small><br><b><?= $kategoriHtml ?></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <?php if ($canEditQty) { ?>
                   <b><span class="editQty" style="cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-style:dotted;"
                     data-id="<?= htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') ?>"
@@ -1273,9 +1278,14 @@ $labeled = false;
       <p style="margin:0 0 12px;">Yakin ingin menghapus order <strong id="hapusRefText"></strong>?</p>
       <div class="op-field">
         <label class="op-label" for="inputAlasanHapus">Alasan Hapus <span style="color:#dc2626;">*</span></label>
-        <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Masukkan alasan...">
+        <input type="text" id="inputAlasanHapus" class="op-input" autocomplete="off" placeholder="Contoh: pelanggan batal / salah pilih nama pelanggan">
       </div>
-      <p class="op-muted" style="color:#b91c1c;margin:0;"><i class="fas fa-exclamation-triangle"></i> Data tidak dapat dikembalikan.</p>
+      <div id="hapusRefAiReject" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;">
+        <div style="font-weight:900;margin-bottom:6px;"><i class="fas fa-robot"></i> AI menolak hapus nota</div>
+        <div id="hapusRefAiMessage"></div>
+        <ul id="hapusRefAiAlternatives" style="margin:8px 0 0;padding-left:18px;"></ul>
+      </div>
+      <p class="op-muted" style="color:#b91c1c;margin:10px 0 0;"><i class="fas fa-exclamation-triangle"></i> Hapus nota hanya untuk <strong>batal order</strong> atau <strong>salah pelanggan</strong>. Salah durasi/qty/layanan → edit item, jangan hapus.</p>
     </div>
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost tutupModalHapusBtn" data-op-close>Batal</button>
@@ -1370,7 +1380,7 @@ $labeled = false;
 <script src="<?= URL::IN_ASSETS ?>js/operasi/view_load.js?v=<?= time() ?>"></script>
 <script>
   $(document).ready(function() {
-      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editQty, .editMember, .editLayanan, .tambahCas', function(e) {
+      $(document).off('click.opModalTrigger').on('click.opModalTrigger', '.gantiOperasi, .endLayanan, .addOperasi, .ambil, .editDurasi, .editKategori, .editQty, .editMember, .editLayanan, .tambahCas', function(e) {
           e.preventDefault();
           var target = $(this).attr('data-op-target');
           if (target && window.OpModal) {

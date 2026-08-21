@@ -1139,6 +1139,212 @@ class Operasi extends Controller
       echo json_encode(['status' => 'success', 'message' => 'Durasi berhasil diubah']);
    }
 
+   public function kategori_options()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? $_GET['id'] ?? '');
+      if ($id_penjualan === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID tidak valid']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      if (($sale['member'] ?? 0) != 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Item member tidak dapat diubah kategorinya']);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      $currentItemTotal = $this->calcSaleItemTotal($sale);
+
+      $currentKategori = '';
+      foreach ($this->itemGroup as $ig) {
+         if ($ig['id_item_group'] == $sale['id_item_group']) {
+            $currentKategori = $ig['item_kategori'];
+         }
+      }
+
+      $currentDurasi = '';
+      foreach ($this->dDurasi as $d) {
+         if ($d['id_durasi'] == $sale['id_durasi']) {
+            $currentDurasi = strtoupper($d['durasi']);
+         }
+      }
+
+      $options = [];
+      foreach ($this->harga as $h) {
+         if (($h['is_active'] ?? 1) != 1) {
+            continue;
+         }
+         if ($h['id_penjualan_jenis'] != $sale['id_penjualan_jenis']) {
+            continue;
+         }
+         if ((int) $h['id_item_group'] === (int) $sale['id_item_group']) {
+            continue;
+         }
+         if ((int) $h['id_durasi'] !== (int) $sale['id_durasi']) {
+            continue;
+         }
+         if ($h['list_layanan'] != $sale['list_layanan']) {
+            continue;
+         }
+
+         $kategoriName = '';
+         foreach ($this->itemGroup as $ig) {
+            if ($ig['id_item_group'] == $h['id_item_group']) {
+               $kategoriName = $ig['item_kategori'];
+            }
+         }
+
+         $unitPrice = $this->hargaUnitPrice($h);
+         $minOrder = round((float) ($h['min_order'] ?? $sale['min_order'] ?? 0), 2);
+         $newSubTotal = $this->getRefSubTotal($ref, [
+            $id_penjualan => [
+               'harga' => $unitPrice,
+               'min_order' => $minOrder,
+            ],
+         ]);
+         $newItemTotal = $this->calcSaleItemTotal(array_merge($sale, [
+            'harga' => $unitPrice,
+            'min_order' => $minOrder,
+         ]));
+
+         $canSelect = ($dibayar <= 0) || ($newSubTotal >= $dibayar);
+
+         $options[] = [
+            'id_harga' => (int) $h['id_harga'],
+            'id_item_group' => (int) $h['id_item_group'],
+            'kategori' => strtoupper((string) $kategoriName),
+            'hari' => (int) ($h['hari'] ?? 0),
+            'jam' => (int) ($h['jam'] ?? 0),
+            'harga' => $unitPrice,
+            'min_order' => $minOrder,
+            'item_total' => $newItemTotal,
+            'ref_total' => $newSubTotal,
+            'can_select' => $canSelect,
+            'selected' => false,
+         ];
+      }
+
+      if (empty($options)) {
+         echo json_encode(['status' => 'error', 'message' => 'Tidak ada pilihan kategori laundry lain untuk item ini']);
+         return;
+      }
+
+      usort($options, static function ($a, $b) {
+         return strcasecmp((string) ($a['kategori'] ?? ''), (string) ($b['kategori'] ?? ''));
+      });
+
+      echo json_encode([
+         'status' => 'success',
+         'id_penjualan' => $id_penjualan,
+         'ref' => $ref,
+         'current_kategori' => strtoupper((string) $currentKategori),
+         'current_durasi' => $currentDurasi,
+         'current_layanan' => $this->layananLabelFromSerialized($sale['list_layanan']),
+         'current_item_total' => $currentItemTotal,
+         'current_ref_total' => $currentSubTotal,
+         'dibayar' => $dibayar,
+         'options' => $options,
+      ]);
+   }
+
+   public function ubah_kategori()
+   {
+      header('Content-Type: application/json');
+      $id_penjualan = $this->normalizeSaleId($_POST['id'] ?? '');
+      $id_harga = (int) ($_POST['id_harga'] ?? 0);
+
+      if ($id_penjualan === '' || $id_harga <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Data tidak lengkap']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($id_penjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      if (($sale['member'] ?? 0) != 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Item member tidak dapat diubah kategorinya']);
+         return;
+      }
+
+      $hargaRow = null;
+      foreach ($this->harga as $h) {
+         if ((int) $h['id_harga'] === $id_harga) {
+            $hargaRow = $h;
+            break;
+         }
+      }
+
+      if (!$hargaRow || ($hargaRow['is_active'] ?? 1) != 1) {
+         echo json_encode(['status' => 'error', 'message' => 'Harga tidak ditemukan']);
+         return;
+      }
+
+      if ($hargaRow['id_penjualan_jenis'] != $sale['id_penjualan_jenis']
+         || (int) $hargaRow['id_durasi'] !== (int) $sale['id_durasi']
+         || $hargaRow['list_layanan'] != $sale['list_layanan']) {
+         echo json_encode(['status' => 'error', 'message' => 'Kategori tidak sesuai dengan item order']);
+         return;
+      }
+
+      if ((int) $hargaRow['id_item_group'] === (int) $sale['id_item_group']) {
+         echo json_encode(['status' => 'error', 'message' => 'Kategori sama dengan yang sekarang']);
+         return;
+      }
+
+      $id_penjualan = $this->normalizeSaleId($sale['id_penjualan']);
+      $ref = $sale['no_ref'];
+      $unitPrice = $this->hargaUnitPrice($hargaRow);
+      $minOrder = round((float) ($hargaRow['min_order'] ?? $sale['min_order'] ?? 0), 2);
+      $newSubTotal = $this->getRefSubTotal($ref, [
+         $id_penjualan => [
+            'harga' => $unitPrice,
+            'min_order' => $minOrder,
+         ],
+      ]);
+
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
+      }
+
+      $set = [
+         'id_item_group' => (int) $hargaRow['id_item_group'],
+         'id_durasi' => (int) $hargaRow['id_durasi'],
+         'hari' => (int) ($hargaRow['hari'] ?? 0),
+         'jam' => (int) ($hargaRow['jam'] ?? 0),
+         'harga' => $unitPrice,
+         'min_order' => $minOrder,
+         'id_harga' => $id_harga,
+      ];
+      $where = $this->whereSaleById($id_penjualan);
+      $up = $this->db(0)->update('sale', $set, $where);
+      if ($up['errno'] != 0) {
+         $this->model('Log')->write("[ubah_kategori] Update sale error id=$id_penjualan: " . ($up['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan: ' . ($up['error'] ?? 'Unknown error')]);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+
+      echo json_encode(['status' => 'success', 'message' => 'Kategori laundry berhasil diubah']);
+   }
+
    /**
     * Info item untuk modal ubah qty.
     */
