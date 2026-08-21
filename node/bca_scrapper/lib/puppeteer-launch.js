@@ -2,8 +2,12 @@
  * Launch Puppeteer — satu tempat untuk opsi Linux VPS + Chrome path.
  */
 
+const { execFile } = require('child_process');
 const fs = require('fs');
+const { promisify } = require('util');
 const puppeteer = require('puppeteer');
+
+const execFileAsync = promisify(execFile);
 
 const DEFAULT_ARGS = [
   '--no-sandbox',
@@ -61,7 +65,26 @@ async function launchBrowser(headless = true) {
 }
 
 /**
- * @returns {Promise<{ok:boolean,path?:string,error?:string,user?:string}>}
+ * @param {string} chromePath
+ * @returns {Promise<string[]>}
+ */
+async function missingSharedLibs(chromePath) {
+  if (process.platform !== 'linux') {
+    return [];
+  }
+  try {
+    const { stdout } = await execFileAsync('ldd', [chromePath]);
+    return stdout
+      .split('\n')
+      .filter((line) => /not found/i.test(line))
+      .map((line) => line.trim());
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * @returns {Promise<{ok:boolean,path?:string,error?:string,user?:string,missing_libs?:string[]}>}
  */
 async function chromeStatus() {
   const user = process.env.USER || process.env.LOGNAME || '';
@@ -71,6 +94,18 @@ async function chromeStatus() {
       return { ok: false, user, error: 'executablePath kosong' };
     }
     await fs.promises.access(chromePath, fs.constants.X_OK);
+    const missing = await missingSharedLibs(chromePath);
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        path: chromePath,
+        user: user || undefined,
+        missing_libs: missing,
+        error:
+          'Library sistem Chrome belum terinstall (ldd). '
+          + 'Jalankan di VPS sebagai root: bash scripts/install-chrome-deps.sh',
+      };
+    }
     return { ok: true, path: chromePath, user: user || undefined };
   } catch (err) {
     let chromePath = '';

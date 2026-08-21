@@ -19,6 +19,9 @@ if [[ ! -d "$APP_DIR" ]]; then
   exit 1
 fi
 
+echo "[setup] Install library sistem Chrome (libnspr4, libnss3, …)…"
+bash "$(dirname "$0")/install-chrome-deps.sh"
+
 echo "[setup] Bersihkan cache Chrome corrupt (jika ada)…"
 rm -rf "${CACHE_DIR}/chrome"
 

@@ -46,6 +46,16 @@ apt update && apt install -y chromium-browser
 
 **Otomatis (root):** `bash scripts/setup-chrome-vps-www.sh`
 
+Error `libnspr4.so: cannot open shared object file` = library sistem belum ada:
+
+```bash
+apt update
+apt install -y libnspr4 libnss3 libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
+  libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+  libpango-1.0-0 libcairo2 fonts-liberation
+# atau: bash scripts/install-chrome-deps.sh
+```
+
 Service aaPanel jalan sebagai **www** — jangan arahkan cache ke `/root/.cache`.
 
 ## Endpoints
