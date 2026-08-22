@@ -21,8 +21,8 @@ let store = {};
  * @typedef {{
  *   accessToken: string,
  *   refreshToken?: string,
- *   clientId?: string,
- *   clientSecret?: string,
+ *   hashKey?: string,
+ *   xoid?: string,
  *   appVersion: string|null,
  *   expiresAt: number,
  *   refreshExpiresAt?: number,
@@ -151,6 +151,9 @@ function getForRefresh(email) {
     persistStore();
     return null;
   }
+  if (!entry.hashKey || !entry.xoid) {
+    return null;
+  }
   return entry;
 }
 
@@ -159,8 +162,8 @@ function getForRefresh(email) {
  * @param {{
  *   accessToken: string,
  *   refreshToken?: string,
- *   clientId?: string,
- *   clientSecret?: string,
+ *   hashKey?: string,
+ *   xoid?: string,
  *   appVersion?: string|null,
  *   expiresIn?: number,
  *   refreshExpiresIn?: number,
@@ -198,8 +201,8 @@ function save(email, data) {
   store[key] = {
     accessToken: token,
     refreshToken: data.refreshToken !== undefined ? data.refreshToken : prev?.refreshToken,
-    clientId: data.clientId !== undefined ? data.clientId : prev?.clientId,
-    clientSecret: data.clientSecret !== undefined ? data.clientSecret : prev?.clientSecret,
+    hashKey: data.hashKey !== undefined ? data.hashKey : prev?.hashKey,
+    xoid: data.xoid !== undefined ? data.xoid : prev?.xoid,
     appVersion: data.appVersion !== undefined ? data.appVersion : (prev?.appVersion ?? null),
     expiresAt,
     refreshExpiresAt,

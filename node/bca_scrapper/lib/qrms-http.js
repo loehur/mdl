@@ -240,15 +240,16 @@ async function refreshAccessToken(entry, timeoutMs) {
   if (!entry.refreshToken) {
     throw new Error('refresh_token_missing');
   }
-  /** @type {Record<string, string>} */
+  if (!entry.hashKey || !entry.xoid) {
+    throw new Error('refresh_crypto_missing');
+  }
+  /** QRMS pakai hash_key + xoid (bukan client_secret OAuth standar). */
   const form = {
     grant_type: 'refresh_token',
-    client_id: String(entry.clientId || 'bca-qrms'),
     refresh_token: entry.refreshToken,
+    hash_key: entry.hashKey,
+    xoid: entry.xoid,
   };
-  if (entry.clientSecret) {
-    form.client_secret = entry.clientSecret;
-  }
   return fetchToken(form, timeoutMs);
 }
 
@@ -305,8 +306,8 @@ async function resolveAuth(opts, run, forceLogin = false) {
         qrmsSession.save(opts.email, {
           accessToken: token,
           refreshToken: tokenJson.refresh_token || stale.refreshToken,
-          clientId: stale.clientId,
-          clientSecret: stale.clientSecret,
+          hashKey: stale.hashKey,
+          xoid: stale.xoid,
           appVersion: stale.appVersion,
           expiresIn: tokenJson.expires_in,
           refreshExpiresIn: tokenJson.refresh_expires_in,
@@ -349,8 +350,8 @@ async function resolveAuth(opts, run, forceLogin = false) {
   const loginForm = loginPayload.loginForm || {};
   debug.saveJson(run, 'login_form_keys', {
     grant_type: loginForm.grant_type,
-    client_id: loginForm.client_id,
-    has_client_secret: Boolean(loginForm.client_secret),
+    has_hash_key: Boolean(loginForm.hash_key),
+    has_xoid: Boolean(loginForm.xoid),
     has_app_version: Boolean(loginPayload.appVersion),
   });
 
@@ -372,8 +373,8 @@ async function resolveAuth(opts, run, forceLogin = false) {
   qrmsSession.save(opts.email, {
     accessToken: token,
     refreshToken: tokenJson.refresh_token,
-    clientId: loginForm.client_id,
-    clientSecret: loginForm.client_secret,
+    hashKey: loginForm.hash_key,
+    xoid: loginForm.xoid,
     appVersion,
     expiresIn: tokenJson.expires_in,
     refreshExpiresIn: tokenJson.refresh_expires_in,
