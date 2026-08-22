@@ -8,7 +8,7 @@ if (count($data['cek']) == 0) { ?>
 <?php } else { ?>
 
 <div class="aa-section-title">Menunggu konfirmasi</div>
-<div class="aa-grid" style="grid-template-columns: 1fr;">
+<div class="aa-grid">
   <?php foreach ($data['cek'] as $a) {
     $id = $a['ref_finance'];
     $idCabang = (int) ($a['id_cabang'] ?? 0);
@@ -82,22 +82,42 @@ if (count($data['cek']) == 0) { ?>
       $invoiceUrl = URL::BASE_URL . 'Sales/preview_nota/' . rawurlencode($refTransaksi);
       $invoiceTitle = 'Jualan #' . $refTransaksi;
     }
+
+    $metodeLabel = strtoupper(trim((string) $f2));
+    $isBca = $metodeLabel === 'BCA';
+    $isQrisStatic = $metodeLabel === 'QRIS'
+      && trim((string) ($a['payment_trx_id'] ?? '')) === '';
+    $needsBind = $isBca || $isQrisStatic;
+    $bindMode = $isBca ? 'bca' : ($isQrisStatic ? 'qris' : '');
+    $bindListUrl = $isBca
+      ? (URL::BASE_URL . 'NonTunai/mutasiList')
+      : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
+    $idAttr = htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8');
   ?>
   <div class="aa-card aa-card--pending nt-row" data-id-cabang="<?= $idCabang ?>">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-      <div class="flex-grow-1" style="min-width:0">
-        <?php if ($idCabang > 0) { ?>
-          <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
-        <?php } ?>
-        <a href="#" class="text-decoration-none nt-invoice-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
-          <div class="aa-card__title" style="margin:0"><?= strtoupper($pelanggan) ?> <i class="fas fa-expand-alt small" title="Lihat tagihan"></i></div>
-        </a>
-        <div class="aa-card__meta" style="margin:4px 0 0">
-          <?php if ($tglBayar !== '') { ?><span class="text-nowrap"><i class="far fa-clock me-1"></i><?= $tglBayar ?></span> · <?php } ?><?= $jenis_bill ?> · <?= strtoupper($f2) ?> · <?= $karyawan ?>
-        </div>
-      </div>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="aa-card__amount" style="margin:0"><?= number_format($f4) ?></span>
+    <?php if ($idCabang > 0) { ?>
+      <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+    <?php } ?>
+    <div class="aa-card__meta">
+      #<?= $idAttr ?>
+      <?php if ($tglBayar !== '') { ?> · <?= htmlspecialchars($tglBayar, ENT_QUOTES, 'UTF-8') ?><?php } ?>
+      <?php if ($karyawan !== '') { ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?><?php } ?>
+    </div>
+    <a href="#" class="text-decoration-none nt-invoice-link aa-card__title-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
+      <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?> <i class="fas fa-expand-alt small" title="Lihat tagihan"></i></div>
+    </a>
+    <div class="aa-card__meta">
+      <?= htmlspecialchars($jenis_bill, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($metodeLabel, ENT_QUOTES, 'UTF-8') ?>
+      <?php if ($needsBind) { ?> · <span class="nt-bind-hint">perlu bind <?= $isBca ? 'BCA' : 'QRIS' ?></span><?php } ?>
+    </div>
+    <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
+    <div class="aa-actions">
+      <span class="aa-btn aa-btn--danger nTolak" role="button"
+        data-id="<?= $idAttr ?>"
+        data-id-cabang="<?= $idCabang ?>"
+        data-nama="<?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?>"
+        data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">Tolak</span>
+      <div class="d-flex gap-2 align-items-center">
         <?php if ($hp !== '') { ?>
         <button type="button"
           class="nt-chat-btn nChat"
@@ -108,31 +128,16 @@ if (count($data['cek']) == 0) { ?>
           <i class="fas fa-comments"></i>
         </button>
         <?php } ?>
-        <button class="aa-btn aa-btn--danger nTolak" data-id="<?= $id ?>" data-id-cabang="<?= $idCabang ?>" data-nama="<?= strtoupper($pelanggan) ?>" data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">
-          <i class="fas fa-times"></i>
-        </button>
-        <?php
-          $isBca = strtoupper(trim((string) $f2)) === 'BCA';
-          $isQrisStatic = strtoupper(trim((string) $f2)) === 'QRIS'
-            && trim((string) ($a['payment_trx_id'] ?? '')) === '';
-          $needsBind = $isBca || $isQrisStatic;
-          $bindMode = $isBca ? 'bca' : ($isQrisStatic ? 'qris' : '');
-          $bindListUrl = $isBca
-            ? (URL::BASE_URL . 'NonTunai/mutasiList')
-            : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
-        ?>
-        <button class="aa-btn aa-btn--ok nTerima"
-          data-id="<?= $id ?>"
+        <span class="aa-btn aa-btn--ok nTerima" role="button"
+          data-id="<?= $idAttr ?>"
           data-id-cabang="<?= $idCabang ?>"
-          data-nama="<?= strtoupper($pelanggan) ?>"
-          data-note="<?= htmlspecialchars(strtoupper((string) $f2), ENT_QUOTES, 'UTF-8') ?>"
+          data-nama="<?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?>"
+          data-note="<?= htmlspecialchars($metodeLabel, ENT_QUOTES, 'UTF-8') ?>"
           data-nominal="<?= (float) $f4 ?>"
           data-bind="<?= $needsBind ? '1' : '0' ?>"
           data-bind-mode="<?= htmlspecialchars($bindMode, ENT_QUOTES, 'UTF-8') ?>"
           data-target="<?= URL::BASE_URL ?>NonTunai/operasi/3"
-          data-list-url="<?= htmlspecialchars($bindListUrl, ENT_QUOTES, 'UTF-8') ?>">
-          <i class="fas fa-check"></i>
-        </button>
+          data-list-url="<?= htmlspecialchars($bindListUrl, ENT_QUOTES, 'UTF-8') ?>">Terima</span>
       </div>
     </div>
   </div>
@@ -143,6 +148,17 @@ if (count($data['cek']) == 0) { ?>
 
 <!-- Lebar mengikuti nota (~640px). Tinggi ~85vh -->
 <style>
+  #aa-root #load .aa-card__title-link {
+    color: inherit;
+    display: block;
+  }
+  #aa-root #load .aa-card__title-link:hover .aa-card__title {
+    color: var(--aa-blue-deep);
+  }
+  #aa-root #load .nt-bind-hint {
+    color: #b45309;
+    font-weight: 800;
+  }
   .nt-chat-btn {
     box-sizing: border-box;
     width: 31px;
@@ -438,7 +454,7 @@ if (count($data['cek']) == 0) { ?>
       success: function(response) {
         if (String(response).trim() !== '0') {
           ntToast(response || 'Gagal memproses transaksi', 'warn');
-          btn.prop('disabled', false).html('<i class="fas fa-check"></i>');
+          btn.prop('disabled', false).html('Terima');
           return;
         }
         ntToast(okMsg || 'Transaksi dikonfirmasi', 'ok');
@@ -446,7 +462,7 @@ if (count($data['cek']) == 0) { ?>
       },
       error: function() {
         ntToast('Gagal memproses transaksi', 'error');
-        btn.prop('disabled', false).html('<i class="fas fa-check"></i>');
+        btn.prop('disabled', false).html('Terima');
       }
     });
   }
@@ -604,7 +620,7 @@ if (count($data['cek']) == 0) { ?>
       success: function(response) {
         if (String(response).trim() !== '0') {
           ntToast(response || 'Gagal menolak transaksi', 'warn');
-          btn.prop('disabled', false).html('<i class="fas fa-times"></i>');
+          btn.prop('disabled', false).html('Tolak');
           return;
         }
         ntToast('Transaksi ditolak', 'ok');
@@ -612,7 +628,7 @@ if (count($data['cek']) == 0) { ?>
       },
       error: function() {
         ntToast('Gagal menolak transaksi', 'error');
-        btn.prop('disabled', false).html('<i class="fas fa-times"></i>');
+        btn.prop('disabled', false).html('Tolak');
       }
     });
   });
