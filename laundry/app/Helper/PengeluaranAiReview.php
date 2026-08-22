@@ -87,20 +87,22 @@ class PengeluaranAiReview
             $html[] = '<div style="flex:1;min-width:0;padding-bottom:' . ($isLast ? '0' : '2px') . '">';
             $html[] = '<div style="font-size:.82rem;font-weight:900;color:#1d4ed8;margin-bottom:6px">' . $dateLabel . '</div>';
 
+            if ($showBranch) {
+                $html[] = '<div style="display:grid;grid-template-columns:36px 92px minmax(0,1fr);column-gap:12px;row-gap:6px;align-items:start;font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45">';
+            } else {
+                $html[] = '<div style="display:grid;grid-template-columns:92px minmax(0,1fr);column-gap:12px;row-gap:6px;align-items:start;font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45">';
+            }
+
             foreach ($dayRows as $row) {
                 $amt = (int) round((float) ($row['jumlah'] ?? 0));
                 $ket = trim((string) ($row['keterangan'] ?? ''));
-                $metaParts = [];
-                if ($showBranch) {
-                    $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
-                }
-                $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
-                if ($ket !== '' && $ket !== '-') {
-                    $metaParts[] = $esc($ket);
-                }
+                $ketText = ($ket !== '' && $ket !== '-') ? $esc($ket) : '<span style="color:#94a3b8">-</span>';
 
-                $html[] = '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px">'
-                    . implode(' · ', $metaParts) . '</div>';
+                if ($showBranch) {
+                    $html[] = '<div style="color:#1e3a8a;font-weight:900;text-align:left">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</div>';
+                }
+                $html[] = '<div style="color:#0f172a;font-weight:900;text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap">Rp ' . $fmt($amt) . '</div>';
+                $html[] = '<div style="color:#0f172a;text-align:left;word-break:break-word">' . $ketText . '</div>';
             }
 
             $html[] = '</div>';
