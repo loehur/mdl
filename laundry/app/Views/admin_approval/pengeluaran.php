@@ -41,7 +41,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
               data-pg-jenis="<?= htmlspecialchars(strtoupper((string) $note), ENT_QUOTES, 'UTF-8') ?>"
               data-pg-ket="<?= htmlspecialchars(ucwords((string) $f2), ENT_QUOTES, 'UTF-8') ?>"
               data-pg-jumlah="<?= number_format((float) $f4, 0, ',', '.') ?>"
-              data-pg-kode="<?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-robot"></i> Analisa</span>
+              data-pg-kode="<?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-history"></i> Riwayat</span>
             <span class="aa-btn aa-btn--ok nTunai nTunaiKonfirm" role="button"
               data-id="<?= $idAttr ?>"
               data-id-cabang="<?= $idCabang ?>"
@@ -59,13 +59,13 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
   <div class="aa-empty" style="margin-bottom:14px"><i class="fas fa-check-circle"></i>Tidak ada pengeluaran pending</div>
 <?php } ?>
 
-<!-- Modal analisa AI (informatif, terpisah dari konfirmasi) -->
+<!-- Modal riwayat pengeluaran (informatif, terpisah dari konfirmasi) -->
 <div class="modal fade" id="modalPengeluaranAi" tabindex="-1" aria-labelledby="modalPengeluaranAiLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
     <div class="modal-content" style="border-radius:0;border:1px solid #cbd5e1;">
       <div class="modal-header py-2 border-bottom" style="background:linear-gradient(105deg,#1d4ed8,#2563eb);color:#fff;">
         <div>
-          <h6 class="modal-title fw-bold mb-0" id="modalPengeluaranAiLabel"><i class="fas fa-robot me-2"></i>Analisa AI Pengeluaran</h6>
+          <h6 class="modal-title fw-bold mb-0" id="modalPengeluaranAiLabel"><i class="fas fa-history me-2"></i>Riwayat Pengeluaran</h6>
           <small id="pgAiSub" style="opacity:.9;">Memuat…</small>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
@@ -74,10 +74,10 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         <div id="pgAiPending" class="border p-2 mb-3 small" style="background:#f8fafc;border-color:#cbd5e1 !important;"></div>
         <div id="pgAiLoading" class="text-center text-muted py-4">
           <i class="fas fa-spinner fa-spin fa-lg d-block mb-2"></i>
-          AI sedang menganalisa riwayat 30 hari…
+          Memuat riwayat 30 hari…
         </div>
         <div id="pgAiResult" class="d-none">
-          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-comment-dots"></i> Komentar AI untuk Admin</div>
+          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-stream"></i> 3 pengeluaran terakhir</div>
           <div id="pgAiAnalysis" style="font-size:.88rem;line-height:1.55;color:#0f172a;"></div>
         </div>
         <div id="pgAiError" class="d-none alert alert-warning mb-0 py-2 small"></div>
@@ -187,7 +187,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
       pgAiSetAnalysis(res.analysis);
       return;
     }
-    var msg = (res && res.message) ? res.message : 'Analisa gagal.';
+    var msg = (res && res.message) ? res.message : 'Gagal memuat riwayat.';
     if (res && res.req_id) {
       msg += ' (log: ' + res.req_id + ')';
     }
@@ -199,13 +199,13 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     var id = $btn.attr('data-id');
     var $card = $btn.closest('.aa-card');
     if (!url || !id || !$card.length) {
-      if (typeof aaToast === 'function') aaToast('Data analisa tidak lengkap', 'error');
+      if (typeof aaToast === 'function') aaToast('Data riwayat tidak lengkap', 'error');
       return;
     }
 
     pgAiResetModal();
     pgAiShowPendingFromBtn($btn);
-    $('#pgAiSub').text('Memuat analisa…');
+    $('#pgAiSub').text('Memuat riwayat…');
 
     var modalEl = document.getElementById('modalPengeluaranAi');
     if (modalEl && window.bootstrap && bootstrap.Modal) {
@@ -235,11 +235,11 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         pgAiRenderResult(res);
         return;
       }
-      var msg = 'Gagal memuat analisa';
+      var msg = 'Gagal memuat riwayat';
       if (textStatus === 'timeout') {
-        msg = 'Analisa timeout — silakan coba lagi';
+        msg = 'Timeout — silakan coba lagi';
       } else if (xhr && xhr.status >= 500) {
-        msg = 'Error server saat analisa';
+        msg = 'Error server saat memuat riwayat';
       }
       $('#pgAiError').removeClass('d-none').text(msg);
     });

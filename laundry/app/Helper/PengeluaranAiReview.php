@@ -6,8 +6,7 @@
 class PengeluaranAiReview
 {
     private const HISTORY_LIMIT = 60;
-    private const LAST_ROWS = 2;
-    private const AVG_DAYS = 30;
+    private const TIMELINE_ROWS = 3;
 
     /**
      * @param callable(int):string $kodeFn
@@ -31,44 +30,24 @@ class PengeluaranAiReview
     public function buildDisplayHtml(array $pending, array $historyRows): string
     {
         $jenis = (string) ($pending['jenis_pengeluaran'] ?? '');
+        $kode = (string) ($pending['kode_cabang'] ?? '-');
+
         if ($this->isMinyakKendaraan($jenis)) {
-            return $this->buildDisplayHtmlMinyak($pending, $historyRows);
+            $rows = $this->takeLastN($historyRows, self::TIMELINE_ROWS);
+
+            return $this->renderTimeline($rows, true);
         }
 
-        return $this->buildDisplayHtmlDefault($pending, $historyRows);
-    }
+        if ($this->isGasLpg($jenis)) {
+            $rows = $this->takeLastN($historyRows, self::TIMELINE_ROWS);
 
-    /** @param array<string,mixed> $pending */
-    private function buildDisplayHtmlDefault(array $pending, array $historyRows): string
-    {
-        $ctx = $this->buildAnalysisContextDefault($pending, $historyRows);
-        $html = [];
-        $html[] = $this->renderLastRowsSection(
-            $ctx['last_rows'],
-            $ctx['section_title'],
-            (int) $ctx['daily_avg'],
-            (int) $ctx['trx_avg'],
-            false,
-            true
-        );
-        $html[] = $this->renderOtherBranchesSection($ctx['other_branch_rows']);
+            return $this->renderTimeline($rows, true);
+        }
 
-        return implode("\n", $html);
-    }
+        $branchRows = $this->filterHistorySameBranch($historyRows, $kode);
+        $rows = $this->takeLastN($branchRows, self::TIMELINE_ROWS);
 
-    /** @param array<string,mixed> $pending */
-    private function buildDisplayHtmlMinyak(array $pending, array $historyRows): string
-    {
-        $ctx = $this->buildAnalysisContextMinyak($pending, $historyRows);
-
-        return $this->renderLastRowsSection(
-            $ctx['last_rows'],
-            $ctx['section_title'],
-            (int) $ctx['daily_avg'],
-            (int) $ctx['trx_avg'],
-            true,
-            true
-        );
+        return $this->renderTimeline($rows, false);
     }
 
     public function localFallbackAnalysis(array $pending, array $historyRows): string
@@ -77,166 +56,63 @@ class PengeluaranAiReview
     }
 
     /**
-     * @param list<array<string,mixed>> $lastRows
+     * @param list<array<string,mixed>> $rows
      */
-    private function renderLastRowsSection(
-        array $lastRows,
-        string $title,
-        int $dailyAvg,
-        int $trxAvg,
-        bool $showBranch,
-        bool $withComments = true
-    ): string {
-        $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
-        $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-
-        $html = [];
-        $html[] = '<div style="margin-bottom:12px">';
-        $html[] = '<div style="font-weight:900;color:#0f172a;margin-bottom:8px">' . $esc($title) . '</div>';
-
-        if ($lastRows === []) {
-            $html[] = '<div style="color:#64748b;font-size:.84rem">Belum ada riwayat untuk ditampilkan (30 hari).</div>';
-            $html[] = '</div>';
-            return implode("\n", $html);
-        }
-
-        foreach ($lastRows as $row) {
-            $amt = (int) round((float) ($row['jumlah'] ?? 0));
-            $ket = trim((string) ($row['keterangan'] ?? ''));
-            $dateLabel = $this->formatDateId((string) ($row['insertTime'] ?? ''));
-            $branchPart = $showBranch
-                ? $esc((string) ($row['kode_cabang'] ?? '-')) . ' · '
-                : '';
-            $jenisPart = $showBranch
-                ? $esc(trim((string) ($row['jenis_pengeluaran'] ?? ''))) . ' · '
-                : '';
-
-            $html[] = '<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #e2e8f0">';
-            $html[] = '<div><strong style="color:#1d4ed8">' . $esc($dateLabel) . '</strong> · '
-                . $branchPart . $jenisPart . 'Rp ' . $fmt($amt)
-                . ($ket !== '' && $ket !== '-' ? ' · ' . $esc($ket) : '') . '</div>';
-            if ($withComments) {
-                $html[] = $this->buildShortRowComment($amt, $dailyAvg, $trxAvg);
-            }
-            $html[] = '</div>';
-        }
-
-        $html[] = '</div>';
-        return implode("\n", $html);
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows Satu transaksi terakhir per cabang lain
-     */
-    private function renderOtherBranchesSection(array $rows): string
+    private function renderTimeline(array $rows, bool $showBranch): string
     {
         $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
         $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-
-        $html = [];
-        $html[] = '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1">';
-        $html[] = '<div style="font-weight:900;color:#0f172a;margin-bottom:8px">Transaksi jenis sama — cabang lain</div>';
 
         if ($rows === []) {
-            $html[] = '<div style="color:#64748b;font-size:.84rem">Tidak ada riwayat di cabang lain (30 hari).</div>';
-            $html[] = '</div>';
-            return implode("\n", $html);
+            return '<div style="color:#64748b;font-size:.84rem;padding:8px 0">Belum ada riwayat 30 hari terakhir.</div>';
         }
 
-        $html[] = '<ul style="margin:0;padding-left:18px;line-height:1.5;font-size:.88rem;color:#0f172a">';
-        foreach ($rows as $row) {
-            $bk = $esc((string) ($row['kode_cabang'] ?? '-'));
-            $dateLabel = $esc($this->formatDateId((string) ($row['insertTime'] ?? '')));
+        $html = ['<div class="pg-exp-timeline" style="margin:0;padding:0">'];
+        $lastIdx = count($rows) - 1;
+
+        foreach ($rows as $i => $row) {
             $amt = (int) round((float) ($row['jumlah'] ?? 0));
             $ket = trim((string) ($row['keterangan'] ?? ''));
-            $ketPart = ($ket !== '' && $ket !== '-') ? ' · ' . $esc($ket) : '';
-            $html[] = '<li style="margin-bottom:6px"><strong>' . $bk . '</strong> · '
-                . '<span style="color:#1d4ed8">' . $dateLabel . '</span> · Rp ' . $fmt($amt) . $ketPart . '</li>';
+            $dateLabel = $esc($this->formatDateId((string) ($row['insertTime'] ?? '')));
+            $isLast = $i === $lastIdx;
+
+            $metaParts = [];
+            if ($showBranch) {
+                $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
+            }
+            $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
+            if ($ket !== '' && $ket !== '-') {
+                $metaParts[] = $esc($ket);
+            }
+
+            $html[] = '<div class="pg-exp-timeline__item" style="display:flex;gap:10px;margin:0;padding:0 0 '
+                . ($isLast ? '0' : '12px') . '">';
+            $html[] = '<div style="flex:0 0 auto;width:12px;display:flex;flex-direction:column;align-items:center">';
+            $html[] = '<span style="width:10px;height:10px;background:#2563eb;border:1px solid #1d4ed8;display:block;margin-top:4px"></span>';
+            if (!$isLast) {
+                $html[] = '<span style="flex:1;width:2px;background:#cbd5e1;min-height:18px;margin-top:2px"></span>';
+            }
+            $html[] = '</div>';
+            $html[] = '<div style="flex:1;min-width:0;padding-bottom:' . ($isLast ? '0' : '2px') . '">';
+            $html[] = '<div style="font-size:.82rem;font-weight:900;color:#1d4ed8;margin-bottom:3px">' . $dateLabel . '</div>';
+            $html[] = '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.4">' . implode(' · ', $metaParts) . '</div>';
+            $html[] = '</div>';
+            $html[] = '</div>';
         }
-        $html[] = '</ul>';
+
         $html[] = '</div>';
 
         return implode("\n", $html);
     }
 
-    /**
-     * @param array<string,mixed> $pending
-     * @return array{last_rows:list<array<string,mixed>>,other_branch_rows:list<array<string,mixed>>,daily_avg:int,trx_avg:int,section_title:string}
-     */
-    private function buildAnalysisContextDefault(array $pending, array $historyRows): array
+    private function isGasLpg(string $jenis): bool
     {
-        $kode = (string) ($pending['kode_cabang'] ?? '-');
-        $branchRows = $this->filterHistorySameBranch($historyRows, $kode);
-        $lastRows = $this->takeLastN($branchRows, self::LAST_ROWS);
-        $avg = $this->computeAvgFromRows($branchRows, self::AVG_DAYS);
-        $otherBranchRows = $this->getLastPerOtherBranch($historyRows, $kode);
-
-        return [
-            'last_rows' => $lastRows,
-            'other_branch_rows' => $otherBranchRows,
-            'daily_avg' => $avg['daily_avg'],
-            'trx_avg' => $avg['trx_avg'],
-            'section_title' => '2 transaksi terakhir — Cabang ' . $kode,
-        ];
-    }
-
-    /**
-     * @param array<string,mixed> $pending
-     * @return array{last_rows:list<array<string,mixed>>,daily_avg:int,trx_avg:int,section_title:string}
-     */
-    private function buildAnalysisContextMinyak(array $pending, array $historyRows): array
-    {
-        $jenisRaw = trim((string) ($pending['jenis_pengeluaran'] ?? ''));
-        $ketRaw = trim((string) ($pending['keterangan'] ?? ''));
-        $ketLabel = $ketRaw !== '' ? $ketRaw : '-';
-        $matchedRows = $this->filterHistorySimilarJenisKeterangan($historyRows, $jenisRaw, $ketRaw);
-        $lastRows = $this->takeLastN($matchedRows, self::LAST_ROWS);
-        $avg = $this->computeAvgFromRows($matchedRows, self::AVG_DAYS);
-
-        return [
-            'last_rows' => $lastRows,
-            'daily_avg' => $avg['daily_avg'],
-            'trx_avg' => $avg['trx_avg'],
-            'section_title' => '2 transaksi terakhir — "' . $ketLabel . '" (semua cabang)',
-        ];
-    }
-
-    private function buildShortRowComment(int $amount, int $dailyAvg, int $trxAvg): string
-    {
-        if ($trxAvg <= 0 && $dailyAvg <= 0) {
-            return '<div style="font-size:.84rem;color:#64748b;margin-top:3px">Belum ada baseline 30 hari untuk penilaian baris ini.</div>';
+        $j = mb_strtoupper(trim($jenis), 'UTF-8');
+        if ($j === '') {
+            return false;
         }
 
-        $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
-
-        $tooHighTrx = $trxAvg > 0 && $amount > (int) round($trxAvg * 1.75);
-        $tooLowTrx = $trxAvg > 0 && $amount < (int) round($trxAvg * 0.4);
-        $tooHighDaily = $dailyAvg > 0 && $amount > ($dailyAvg * 4);
-
-        if ($tooHighTrx || $tooHighDaily) {
-            $parts = [];
-            if ($tooHighTrx) {
-                $parts[] = round($amount / $trxAvg, 1) . '× rata-rata/transaksi (Rp ' . $fmt($trxAvg) . ')';
-            }
-            if ($tooHighDaily) {
-                $parts[] = 'setara ' . round($amount / max(1, $dailyAvg), 1) . ' hari rata-rata harian';
-            }
-
-            return '<div style="font-size:.84rem;color:#dc2626;margin-top:3px"><strong>Peringatan:</strong> '
-                . implode(', ', $parts) . '.</div>';
-        }
-
-        if ($tooLowTrx) {
-            return '<div style="font-size:.84rem;color:#dc2626;margin-top:3px"><strong>Peringatan:</strong> Jauh di bawah rata-rata/transaksi (Rp '
-                . $fmt($trxAvg) . ').</div>';
-        }
-
-        $ratio = $trxAvg > 0 ? round($amount / $trxAvg, 1) : null;
-        $hint = $ratio !== null
-            ? ' (~' . $ratio . '× rata-rata/transaksi Rp ' . $fmt($trxAvg) . ')'
-            : '';
-
-        return '<div style="font-size:.84rem;color:#15803d;margin-top:3px">Masih wajar terhadap pola 30 hari' . $hint . '.</div>';
+        return str_contains($j, 'GAS') && str_contains($j, 'LPG');
     }
 
     private function isMinyakKendaraan(string $jenis): bool
@@ -335,58 +211,6 @@ class PengeluaranAiReview
     }
 
     /**
-     * @param list<array<string,mixed>> $historyRows
-     * @return list<array<string,mixed>>
-     */
-    private function filterHistorySimilarKeterangan(array $historyRows, string $pendingKet): array
-    {
-        $out = [];
-        foreach ($historyRows as $row) {
-            $rowKet = trim((string) ($row['keterangan'] ?? ''));
-            if ($this->keteranganSimilar($pendingKet, $rowKet)) {
-                $out[] = $row;
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * Satu transaksi terakhir per cabang selain cabang pending (jenis sama sudah difilter di history).
-     *
-     * @param list<array<string,mixed>> $historyRows
-     * @return list<array<string,mixed>>
-     */
-    private function getLastPerOtherBranch(array $historyRows, string $excludeKode): array
-    {
-        $grouped = [];
-        foreach ($historyRows as $row) {
-            $bk = (string) ($row['kode_cabang'] ?? '-');
-            if ($bk === $excludeKode) {
-                continue;
-            }
-            if (!isset($grouped[$bk])) {
-                $grouped[$bk] = [];
-            }
-            $grouped[$bk][] = $row;
-        }
-
-        $out = [];
-        foreach ($grouped as $rows) {
-            $last = $this->takeLastN($rows, 1);
-            if ($last !== []) {
-                $out[] = $last[0];
-            }
-        }
-
-        usort($out, static function (array $a, array $b): int {
-            return strcasecmp((string) ($a['kode_cabang'] ?? ''), (string) ($b['kode_cabang'] ?? ''));
-        });
-
-        return $out;
-    }
-
-    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
@@ -401,26 +225,6 @@ class PengeluaranAiReview
         });
 
         return array_slice($rows, 0, $n);
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @return array{daily_avg:int,trx_avg:int,count:int,total:int}
-     */
-    private function computeAvgFromRows(array $rows, int $days): array
-    {
-        $total = 0;
-        $count = count($rows);
-        foreach ($rows as $row) {
-            $total += (int) round((float) ($row['jumlah'] ?? 0));
-        }
-
-        return [
-            'total' => $total,
-            'count' => $count,
-            'daily_avg' => $count > 0 ? (int) round($total / max(1, $days)) : 0,
-            'trx_avg' => $count > 0 ? (int) round($total / $count) : 0,
-        ];
     }
 
     private function formatDateId(string $insertTime): string
