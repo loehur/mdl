@@ -18,7 +18,7 @@ export function wsUrl(user) {
   return `${base}?${params.toString()}`;
 }
 
-export async function api(path, { method = "GET", body, token } = {}) {
+export async function api(path, { method = "GET", body, token, cache } = {}) {
   const headers = {
     Accept: "application/json",
   };
@@ -34,6 +34,7 @@ export async function api(path, { method = "GET", body, token } = {}) {
     method,
     headers,
     credentials: "include",
+    cache: cache ?? "default",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -45,4 +46,14 @@ export async function api(path, { method = "GET", body, token } = {}) {
     throw err;
   }
   return data;
+}
+
+/** Eligible templates for a channel — always fresh (no browser cache). */
+export async function fetchEligibleTemplates(channelId = null) {
+  const params = new URLSearchParams();
+  const cid = Number(channelId);
+  if (cid > 0) params.set("channel_id", String(cid));
+  params.set("_", String(Date.now()));
+  const res = await api(`/WaDesk/Templates/list?${params}`, { cache: "no-store" });
+  return res.data?.templates ?? [];
 }

@@ -346,7 +346,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import { api } from '../api';
+import { api, fetchEligibleTemplates } from '../api';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import ThemeToggle from '../components/ThemeToggle.vue';
 import {
@@ -459,6 +459,14 @@ const blastTemplatePreview = computed(() => {
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {
   await loadKeys();
+  templates.value = [];
+  form.template_id = '';
+  csvParams.value = [];
+  csvHeaders.value = [];
+  resetUpload();
+  if (form.channel_id) {
+    await loadTemplates(form.channel_id);
+  }
   await loadBlasts();
   // Poll list every 10s to refresh active blast progress
   listPollTimer = setInterval(() => {
@@ -480,11 +488,9 @@ async function loadKeys() {
 }
 
 async function loadTemplates(channelId = null) {
+  templates.value = [];
   try {
-    const cid = Number(channelId);
-    const qs = cid > 0 ? `?channel_id=${encodeURIComponent(cid)}` : "";
-    const res = await api(`/WaDesk/Templates/list${qs}`);
-    templates.value = res.data?.templates ?? [];
+    templates.value = await fetchEligibleTemplates(channelId);
   } catch (_) {
     templates.value = [];
   }
@@ -526,7 +532,7 @@ async function loadDetail(blastId, page = 1) {
 }
 
 // ---- event handlers -------------------------------------------------------
-function onKeyChange() {
+async function onKeyChange() {
   form.template_id = '';
   csvParams.value = [];
   csvHeaders.value = [];
@@ -534,7 +540,7 @@ function onKeyChange() {
   resetUpload();
   if (form.channel_id) {
     loadKeyQuota(form.channel_id);
-    loadTemplates(form.channel_id);
+    await loadTemplates(form.channel_id);
   } else {
     templates.value = [];
   }

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { api, wsUrl } from "../api";
+import { api, fetchEligibleTemplates, wsUrl } from "../api";
 
 export const useChatStore = defineStore("chat", {
   state: () => ({
@@ -29,6 +29,7 @@ export const useChatStore = defineStore("chat", {
         const params = new URLSearchParams();
         if (this.search.trim()) params.set("q", this.search.trim());
         if (this.listFilter === "unread") params.set("filter", "unread");
+        if (this.listFilter === "open") params.set("filter", "open");
         const qs = params.toString();
         const res = await api(`/WaDesk/Chat/getConversations${qs ? `?${qs}` : ""}`);
         this.conversations = res.data.conversations || [];
@@ -70,10 +71,12 @@ export const useChatStore = defineStore("chat", {
       this.keys = res.data.channels || res.data.keys || [];
     },
     async loadTemplates(channelId = null) {
-      const cid = Number(channelId);
-      const qs = cid > 0 ? `?channel_id=${encodeURIComponent(cid)}` : "";
-      const res = await api(`/WaDesk/Templates/list${qs}`);
-      this.templates = res.data.templates || [];
+      this.templates = [];
+      try {
+        this.templates = await fetchEligibleTemplates(channelId);
+      } catch {
+        this.templates = [];
+      }
     },
     async sendFree(message) {
       if (!this.activeId) throw new Error("Pilih percakapan");

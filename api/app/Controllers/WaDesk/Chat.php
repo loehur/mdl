@@ -41,6 +41,8 @@ class Chat extends WaDeskController
                 WHERE {$visSql}";
         if ($filter === 'unread') {
             $sql .= ' AND c.unread > 0';
+        } elseif ($filter === 'open') {
+            $sql .= ' AND c.last_in_at IS NOT NULL AND c.last_in_at >= DATE_SUB(NOW(), INTERVAL 23 HOUR)';
         }
         if ($q !== '') {
             $sql .= ' AND (c.phone LIKE ? OR c.name LIKE ? OR c.last_message LIKE ?)';

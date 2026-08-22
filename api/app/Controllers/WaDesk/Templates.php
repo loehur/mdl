@@ -12,6 +12,9 @@ class Templates extends WaDeskController
 {
     public function list()
     {
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
         $this->verifyAuth();
         $user = $this->requireChatUser();
         $tenantId = (int) $user['tenant_id'];

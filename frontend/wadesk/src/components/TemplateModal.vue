@@ -149,7 +149,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../api";
 import {
   buildFilledPreview,
@@ -202,12 +202,23 @@ function clearAiWarning() {
   aiWarning.value = "";
 }
 
+function requestTemplateReload() {
+  const cid = form.channel_id || props.fixedKeyId;
+  if (cid) {
+    emit("load-templates", cid);
+  }
+}
+
+onMounted(() => {
+  requestTemplateReload();
+});
+
 watch(
   () => props.fixedKeyId,
   (v) => {
     if (v) {
       form.channel_id = v;
-      emit("load-templates", v);
+      requestTemplateReload();
     }
   },
   { immediate: true }
@@ -231,7 +242,7 @@ watch(
 function onKeyChange() {
   form.template_id = "";
   clearAiWarning();
-  emit("load-templates", form.channel_id || props.fixedKeyId);
+  requestTemplateReload();
 }
 
 function onTplChange() {

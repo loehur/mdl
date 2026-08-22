@@ -80,6 +80,14 @@
             </button>
             <button
               type="button"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
+              :class="chat.listFilter === 'open' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
+              @click="setListFilter('open')"
+            >
+              Open
+            </button>
+            <button
+              type="button"
               class="flex-1 py-1.5 rounded-lg text-xs font-medium transition inline-flex items-center justify-center gap-1.5"
               :class="chat.listFilter === 'unread' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
               @click="setListFilter('unread')"
@@ -106,9 +114,20 @@
             @click="openChat(c.id)"
           >
             <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <p class="font-medium text-slate-100 truncate">{{ c.name || c.phone }}</p>
-                <p class="text-xs text-slate-500 truncate mt-0.5">{{ c.last_message || "—" }}</p>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline justify-between gap-2">
+                  <p class="font-medium text-slate-100 truncate">{{ c.name || c.phone }}</p>
+                  <span
+                    v-if="formatConvTime(c)"
+                    class="shrink-0 text-[10px] tabular-nums"
+                    :class="Number(c.unread) > 0 ? 'text-accent-soft font-medium' : 'text-slate-500'"
+                  >
+                    {{ formatConvTime(c) }}
+                  </span>
+                </div>
+                <p class="text-xs truncate mt-0.5" :class="Number(c.unread) > 0 ? 'text-slate-300 font-medium' : 'text-slate-500'">
+                  {{ c.last_message || "—" }}
+                </p>
                 <p class="text-[10px] text-slate-600 mt-1">
                   {{ c.team_name || "team" }} · {{ c.key_label || c.wa_number }}
                   <span :class="c.csw_open ? 'text-emerald-400' : 'text-amber-400'">
@@ -118,14 +137,20 @@
               </div>
               <span
                 v-if="Number(c.unread) > 0"
-                class="shrink-0 min-w-[1.25rem] h-5 px-1 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center"
+                class="shrink-0 min-w-[1.25rem] h-5 px-1 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center self-center"
               >
                 {{ c.unread }}
               </span>
             </div>
           </button>
           <p v-if="!chat.loadingList && !chat.conversations.length" class="p-6 text-center text-sm text-slate-500">
-            {{ chat.listFilter === 'unread' ? 'Tidak ada chat belum dibaca' : 'Belum ada percakapan' }}
+            {{
+              chat.listFilter === 'unread'
+                ? 'Tidak ada chat belum dibaca'
+                : chat.listFilter === 'open'
+                  ? 'Tidak ada chat CSW terbuka'
+                  : 'Belum ada percakapan'
+            }}
           </p>
         </div>
       </aside>
@@ -249,6 +274,7 @@
 
     <TemplateModal
       v-if="showNew || showTpl"
+      :key="templateModalKey"
       :keys="chat.keys"
       :templates="chat.templates"
       :fixed-key-id="tplKeyId"
@@ -291,6 +317,7 @@ const sending = ref(false);
 const sendError = ref("");
 const showNew = ref(false);
 const showTpl = ref(false);
+const templateModalKey = ref(0);
 const tplKeyId = ref(null);
 const tplPhone = ref("");
 const tplSending = ref(false);
@@ -307,6 +334,38 @@ function formatTime(v) {
   } catch {
     return v;
   }
+}
+
+function parseConvDate(c) {
+  const raw = c?.last_message_at || c?.updated_at || c?.created_at;
+  if (!raw) return null;
+  try {
+    const d = new Date(String(raw).replace(" ", "T"));
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+function formatConvTime(c) {
+  const d = parseConvDate(c);
+  if (!d) return "";
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayDiff = Math.round((startOfToday - startOfTarget) / 86400000);
+
+  if (dayDiff === 0) {
+    return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (dayDiff === 1) {
+    return "Kemarin";
+  }
+  if (dayDiff < 7) {
+    return d.toLocaleDateString("id-ID", { weekday: "short" });
+  }
+  return d.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 function escapeRegExp(s) {
@@ -417,19 +476,27 @@ watch(
 
 function openNewChat() {
   if (!auth.canSendWa) return;
+  templateModalKey.value += 1;
   tplKeyId.value = null;
   tplPhone.value = "";
   tplError.value = "";
+  chat.templates = [];
   showTpl.value = false;
   showNew.value = true;
 }
 
-function openTemplateForActive() {
+async function openTemplateForActive() {
+  if (!auth.canSendWa) return;
+  templateModalKey.value += 1;
   tplKeyId.value = chat.active?.channel_id || null;
   tplPhone.value = chat.active?.phone || "";
   tplError.value = "";
+  chat.templates = [];
+  showNew.value = false;
   showTpl.value = true;
-  chat.loadTemplates(tplKeyId.value);
+  if (tplKeyId.value) {
+    await chat.loadTemplates(tplKeyId.value);
+  }
 }
 
 function closeModals() {
