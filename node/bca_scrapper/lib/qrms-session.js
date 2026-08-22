@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const log = require('./log');
 
 const CACHE_DIR = path.join(__dirname, '..', '.cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'qrms-session.json');
@@ -24,6 +25,8 @@ let store = {};
  *   hashKey?: string,
  *   xoid?: string,
  *   appVersion: string|null,
+ *   browserCookies?: Array<Record<string, unknown>>,
+ *   browserStorage?: Record<string, string>,
  *   expiresAt: number,
  *   refreshExpiresAt?: number,
  *   outlets?: Array<Record<string, unknown>>,
@@ -98,7 +101,7 @@ function persistStore() {
     fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
     fs.writeFileSync(CACHE_FILE, JSON.stringify(store, null, 0), { mode: 0o600 });
   } catch (err) {
-    console.warn('[qrms-session] persist failed:', err instanceof Error ? err.message : err);
+    log.warn('[qrms-session] persist failed:', err instanceof Error ? err.message : err);
   }
 }
 
@@ -165,6 +168,8 @@ function getForRefresh(email) {
  *   hashKey?: string,
  *   xoid?: string,
  *   appVersion?: string|null,
+ *   browserCookies?: Array<Record<string, unknown>>,
+ *   browserStorage?: Record<string, string>,
  *   expiresIn?: number,
  *   refreshExpiresIn?: number,
  *   outlets?: Array<Record<string, unknown>>,
@@ -204,6 +209,8 @@ function save(email, data) {
     hashKey: data.hashKey !== undefined ? data.hashKey : prev?.hashKey,
     xoid: data.xoid !== undefined ? data.xoid : prev?.xoid,
     appVersion: data.appVersion !== undefined ? data.appVersion : (prev?.appVersion ?? null),
+    browserCookies: data.browserCookies !== undefined ? data.browserCookies : prev?.browserCookies,
+    browserStorage: data.browserStorage !== undefined ? data.browserStorage : prev?.browserStorage,
     expiresAt,
     refreshExpiresAt,
     outlets: Array.isArray(data.outlets) ? data.outlets : prev?.outlets,
@@ -261,6 +268,7 @@ function status(email) {
     cached: accessValid,
     access_valid: accessValid,
     refresh_available: refreshValid && Boolean(entry.refreshToken),
+    browser_state: Boolean(entry.browserCookies?.length && entry.browserStorage),
     expires_in_sec: accessValid
       ? Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000))
       : 0,

@@ -2,6 +2,7 @@ const { fetchBalanceHttp, fetchMutasiHttp } = require('./http');
 const { fetchBalancePuppeteer, fetchMutasiPuppeteer } = require('./puppeteer');
 
 const debug = require('./debug');
+const log = require('./log');
 
 /**
  * @param {() => Promise<any>} httpFn
@@ -16,9 +17,9 @@ async function withHttpFallback(httpFn, puppeteerFn, label) {
     return { ok: true, method: 'http', data };
   } catch (err) {
     httpError = err instanceof Error ? err.message : String(err);
-    console.warn(`[bca_scrapper] HTTP ${label} failed:`, httpError);
+    log.warn(`[bca_scrapper] HTTP ${label} failed:`, httpError);
     if (debug.isEnabled()) {
-      console.warn(
+      log.warn(
         `[bca_scrapper] Lihat folder debug/ untuk HTML step HTTP (${label}) sebelum fallback Puppeteer`
       );
     }
@@ -29,7 +30,7 @@ async function withHttpFallback(httpFn, puppeteerFn, label) {
     return { ok: true, method: 'puppeteer', data, http_error: httpError };
   } catch (err) {
     const puppeteerError = err instanceof Error ? err.message : String(err);
-    console.error(`[bca_scrapper] Puppeteer ${label} failed:`, puppeteerError);
+    log.error(`[bca_scrapper] Puppeteer ${label} failed:`, puppeteerError);
     const error = new Error(
       httpError
         ? `HTTP gagal (${httpError}); Puppeteer gagal (${puppeteerError})`

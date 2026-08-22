@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const log = require('./log');
 
 const DEBUG_ROOT = path.join(__dirname, '..', 'debug');
 
@@ -62,7 +63,7 @@ function step(run, name, meta = {}) {
   if (meta.url) parts.push(`url=${meta.url}`);
   if (meta.bytes != null) parts.push(`bytes=${meta.bytes}`);
   if (meta.error) parts.push(`error=${meta.error}`);
-  console.log(parts.join(' '));
+  log.log(parts.join(' '));
 }
 
 /**
@@ -113,7 +114,7 @@ function finishRun(run, summary = {}) {
 
   const file = path.join(run.dir, 'report.json');
   fs.writeFileSync(file, JSON.stringify(report, null, 2), 'utf8');
-  console.log(`[bca_debug][${run.id}] report → ${file}`);
+  log.log(`[bca_debug][${run.id}] report → ${file}`);
 }
 
 module.exports = {

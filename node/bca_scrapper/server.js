@@ -7,6 +7,7 @@ const cors = require('cors');
 const { getBalance, getMutasi } = require('./lib/scraper');
 const { getQrisTransactions } = require('./lib/qrms-scraper');
 const debug = require('./lib/debug');
+const log = require('./lib/log');
 const { validateMutasiDateRange, validateQrisDateRange, MAX_RANGE_DAYS, MAX_LOOKBACK_DAYS, QRIS_MAX_RANGE_DAYS, QRIS_MAX_LOOKBACK_DAYS, TZ } = require('./lib/date-range');
 const cooldown = require('./lib/cooldown');
 const { chromeStatus } = require('./lib/puppeteer-launch');
@@ -42,7 +43,7 @@ function requireToken(req, res, next) {
 
   if (bearer === AUTH_TOKEN || q === AUTH_TOKEN) return next();
 
-  console.warn('[bca_scrapper] 401 unauthorized', req.method, req.path);
+  log.warn('[bca_scrapper] 401 unauthorized', req.method, req.path);
   return res.status(401).json({
     ok: false,
     error: 'unauthorized',
@@ -267,7 +268,7 @@ async function handleQrisTransactions(req, res) {
 
     const fromCache = Boolean(result.data.from_cache);
     const authMethod = String(result.data.auth_method || (fromCache ? 'cache' : 'puppeteer'));
-    console.log(
+    log.log(
       `[bca_scrapper] /qris/transactions ok count=${result.data.transactions.length}`
       + ` auth=${authMethod.toUpperCase()}`
       + ` ${validatedDates.startDate}..${validatedDates.endDate}`
@@ -331,21 +332,21 @@ app.post('/qris/transactions', requireToken, handleQrisTransactions);
 app.get('/qris/transactions', requireToken, handleQrisTransactions);
 
 app.listen(PORT, HOST, () => {
-  console.log('========================================');
-  console.log('  BCA Scrapper (KlikBCA mutasi + QRMS transaksi)');
-  console.log('========================================');
-  console.log(`  HTTP: http://${HOST}:${PORT}`);
-  console.log(`  Auth: ${AUTH_TOKEN ? 'X-Bca-Token required' : 'open (set BCA_SCRAPPER_TOKEN)'}`);
-  console.log('  POST /balance  { username, password }');
-  console.log('  POST /mutasi   { username, password, start_date?, end_date? }');
-  console.log('  POST /qris/transactions { start_date?, end_date? } — max kemarin+hari ini, lookback 1 hari');
-  console.log('  GET  /health');
-  console.log(`  Debug: ${debug.isEnabled() ? 'ON → saves to debug/' : 'off (set BCA_DEBUG=true)'}`);
-  console.log(`  Mutasi limits: end<=today (${TZ}), max ${MAX_RANGE_DAYS} days range, max ${MAX_LOOKBACK_DAYS} days lookback`);
-  console.log(`  QRIS limits: max ${QRIS_MAX_RANGE_DAYS} days range, max ${QRIS_MAX_LOOKBACK_DAYS} days lookback (${TZ})`);
-  console.log(
+  log.log('========================================');
+  log.log('  BCA Scrapper (KlikBCA mutasi + QRMS transaksi)');
+  log.log('========================================');
+  log.log(`  HTTP: http://${HOST}:${PORT}`);
+  log.log(`  Auth: ${AUTH_TOKEN ? 'X-Bca-Token required' : 'open (set BCA_SCRAPPER_TOKEN)'}`);
+  log.log('  POST /balance  { username, password }');
+  log.log('  POST /mutasi   { username, password, start_date?, end_date? }');
+  log.log('  POST /qris/transactions { start_date?, end_date? } — max kemarin+hari ini, lookback 1 hari');
+  log.log('  GET  /health');
+  log.log(`  Debug: ${debug.isEnabled() ? 'ON → saves to debug/' : 'off (set BCA_DEBUG=true)'}`);
+  log.log(`  Mutasi limits: end<=today (${TZ}), max ${MAX_RANGE_DAYS} days range, max ${MAX_LOOKBACK_DAYS} days lookback`);
+  log.log(`  QRIS limits: max ${QRIS_MAX_RANGE_DAYS} days range, max ${QRIS_MAX_LOOKBACK_DAYS} days lookback (${TZ})`);
+  log.log(
     `  Cooldown: balance ${Math.round(cooldown.limits.balance / 60000)}m, mutasi ${Math.round(cooldown.limits.mutasi / 60000)}m, qris ${Math.round(cooldown.limits.qris / 60000)}m`
   );
-  console.log('  Strategy: ibank HTTP → Puppeteer fallback; QRMS HTTP (encrypt + MSSI API)');
-  console.log('========================================');
+  log.log('  Strategy: ibank HTTP → Puppeteer fallback; QRMS HTTP (encrypt + MSSI API)');
+  log.log('========================================');
 });

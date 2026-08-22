@@ -1,5 +1,10 @@
 const { API, URLS, USER_AGENT } = require('./qrms-config');
 const { buildEncryptedLoginPayload } = require('./qrms-auth');
+const {
+  captureBrowserState,
+  warmRefreshCryptoFromPage,
+  refreshViaBrowserState,
+} = require('./qrms-browser-session');
 const qrmsSession = require('./qrms-session');
 const { scrapeTransactionsForDateRange } = require('./qrms-dom');
 const {
@@ -7,6 +12,7 @@ const {
   filterByDateRange,
 } = require('./qrms-parser');
 const debug = require('./debug');
+const log = require('./log');
 
 function withTimeout(promise, ms) {
   let timer;
@@ -33,16 +39,26 @@ function bmsHeaders(token, opts = {}) {
 /**
  * @param {Record<string, string>} loginForm
  * @param {number} timeoutMs
+ * @param {{ appVersion?: string|null }} [tokenOpts]
  */
-async function fetchToken(loginForm, timeoutMs) {
+async function fetchToken(loginForm, timeoutMs, tokenOpts = {}) {
+  /** @type {Record<string, string>} */
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    Accept: 'application/json, text/plain, */*',
+    'User-Agent': USER_AGENT,
+    Referer: URLS.referer,
+    Origin: 'https://qr.klikbca.com',
+    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+  };
+  if (tokenOpts.appVersion) {
+    headers['x-app-version'] = tokenOpts.appVersion;
+  }
+
   const res = await withTimeout(
     fetch(API.token, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-        'User-Agent': USER_AGENT,
-      },
+      headers,
       body: new URLSearchParams(loginForm),
     }),
     timeoutMs
@@ -250,7 +266,54 @@ async function refreshAccessToken(entry, timeoutMs) {
     hash_key: entry.hashKey,
     xoid: entry.xoid,
   };
-  return fetchToken(form, timeoutMs);
+  return fetchToken(form, timeoutMs, { appVersion: entry.appVersion });
+}
+
+function formatTokenError(err) {
+  const base = err instanceof Error ? err.message : String(err);
+  const body = err && err.response ? err.response : null;
+  if (!body || typeof body !== 'object') return base;
+  const detail =
+    body.error_description ||
+    body.error ||
+    body.message ||
+    body.detailmessage ||
+    null;
+  return detail ? `${base} (${detail})` : base;
+}
+
+/**
+ * Simpan token + crypto refresh ke cache.
+ * @param {string} email
+ * @param {import('./qrms-session').QrmsSessionEntry} prev
+ * @param {{
+ *   tokenJson: Record<string, unknown>,
+ *   hashKey?: string,
+ *   xoid?: string,
+ *   appVersion?: string|null,
+ *   browserCookies?: Array<Record<string, unknown>>,
+ *   browserStorage?: Record<string, string>,
+ *   outlets?: Array<Record<string, unknown>>,
+ * }} data
+ */
+function persistAuthSession(email, prev, data) {
+  qrmsSession.save(email, {
+    accessToken: String(data.tokenJson.access_token),
+    refreshToken: data.tokenJson.refresh_token
+      ? String(data.tokenJson.refresh_token)
+      : prev?.refreshToken,
+    hashKey: data.hashKey || prev?.hashKey,
+    xoid: data.xoid || prev?.xoid,
+    appVersion: data.appVersion !== undefined ? data.appVersion : prev?.appVersion,
+    browserCookies: data.browserCookies || prev?.browserCookies,
+    browserStorage: data.browserStorage || prev?.browserStorage,
+    expiresIn: Number(data.tokenJson.expires_in),
+    refreshExpiresIn:
+      data.tokenJson.refresh_expires_in != null
+        ? Number(data.tokenJson.refresh_expires_in)
+        : undefined,
+    outlets: data.outlets || prev?.outlets,
+  });
 }
 
 /**
@@ -258,7 +321,7 @@ async function refreshAccessToken(entry, timeoutMs) {
  */
 function logAuthMethod(authMethod, extra = '') {
   const tag = authMethod.toUpperCase();
-  console.log(`[bca_scrapper][qris] auth=${tag}${extra ? ` ${extra}` : ''}`);
+  log.log(`[bca_scrapper][qris] auth=${tag}${extra ? ` ${extra}` : ''}`);
 }
 
 /**
@@ -302,23 +365,19 @@ async function resolveAuth(opts, run, forceLogin = false) {
           refresh_expires_in: tokenJson.refresh_expires_in,
         });
 
-        const token = tokenJson.access_token;
-        qrmsSession.save(opts.email, {
-          accessToken: token,
-          refreshToken: tokenJson.refresh_token || stale.refreshToken,
+        persistAuthSession(opts.email, stale, {
+          tokenJson,
           hashKey: stale.hashKey,
           xoid: stale.xoid,
           appVersion: stale.appVersion,
-          expiresIn: tokenJson.expires_in,
-          refreshExpiresIn: tokenJson.refresh_expires_in,
           outlets: stale.outlets,
         });
-        console.log(
+        log.log(
           `[bca_scrapper][qris] session=REFRESHED expires_in=${tokenJson.expires_in ?? '?'}s`
         );
 
         return {
-          token,
+          token: tokenJson.access_token,
           appVersion: stale.appVersion,
           outlets: Array.isArray(stale.outlets) ? stale.outlets : null,
           authMethod: 'refresh',
@@ -326,14 +385,51 @@ async function resolveAuth(opts, run, forceLogin = false) {
           dashboardPage: null,
         };
       } catch (err) {
-        debug.step(run, 'session_refresh_failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        console.warn(
-          '[bca_scrapper][qris] refresh=FAILED',
-          err instanceof Error ? err.message : err,
-          '→ Puppeteer'
-        );
+        const detail = formatTokenError(err);
+        debug.step(run, 'session_refresh_failed', { error: detail });
+
+        if (stale.browserCookies?.length && stale.browserStorage) {
+          try {
+            debug.step(run, 'session_refresh_browser_fallback');
+            log.warn('[bca_scrapper][qris] refresh=HTTP_FAILED', detail, '→ browser refresh');
+            logAuthMethod('refresh', '(browser)');
+            const warmed = await refreshViaBrowserState(stale, {
+              headless: opts.headless,
+              timeoutMs: Math.max(timeoutMs, 45000),
+            });
+            persistAuthSession(opts.email, stale, {
+              tokenJson: warmed.tokenJson,
+              hashKey: warmed.hashKey,
+              xoid: warmed.xoid,
+              appVersion: warmed.appVersion,
+              browserCookies: warmed.browserState.cookies,
+              browserStorage: warmed.browserState.storage,
+              outlets: stale.outlets,
+            });
+            log.log(
+              `[bca_scrapper][qris] session=REFRESHED expires_in=${warmed.tokenJson.expires_in ?? '?'}s via=browser`
+            );
+            return {
+              token: warmed.tokenJson.access_token,
+              appVersion: warmed.appVersion || stale.appVersion,
+              outlets: Array.isArray(stale.outlets) ? stale.outlets : null,
+              authMethod: 'refresh',
+              releaseBrowser: null,
+              dashboardPage: null,
+            };
+          } catch (browserErr) {
+            debug.step(run, 'session_refresh_browser_failed', {
+              error: formatTokenError(browserErr),
+            });
+            log.warn(
+              '[bca_scrapper][qris] refresh=FAILED',
+              formatTokenError(browserErr),
+              '→ Puppeteer'
+            );
+          }
+        } else {
+          log.warn('[bca_scrapper][qris] refresh=FAILED', detail, '→ Puppeteer');
+        }
         qrmsSession.invalidate(opts.email);
       }
     }
@@ -355,7 +451,9 @@ async function resolveAuth(opts, run, forceLogin = false) {
     has_app_version: Boolean(loginPayload.appVersion),
   });
 
-  const tokenJson = await fetchToken(loginForm, timeoutMs);
+  const tokenJson = await fetchToken(loginForm, timeoutMs, {
+    appVersion: loginPayload.appVersion,
+  });
   debug.saveJson(run, 'token_response', {
     token_type: tokenJson.token_type,
     expires_in: tokenJson.expires_in,
@@ -363,31 +461,65 @@ async function resolveAuth(opts, run, forceLogin = false) {
     refresh_expires_in: tokenJson.refresh_expires_in,
   });
 
-  const token = tokenJson.access_token;
+  let finalTokenJson = tokenJson;
   const appVersion = loginPayload.appVersion;
 
   debug.step(run, 'fetch_outlets');
-  const outlets = await fetchOutlets(token, timeoutMs, appVersion);
+  const outlets = await fetchOutlets(finalTokenJson.access_token, timeoutMs, appVersion);
   debug.saveJson(run, 'outlets', outlets);
 
-  qrmsSession.save(opts.email, {
-    accessToken: token,
-    refreshToken: tokenJson.refresh_token,
-    hashKey: loginForm.hash_key,
-    xoid: loginForm.xoid,
-    appVersion,
-    expiresIn: tokenJson.expires_in,
-    refreshExpiresIn: tokenJson.refresh_expires_in,
+  let hashKey = loginForm.hash_key;
+  let xoid = loginForm.xoid;
+  let finalAppVersion = appVersion;
+  /** @type {{ cookies: Array<Record<string, unknown>>, storage: Record<string, string> } | null} */
+  let browserState = null;
+
+  if (loginPayload.page) {
+    try {
+      browserState = await captureBrowserState(loginPayload.page);
+      const warmed = await warmRefreshCryptoFromPage(
+        loginPayload.page,
+        Math.max(timeoutMs, 45000)
+      );
+      finalTokenJson = warmed.tokenJson;
+      hashKey = warmed.hashKey || hashKey;
+      xoid = warmed.xoid || xoid;
+      finalAppVersion = warmed.appVersion || finalAppVersion;
+      browserState = await captureBrowserState(loginPayload.page);
+      debug.step(run, 'warm_refresh_crypto_ok', {
+        has_hash_key: Boolean(hashKey),
+        has_xoid: Boolean(xoid),
+      });
+    } catch (warmErr) {
+      debug.step(run, 'warm_refresh_crypto_skipped', {
+        error: warmErr instanceof Error ? warmErr.message : String(warmErr),
+      });
+      if (!browserState) {
+        browserState = await captureBrowserState(loginPayload.page);
+      }
+    }
+  }
+
+  persistAuthSession(opts.email, null, {
+    tokenJson: finalTokenJson,
+    hashKey,
+    xoid,
+    appVersion: finalAppVersion,
+    browserCookies: browserState?.cookies,
+    browserStorage: browserState?.storage,
     outlets,
   });
-  console.log(
-    `[bca_scrapper][qris] session=SAVED expires_in=${tokenJson.expires_in ?? '?'}s`
-    + ` refresh=${tokenJson.refresh_token ? 'yes' : 'no'}`
+  log.log(
+    `[bca_scrapper][qris] session=SAVED expires_in=${finalTokenJson.expires_in ?? '?'}s`
+    + ` refresh=${finalTokenJson.refresh_token ? 'yes' : 'no'}`
+    + ` browser_state=${browserState ? 'yes' : 'no'}`
   );
+
+  const token = finalTokenJson.access_token;
 
   return {
     token,
-    appVersion,
+    appVersion: finalAppVersion,
     outlets,
     authMethod: 'puppeteer',
     releaseBrowser: loginPayload.release || null,
@@ -487,7 +619,7 @@ async function fetchQrisTransactionsHttp(opts) {
           usedDomFallback,
           auth: auth.authMethod,
         });
-        console.log(
+        log.log(
           `[bca_scrapper][qris] done auth=${auth.authMethod.toUpperCase()}`
           + ` count=${transactions.length} dom_fallback=${usedDomFallback ? 'yes' : 'no'}`
           + ` range=${opts.startDate}..${opts.endDate}`
@@ -509,7 +641,7 @@ async function fetchQrisTransactionsHttp(opts) {
         if (attempt === 0 && isAuthError(err)) {
           qrmsSession.invalidate(opts.email);
           debug.step(run, 'session_cache_invalidate_retry');
-          console.warn('[bca_scrapper][qris] session=INVALIDATED retrying with Puppeteer');
+          log.warn('[bca_scrapper][qris] session=INVALIDATED retrying with Puppeteer');
           if (releaseBrowser) {
             await releaseBrowser().catch(() => {});
             releaseBrowser = null;
