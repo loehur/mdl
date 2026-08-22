@@ -152,7 +152,7 @@ class Pengeluaran extends Controller
 
 
 
-         $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $jenis, $kodeFn, $id);
+         $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, $id);
 
          PengeluaranAiLog::info('HISTORY', ['req' => $reqId, 'jenis' => $jenis, 'count' => count($history)]);
 
@@ -224,7 +224,7 @@ class Pengeluaran extends Controller
 
                $jenis = trim((string) ($pending['note_primary'] ?? ''));
 
-               $history = $review->fetchHistory30Days($this->db(0), $this->wCabangAll(), $jenis, $kodeFn, (string) ($pending['id_kas'] ?? ''));
+               $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, (string) ($pending['id_kas'] ?? ''));
 
                $fallbackPayload = $review->pendingPayload($pending, $kodeFn);
 
