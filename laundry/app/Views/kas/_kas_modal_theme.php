@@ -45,13 +45,14 @@
     animation: kasModalIn .18s ease-out;
   }
   .op-modal__panel--kas {
-    width: min(760px, 100%);
+    width: min(480px, 100%);
+    max-height: min(90vh, 640px);
   }
   .op-modal__panel--form {
-    min-height: min(72vh, 620px);
+    min-height: auto;
   }
   .op-modal__panel--kas.op-modal__panel--form {
-    min-height: min(68vh, 580px);
+    min-height: auto;
   }
   @keyframes kasModalIn {
     from { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -269,7 +270,7 @@
     gap: 12px 14px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 576px) {
+  @media (min-width: 420px) {
     .kas-pg-modal-grid {
       grid-template-columns: 1fr 1fr;
     }
