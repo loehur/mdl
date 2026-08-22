@@ -77,7 +77,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
           Memuat riwayat 30 hari…
         </div>
         <div id="pgAiResult" class="d-none">
-          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-stream"></i> 3 pengeluaran terakhir</div>
+          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-stream"></i> 5 pengeluaran terakhir</div>
           <div id="pgAiAnalysis" style="font-size:.88rem;line-height:1.55;color:#0f172a;"></div>
         </div>
         <div id="pgAiError" class="d-none alert alert-warning mb-0 py-2 small"></div>
