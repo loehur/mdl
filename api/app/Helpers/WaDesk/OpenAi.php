@@ -22,7 +22,8 @@ class OpenAi
     public function chatJson(
         string $systemPrompt,
         string $userPrompt,
-        string $model = 'gpt-4o-mini'
+        string $model = 'gpt-4o-mini',
+        float $temperature = 0
     ): array {
         if ($this->apiKey === '') {
             return ['success' => false, 'http_code' => 0, 'data' => [], 'error' => 'OpenAI API key kosong'];
@@ -35,7 +36,7 @@ class OpenAi
                 ['role' => 'user', 'content' => $userPrompt],
             ],
             'response_format' => ['type' => 'json_object'],
-            'temperature' => 0,
+            'temperature' => $temperature,
         ];
 
         $ch = curl_init($this->baseUrl . '/chat/completions');

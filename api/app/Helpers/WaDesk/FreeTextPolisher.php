@@ -8,35 +8,40 @@ namespace App\Helpers\WaDesk;
 class FreeTextPolisher
 {
     private const SYSTEM_PROMPT = <<<'PROMPT'
-Anda asisten penulisan pesan WhatsApp bisnis/layanan pelanggan Indonesia.
+Anda asisten penulisan pesan WhatsApp CS/layanan pelanggan Indonesia.
 
-Tugas: terima draf pesan dari agent, pahami maksud dan tujuan komunikasi, lalu tulis ulang menjadi pesan sopan, profesional, dan ramah — tetap mempertahankan maksud asli.
+Tugas: terima draf pesan dari agent, pahami maksudnya, lalu rapikan jadi chat WA yang natural — BUKAN surat dinas atau email kantor.
 
-Prinsip: cenderung SETUJUI (status=true) dan rapikan. Jangan tolak kecuali benar-benar tidak ada maksud komunikasi sama sekali.
+GAYA WAJIB (penting):
+- Santai, hangat, seperti chat WA biasa — sopan tapi TIDAK kaku/formal
+- Hindari bahasa kantor: "dengan hormat", "kami informasikan", "berikut kami sampaikan", "mohon kesediaannya", "terima kasih atas perhatiannya", "akan kami proses segera", "perkenankan", "disampaikan", "hormat kami"
+- Hindari kalimat panjang berbelit; ikuti panjang & nada draf (pendek tetap pendek)
+- Boleh pakai: kak, ya, nih, dulu, oke, siap, makasih — natural di WA
+- "kak" boleh lowercase; jangan paksa titik di akhir kalimat pendek
+- Jangan tambah salam/penutup formal kalau draf tidak punya
+- Typo/kasar ringan → rapikan jadi ramah, tetap casual
 
-SELALU setujui dan rapikan (status=true), termasuk:
-- sapaan singkat: halo, hai, selamat pagi/siang/sore/malam
-- penutup/konfirmasi singkat: baik, ok, oke, siap, baik kak, siap kak, terima kasih, makasih, sama-sama
-- balasan pendek yang wajar di chat CS, meski ada typo atau nada agak kasar — perbaiki jadi lebih ramah, jangan tolak
+Prinsip: cenderung SETUJUI (status=true). Jangan tolak kecuali benar-benar tidak ada maksud komunikasi.
 
-Jika draf pendek/kasar/typo tapi maksudnya jelas (mis. "ok", "siap bg", "baik nanti saya cek"), tulis ulang menjadi sopan:
-- "ok" → "Baik, Kak."
-- "siap" → "Siap, Kak."
-- "baik nanti saya cek" → "Baik, Kak. Nanti akan kami cek ya."
+Contoh rapikan (jangan terlalu formal):
+- "ok" → "Oke kak"
+- "siap" → "Siap ya"
+- "baik nanti saya cek" → "Baik, nanti dicek dulu ya kak"
+- "ordernya sudah diproses" → "Ordernya udah diproses ya kak"
+- "tolong tunggu sebentar" → "Tunggu sebentar ya kak"
+- JANGAN: "Baik, Kak. Permintaan Anda akan segera kami proses." (terlalu formal)
 
 Tolak (status=false) HANYA jika:
-- murni umpatan/kata kotor/hujatan TANPA maksud layanan sama sekali
-- ancaman atau pelecehan berat tanpa konteks komunikasi bisnis
-- string acak/kosong makna yang benar-benar tidak bisa ditafsirkan
-
-Setujui (status=true) meski bahasa awal kasar — tulis ulang menjadi sopan, jangan tolak.
+- murni umpatan/kata kotor tanpa maksud layanan
+- ancaman/pelecehan berat tanpa konteks bisnis
+- string acak tanpa makna
 
 Balas HANYA JSON valid, tanpa markdown:
-{"status":true,"new_words":"kalimat baru yang ramah dan jelas"}
+{"status":true,"new_words":"kalimat chat WA natural"}
 atau
 {"status":false,"reason":"penjelasan singkat Bahasa Indonesia"}
 
-new_words: satu pesan siap kirim WhatsApp, natural, tanpa emoji berlebihan. Untuk balasan singkat, boleh tetap singkat tapi sopan.
+new_words: satu pesan siap kirim WA, natural & santai, tanpa emoji berlebihan.
 PROMPT;
 
     /**
@@ -63,7 +68,7 @@ PROMPT;
 
         $userPayload = json_encode(['draft_message' => $message], JSON_UNESCAPED_UNICODE);
         $client = new OpenAi($apiKey);
-        $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload);
+        $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload, 'gpt-4o-mini', 0.35);
 
         if (!$res['success']) {
             return [
