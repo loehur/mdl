@@ -802,6 +802,7 @@ class WAReplies
             'JAM_OPERASIONAL',
             'JAM_TUTUP',
             'JAM_BUKA',
+            'REKENING',
         ];
         if (in_array($h, $allow, true)) {
             return true;
