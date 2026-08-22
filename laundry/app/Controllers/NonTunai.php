@@ -333,16 +333,25 @@ class NonTunai extends Controller
          return;
       }
 
-      if (empty($guard['paid']) || $tipe !== 3) {
-         $set = [
-            'status_mutasi' => $tipe
-         ];
-         $up = $this->db(0)->update('kas', $set, $where);
-         if($up['errno'] <> 0){
-            $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
-            echo $up['error'];
+      $isQrisGateway = ($note === 'QRIS' && trim((string) ($kas['payment_trx_id'] ?? '')) !== '');
+      if ($tipe === 3 && $isQrisGateway) {
+         if (!$this->applyQrisPaidToKas($kas, $id, false)) {
+            echo 'Gagal mengkonfirmasi pembayaran QRIS';
             return;
          }
+         $this->runPostConfirmSideEffects($where);
+         echo 0;
+         return;
+      }
+
+      $set = [
+         'status_mutasi' => $tipe
+      ];
+      $up = $this->db(0)->update('kas', $set, $where);
+      if ($up['errno'] <> 0) {
+         $this->model('Log')->write('[NonTunai::operasi] Update Kas Error: ' . $up['error']);
+         echo $up['error'];
+         return;
       }
 
       $this->runPostConfirmSideEffects($where);

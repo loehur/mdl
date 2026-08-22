@@ -1188,48 +1188,31 @@ trait Attributes
       }
 
       $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
-      // Belum hit TokoPay: aman dihapus tanpa cek gateway.
       if ($trxId === '') {
          return ['action' => 'delete', 'msg' => ''];
       }
 
-      $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
-      $bucket = $this->probeQrisGatewayBucket($kas, $refFinance, $is_public);
-      if ($bucket === 'paid') {
-         if ($this->applyQrisPaidToKas($kas, $refFinance, $is_public)) {
-            return [
-               'action' => 'keep_paid',
-               'msg' => 'Pembayaran sudah berhasil di QRIS. Status diperbarui (tidak dihapus).',
-            ];
+      $guard = $this->guardQrisDestructiveAction($kas, $is_public);
+      if (!empty($guard['paid'])) {
+         return [
+            'action' => 'keep_paid',
+            'msg' => $guard['msg'] ?: 'Pembayaran sudah berhasil di QRIS. Status diperbarui (tidak dihapus).',
+         ];
+      }
+      if (!$guard['ok']) {
+         if (strpos($guard['msg'], 'masih aktif') !== false) {
+            return ['action' => 'keep_pending', 'msg' => $guard['msg']];
          }
-         return [
-            'action' => 'keep_unknown',
-            'msg' => 'QRIS sudah terbayar di gateway, tapi gagal update status. Tidak dihapus.',
-         ];
-      }
-      // Masih aktif di gateway: jangan hapus (QR bisa dibayar dari foto).
-      if ($bucket === 'pending') {
-         return [
-            'action' => 'keep_pending',
-            'msg' => 'QRIS masih aktif di gateway. Tidak dapat dihapus sampai expired/gagal.',
-         ];
-      }
-      // Expired/gagal/none → benar-benar tidak bisa dibayar lagi, boleh hapus.
-      if ($bucket === 'expired' || $bucket === 'none') {
-         return ['action' => 'delete', 'msg' => ''];
+         return ['action' => 'keep_unknown', 'msg' => $guard['msg']];
       }
 
-      return [
-         'action' => 'keep_unknown',
-         'msg' => 'Status QRIS tidak dapat dipastikan. Tidak dihapus demi keamanan.',
-      ];
+      return ['action' => 'delete', 'msg' => ''];
    }
 
    /**
     * Guard terima/tolak NonTunai vs status QRIS di gateway.
-    * Belum generate → bebas. Sudah generate: cek TokoPay dulu.
-    * Pending → jangan ubah (QR masih bisa dibayar). Expired → boleh.
-    * Paid → sync / blokir tolak.
+    * Terima (status 3): bebas tanpa cek TokoPay.
+    * Tolak/gagal: wajib cek TokoPay — blokir jika masih pending; sync & blokir jika sudah paid.
     * @return array{ok:bool,msg:string,paid:bool}
     */
    protected function guardQrisStatusChange($kas, $newStatus, $is_public = false)
@@ -1243,26 +1226,34 @@ trait Attributes
          return ['ok' => $newStatus === 3, 'msg' => 'QRIS sudah lunas', 'paid' => true];
       }
 
+      // Terima/lunas: tidak perlu cek gateway.
+      if ($newStatus === 3) {
+         return ['ok' => true, 'msg' => '', 'paid' => false];
+      }
+
+      return $this->guardQrisDestructiveAction($kas, $is_public);
+   }
+
+   /**
+    * Guard hapus/tolak QRIS TokoPay: wajib cek gateway, blokir jika masih pending.
+    * @return array{ok:bool,msg:string,paid:bool}
+    */
+   protected function guardQrisDestructiveAction($kas, $is_public = false)
+   {
       $trxId = trim((string) ($kas['payment_trx_id'] ?? ''));
       $refFinance = trim((string) ($kas['ref_finance'] ?? ''));
-      // Belum panggil TokoPay: bebas ubah/terima/tolak.
       if ($trxId === '') {
          return ['ok' => true, 'msg' => '', 'paid' => false];
       }
 
       $bucket = $this->probeQrisGatewayBucket($kas, $refFinance, $is_public);
       if ($bucket === 'paid') {
-         $synced = $this->applyQrisPaidToKas($kas, $refFinance, $is_public);
-         if ($newStatus === 3 && $synced) {
-            return ['ok' => true, 'msg' => '', 'paid' => true];
-         }
-         return ['ok' => false, 'msg' => 'QRIS sudah terbayar di gateway, tidak dapat ditolak', 'paid' => true];
+         $this->applyQrisPaidToKas($kas, $refFinance, $is_public);
+         return ['ok' => false, 'msg' => 'QRIS sudah terbayar di gateway, tidak dapat ditolak/dihapus', 'paid' => true];
       }
-      // QR masih hidup: jangan terima/tolak manual (bisa dibayar dari foto).
       if ($bucket === 'pending') {
-         return ['ok' => false, 'msg' => 'QRIS masih aktif di gateway. Tunggu expired/gagal atau webhook.', 'paid' => false];
+         return ['ok' => false, 'msg' => 'QRIS masih aktif di gateway. Tidak dapat ditolak/dihapus sampai expired/gagal.', 'paid' => false];
       }
-      // Expired/gagal → boleh ubah (terima/tolak).
       if ($bucket === 'expired' || $bucket === 'none') {
          return ['ok' => true, 'msg' => '', 'paid' => false];
       }
