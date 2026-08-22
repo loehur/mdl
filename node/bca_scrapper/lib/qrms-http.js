@@ -4,6 +4,7 @@ const {
   captureBrowserState,
   warmRefreshCryptoFromPage,
   refreshViaBrowserState,
+  scrapeTransactionsViaBrowserState,
 } = require('./qrms-browser-session');
 const qrmsSession = require('./qrms-session');
 const { scrapeTransactionsForDateRange } = require('./qrms-dom');
@@ -570,6 +571,8 @@ async function fetchQrisTransactionsHttp(opts) {
 
         let transactions = [];
         let usedDomFallback = false;
+        /** @type {'page'|'browser_state'|null} */
+        let domFallbackSource = null;
         for (const outlet of outlets) {
           const mid = outlet.mid || outlet.outlet_id || outlet.outletId;
           if (!mid) continue;
@@ -602,6 +605,49 @@ async function fetchQrisTransactionsHttp(opts) {
           if (domRows.length > 0) {
             transactions = domRows;
             usedDomFallback = true;
+            domFallbackSource = 'page';
+          }
+        } else if (
+          transactions.length === 0
+          && (auth.authMethod === 'cache' || auth.authMethod === 'refresh')
+        ) {
+          const sessionEntry = qrmsSession.getValid(opts.email);
+          if (sessionEntry?.browserCookies?.length && sessionEntry.browserStorage) {
+            debug.step(run, 'dom_fallback_browser_state', {
+              start: opts.startDate,
+              end: opts.endDate,
+            });
+            log.log('[bca_scrapper][qris] api=empty → browser_state scrape');
+            try {
+              const scraped = await scrapeTransactionsViaBrowserState(
+                sessionEntry,
+                opts.startDate,
+                opts.endDate,
+                { headless: opts.headless, timeoutMs: Math.max(timeoutMs, 60000) }
+              );
+              debug.saveJson(run, 'transactions_browser_state', {
+                count: scraped.transactions.length,
+                transactions: scraped.transactions,
+              });
+              if (scraped.transactions.length > 0) {
+                transactions = scraped.transactions;
+                usedDomFallback = true;
+                domFallbackSource = 'browser_state';
+              }
+              qrmsSession.save(opts.email, {
+                accessToken: sessionEntry.accessToken,
+                browserCookies: scraped.browserState.cookies,
+                browserStorage: scraped.browserState.storage,
+              });
+            } catch (browserErr) {
+              debug.step(run, 'dom_fallback_browser_state_failed', {
+                error: browserErr instanceof Error ? browserErr.message : String(browserErr),
+              });
+              log.warn(
+                '[bca_scrapper][qris] browser_state scrape failed:',
+                browserErr instanceof Error ? browserErr.message : browserErr
+              );
+            }
           }
         }
 
@@ -617,11 +663,13 @@ async function fetchQrisTransactionsHttp(opts) {
           ok: true,
           count: transactions.length,
           usedDomFallback,
+          domFallbackSource,
           auth: auth.authMethod,
         });
         log.log(
           `[bca_scrapper][qris] done auth=${auth.authMethod.toUpperCase()}`
-          + ` count=${transactions.length} dom_fallback=${usedDomFallback ? 'yes' : 'no'}`
+          + ` count=${transactions.length}`
+          + ` dom_fallback=${domFallbackSource || (usedDomFallback ? 'yes' : 'no')}`
           + ` range=${opts.startDate}..${opts.endDate}`
         );
         return {
@@ -629,6 +677,7 @@ async function fetchQrisTransactionsHttp(opts) {
           end: opts.endDate,
           transactions,
           used_dom_fallback: usedDomFallback,
+          dom_fallback_source: domFallbackSource,
           auth_method: auth.authMethod,
           from_cache: auth.authMethod === 'cache' || auth.authMethod === 'refresh',
           outlets: outlets.map((o) => ({

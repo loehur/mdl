@@ -1,8 +1,65 @@
 const { URLS } = require('./qrms-config');
 const { launchBrowser } = require('./puppeteer-launch');
+const {
+  scrapeTransactionsForDateRange,
+  waitForDashboardTransactions,
+} = require('./qrms-dom');
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Buka dashboard QRMS dari cookies + localStorage tersimpan.
+ * @param {import('./qrms-session').QrmsSessionEntry} entry
+ * @param {{ headless?: boolean, timeoutMs?: number }} opts
+ */
+async function openDashboardFromBrowserState(entry, opts = {}) {
+  if (!entry.browserCookies?.length || !entry.browserStorage) {
+    throw new Error('browser_state_missing');
+  }
+
+  const headless = opts.headless !== false;
+  const timeoutMs = Number(opts.timeoutMs || 60000);
+  const browser = await launchBrowser(headless);
+  const page = await browser.newPage();
+
+  await page.setCookie(...entry.browserCookies);
+  await page.goto(URLS.login, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+  await page.evaluate((storage) => {
+    for (const [key, value] of Object.entries(storage)) {
+      localStorage.setItem(key, value);
+    }
+  }, entry.browserStorage);
+
+  await page.goto(URLS.home, { waitUntil: 'networkidle2', timeout: timeoutMs }).catch(() => {});
+  await sleep(2000);
+
+  if (/\/login/i.test(page.url())) {
+    await browser.close();
+    throw new Error('browser_state_expired');
+  }
+
+  await waitForDashboardTransactions(page, timeoutMs);
+  return { browser, page };
+}
+
+/**
+ * Scrape transaksi via dashboard (SPA decrypt di browser).
+ * @param {import('./qrms-session').QrmsSessionEntry} entry
+ * @param {string} startYmd
+ * @param {string} endYmd
+ * @param {{ headless?: boolean, timeoutMs?: number }} opts
+ */
+async function scrapeTransactionsViaBrowserState(entry, startYmd, endYmd, opts = {}) {
+  const { browser, page } = await openDashboardFromBrowserState(entry, opts);
+  try {
+    const transactions = await scrapeTransactionsForDateRange(page, startYmd, endYmd);
+    const browserState = await captureBrowserState(page);
+    return { transactions, browserState };
+  } finally {
+    await browser.close();
+  }
 }
 
 /**
@@ -122,4 +179,6 @@ module.exports = {
   captureBrowserState,
   warmRefreshCryptoFromPage,
   refreshViaBrowserState,
+  openDashboardFromBrowserState,
+  scrapeTransactionsViaBrowserState,
 };
