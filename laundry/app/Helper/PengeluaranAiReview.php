@@ -6,7 +6,7 @@
 class PengeluaranAiReview
 {
     private const HISTORY_LIMIT = 60;
-    private const TIMELINE_ROWS = 5;
+    private const TIMELINE_DATES = 3;
 
     /**
      * @param callable(int):string $kodeFn
@@ -33,21 +33,21 @@ class PengeluaranAiReview
         $kode = (string) ($pending['kode_cabang'] ?? '-');
 
         if ($this->isMinyakKendaraan($jenis)) {
-            $rows = $this->takeLastN($historyRows, self::TIMELINE_ROWS);
+            $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
 
-            return $this->renderTimeline($rows, true);
+            return $this->renderTimelineByDates($dateGroups, true);
         }
 
         if ($this->isGasLpg($jenis)) {
-            $rows = $this->takeLastN($historyRows, self::TIMELINE_ROWS);
+            $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
 
-            return $this->renderTimeline($rows, true);
+            return $this->renderTimelineByDates($dateGroups, true);
         }
 
         $branchRows = $this->filterHistorySameBranch($historyRows, $kode);
-        $rows = $this->takeLastN($branchRows, self::TIMELINE_ROWS);
+        $dateGroups = $this->takeLastNDates($branchRows, self::TIMELINE_DATES);
 
-        return $this->renderTimeline($rows, false);
+        return $this->renderTimelineByDates($dateGroups, false);
     }
 
     public function localFallbackAnalysis(array $pending, array $historyRows): string
@@ -56,46 +56,53 @@ class PengeluaranAiReview
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
+     * @param array<string, list<array<string,mixed>>> $dateGroups
      */
-    private function renderTimeline(array $rows, bool $showBranch): string
+    private function renderTimelineByDates(array $dateGroups, bool $showBranch): string
     {
         $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
         $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
-        if ($rows === []) {
+        if ($dateGroups === []) {
             return '<div style="color:#64748b;font-size:.84rem;padding:8px 0">Belum ada riwayat 30 hari terakhir.</div>';
         }
 
         $html = ['<div class="pg-exp-timeline" style="margin:0;padding:0">'];
-        $lastIdx = count($rows) - 1;
+        $dateKeys = array_keys($dateGroups);
+        $lastIdx = count($dateKeys) - 1;
 
-        foreach ($rows as $i => $row) {
-            $amt = (int) round((float) ($row['jumlah'] ?? 0));
-            $ket = trim((string) ($row['keterangan'] ?? ''));
-            $dateLabel = $esc($this->formatDateId((string) ($row['insertTime'] ?? '')));
+        foreach ($dateKeys as $i => $dateKey) {
+            $dayRows = $dateGroups[$dateKey];
+            $dateLabel = $esc($this->formatDateKeyId($dateKey));
             $isLast = $i === $lastIdx;
 
-            $metaParts = [];
-            if ($showBranch) {
-                $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
-            }
-            $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
-            if ($ket !== '' && $ket !== '-') {
-                $metaParts[] = $esc($ket);
-            }
-
             $html[] = '<div class="pg-exp-timeline__item" style="display:flex;gap:10px;margin:0;padding:0 0 '
-                . ($isLast ? '0' : '12px') . '">';
+                . ($isLast ? '0' : '14px') . '">';
             $html[] = '<div style="flex:0 0 auto;width:12px;display:flex;flex-direction:column;align-items:center">';
             $html[] = '<span style="width:10px;height:10px;background:#2563eb;border:1px solid #1d4ed8;display:block;margin-top:4px"></span>';
             if (!$isLast) {
-                $html[] = '<span style="flex:1;width:2px;background:#cbd5e1;min-height:18px;margin-top:2px"></span>';
+                $html[] = '<span style="flex:1;width:2px;background:#cbd5e1;min-height:24px;margin-top:2px"></span>';
             }
             $html[] = '</div>';
             $html[] = '<div style="flex:1;min-width:0;padding-bottom:' . ($isLast ? '0' : '2px') . '">';
-            $html[] = '<div style="font-size:.82rem;font-weight:900;color:#1d4ed8;margin-bottom:3px">' . $dateLabel . '</div>';
-            $html[] = '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.4">' . implode(' · ', $metaParts) . '</div>';
+            $html[] = '<div style="font-size:.82rem;font-weight:900;color:#1d4ed8;margin-bottom:6px">' . $dateLabel . '</div>';
+
+            foreach ($dayRows as $row) {
+                $amt = (int) round((float) ($row['jumlah'] ?? 0));
+                $ket = trim((string) ($row['keterangan'] ?? ''));
+                $metaParts = [];
+                if ($showBranch) {
+                    $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
+                }
+                $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
+                if ($ket !== '' && $ket !== '-') {
+                    $metaParts[] = $esc($ket);
+                }
+
+                $html[] = '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px">'
+                    . implode(' · ', $metaParts) . '</div>';
+            }
+
             $html[] = '</div>';
             $html[] = '</div>';
         }
@@ -103,6 +110,68 @@ class PengeluaranAiReview
         $html[] = '</div>';
 
         return implode("\n", $html);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string, list<array<string,mixed>>>
+     */
+    private function takeLastNDates(array $rows, int $n): array
+    {
+        if ($n <= 0 || $rows === []) {
+            return [];
+        }
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $dateKey = $this->dateKey((string) ($row['insertTime'] ?? ''));
+            if ($dateKey === '') {
+                continue;
+            }
+            if (!isset($grouped[$dateKey])) {
+                $grouped[$dateKey] = [];
+            }
+            $grouped[$dateKey][] = $row;
+        }
+
+        if ($grouped === []) {
+            return [];
+        }
+
+        krsort($grouped, SORT_STRING);
+        $selected = array_slice($grouped, 0, $n, true);
+
+        foreach ($selected as &$dayRows) {
+            usort($dayRows, static function (array $a, array $b): int {
+                $timeCmp = strcmp((string) ($b['insertTime'] ?? ''), (string) ($a['insertTime'] ?? ''));
+                if ($timeCmp !== 0) {
+                    return $timeCmp;
+                }
+
+                return strcasecmp((string) ($a['kode_cabang'] ?? ''), (string) ($b['kode_cabang'] ?? ''));
+            });
+        }
+        unset($dayRows);
+
+        return $selected;
+    }
+
+    private function dateKey(string $insertTime): string
+    {
+        $insertTime = trim($insertTime);
+        if ($insertTime === '') {
+            return '';
+        }
+        $ts = strtotime($insertTime);
+
+        return $ts === false ? substr($insertTime, 0, 10) : date('Y-m-d', $ts);
+    }
+
+    private function formatDateKeyId(string $dateKey): string
+    {
+        $ts = strtotime($dateKey . ' 00:00:00');
+
+        return $ts === false ? $dateKey : date('d/m/Y', $ts);
     }
 
     private function isGasLpg(string $jenis): bool
@@ -208,37 +277,6 @@ class PengeluaranAiReview
         }
 
         return $out;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @return list<array<string,mixed>>
-     */
-    private function takeLastN(array $rows, int $n): array
-    {
-        if ($n <= 0 || $rows === []) {
-            return [];
-        }
-
-        usort($rows, function (array $a, array $b): int {
-            return strcmp((string) ($b['insertTime'] ?? ''), (string) ($a['insertTime'] ?? ''));
-        });
-
-        return array_slice($rows, 0, $n);
-    }
-
-    private function formatDateId(string $insertTime): string
-    {
-        $insertTime = trim($insertTime);
-        if ($insertTime === '') {
-            return '-';
-        }
-        $ts = strtotime($insertTime);
-        if ($ts === false) {
-            return substr($insertTime, 0, 10);
-        }
-
-        return date('d/m/Y', $ts);
     }
 
     /** @return array{ok:bool,analysis?:string,message?:string,history_count:int,history_shown:int,pending:array<string,mixed>,ai_source?:string,jenis_filter?:string} */
