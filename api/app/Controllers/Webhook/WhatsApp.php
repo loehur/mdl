@@ -91,6 +91,10 @@ class WhatsApp extends Controller
                     $this->handleMessageUpdated($db, $data);
                     break;
 
+                case 'whatsapp.smb.message.echoes':
+                    $this->handleSmbMessageEchoes($db, $data);
+                    break;
+
                 default:
                     \Log::write("Unknown event: $eventType", 'wa_error', 'Webhook');
             }
@@ -832,6 +836,236 @@ class WhatsApp extends Controller
         }
 
         return ['status' => $incomingStatus, 'error_message' => $errorMessage];
+    }
+
+    /**
+     * Pesan outbound dikirim dari WhatsApp Business app (HP) — sync via YCloud smb.message.echoes.
+     * Insert ke wa_messages_out jika belum ada (API/CRM send sudah insert → update status saja).
+     */
+    private function handleSmbMessageEchoes($db, $data)
+    {
+        $msg = $data['whatsappMessage'] ?? [];
+        if (empty($msg)) {
+            \Log::write('No whatsappMessage in smb.message.echoes', 'wa_error', 'Webhook');
+            return;
+        }
+
+        $messageId = $msg['id'] ?? null;
+        $wamid = $msg['wamid'] ?? null;
+        $waNumber = $this->normalizePhoneNumber($msg['to'] ?? null);
+
+        if (!$waNumber || (!$messageId && !$wamid)) {
+            \Log::write('SMB echo missing to/messageId/wamid', 'wa_error', 'Webhook');
+            return;
+        }
+
+        $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, null);
+        if ($existing) {
+            $this->handleMessageUpdated($db, $data);
+            return;
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WaLineResolver')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaLineResolver.php';
+        }
+        $outboundLine = \App\Helpers\CRM\WaLineResolver::fromBusinessPhoneOrDefault($msg['from'] ?? null);
+        $businessPhone = $outboundLine['phone'];
+        $lineKey = $outboundLine['key'];
+
+        $messageType = $msg['type'] ?? 'text';
+        $content = null;
+        $mediaUrl = null;
+
+        if ($messageType === 'text') {
+            $content = $msg['text']['body'] ?? null;
+        } elseif (isset($msg[$messageType]['link'])) {
+            $mediaUrl = $msg[$messageType]['link'];
+            $content = $msg[$messageType]['caption'] ?? null;
+        } elseif ($messageType === 'location') {
+            $lat = $msg['location']['latitude'] ?? null;
+            $lng = $msg['location']['longitude'] ?? null;
+            $locName = $msg['location']['name'] ?? null;
+            $locAddr = $msg['location']['address'] ?? null;
+            $content = '📍 ' . ($locName ?: ($locAddr ?: 'Shared Location'));
+            if ($lat !== null && $lng !== null && $lat !== '' && $lng !== '') {
+                $mediaUrl = "https://maps.google.com/maps?q={$lat},{$lng}";
+            }
+        } else {
+            $typeLabels = [
+                'image' => '📷 Image',
+                'video' => '🎥 Video',
+                'audio' => '🎵 Audio',
+                'voice' => '🎤 Voice',
+                'document' => '📄 Document',
+                'sticker' => '🎨 Sticker',
+            ];
+            $content = $typeLabels[$messageType] ?? "[$messageType]";
+            if (isset($msg[$messageType]['link'])) {
+                $mediaUrl = $msg[$messageType]['link'];
+            }
+        }
+
+        $quotedMessageId = null;
+        if (isset($msg['context']['message_id'])) {
+            $quotedMessageId = $msg['context']['message_id'];
+        } elseif (isset($msg['context']['id'])) {
+            $quotedMessageId = $msg['context']['id'];
+        }
+
+        $status = $msg['status'] ?? 'sent';
+        $sendTime = $this->convertTime($msg['sendTime'] ?? ($msg['createTime'] ?? null));
+
+        $isPrivate = false;
+        try {
+            $isPrivate = \EnvHelper::textContainsPrivateWord($content ?? '');
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        $lastMessageText = $content ?: ($messageType === 'text' ? '' : ucfirst($messageType));
+        if ($isPrivate) {
+            $lastMessageDisplay = 'o- 🔒 _Private Chat_';
+        } else {
+            $lastMessageDisplay = 'o- ' . mb_substr((string) $lastMessageText, 0, 50);
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $waNumber);
+        $phone0 = '0' . substr($cleanPhone, 2);
+        $userData = $this->getUserData($phone0);
+        $contactName = $msg['customerProfile']['name'] ?? null;
+        $code = null;
+        $custId = null;
+        $assignedUserId = null;
+        if ($userData) {
+            if ($contactName === null && !empty($userData->customer_name)) {
+                $contactName = $userData->customer_name;
+            }
+            $code = $userData->code ?? null;
+            $custId = $userData->cust_id ?? null;
+            $assignedUserId = $userData->assigned_user_id ?? null;
+        }
+
+        $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+        if ($conv && $conv->num_rows() > 0) {
+            $convRow = $conv->row();
+            $updateData = [
+                'last_message' => $lastMessageDisplay,
+                'last_message_at' => $sendTime,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if ($contactName) {
+                $updateData['contact_name'] = $contactName;
+            }
+            if ($code) {
+                $updateData['code'] = $code;
+            }
+            if ($custId !== null) {
+                $updateData['cust_id'] = $custId;
+            }
+            $existingAssigned = $convRow->assigned_user_id ?? null;
+            if (
+                $assignedUserId !== null && $assignedUserId !== ''
+                && ($existingAssigned === null || $existingAssigned === '')
+            ) {
+                $updateData['assigned_user_id'] = $assignedUserId;
+            }
+            $db->update('wa_conversations', $updateData, ['wa_number' => $waNumber]);
+        } else {
+            $convData = [
+                'wa_number' => $waNumber,
+                'status' => 'closed',
+                'last_message' => $lastMessageDisplay,
+                'last_message_at' => $sendTime,
+                'created_at' => date('Y-m-d H:i:s'),
+            ];
+            if ($contactName) {
+                $convData['contact_name'] = $contactName;
+            }
+            if ($code) {
+                $convData['code'] = $code;
+            }
+            if ($custId !== null) {
+                $convData['cust_id'] = $custId;
+            }
+            if ($assignedUserId !== null && $assignedUserId !== '') {
+                $convData['assigned_user_id'] = $assignedUserId;
+            }
+            $db->insert('wa_conversations', $convData);
+        }
+
+        $messageData = [
+            'phone' => $waNumber,
+            'business_phone' => $businessPhone,
+            'wamid' => $wamid,
+            'message_id' => $messageId,
+            'type' => $messageType,
+            'content' => $content,
+            'media_url' => $mediaUrl,
+            'sender_code' => null,
+            'status' => $status,
+            'private' => $isPrivate ? 1 : 0,
+            'created_at' => $sendTime,
+        ];
+        if ($quotedMessageId !== null) {
+            $messageData['quoted_message_id'] = $quotedMessageId;
+        }
+
+        $msgId = $db->insert('wa_messages_out', $messageData);
+        if (!$msgId) {
+            \Log::write(
+                'SMB echo insert failed | phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'),
+                'wa_error',
+                'Webhook'
+            );
+            return;
+        }
+
+        $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
+        $conversationId = 0;
+        $convStatus = 'closed';
+        $wsAssignedUserId = $assignedUserId;
+        $kodeCabang = $code ?? '00';
+        if ($conv && $conv->num_rows() > 0) {
+            $convRow = $conv->row();
+            $conversationId = (int) ($convRow->id ?? 0);
+            $convStatus = $convRow->status ?? 'closed';
+            $existingAssigned = $convRow->assigned_user_id ?? null;
+            if ($existingAssigned !== null && $existingAssigned !== '') {
+                $wsAssignedUserId = $existingAssigned;
+            }
+            if (!empty($convRow->code)) {
+                $kodeCabang = $convRow->code;
+            }
+        }
+
+        $wsLineMeta = \App\Helpers\CRM\WaLineResolver::messageApiFields($lineKey);
+        $this->pushIncomingToWebSocket([
+            'type' => 'agent_message_sent',
+            'target_id' => '0',
+            'conversation_id' => $conversationId,
+            'phone' => $waNumber,
+            'contact_name' => $contactName,
+            'kode_cabang' => $kodeCabang,
+            'cust_id' => $custId,
+            'status' => $convStatus,
+            'assignment_user_id' => $wsAssignedUserId,
+            'sender_id' => 0,
+            'message' => [
+                'id' => $lineKey . '-' . $msgId,
+                'wamid' => $wamid,
+                'text' => $content,
+                'type' => $messageType,
+                'media_url' => $mediaUrl,
+                'sender_code' => null,
+                'quoted_message_id' => $quotedMessageId,
+                'time' => $sendTime,
+                'status' => $status,
+                'line_key' => $lineKey,
+                'business_phone' => $businessPhone,
+                'line_label' => $wsLineMeta['line_label'] ?? null,
+                'provider' => $lineKey,
+            ],
+        ]);
     }
 
     /**
