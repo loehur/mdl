@@ -160,10 +160,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
   function pgAiShowPending(p) {
     if (!p) return;
     $('#pgAiPending').html(pgPendingHtml(p));
-    var sub = 'Riwayat 30 hari · jenis sama · status berhasil';
-    if (p.jenis_pengeluaran) {
-      sub += ' (' + p.jenis_pengeluaran + ')';
-    }
+    var sub = 'Riwayat 30 hari · cabang ini + cabang lain';
     $('#pgAiSub').text(sub);
   }
 
