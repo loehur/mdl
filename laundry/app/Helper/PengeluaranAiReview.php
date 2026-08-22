@@ -6,7 +6,7 @@
 class PengeluaranAiReview
 {
     private const HISTORY_LIMIT = 60;
-    private const TIMELINE_DATES = 3;
+    private const TIMELINE_DATES = 2;
 
     /**
      * @param callable(int):string $kodeFn
