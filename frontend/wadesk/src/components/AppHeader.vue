@@ -35,7 +35,7 @@
         <slot name="extra" />
         <nav class="flex items-center gap-1" aria-label="Navigasi utama">
           <RouterLink
-            v-for="item in navItems"
+            v-for="item in mainNavItems"
             :key="item.to"
             :to="item.to"
             class="nav-link"
@@ -43,9 +43,17 @@
           >
             {{ item.label }}
           </RouterLink>
+          <RouterLink
+            v-if="auth.isAdmin"
+            to="/admin"
+            class="nav-link"
+            :class="{ 'nav-link-active': isActive('/admin') }"
+          >
+            Admin
+          </RouterLink>
         </nav>
         <ThemeToggle compact />
-        <button type="button" class="logout-btn" @click="emitLogout">
+        <button type="button" class="wadesk-logout-btn" @click="emitLogout">
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
           </svg>
@@ -95,7 +103,7 @@
 
         <nav class="grid grid-cols-2 gap-2" aria-label="Navigasi mobile">
           <RouterLink
-            v-for="item in navItems"
+            v-for="item in mainNavItems"
             :key="item.to"
             :to="item.to"
             class="mobile-nav-link"
@@ -104,9 +112,18 @@
           >
             {{ item.label }}
           </RouterLink>
+          <RouterLink
+            v-if="auth.isAdmin"
+            to="/admin"
+            class="mobile-nav-link"
+            :class="{ 'mobile-nav-link-active': isActive('/admin') }"
+            @click="menuOpen = false"
+          >
+            Admin
+          </RouterLink>
         </nav>
 
-        <button type="button" class="logout-btn w-full justify-center" @click="onMobileLogout">
+        <button type="button" class="wadesk-logout-btn w-full justify-center" @click="onMobileLogout">
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
           </svg>
@@ -118,7 +135,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import ThemeToggle from "./ThemeToggle.vue";
@@ -134,17 +151,11 @@ const auth = useAuthStore();
 const route = useRoute();
 const menuOpen = ref(false);
 
-const navItems = computed(() => {
-  const items = [
-    { to: "/", label: "Inbox" },
-    { to: "/report", label: "Report" },
-    { to: "/blast", label: "Blast" },
-  ];
-  if (auth.isAdmin) {
-    items.push({ to: "/admin", label: "Admin" });
-  }
-  return items;
-});
+const mainNavItems = [
+  { to: "/", label: "Inbox" },
+  { to: "/report", label: "Report" },
+  { to: "/blast", label: "Blast" },
+];
 
 watch(
   () => route.path,
@@ -187,12 +198,6 @@ function onMobileLogout() {
 }
 .menu-btn {
   @apply p-2 rounded-lg text-slate-300 hover:bg-white/10 hover:text-slate-100 transition;
-}
-.logout-btn {
-  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-    border border-rose-500/35 bg-rose-500/10 text-rose-200
-    hover:bg-rose-500/20 hover:border-rose-400/50 hover:text-rose-100
-    active:scale-[0.98] transition;
 }
 .menu-slide-enter-active,
 .menu-slide-leave-active {
