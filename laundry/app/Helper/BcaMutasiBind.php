@@ -11,7 +11,8 @@ class BcaMutasiBind
     public const NOMINAL_TOLERANCE = 10000;
 
     /**
-     * Rentang 6 hari terakhir (aturan server: max 6 hari inklusif, end = hari ini).
+     * Rentang 6 hari inklusif dari hari ini (selaras BcaScrapper::listRange / cron).
+     * PEND mutasi: lookback 30 hari via created_at, bukan rentang posted ini.
      *
      * @return array{start:string,end:string}
      */

@@ -9,8 +9,8 @@ class BcaMutasiMatcher
 {
     /**
      * Cari mutasi CR unlinked yang cocok nominal + rentang tanggal.
-     * Posted: tanggal_iso dalam rentang kas (max 6 hari).
-     * PEND: created_at dalam lookback 30 hari (tidak terikat rentang 6 hari kas).
+     * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
+     * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
      * @return array|null row bca_mutasi
      */
@@ -163,7 +163,8 @@ class BcaMutasiMatcher
     }
 
     /**
-     * Proses satu kas BCA pending: cari di DB → scrape rentang kas (max 6 hari) jika perlu → bind.
+     * Proses satu kas BCA pending: cari di DB → scrape 6 hari terakhir jika perlu → bind.
+     * PEND mutasi: lookback 30 hari (created_at), tidak terikat rentang 6 hari posted.
      *
      * @param array<string,mixed> $kasRow grouped row (ref_finance, total/jumlah, insertTime)
      * @return array{ok:bool,matched?:bool,confirmed?:bool,scraped?:bool,mutasi_id?:int,message?:string}
@@ -179,15 +180,7 @@ class BcaMutasiMatcher
             return ['ok' => false, 'message' => 'invalid_kas_row'];
         }
 
-        $range = BcaScrapper::computeKasMutasiRange($insertTime);
-        if (empty($range['valid'])) {
-            return [
-                'ok' => true,
-                'matched' => false,
-                'message' => (string) ($range['reason'] ?? 'invalid_range'),
-            ];
-        }
-
+        $range = BcaScrapper::listRange();
         $start = (string) $range['start'];
         $end = (string) $range['end'];
 

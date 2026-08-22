@@ -10,6 +10,8 @@ class BcaQrisBind
     public const NOMINAL_TOLERANCE = 10000;
 
     /**
+     * Rentang 6 hari inklusif dari hari ini (selaras BcaScrapper::listRange / cron).
+     *
      * @return array{start:string,end:string}
      */
     public static function listRange(): array

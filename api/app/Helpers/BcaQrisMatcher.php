@@ -100,13 +100,13 @@ class BcaQrisMatcher
     }
 
     /**
-     * Rentang cek DB untuk matching kas — max 6 hari (sama mutasi BCA).
+     * Rentang cek DB untuk matching kas — 6 hari inklusif dari hari ini.
      *
-     * @return array{valid:bool,start?:string,end?:string,reason?:string}
+     * @return array{start:string,end:string}
      */
-    public static function computeKasQrisRange(string $insertTime): array
+    public static function computeKasQrisRange(string $insertTime = ''): array
     {
-        return BcaScrapper::computeKasMutasiRange($insertTime);
+        return BcaScrapper::listRange();
     }
 
     /**
@@ -125,14 +125,6 @@ class BcaQrisMatcher
         }
 
         $range = self::computeKasQrisRange($insertTime);
-        if (empty($range['valid'])) {
-            return [
-                'ok' => true,
-                'matched' => false,
-                'message' => (string) ($range['reason'] ?? 'invalid_range'),
-            ];
-        }
-
         $start = (string) $range['start'];
         $end = (string) $range['end'];
 

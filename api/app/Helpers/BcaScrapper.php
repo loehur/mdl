@@ -252,36 +252,31 @@ class BcaScrapper
     }
 
     /**
-     * Rentang mutasi untuk matching kas BCA — dipaksa mengikuti aturan server:
-     * end <= hari ini, end <= tanggal kas, rentang max 6 hari, lookback max 30 hari.
+     * Rentang 6 hari inklusif dari hari ini (sumber tunggal untuk matching & scrape posted).
+     * Mutasi PEND tidak memakai rentang ini — tetap lookback 30 hari via lookbackMinStart().
      *
+     * @return array{start:string,end:string}
+     */
+    public static function listRange(): array
+    {
+        $end = date('Y-m-d');
+        $start = date('Y-m-d', strtotime('-' . (self::MAX_RANGE_DAYS - 1) . ' days'));
+
+        return ['start' => $start, 'end' => $end];
+    }
+
+    /**
      * @return array{valid:bool,start?:string,end?:string,reason?:string}
      */
-    public static function computeKasMutasiRange(string $insertTime): array
+    public static function computeKasMutasiRange(string $insertTime = ''): array
     {
-        $ts = strtotime($insertTime);
-        if ($ts === false) {
-            return ['valid' => false, 'reason' => 'invalid_insert_time'];
-        }
+        $range = self::listRange();
 
-        $today = date('Y-m-d');
-        $kasDate = date('Y-m-d', $ts);
-        $end = $kasDate <= $today ? $kasDate : $today;
-
-        $idealStart = date('Y-m-d', strtotime($end . ' -' . (self::MAX_RANGE_DAYS - 1) . ' days'));
-        $minStart = date('Y-m-d', strtotime($today . ' -' . self::MAX_LOOKBACK_DAYS . ' days'));
-        $start = $idealStart >= $minStart ? $idealStart : $minStart;
-
-        if ($start > $end) {
-            return ['valid' => false, 'reason' => 'kas_too_old_for_lookback', 'start' => $start, 'end' => $end];
-        }
-
-        $clamped = self::clampDateRange($start, $end);
-        if (empty($clamped['valid'])) {
-            return $clamped;
-        }
-
-        return $clamped;
+        return [
+            'valid' => true,
+            'start' => $range['start'],
+            'end' => $range['end'],
+        ];
     }
 
     /**
