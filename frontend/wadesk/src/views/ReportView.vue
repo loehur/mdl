@@ -1,21 +1,6 @@
 <template>
   <div class="min-h-screen bg-ink-950 text-slate-100 font-body">
-    <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
-      <div class="flex items-center gap-3">
-        <router-link to="/" class="text-slate-400 hover:text-slate-100 text-sm">← Inbox</router-link>
-        <span class="text-slate-400/40">|</span>
-        <span class="font-display font-semibold text-lg text-slate-100">Report</span>
-        <span v-if="teamName" class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent-soft hidden sm:inline">
-          {{ teamName }}
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <ThemeToggle compact />
-        <router-link v-if="auth.isAdmin" to="/admin" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-sm">
-          Admin
-        </router-link>
-      </div>
-    </header>
+    <AppHeader page-title="Report" active="report" @logout="onLogout" />
 
     <div
       v-if="!auth.canSendWa"
@@ -31,7 +16,7 @@
           <div>
             <h2 class="font-display font-semibold text-base">Ringkasan harian</h2>
             <p class="text-xs text-slate-500 mt-1">
-              Pesan keluar team: terkirim, gagal, delivered, dan read (maks. 90 hari).
+              Pesan keluar team: terkirim, gagal, delivered, dan read (maks. 7 hari).
             </p>
           </div>
           <button type="button" class="btn-sm shrink-0" :disabled="loading" @click="loadReport">
@@ -42,11 +27,11 @@
         <form class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end" @submit.prevent="loadReport">
           <div>
             <label class="label">Dari</label>
-            <input v-model="filter.from" type="date" class="field" required />
+            <input v-model="filter.from" type="date" class="field" required :max="filter.to" @change="onFromChange" />
           </div>
           <div>
             <label class="label">Sampai</label>
-            <input v-model="filter.to" type="date" class="field" required />
+            <input v-model="filter.to" type="date" class="field" required :min="filter.from" :max="maxToDate" @change="onToChange" />
           </div>
           <button type="submit" class="btn" :disabled="loading">Tampilkan</button>
         </form>
@@ -140,12 +125,30 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
-import ThemeToggle from "../components/ThemeToggle.vue";
+import AppHeader from "../components/AppHeader.vue";
 
 const auth = useAuthStore();
+const router = useRouter();
+
+const MAX_RANGE_DAYS = 7;
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDays(iso, days) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function defaultFrom() {
+  return addDays(todayStr(), -(MAX_RANGE_DAYS - 1));
+}
 
 const filter = reactive({
   from: defaultFrom(),
@@ -158,14 +161,34 @@ const teamName = ref("");
 const loading = ref(false);
 const error = ref("");
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+const maxToDate = computed(() => {
+  const today = todayStr();
+  const cap = addDays(filter.from, MAX_RANGE_DAYS - 1);
+  return cap < today ? cap : today;
+});
+
+function daysBetween(from, to) {
+  const a = new Date(from + "T12:00:00");
+  const b = new Date(to + "T12:00:00");
+  return Math.floor((b - a) / 86400000) + 1;
 }
 
-function defaultFrom() {
-  const d = new Date();
-  d.setDate(d.getDate() - 29);
-  return d.toISOString().slice(0, 10);
+function clampFilterRange() {
+  const today = todayStr();
+  if (filter.to > today) filter.to = today;
+  if (filter.from > filter.to) filter.from = filter.to;
+  if (daysBetween(filter.from, filter.to) > MAX_RANGE_DAYS) {
+    filter.from = addDays(filter.to, -(MAX_RANGE_DAYS - 1));
+  }
+}
+
+function onFromChange() {
+  clampFilterRange();
+  if (filter.to > maxToDate.value) filter.to = maxToDate.value;
+}
+
+function onToChange() {
+  clampFilterRange();
 }
 
 function formatDateShort(iso) {
@@ -198,6 +221,7 @@ function formatDateRow(iso) {
 
 async function loadReport() {
   if (!auth.canSendWa) return;
+  clampFilterRange();
   loading.value = true;
   error.value = "";
   try {
@@ -224,6 +248,11 @@ async function loadReport() {
 onMounted(() => {
   if (auth.canSendWa) loadReport();
 });
+
+async function onLogout() {
+  await auth.logout();
+  router.push({ name: "login" });
+}
 </script>
 
 <style scoped>

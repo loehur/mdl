@@ -1,18 +1,6 @@
 <template>
   <div class="min-h-screen bg-ink-950 text-slate-100 font-body">
-    <!-- Header -->
-    <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
-      <div class="flex items-center gap-3">
-        <router-link to="/" class="text-slate-400 hover:text-slate-100 text-sm">← Inbox</router-link>
-        <span class="text-slate-400/40">|</span>
-        <span class="font-display font-semibold text-lg text-slate-100">Blast</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <ThemeToggle compact />
-        <router-link to="/report" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-sm">Report</router-link>
-        <router-link v-if="auth.isAdmin" to="/admin" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-sm">Admin</router-link>
-      </div>
-    </header>
+    <AppHeader page-title="Blast" active="blast" @logout="onLogout" />
 
     <div
       v-if="auth.isAdmin && !auth.canSendWa"
@@ -346,10 +334,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { api, fetchEligibleTemplates } from '../api';
 import ConfirmModal from '../components/ConfirmModal.vue';
-import ThemeToggle from '../components/ThemeToggle.vue';
+import AppHeader from '../components/AppHeader.vue';
 import {
   buildTemplateHeaders,
   downloadSampleCsv,
@@ -360,6 +349,7 @@ import {
 import { buildFilledPreview } from '../utils/templatePreview.js';
 
 const auth = useAuthStore();
+const router = useRouter();
 
 const dialog = reactive({
   open: false,
@@ -456,6 +446,11 @@ const blastTemplatePreview = computed(() => {
   if (!tpl) return "";
   return buildFilledPreview(tpl.body_preview, tpl.params, {}, {});
 });
+
+async function onLogout() {
+  await auth.logout();
+  router.push({ name: 'login' });
+}
 
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {

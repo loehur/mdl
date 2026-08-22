@@ -1,15 +1,6 @@
 <template>
   <div class="min-h-full bg-ink-950">
-    <header class="h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80 sticky top-0 z-10">
-      <div class="flex items-center gap-3">
-        <router-link to="/" class="text-slate-400 hover:text-slate-100">← Inbox</router-link>
-        <span class="font-display font-semibold text-slate-100">Admin</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <span class="text-xs text-slate-500">{{ auth.user?.email }}</span>
-        <ThemeToggle compact />
-      </div>
-    </header>
+    <AppHeader page-title="Admin" active="admin" @logout="onLogout" />
 
     <div class="max-w-5xl mx-auto p-4 space-y-6">
       <!-- Admin team operasional -->
@@ -689,12 +680,14 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
 import ConfirmModal from "../components/ConfirmModal.vue";
-import ThemeToggle from "../components/ThemeToggle.vue";
+import AppHeader from "../components/AppHeader.vue";
 
 const auth = useAuthStore();
+const router = useRouter();
 const tab = ref("teams");
 const adminTeamPick = ref("");
 const joiningTeam = ref(false);
@@ -1415,6 +1408,11 @@ async function doTopup() {
   } catch (e) {
     flash(false, e.message);
   }
+}
+
+async function onLogout() {
+  await auth.logout();
+  router.push({ name: "login" });
 }
 
 onMounted(refresh);

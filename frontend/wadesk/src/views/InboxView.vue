@@ -1,48 +1,16 @@
 <template>
   <div class="h-full flex flex-col bg-ink-950">
-    <header class="shrink-0 h-14 px-4 border-b border-white/10 flex items-center justify-between bg-ink-900/80">
-      <div class="flex items-center gap-3">
-        <span class="font-display text-xl font-semibold text-slate-100">WaDesk</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ auth.user?.role }}</span>
-        <span
-          v-if="auth.user?.team_name"
-          class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent-soft hidden sm:inline"
-        >
-          {{ auth.user.team_name }}
-        </span>
-      </div>
-      <div class="flex items-center gap-2 text-sm">
-        <ThemeToggle compact />
+    <AppHeader active="inbox" @logout="onLogout">
+      <template #extra>
         <span
           v-if="templateQuotaBalance !== null"
-          class="hidden sm:inline text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300"
+          class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
           title="Sisa kuota template team"
         >
-          Kuota template: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
+          Kuota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
         </span>
-        <span class="hidden sm:inline text-slate-400">{{ auth.user?.name }}</span>
-        <router-link
-          to="/report"
-          class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200"
-        >
-          Report
-        </router-link>
-        <router-link
-          to="/blast"
-          class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200"
-        >
-          Blast
-        </router-link>
-        <router-link
-          v-if="auth.isAdmin"
-          to="/admin"
-          class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200"
-        >
-          Admin
-        </router-link>
-        <button class="px-3 py-1.5 rounded-lg text-rose-300 hover:bg-rose-500/10" @click="onLogout">Keluar</button>
-      </div>
-    </header>
+      </template>
+    </AppHeader>
 
     <div
       v-if="auth.isAdmin && !auth.canSendWa"
@@ -309,9 +277,9 @@ import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
+import AppHeader from "../components/AppHeader.vue";
 import TemplateModal from "../components/TemplateModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
-import ThemeToggle from "../components/ThemeToggle.vue";
 import { api } from "../api";
 
 const auth = useAuthStore();

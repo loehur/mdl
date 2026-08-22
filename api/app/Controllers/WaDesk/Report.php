@@ -9,7 +9,7 @@ namespace App\Controllers\WaDesk;
  */
 class Report extends WaDeskController
 {
-    private const MAX_DAYS = 90;
+    private const MAX_DAYS = 7;
 
     /** @var list<string> */
     private const FAILED_STATUSES = ['failed', 'undelivered', 'error', 'rejected'];
@@ -108,7 +108,7 @@ class Report extends WaDeskController
     private function parseDateRange(string $fromRaw, string $toRaw): array
     {
         $to = $this->normalizeDate($toRaw) ?: date('Y-m-d');
-        $from = $this->normalizeDate($fromRaw) ?: date('Y-m-d', strtotime($to . ' -29 days'));
+        $from = $this->normalizeDate($fromRaw) ?: date('Y-m-d', strtotime($to . ' -' . (self::MAX_DAYS - 1) . ' days'));
 
         if (strtotime($from) > strtotime($to)) {
             [$from, $to] = [$to, $from];
