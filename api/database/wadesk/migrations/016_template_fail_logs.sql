@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS wa_template_fail_logs (
   conversation_id INT UNSIGNED NULL,
   blast_id INT UNSIGNED NULL,
   blast_recipient_id INT UNSIGNED NULL,
-  source ENUM('chat','blast') NOT NULL DEFAULT 'chat',
+  source ENUM('chat','blast','webhook') NOT NULL DEFAULT 'chat',
   phone VARCHAR(32) NOT NULL,
   template_id INT UNSIGNED NULL,
   template_name VARCHAR(150) NOT NULL,

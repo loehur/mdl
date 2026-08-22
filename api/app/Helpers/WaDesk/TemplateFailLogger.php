@@ -38,6 +38,10 @@ class TemplateFailLogger
 
         $request = $ctx['request'] ?? null;
         $response = $ctx['response'] ?? null;
+        $source = (string) ($ctx['source'] ?? 'chat');
+        if (!in_array($source, ['chat', 'blast', 'webhook'], true)) {
+            $source = 'chat';
+        }
 
         $this->db->insert('wa_template_fail_logs', [
             'tenant_id' => (int) ($ctx['tenant_id'] ?? 0),
@@ -45,9 +49,10 @@ class TemplateFailLogger
             'channel_id' => $this->nullableInt($ctx['channel_id'] ?? null),
             'user_id' => $this->nullableInt($ctx['user_id'] ?? null),
             'conversation_id' => $this->nullableInt($ctx['conversation_id'] ?? null),
+            'message_id' => $this->nullableInt($ctx['message_id'] ?? null),
             'blast_id' => $this->nullableInt($ctx['blast_id'] ?? null),
             'blast_recipient_id' => $this->nullableInt($ctx['blast_recipient_id'] ?? null),
-            'source' => (($ctx['source'] ?? 'chat') === 'blast') ? 'blast' : 'chat',
+            'source' => $source,
             'phone' => mb_substr(trim((string) ($ctx['phone'] ?? '')), 0, 32),
             'template_id' => $this->nullableInt($ctx['template_id'] ?? null),
             'template_name' => mb_substr(trim((string) ($ctx['template_name'] ?? '')), 0, 150),
@@ -64,6 +69,74 @@ class TemplateFailLogger
                 ? json_encode($response, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
                 : null,
         ]);
+    }
+
+    public function hasLoggedForMessage(int $messageId): bool
+    {
+        if ($messageId <= 0 || !$this->tableExists()) {
+            return false;
+        }
+        try {
+            $row = $this->db->query(
+                "SELECT id FROM wa_template_fail_logs WHERE message_id = ? LIMIT 1",
+                [$messageId]
+            )->row_array();
+            return !empty($row);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** @param array<string,mixed> $status @param array<string,mixed> $payload */
+    public static function extractWebhookError(array $status, array $payload = []): array
+    {
+        $errBlock = $status['error'] ?? $payload['error'] ?? null;
+        if (is_string($errBlock)) {
+            $message = $errBlock;
+            $code = '';
+        } elseif (is_array($errBlock)) {
+            $message = trim((string) (
+                $errBlock['message']
+                ?? $errBlock['title']
+                ?? $errBlock['detail']
+                ?? json_encode($errBlock, JSON_UNESCAPED_UNICODE)
+            ));
+            $code = trim((string) ($errBlock['code'] ?? ''));
+        } else {
+            $message = trim((string) (
+                $status['error_message']
+                ?? $status['failure_reason']
+                ?? $payload['error_message']
+                ?? $payload['failure_reason']
+                ?? $payload['reason']
+                ?? 'Template delivery failed (webhook)'
+            ));
+            $code = trim((string) ($status['error_code'] ?? $payload['error_code'] ?? ''));
+        }
+
+        if ($code === '' && preg_match('/\(#(\d+)\)/', $message, $m)) {
+            $code = $m[1];
+        }
+
+        $errors = $status['errors'] ?? $payload['errors'] ?? null;
+        if (is_array($errors) && $errors !== []) {
+            $extra = json_encode($errors, JSON_UNESCAPED_UNICODE);
+            if ($message === '' || $message === 'Template delivery failed (webhook)') {
+                $message = $extra;
+            } elseif (!str_contains($message, $extra)) {
+                $message .= ' | ' . $extra;
+            }
+        }
+
+        if ($message === '') {
+            $message = 'Template delivery failed (webhook)';
+        }
+
+        return [
+            'message' => $message,
+            'code' => $code,
+            'http_code' => null,
+        ];
     }
 
     /** @param array{success:bool,http_code?:int,data?:array,raw?:array} $result */

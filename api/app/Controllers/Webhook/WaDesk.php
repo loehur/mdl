@@ -4,6 +4,7 @@ namespace App\Controllers\Webhook;
 
 use App\Core\Controller;
 use App\Helpers\WaDesk\Server as WaDeskServer;
+use App\Helpers\WaDesk\TemplateFailLogger;
 
 /**
  * Kirimin.id webhook for WaDesk — /Webhook/WaDesk
@@ -297,6 +298,9 @@ class WaDesk extends Controller
                 'status' => $statusRow['status'] ?? '',
                 'id' => $statusRow['id'] ?? null,
                 'message_id' => $statusRow['id'] ?? null,
+                'errors' => $statusRow['errors'] ?? null,
+                'webhook_event' => 'meta.status',
+                'webhook_payload' => $statusRow,
             ]);
         }
     }
@@ -421,6 +425,11 @@ class WaDesk extends Controller
             'id' => $inner['message_id'] ?? null,
             'message_id' => $inner['message_id'] ?? null,
             'external_id' => $inner['external_id'] ?? null,
+            'error' => $inner['error'] ?? null,
+            'error_message' => $inner['error_message'] ?? ($inner['failure_reason'] ?? null),
+            'errors' => $inner['errors'] ?? null,
+            'webhook_event' => $eventType,
+            'webhook_payload' => $inner,
         ]);
     }
 
@@ -552,21 +561,24 @@ class WaDesk extends Controller
 
         if ($wamid) {
             $row = $db->query(
-                "SELECT id, conversation_id, provider_msg_id, external_id, status
+                "SELECT id, conversation_id, provider_msg_id, external_id, status,
+                        type, template_name, params_json, body, sent_by_user_id
                  FROM messages WHERE provider_msg_id = ? LIMIT 1",
                 [$wamid]
             )->row_array();
         }
         if (!$row && $messageId) {
             $row = $db->query(
-                "SELECT id, conversation_id, provider_msg_id, external_id, status
+                "SELECT id, conversation_id, provider_msg_id, external_id, status,
+                        type, template_name, params_json, body, sent_by_user_id
                  FROM messages WHERE provider_msg_id = ? LIMIT 1",
                 [$messageId]
             )->row_array();
         }
         if (!$row && $externalId) {
             $row = $db->query(
-                "SELECT id, conversation_id, provider_msg_id, external_id, status
+                "SELECT id, conversation_id, provider_msg_id, external_id, status,
+                        type, template_name, params_json, body, sent_by_user_id
                  FROM messages WHERE external_id = ? LIMIT 1",
                 [$externalId]
             )->row_array();
@@ -575,13 +587,15 @@ class WaDesk extends Controller
             return;
         }
 
+        $prevStatus = strtolower((string) ($row['status'] ?? ''));
         $db->update('messages', [
             'status' => $st,
             'provider_msg_id' => $wamid ?: ($messageId ?: ($row['provider_msg_id'] ?? null)),
         ], ['id' => (int) $row['id']]);
 
         $conv = $db->query(
-            "SELECT tenant_id, team_id FROM conversations WHERE id = ? LIMIT 1",
+            "SELECT c.id, c.tenant_id, c.team_id, c.channel_id, c.phone
+             FROM conversations c WHERE c.id = ? LIMIT 1",
             [(int) $row['conversation_id']]
         )->row_array();
 
@@ -595,6 +609,137 @@ class WaDesk extends Controller
                 'status' => $st,
                 'provider_msg_id' => $wamid ?: $messageId,
             ]);
+        }
+
+        if ($this->isTemplateDeliveryFailure($st, $row)) {
+            $this->logTemplateFailureFromWebhook($db, $row, $conv ?: [], $data, $status, $st, $prevStatus);
+        }
+    }
+
+    /** @param array<string,mixed> $row @param array<string,mixed> $conv */
+    private function isTemplateDeliveryFailure(string $status, array $row): bool
+    {
+        if (strtolower((string) ($row['type'] ?? '')) !== 'template') {
+            return false;
+        }
+        return in_array($status, ['failed', 'undelivered', 'error'], true);
+    }
+
+    /** @param array<string,mixed> $row @param array<string,mixed> $conv @param array<string,mixed> $data @param array<string,mixed> $statusBlock */
+    private function logTemplateFailureFromWebhook(
+        $db,
+        array $row,
+        array $conv,
+        array $data,
+        array $statusBlock,
+        string $newStatus,
+        string $prevStatus
+    ): void {
+        try {
+            $logger = new TemplateFailLogger($db);
+            if (!$logger->tableExists()) {
+                return;
+            }
+
+            $msgId = (int) ($row['id'] ?? 0);
+            if ($msgId > 0 && $logger->hasLoggedForMessage($msgId)) {
+                return;
+            }
+
+            $tenantId = (int) ($conv['tenant_id'] ?? 0);
+            if ($tenantId <= 0) {
+                return;
+            }
+
+            $channel = null;
+            $channelId = (int) ($conv['channel_id'] ?? 0);
+            if ($channelId > 0) {
+                $tbl = 'wa_channels';
+                $channel = $db->query(
+                    "SELECT id, device_id, label, phone_number FROM {$tbl} WHERE id = ? LIMIT 1",
+                    [$channelId]
+                )->row_array();
+            }
+
+            $blastMeta = null;
+            if ($msgId > 0) {
+                $blastMeta = $db->query(
+                    "SELECT id, blast_id FROM wa_blast_recipients WHERE message_id = ? LIMIT 1",
+                    [$msgId]
+                )->row_array();
+            }
+
+            $templateName = trim((string) ($row['template_name'] ?? ''));
+            $language = 'id';
+            $templateId = null;
+            if ($templateName !== '') {
+                $tplRow = $db->query(
+                    "SELECT id, language FROM wa_templates
+                     WHERE tenant_id = ? AND template_name = ?
+                     ORDER BY id ASC LIMIT 1",
+                    [$tenantId, $templateName]
+                )->row_array();
+                if ($tplRow) {
+                    $templateId = (int) $tplRow['id'];
+                    $language = trim((string) ($tplRow['language'] ?? 'id')) ?: 'id';
+                }
+            }
+
+            $payload = is_array($data['webhook_payload'] ?? null) ? $data['webhook_payload'] : [];
+            $provErr = TemplateFailLogger::extractWebhookError($statusBlock, array_merge($payload, $data));
+            $params = null;
+            if (!empty($row['params_json'])) {
+                $decoded = json_decode((string) $row['params_json'], true);
+                if (is_array($decoded)) {
+                    $params = $decoded;
+                }
+            }
+
+            $source = 'webhook';
+
+            $logger->log([
+                'tenant_id' => $tenantId,
+                'team_id' => (int) ($conv['team_id'] ?? 0) ?: null,
+                'channel_id' => $channelId ?: null,
+                'user_id' => ((int) ($row['sent_by_user_id'] ?? 0)) ?: null,
+                'conversation_id' => (int) ($conv['id'] ?? $row['conversation_id'] ?? 0) ?: null,
+                'message_id' => $msgId,
+                'blast_id' => $blastMeta ? (int) ($blastMeta['blast_id'] ?? 0) : null,
+                'blast_recipient_id' => $blastMeta ? (int) ($blastMeta['id'] ?? 0) : null,
+                'source' => $source,
+                'phone' => (string) ($conv['phone'] ?? ''),
+                'template_id' => $templateId,
+                'template_name' => $templateName !== '' ? $templateName : 'unknown',
+                'language' => $language,
+                'device_id' => trim((string) ($channel['device_id'] ?? '')),
+                'preview' => (string) ($row['body'] ?? ''),
+                'error_message' => $provErr['message'],
+                'error_code' => $provErr['code'],
+                'http_code' => null,
+                'request' => [
+                    'message_id' => $msgId,
+                    'provider_msg_id' => $row['provider_msg_id'] ?? null,
+                    'external_id' => $row['external_id'] ?? null,
+                    'template_name' => $templateName,
+                    'template_params' => $params,
+                    'previous_status' => $prevStatus,
+                    'new_status' => $newStatus,
+                    'webhook_event' => $data['webhook_event'] ?? null,
+                ],
+                'response' => [
+                    'webhook_status' => $statusBlock,
+                    'webhook_payload' => $payload !== [] ? $payload : $data,
+                ],
+            ]);
+
+            if ($blastMeta && $msgId > 0) {
+                $db->update('wa_blast_recipients', [
+                    'status' => 'failed',
+                    'error' => mb_substr($provErr['message'], 0, 500),
+                ], ['id' => (int) $blastMeta['id']]);
+            }
+        } catch (\Throwable $e) {
+            $this->logWebhook('template_fail_log webhook error: ' . $e->getMessage());
         }
     }
 

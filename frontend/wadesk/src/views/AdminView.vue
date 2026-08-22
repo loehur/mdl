@@ -576,7 +576,7 @@
           <div>
             <h2 class="font-display font-semibold text-lg">Log Template Gagal</h2>
             <p class="text-xs text-slate-500 mt-1">
-              Hanya pengiriman template yang ditolak provider (Kirimin/Meta) setelah API dipanggil.
+              Kegagalan langsung dari API Kirimin, atau delivery gagal via webhook (sent → failed).
             </p>
           </div>
           <button type="button" class="btn-sm shrink-0" :disabled="loadingFailLogs" @click="loadFailLogs(failLogsPage)">
@@ -585,8 +585,10 @@
         </div>
 
         <p v-if="!failLogsReady" class="text-sm text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
-          Tabel log belum ada. Jalankan migration
+          Tabel log belum lengkap. Jalankan migration
           <code class="text-amber-100">016_template_fail_logs.sql</code>
+          dan
+          <code class="text-amber-100">017_template_fail_logs_webhook.sql</code>
           di database <code class="text-amber-100">mdl_wadesk</code>.
         </p>
 
@@ -606,7 +608,7 @@
                 </p>
                 <p class="text-xs text-slate-400 mt-1">
                   {{ row.template_name }} ({{ row.language }}) → {{ row.phone }}
-                  · {{ row.source === 'blast' ? 'Blast' : 'Chat' }}
+                  · {{ row.source === 'webhook' ? 'Webhook' : row.source === 'blast' ? 'Blast' : 'Chat' }}
                   <span v-if="row.error_code" class="text-rose-400/80"> · #{{ row.error_code }}</span>
                 </p>
                 <p class="text-[10px] text-slate-600 mt-1">
@@ -634,6 +636,7 @@
               <div class="grid sm:grid-cols-2 gap-2 text-slate-400">
                 <p><span class="text-slate-500">Device:</span> {{ row.device_id || '—' }}</p>
                 <p><span class="text-slate-500">HTTP:</span> {{ row.http_code || '—' }}</p>
+                <p v-if="row.message_id"><span class="text-slate-500">Msg:</span> #{{ row.message_id }}</p>
                 <p v-if="row.conversation_id"><span class="text-slate-500">Conv:</span> #{{ row.conversation_id }}</p>
                 <p v-if="row.blast_id"><span class="text-slate-500">Blast:</span> #{{ row.blast_id }}</p>
               </div>
