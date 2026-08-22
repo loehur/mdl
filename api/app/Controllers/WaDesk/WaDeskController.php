@@ -461,6 +461,19 @@ abstract class WaDeskController extends BaseController
         return $polisher->polish($this->getTenantOpenAiApiKey($tenantId), $message);
     }
 
+    /**
+     * @return array{duplicate_spam:bool,reason:string}
+     */
+    protected function checkFreeTextDuplicateSpam(int $tenantId, string $pendingMessage, string $newMessage): array
+    {
+        if ($this->getTenantOpenAiApiKey($tenantId) === '') {
+            return ['duplicate_spam' => false, 'reason' => ''];
+        }
+
+        $guard = new \App\Helpers\WaDesk\FreeTextSpamGuard();
+        return $guard->check($this->getTenantOpenAiApiKey($tenantId), $pendingMessage, $newMessage);
+    }
+
     protected function maskApiKey(string $key): string
     {
         $key = trim($key);

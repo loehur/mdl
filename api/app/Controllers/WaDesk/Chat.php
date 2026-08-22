@@ -3,6 +3,7 @@
 namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
+use App\Helpers\WaDesk\FreeTextSpamGuard;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
@@ -413,6 +414,21 @@ class Chat extends WaDeskController
             $this->error('AI gagal merapikan pesan', 422);
         }
 
+        $pendingOutbound = $this->findLastUnansweredOutboundText((int) $conv['id']);
+        if ($pendingOutbound !== null) {
+            $spam = $this->checkFreeTextDuplicateSpam(
+                (int) $user['tenant_id'],
+                (string) ($pendingOutbound['body'] ?? ''),
+                $message
+            );
+            if (!empty($spam['duplicate_spam'])) {
+                $this->error($spam['reason'] ?: FreeTextSpamGuard::REJECT_REASON, 422, [
+                    'status' => false,
+                    'reason' => $spam['reason'] ?: FreeTextSpamGuard::REJECT_REASON,
+                ]);
+            }
+        }
+
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
         $quota = $limitGuard->canSend((int) $channel['tenant_id'], $phone);
         if (!$quota['allowed']) {
@@ -519,6 +535,38 @@ class Chat extends WaDeskController
             'status' => 'sent',
             'sent_by_user_id' => (int) $user['id'],
         ]);
+    }
+
+    /** Last free-text outbound not yet followed by any inbound reply. */
+    private function findLastUnansweredOutboundText(int $conversationId): ?array
+    {
+        if ($conversationId <= 0) {
+            return null;
+        }
+
+        $latest = $this->db($this->db_index)->query(
+            "SELECT id, direction, type, body
+             FROM messages
+             WHERE conversation_id = ?
+             ORDER BY id DESC
+             LIMIT 1",
+            [$conversationId]
+        )->row_array();
+
+        if (!$latest || ($latest['direction'] ?? '') !== 'out') {
+            return null;
+        }
+
+        if (($latest['type'] ?? '') !== 'text') {
+            return null;
+        }
+
+        $body = trim((string) ($latest['body'] ?? ''));
+        if ($body === '') {
+            return null;
+        }
+
+        return $latest;
     }
 
     /**
