@@ -913,7 +913,9 @@ class WhatsApp extends Controller
         }
 
         $status = $msg['status'] ?? 'sent';
-        $sendTime = $this->convertTime($msg['sendTime'] ?? ($msg['createTime'] ?? null));
+        // Pakai waktu server (WIB) — sama seperti WhatsAppService::saveOutboundMessage.
+        // sendTime YCloud ISO (UTC) bikin bubble tampil di urutan salah di CRM getMessages.
+        $sendTime = date('Y-m-d H:i:s');
 
         $isPrivate = false;
         try {
@@ -1019,6 +1021,13 @@ class WhatsApp extends Controller
             );
             return;
         }
+
+        \Log::write(
+            'SMB echo saved id=' . $msgId . ' phone=' . $waNumber . ' line=' . $businessPhone
+            . ' preview=' . mb_substr((string) ($content ?? ''), 0, 40),
+            'webhook',
+            'WhatsApp'
+        );
 
         $conv = $db->get_where('wa_conversations', ['wa_number' => $waNumber]);
         $conversationId = 0;
@@ -1304,10 +1313,14 @@ class WhatsApp extends Controller
      */
     private function convertTime($isoTime)
     {
-        if (!$isoTime) return date('Y-m-d H:i:s');
-        
+        if (!$isoTime) {
+            return date('Y-m-d H:i:s');
+        }
+
         try {
             $dt = new \DateTime($isoTime);
+            $dt->setTimezone(new \DateTimeZone('Asia/Jakarta'));
+
             return $dt->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
             return date('Y-m-d H:i:s');
