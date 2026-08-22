@@ -570,6 +570,103 @@
         <p v-if="!quotas.length" class="text-sm text-slate-500 text-center py-2">Belum ada team</p>
       </section>
 
+      <!-- Template fail logs -->
+      <section v-if="tab === 'log'" class="card space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="font-display font-semibold text-lg">Log Template Gagal</h2>
+            <p class="text-xs text-slate-500 mt-1">
+              Hanya pengiriman template yang ditolak provider (Kirimin/Meta) setelah API dipanggil.
+            </p>
+          </div>
+          <button type="button" class="btn-sm shrink-0" :disabled="loadingFailLogs" @click="loadFailLogs(failLogsPage)">
+            {{ loadingFailLogs ? "Memuat..." : "Refresh" }}
+          </button>
+        </div>
+
+        <p v-if="!failLogsReady" class="text-sm text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+          Tabel log belum ada. Jalankan migration
+          <code class="text-amber-100">016_template_fail_logs.sql</code>
+          di database <code class="text-amber-100">mdl_wadesk</code>.
+        </p>
+
+        <div v-else-if="loadingFailLogs && !failLogs.length" class="text-sm text-slate-500 py-4 text-center">
+          Memuat log...
+        </div>
+        <p v-else-if="!failLogs.length" class="text-sm text-slate-500 text-center py-4">
+          Belum ada log kegagalan template.
+        </p>
+
+        <ul v-else class="divide-y divide-white/5 space-y-0">
+          <li v-for="row in failLogs" :key="row.id" class="py-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-rose-300 truncate" :title="row.error_message">
+                  {{ row.error_message }}
+                </p>
+                <p class="text-xs text-slate-400 mt-1">
+                  {{ row.template_name }} ({{ row.language }}) → {{ row.phone }}
+                  · {{ row.source === 'blast' ? 'Blast' : 'Chat' }}
+                  <span v-if="row.error_code" class="text-rose-400/80"> · #{{ row.error_code }}</span>
+                </p>
+                <p class="text-[10px] text-slate-600 mt-1">
+                  {{ formatLogTime(row.created_at) }}
+                  · {{ row.channel_label || row.channel_phone || 'channel' }}
+                  · {{ row.team_name || 'team' }}
+                  <span v-if="row.user_name"> · {{ row.user_name }}</span>
+                </p>
+                <p v-if="row.preview" class="text-xs text-slate-500 mt-1 line-clamp-2 whitespace-pre-wrap">
+                  {{ row.preview }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn-sm text-xs shrink-0"
+                @click="expandedFailLog = expandedFailLog === row.id ? null : row.id"
+              >
+                {{ expandedFailLog === row.id ? 'Tutup' : 'Detail' }}
+              </button>
+            </div>
+            <div
+              v-if="expandedFailLog === row.id"
+              class="mt-3 rounded-lg border border-white/10 bg-ink-950/60 p-3 space-y-3 text-xs"
+            >
+              <div class="grid sm:grid-cols-2 gap-2 text-slate-400">
+                <p><span class="text-slate-500">Device:</span> {{ row.device_id || '—' }}</p>
+                <p><span class="text-slate-500">HTTP:</span> {{ row.http_code || '—' }}</p>
+                <p v-if="row.conversation_id"><span class="text-slate-500">Conv:</span> #{{ row.conversation_id }}</p>
+                <p v-if="row.blast_id"><span class="text-slate-500">Blast:</span> #{{ row.blast_id }}</p>
+              </div>
+              <div>
+                <p class="text-slate-500 mb-1 font-medium">Request</p>
+                <pre class="overflow-x-auto whitespace-pre-wrap break-all text-slate-300">{{ prettyJson(row.request) }}</pre>
+              </div>
+              <div>
+                <p class="text-slate-500 mb-1 font-medium">Response provider</p>
+                <pre class="overflow-x-auto whitespace-pre-wrap break-all text-slate-300">{{ prettyJson(row.response) }}</pre>
+              </div>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="failLogsTotal > failLogsLimit" class="flex gap-2 justify-center items-center pt-2">
+          <button type="button" class="btn-sm" :disabled="failLogsPage <= 1 || loadingFailLogs" @click="loadFailLogs(failLogsPage - 1)">
+            ‹ Prev
+          </button>
+          <span class="text-xs text-slate-500">
+            Halaman {{ failLogsPage }} / {{ Math.ceil(failLogsTotal / failLogsLimit) || 1 }}
+          </span>
+          <button
+            type="button"
+            class="btn-sm"
+            :disabled="failLogsPage * failLogsLimit >= failLogsTotal || loadingFailLogs"
+            @click="loadFailLogs(failLogsPage + 1)"
+          >
+            Next ›
+          </button>
+        </div>
+      </section>
+
       <p v-if="msg" class="text-sm text-emerald-400">{{ msg }}</p>
       <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
     </div>
@@ -588,7 +685,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -605,6 +702,7 @@ const tabs = [
   { id: "templates", label: "Templates" },
   { id: "openai", label: "OpenAI" },
   { id: "quota", label: "Quota" },
+  { id: "log", label: "Log" },
 ];
 
 const teams = ref([]);
@@ -688,6 +786,13 @@ const savingMaxlengthId = ref(null);
 const maxlengthDraft = reactive({});
 const expandedTemplate = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
+const failLogs = ref([]);
+const failLogsTotal = ref(0);
+const failLogsPage = ref(1);
+const failLogsLimit = ref(50);
+const failLogsReady = ref(true);
+const loadingFailLogs = ref(false);
+const expandedFailLog = ref(null);
 
 const teamLeaders = computed(() =>
   users.value.filter((u) => u.role === "team_leader" && Number(u.is_active) === 1)
@@ -761,7 +866,60 @@ async function refresh() {
   dailyLimitForm.daily_unique_limit = Number(kir.data?.daily_unique_limit) || 250;
   openaiForm.configured = !!oai.data?.configured;
   openaiForm.api_key_masked = oai.data?.api_key_masked || "";
+  if (tab.value === "log") {
+    await loadFailLogs(failLogsPage.value);
+  }
 }
+
+function formatLogTime(v) {
+  if (!v) return "—";
+  try {
+    return new Date(String(v).replace(" ", "T")).toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return v;
+  }
+}
+
+function prettyJson(obj) {
+  if (obj == null) return "—";
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(obj);
+  }
+}
+
+async function loadFailLogs(page = 1) {
+  loadingFailLogs.value = true;
+  expandedFailLog.value = null;
+  try {
+    const res = await api(
+      `/WaDesk/TemplateLogs/list?page=${encodeURIComponent(page)}&limit=${failLogsLimit.value}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    failLogsReady.value = res.data?.table_ready !== false;
+    failLogs.value = res.data?.logs ?? [];
+    failLogsTotal.value = Number(res.data?.total ?? 0);
+    failLogsPage.value = Number(res.data?.page ?? page);
+  } catch (e) {
+    failLogs.value = [];
+    flash(false, e.message || "Gagal memuat log");
+  } finally {
+    loadingFailLogs.value = false;
+  }
+}
+
+watch(tab, (id) => {
+  if (id === "log") {
+    loadFailLogs(1);
+  }
+});
 
 async function createTeam() {
   try {

@@ -26,7 +26,8 @@ class TemplateSender
         string $phone,
         array $rawParams,
         int $sentByUserId = 0,
-        bool $skipParamModeration = false
+        bool $skipParamModeration = false,
+        array $logMeta = []
     ): array {
         try {
             $tenantId = (int) $channel['tenant_id'];
@@ -104,9 +105,26 @@ class TemplateSender
             );
 
             if (!$result['success']) {
-                $yErr = $result['data']['error']['message']
-                    ?? ($result['data']['message'] ?? 'Template send failed');
-                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Kirimin: ' . $yErr];
+                $provErr = TemplateFailLogger::extractProviderError($result);
+                $this->logProviderFailure(
+                    $channel,
+                    $tpl,
+                    $phone,
+                    $deviceId,
+                    $preview,
+                    $rawParams,
+                    $sendParams,
+                    $result,
+                    $provErr,
+                    $sentByUserId,
+                    $logMeta
+                );
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'Kirimin: ' . $provErr['message'],
+                ];
             }
 
             $limitGuard->recordSuccess($tenantId, $phone, $sentByUserId ?: null, 'blast');
@@ -338,5 +356,55 @@ class TemplateSender
         }
 
         return $errors !== [] ? implode('; ', $errors) : '';
+    }
+
+    /** @param array<string,mixed> $logMeta */
+    private function logProviderFailure(
+        array $channel,
+        array $tpl,
+        string $phone,
+        string $deviceId,
+        string $preview,
+        array $rawParams,
+        array $sendParams,
+        array $result,
+        array $provErr,
+        int $sentByUserId,
+        array $logMeta
+    ): void {
+        try {
+            $logger = new TemplateFailLogger($this->db);
+            $logger->log([
+                'tenant_id' => (int) $channel['tenant_id'],
+                'team_id' => (int) $channel['team_id'],
+                'channel_id' => (int) $channel['id'],
+                'user_id' => $sentByUserId > 0 ? $sentByUserId : null,
+                'blast_id' => $logMeta['blast_id'] ?? null,
+                'blast_recipient_id' => $logMeta['blast_recipient_id'] ?? null,
+                'source' => 'blast',
+                'phone' => $phone,
+                'template_id' => (int) ($tpl['id'] ?? 0) ?: null,
+                'template_name' => (string) ($tpl['template_name'] ?? ''),
+                'language' => (string) ($tpl['language'] ?? 'id'),
+                'device_id' => $deviceId,
+                'preview' => $preview,
+                'error_message' => $provErr['message'],
+                'error_code' => $provErr['code'],
+                'http_code' => $provErr['http_code'],
+                'request' => [
+                    'phone' => $phone,
+                    'template_name' => $tpl['template_name'] ?? '',
+                    'language' => $tpl['language'] ?? 'id',
+                    'device_id' => $deviceId,
+                    'channel_id' => (int) $channel['id'],
+                    'blast_id' => $logMeta['blast_id'] ?? null,
+                    'template_params' => $rawParams,
+                    'send_params' => $sendParams,
+                    'external_id' => $result['external_id'] ?? null,
+                ],
+                'response' => $result,
+            ]);
+        } catch (\Throwable $e) {
+        }
     }
 }

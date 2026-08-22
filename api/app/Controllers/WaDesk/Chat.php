@@ -308,7 +308,36 @@ class Chat extends WaDeskController
             \Log::write('RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_res');
 
             if (!$result['success']) {
-                $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Template send failed');
+                $provErr = \App\Helpers\WaDesk\TemplateFailLogger::extractProviderError($result);
+                $this->logTemplateSendFailure([
+                    'tenant_id' => (int) $channel['tenant_id'],
+                    'team_id' => (int) $channel['team_id'],
+                    'channel_id' => (int) $channel['id'],
+                    'user_id' => (int) $user['id'],
+                    'conversation_id' => (int) $conv['id'],
+                    'source' => 'chat',
+                    'phone' => $phone,
+                    'template_id' => $templateId > 0 ? $templateId : null,
+                    'template_name' => $templateName,
+                    'language' => $language,
+                    'device_id' => $deviceId,
+                    'preview' => $preview,
+                    'error_message' => $provErr['message'],
+                    'error_code' => $provErr['code'],
+                    'http_code' => $provErr['http_code'],
+                    'request' => [
+                        'phone' => $phone,
+                        'template_name' => $templateName,
+                        'language' => $language,
+                        'device_id' => $deviceId,
+                        'channel_id' => (int) $channel['id'],
+                        'template_params' => $rawParams,
+                        'send_params' => $sendParams,
+                        'external_id' => $result['external_id'] ?? null,
+                    ],
+                    'response' => $result,
+                ]);
+                $yErr = $provErr['message'];
                 $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
             }
 

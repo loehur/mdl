@@ -576,6 +576,29 @@ abstract class WaDeskController extends BaseController
         return $this->tableExists('wa_template_devices');
     }
 
+    protected function templateFailLogsTableExists(): bool
+    {
+        return $this->tableExists('wa_template_fail_logs');
+    }
+
+    /** @param array<string,mixed> $ctx */
+    protected function logTemplateSendFailure(array $ctx): void
+    {
+        try {
+            $logger = new \App\Helpers\WaDesk\TemplateFailLogger($this->db($this->db_index));
+            $logger->log($ctx);
+        } catch (\Throwable $e) {
+            try {
+                \Log::write(
+                    'template_fail_log error: ' . $e->getMessage(),
+                    'wadesk',
+                    'template_fail_log'
+                );
+            } catch (\Throwable $ignored) {
+            }
+        }
+    }
+
     protected function isTemplateAvailableOnDevice(int $templateId, string $deviceId): bool
     {
         $deviceId = trim($deviceId);
