@@ -76,7 +76,7 @@ SYS;
                 if ($this->isUnclearReason($note)) {
                     return $this->unclearReasonResponse();
                 }
-                $fallback = $this->localPrefilter($note, true);
+                $fallback = $this->localPrefilter($note);
                 if ($fallback !== null) {
                     return $fallback;
                 }
@@ -135,7 +135,7 @@ SYS;
             if ($this->isUnclearReason($note)) {
                 return $this->unclearReasonResponse();
             }
-            $fallback = $this->localPrefilter($note, true);
+            $fallback = $this->localPrefilter($note);
             if ($fallback !== null) {
                 return $fallback;
             }
@@ -190,23 +190,16 @@ SYS;
     }
 
     /**
-     * Deteksi cepat tanpa AI — untuk koreksi data order yang jelas.
+     * Deteksi cepat tanpa AI — setujui batal/salah pelanggan, tolak koreksi data order yang jelas.
      *
      * @return array{ok:bool,allowed:bool,message:string,alternatives:array<int,string>}|null
      */
-    private function localPrefilter(string $note, bool $forceRejectOnCorrection = false): ?array
+    private function localPrefilter(string $note): ?array
     {
         $n = mb_strtolower($note);
 
-        $isWrongCustomer = (bool) preg_match(
-            '/salah\s*(input|pilih|ketik|klik).*(pelanggan|nama|customer|orang)|'
-            . '(pelanggan|nama|customer|orang)\s*(salah|keliru|bukan)|'
-            . 'nota\s*(salah|keliru)\s*(orang|pelanggan)|'
-            . 'bukan\s*(pelanggan|customer|namanya)/u',
-            $n
-        );
-        if ($isWrongCustomer) {
-            return null;
+        if ($this->isWrongCustomerReason($n)) {
+            return $this->allowedReasonResponse();
         }
 
         $isCancel = (bool) preg_match(
@@ -214,7 +207,7 @@ SYS;
             $n
         );
         if ($isCancel && !$this->looksLikeDataCorrection($n)) {
-            return null;
+            return $this->allowedReasonResponse();
         }
 
         if (!$this->looksLikeDataCorrection($n)) {
@@ -227,6 +220,58 @@ SYS;
             'allowed' => false,
             'message' => 'Masalah ini bisa diperbaiki tanpa hapus nota. Perbaiki data item saja.',
             'alternatives' => $alternatives,
+        ];
+    }
+
+    private function isWrongCustomerReason(string $n): bool
+    {
+        if (preg_match(
+            '/salah\s*(nama|pelanggan|customer|orang)\b|'
+            . 'salah\s*(input|pilih|ketik|klik)\s*(nama|pelanggan|customer|orang)|'
+            . 'salah\s*(input|pilih|ketik|klik).*(pelanggan|nama|customer|orang)|'
+            . '(pelanggan|nama|customer|orang)\s*(salah|keliru|bukan)|'
+            . 'nota\s*(salah|keliru)\s*(orang|pelanggan)|'
+            . 'bukan\s*(pelanggan|customer|namanya)/u',
+            $n
+        )) {
+            return true;
+        }
+
+        return (bool) preg_match('/(pelanggan|nama|customer|orang)/u', $n)
+            && (bool) preg_match('/\bsalah\b/u', $n)
+            && !$this->looksLikeDataCorrectionExceptCustomer($n);
+    }
+
+    /** Koreksi data order selain salah pelanggan/nama. */
+    private function looksLikeDataCorrectionExceptCustomer(string $n): bool
+    {
+        if (preg_match('/durasi|reguler|ekspres|ekpress|kilat|premium|express/u', $n)) {
+            return true;
+        }
+        if (preg_match('/qty|quantity|kilo|kg|pcs|jumlah|berat/u', $n)) {
+            return true;
+        }
+        if (preg_match('/layanan|cuci|setrika|gosok|lipat|pack/u', $n)) {
+            return true;
+        }
+        if (preg_match('/pakaian|kain tebal|kategori laundry|jenis laundry/u', $n)) {
+            return true;
+        }
+        if (preg_match('/harusnya|seharusnya|bukan\s*(reguler|ekspres|kilat|premium)/u', $n)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** @return array{ok:bool,allowed:bool,message:string,alternatives:array<int,string>} */
+    private function allowedReasonResponse(): array
+    {
+        return [
+            'ok' => true,
+            'allowed' => true,
+            'message' => 'Alasan diterima. Nota dapat dihapus.',
+            'alternatives' => [],
         ];
     }
 
