@@ -15,6 +15,7 @@ class BcaScrapper
     public const MAX_SYNC_CHUNKS = 10;
 
     public const ENTITY_KAS_LAUNDRY = 'kas_laundry';
+    public const CRON_NOMINAL_TOLERANCE = 5000;
 
     private const DEFAULT_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
     private const DEFAULT_QRIS_URL = 'http://127.0.0.1:3021/qris/transactions';
@@ -328,6 +329,22 @@ class BcaScrapper
     public static function formatNominal($nominal): string
     {
         return self::normalizeNominal($nominal);
+    }
+
+    /**
+     * Batas bawah/atas nominal untuk matching cron (±CRON_NOMINAL_TOLERANCE).
+     *
+     * @return array{min:string,max:string}
+     */
+    public static function cronNominalBounds(string $nominal): array
+    {
+        $n = (float) self::formatNominal($nominal);
+        $tol = (float) self::CRON_NOMINAL_TOLERANCE;
+
+        return [
+            'min' => number_format(max(0, $n - $tol), 2, '.', ''),
+            'max' => number_format($n + $tol, 2, '.', ''),
+        ];
     }
 
     /**

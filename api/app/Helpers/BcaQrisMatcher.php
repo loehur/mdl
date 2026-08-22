@@ -8,21 +8,26 @@ namespace App\Helpers;
 class BcaQrisMatcher
 {
     /**
+     * Transaksi QRIS unlinked — nominal ±CRON_NOMINAL_TOLERANCE, ambil selisih terkecil.
+     *
      * @return array|null row bca_qris_transaksi
      */
     public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
     {
+        $bounds = BcaScrapper::cronNominalBounds($nominal);
+
         $row = $mainDb->query(
             'SELECT t.id, t.tanggal, t.waktu, t.rrn, t.nominal, t.status, t.keterangan
              FROM bca_qris_transaksi t
              LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
              WHERE l.id IS NULL
-               AND t.nominal = ?
+               AND t.nominal >= ?
+               AND t.nominal <= ?
                AND t.tanggal >= ?
                AND t.tanggal <= ?
-             ORDER BY t.tanggal DESC, t.waktu DESC, t.id ASC
+             ORDER BY ABS(t.nominal - ?) ASC, t.tanggal DESC, t.waktu DESC, t.id ASC
              LIMIT 1',
-            [$nominal, $startYmd, $endYmd]
+            [$bounds['min'], $bounds['max'], $startYmd, $endYmd, $nominal]
         )->row_array();
 
         return is_array($row) && !empty($row['id']) ? $row : null;

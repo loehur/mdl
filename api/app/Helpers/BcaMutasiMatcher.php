@@ -8,7 +8,7 @@ namespace App\Helpers;
 class BcaMutasiMatcher
 {
     /**
-     * Cari mutasi CR unlinked yang cocok nominal + rentang tanggal.
+     * Cari mutasi CR unlinked — nominal ±CRON_NOMINAL_TOLERANCE, ambil selisih terkecil.
      * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
      * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
@@ -18,6 +18,7 @@ class BcaMutasiMatcher
     {
         $today = date('Y-m-d');
         $pendStart = BcaScrapper::lookbackMinStart();
+        $bounds = BcaScrapper::cronNominalBounds($nominal);
 
         $row = $mainDb->query(
             'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
@@ -25,7 +26,8 @@ class BcaMutasiMatcher
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
                AND m.mutasi = ?
-               AND m.nominal = ?
+               AND m.nominal >= ?
+               AND m.nominal <= ?
                AND (
                  (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)
                  OR (
@@ -35,11 +37,23 @@ class BcaMutasiMatcher
                  )
                )
              ORDER BY
+               ABS(m.nominal - ?) ASC,
                CASE WHEN UPPER(m.tanggal) = ? THEN 0 ELSE 1 END,
                m.tanggal_iso ASC,
                m.id ASC
              LIMIT 1',
-            ['CR', $nominal, $startYmd, $endYmd, 'PEND', $pendStart, $today, 'PEND']
+            [
+                'CR',
+                $bounds['min'],
+                $bounds['max'],
+                $startYmd,
+                $endYmd,
+                'PEND',
+                $pendStart,
+                $today,
+                $nominal,
+                'PEND',
+            ]
         )->row_array();
 
         return is_array($row) && !empty($row['id']) ? $row : null;
