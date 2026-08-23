@@ -282,7 +282,14 @@ class DeliveryRequestStore
             if ($idSurcas <= 0) {
                 continue;
             }
-            $check = OrderRefPaymentGuard::canRemoveSurcas($idCabang, $idSurcas);
+            try {
+                $check = OrderRefPaymentGuard::canRemoveSurcas($idCabang, $idSurcas);
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write('DeliveryRequestStore cancel check: ' . $e->getMessage(), 'wa_error', 'DeliveryRequest');
+                }
+                return ['ok' => false, 'message' => 'Gagal memvalidasi surcas: ' . $e->getMessage()];
+            }
             if (empty($check['ok'])) {
                 return [
                     'ok' => false,
@@ -299,11 +306,14 @@ class DeliveryRequestStore
                     continue;
                 }
                 try {
-                    $db->delete('surcas_item', 'id_surcas = ' . $idSurcas);
+                    $db->delete('surcas_item', ['id_surcas' => $idSurcas]);
                 } catch (\Throwable $e) {
                     // opsional
                 }
-                $del = $db->delete('surcas', 'id_cabang = ' . $idCabang . ' AND id_surcas = ' . $idSurcas);
+                $del = $db->delete('surcas', [
+                    'id_cabang' => $idCabang,
+                    'id_surcas' => $idSurcas,
+                ]);
                 if ($del === false) {
                     return ['ok' => false, 'message' => 'Gagal menghapus surcas delivery'];
                 }
