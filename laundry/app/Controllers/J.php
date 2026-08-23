@@ -255,7 +255,7 @@ class J extends Controller
       }
 
       $tarifHelper = $this->helper('AntarTarif');
-      $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+      $calc = $tarifHelper->tarifFromCoordsForPelanggan($cabLat, $cabLon, $locLat, $locLon, (int) $pelanggan);
       $jumlah = (int) $calc['tarif'];
       $km = (float) $calc['km'];
 
@@ -1872,7 +1872,13 @@ class J extends Controller
          }
       }
       if ($jenis === 'jemput') {
-         $calcJemput = $this->helper('AntarTarif')->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $calcJemput = $this->helper('AntarTarif')->tarifFromCoordsForPelanggan(
+            $cabLat,
+            $cabLon,
+            $locLat,
+            $locLon,
+            (int) $pelanggan
+         );
          $tarifSurcas = (int) $calcJemput['tarif'];
       }
 
@@ -1925,7 +1931,7 @@ class J extends Controller
 
          // Surcas Pengantaran (jenis 2) ke satu ref belum tuntas; jumlah = tarif jarak
          $tarifHelper = $this->helper('AntarTarif');
-         $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $calc = $tarifHelper->tarifFromCoordsForPelanggan($cabLat, $cabLon, $locLat, $locLon, (int) $pelanggan);
          $jumlahSurcas = (int) $calc['tarif'];
          $noRefSurcas = $this->pickBelumTuntasRef($pelanggan, $ids);
          if ($noRefSurcas !== null && $noRefSurcas !== '') {
@@ -2618,10 +2624,12 @@ class J extends Controller
          $locLon = (float) ($r['longt'] ?? 0);
          $km = null;
          $tarif = null;
+         $grantApplied = false;
          if ($canTarif) {
-            $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+            $calc = $tarifHelper->tarifFromCoordsForPelanggan($cabLat, $cabLon, $locLat, $locLon, (int) $pelanggan);
             $km = $calc['km'];
             $tarif = $calc['tarif'];
+            $grantApplied = !empty($calc['grant_applied']);
          }
          $out[] = [
             'id_lokasi' => $idLokasi,
@@ -2631,6 +2639,7 @@ class J extends Controller
             'longt' => $locLon,
             'km' => $km,
             'tarif' => $tarif,
+            'grant_applied' => $grantApplied,
             'jemput_berjalan' => !empty($jemputBerjalan[$idLokasi]),
          ];
       }
@@ -3008,7 +3017,7 @@ class J extends Controller
       foreach ($rows as $row) {
          $locLat = (float) ($row['latt'] ?? 0);
          $locLon = (float) ($row['longt'] ?? 0);
-         $calc = $tarifHelper->tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
+         $calc = $tarifHelper->tarifFromCoordsForPelanggan($cabLat, $cabLon, $locLat, $locLon, (int) $pelanggan);
          $list[] = [
             'id_lokasi' => (int) ($row['id_lokasi'] ?? 0),
             'nama' => (string) ($row['nama'] ?? ''),
@@ -3017,6 +3026,7 @@ class J extends Controller
             'longt' => $locLon,
             'km' => $calc['km'],
             'tarif' => $calc['tarif'],
+            'grant_applied' => !empty($calc['grant_applied']),
          ];
       }
 

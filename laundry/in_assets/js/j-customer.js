@@ -1361,7 +1361,7 @@
         tarifHtml =
           '<span class="j-kurir-lokasi-item__tarif">' +
             '<span class="j-kurir-lokasi-item__tarif-label">Tarif</span>' +
-            '<strong>Rp' + Number(lok.tarif).toLocaleString('id-ID') + '</strong>' +
+            '<strong>' + (Number(lok.tarif) <= 0 ? 'Gratis' : ('Rp' + Number(lok.tarif).toLocaleString('id-ID'))) + '</strong>' +
             (kmTxt ? '<small>' + escapeHtmlKurir(kmTxt) + '</small>' : '') +
           '</span>';
       } else if (kurirPendingLayanan === 'instant') {

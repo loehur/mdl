@@ -84,6 +84,55 @@ class AntarTarif extends Controller
         }
     }
 
+    /**
+     * GET /Laundry/AntarTarif/forPelanggan?cab_lat=&cab_lon=&loc_lat=&loc_lon=&id_pelanggan=
+     * Tarif sameday + grant gratis durasi -D.
+     */
+    public function forPelanggan()
+    {
+        $this->handleCors();
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+        try {
+            if (!$this->isGet()) {
+                http_response_code(405);
+                echo json_encode(['ok' => false, 'message' => 'Method not allowed']);
+                return;
+            }
+
+            $cabLat = $this->query('cab_lat');
+            $cabLon = $this->query('cab_lon');
+            $locLat = $this->query('loc_lat');
+            $locLon = $this->query('loc_lon');
+            $idPelanggan = (int) ($this->query('id_pelanggan') ?? 0);
+
+            if ($cabLat === null || $cabLon === null || $locLat === null || $locLon === null) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'message' => 'Parameter cab_lat, cab_lon, loc_lat, loc_lon wajib']);
+                return;
+            }
+            if ($idPelanggan <= 0) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'message' => 'Parameter id_pelanggan wajib']);
+                return;
+            }
+
+            $calc = AntarTarifHelper::tarifFromCoordsForPelanggan(
+                $cabLat,
+                $cabLon,
+                $locLat,
+                $locLon,
+                $idPelanggan
+            );
+            echo json_encode(array_merge(['ok' => true], $calc), JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            \Log::write('AntarTarif forPelanggan err: ' . $e->getMessage(), 'api', 'AntarTarif');
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'message' => 'Gagal hitung tarif antar']);
+        }
+    }
+
     /** GET /Laundry/AntarTarif (alias → config) */
     public function index()
     {

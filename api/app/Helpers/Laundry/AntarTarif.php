@@ -37,6 +37,25 @@ class AntarTarif
         ];
     }
 
+    /**
+     * @return array{km:float,tarif:int,tarif_raw:int,grant_applied:bool}
+     */
+    public static function tarifFromCoordsForPelanggan(
+        $latCabang,
+        $lonCabang,
+        $latLokasi,
+        $lonLokasi,
+        int $idPelanggan
+    ): array {
+        return AntarTarifHelper::tarifFromCoordsForPelanggan(
+            $latCabang,
+            $lonCabang,
+            $latLokasi,
+            $lonLokasi,
+            $idPelanggan
+        );
+    }
+
     public static function formatRp(int $n): string
     {
         if ($n <= 0) {

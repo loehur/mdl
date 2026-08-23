@@ -2434,7 +2434,13 @@ trait WARepliesKurirTrait
         $cab = $this->kurirCabangCoords((int) ($session['id_cabang'] ?? 0));
         $latt = (float) ($lok['latt'] ?? 0);
         $longt = (float) ($lok['longt'] ?? 0);
-        $calc = AntarTarif::tarifFromCoords($cab['latt'], $cab['long'], $latt, $longt);
+        $calc = AntarTarif::tarifFromCoordsForPelanggan(
+            $cab['latt'],
+            $cab['long'],
+            $latt,
+            $longt,
+            (int) ($session['id_pelanggan'] ?? 0)
+        );
         $jenis = $this->kurirJenisLabel($session);
         $nama = trim((string) ($lok['nama'] ?? ''));
         $detail = trim((string) ($lok['detail'] ?? ''));
@@ -2442,8 +2448,7 @@ trait WARepliesKurirTrait
             $nama = 'Rumah';
         }
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
-        $rawTarif = (int) $calc['tarif'];
-        $tarif = DeliveryTarifGrant::apply($idPelanggan, $rawTarif);
+        $tarif = (int) $calc['tarif'];
         $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
         $tarifRp = AntarTarif::formatRp($tarif);
 
@@ -2482,7 +2487,7 @@ trait WARepliesKurirTrait
         $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
         if ($hideOngkir) {
             $traceReason = $tarif <= 0
-                ? ($rawTarif > 0 && DeliveryTarifGrant::hasGrant($idPelanggan)
+                ? (!empty($calc['grant_applied'])
                     ? "confirm_no_ongkir durasi_-D_grant id_lokasi={$idLokasi}"
                     : "confirm_no_ongkir ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}")
                 : "confirm_no_ongkir same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}";
@@ -4081,15 +4086,17 @@ trait WARepliesKurirTrait
         $tarif = (int) ($session['tarif'] ?? 0);
         if ($tarif <= 0 && $idLokasi > 0) {
             $cab = $this->kurirCabangCoords($idCabang);
-            $calc = AntarTarif::tarifFromCoords(
+            $calc = AntarTarif::tarifFromCoordsForPelanggan(
                 $cab['latt'],
                 $cab['long'],
                 (float) ($session['latt'] ?? 0),
-                (float) ($session['longt'] ?? 0)
+                (float) ($session['longt'] ?? 0),
+                $idPelanggan
             );
             $tarif = (int) $calc['tarif'];
+        } else {
+            $tarif = DeliveryTarifGrant::apply($idPelanggan, $tarif);
         }
-        $tarif = DeliveryTarifGrant::apply($idPelanggan, $tarif);
 
         $now = date('Y-m-d H:i:s');
         $db = DB::getInstance(1);

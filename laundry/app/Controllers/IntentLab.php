@@ -599,25 +599,30 @@ class IntentLab extends Controller
         $db = $this->dbMain();
         $where = $intentCode !== '' ? " AND i.code = '" . $db->escape($intentCode) . "'" : '';
         $rows = $db->query_array(
-            "SELECT p.id, p.pattern, p.is_active, p.note, i.code AS intent_code
+            "SELECT p.id, p.pattern, p.is_active, p.note, i.code AS intent_code, i.chat_maxlength
              FROM wa_autoreply_patterns p
              INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
              WHERE i.is_active = 1{$where}
              ORDER BY i.sort_order ASC, i.id ASC, p.sort_order ASC, p.id ASC"
         );
         $textCheck = $this->normalizeTextForRegex($text);
+        $messageLength = mb_strlen($text);
         $items = [];
         foreach (is_array($rows) ? $rows : [] as $row) {
             $raw = (string) ($row['pattern'] ?? '');
             $pat = $this->sanitizePatternString($raw);
             $valid = @preg_match($pat, '') !== false;
-            $match = $valid && (
+            $exceedsMaxlength = $this->intentExceedsChatMaxlength($row['chat_maxlength'] ?? null, $messageLength);
+            $match = !$exceedsMaxlength && $valid && (
                 @preg_match($pat, $textCheck) === 1 || @preg_match($pat, $text) === 1
             );
             $items[] = [
                 'id' => (int) ($row['id'] ?? 0),
                 'intent' => strtoupper((string) ($row['intent_code'] ?? '')),
                 'is_active' => (int) ($row['is_active'] ?? 0),
+                'chat_maxlength' => isset($row['chat_maxlength']) && $row['chat_maxlength'] !== '' && $row['chat_maxlength'] !== null
+                    ? (int) $row['chat_maxlength'] : null,
+                'exceeds_chat_maxlength' => $exceedsMaxlength,
                 'pattern' => $raw,
                 'pattern_sanitized' => $pat,
                 'regex_valid' => $valid,
@@ -642,6 +647,14 @@ class IntentLab extends Controller
     /**
      * @return array<string,mixed>|null
      */
+    /** Pesan melebihi chat_maxlength intent (DB). NULL/0 = tanpa batas. */
+    private function intentExceedsChatMaxlength($chatMaxlength, int $messageLength): bool
+    {
+        $max = (int) ($chatMaxlength ?? 0);
+
+        return $max > 0 && $messageLength > $max;
+    }
+
     private function buildLocalRegexResult(string $text, string $intentCode, string $pattern): ?array
     {
         $intentCode = strtoupper(trim($intentCode));
@@ -656,6 +669,9 @@ class IntentLab extends Controller
             'wa_autoreply_intents',
             "code = '" . $this->dbMain()->escape($intentCode) . "' AND is_active = 1"
         );
+        if (!$row || $this->intentExceedsChatMaxlength($row['chat_maxlength'] ?? null, mb_strlen($text))) {
+            return null;
+        }
 
         return [
             'ok' => 1,
@@ -686,9 +702,10 @@ class IntentLab extends Controller
             return null;
         }
         $textCheck = $this->normalizeTextForRegex($text);
+        $messageLength = mb_strlen($text);
         $db = $this->dbMain();
         $rows = $db->query_array(
-            "SELECT i.code, i.case_value, i.notify, p.pattern
+            "SELECT i.code, i.case_value, i.notify, i.chat_maxlength, p.pattern
              FROM wa_autoreply_patterns p
              INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
              WHERE p.is_active = 1 AND i.is_active = 1 AND i.code = '" . $db->escape($intentCode) . "'
@@ -698,6 +715,9 @@ class IntentLab extends Controller
             return null;
         }
         foreach ($rows as $row) {
+            if ($this->intentExceedsChatMaxlength($row['chat_maxlength'] ?? null, $messageLength)) {
+                continue;
+            }
             $pattern = $this->sanitizePatternString((string) ($row['pattern'] ?? ''));
             if ($pattern === '' || @preg_match($pattern, '') === false) {
                 continue;
@@ -790,9 +810,10 @@ class IntentLab extends Controller
             return null;
         }
         $textCheck = $this->normalizeTextForRegex($text);
+        $messageLength = mb_strlen($text);
         $db = $this->dbMain();
         $rows = $db->query_array(
-            "SELECT i.code, i.case_value, i.notify, p.pattern
+            "SELECT i.code, i.case_value, i.notify, i.chat_maxlength, p.pattern
              FROM wa_autoreply_patterns p
              INNER JOIN wa_autoreply_intents i ON i.id = p.intent_id
              WHERE p.is_active = 1 AND i.is_active = 1
@@ -802,6 +823,9 @@ class IntentLab extends Controller
             return null;
         }
         foreach ($rows as $row) {
+            if ($this->intentExceedsChatMaxlength($row['chat_maxlength'] ?? null, $messageLength)) {
+                continue;
+            }
             $pattern = $this->sanitizePatternString((string) ($row['pattern'] ?? ''));
             if ($pattern === '' || @preg_match($pattern, '') === false) {
                 continue;

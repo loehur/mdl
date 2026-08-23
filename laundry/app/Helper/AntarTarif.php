@@ -108,6 +108,26 @@ class AntarTarif
       ];
    }
 
+   /**
+    * Tarif sameday + grant gratis durasi -D (order member / saldo paket -D).
+    * @return array{km:float,tarif:int,tarif_raw:int,grant_applied:bool}
+    */
+   public function tarifFromCoordsForPelanggan($latCabang, $lonCabang, $latLokasi, $lonLokasi, $idPelanggan)
+   {
+      $calc = $this->tarifFromCoords($latCabang, $lonCabang, $latLokasi, $lonLokasi);
+      $calc['tarif_raw'] = (int) ($calc['tarif'] ?? 0);
+      $calc['grant_applied'] = false;
+      $idPelanggan = (int) $idPelanggan;
+      if ($idPelanggan > 0) {
+         require_once 'app/Helper/DeliveryTarifGrant.php';
+         $tarif = DeliveryTarifGrant::apply($idPelanggan, (int) $calc['tarif']);
+         $calc['grant_applied'] = ($tarif === 0 && $calc['tarif_raw'] > 0);
+         $calc['tarif'] = $tarif;
+      }
+
+      return $calc;
+   }
+
    private function callApi($url, $method = 'GET')
    {
       $curl = curl_init();

@@ -91,4 +91,28 @@ class AntarTarifHelper
             'free_km' => $cfg['free_km'],
         ];
     }
+
+    /**
+     * Tarif sameday + grant gratis durasi -D (order member terbuka / saldo paket -D > 3).
+     *
+     * @return array{km:float,tarif:int,tarif_raw:int,grant_applied:bool,min_tarif:int,rate_per_km:int,free_km:float}
+     */
+    public static function tarifFromCoordsForPelanggan(
+        $latCabang,
+        $lonCabang,
+        $latLokasi,
+        $lonLokasi,
+        int $idPelanggan
+    ): array {
+        $calc = self::tarifFromCoords($latCabang, $lonCabang, $latLokasi, $lonLokasi);
+        $calc['tarif_raw'] = (int) $calc['tarif'];
+        $calc['grant_applied'] = false;
+        if ($idPelanggan > 0) {
+            $tarif = DeliveryTarifGrant::apply($idPelanggan, (int) $calc['tarif']);
+            $calc['grant_applied'] = ($tarif === 0 && $calc['tarif_raw'] > 0);
+            $calc['tarif'] = $tarif;
+        }
+
+        return $calc;
+    }
 }
