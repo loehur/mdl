@@ -425,7 +425,11 @@
     var opRoot = document.getElementById('op-dlv-root');
     if (!opRoot) return;
     var item = opRoot.querySelector('.dlv-item--request[data-id-request="' + idRequest + '"]');
-    if (item) item.remove();
+    if (item) {
+      var wrap = item.closest('.op-dlv-grid__item');
+      if (wrap) wrap.remove();
+      else item.remove();
+    }
     if (!opRoot.querySelector('.dlv-item--request')) {
       opRoot.remove();
     }

@@ -393,6 +393,7 @@ class Controller extends URL
 
     /**
      * Ada delivery_request aktif milik pelanggan di cabang ini?
+     * Status pending tidak dihitung — tidak memblokir tuntas.
      */
     protected function pelangganHasPendingDeliveryRequest(int $idPelanggan): bool
     {
@@ -402,7 +403,7 @@ class Controller extends URL
 
         $idCabang = (int) ($this->id_cabang ?? 0);
         $where = 'id_pelanggan = ' . $idPelanggan
-            . " AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')";
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran')";
         if ($idCabang > 0) {
             $where .= ' AND id_cabang = ' . $idCabang;
         }
@@ -463,7 +464,7 @@ class Controller extends URL
             $reqIn = implode(',', $reqIds);
             $aktif = $db->count_where(
                 'delivery_request',
-                "id_request IN ($reqIn) AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
+                "id_request IN ($reqIn) AND delivery_status IN ('berjalan','menunggu_pembayaran')"
             );
             if ((int) $aktif > 0) {
                 return [
@@ -520,7 +521,7 @@ class Controller extends URL
                  FROM delivery_request_item dri
                  INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
                  WHERE dri.id_penjualan IN ($idsIn)
-                   AND drq.delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
+                   AND drq.delivery_status IN ('berjalan','menunggu_pembayaran')"
             );
             if (is_array($rows)) {
                 foreach ($rows as $row) {

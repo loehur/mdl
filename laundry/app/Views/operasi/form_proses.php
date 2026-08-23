@@ -264,7 +264,8 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
   }
   #load.operasi-load .mdl-nota-grid,
   #load.operasi-load .mdl-nota-grid__item,
-  #load.operasi-load .mdl-nota-card {
+  #load.operasi-load .mdl-nota-card,
+  #load.operasi-load .op-dlv-grid__item {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
@@ -315,7 +316,8 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
       grid-template-columns: repeat(auto-fill, 460px) !important;
       gap: 8px !important;
     }
-    #load.operasi-load .mdl-nota-grid__item {
+    #load.operasi-load .mdl-nota-grid__item,
+    #load.operasi-load .op-dlv-grid__item {
       width: 460px !important;
       max-width: 460px !important;
       margin: 0 !important;

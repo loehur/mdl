@@ -12,9 +12,9 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 ?>
 
-<?php include __DIR__ . '/partials/pending_delivery_section.php'; ?>
-
 <div class="mdl-nota-grid">
+
+  <?php include __DIR__ . '/partials/pending_delivery_section.php'; ?>
 
   <?php
   $loadRekap = [];
