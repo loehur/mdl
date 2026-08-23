@@ -239,6 +239,7 @@ export const showCustomerPanel = ref(false);
 export const showAddLokasiModal = ref(false);
 export const showDeleteLokasiModal = ref(false);
 export const showDeliveryRequestModal = ref(false);
+export const showEditPermintaanModal = ref(false);
 export const showImageLightbox = ref(false);
 export const lightboxImageUrl = ref("");
 export const showQuickReplies = ref(false);

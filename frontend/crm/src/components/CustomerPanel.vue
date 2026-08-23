@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -41,6 +41,15 @@ const deliveryAktifItems = ref([]);
 const deliveryAktifLoading = ref(false);
 const permintaanOpenItems = ref([]);
 const permintaanOpenLoading = ref(false);
+const editPermintaanTarget = ref(null);
+const editPermintaanSummary = ref("");
+const editPermintaanMsg = ref("");
+const savingPermintaan = ref(false);
+
+const canSavePermintaan = computed(() => {
+  if (savingPermintaan.value) return false;
+  return editPermintaanSummary.value.trim().length > 0;
+});
 
 const deliveryJenisOptions = [
   { id: "jemput", label: "Jemput" },
@@ -340,6 +349,69 @@ const loadPermintaanOpen = async () => {
   }
 };
 
+const resetEditPermintaanForm = () => {
+  editPermintaanTarget.value = null;
+  editPermintaanSummary.value = "";
+  editPermintaanMsg.value = "";
+};
+
+const closeEditPermintaan = () => {
+  showEditPermintaanModal.value = false;
+  resetEditPermintaanForm();
+};
+
+const openEditPermintaan = (item) => {
+  if (!isAdmin.value || !item) return;
+  editPermintaanTarget.value = item;
+  editPermintaanSummary.value = item.summary || "";
+  editPermintaanMsg.value = "";
+  showEditPermintaanModal.value = true;
+};
+
+const saveEditPermintaan = async () => {
+  const target = editPermintaanTarget.value;
+  if (!isAdmin.value || !target || !canSavePermintaan.value) return;
+
+  savingPermintaan.value = true;
+  editPermintaanMsg.value = "";
+  try {
+    const payload = {
+      summary: editPermintaanSummary.value.trim(),
+    };
+    if (target.phone) payload.phone = target.phone;
+    if (custId.value) payload.cust_id = custId.value;
+    else if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Permintaan/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      editPermintaanMsg.value = res?.message || "Gagal memperbarui permintaan";
+      return;
+    }
+
+    const updated = res.item;
+    if (updated?.phone) {
+      const idx = permintaanOpenItems.value.findIndex((it) => it.phone === updated.phone);
+      if (idx >= 0) {
+        permintaanOpenItems.value[idx] = { ...permintaanOpenItems.value[idx], ...updated };
+      } else {
+        await loadPermintaanOpen();
+      }
+    } else {
+      await loadPermintaanOpen();
+    }
+    closeEditPermintaan();
+  } catch (_) {
+    editPermintaanMsg.value = "Gagal memperbarui permintaan";
+  } finally {
+    savingPermintaan.value = false;
+  }
+};
+
 const loadDeliveryAktif = async () => {
   if (!custId.value) {
     deliveryAktifItems.value = [];
@@ -524,6 +596,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showEditPermintaanModal.value) {
+    closeEditPermintaan();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showDeliveryRequestModal.value) {
     closeDeliveryRequest();
     e.stopImmediatePropagation();
@@ -543,6 +620,7 @@ watch(
     closeDeliveryRequest();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
+    closeEditPermintaan();
   }
 );
 
@@ -561,11 +639,16 @@ watch(showDeliveryRequestModal, (open) => {
   if (!open) resetDeliveryForm();
 });
 
+watch(showEditPermintaanModal, (open) => {
+  if (!open) resetEditPermintaanForm();
+});
+
 watch(isAdmin, (admin) => {
   if (!admin) {
     closeAddLokasi();
     closeDeleteLokasi();
     closeDeliveryRequest();
+    closeEditPermintaan();
   }
 });
 
@@ -576,6 +659,7 @@ watch(
       closeAddLokasi();
       closeDeleteLokasi();
       closeDeliveryRequest();
+      closeEditPermintaan();
       lokasiItems.value = [];
       lokasiError.value = "";
       deliveryAktifItems.value = [];
@@ -695,6 +779,15 @@ onUnmounted(() => {
               <p v-if="item.updated_at" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
                 {{ formatRequestTime(item.updated_at) }}
               </p>
+              <div v-if="isAdmin" class="mt-2">
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-[var(--wa-accent-green)]"
+                  @click="openEditPermintaan(item)"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -937,6 +1030,64 @@ onUnmounted(() => {
             @click="confirmDeleteLokasi"
           >
             {{ deletingLokasi ? "Menghapus…" : "Hapus" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showEditPermintaanModal"
+      class="fixed inset-0 z-[705] flex items-center justify-center p-4"
+      @click="closeEditPermintaan"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Edit Permintaan</h3>
+          <button
+            type="button"
+            class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
+            @click="closeEditPermintaan"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div>
+          <label class="text-xs text-[var(--wa-text-tertiary)]">Isi permintaan</label>
+          <textarea
+            v-model="editPermintaanSummary"
+            rows="5"
+            maxlength="2000"
+            placeholder="Ringkasan pertanyaan / permintaan pelanggan"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+          ></textarea>
+          <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Maks. 2000 karakter.</p>
+        </div>
+
+        <p v-if="editPermintaanMsg" class="text-xs text-red-400 mt-3">{{ editPermintaanMsg }}</p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            @click="closeEditPermintaan"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
+            :disabled="!canSavePermintaan"
+            @click="saveEditPermintaan"
+          >
+            {{ savingPermintaan ? "Menyimpan…" : "Simpan" }}
           </button>
         </div>
       </div>

@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4477,6 +4477,11 @@ onMounted(() => {
       return 'add_lokasi_closed';
     }
 
+    if (showEditPermintaanModal.value) {
+      showEditPermintaanModal.value = false;
+      return 'edit_permintaan_closed';
+    }
+
     if (showDeliveryRequestModal.value) {
       showDeliveryRequestModal.value = false;
       return 'delivery_request_closed';
@@ -4847,6 +4852,11 @@ function handleBackButtonPress() {
   if (showAddLokasiModal.value) {
     showAddLokasiModal.value = false;
     return "add_lokasi_closed";
+  }
+
+  if (showEditPermintaanModal.value) {
+    showEditPermintaanModal.value = false;
+    return "edit_permintaan_closed";
   }
 
   if (showDeliveryRequestModal.value) {
