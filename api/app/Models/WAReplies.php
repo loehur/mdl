@@ -7766,49 +7766,18 @@ class WAReplies
         if ($case === 0 || empty($conv->wa_number)) {
             return;
         }
-        $caseList = [];
-        if (!empty($conv->conv_case)) {
-            $decoded = json_decode($conv->conv_case, true);
-            if (is_array($decoded)) {
-                $caseList = isset($decoded[0]) ? $decoded : (!empty($decoded) ? [$decoded] : []);
-            } elseif (is_numeric($conv->conv_case)) {
-                $caseList[] = ['case' => (int) $conv->conv_case, 'status' => 'unknown'];
-            }
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/CrmCaseHelper.php';
         }
-        $hasOtherOpenCases = false;
-        foreach ($caseList as $c) {
-            if (isset($c['case']) && (int) $c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
-                $hasOtherOpenCases = true;
-                break;
-            }
-        }
-        if ($case === 4 && $hasOtherOpenCases) {
+
+        $caseList = \App\Helpers\CRM\CrmCaseHelper::decodeList($conv->conv_case ?? null);
+        $merged = \App\Helpers\CRM\CrmCaseHelper::mergeOpenCase($caseList, $case);
+        if (empty($merged['changed'])) {
             return;
         }
-        $caseExists = false;
-        foreach ($caseList as &$existingCase) {
-            if (isset($existingCase['case']) && (int) $existingCase['case'] === $case) {
-                $existingCase['status'] = 'open';
-                unset($existingCase['timestamp'], $existingCase['resolved_at'], $existingCase['resolved_by']);
-                $caseExists = true;
-                break;
-            }
-        }
-        unset($existingCase);
-        if (!$caseExists) {
-            $caseList[] = ['case' => $case, 'status' => 'open'];
-        }
-        if ($case !== 4) {
-            foreach ($caseList as &$c) {
-                if (isset($c['case']) && (int) $c['case'] === 4) {
-                    $c['status'] = 'closed';
-                    unset($c['timestamp'], $c['resolved_at'], $c['resolved_by']);
-                }
-            }
-            unset($c);
-        }
+
         $db->update('wa_conversations', [
-            'conv_case' => json_encode($caseList),
+            'conv_case' => \App\Helpers\CRM\CrmCaseHelper::encodeList($merged['list']),
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['wa_number' => $conv->wa_number]);
     }
@@ -7894,78 +7863,13 @@ class WAReplies
             
             // Only update case if not null and not 0 (Append to existing list)
             if ($case !== null && (int)$case !== 0) {
-                $caseList = [];
-                
-                // 1. Retrieve & Decode existing content
-                if (!empty($conv->conv_case)) {
-                    $decoded = json_decode($conv->conv_case, true);
-                    
-                    if (is_array($decoded)) {
-                        $isList = isset($decoded[0]);
-                        
-                        if ($isList) {
-                            $caseList = $decoded;
-                        } else {
-                            if (!empty($decoded)) {
-                                $caseList[] = $decoded;
-                            }
-                        }
-                    } elseif (is_numeric($conv->conv_case)) {
-                        $caseList[] = ['case' => (int)$conv->conv_case, 'status' => 'unknown'];
-                    }
+                if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+                    require_once __DIR__ . '/../Helpers/CRM/CrmCaseHelper.php';
                 }
-                
-                // 2. Check if there are other open cases (for Case 4 logic)
-                $caseExists = false;
-                $hasOtherOpenCases = false;
-                foreach ($caseList as $c) {
-                    if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
-                        $hasOtherOpenCases = true;
-                        break;
-                    }
-                }
-                
-                // NEW RULE: If trying to add/open Case 4 but other cases are open, SKIP
-                if ((int)$case === 4 && $hasOtherOpenCases) {
-                    // Don't add or update Case 4 - just skip case update entirely
-                } else {
-                    // Normal case processing
-                    foreach ($caseList as &$existingCase) {
-                        if (isset($existingCase['case']) && (int)$existingCase['case'] === (int)$case) {
-                            $existingCase['status'] = 'open';
-                            
-                            // Clean up extra fields
-                            if(isset($existingCase['timestamp'])) unset($existingCase['timestamp']);
-                            if(isset($existingCase['resolved_at'])) unset($existingCase['resolved_at']);
-                            if(isset($existingCase['resolved_by'])) unset($existingCase['resolved_by']);
-                            
-                            $caseExists = true;
-                            break;
-                        }
-                    }
-                    unset($existingCase); 
-                    
-                    // 3. Only append if case doesn't exist
-                    if (!$caseExists) {
-                        $caseList[] = [
-                            'case' => $case,
-                            'status' => 'open'
-                        ];
-                    }
-                    
-                    if ((int)$case !== 4) {
-                        foreach ($caseList as &$c) {
-                            if (isset($c['case']) && (int)$c['case'] === 4) {
-                                $c['status'] = 'closed';
-                                if(isset($c['timestamp'])) unset($c['timestamp']);
-                                if(isset($c['resolved_at'])) unset($c['resolved_at']);
-                                if(isset($c['resolved_by'])) unset($c['resolved_by']);
-                            }
-                        }
-                        unset($c);
-                    }
-                    
-                    $updateData['conv_case'] = json_encode($caseList);
+                $caseList = \App\Helpers\CRM\CrmCaseHelper::decodeList($conv->conv_case ?? null);
+                $merged = \App\Helpers\CRM\CrmCaseHelper::mergeOpenCase($caseList, (int) $case);
+                if (!empty($merged['changed'])) {
+                    $updateData['conv_case'] = \App\Helpers\CRM\CrmCaseHelper::encodeList($merged['list']);
                 }
             }
 

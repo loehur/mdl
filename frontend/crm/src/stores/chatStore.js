@@ -302,6 +302,53 @@ export const getAvatarColor = (seed) => {
     return colors[num % colors.length];
 };
 
+export const CASE_FOLLOW_UP = 4;
+
+/** Case ungu tidak boleh coexist dengan case open lain. */
+export const enforceCaseFourExclusivity = (cases) => {
+    if (!Array.isArray(cases) || cases.length === 0) return cases || [];
+    const hasOtherOpen = cases.some(
+        (c) => parseInt(c.case) !== CASE_FOLLOW_UP && (c.status || "open") !== "closed"
+    );
+    if (!hasOtherOpen) return cases;
+    return cases.map((c) =>
+        parseInt(c.case) === CASE_FOLLOW_UP ? { ...c, status: "closed" } : c
+    );
+};
+
+/** Merge case di UI — mirror aturan backend CrmCaseHelper. */
+export const mergeOpenCaseLocal = (cases, newCase) => {
+    const list = Array.isArray(cases) ? cases.map((c) => ({ ...c })) : [];
+    const nc = parseInt(newCase);
+    if (!nc || Number.isNaN(nc)) return enforceCaseFourExclusivity(list);
+
+    const hasOtherOpen = list.some(
+        (c) => parseInt(c.case) !== CASE_FOLLOW_UP && (c.status || "open") !== "closed"
+    );
+
+    if (nc === CASE_FOLLOW_UP) {
+        if (hasOtherOpen) return enforceCaseFourExclusivity(list);
+        const existing = list.find((c) => parseInt(c.case) === CASE_FOLLOW_UP);
+        if (existing) existing.status = "open";
+        else list.push({ case: CASE_FOLLOW_UP, status: "open" });
+        return list.filter((c) => parseInt(c.case) !== 0);
+    }
+
+    const withoutFour = enforceCaseFourExclusivity(list);
+    const hit = withoutFour.find((c) => parseInt(c.case) === nc);
+    if (hit) hit.status = "open";
+    else withoutFour.push({ case: nc, status: "open" });
+    return withoutFour.filter((c) => parseInt(c.case) !== 0);
+};
+
+/** active_cases dari WS — tidak pernah kirim 4 bersama case lain. */
+export const sanitizeActiveCaseIds = (ids) => {
+    if (!Array.isArray(ids)) return [];
+    const parsed = ids.map((id) => parseInt(id)).filter((id) => id > 0);
+    const nonFollowUp = parsed.filter((id) => id !== CASE_FOLLOW_UP);
+    return nonFollowUp.length ? [...new Set(nonFollowUp)] : [...new Set(parsed)];
+};
+
 export const getCaseColor = (caseId) => {
     switch (parseInt(caseId)) {
         case 2: return "bg-yellow-500";

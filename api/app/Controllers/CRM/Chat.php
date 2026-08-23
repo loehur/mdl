@@ -208,6 +208,10 @@ class Chat extends Controller
                     $this->normalizePermintaanPhoneKey((string) ($conv->wa_number ?? ''))
                 ]);
                 $caseList = $this->mergePermintaanCase($caseList, $hasActivePermintaan);
+                if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
+                }
+                $caseList = \App\Helpers\CRM\CrmCaseHelper::enforceCaseFourExclusivity($caseList);
                 $conv->case_history = $caseList;
 
                 $lastOpenCase = null;
@@ -335,7 +339,11 @@ class Chat extends Controller
             $filtered[] = ['case' => 2, 'status' => 'open'];
         }
 
-        return array_values($filtered);
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
+        }
+
+        return \App\Helpers\CRM\CrmCaseHelper::enforceCaseFourExclusivity(array_values($filtered));
     }
 
     /**
@@ -485,7 +493,11 @@ class Chat extends Controller
             $filtered[] = ['case' => 3, 'status' => 'open'];
         }
 
-        return array_values($filtered);
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
+        }
+
+        return \App\Helpers\CRM\CrmCaseHelper::enforceCaseFourExclusivity(array_values($filtered));
     }
 
     public function getMessages()
@@ -899,70 +911,24 @@ class Chat extends Controller
             
             $db = $this->db(0);
             
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
+            }
+
             // 1. Fetch existing cases first to support multi-case (append logic)
             $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
-            $caseList = [];
-            
-            if ($existing && isset($existing->conv_case)) {
-                $raw = $existing->conv_case;
-                // Parse existing JSON
-                if (is_string($raw) && (strpos(trim($raw), '[') === 0)) {
-                    $caseList = json_decode($raw, true) ?? [];
-                } elseif (is_numeric($raw)) {
-                     // Legacy support: convert single int to array item
-                     $caseList[] = ['case' => (int)$raw, 'status' => 'open'];
-                }
-            }
+            $caseList = \App\Helpers\CRM\CrmCaseHelper::decodeList($existing->conv_case ?? null);
 
-            // Always close Case 4 (Follow Up) when updating cases (instead of removing, keep history)
-            foreach ($caseList as &$c) {
-                if (isset($c['case']) && (int)$c['case'] === 4 && ($c['status'] ?? '') !== 'closed') {
-                    $c['status'] = 'closed';
-                }
-            }
-            unset($c);
-            
-            // 2. Add or Update the requested case
             $newCaseVal = (int)$caseVal;
-            
-            // Check if there are other open cases (for Case 4 logic)
-            $hasOtherOpenCases = false;
-            foreach ($caseList as $c) {
-                if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
-                    $hasOtherOpenCases = true;
-                    break;
-                }
-            }
-            
-            // NEW RULE: If trying to add Case 4 but other cases are open, SKIP
-            if ($newCaseVal === 4 && $hasOtherOpenCases) {
+            $merged = \App\Helpers\CRM\CrmCaseHelper::mergeOpenCase($caseList, $newCaseVal);
+            if (!empty($merged['skipped']) && $newCaseVal === \App\Helpers\CRM\CrmCaseHelper::CASE_FOLLOW_UP) {
                 $this->success(['case' => null], 'Other cases are open - Case 4 not needed');
+                return;
             }
-            
-            $found = false;
-            
-            foreach ($caseList as &$item) {
-                if (isset($item['case']) && (int)$item['case'] === $newCaseVal) {
-                    // Case already exists, refresh timestamp/status
-                    $item['status'] = 'open';
-                    $item['status'] = 'open';
-                    // Timestamp removed as per request
-                    $found = true;
-                    break;
-                }
-            }
-            
-            if (!$found) {
-                // Append new case
-                $caseList[] = [
-                    'case' => $newCaseVal,
-                    'status' => 'open'
-                ];
-            }
-
+            $caseList = $merged['list'];
             
             // 3. Save back entire list
-            $jsonCase = json_encode($caseList);
+            $jsonCase = \App\Helpers\CRM\CrmCaseHelper::encodeList($caseList);
             
             $updated = $db->update('wa_conversations', 
                 ['conv_case' => $jsonCase], 
@@ -1055,34 +1021,25 @@ class Chat extends Controller
             }
             
             $db = $this->db(0);
-            
-            // Check if there are other open cases - if so, don't add Case 4
+
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
+            }
+
             $existing = $db->query("SELECT conv_case FROM wa_conversations WHERE wa_number = ?", [$phone])->row();
-            $hasOtherOpenCases = false;
-            
-            if ($existing && isset($existing->conv_case)) {
-                $caseList = json_decode($existing->conv_case, true) ?? [];
-                if (is_array($caseList)) {
-                    foreach ($caseList as $c) {
-                        if (isset($c['case']) && (int)$c['case'] !== 4 && ($c['status'] ?? '') === 'open') {
-                            $hasOtherOpenCases = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // If other cases are open, skip adding Case 4
-            if ($hasOtherOpenCases) {
+            $caseList = \App\Helpers\CRM\CrmCaseHelper::decodeList($existing->conv_case ?? null);
+            $merged = \App\Helpers\CRM\CrmCaseHelper::mergeOpenCase(
+                $caseList,
+                \App\Helpers\CRM\CrmCaseHelper::CASE_FOLLOW_UP
+            );
+
+            if (!empty($merged['skipped'])) {
                 $this->success(['case' => null], 'Conversation already has open cases - Case 4 not needed');
+                return;
             }
-            
-            // Update case to 4 (urgent)
-            $caseVal = 4;
-            $jsonCase = json_encode([[
-                'case' => $caseVal,
-                'status' => 'reopened'
-            ]]);
+
+            $caseVal = \App\Helpers\CRM\CrmCaseHelper::CASE_FOLLOW_UP;
+            $jsonCase = \App\Helpers\CRM\CrmCaseHelper::encodeList($merged['list']);
             
             $updated = $db->update('wa_conversations', 
                 ['conv_case' => $jsonCase], 

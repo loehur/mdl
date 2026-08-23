@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -350,7 +350,7 @@ const syncConversationCases = () => {
   if (Array.isArray(deliveryAktifItems.value) && deliveryAktifItems.value.length > 0) {
     next.push({ case: 2, status: "open" });
   }
-  props.conversation.cases = next;
+  props.conversation.cases = enforceCaseFourExclusivity(next);
 };
 
 const loadPermintaanOpen = async () => {

@@ -382,18 +382,17 @@ class PermintaanStore
                 $caseList = [];
             }
 
-            $filtered = [];
-            foreach ($caseList as $item) {
-                if ((int) ($item['case'] ?? 0) === 3) {
-                    continue;
-                }
-                $filtered[] = $item;
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+                require_once __DIR__ . '/../CRM/CrmCaseHelper.php';
             }
-            $filtered[] = ['case' => 3, 'status' => 'open'];
+            $merged = \App\Helpers\CRM\CrmCaseHelper::mergeOpenCase($caseList, 3);
+            if (empty($merged['changed'])) {
+                return;
+            }
 
             $db->query(
                 'UPDATE wa_conversations SET conv_case = ? WHERE id = ?',
-                [json_encode(array_values($filtered), JSON_UNESCAPED_UNICODE), (int) $conv['id']]
+                [\App\Helpers\CRM\CrmCaseHelper::encodeList($merged['list']), (int) $conv['id']]
             );
         } catch (\Throwable $e) {
             // conversation opsional — session permintaan tetap dibuat

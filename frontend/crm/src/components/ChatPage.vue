@@ -5,7 +5,7 @@ import EmojiPicker from "./EmojiPicker.vue";
 import CustomerPanel from "./CustomerPanel.vue";
 import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE, mergeOpenCaseLocal } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -642,15 +642,8 @@ const updateCase = async (caseId, loadingRef) => {
         }).then(r => r.json());
 
         if (res.status) {
-             // Optimistic Update
              if (!props.activeConversation.cases) props.activeConversation.cases = [];
-             // Close case 4 logic
-             props.activeConversation.cases = props.activeConversation.cases
-                .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
-                .filter((c) => c.case !== 0);
-             if (!props.activeConversation.cases.some((c) => c.case === caseId && c.status === "open")) {
-                props.activeConversation.cases.push({ case: caseId, status: "open" });
-             }
+             props.activeConversation.cases = mergeOpenCaseLocal(props.activeConversation.cases, caseId);
              showChatMenu.value = false;
         }
     } catch(e) { console.error(e); }

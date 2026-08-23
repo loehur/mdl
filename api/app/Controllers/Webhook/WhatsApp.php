@@ -688,42 +688,17 @@ class WhatsApp extends Controller
      */
     private function extractOpenCaseIds($conv): array
     {
-        $activeCases = [];
         if ($conv === null || $conv === '') {
-            return $activeCases;
+            return [];
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmCaseHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmCaseHelper.php';
         }
 
         $raw = is_object($conv) ? ($conv->conv_case ?? null) : $conv;
-        if ($raw === null || $raw === '') {
-            return $activeCases;
-        }
 
-        if (is_numeric($raw)) {
-            $activeCases[] = (int) $raw;
-
-            return $activeCases;
-        }
-
-        $casesDecoded = is_string($raw) ? json_decode($raw, true) : $raw;
-        if (!is_array($casesDecoded)) {
-            return $activeCases;
-        }
-
-        if (!isset($casesDecoded[0])) {
-            $casesDecoded = [$casesDecoded];
-        }
-
-        foreach ($casesDecoded as $c) {
-            if (!isset($c['case'])) {
-                continue;
-            }
-            if (($c['status'] ?? 'open') === 'closed') {
-                continue;
-            }
-            $activeCases[] = (int) $c['case'];
-        }
-
-        return array_values(array_unique(array_filter($activeCases, static fn ($id) => $id > 0)));
+        return \App\Helpers\CRM\CrmCaseHelper::extractOpenCaseIds($raw);
     }
 
     /**

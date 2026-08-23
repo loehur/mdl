@@ -65,6 +65,7 @@ import {
   originalTitle, titleBlinkInterval, isTitleRed,
   // Helpers
   getAvatarColor, getCaseColor, getCaseLabel, isCaseOpen, isNativeApp,
+  enforceCaseFourExclusivity, mergeOpenCaseLocal, sanitizeActiveCaseIds, CASE_FOLLOW_UP,
   // Computed
   activeConversation, filteredConversations, totalUnreadCount, totalOpenCasesCount,
   // Trigger
@@ -547,7 +548,7 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             }
           }
 
-          return Array.from(seenCases.values());
+          return enforceCaseFourExclusivity(Array.from(seenCases.values()));
         };
 
         let convo = existingMap.get(c.id);
@@ -742,7 +743,7 @@ const loadMoreConversations = async () => {
               }
             }
           }
-          return Array.from(seenCases.values());
+          return enforceCaseFourExclusivity(Array.from(seenCases.values()));
         };
 
         return {
@@ -1657,19 +1658,11 @@ const followUp = async () => {
     const res = await response.json();
 
     if (res.status) {
-      // Update local cases (Append for multi-case)
       if (!activeConversation.value.cases) activeConversation.value.cases = [];
-      activeConversation.value.cases = activeConversation.value.cases.filter(
-        (c) => c.case !== 0
+      activeConversation.value.cases = mergeOpenCaseLocal(
+        activeConversation.value.cases,
+        CASE_FOLLOW_UP
       );
-      // Add case 4 with status open
-      if (
-        !activeConversation.value.cases.some(
-          (c) => c.case === 4 && c.status === "open"
-        )
-      ) {
-        activeConversation.value.cases.push({ case: 4, status: "open" });
-      }
     } else {
       console.error("Failed to mark for follow up:", res.message);
     }
@@ -2947,7 +2940,8 @@ const handleIncomingMessage = (payload) => {
     }
     // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
     if (Array.isArray(payload.active_cases) && payload.active_cases.length > 0) {
-      conversation.cases = payload.active_cases.map((c) => ({
+      const ids = sanitizeActiveCaseIds(payload.active_cases);
+      conversation.cases = ids.map((c) => ({
         case: parseInt(c),
         status: "open",
       }));
@@ -2962,19 +2956,7 @@ const handleIncomingMessage = (payload) => {
         // Assuming 0 means "Unknown/General" case here
         // conversation.cases = [{case: 0, status: 'open'}];
       } else {
-        // Smart Merge: Open the new case
-        const existing = conversation.cases.find((c) => c.case === newCase);
-        if (existing) {
-          existing.status = "open";
-        } else {
-          conversation.cases.push({ case: newCase, status: "open" });
-        }
-
-        // Auto-close Case 4 (Follow Up) if the new open case is NOT 4
-        if (newCase !== 4) {
-          const c4 = conversation.cases.find((c) => c.case === 4);
-          if (c4) c4.status = "closed";
-        }
+        conversation.cases = mergeOpenCaseLocal(conversation.cases, newCase);
       }
     }
   }
@@ -3340,24 +3322,7 @@ const connectWebSocket = () => {
               // Reset/Clear all active? usually 0 means "reset"
               conv.cases = [{ case: 0, status: "open" }];
             } else {
-              // 1. Update/Add Target Case
-              const existing = conv.cases.find((c) => c.case === newC);
-              if (existing) {
-                existing.status = "open"; // Re-open/Update
-              } else {
-                conv.cases.push({ case: newC, status: "open" });
-              }
-
-              // 2. Auto-close Case 4 if new case is not 4
-              if (newC !== 4) {
-                const case4 = conv.cases.find((c) => c.case === 4);
-                if (case4) {
-                  case4.status = "closed";
-                }
-              }
-
-              // 3. Remove dummy case 0
-              conv.cases = conv.cases.filter((c) => c.case !== 0);
+              conv.cases = mergeOpenCaseLocal(conv.cases || [], newC);
             }
           } else {
             fetchConversations(); // Reload to get new conversation
@@ -4157,7 +4122,7 @@ const resumeChatState = async () => {
             }
           }
 
-          return Array.from(seenCases.values());
+          return enforceCaseFourExclusivity(Array.from(seenCases.values()));
         };
         
         const c = fetchedChat;
