@@ -131,6 +131,7 @@ class IntentLab extends Controller
                 $res = ['ok' => 0, 'message' => 'Respon API tidak valid'];
             }
             $res = $this->mergeLocalRegexClassify($text, $res);
+            $res = $this->rejectClassifyIfExceedsChatMaxlength($text, $res);
             if (!isset($res['ok'])) {
                 $res['ok'] = 0;
             }
@@ -359,6 +360,9 @@ class IntentLab extends Controller
         if ($check === null) {
             $api = $this->helper('IntentCheckApi');
             $check = $api->check($text, $cacheBump !== null);
+            if (is_array($check)) {
+                $check = $this->rejectClassifyIfExceedsChatMaxlength($text, $check);
+            }
         }
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
         $verifyOk = ($gotIntent === $intentCode);
@@ -540,6 +544,9 @@ class IntentLab extends Controller
 
         $api = $this->helper('IntentCheckApi');
         $check = $api->check($text);
+        if (is_array($check)) {
+            $check = $this->rejectClassifyIfExceedsChatMaxlength($text, $check);
+        }
         $gotIntent = strtoupper((string) ($check['intent'] ?? ''));
         $verifyOk = ($gotIntent !== $intentCode);
 
@@ -653,6 +660,37 @@ class IntentLab extends Controller
         $max = (int) ($chatMaxlength ?? 0);
 
         return $max > 0 && $messageLength > $max;
+    }
+
+    /**
+     * Safety net: tolak hasil API yang melanggar chat_maxlength intent (mis. bypass PENUTUP produksi).
+     *
+     * @param array<string,mixed> $res
+     * @return array<string,mixed>
+     */
+    private function rejectClassifyIfExceedsChatMaxlength(string $text, array $res): array
+    {
+        $intent = strtoupper(trim((string) ($res['intent'] ?? '')));
+        if ($intent === '' || in_array($intent, ['FALSE', 'NONE'], true)) {
+            return $res;
+        }
+        $row = $this->dbMain()->get_where_row(
+            'wa_autoreply_intents',
+            "code = '" . $this->dbMain()->escape($intent) . "' AND is_active = 1"
+        );
+        if (!$row || !$this->intentExceedsChatMaxlength($row['chat_maxlength'] ?? null, mb_strlen($text))) {
+            return $res;
+        }
+        $max = (int) ($row['chat_maxlength'] ?? 0);
+        $trace = is_array($res['trace'] ?? null) ? $res['trace'] : [];
+        $trace[] = $intent . '→exceeds_chat_maxlength max=' . $max;
+
+        return array_merge($res, [
+            'intent' => 'FALSE',
+            'source' => 'maxlength',
+            'no_handler' => true,
+            'trace' => $trace,
+        ]);
     }
 
     private function buildLocalRegexResult(string $text, string $intentCode, string $pattern): ?array

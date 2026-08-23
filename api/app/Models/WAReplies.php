@@ -400,6 +400,7 @@ class WAReplies
         if ($keywordConfig === []) {
             return null;
         }
+        $messageLength = mb_strlen($textBody);
 
         foreach ($keywordConfig as $handler => $config) {
             if (!is_array($config)) {
@@ -407,6 +408,9 @@ class WAReplies
             }
             $code = strtoupper(trim((string) $handler));
             if ($code === '') {
+                continue;
+            }
+            if ($this->intentExceedsChatMaxlength($config, $messageLength)) {
                 continue;
             }
             foreach ($config['patterns'] ?? [] as $pattern) {
@@ -585,7 +589,8 @@ class WAReplies
         if ($handler === '' || $handler === 'FALSE') {
             return true;
         }
-        if (strtoupper($handler) === 'PENUTUP'
+        if (!$this->intentLabMode
+            && strtoupper($handler) === 'PENUTUP'
             && $textBody !== null
             && $this->penutupShouldAutoreplyThanksOrPayment($textBody)
         ) {
@@ -610,7 +615,8 @@ class WAReplies
                 continue;
             }
             if ($this->intentExceedsChatMaxlength($config, $messageLength)) {
-                if (strtoupper((string) $code) === 'PENUTUP'
+                if (!$this->intentLabMode
+                    && strtoupper((string) $code) === 'PENUTUP'
                     && $textBody !== null
                     && $this->penutupShouldAutoreplyThanksOrPayment($textBody)
                 ) {

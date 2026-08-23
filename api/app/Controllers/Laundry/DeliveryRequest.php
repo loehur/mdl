@@ -23,15 +23,27 @@ class DeliveryRequest extends Controller
             $this->fail('Method not allowed', 405);
             return;
         }
-        $body = $this->mergedInput();
-        $body['id_pelanggan'] = (int) (
-            $body['id_pelanggan']
-            ?? $body['cust_id']
-            ?? $this->query('id_pelanggan')
-            ?? $this->query('cust_id')
-            ?? 0
-        );
-        $this->reply(DeliveryRequestStore::create($body));
+        try {
+            $body = $this->mergedInput();
+            $body['id_pelanggan'] = (int) (
+                $body['id_pelanggan']
+                ?? $body['cust_id']
+                ?? $this->query('id_pelanggan')
+                ?? $this->query('cust_id')
+                ?? 0
+            );
+            $this->reply(DeliveryRequestStore::create($body));
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('DeliveryRequest create: ' . $e->getMessage(), 'api', 'DeliveryRequest');
+            }
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'status' => false,
+                'message' => 'Gagal membuat permintaan delivery',
+            ], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     public function listAktif()

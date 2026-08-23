@@ -109,21 +109,34 @@ class AntarTarif
    }
 
    /**
-    * Tarif sameday + grant gratis durasi -D (order member / saldo paket -D).
+    * Tarif sameday + grant gratis durasi -D via api.nalju.com (sumber tunggal).
     * @return array{km:float,tarif:int,tarif_raw:int,grant_applied:bool}
     */
    public function tarifFromCoordsForPelanggan($latCabang, $lonCabang, $latLokasi, $lonLokasi, $idPelanggan)
    {
+      $idPelanggan = (int) $idPelanggan;
+      if ($idPelanggan > 0) {
+         $qs = http_build_query([
+            'cab_lat' => (float) $latCabang,
+            'cab_lon' => (float) $lonCabang,
+            'loc_lat' => (float) $latLokasi,
+            'loc_lon' => (float) $lonLokasi,
+            'id_pelanggan' => $idPelanggan,
+         ]);
+         $res = $this->callApi($this->apiUrl . '/forPelanggan?' . $qs, 'GET');
+         if (!empty($res['ok'])) {
+            return [
+               'km' => (float) ($res['km'] ?? 0),
+               'tarif' => (int) ($res['tarif'] ?? 0),
+               'tarif_raw' => (int) ($res['tarif_raw'] ?? $res['tarif'] ?? 0),
+               'grant_applied' => !empty($res['grant_applied']),
+            ];
+         }
+      }
+
       $calc = $this->tarifFromCoords($latCabang, $lonCabang, $latLokasi, $lonLokasi);
       $calc['tarif_raw'] = (int) ($calc['tarif'] ?? 0);
       $calc['grant_applied'] = false;
-      $idPelanggan = (int) $idPelanggan;
-      if ($idPelanggan > 0) {
-         require_once 'app/Helper/DeliveryTarifGrant.php';
-         $tarif = DeliveryTarifGrant::apply($idPelanggan, (int) $calc['tarif']);
-         $calc['grant_applied'] = ($tarif === 0 && $calc['tarif_raw'] > 0);
-         $calc['tarif'] = $tarif;
-      }
 
       return $calc;
    }
