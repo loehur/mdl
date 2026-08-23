@@ -559,6 +559,7 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
           convo.name = c.contact_name || c.wa_number;
           convo.kode_cabang = c.kode_cabang;
           convo.cust_id = c.cust_id;
+          convo.is_pelanggan = !!c.is_pelanggan || Number(c.cust_id) > 0;
           convo.partner =
             c.partner === 1 || c.partner === "1" ? 1 : null;
           // convo.priority = parseInt(c.priority) || 0; // Legacy ignored
@@ -590,6 +591,7 @@ const fetchConversations = async (offset = 0, limit = 30, search = '') => {
             name: c.contact_name || c.wa_number,
             kode_cabang: c.kode_cabang,
             cust_id: c.cust_id,
+            is_pelanggan: !!c.is_pelanggan || Number(c.cust_id) > 0,
             partner:
               c.partner === 1 || c.partner === "1" ? 1 : null,
             // priority: parseInt(c.priority) || 0,
@@ -752,6 +754,7 @@ const loadMoreConversations = async () => {
           name: c.contact_name || c.wa_number,
           kode_cabang: c.kode_cabang,
           cust_id: c.cust_id,
+          is_pelanggan: !!c.is_pelanggan || Number(c.cust_id) > 0,
           partner:
             c.partner === 1 || c.partner === "1" ? 1 : null,
           cases: parseCases(c),
@@ -2900,6 +2903,7 @@ const handleIncomingMessage = (payload) => {
       name: name || payload.phone || "Unknown User",
       kode_cabang: payload.kode_cabang || "00", // Set from payload
       cust_id: payload.cust_id || null,
+      is_pelanggan: !!payload.is_pelanggan || Number(payload.cust_id) > 0,
       // priority: parseInt(payload.priority) || 0, // Legacy
       cases: [{ case: parseInt(payload.case || payload.priority || 0) }], // Initialize cases
       initials: (name || payload.phone || "?").substring(0, 1).toUpperCase(),
@@ -2930,6 +2934,10 @@ const handleIncomingMessage = (payload) => {
     }
     if (payload.cust_id !== undefined) {
       conversation.cust_id = payload.cust_id;
+      conversation.is_pelanggan = Number(payload.cust_id) > 0;
+    }
+    if (payload.is_pelanggan !== undefined) {
+      conversation.is_pelanggan = !!payload.is_pelanggan;
     }
     if (payload.priority !== undefined) {
       conversation.priority = parseInt(payload.priority) || 0;
@@ -3379,6 +3387,7 @@ const connectWebSocket = () => {
               name,
               kode_cabang: payload.kode_cabang || "00",
               cust_id: payload.cust_id || null,
+              is_pelanggan: !!payload.is_pelanggan || Number(payload.cust_id) > 0,
               cases: [],
               initials: name.substring(0, 1).toUpperCase(),
               color: getAvatarColor(conversationId || payload.phone),
@@ -4135,6 +4144,7 @@ const resumeChatState = async () => {
             name: c.contact_name || c.wa_number,
             kode_cabang: c.kode_cabang,
             cust_id: c.cust_id,
+            is_pelanggan: !!c.is_pelanggan || Number(c.cust_id) > 0,
             cases: parseCases(c),
             initials: (c.contact_name || c.wa_number || "?")
               .substring(0, 1)
@@ -4159,6 +4169,7 @@ const resumeChatState = async () => {
           convo.name = c.contact_name || c.wa_number;
           convo.kode_cabang = c.kode_cabang;
           convo.cust_id = c.cust_id;
+          convo.is_pelanggan = !!c.is_pelanggan || Number(c.cust_id) > 0;
           convo.cases = parseCases(c);
           convo.initials = (c.contact_name || c.wa_number || "?")
             .substring(0, 1)

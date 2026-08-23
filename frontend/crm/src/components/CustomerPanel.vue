@@ -84,8 +84,19 @@ const cswOpen = computed(() => {
   return !!(c.ycloud_open || c.fonnte_open);
 });
 
+const isPelanggan = computed(() => {
+  const c = props.conversation;
+  if (!c) return false;
+  const flagged = c.is_pelanggan;
+  if (flagged === true || flagged === 1 || flagged === "1") return true;
+  if (flagged === false || flagged === 0 || flagged === "0") return false;
+  if (Number(c.cust_id) > 0) return true;
+  const code = String(c.kode_cabang || "").trim();
+  return code !== "" && code !== "00";
+});
+
 const canSendTagihan = computed(() => {
-  return !!(custId.value || props.conversation?.wa_number) && cswOpen.value;
+  return isPelanggan.value && cswOpen.value;
 });
 
 const deliveryJenisOptions = [
@@ -1276,53 +1287,52 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
-          <div class="space-y-3">
-            <div>
-              <label class="text-xs text-[var(--wa-text-tertiary)]">Nama lokasi</label>
-              <input
-                v-model="formNama"
-                type="text"
-                maxlength="50"
-                placeholder="Rumah / Kos / Kantor"
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
-              />
-            </div>
-            <div>
-              <label class="text-xs text-[var(--wa-text-tertiary)]">Detail alamat</label>
-              <textarea
-                v-model="formDetail"
-                rows="4"
-                maxlength="255"
-                placeholder="Ciri / patokan / nomor rumah"
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
-              ></textarea>
-            </div>
-            <div>
-              <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
-              <input
-                v-model="formGmaps"
-                type="url"
-                placeholder="https://maps.app.goo.gl/…"
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
-                @blur="resolveGmaps"
-              />
-              <p v-if="resolvingMaps" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Membaca koordinat…</p>
-              <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
-                Opsional. Paste link jika tidak memakai pencarian/geser peta di sebelah kanan.
-              </p>
-            </div>
-          </div>
-
-          <div class="min-h-0">
-            <LocationMapPicker
-              v-model:lat="formLatt"
-              v-model:lng="formLongt"
-              :api-base="props.apiBase"
-              map-height-class="h-[280px] lg:h-[420px]"
-            />
-          </div>
-        </div>
+        <LocationMapPicker
+          v-model:lat="formLatt"
+          v-model:lng="formLongt"
+          :api-base="props.apiBase"
+          layout="modal"
+          map-height-class="h-[280px] lg:h-[420px]"
+        >
+            <template #form>
+              <div>
+                <label class="text-xs text-[var(--wa-text-tertiary)]">Nama lokasi</label>
+                <input
+                  v-model="formNama"
+                  type="text"
+                  maxlength="50"
+                  placeholder="Rumah / Kos / Kantor"
+                  class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-[var(--wa-text-tertiary)]">Detail alamat</label>
+                <textarea
+                  v-model="formDetail"
+                  rows="4"
+                  maxlength="255"
+                  placeholder="Ciri / patokan / nomor rumah"
+                  class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+                ></textarea>
+              </div>
+            </template>
+            <template #form-after-search>
+              <div>
+                <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
+                <input
+                  v-model="formGmaps"
+                  type="url"
+                  placeholder="https://maps.app.goo.gl/…"
+                  class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+                  @blur="resolveGmaps"
+                />
+                <p v-if="resolvingMaps" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Membaca koordinat…</p>
+                <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+                  Opsional. Paste link jika tidak memakai pencarian/geser peta di sebelah kanan.
+                </p>
+              </div>
+            </template>
+          </LocationMapPicker>
 
         <p v-if="formMsg" class="text-xs text-red-400 mt-4">{{ formMsg }}</p>
         <div class="flex gap-2 pt-4 mt-1">

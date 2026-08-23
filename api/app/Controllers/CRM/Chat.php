@@ -229,6 +229,8 @@ class Chat extends Controller
                     $conv->case_val = (int) ($lastItem['case'] ?? 0);
                     $conv->case_status = $lastItem['status'] ?? null;
                 }
+
+                $conv->is_pelanggan = ((int) ($conv->cust_id ?? 0)) > 0;
             }
 
             if ($isDriver) {

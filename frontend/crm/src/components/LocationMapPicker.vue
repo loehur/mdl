@@ -8,6 +8,7 @@ const lng = defineModel("lng", { type: Number, default: null });
 const props = defineProps({
   apiBase: { type: String, required: true },
   mapHeightClass: { type: String, default: "h-[280px]" },
+  layout: { type: String, default: "stacked" },
 });
 
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
@@ -349,7 +350,129 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div v-if="layout === 'modal'" class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
+    <div class="space-y-3">
+      <slot name="form" />
+      <div class="space-y-2">
+        <label class="text-xs text-[var(--wa-text-tertiary)]">Cari alamat</label>
+        <div ref="searchWrap" class="relative z-[800]">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Ketik nama jalan, tempat, atau alamat…"
+            class="w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] px-3 py-2 pr-10 text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:border-[var(--wa-accent-green)] focus:outline-none"
+            autocomplete="off"
+            :aria-busy="searching || selectingPlace"
+            @input="onSearchInput"
+            @focus="onSearchInput"
+            @keydown.escape="dismissSuggestions"
+          />
+          <div
+            v-if="searching || selectingPlace"
+            class="pointer-events-none absolute right-3 top-1/2 z-[10] -translate-y-1/2"
+            aria-hidden="true"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 animate-spin text-[var(--wa-accent-green)]"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
+          <ul
+            v-if="showSuggestions && suggestions.length"
+            class="absolute left-0 right-0 top-full z-[900] mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
+          >
+            <li v-for="item in suggestions" :key="item.place_id">
+              <button
+                type="button"
+                class="w-full px-3 py-2.5 text-left text-sm text-[var(--wa-text-primary)] hover:bg-[var(--wa-bg-secondary)]"
+                @mousedown.prevent
+                @click="selectSuggestion(item)"
+              >
+                {{ item.label }}
+              </button>
+            </li>
+          </ul>
+        </div>
+        <p v-if="geoHint && !error" class="text-[11px] text-amber-400/90">{{ geoHint }}</p>
+      </div>
+      <slot name="form-after-search" />
+    </div>
+
+    <div class="min-h-0 space-y-2">
+      <label class="text-xs text-[var(--wa-text-tertiary)]">Titik lokasi di peta</label>
+      <div class="relative rounded-lg overflow-hidden border border-[var(--wa-border)]">
+        <div ref="mapEl" class="w-full bg-[var(--wa-bg-secondary)]" :class="mapHeightClass"></div>
+        <div
+          class="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
+          aria-hidden="true"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" class="h-9 w-6 drop-shadow-md">
+            <path
+              fill="#ef4444"
+              stroke="#fff"
+              stroke-width="1.5"
+              d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"
+            />
+          </svg>
+        </div>
+        <button
+          type="button"
+          class="absolute right-3 bottom-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-text-primary)] shadow-lg transition hover:border-[var(--wa-accent-green)] hover:text-[var(--wa-accent-green)] disabled:opacity-50"
+          :disabled="loading || locatingUser"
+          title="Ke lokasi saya"
+          aria-label="Ke lokasi saya"
+          @click="goToMyLocation"
+        >
+          <svg
+            v-if="!locatingUser"
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 8a3 3 0 100 6 3 3 0 000-6zm8.94 3a8.94 8.94 0 01-1.88 2.83l1.42 1.42a.75.75 0 11-1.06 1.06l-1.42-1.42A8.94 8.94 0 0112 20.94V22a.75.75 0 01-1.5 0v-1.06A8.94 8.94 0 014.06 15.3l-1.42 1.42a.75.75 0 11-1.06-1.06l1.42-1.42A8.94 8.94 0 013.06 12H2a.75.75 0 010-1.5h1.06A8.94 8.94 0 014.94 6.7L3.52 5.28a.75.75 0 111.06-1.06l1.42 1.42A8.94 8.94 0 0112 3.06V2a.75.75 0 011.5 0v1.06A8.94 8.94 0 0119.94 8.7l1.42-1.42a.75.75 0 111.06 1.06l-1.42 1.42A8.94 8.94 0 0120.94 12H22a.75.75 0 010 1.5h-1.06z"
+            />
+          </svg>
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+        </button>
+        <div
+          v-if="loading"
+          class="absolute inset-0 flex items-center justify-center bg-black/20 text-xs text-[var(--wa-text-primary)]"
+        >
+          Memuat peta…
+        </div>
+      </div>
+
+      <p v-if="error" class="text-[11px] text-red-400">{{ error }}</p>
+      <p v-else-if="lat != null && lng != null" class="text-[11px] text-[var(--wa-accent-green)] font-mono">
+        {{ lat }}, {{ lng }}
+      </p>
+      <p v-else class="text-[11px] text-[var(--wa-text-tertiary)]">
+        Geser peta agar pin berada di titik yang tepat.
+      </p>
+    </div>
+  </div>
+
+  <div v-else class="space-y-2">
     <label class="text-xs text-[var(--wa-text-tertiary)]">Cari alamat</label>
     <div ref="searchWrap" class="relative z-[800]">
       <input
