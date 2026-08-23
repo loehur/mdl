@@ -63,9 +63,23 @@ $reqCount = count($customerDeliveryRequests);
     padding: 10px;
   }
   #op-dlv-root .dlv-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 6px;
+  }
+  @media (min-width: 1100px) {
+    #op-dlv-root .dlv-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    #op-dlv-root .dlv-item {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    #op-dlv-root .dlv-item__actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
   }
   #op-dlv-root .dlv-item {
     display: flex;
@@ -75,6 +89,8 @@ $reqCount = count($customerDeliveryRequests);
     padding: 8px 10px;
     border: 1px solid #93c5fd;
     background: #fff;
+    min-width: 0;
+    box-sizing: border-box;
   }
   #op-dlv-root .dlv-item--request {
     border-color: rgba(15, 23, 42, 0.08);
@@ -118,6 +134,10 @@ $reqCount = count($customerDeliveryRequests);
     background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
     color: #fff;
   }
+  #op-dlv-root .dlv-btn--selesai.dlv-btn--icon {
+    padding: 7px 8px;
+    min-width: 32px;
+  }
   #op-dlv-root .dlv-btn--pending {
     background: linear-gradient(180deg, var(--dlv-yellow), var(--dlv-yellow-deep));
     color: #fff;
@@ -150,16 +170,6 @@ $reqCount = count($customerDeliveryRequests);
     cursor: pointer;
     vertical-align: middle;
   }
-  #op-dlv-root .op-dlv-hint {
-    margin: 0 0 8px;
-    padding: 8px 10px;
-    border: 1px solid #fde68a;
-    background: #fffbeb;
-    color: #92400e;
-    font-size: 0.78rem;
-    font-weight: 700;
-    line-height: 1.4;
-  }
 </style>
 
 <div id="op-dlv-root"
@@ -178,10 +188,6 @@ $reqCount = count($customerDeliveryRequests);
       </div>
     </header>
     <div class="op-dlv-body">
-      <p class="op-dlv-hint">
-        <i class="fas fa-info-circle me-1"></i>
-        Request ini tidak terikat nota di bawah. Gunakan tombol <strong>Selesai</strong> — alur sama dengan halaman Delivery.
-      </p>
       <div class="dlv-list">
         <?php foreach ($customerDeliveryRequests as $rq) {
           include __DIR__ . '/delivery_request_row.php';

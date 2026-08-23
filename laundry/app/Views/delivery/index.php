@@ -296,6 +296,10 @@ $canCekDetail = !empty($data['canCekDetail']);
       background: linear-gradient(180deg, var(--dlv-green), var(--dlv-green-deep));
       color: #fff;
     }
+    #dlv-root .dlv-btn--selesai.dlv-btn--icon {
+      padding: 5px 8px;
+      min-width: 30px;
+    }
     #dlv-root .dlv-btn--pending {
       background: linear-gradient(180deg, var(--dlv-yellow), var(--dlv-yellow-deep));
       color: #fff;

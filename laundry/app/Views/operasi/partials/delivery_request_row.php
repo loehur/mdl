@@ -134,7 +134,7 @@ $statusLbl = htmlspecialchars((string) ($rq['delivery_status'] ?? 'berjalan'), E
     <?php } ?>
     <?php if ($canSelesai && $jenisOk) { ?>
       <button type="button"
-              class="dlv-btn dlv-btn--selesai"
+              class="dlv-btn dlv-btn--selesai dlv-btn--icon"
               data-dlv-selesai-request="<?= $idReq ?>"
               data-id-pelanggan="<?= $idPelangganRq ?>"
               data-phone-tail="<?= $tail ?>"
@@ -144,12 +144,14 @@ $statusLbl = htmlspecialchars((string) ($rq['delivery_status'] ?? 'berjalan'), E
               data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
               data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
               data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-              data-nama="<?= $nama ?>">
-        <i class="fas fa-check"></i> Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
+              data-nama="<?= $nama ?>"
+              title="Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>"
+              aria-label="Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>">
+        <i class="fas fa-check" aria-hidden="true"></i>
       </button>
     <?php } elseif ($canSelesai) { ?>
       <button type="button"
-              class="dlv-btn dlv-btn--selesai"
+              class="dlv-btn dlv-btn--selesai dlv-btn--icon"
               data-dlv-selesai-request="<?= $idReq ?>"
               data-id-pelanggan="<?= $idPelangganRq ?>"
               data-phone-tail="<?= $tail ?>"
@@ -159,8 +161,10 @@ $statusLbl = htmlspecialchars((string) ($rq['delivery_status'] ?? 'berjalan'), E
               data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
               data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
               data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
-              data-nama="<?= $nama ?>">
-        <i class="fas fa-check"></i> Selesai
+              data-nama="<?= $nama ?>"
+              title="Selesai"
+              aria-label="Selesai">
+        <i class="fas fa-check" aria-hidden="true"></i>
       </button>
     <?php } else { ?>
       <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
