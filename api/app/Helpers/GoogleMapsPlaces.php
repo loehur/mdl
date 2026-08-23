@@ -22,7 +22,7 @@ class GoogleMapsPlaces
             return ['ok' => true, 'items' => []];
         }
 
-        $apiKey = GoogleMaps::getApiKey();
+        $apiKey = GoogleMaps::getServerApiKey();
         if ($apiKey === '') {
             return ['ok' => false, 'message' => 'Google Maps API key belum dikonfigurasi di server.'];
         }
@@ -49,7 +49,7 @@ class GoogleMapsPlaces
             return ['ok' => false, 'message' => 'Gagal menghubungi Google Places API'];
         }
         if (!empty($res['error']['message'])) {
-            return ['ok' => false, 'message' => (string) $res['error']['message']];
+            return ['ok' => false, 'message' => self::formatGoogleError((string) $res['error']['message'])];
         }
 
         $items = [];
@@ -98,7 +98,7 @@ class GoogleMapsPlaces
             return ['ok' => false, 'message' => 'Place ID kosong'];
         }
 
-        $apiKey = GoogleMaps::getApiKey();
+        $apiKey = GoogleMaps::getServerApiKey();
         if ($apiKey === '') {
             return ['ok' => false, 'message' => 'Google Maps API key belum dikonfigurasi di server.'];
         }
@@ -111,7 +111,7 @@ class GoogleMapsPlaces
             return ['ok' => false, 'message' => 'Gagal menghubungi Google Places API'];
         }
         if (!empty($res['error']['message'])) {
-            return ['ok' => false, 'message' => (string) $res['error']['message']];
+            return ['ok' => false, 'message' => self::formatGoogleError((string) $res['error']['message'])];
         }
 
         $loc = is_array($res['location'] ?? null) ? $res['location'] : [];
@@ -184,5 +184,13 @@ class GoogleMapsPlaces
         }
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : null;
+    }
+
+    private static function formatGoogleError(string $message): string
+    {
+        if (stripos($message, 'referer') !== false && stripos($message, 'blocked') !== false) {
+            return 'Autocomplete server ditolak Google. Set GOOGLE_MAPS_SERVER_KEY di Env.php (key tanpa HTTP referrer restriction, aktifkan Places API New).';
+        }
+        return $message;
     }
 }

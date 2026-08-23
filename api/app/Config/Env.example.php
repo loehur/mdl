@@ -62,9 +62,11 @@ class Env
     const MAPS_SERVER_URL = 'http://127.0.0.1:3020/resolve';
     const MAPS_SERVER_TOKEN = ''; // sama dengan MAPS_SERVER_TOKEN di node/maps_server/.env (opsional)
 
-    // Google Maps JavaScript API + Places API (New) — CRM, laundry kasir, picker lokasi
-    // Untuk Maps JS (browser) + Places REST autocomplete/details (server-side)
-    const GOOGLE_MAPS_API_KEY = ''; // aktifkan Maps JavaScript API + Places API (New)
+    // Google Maps — gunakan DUA key terpisah di Google Cloud Console:
+    // 1) GOOGLE_MAPS_API_KEY — browser (Maps JavaScript API), restriction: HTTP referrers (ml.nalju.com, dll.)
+    // 2) GOOGLE_MAPS_SERVER_KEY — server (Places API New REST), restriction: IP server ATAU None (jangan pakai HTTP referrer)
+    const GOOGLE_MAPS_API_KEY = '';
+    const GOOGLE_MAPS_SERVER_KEY = '';
 
     // Nomor admin (fitur khusus WA replies)
     const ADMIN_NUMBERS = ['0812xxxxxxxx', '0852xxxxxxxx'];
