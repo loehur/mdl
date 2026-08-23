@@ -93,19 +93,39 @@ if (count($data['cek']) == 0) { ?>
       ? (URL::BASE_URL . 'NonTunai/mutasiList')
       : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
     $idAttr = htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8');
+    $showKasir = in_array((int) $jenisT, [1, 3, 6], true) && (int) $f17 > 0;
+    $kasirUrl = 'https://ml.nalju.com/Operasi/i/0/' . (int) $f17 . '/0';
   ?>
   <div class="aa-card aa-card--pending nt-row" data-id-cabang="<?= $idCabang ?>">
-    <?php if ($idCabang > 0) { ?>
-      <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
-    <?php } ?>
+    <div class="nt-cabang-actions">
+      <?php if ($idCabang > 0) { ?>
+        <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+      <?php } ?>
+      <button type="button"
+        class="nt-icon-btn nt-invoice-link"
+        title="Lihat tagihan"
+        aria-label="Lihat tagihan"
+        data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>"
+        data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
+        <i class="fas fa-receipt"></i>
+      </button>
+      <?php if ($showKasir) { ?>
+      <a href="<?= htmlspecialchars($kasirUrl, ENT_QUOTES, 'UTF-8') ?>"
+        class="nt-icon-btn nt-kasir-link"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Buka kasir"
+        aria-label="Buka kasir">
+        <i class="fas fa-cash-register"></i>
+      </a>
+      <?php } ?>
+    </div>
     <div class="aa-card__meta">
       #<?= $idAttr ?>
       <?php if ($tglBayar !== '') { ?> · <?= htmlspecialchars($tglBayar, ENT_QUOTES, 'UTF-8') ?><?php } ?>
       <?php if ($karyawan !== '') { ?> · <?= htmlspecialchars($karyawan, ENT_QUOTES, 'UTF-8') ?><?php } ?>
     </div>
-    <a href="#" class="text-decoration-none nt-invoice-link aa-card__title-link" data-invoice-url="<?= htmlspecialchars($invoiceUrl, ENT_QUOTES, 'UTF-8') ?>" data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
-      <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?> <i class="fas fa-expand-alt small" title="Lihat tagihan"></i></div>
-    </a>
+    <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?></div>
     <div class="aa-card__meta">
       <?= htmlspecialchars($jenis_bill, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($metodeLabel, ENT_QUOTES, 'UTF-8') ?>
       <?php if ($needsBind) { ?> · <span class="nt-bind-hint">perlu bind <?= $isBca ? 'BCA' : 'QRIS' ?></span><?php } ?>
@@ -148,12 +168,43 @@ if (count($data['cek']) == 0) { ?>
 
 <!-- Lebar mengikuti nota (~640px). Tinggi ~85vh -->
 <style>
-  #aa-root #load .aa-card__title-link {
-    color: inherit;
-    display: block;
+  #aa-root #load .nt-cabang-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
   }
-  #aa-root #load .aa-card__title-link:hover .aa-card__title {
-    color: var(--aa-blue-deep);
+  #aa-root #load .nt-cabang-actions .aa-cabang-badge {
+    margin-bottom: 0;
+  }
+  .nt-icon-btn {
+    box-sizing: border-box;
+    width: 31px;
+    height: 31px;
+    min-width: 31px;
+    padding: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 0;
+    background: linear-gradient(180deg, #f8fafc, #fff);
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+  }
+  .nt-icon-btn:hover {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    border-color: #1d4ed8;
+    color: #fff;
+  }
+  .nt-kasir-link:hover {
+    background: linear-gradient(180deg, #059669, #047857);
+    border-color: #047857;
+    color: #fff;
   }
   #aa-root #load .nt-bind-hint {
     color: #b45309;
