@@ -8,7 +8,7 @@ namespace App\Helpers;
 class BcaQrisMatcher
 {
     /**
-     * Transaksi QRIS unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE jika QRIS genap ribuan.
+     * Transaksi QRIS unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      *
      * @return array|null row bca_qris_transaksi
      */
@@ -23,11 +23,7 @@ class BcaQrisMatcher
              WHERE l.id IS NULL
                AND (
                  t.nominal = ?
-                 OR (
-                   MOD(t.nominal, 1000) = 0
-                   AND t.nominal >= ?
-                   AND t.nominal <= ?
-                 )
+                 OR (t.nominal >= ? AND t.nominal <= ?)
                )
                AND t.tanggal >= ?
                AND t.tanggal <= ?

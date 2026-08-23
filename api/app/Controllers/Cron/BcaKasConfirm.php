@@ -8,7 +8,7 @@ use App\Helpers\BcaScrapper;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
 
 /**
- * Konfirmasi otomatis kas BCA pending jika mutasi CR cocok (exact, atau ± Rp 1.000 jika mutasi genap ribuan).
+ * Konfirmasi otomatis kas BCA pending jika mutasi CR cocok (exact, atau ± Rp 1.000).
  * Mutasi PEND dianggap valid — tidak menunggu tanggal_iso/posted.
  * Scrape on-demand 6 hari terakhir dari hari ini jika ada kas pending BCA.
  * Mutasi PEND: lookback 30 hari (created_at), tidak terikat rentang posted.

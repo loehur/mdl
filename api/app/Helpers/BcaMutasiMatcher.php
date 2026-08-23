@@ -8,7 +8,7 @@ namespace App\Helpers;
 class BcaMutasiMatcher
 {
     /**
-     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE jika mutasi genap ribuan.
+     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
      * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
@@ -28,11 +28,7 @@ class BcaMutasiMatcher
                AND m.mutasi = ?
                AND (
                  m.nominal = ?
-                 OR (
-                   MOD(m.nominal, 1000) = 0
-                   AND m.nominal >= ?
-                   AND m.nominal <= ?
-                 )
+                 OR (m.nominal >= ? AND m.nominal <= ?)
                )
                AND (
                  (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)

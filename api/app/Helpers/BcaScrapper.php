@@ -333,7 +333,6 @@ class BcaScrapper
 
     /**
      * Batas bawah/atas nominal untuk matching cron (±CRON_NOMINAL_TOLERANCE).
-     * Hanya dipakai jika nominal mutasi/QRIS genap ribuan (MOD 1000 = 0).
      *
      * @return array{min:string,max:string}
      */
