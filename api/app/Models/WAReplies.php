@@ -1881,12 +1881,34 @@ class WAReplies
     }
 
     /**
+     * Minta antar/jemput setelah siap: "kalo uda selesai antar ya" — ini KURIR, bukan hipotetis.
+     */
+    private function messageLooksLikeKalauSelesaiAntarMinta(?string $text): bool
+    {
+        if ($text === null || trim($text) === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\b(kalau|kalo|klo|klu|klau)\b.{0,80}?\b(udah|uda|udh|sdh|sudah|dah|dh|sudh)\s+(siap|selesai|jadi)\b.{0,40}?\b(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu',
+            $text
+        ) || (bool) preg_match(
+            '/\b(kalau|kalo|klo|klu|klau)\b.{0,80}?\b(siap|selesai|jadi)\b.{0,40}?\b(di\s*)?(antar|anter|antr|jemput|jmpt)\b/iu',
+            $text
+        );
+    }
+
+    /**
      * Hipotetis/kondisional: "kalau/klo/kalo" lalu antar/jemput — BUKAN permintaan kurir.
      * Contoh: "Kalau express di antar sekarang", "klo jemput brp?"
+     * Kecuali: "kalo uda selesai antar ya" = minta antar setelah siap (tetap KURIR).
      */
     private function messageLooksLikeKalauAntarJemputBukanMinta(?string $text): bool
     {
         if ($text === null || trim($text) === '') {
+            return false;
+        }
+        if ($this->messageLooksLikeKalauSelesaiAntarMinta($text)) {
             return false;
         }
 
