@@ -32,7 +32,7 @@ if (empty($customerDeliveryRequests) || (int) ($data['modeView'] ?? 0) === 2) {
     height: 100%;
     padding: 8px 10px;
     border: 1px solid rgba(15, 23, 42, 0.08);
-    border-top: 4px solid #7c3aed;
+    border-top: 3px solid #7c3aed;
     background: #fff;
     min-width: 0;
     box-sizing: border-box;
