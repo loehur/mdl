@@ -227,6 +227,7 @@ class Operasi extends Controller
 
       $customerDeliveryRequests = [];
       if ($mode == 0 && $id_pelanggan > 0) {
+         require_once __DIR__ . '/Delivery.php';
          $customerDeliveryRequests = (new Delivery())->pendingCustomerRequestsForPelanggan($id_pelanggan);
       }
 
