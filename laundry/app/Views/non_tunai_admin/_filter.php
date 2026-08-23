@@ -89,6 +89,64 @@ $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
       color: var(--nta-muted);
       font-weight: 700;
     }
+    #nta-root .nta-plg-link {
+      font-weight: 800;
+      color: var(--nta-blue);
+      text-decoration: none;
+    }
+    #nta-root .nta-plg-link:hover {
+      text-decoration: underline;
+    }
+    #nta-root .nta-nominal-pair {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    #nta-root .nta-nominal-pair__bind {
+      color: var(--nta-muted);
+      font-size: 0.72rem;
+    }
+    #nta-root .nta-detail-btn {
+      font-size: 0.78rem;
+      font-weight: 800;
+      padding: 2px 10px;
+    }
+  </style>
+  <style>
+    #ntaDetailModal .nta-detail-list .nta-detail-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 8px 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    #ntaDetailModal .nta-detail-list .nta-detail-row:last-child {
+      border-bottom: 0;
+    }
+    #ntaDetailModal .nta-detail-list dt {
+      margin: 0;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    #ntaDetailModal .nta-detail-list dd {
+      margin: 0;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-word;
+    }
+    #ntaDetailModal .nta-plg-link {
+      font-weight: 800;
+      color: #2563eb;
+      text-decoration: none;
+    }
+    #ntaDetailModal .nta-plg-link:hover {
+      text-decoration: underline;
+    }
   </style>
 
   <div class="nta-shell">

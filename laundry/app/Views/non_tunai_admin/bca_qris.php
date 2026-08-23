@@ -1,6 +1,12 @@
 <?php
 $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
+$fmtRp = static function ($value): string {
+    if ($value === null || $value === '') {
+        return '—';
+    }
+    return 'Rp ' . number_format((float) $value, 0, ',', '.');
+};
 
 $this->view('non_tunai_admin/_filter', [
     'startDate' => $data['startDate'] ?? date('Y-m-d', strtotime('-6 days')),
@@ -24,15 +30,9 @@ $this->view('non_tunai_admin/_filter', [
           <thead>
             <tr>
               <th>Tanggal</th>
-              <th>RRN</th>
               <th>Nominal</th>
-              <th>Status</th>
-              <th>Outlet</th>
-              <th>Keterangan</th>
-              <th>Tipe</th>
-              <th>Referensi</th>
               <th>Pelanggan</th>
-              <th>Waktu Bind</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -43,34 +43,73 @@ $this->view('non_tunai_admin/_filter', [
               $entityType = (string) ($row['entity_type'] ?? '');
               $entityRef = (string) ($row['entity_ref'] ?? '');
               $isKasLaundry = ($entityType === 'kas_laundry');
-              $pelanggan = '';
-              if ($isKasLaundry && isset($pelangganByRef[$entityRef])) {
-                  $p = $pelangganByRef[$entityRef];
-                  $pelanggan = trim((string) ($p['nama_pelanggan'] ?? ''));
-                  if ($pelanggan === '') {
-                      $pelanggan = (string) ($p['id_pelanggan'] ?? '');
-                  }
-              }
+              $pRow = ($isKasLaundry && isset($pelangganByRef[$entityRef])) ? $pelangganByRef[$entityRef] : null;
+
               $tanggal = (string) ($row['tanggal'] ?? '');
               $waktu = trim((string) ($row['waktu'] ?? ''));
-              $dateLabel = $tanggal !== '' ? date('d/m/Y', strtotime($tanggal)) : '-';
+              $dateLabel = $tanggal !== '' ? date('d/m/Y', strtotime($tanggal)) : '—';
               if ($waktu !== '') {
                   $dateLabel .= ' ' . $waktu;
               }
+
+              $nominal = $row['bind_nominal'] ?? $row['nominal'] ?? null;
+              $billNominal = $row['bill_nominal'] ?? null;
               $ket = trim((string) ($row['keterangan'] ?? ''));
-              $linkedAt = !empty($row['linked_at']) ? date('d/m/Y H:i', strtotime((string) $row['linked_at'])) : '-';
+              $linkedAt = !empty($row['linked_at']) ? date('d/m/Y H:i', strtotime((string) $row['linked_at'])) : '—';
+
+              $pelangganHtml = '—';
+              if (is_array($pRow) && !empty($pRow['id_pelanggan'])) {
+                  $idPlg = (int) $pRow['id_pelanggan'];
+                  $namaPlg = trim((string) ($pRow['nama_pelanggan'] ?? ''));
+                  if ($namaPlg === '') {
+                      $namaPlg = (string) $idPlg;
+                  }
+                  $namaUpper = mb_strtoupper($namaPlg, 'UTF-8');
+                  $urlPlg = 'https://ml.nalju.com/J/tagihan/' . $idPlg;
+                  $pelangganHtml = '<a href="' . htmlspecialchars($urlPlg) . '" target="_blank" rel="noopener noreferrer" class="nta-plg-link">'
+                      . htmlspecialchars($namaUpper) . '</a>';
+              }
+
+              $bindNominal = $row['bind_nominal'] ?? null;
+              $selisih = null;
+              if ($billNominal !== null && $billNominal !== '') {
+                  $selisih = (float) $billNominal - (float) ($bindNominal ?? $row['nominal'] ?? 0);
+              }
+
+              $detailPayload = [
+                  'title' => 'Detail BCA QRIS',
+                  'fields' => [
+                      ['label' => 'Tanggal', 'value' => $dateLabel],
+                      ['label' => 'RRN', 'value' => (string) ($row['rrn'] ?? '')],
+                      ['label' => 'Nominal QRIS', 'value' => $fmtRp($row['nominal'] ?? null)],
+                      ['label' => 'Bind Snapshot', 'value' => $fmtRp($bindNominal)],
+                      ['label' => 'Bill Nominal', 'value' => $fmtRp($billNominal)],
+                      ['label' => 'Selisih', 'value' => $selisih !== null ? $fmtRp($selisih) : '—'],
+                      ['label' => 'Status', 'value' => (string) ($row['status'] ?? '')],
+                      ['label' => 'Outlet', 'value' => (string) ($row['outlet_name'] ?? '')],
+                      ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
+                      ['label' => 'Tipe Entity', 'value' => $entityType],
+                      ['label' => 'Referensi', 'value' => $entityRef],
+                      ['label' => 'Pelanggan', 'html' => $pelangganHtml],
+                      ['label' => 'Waktu Bind', 'value' => $linkedAt],
+                      ['label' => 'ID Link', 'value' => (string) ($row['link_id'] ?? '')],
+                      ['label' => 'ID QRIS', 'value' => (string) ($row['qris_id'] ?? '')],
+                  ],
+              ];
             ?>
             <tr>
               <td><?= htmlspecialchars($dateLabel) ?></td>
-              <td><code><?= htmlspecialchars((string) ($row['rrn'] ?? '')) ?></code></td>
-              <td class="text-end fw-bold">Rp <?= number_format((float) ($row['nominal'] ?? 0), 0, ',', '.') ?></td>
-              <td><?= htmlspecialchars((string) ($row['status'] ?? '')) ?></td>
-              <td><?= htmlspecialchars((string) ($row['outlet_name'] ?? '')) ?></td>
-              <td class="nta-ket" title="<?= htmlspecialchars($ket) ?>"><?= htmlspecialchars($ket) ?></td>
-              <td><span class="nta-badge nta-badge--type"><?= htmlspecialchars($entityType) ?></span></td>
-              <td><code><?= htmlspecialchars($entityRef) ?></code></td>
-              <td><?= $pelanggan !== '' ? htmlspecialchars($pelanggan) : '<span class="text-muted">—</span>' ?></td>
-              <td><?= htmlspecialchars($linkedAt) ?></td>
+              <td><?php $this->view('non_tunai_admin/_nominal_bind_cell', [
+                  'nominal' => $nominal,
+                  'billNominal' => $billNominal,
+              ]); ?></td>
+              <td><?php $this->view('non_tunai_admin/_pelanggan_cell', ['p' => $pRow]); ?></td>
+              <td class="text-end">
+                <button type="button" class="btn btn-outline-primary btn-sm nta-detail-btn"
+                  data-detail="<?= htmlspecialchars(json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>">
+                  Detail
+                </button>
+              </td>
             </tr>
             <?php } ?>
           </tbody>
@@ -80,30 +119,7 @@ $this->view('non_tunai_admin/_filter', [
   </div>
 </div>
 
-<script>
-(function () {
-  var maxDays = <?= (int) ($data['maxRangeDays'] ?? 7) ?> - 1;
-  var $form = document.getElementById('ntaFilterForm');
-  if (!$form) return;
-
-  $form.addEventListener('submit', function (e) {
-    var start = $form.querySelector('[name=start]').value;
-    var end = $form.querySelector('[name=end]').value;
-    if (!start || !end) return;
-
-    var d1 = new Date(start + 'T00:00:00');
-    var d2 = new Date(end + 'T00:00:00');
-    var diff = Math.round((d2 - d1) / 86400000);
-
-    if (diff < 0) {
-      e.preventDefault();
-      alert('Tanggal akhir harus setelah tanggal awal');
-      return;
-    }
-    if (diff >= maxDays + 1) {
-      e.preventDefault();
-      alert('Rentang tanggal maksimal ' + (maxDays + 1) + ' hari');
-    }
-  });
-})();
-</script>
+<?php
+$this->view('non_tunai_admin/_detail_modal');
+$this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
+?>

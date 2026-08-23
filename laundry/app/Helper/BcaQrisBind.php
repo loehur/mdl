@@ -125,6 +125,10 @@ class BcaQrisBind
             'bca_qris_id' => $qrisId,
             'entity_type' => self::ENTITY_KAS_LAUNDRY,
             'entity_ref' => $refFinance,
+            'bill_nominal' => $kasNominal !== null && $kasNominal !== ''
+                ? self::formatNominal($kasNominal)
+                : null,
+            'bind_nominal' => self::formatNominal($row['nominal'] ?? 0),
         ]);
 
         return isset($ins['errno']) && (int) $ins['errno'] === 0;

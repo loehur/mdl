@@ -109,9 +109,18 @@ class BcaMutasiMatcher
 
     /**
      * Bind mutasi ke entitas (atomik). Satu mutasi = satu entitas.
+     *
+     * @param mixed $billNominal nominal tagihan/kas saat bind
+     * @param mixed $bindNominal nominal mutasi saat bind; fallback dari row DB
      */
-    public static function bindMutasi($mainDb, int $mutasiId, string $entityType, string $entityRef): bool
-    {
+    public static function bindMutasi(
+        $mainDb,
+        int $mutasiId,
+        string $entityType,
+        string $entityRef,
+        $billNominal = null,
+        $bindNominal = null
+    ): bool {
         if ($mutasiId < 1 || $entityType === '' || $entityRef === '') {
             return false;
         }
@@ -122,7 +131,7 @@ class BcaMutasiMatcher
 
         try {
             $free = $mainDb->query(
-                'SELECT m.id
+                'SELECT m.id, m.nominal
                  FROM bca_mutasi m
                  LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
                  WHERE m.id = ? AND l.id IS NULL
@@ -145,10 +154,20 @@ class BcaMutasiMatcher
                 return false;
             }
 
+            $bindNominalStored = BcaScrapper::formatNominal(
+                $bindNominal !== null && $bindNominal !== '' ? $bindNominal : ($free['nominal'] ?? 0)
+            );
+            $billNominalStored = null;
+            if ($billNominal !== null && $billNominal !== '') {
+                $billNominalStored = BcaScrapper::formatNominal($billNominal);
+            }
+
             $insertId = $mainDb->insert('bca_mutasi_link', [
                 'bca_mutasi_id' => $mutasiId,
                 'entity_type' => $entityType,
                 'entity_ref' => $entityRef,
+                'bill_nominal' => $billNominalStored,
+                'bind_nominal' => $bindNominalStored,
             ]);
 
             if (!$insertId) {
@@ -231,7 +250,9 @@ class BcaMutasiMatcher
             $mainDb,
             $mutasiId,
             BcaScrapper::ENTITY_KAS_LAUNDRY,
-            $refFinance
+            $refFinance,
+            $nominal,
+            $mutasi['nominal'] ?? null
         );
 
         if (!$bound) {

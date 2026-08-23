@@ -41,8 +41,14 @@ class BcaQrisMatcher
         return BcaScrapper::fetchAndStoreQrisRange($mainDb, $startYmd, $endYmd);
     }
 
-    public static function bindQris($mainDb, int $qrisId, string $entityType, string $entityRef): bool
-    {
+    public static function bindQris(
+        $mainDb,
+        int $qrisId,
+        string $entityType,
+        string $entityRef,
+        $billNominal = null,
+        $bindNominal = null
+    ): bool {
         if ($qrisId < 1 || $entityType === '' || $entityRef === '') {
             return false;
         }
@@ -53,7 +59,7 @@ class BcaQrisMatcher
 
         try {
             $free = $mainDb->query(
-                'SELECT t.id
+                'SELECT t.id, t.nominal
                  FROM bca_qris_transaksi t
                  LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
                  WHERE t.id = ? AND l.id IS NULL
@@ -76,10 +82,20 @@ class BcaQrisMatcher
                 return false;
             }
 
+            $bindNominalStored = BcaScrapper::formatNominal(
+                $bindNominal !== null && $bindNominal !== '' ? $bindNominal : ($free['nominal'] ?? 0)
+            );
+            $billNominalStored = null;
+            if ($billNominal !== null && $billNominal !== '') {
+                $billNominalStored = BcaScrapper::formatNominal($billNominal);
+            }
+
             $insertId = $mainDb->insert('bca_qris_link', [
                 'bca_qris_id' => $qrisId,
                 'entity_type' => $entityType,
                 'entity_ref' => $entityRef,
+                'bill_nominal' => $billNominalStored,
+                'bind_nominal' => $bindNominalStored,
             ]);
 
             if (!$insertId) {
@@ -175,7 +191,9 @@ class BcaQrisMatcher
             $mainDb,
             $qrisId,
             BcaScrapper::ENTITY_KAS_LAUNDRY,
-            $refFinance
+            $refFinance,
+            $nominal,
+            $qris['nominal'] ?? null
         );
 
         if (!$bound) {
