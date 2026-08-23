@@ -356,16 +356,31 @@ onUnmounted(() => {
         v-model="searchQuery"
         type="text"
         placeholder="Ketik nama jalan, tempat, atau alamat…"
-        class="w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] px-3 py-2 text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:border-[var(--wa-accent-green)] focus:outline-none"
+        class="w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] px-3 py-2 pr-10 text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:border-[var(--wa-accent-green)] focus:outline-none"
         autocomplete="off"
+        :aria-busy="searching || selectingPlace"
         @input="onSearchInput"
         @focus="onSearchInput"
         @keydown.escape="dismissSuggestions"
       />
-      <p v-if="searching" class="mt-1 text-[11px] text-[var(--wa-text-tertiary)]">Mencari…</p>
+      <div
+        v-if="searching || selectingPlace"
+        class="pointer-events-none absolute right-3 top-1/2 z-[10] -translate-y-1/2"
+        aria-hidden="true"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-4 w-4 animate-spin text-[var(--wa-accent-green)]"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+      </div>
       <ul
         v-if="showSuggestions && suggestions.length"
-        class="absolute left-0 right-0 bottom-full z-[900] mb-1 max-h-36 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
+        class="absolute left-0 right-0 top-full z-[900] mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
       >
         <li v-for="item in suggestions" :key="item.place_id">
           <button
