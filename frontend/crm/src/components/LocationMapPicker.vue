@@ -293,6 +293,8 @@ const initMap = async () => {
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
+      cameraControl: false,
+      zoomControl: false,
     });
 
     idleListener = mapInstance.addListener("idle", () => {
@@ -422,7 +424,7 @@ onUnmounted(() => {
         </div>
         <button
           type="button"
-          class="absolute right-3 bottom-12 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
+          class="absolute right-3 bottom-5 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
           :disabled="loading || locatingUser"
           title="Ke lokasi saya"
           aria-label="Ke lokasi saya"
@@ -536,7 +538,7 @@ onUnmounted(() => {
       </div>
       <button
         type="button"
-        class="absolute right-3 bottom-12 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
+        class="absolute right-3 bottom-5 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
         :disabled="loading || locatingUser"
         title="Ke lokasi saya"
         aria-label="Ke lokasi saya"
