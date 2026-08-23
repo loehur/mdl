@@ -178,7 +178,7 @@ const resolveableCases = computed(() => {
   );
   // Role based filtering — case 3 (Permintaan) tidak bisa di-resolve manual dari CRM
   if (props.currentUserRole === "admin") return openCases;
-  if (props.currentUserRole === "crew") return [];
+  if (props.currentUserRole === "crew" || props.currentUserRole === "driver") return [];
   return [];
 });
 
@@ -246,8 +246,24 @@ const isAdmin = computed(() => {
 });
 
 const isCrew = computed(() => props.currentUserRole === "crew");
+const isDriver = computed(() => props.currentUserRole === "driver");
+const isStaff = computed(() => isCrew.value || isDriver.value);
 
-const canCrewReply = computed(() => isCrew.value && cswOpen.value);
+const staffSenderCode = computed(() => {
+  if (isDriver.value) return props.senderCode || "DR";
+  if (isCrew.value) return props.senderCode || "CR";
+  return props.senderCode || "";
+});
+
+const staffPolishPath = computed(() => (
+  isDriver.value ? "driverPolish" : "crewPolish"
+));
+
+const staffReplyPath = computed(() => (
+  isDriver.value ? "driverReply" : "crewReply"
+));
+
+const canStaffReply = computed(() => isStaff.value && cswOpen.value);
 
 const isPrivateMessage = (msg) => {
   if (!msg) return false;
@@ -365,7 +381,7 @@ const applyCrewAccessError = (res) => {
 const validateCrewAccessFields = () => {
   clearCrewFieldWarnings();
   let valid = true;
-  if (!crewKaryawanId.value) {
+  if (isCrew.value && !crewKaryawanId.value) {
     crewKaryawanWarning.value = "Pilih karyawan terlebih dahulu";
     valid = false;
   }
@@ -410,10 +426,10 @@ const loadCrewKaryawan = async () => {
 };
 
 const openCrewSendModal = () => {
-  if (!canCrewReply.value) return;
+  if (!canStaffReply.value) return;
   resetCrewSendForm();
   showCrewSendModal.value = true;
-  if (!crewKaryawanList.value.length) {
+  if (isCrew.value && !crewKaryawanList.value.length) {
     loadCrewKaryawan();
   }
 };
@@ -437,17 +453,18 @@ const canCrewPolish = computed(() => {
 });
 
 const canCrewSend = computed(() => {
+  const hasKaryawan = isDriver.value || !!crewKaryawanId.value;
   return !!(
     crewPolishApproved.value
     && crewPolishPreview.value.trim()
     && crewPolishToken.value
-    && crewKaryawanId.value
+    && hasKaryawan
     && !crewSending.value
   );
 });
 
 const crewPolish = async () => {
-  if (!canCrewReply.value || !canCrewPolish.value || !props.activeConversation?.wa_number) return;
+  if (!canStaffReply.value || !canCrewPolish.value || !props.activeConversation?.wa_number) return;
   if (!validateCrewAccessFields()) return;
 
   crewPolishLoading.value = true;
@@ -456,17 +473,21 @@ const crewPolish = async () => {
   crewPolishReason.value = "";
   crewPolishApproved.value = false;
   try {
-    const res = await fetch(`${props.API_BASE}/CRM/Chat/crewPolish`, {
+    const body = {
+      phone: props.activeConversation.wa_number,
+      draft: crewDraft.value.trim(),
+      user_id: props.authId,
+      access_key: crewAccessKey.value.trim(),
+    };
+    if (isCrew.value) {
+      body.id_karyawan = Number(crewKaryawanId.value);
+    }
+
+    const res = await fetch(`${props.API_BASE}/CRM/Chat/${staffPolishPath.value}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: props.activeConversation.wa_number,
-        draft: crewDraft.value.trim(),
-        user_id: props.authId,
-        id_karyawan: Number(crewKaryawanId.value),
-        access_key: crewAccessKey.value.trim(),
-      }),
+      body: JSON.stringify(body),
     }).then((r) => r.json());
 
     if (res?.ok === false) {
@@ -497,9 +518,9 @@ const crewSendMessage = async () => {
   if (!canCrewSend.value || !props.activeConversation?.wa_number) return;
 
   const text = crewPolishPreview.value.trim();
-  const idKaryawan = Number(crewKaryawanId.value);
   const accessKey = crewAccessKey.value;
   const polishToken = crewPolishToken.value;
+  const outSenderCode = staffSenderCode.value;
   crewSending.value = true;
   crewFormMsg.value = "";
 
@@ -512,7 +533,7 @@ const crewSendMessage = async () => {
     rawTime: formatLocalDateTime(),
     timestamp: Date.now(),
     status: "pending",
-    sender_code: "CR",
+    sender_code: outSenderCode,
     provider: LINE_CS,
     line_key: LINE_CS,
     line_label: lineLabel(LINE_CS),
@@ -525,18 +546,22 @@ const crewSendMessage = async () => {
   scrollToBottom({ force: true });
 
   try {
-    const res = await fetch(`${props.API_BASE}/CRM/Chat/crewReply`, {
+    const body = {
+      phone: props.activeConversation.wa_number,
+      message: text,
+      access_key: accessKey,
+      polish_token: polishToken,
+      user_id: props.authId,
+    };
+    if (isCrew.value) {
+      body.id_karyawan = Number(crewKaryawanId.value);
+    }
+
+    const res = await fetch(`${props.API_BASE}/CRM/Chat/${staffReplyPath.value}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: props.activeConversation.wa_number,
-        message: text,
-        id_karyawan: idKaryawan,
-        access_key: accessKey,
-        polish_token: polishToken,
-        user_id: props.authId,
-      }),
+      body: JSON.stringify(body),
     }).then((r) => r.json());
 
     if (res?.status) {
@@ -553,14 +578,14 @@ const crewSendMessage = async () => {
       });
     } else {
       bumpMessageStatus(newMsg, "failed");
-      const errMsg = res?.message || res?.data?.message || "Gagal kirim pesan crew";
+      const errMsg = res?.message || res?.data?.message || "Gagal kirim pesan";
       crewFormMsg.value = errMsg;
       alert(errMsg);
     }
   } catch (_) {
     bumpMessageStatus(newMsg, "error");
-    crewFormMsg.value = "Gagal kirim pesan crew";
-    alert("Gagal kirim pesan crew — cek koneksi");
+    crewFormMsg.value = "Gagal kirim pesan";
+    alert("Gagal kirim pesan — cek koneksi");
   } finally {
     crewSending.value = false;
   }
@@ -1752,7 +1777,7 @@ onUnmounted(() => {
 
              <!-- Crew: CSW open — kirim via modal + AI -->
              <button
-               v-else-if="canCrewReply"
+               v-else-if="canStaffReply"
                type="button"
                class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-accent-green)]/10 rounded-lg border border-[var(--wa-accent-green)]/40 w-full min-h-[46px] hover:bg-[var(--wa-accent-green)]/15 transition-colors"
                @click="openCrewSendModal"
@@ -1907,7 +1932,7 @@ onUnmounted(() => {
 
     <Teleport to="body">
       <div
-        v-if="showCrewSendModal && canCrewReply"
+        v-if="showCrewSendModal && canStaffReply"
         class="fixed inset-0 z-[720] flex items-center justify-center p-4"
         @click="closeCrewSendModal"
       >
@@ -1926,7 +1951,7 @@ onUnmounted(() => {
           </div>
 
           <div class="space-y-3">
-            <div>
+            <div v-if="isCrew">
               <label class="text-xs text-[var(--wa-text-tertiary)]">Karyawan</label>
               <select
                 v-model="crewKaryawanId"
@@ -1942,7 +1967,7 @@ onUnmounted(() => {
             </div>
 
             <div>
-              <label class="text-xs text-[var(--wa-text-tertiary)]">Access Key (4 digit)</label>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">{{ isDriver ? "Access Key Anda (4 digit)" : "Access Key (4 digit)" }}</label>
               <input
                 v-model="crewAccessKey"
                 type="password"

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Core\DB;
 use App\Helpers\Laundry\AntarTarif;
+use App\Helpers\Laundry\DeliveryTarifGrant;
 
 /**
  * Multi-turn KURIR — dipakai oleh WAReplies via `use`.
@@ -2440,7 +2441,9 @@ trait WARepliesKurirTrait
         if ($nama === '' || strcasecmp($nama, 'Shareloc') === 0 || strcasecmp($nama, 'Lainnya') === 0) {
             $nama = 'Rumah';
         }
-        $tarif = (int) $calc['tarif'];
+        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
+        $rawTarif = (int) $calc['tarif'];
+        $tarif = DeliveryTarifGrant::apply($idPelanggan, $rawTarif);
         $idLokasi = (int) ($lok['id_lokasi'] ?? 0);
         $tarifRp = AntarTarif::formatRp($tarif);
 
@@ -2465,7 +2468,6 @@ trait WARepliesKurirTrait
         ]);
 
         // Ongkir gratis / repeat lokasi+tarif sama → tetap konfirmasi, tapi jangan tampilkan ongkir lagi
-        $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
         $lastOk = $this->kurirLastSuccessfulSamedayRequest($idPelanggan);
         $hideOngkir = !$forceAsk && (
             $tarif <= 0
@@ -2479,13 +2481,12 @@ trait WARepliesKurirTrait
 
         $lokasiLabel = $detail !== '' ? "{$nama}, {$detail}" : $nama;
         if ($hideOngkir) {
-            $this->logAutoreplyTrace(
-                $waNumber,
-                'KURIR',
-                $tarif <= 0
-                    ? "confirm_no_ongkir ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}"
-                    : "confirm_no_ongkir same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}"
-            );
+            $traceReason = $tarif <= 0
+                ? ($rawTarif > 0 && DeliveryTarifGrant::hasGrant($idPelanggan)
+                    ? "confirm_no_ongkir durasi_-D_grant id_lokasi={$idLokasi}"
+                    : "confirm_no_ongkir ongkir_gratis id_lokasi={$idLokasi} tarif={$tarif}")
+                : "confirm_no_ongkir same_lokasi_tarif id_lokasi={$idLokasi} tarif={$tarif}";
+            $this->logAutoreplyTrace($waNumber, 'KURIR', $traceReason);
             $this->sendAutoreplyText(
                 $waNumber,
                 "Konfirmasi {$jenis} ke {$lokasiLabel} ya {$sapaan}? Balas *ya* untuk lanjut."
@@ -3947,6 +3948,60 @@ trait WARepliesKurirTrait
         }
     }
 
+    /**
+     * Request sameday aktif (berjalan/menunggu_pembayaran) jenis + id_lokasi sama.
+     */
+    private function kurirFindActiveDeliverySameJenisLokasi(int $idPelanggan, string $jenis, int $idLokasi): int
+    {
+        if ($idPelanggan <= 0 || $idLokasi <= 0 || !in_array($jenis, ['antar', 'jemput'], true)) {
+            return 0;
+        }
+        try {
+            $row = DB::getInstance(1)->query(
+                "SELECT id_request FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND jenis = ?
+                   AND id_lokasi = ?
+                   AND layanan = 'sameday'
+                   AND delivery_status IN ('berjalan','menunggu_pembayaran')
+                 ORDER BY id_request DESC
+                 LIMIT 1",
+                [$idPelanggan, $jenis, $idLokasi]
+            )->row();
+
+            return (int) ($row->id_request ?? 0);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Request sameday aktif jenis sama yang belum punya id_lokasi (pending/board).
+     */
+    private function kurirFindActiveDeliverySameJenisNoLokasi(int $idPelanggan, string $jenis): int
+    {
+        if ($idPelanggan <= 0 || !in_array($jenis, ['antar', 'jemput'], true)) {
+            return 0;
+        }
+        try {
+            $row = DB::getInstance(1)->query(
+                "SELECT id_request FROM delivery_request
+                 WHERE id_pelanggan = ?
+                   AND jenis = ?
+                   AND layanan = 'sameday'
+                   AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')
+                   AND (id_lokasi IS NULL OR id_lokasi = 0)
+                 ORDER BY id_request DESC
+                 LIMIT 1",
+                [$idPelanggan, $jenis]
+            )->row();
+
+            return (int) ($row->id_request ?? 0);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     private function kurirInsertSamedayRequest(string $waNumber, array $session): bool
     {
         $idPelanggan = (int) ($session['id_pelanggan'] ?? 0);
@@ -3960,6 +4015,31 @@ trait WARepliesKurirTrait
             $pendingId = $this->kurirFindPendingAntarRequest($idPelanggan);
             if ($pendingId > 0) {
                 $existingId = $pendingId;
+            }
+        }
+
+        // Hindari duplikat antar/jemput aktif di lokasi yang sama
+        if ($existingId <= 0) {
+            if ($idLokasi > 0) {
+                $dupId = $this->kurirFindActiveDeliverySameJenisLokasi($idPelanggan, $jenis, $idLokasi);
+                if ($dupId > 0) {
+                    $this->saveKurirSession($waNumber, ['id_request' => $dupId, 'step' => 'request_aktif']);
+                    $this->logAutoreplyTrace(
+                        $waNumber,
+                        'KURIR',
+                        'skip_duplicate jenis=' . $jenis . ' id_lokasi=' . $idLokasi . ' id=' . $dupId
+                    );
+                    return true;
+                }
+                $noLokId = $this->kurirFindActiveDeliverySameJenisNoLokasi($idPelanggan, $jenis);
+                if ($noLokId > 0) {
+                    $existingId = $noLokId;
+                }
+            } else {
+                $noLokId = $this->kurirFindActiveDeliverySameJenisNoLokasi($idPelanggan, $jenis);
+                if ($noLokId > 0) {
+                    $existingId = $noLokId;
+                }
             }
         }
 
@@ -4009,6 +4089,7 @@ trait WARepliesKurirTrait
             );
             $tarif = (int) $calc['tarif'];
         }
+        $tarif = DeliveryTarifGrant::apply($idPelanggan, $tarif);
 
         $now = date('Y-m-d H:i:s');
         $db = DB::getInstance(1);

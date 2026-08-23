@@ -458,6 +458,11 @@ class WhatsApp extends Controller
                     \App\Helpers\CRM\WaConversationAlias::remember($db, $conversationId, $identityHints, 'ycloud');
                 }
 
+                $freshConvEarly = $conversationId > 0
+                    ? $db->get_where('wa_conversations', ['id' => $conversationId])->row()
+                    : null;
+                $activeCasesEarly = $this->extractOpenCaseIds($freshConvEarly);
+
                 // Broadcast cepat ke UI — tanpa OneSignal (notify=false).
                 // Push HP baru dikirim setelah intent jika notify=true.
                 // id harus Y-{db} agar cocok getMessages; tanpa itu polling CRM dobelkan bubble.
@@ -467,7 +472,7 @@ class WhatsApp extends Controller
                     'phone' => $waNumber,
                     'contact_name' => $contact_name,
                     'case' => null,
-                    'active_cases' => [],
+                    'active_cases' => $activeCasesEarly,
                     'notify' => false,
                     'assignment_user_id' => $assigned_user_id,
                     'status' => 'open',
@@ -612,21 +617,7 @@ class WhatsApp extends Controller
                 $notify = $autoReplyResult->notify ?? true;
 
                 $freshConv = $db->get_where('wa_conversations', ['id' => $conversationId])->row();
-                if ($freshConv && !empty($freshConv->conv_case)) {
-                    $casesDecoded = json_decode($freshConv->conv_case, true);
-                    if (is_array($casesDecoded)) {
-                        if (!isset($casesDecoded[0])) {
-                            $casesDecoded = [$casesDecoded];
-                        }
-                        foreach ($casesDecoded as $c) {
-                            if (isset($c['case']) && isset($c['status']) && $c['status'] === 'open') {
-                                $activeCases[] = (int) $c['case'];
-                            }
-                        }
-                    } elseif (is_numeric($freshConv->conv_case)) {
-                        $activeCases[] = (int) $freshConv->conv_case;
-                    }
-                }
+                $activeCases = $this->extractOpenCaseIds($freshConv);
 
                 if ($currentCase !== null && (int) $currentCase !== 0) {
                     $this->pushIncomingToWebSocket([
@@ -687,6 +678,52 @@ class WhatsApp extends Controller
                 );
             }
         }
+    }
+
+    /**
+     * Ambil daftar case ID yang masih open dari wa_conversations.conv_case.
+     *
+     * @param object|string|null $conv Row wa_conversations atau JSON conv_case
+     * @return list<int>
+     */
+    private function extractOpenCaseIds($conv): array
+    {
+        $activeCases = [];
+        if ($conv === null || $conv === '') {
+            return $activeCases;
+        }
+
+        $raw = is_object($conv) ? ($conv->conv_case ?? null) : $conv;
+        if ($raw === null || $raw === '') {
+            return $activeCases;
+        }
+
+        if (is_numeric($raw)) {
+            $activeCases[] = (int) $raw;
+
+            return $activeCases;
+        }
+
+        $casesDecoded = is_string($raw) ? json_decode($raw, true) : $raw;
+        if (!is_array($casesDecoded)) {
+            return $activeCases;
+        }
+
+        if (!isset($casesDecoded[0])) {
+            $casesDecoded = [$casesDecoded];
+        }
+
+        foreach ($casesDecoded as $c) {
+            if (!isset($c['case'])) {
+                continue;
+            }
+            if (($c['status'] ?? 'open') === 'closed') {
+                continue;
+            }
+            $activeCases[] = (int) $c['case'];
+        }
+
+        return array_values(array_unique(array_filter($activeCases, static fn ($id) => $id > 0)));
     }
 
     /**

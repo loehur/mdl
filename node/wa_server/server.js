@@ -437,6 +437,7 @@ const wss = new WebSocket.Server({ server });
 // ============================================
 let CREW_IDS = [];
 let ADMIN_IDS = [];
+let DRIVER_IDS = [];
 
 // API URL for fetching roles
 // Adjust domain/path if hosted differently in production
@@ -463,10 +464,12 @@ async function fetchRoles() {
                     if (json.status && json.data) {
                         CREW_IDS = json.data.crew || [];
                         ADMIN_IDS = json.data.admin || [];
+                        DRIVER_IDS = json.data.driver || [];
 
                         // Ensure lists are array of strings
                         CREW_IDS = CREW_IDS.map(String);
                         ADMIN_IDS = ADMIN_IDS.map(String);
+                        DRIVER_IDS = DRIVER_IDS.map(String);
 
                         console.log('✅ Roles updated from API');
                     } else {
@@ -493,6 +496,7 @@ function useDefaults() {
     // Fallback defaults from env or hardcoded
     CREW_IDS = process.env.CREW_IDS ? process.env.CREW_IDS.split(',').map(id => id.trim()) : ['3', '4', '5', '6', '10', '11'];
     ADMIN_IDS = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : ['DEV', 'AYAH'];
+    DRIVER_IDS = process.env.DRIVER_IDS ? process.env.DRIVER_IDS.split(',').map(id => id.trim()) : [];
 }
 
 function logRoles() {
@@ -500,7 +504,8 @@ function logRoles() {
     console.log('WebSocket Server - Active Client IDs:');
     console.log('Admin IDs:', ADMIN_IDS.join(', '));
     console.log('Crew IDs:', CREW_IDS.join(', '));
-    console.log('Total Allowed IDs:', CREW_IDS.length + ADMIN_IDS.length);
+    console.log('Driver IDs:', DRIVER_IDS.join(', '));
+    console.log('Total Allowed IDs:', CREW_IDS.length + ADMIN_IDS.length + DRIVER_IDS.length);
     console.log('='.repeat(50));
 }
 
@@ -523,22 +528,36 @@ function includesIgnoreCase(arr, value) {
 /**
  * Determine user role based on ID (case-insensitive)
  * @param {string} id - User ID
- * @returns {string} - 'admin' or 'crew'
+ * @returns {string} - 'admin', 'crew', or 'driver'
  */
 function getUserRole(id) {
     if (includesIgnoreCase(ADMIN_IDS, id)) {
         return 'admin';
     } else if (includesIgnoreCase(CREW_IDS, id)) {
         return 'crew';
+    } else if (includesIgnoreCase(DRIVER_IDS, id)) {
+        return 'driver';
     } else {
-        // If not in explicit lists but connected (maybe allow all?)
-        // For now default to crew or unauthorized if strict
         return 'crew';
     }
 }
 
 function isIdAllowed(id) {
-    return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(CREW_IDS, id);
+    return includesIgnoreCase(ADMIN_IDS, id) || includesIgnoreCase(CREW_IDS, id) || includesIgnoreCase(DRIVER_IDS, id);
+}
+
+function isDriverVisibleCase(data) {
+    const caseVal = data?.case ?? data?.case_val ?? data?.data?.case ?? data?.data?.case_val;
+    const n = parseInt(caseVal, 10);
+    if (n === 2 || n === 3) return true;
+    const cases = data?.cases ?? data?.data?.cases;
+    if (Array.isArray(cases)) {
+        return cases.some((c) => {
+            const cid = parseInt(c?.case ?? c, 10);
+            return (cid === 2 || cid === 3) && (c?.status || 'open') !== 'closed';
+        });
+    }
+    return false;
 }
 
 /** Normalize client map key (case-insensitive uniqueness) */
@@ -901,7 +920,18 @@ app.post('/incoming', async (req, res) => {
                     if (role === 'admin') {
                         shouldSend = true;
                     }
-                    // 2. Crew: Only their assignments
+                    // 2. Driver: assigned chats with yellow/red case
+                    else if (role === 'driver') {
+                        if (data.type === 'status_update') {
+                            shouldSend = true;
+                        } else {
+                            const assignmentId = data.assignment_user_id || (data.data && data.data.assignment_user_id);
+                            if (assignmentId && isDriverVisibleCase(data)) {
+                                shouldSend = true;
+                            }
+                        }
+                    }
+                    // 3. Crew: Only their assignments
                     else { // role === 'crew'
                         // ⭐ EXCEPTION: Status updates should go to ALL users
                         // Why: User might not be assigned but still viewing chat

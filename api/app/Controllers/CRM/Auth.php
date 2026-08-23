@@ -8,6 +8,7 @@ use App\Core\Controller;
  * CRM Auth Controller
  * - admin: mdl_main.crm_users
  * - crew: mdl_laundry.cabang (username = id_cabang, code = CR)
+ * - driver: mdl_laundry.user.no_user (en=1, code = DR)
  * - device lock: mdl_main.crm_device_locks (1 username = 1 device)
  */
 class Auth extends Controller
@@ -121,6 +122,7 @@ class Auth extends Controller
      * Resolve login user:
      * 1) crm_users with role admin
      * 2) cabang by id_cabang → crew, code CR
+     * 3) user by no_user → driver, code DR
      */
     private function resolveUser(string $username): ?array
     {
@@ -142,26 +144,65 @@ class Auth extends Controller
             }
         }
 
-        if (!is_numeric($username)) {
+        if (is_numeric($username)) {
+            $idCabang = (int) $username;
+            $cabang = $this->db($this->db_laundry)
+                ->where('id_cabang', $idCabang)
+                ->get('cabang')
+                ->row_array();
+
+            if ($cabang) {
+                return [
+                    'id' => $idCabang,
+                    'username' => (string) $idCabang,
+                    'name' => $cabang['kode_cabang'] ?? (string) $idCabang,
+                    'role' => 'crew',
+                    'code' => 'CR',
+                ];
+            }
+        }
+
+        $driver = $this->resolveDriverUser($username);
+        if ($driver !== null) {
+            return $driver;
+        }
+
+        return null;
+    }
+
+    private function resolveDriverUser(string $username): ?array
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($username);
+        if ($nomor === null) {
             return null;
         }
 
-        $idCabang = (int) $username;
-        $cabang = $this->db($this->db_laundry)
-            ->where('id_cabang', $idCabang)
-            ->get('cabang')
-            ->row_array();
+        $expr = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('no_user');
+        $row = $this->db($this->db_laundry)->query(
+            "SELECT id_user, nama_user, id_cabang FROM user WHERE en = 1 AND {$expr} LIKE ? LIMIT 1",
+            ['%' . $nomor]
+        )->row_array();
 
-        if (!$cabang) {
+        if (!$row || empty($row['id_user'])) {
             return null;
+        }
+
+        $loginKey = strtoupper(\App\Helpers\CRM\WaSenderContext::key($username));
+        if ($loginKey === '') {
+            $loginKey = strtoupper(preg_replace('/[^0-9]/', '', $username) ?? '');
         }
 
         return [
-            'id' => $idCabang,
-            'username' => (string) $idCabang,
-            'name' => $cabang['kode_cabang'] ?? (string) $idCabang,
-            'role' => 'crew',
-            'code' => 'CR',
+            'id' => (int) $row['id_user'],
+            'username' => $loginKey,
+            'name' => (string) ($row['nama_user'] ?? 'Driver'),
+            'role' => 'driver',
+            'code' => 'DR',
+            'id_cabang' => (int) ($row['id_cabang'] ?? 0),
         ];
     }
 

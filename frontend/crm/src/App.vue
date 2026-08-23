@@ -797,11 +797,7 @@ const fetchUserRole = async () => {
 
       if (roles.admin && includesId(roles.admin, myId)) role = "admin";
       else if (roles.crew && includesId(roles.crew, myId)) role = "crew";
-
-      // Legacy: role driver sudah tidak dipakai di CRM
-      if (role === "crew" && localStorage.getItem("cms_chat_role") === "driver") {
-        localStorage.removeItem("cms_chat_role");
-      }
+      else if (roles.driver && includesId(roles.driver, myId)) role = "driver";
 
       currentUserRole.value = role;
       localStorage.setItem("cms_chat_role", role);
@@ -908,22 +904,25 @@ const connect = async () => {
     if (data.user) {
       currentUserRole.value = data.user.role || "crew";
       userName.value = data.user.name || "";
-      // Use sender code from database (crm_users.code field)
       senderCode.value = data.user.code || "";
-      
+      if (data.user.username) {
+        authId.value = String(data.user.username).toUpperCase();
+      }
+
       localStorage.setItem("cms_chat_role", currentUserRole.value);
       localStorage.setItem("cms_chat_name", userName.value);
       localStorage.setItem("cms_chat_sender_code", senderCode.value);
-      localStorage.setItem("cms_chat_token", "true"); // Flag logged in
+      localStorage.setItem("cms_chat_token", "true");
+      localStorage.setItem("cms_chat_id", authId.value);
     }
 
-    // Step 3: Connect WebSocket same as before (using authId as ID)
     connectWebSocket();
     fetchConversations();
     fetchQuickReplies();
-    // fetchUserRole(); // REPLACED: Role now comes from Auth Response
 
-    oneSignalLogin(authId.value);
+    if (currentUserRole.value !== "driver") {
+      oneSignalLogin(authId.value);
+    }
     resetPollingTimer();
   } catch (e) {
     console.error(e);
@@ -2947,7 +2946,7 @@ const handleIncomingMessage = (payload) => {
       conversation.assignment_user_id = payload.assignment_user_id;
     }
     // Update case if provided. Prioritize 'active_cases' list from server for accuracy.
-    if (Array.isArray(payload.active_cases)) {
+    if (Array.isArray(payload.active_cases) && payload.active_cases.length > 0) {
       conversation.cases = payload.active_cases.map((c) => ({
         case: parseInt(c),
         status: "open",

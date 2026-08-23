@@ -80,7 +80,7 @@ watch(() => props.initialUsername, (newVal) => {
             MDL Chat
           </h1>
           <p class="text-slate-400 text-sm">
-            Masukkan ID untuk terhubung ke konsol
+            Masukkan ID cabang (crew), nomor HP (driver), atau username admin
           </p>
         </div>
 
@@ -90,7 +90,7 @@ watch(() => props.initialUsername, (newVal) => {
             <!-- ID Input -->
             <div class="relative group">
               <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 transition-colors group-focus-within:text-indigo-400">
-                Username
+                ID / Nomor HP
               </label>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -103,7 +103,7 @@ watch(() => props.initialUsername, (newVal) => {
                   @input="onInput"
                   @keyup="handleKeyup"
                   type="text"
-                  placeholder="Username"
+                  placeholder="ID cabang / nomor HP / username"
                   class="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl pl-12 pr-4 py-4 text-white text-lg font-medium placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:bg-slate-800 transition-all uppercase"
                   :disabled="loading"
                   autofocus

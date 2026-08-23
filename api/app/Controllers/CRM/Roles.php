@@ -8,6 +8,7 @@ use App\Core\Controller;
  * CRM Roles API
  * - admin: mdl_main.crm_users
  * - crew: mdl_laundry.cabang (id_cabang)
+ * - driver: mdl_laundry.user.no_user (en=1)
  */
 class Roles extends Controller
 {
@@ -28,7 +29,8 @@ class Roles extends Controller
         try {
             $data = [
                 'admin' => [],
-                'crew' => []
+                'crew' => [],
+                'driver' => [],
             ];
 
             // admin from crm_users
@@ -58,6 +60,23 @@ class Roles extends Controller
                 $data['crew'][] = strtoupper($id);
             }
 
+            if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+                require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+            }
+
+            $drivers = $this->db($this->db_laundry)
+                ->query("SELECT no_user FROM user WHERE en = 1 AND no_user IS NOT NULL AND no_user <> ''")
+                ->result_array();
+
+            $driverKeys = [];
+            foreach ($drivers as $driver) {
+                $key = strtoupper(\App\Helpers\CRM\WaSenderContext::key((string) ($driver['no_user'] ?? '')));
+                if ($key !== '') {
+                    $driverKeys[$key] = true;
+                }
+            }
+            $data['driver'] = array_keys($driverKeys);
+
             $this->success($data, 'Role IDs retrieved successfully');
 
         } catch (\Exception $e) {
@@ -65,10 +84,9 @@ class Roles extends Controller
             
             $fallback = defined('\Env::CRM_USER_ROLES') ? \Env::CRM_USER_ROLES : [
                 'admin' => [],
-                'crew' => []
+                'crew' => [],
+                'driver' => [],
             ];
-            // Pastikan tidak ada bucket driver di fallback
-            unset($fallback['driver']);
             
             $this->success($fallback, 'Role IDs retrieved (fallback)');
         }

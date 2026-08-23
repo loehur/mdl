@@ -108,7 +108,7 @@ class DeliveryRequestStore
         }
 
         $calc = AntarTarif::tarifFromCoords($cabLat, $cabLon, $locLat, $locLon);
-        $tarif = (int) ($calc['tarif'] ?? 0);
+        $tarif = DeliveryTarifGrant::apply($idPelanggan, (int) ($calc['tarif'] ?? 0));
         $now = date('Y-m-d H:i:s');
         $existingId = $jenis === 'antar' ? self::findPendingAntar($idPelanggan) : 0;
 

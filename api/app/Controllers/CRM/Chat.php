@@ -79,8 +79,13 @@ class Chat extends Controller
             }
             
             // Get user role:
-            // admin from crm_users; crew from mdl_laundry.cabang (id_cabang)
+            // admin from crm_users; crew from cabang; driver from user.no_user
             $isAdmin = false;
+            $isDriver = false;
+
+            if (!class_exists('\\App\\Helpers\\CRM\\DriverChatHelper')) {
+                require_once __DIR__ . '/../../Helpers/CRM/DriverChatHelper.php';
+            }
             
             if ($userId) {
                 $userRecord = $db
@@ -91,21 +96,23 @@ class Chat extends Controller
                 if ($userRecord) {
                     $role = strtolower($userRecord->role ?? '');
                     $isAdmin = ($role === 'admin');
+                } elseif (\App\Helpers\CRM\DriverChatHelper::isDriverUser($userId)) {
+                    $isDriver = true;
                 }
-                // Non-admin treated as crew (cabang id_cabang) below
+                // Non-admin non-driver treated as crew (cabang id_cabang) below
             }
             
             if ($userId && !$isAdmin) {
+                if ($isDriver) {
+                    $whereClause .= ' AND c.assigned_user_id IS NOT NULL';
+                } elseif (is_numeric($userId)) {
                    // Crew Role: Filter by assigned_user_id
-                   // For numeric IDs, use intval for safety
-                   if (is_numeric($userId)) {
-                       $whereClause .= " AND c.assigned_user_id = " . intval($userId);
-                   } else {
+                   $whereClause .= " AND c.assigned_user_id = " . intval($userId);
+                } else {
                        // For string IDs, use proper escaping
-                       // Use underlying connection for escaping since DB wrapper has no escape()
                        $safeId = $db->conn()->real_escape_string($userId);
                        $whereClause .= " AND c.assigned_user_id = '$safeId'";
-                   }
+                }
             }
             
             $sql = "
@@ -217,6 +224,26 @@ class Chat extends Controller
                     $lastItem = end($caseList);
                     $conv->case_val = (int) ($lastItem['case'] ?? 0);
                     $conv->case_status = $lastItem['status'] ?? null;
+                }
+            }
+
+            if ($isDriver) {
+                $conversations = array_values(array_filter(
+                    $conversations,
+                    static function ($conv) {
+                        foreach ($conv->case_history ?? [] as $item) {
+                            $caseId = (int) ($item['case'] ?? 0);
+                            if (($caseId === 2 || $caseId === 3) && (($item['status'] ?? 'open') !== 'closed')) {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    }
+                ));
+                $hasMore = count($conversations) > $limit;
+                if ($hasMore) {
+                    array_pop($conversations);
                 }
             }
             
@@ -1754,7 +1781,8 @@ class Chat extends Controller
     /**
      * Resolve sender code:
      * - admin: crm_users.code
-     * - crew (cabang id_cabang): hardcoded CR
+     * - crew (cabang id_cabang): CR
+     * - driver (user no_user): DR
      */
     private function resolveSenderCode($db, $userId): ?string
     {
@@ -1772,6 +1800,13 @@ class Chat extends Controller
             if ($role === 'admin') {
                 return !empty($userRecord->code) ? $userRecord->code : null;
             }
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\DriverChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/DriverChatHelper.php';
+        }
+        if (\App\Helpers\CRM\DriverChatHelper::isDriverUser($userId)) {
+            return 'DR';
         }
 
         if (is_numeric($userId)) {
@@ -1909,6 +1944,72 @@ class Chat extends Controller
                     'Chat'
                 );
             }
+            $this->error($res['message'] ?? 'Gagal mengirim', 400);
+        }
+
+        $this->success($res['data'] ?? [], $res['message'] ?? 'Pesan terkirim');
+    }
+
+    /**
+     * POST /CRM/Chat/driverPolish — Rapikan pesan driver
+     */
+    public function driverPolish()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\DriverChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/DriverChatHelper.php';
+        }
+
+        $body = $this->getBody();
+        $userId = $body['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        if (!\App\Helpers\CRM\DriverChatHelper::isDriverUser($userId)) {
+            $this->error('Akses driver tidak valid', 403);
+        }
+
+        $res = \App\Helpers\CRM\DriverChatHelper::polishMessage($body);
+        if (empty($res['ok'])) {
+            $this->json([
+                'ok' => false,
+                'message' => $res['message'] ?? 'Gagal memproses',
+                'field' => $res['field'] ?? null,
+            ]);
+        }
+
+        $this->json([
+            'ok' => true,
+            'status' => !empty($res['status']),
+            'new_words' => $res['new_words'] ?? '',
+            'reason' => $res['reason'] ?? '',
+            'sapaan' => $res['sapaan'] ?? '',
+            'polish_token' => $res['polish_token'] ?? '',
+            'message' => !empty($res['status']) ? 'Pesan siap dikirim' : ($res['reason'] ?? 'Pesan ditolak'),
+        ]);
+    }
+
+    /**
+     * POST /CRM/Chat/driverReply — kirim pesan driver
+     */
+    public function driverReply()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\DriverChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/DriverChatHelper.php';
+        }
+
+        $body = $this->getBody();
+        $userId = $body['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        if (!\App\Helpers\CRM\DriverChatHelper::isDriverUser($userId)) {
+            $this->error('Akses driver tidak valid', 403);
+        }
+
+        $res = \App\Helpers\CRM\DriverChatHelper::sendReply($body);
+        if (empty($res['ok'])) {
             $this->error($res['message'] ?? 'Gagal mengirim', 400);
         }
 
