@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Core\DB;
 
 /**
- * Intent PERMINTAAN — session standby (tanpa autoreply), AI merangkum isi permintaan.
+ * Intent PERMINTAAN — session standby (tanpa autoreply), AI merangkum pertanyaan + permintaan pelanggan.
  * expires_at = follow-up chat 1 jam (baris tidak dihapus saat habis).
  * notify_expires_at = kartu notif laundry 24 jam (diset saat buat, tidak di-reset follow-up).
  */
@@ -162,7 +162,7 @@ trait WARepliesPermintaanTrait
             'REKENING',
             'LOKASI',
             'KURIR',
-            'ESTIMASI_SELESAI',
+            'PERMINTAAN',
             'JAM_OPERASIONAL',
             'SALDO',
             'SALDO_IAK',
@@ -192,7 +192,7 @@ trait WARepliesPermintaanTrait
     }
 
     /**
-     * Handler PERMINTAAN: upsert 1 session, AI rangkum dari SELURUH chat inbound sesi, TANPA autoreply.
+     * Handler PERMINTAAN: upsert 1 session, AI rangkum pertanyaan + permintaan dari SELURUH chat inbound sesi, TANPA autoreply.
      *
      * @return bool true = dikonsumsi
      */
@@ -413,7 +413,7 @@ trait WARepliesPermintaanTrait
     }
 
     /**
-     * AI: satukan SEMUA chat di session jadi 1 kalimat permintaan (jangan hanya chat terakhir).
+     * AI: satukan SEMUA chat di session jadi 1 kalimat pertanyaan/permintaan (jangan hanya chat terakhir).
      *
      * @param string $prevSummary ringkasan lama (opsional)
      * @param string $fullRawLog  seluruh raw_log termasuk pesan baru (dipisah ---)
@@ -434,19 +434,25 @@ trait WARepliesPermintaanTrait
             $chatBlock .= ($i + 1) . '. ' . $line . "\n";
         }
 
-        $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
+        $system = "Kamu merangkum pertanyaan DAN permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
             . "WAJIB gabungkan SEMUA pesan chat bernomor di bawah (bukan hanya yang terakhir).\n"
-            . "Contoh: (1) dulukan baju sekolah (2) seragam merah putih dulu (3) sekalian pramuka "
+            . "Pertanyaan = tanya info/kapan/jam/estimasi/bisa-tidak (contoh: kapan siap, jam berapa bisa dijemput).\n"
+            . "Permintaan = minta aksi/perlakuan khusus (contoh: dulukan seragam, plastik terpisah, ambil dulu item X).\n"
+            . "Contoh gabungan: (1) kapan siap kak (2) dulukan baju sekolah (3) seragam merah putih dulu "
+            . "→ \"Tanya kapan siap; dulukan seragam merah putih dan baju sekolah\".\n"
+            . "Contoh permintaan saja: (1) dulukan baju sekolah (2) sekalian pramuka "
             . "→ \"Dulukan seragam merah putih dan baju pramuka\".\n"
-            . "Sertakan aksi (dulukan/prioritas/ambil dulu/dll) + SEMUA item yang disebut di pesan mana pun.\n"
-            . "Jangan buang detail dari pesan sebelumnya. Jangan salin mentah satu bubble terakhir saja.\n"
+            . "Contoh pertanyaan saja: (1) jam berapa bisa diambil (2) besok pagi bisa "
+            . "→ \"Tanya jam/besok pagi bisa diambil\".\n"
+            . "Sertakan SEMUA poin penting dari pesan mana pun — jangan buang pertanyaan karena ada permintaan, atau sebaliknya.\n"
+            . "Jangan salin mentah satu bubble terakhir saja.\n"
             . "Tanpa sapaan (kak/bu/pak), tanpa emoji, tanpa tanda kutip, tanpa nomor urut, tanpa prefix i-/o-.\n"
             . "Jawaban HANYA teks ringkasan, maksimal ~220 karakter.";
 
         $user = "Ringkasan sebelumnya (opsional): " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n\n"
             . "Semua chat pelanggan di sesi ini (urut waktu, WAJIB digabung):\n"
             . $chatBlock . "\n"
-            . "Tulis SATU ringkasan permintaan yang mencakup SEMUA item/aksi di atas:";
+            . "Tulis SATU ringkasan yang mencakup SEMUA pertanyaan dan permintaan di atas:";
 
         try {
             $raw = $this->executeOpenAIRequestWithMessages(

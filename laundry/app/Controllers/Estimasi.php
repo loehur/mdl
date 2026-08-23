@@ -1,12 +1,8 @@
 <?php
 
 /**
- * Notifikasi task ESTIMASI / GRANT untuk petugas Laundry.
- * Tabel wa_estimasi_session di mdl_main → laundry db(100) (= API db(0)).
- *
- * Task terpisah:
- * - estimasi → petugas isi jam saja
- * - grant    → petugas setujui / tolak saja
+ * Notifikasi task permintaan / pelanggan baru untuk petugas Laundry.
+ * Estimasi selesai (dulu wa_estimasi_session) sudah digabung ke wa_permintaan_session via intent PERMINTAAN.
  */
 class Estimasi extends Controller
 {
@@ -16,7 +12,7 @@ class Estimasi extends Controller
     }
 
     /**
-     * Jumlah task pending (estimasi + grant dihitung terpisah).
+     * Jumlah task pending (permintaan + pelanggan baru).
      */
     public function count()
     {
@@ -44,50 +40,7 @@ class Estimasi extends Controller
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $rows = $this->db(100)->query_array(
-                'SELECT phone, id_penjualan, id_cabang, fase_proses, butuh_estimasi, estimasi_tanggal, estimasi_jam,
-                        summary, updated_at, expires_at
-                 FROM wa_estimasi_session
-                 WHERE ' . $this->pendingWhereSql() . '
-                 ORDER BY updated_at DESC
-                 LIMIT 50'
-            );
-            if (!is_array($rows)) {
-                $rows = [];
-            }
-
             $items = [];
-            foreach ($rows as $row) {
-                $phone = (string) ($row['phone'] ?? '');
-                $pelanggan = $this->resolvePelangganByPhone($phone);
-                $base = [
-                    'phone' => $phone,
-                    'phone_display' => $this->displayPhone($phone),
-                    'id_penjualan' => isset($row['id_penjualan']) ? (int) $row['id_penjualan'] : null,
-                    'fase_proses' => $row['fase_proses'] ?? null,
-                    'estimasi_tanggal' => $row['estimasi_tanggal'] ?? null,
-                    'estimasi_jam' => $row['estimasi_jam'],
-                    'estimasi_jam_label' => $this->formatEstimasiJamLabelFromDb($row['estimasi_jam'] ?? null),
-                    'date_options' => $this->estimasiDateOptions(),
-                    'updated_at' => $row['updated_at'] ?? null,
-                    'expires_at' => $row['expires_at'] ?? null,
-                    'nama' => $pelanggan['nama'] ?? '',
-                ];
-
-                $butuhEstimasi = (int) ($row['butuh_estimasi'] ?? 0) === 1
-                    && ($row['estimasi_jam'] === null || $row['estimasi_jam'] === '');
-
-                if ($butuhEstimasi) {
-                    $items[] = array_merge($base, [
-                        'task_type' => 'estimasi',
-                        'task_id' => 'estimasi:' . $phone,
-                        'customer_message' => null,
-                        'request_waktu_label' => null,
-                        'request_jam_label' => null,
-                        'request_text' => null,
-                    ]);
-                }
-            }
 
             // Pelanggan baru (#NEW#) — update nama segera
             try {
@@ -158,13 +111,12 @@ class Estimasi extends Controller
                 $items[] = $permItem;
             }
 
-            // Pelanggan baru dulu, lalu permintaan, estimasi
+            // Pelanggan baru dulu, lalu permintaan
             usort($items, function ($a, $b) {
                 $rank = function ($t) {
                     if ($t === 'pelanggan_new') return -1;
                     if ($t === 'permintaan') return 0;
-                    if ($t === 'estimasi') return 1;
-                    return 2;
+                    return 1;
                 };
                 $wa = $rank($a['task_type'] ?? '');
                 $wb = $rank($b['task_type'] ?? '');
@@ -252,8 +204,7 @@ class Estimasi extends Controller
 
     /**
      * Update satu task.
-     * POST: phone, task_type=estimasi|pelanggan_new,
-     *       estimasi_jam?, id_karyawan?, nama_pelanggan?, send_wa?
+     * POST: phone, task_type=pelanggan_new, nama_pelanggan?, send_wa?
      */
     public function update()
     {
@@ -269,84 +220,22 @@ class Estimasi extends Controller
             $this->echoJson(['ok' => 0, 'msg' => 'Nomor WA wajib']);
             return;
         }
-        if (!in_array($taskType, ['estimasi', 'pelanggan_new'], true)) {
-            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: estimasi atau pelanggan_new']);
+        if ($taskType !== 'pelanggan_new') {
+            $this->echoJson(['ok' => 0, 'msg' => 'task_type wajib: pelanggan_new']);
             return;
         }
 
         $phoneEsc = $this->db(100)->escape($phone);
 
-        if ($taskType === 'pelanggan_new') {
-            $session = $this->db(100)->get_where_row(
-                'wa_kurir_session',
-                "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
-            );
-            if (!is_array($session) || empty($session['phone'])) {
-                echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
-                return;
-            }
-            $this->updatePelangganNewTask($phone, $phoneEsc, $session);
-            return;
-        }
-
         $session = $this->db(100)->get_where_row(
-            'wa_estimasi_session',
+            'wa_kurir_session',
             "phone = '" . $phoneEsc . "' AND expires_at > NOW()"
         );
-        if (empty($session)) {
-            echo json_encode(['ok' => 0, 'msg' => 'Session tidak ditemukan / sudah expired']);
+        if (!is_array($session) || empty($session['phone'])) {
+            echo json_encode(['ok' => 0, 'msg' => 'Session kurir tidak ditemukan / kedaluwarsa']);
             return;
         }
-
-        if ($taskType === 'estimasi') {
-            $this->updateEstimasiTask($phone, $phoneEsc, $session);
-            return;
-        }
-
-        $this->echoJson(['ok' => 0, 'msg' => 'task_type tidak dikenali']);
-    }
-
-    private function updateEstimasiTask(string $phone, string $phoneEsc, array $session): void
-    {
-        if ((int) ($session['butuh_estimasi'] ?? 0) !== 1 || ($session['estimasi_jam'] !== null && $session['estimasi_jam'] !== '')) {
-            echo json_encode(['ok' => 0, 'msg' => 'Task estimasi sudah tidak pending']);
-            return;
-        }
-
-        $parsed = $this->parseEstimasiTanggalJamFromPost();
-        if ($parsed === null) {
-            echo json_encode(['ok' => 0, 'msg' => 'Tanggal (hari ini–lusa) dan jam wajib diisi']);
-            return;
-        }
-
-        $waktuLabel = $this->formatEstimasiWaktuCustomer($parsed['tanggal'], $parsed['jam']);
-        $idPenjualan = isset($session['id_penjualan']) ? (int) $session['id_penjualan'] : 0;
-        $idLabel = $idPenjualan > 0 ? '#' . $idPenjualan : '';
-        $sapaan = $this->resolveSapaanForPhone($phone);
-        $replyText = $idLabel !== ''
-            ? "Laundry ID {$idLabel} diperkirakan siap {$waktuLabel} ya {$sapaan} 😊"
-            : "Diperkirakan siap {$waktuLabel} ya {$sapaan} 😊";
-
-        $summary = trim((string) ($session['summary'] ?? ''));
-        $summary .= ($summary !== '' ? ' | ' : '') . 'Petugas isi estimasi=' . $parsed['tanggal'] . ' ' . $this->formatEstimasiJamLabel($parsed['jam']);
-
-        $up = $this->db(100)->update(
-            'wa_estimasi_session',
-            [
-                'estimasi_tanggal' => $parsed['tanggal'],
-                'estimasi_jam' => $parsed['jam'],
-                'butuh_estimasi' => 0,
-                'summary' => mb_substr($summary, 0, 500),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ],
-            "phone = '" . $phoneEsc . "'"
-        );
-        if (!empty($up['errno'])) {
-            echo json_encode(['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update']);
-            return;
-        }
-
-        $this->respondAfterUpdate($phone, $replyText);
+        $this->updatePelangganNewTask($phone, $phoneEsc, $session);
     }
 
     /**
@@ -423,50 +312,6 @@ class Estimasi extends Controller
         ]);
     }
 
-    private function respondAfterUpdate(string $phone, string $replyText): void
-    {
-        $sendWa = !isset($_POST['send_wa']) || (int) $_POST['send_wa'] === 1;
-        $pendingCount = $this->syncNotifTaskCount();
-        $replyText = $this->sanitizeUtf8($replyText);
-
-        $waOk = 0;
-        $msg = 'Task selesai';
-        if ($sendWa) {
-            try {
-                $waResult = $this->helper('Notif')->send_wa($phone, $replyText, 'free');
-                if (empty($waResult['status'])) {
-                    $this->echoJson([
-                        'ok' => 1,
-                        'wa_ok' => 0,
-                        'count' => $pendingCount,
-                        'msg' => 'State tersimpan, tapi WA gagal: ' . ($waResult['error'] ?? 'unknown'),
-                        'reply_text' => $replyText,
-                    ]);
-                    return;
-                }
-                $waOk = 1;
-                $msg = 'Task selesai & WA terkirim';
-            } catch (\Throwable $e) {
-                $this->echoJson([
-                    'ok' => 1,
-                    'wa_ok' => 0,
-                    'count' => $pendingCount,
-                    'msg' => 'State tersimpan, tapi WA gagal: ' . $e->getMessage(),
-                    'reply_text' => $replyText,
-                ]);
-                return;
-            }
-        }
-
-        $this->echoJson([
-            'ok' => 1,
-            'wa_ok' => $waOk,
-            'count' => $pendingCount,
-            'msg' => $msg,
-            'reply_text' => $replyText,
-        ]);
-    }
-
     /** Buang output tak sengaja (BOM/warning) lalu kirim JSON bersih. */
     private function echoJson(array $data): void
     {
@@ -528,13 +373,7 @@ class Estimasi extends Controller
                 $_SESSION[URL::SESSID]['notif_task_count'] = 0;
                 return 0;
             }
-            $rows = $this->db(100)->query_array(
-                'SELECT
-                    SUM(CASE WHEN butuh_estimasi = 1 AND estimasi_jam IS NULL THEN 1 ELSE 0 END) AS c
-                 FROM wa_estimasi_session
-                 WHERE expires_at > NOW() AND id_cabang = ' . (int) $cabangId
-            );
-            $n = (int) ($rows[0]['c'] ?? 0);
+            $n = 0;
             try {
                 $newNamaRows = $this->db(100)->query_array(
                     'SELECT COUNT(*) AS c FROM wa_kurir_session
@@ -567,137 +406,10 @@ class Estimasi extends Controller
         return (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
     }
 
-    private function pendingWhereSql(): string
+    /** Kartu notif PERMINTAAN: status open + notify_expires_at 24 jam (bukan expires_at 1 jam). */
+    private function permintaanNotifyOpenWhereSql(): string
     {
-        $cabangId = $this->currentCabangId();
-        $cabangSql = $cabangId > 0
-            ? ('id_cabang = ' . (int) $cabangId)
-            : '1=0';
-
-        return "expires_at > NOW()
-            AND {$cabangSql}
-            AND (butuh_estimasi = 1 AND estimasi_jam IS NULL)";
-    }
-
-    /**
-     * Label waktu request customer untuk notifikasi.
-     */
-    private function formatRequestWaktuLabel($tanggal, float $jam): string
-    {
-        $tgl = $tanggal ? (string) $tanggal : date('Y-m-d');
-        return $this->formatEstimasiWaktuCustomer($tgl, $jam);
-    }
-
-    /**
-     * Opsi tanggal: hari ini, besok, lusa.
-     * @return array<int, array{value:string,label:string}>
-     */
-    private function estimasiDateOptions(): array
-    {
-        $out = [];
-        $labels = ['Hari ini', 'Besok', 'Lusa'];
-        for ($i = 0; $i <= 2; $i++) {
-            $out[] = [
-                'value' => date('Y-m-d', strtotime("+{$i} day")),
-                'label' => $labels[$i],
-            ];
-        }
-        return $out;
-    }
-
-    /**
-     * @return array{tanggal:string,jam:float}|null
-     */
-    private function parseEstimasiTanggalJamFromPost(): ?array
-    {
-        $tgl = trim((string) ($_POST['estimasi_tanggal'] ?? ''));
-        $jam = $this->parseEstimasiJam(trim((string) ($_POST['estimasi_jam'] ?? '')));
-        if ($tgl === '' || $jam === null) {
-            return null;
-        }
-        if (!$this->isEstimasiTanggalAllowed($tgl)) {
-            return null;
-        }
-        return ['tanggal' => $tgl, 'jam' => $jam];
-    }
-
-    private function isEstimasiTanggalAllowed(string $ymd): bool
-    {
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) {
-            return false;
-        }
-        $today = date('Y-m-d');
-        $max = date('Y-m-d', strtotime('+2 day'));
-        return $ymd >= $today && $ymd <= $max;
-    }
-
-    /** "hari ini" / "besok" dari tanggal Y-m-d (selain itu: tanggal j/n). */
-    private function labelHariIniAtauBesok(?string $tanggal): string
-    {
-        $ymd = substr(trim((string) $tanggal), 0, 10);
-        $today = date('Y-m-d');
-        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-        if ($ymd === '' || $ymd === $today) {
-            return 'hari ini';
-        }
-        if ($ymd === $tomorrow) {
-            return 'besok';
-        }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) {
-            return 'tanggal ' . date('j/n', strtotime($ymd));
-        }
-        return 'hari ini';
-    }
-
-    /**
-     * Label waktu untuk customer: "hari ini jam 14:00" / "besok jam …" / "lusa jam …"
-     * Tanpa kata "sekitar".
-     */
-    private function formatEstimasiWaktuCustomer(string $tanggal, float $jam): string
-    {
-        $jamLabel = $this->formatEstimasiJamLabel($jam);
-        $today = date('Y-m-d');
-        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-        $lusa = date('Y-m-d', strtotime('+2 day'));
-
-        if ($tanggal === $today) {
-            $hari = 'hari ini';
-        } elseif ($tanggal === $tomorrow) {
-            $hari = 'besok';
-        } elseif ($tanggal === $lusa) {
-            $hari = 'lusa';
-        } else {
-            $hari = 'tanggal ' . date('j/n/Y', strtotime($tanggal));
-        }
-
-        return "{$hari} jam {$jamLabel}";
-    }
-
-    private function extractCustomerMessage(string $summary, string $fallback): string
-    {
-        if (preg_match('/\[pesan\]\s*(.+?)(?:\s*\||$)/u', $summary, $m)) {
-            return trim($m[1]);
-        }
-        return $fallback;
-    }
-
-    /**
-     * Ambil jam spesifik dari teks customer ("jam 10", "jam 10.00", "jam 10:30").
-     */
-    private function parseJamFromCustomerText(string $text): ?string
-    {
-        if (preg_match('/\bjam\s*(\d{1,2})([.:](\d{2}))?\b/iu', $text, $m)) {
-            if (preg_match('/\bjam\s*(brp|brpa|berapa)\b/iu', $text)) {
-                return null;
-            }
-            $h = (int) $m[1];
-            $min = isset($m[3]) ? (int) $m[3] : 0;
-            if ($h > 23 || $min > 59) {
-                return null;
-            }
-            return sprintf('%02d:%02d', $h, $min);
-        }
-        return null;
+        return "status = 'open' AND notify_expires_at > NOW()";
     }
 
     /** @return array{nama:string} */
@@ -741,63 +453,6 @@ class Estimasi extends Controller
             return '0' . substr($d, 2);
         }
         return $phone;
-    }
-
-    private function parseEstimasiJam(string $raw): ?float
-    {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return null;
-        }
-        if (preg_match('/^(\d{1,2}):(\d{2})$/', $raw, $m)) {
-            $h = (int) $m[1];
-            $min = (int) $m[2];
-            if ($h > 23 || $min > 59) {
-                return null;
-            }
-            return (float) sprintf('%d.%02d', $h, $min);
-        }
-        if (preg_match('/^(\d{1,2})[.,](\d{1,2})$/', $raw, $m)) {
-            $h = (int) $m[1];
-            $min = (int) str_pad($m[2], 2, '0', STR_PAD_RIGHT);
-            if ($h > 23 || $min > 59) {
-                return null;
-            }
-            return (float) sprintf('%d.%02d', $h, $min);
-        }
-        if (preg_match('/^\d{1,2}$/', $raw)) {
-            $h = (int) $raw;
-            if ($h > 23) {
-                return null;
-            }
-            return (float) sprintf('%d.00', $h);
-        }
-
-        return null;
-    }
-
-    private function formatEstimasiJamLabel(float $jam): string
-    {
-        $s = number_format($jam, 2, '.', '');
-        $parts = explode('.', $s);
-        $h = (int) ($parts[0] ?? 0);
-        $m = (int) ($parts[1] ?? 0);
-
-        return sprintf('%02d:%02d', $h, $m);
-    }
-
-    private function formatEstimasiJamLabelFromDb($jam): ?string
-    {
-        if ($jam === null || $jam === '') {
-            return null;
-        }
-        return $this->formatEstimasiJamLabel((float) $jam);
-    }
-
-    /** Kartu notif PERMINTAAN: status open + notify_expires_at 24 jam (bukan expires_at 1 jam). */
-    private function permintaanNotifyOpenWhereSql(): string
-    {
-        return "status = 'open' AND notify_expires_at > NOW()";
     }
 
     /**
@@ -927,7 +582,7 @@ class Estimasi extends Controller
     }
 
     /**
-     * Isi notif = SATU kalimat ringkasan AI (bukan dump seluruh chat).
+     * Isi notif = SATU kalimat ringkasan AI (pertanyaan + permintaan), bukan dump seluruh chat.
      * Jika summary session sudah bagus, pakai itu; kalau mentah/dump → AI rangkum lalu simpan.
      */
     private function resolvePermintaanAiSummary(
@@ -1071,16 +726,19 @@ class Estimasi extends Controller
             $chatBlock .= ($i + 1) . '. ' . $line . "\n";
         }
 
-        $system = "Kamu merangkum permintaan pelanggan laundry menjadi SATU kalimat singkat Bahasa Indonesia.\n"
+        $system = "Kamu merangkum pertanyaan DAN permintaan pelanggan laundry menjadi SATU kalimat singkat Bahasa Indonesia.\n"
             . "WAJIB gabungkan SEMUA poin chat (bukan hanya yang terakhir, jangan salin mentah).\n"
-            . "Contoh input: dulukan baju sekolah + seragam merah putih + sekalian pramuka "
-            . "→ output: \"Dulukan seragam merah putih dan baju pramuka\".\n"
+            . "Pertanyaan = tanya info/kapan/jam/estimasi. Permintaan = minta aksi/perlakuan khusus.\n"
+            . "Contoh gabungan: kapan siap + dulukan seragam → \"Tanya kapan siap; dulukan seragam merah putih\".\n"
+            . "Contoh permintaan: dulukan baju sekolah + pramuka → \"Dulukan seragam merah putih dan baju pramuka\".\n"
+            . "Contoh pertanyaan: jam berapa bisa diambil → \"Tanya jam bisa diambil\".\n"
+            . "Jangan buang pertanyaan karena ada permintaan, atau sebaliknya.\n"
             . "Tanpa sapaan kak/bu/pak, tanpa emoji, tanpa tanda kutip, tanpa nomor, tanpa titik koma daftar chat.\n"
             . "HANYA teks ringkasan, maksimal 180 karakter.";
 
         $user = "Ringkasan lama (opsional): " . ($prevSummary !== '' && !$this->permintaanLooksLikeRawDump($prevSummary, $lines) ? $prevSummary : '(abaikan)') . "\n\n"
             . "Chat pelanggan:\n{$chatBlock}\n"
-            . "Tulis SATU ringkasan permintaan:";
+            . "Tulis SATU ringkasan pertanyaan/permintaan:";
 
         try {
             /** @var AiChat $ai */

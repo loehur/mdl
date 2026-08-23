@@ -247,7 +247,7 @@ trait WARepliesKurirTrait
             'SLIP_GAJI', 'GAJI_CASH', 'GAJI_TF',
         ];
         if ($hasActiveSaleForEstimasi) {
-            $breakout[] = 'ESTIMASI_SELESAI';
+            $breakout[] = 'PERMINTAAN';
         }
         foreach ($breakout as $handler) {
             foreach ($keywordConfig[$handler]['patterns'] ?? [] as $pattern) {

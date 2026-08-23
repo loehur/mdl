@@ -120,7 +120,7 @@ trait WARepliesHargaTrait
         $breakout = [
             'TAGIHAN', 'NOTA', 'STATUS', 'PEMBUKA', 'PENUTUP',
             'JAM_OPERASIONAL', 'JAM_TUTUP', 'JAM_BUKA',
-            'KURIR', 'PERMINTAAN', 'ESTIMASI_SELESAI',
+            'KURIR', 'PERMINTAAN',
             'LOKASI', 'REKENING',
         ];
         foreach ($breakout as $handler) {

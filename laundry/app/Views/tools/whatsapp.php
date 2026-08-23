@@ -191,6 +191,42 @@
       font-weight: 800;
       color: #166534;
     }
+    #wa-gateway-root .wg-test-panel {
+      border: 1px solid var(--wg-line);
+      border-radius: 0;
+      background: #fff;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    #wa-gateway-root .wg-test-panel__title {
+      margin: 0 0 4px;
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: var(--wg-ink);
+    }
+    #wa-gateway-root .wg-test-panel__lead {
+      margin: 0 0 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--wg-muted);
+    }
+    #wa-gateway-root .wg-test-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    #wa-gateway-root .wg-btn--test {
+      background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+      border-color: #15803d;
+      color: #fff;
+    }
+    #wa-gateway-root .wg-btn--test:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    #wa-gateway-root .wg-btn--test.is-busy {
+      opacity: 0.75;
+    }
   </style>
 
   <div class="wg-shell">
@@ -238,6 +274,32 @@
       </div>
       <p class="wg-hint" id="wg-qr-hint">QR diperbarui otomatis setiap 5 detik selama belum terhubung.</p>
     </div>
+
+    <?php
+    $testTargets = isset($data['test_targets']) && is_array($data['test_targets']) ? $data['test_targets'] : [];
+    if (!empty($testTargets)) {
+    ?>
+    <div class="wg-test-panel">
+      <h2 class="wg-test-panel__title"><i class="fas fa-paper-plane"></i> Kirim Tes ke Group</h2>
+      <p class="wg-test-panel__lead">Satu tombol = satu group. Isi pesan: <strong>TES</strong>.</p>
+      <div class="wg-test-grid" id="wg-test-grid">
+        <?php foreach ($testTargets as $tgt) {
+          $tKey = (string) ($tgt['key'] ?? '');
+          $tLabel = (string) ($tgt['label'] ?? $tKey);
+          if ($tKey === '') {
+            continue;
+          }
+        ?>
+        <button
+          type="button"
+          class="wg-btn wg-btn--test wg-btn-send-test"
+          data-target="<?= htmlspecialchars($tKey, ENT_QUOTES, 'UTF-8'); ?>"
+          data-label="<?= htmlspecialchars($tLabel, ENT_QUOTES, 'UTF-8'); ?>"
+        ><?= htmlspecialchars($tLabel, ENT_QUOTES, 'UTF-8'); ?></button>
+        <?php } ?>
+      </div>
+    </div>
+    <?php } ?>
   </div>
 </div>
 
@@ -245,6 +307,7 @@
 (function () {
   var statusUrl = '<?= URL::BASE_URL; ?>WaGateway/status';
   var logoutUrl = '<?= URL::BASE_URL; ?>WaGateway/logout';
+  var sendTestUrl = '<?= URL::BASE_URL; ?>WaGateway/sendTest';
 
   var pollTimer = null;
   var lastQrRendered = '';
@@ -436,6 +499,50 @@
       showError('Logout gagal — cek API/fonnte_server. Manual: rm -rf node/fonnte_server/auth/* lalu restart pm2');
     });
   }
+
+  $(document).on('click', '.wg-btn-send-test', function () {
+    var $btn = $(this);
+    if ($btn.prop('disabled')) {
+      return;
+    }
+    var target = $btn.data('target');
+    var label = $btn.data('label') || target;
+    if (!target) {
+      return;
+    }
+
+    $btn.prop('disabled', true).addClass('is-busy');
+    var origHtml = $btn.html();
+    $btn.html('<i class="fas fa-spinner fa-spin"></i> Mengirim…');
+
+    $.ajax({
+      url: sendTestUrl,
+      method: 'POST',
+      data: { target: target },
+      dataType: 'json',
+      timeout: 35000
+    }).done(function (res) {
+      if (res && res.ok) {
+        wgToast((res.message || ('TES terkirim ke ' + label)), 'ok');
+        showError('');
+      } else {
+        var errMsg = (res && res.message) || ('Gagal kirim ke ' + label);
+        showError(errMsg);
+        wgToast(errMsg, 'error');
+      }
+    }).fail(function (xhr) {
+      var errMsg = 'Gagal kirim ke ' + label;
+      try {
+        if (xhr.responseJSON && xhr.responseJSON.message) {
+          errMsg = xhr.responseJSON.message;
+        }
+      } catch (e) {}
+      showError(errMsg);
+      wgToast(errMsg, 'error');
+    }).always(function () {
+      $btn.prop('disabled', false).removeClass('is-busy').html(origHtml);
+    });
+  });
 
   refreshStatus();
 
