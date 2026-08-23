@@ -55,7 +55,7 @@ import {
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
-  isMarkingAsDone, isCheckingPayment, isFollowUp,
+  isMarkingAsDone, isFollowUp,
   isReopeningConversation, isRefreshingChat, isLoadingQuickReplies,
   // Settings
   fontSize, theme, notificationSoundEnabled, notificationAudio,
@@ -1635,55 +1635,6 @@ const markAsDone = async () => {
   } catch (e) {
     console.error("Error marking as done:", e);
     isMarkingAsDone.value = false;
-  }
-};
-
-const checkPayment = async () => {
-  if (!activeConversation.value || isCheckingPayment.value) return;
-
-  try {
-    isCheckingPayment.value = true;
-    showChatMenu.value = false; // Close menu
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        case: 1,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      // Update local cases
-      // Update local cases (Append for multi-case)
-      if (!activeConversation.value.cases) activeConversation.value.cases = [];
-      // Close case 4 if exists, remove case 0
-      activeConversation.value.cases = activeConversation.value.cases
-        .map((c) => (c.case === 4 ? { ...c, status: "closed" } : c))
-        .filter((c) => c.case !== 0);
-      // Add case 1 with status open
-      if (
-        !activeConversation.value.cases.some(
-          (c) => c.case === 1 && c.status === "open"
-        )
-      ) {
-        activeConversation.value.cases.push({ case: 1, status: "open" });
-      }
-    } else {
-      console.error("Failed to mark for payment check:", res.message);
-    }
-
-    // Keep loading for 3 seconds
-    setTimeout(() => {
-      isCheckingPayment.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error marking for payment check:", e);
-    isCheckingPayment.value = false;
   }
 };
 

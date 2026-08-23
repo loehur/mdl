@@ -860,6 +860,10 @@ class Chat extends Controller
                 $this->error('Case Delivery Request mengikuti delivery_request aktif dan tidak bisa diubah manual');
             }
 
+            if ((int)$caseVal === 1) {
+                $this->error('Case Check Payment sudah tidak digunakan');
+            }
+
             if ((int)$caseVal === 3) {
                 $this->error('Case Permintaan mengikuti wa_permintaan_session aktif dan tidak bisa diubah manual');
             }

@@ -20,7 +20,7 @@ const props = defineProps({
   totalUnreadCount: { type: Number, default: 0 },
 });
 
-const CASE_FILTER_IDS = [1, 2, 3, 4];
+const CASE_FILTER_IDS = [2, 3, 4];
 
 const emit = defineEmits([
   "select-chat",
@@ -38,7 +38,7 @@ const conversationListContainer = ref(null);
 
 // Methods
 const openCaseCounts = computed(() => {
-  const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const counts = { 2: 0, 3: 0, 4: 0 };
   for (const chat of props.conversations) {
     if (!chat.cases) continue;
     const openCaseIds = new Set();
@@ -297,9 +297,9 @@ const parseEmoji = (text) => {
           </div>
           
           <!-- Case Badges (lingkaran warna) -->
-          <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1 justify-center">
+          <div v-if="chat.cases && chat.cases.some((c) => c.case > 0 && c.case !== 1 && (c.status || 'open') !== 'closed')" class="flex flex-wrap gap-1 justify-center">
             <template v-for="(cse, idx) in chat.cases" :key="idx">
-              <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full ring-1 ring-black/20" :class="getCaseColor(cse.case)" :title="'Case: ' + cse.case"></div>
+              <div v-if="cse.case > 0 && cse.case !== 1 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full ring-1 ring-black/20" :class="getCaseColor(cse.case)" :title="'Case: ' + cse.case"></div>
             </template>
           </div>
         </div>

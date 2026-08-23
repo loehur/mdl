@@ -257,7 +257,6 @@ export const isInternalBrowserLoading = ref(true);
 // UI State - Loading/Action States
 // ============================================================================
 export const isMarkingAsDone = ref(false);
-export const isCheckingPayment = ref(false);
 export const isPickupDelivery = ref(false);
 export const isFollowUp = ref(false);
 export const isReopeningConversation = ref(false);
@@ -303,7 +302,6 @@ export const getAvatarColor = (seed) => {
 
 export const getCaseColor = (caseId) => {
     switch (parseInt(caseId)) {
-        case 1: return "bg-blue-500";
         case 2: return "bg-yellow-500";
         case 3: return "bg-red-500";
         case 4: return "bg-purple-500";
@@ -314,7 +312,6 @@ export const getCaseColor = (caseId) => {
 
 export const getCaseLabel = (caseId) => {
     switch (parseInt(caseId)) {
-        case 1: return "Check Payment";
         case 2: return "Delivery Request";
         case 3: return "Permintaan";
         case 4: return "Follow Up";

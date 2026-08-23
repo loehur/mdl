@@ -135,7 +135,6 @@ const quotedMessageToShow = ref(null);
 // Chat Action Menus
 const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
-const isCheckingPayment = ref(false);
 const isFollowUp = ref(false);
 const resolvingCaseId = ref(null);
 
@@ -173,6 +172,7 @@ const resolveableCases = computed(() => {
     (c) =>
       (c.status || "open") !== "closed" &&
       parseInt(c.case) > 0 &&
+      parseInt(c.case) !== 1 &&
       parseInt(c.case) !== 2 &&
       parseInt(c.case) !== 3
   );
@@ -289,7 +289,6 @@ const scrollToBottom = (opts = {}) => {
 
 const getCaseColor = (caseId) => {
   switch (parseInt(caseId)) {
-    case 1: return "bg-blue-500";
     case 2: return "bg-yellow-500";
     case 3: return "bg-red-500";
     case 4: return "bg-purple-500";
@@ -299,7 +298,6 @@ const getCaseColor = (caseId) => {
 
 const getCaseLabel = (caseId) => {
   switch (parseInt(caseId)) {
-    case 1: return "Check Payment";
     case 2: return "Delivery Request";
     case 3: return "Permintaan";
     case 4: return "Follow Up";
@@ -378,7 +376,6 @@ const updateCase = async (caseId, loadingRef) => {
     finally { setTimeout(() => loadingRef.value = false, 3000); }
 };
 
-const checkPayment = () => updateCase(1, isCheckingPayment);
 const followUp = () => updateCase(4, isFollowUp);
 
 const resolveCase = async (caseId) => {
@@ -1042,7 +1039,7 @@ onUnmounted(() => {
                         <span v-if="activeConversation.cust_id" class="text-xs text-[var(--wa-text-tertiary)]">#{{ activeConversation.cust_id }}</span>
                            <div v-if="activeConversation.cases" class="flex gap-1">
                                 <template v-for="(cse, idx) in activeConversation.cases" :key="idx">
-                                    <div v-if="cse.case > 0 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full" :class="getCaseColor(cse.case)"></div>
+                                    <div v-if="cse.case > 0 && cse.case !== 1 && (cse.status || 'open') !== 'closed'" class="w-3 h-3 rounded-full" :class="getCaseColor(cse.case)"></div>
                                 </template>
                            </div>
                       </div>
@@ -1082,11 +1079,6 @@ onUnmounted(() => {
                     <div v-if="isAdmin" class="relative">
                         <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
                          <div v-if="showChatMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
-                               <button v-if="!isCaseOpen(1)" @click="checkPayment" :disabled="isCheckingPayment" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <div v-if="isCheckingPayment" class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
-                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
-                                    Check Payment
-                               </button>
                                <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
                                     <div v-if="isFollowUp" class="w-3 h-3 border-2 border-purple-200 border-t-purple-500 rounded-full animate-spin flex-shrink-0"></div>
                                     <span v-else class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
