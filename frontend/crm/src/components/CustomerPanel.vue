@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -450,7 +450,23 @@ const sendTagihan = async () => {
     outboundResultMsg.value = "Gagal mengirim tagihan";
   } finally {
     sendingTagihan.value = false;
+    closeSendTagihan();
   }
+};
+
+const openSendTagihan = () => {
+  if (!isAdmin.value || !canSendTagihan.value || sendingTagihan.value) return;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  showSendTagihanModal.value = true;
+};
+
+const closeSendTagihan = () => {
+  showSendTagihanModal.value = false;
+};
+
+const confirmSendTagihan = async () => {
+  await sendTagihan();
 };
 
 const saveCreatePermintaan = async () => {
@@ -735,6 +751,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showSendTagihanModal.value) {
+    closeSendTagihan();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showCustomerPanel.value) {
     closePanel();
   }
@@ -747,6 +768,7 @@ watch(
     closeAddLokasi();
     closeDeleteLokasi();
     closeDeliveryRequest();
+    closeSendTagihan();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
     permintaanResultMsg.value = "";
@@ -911,9 +933,9 @@ onUnmounted(() => {
             type="button"
             class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
             :disabled="sendingTagihan"
-            @click="sendTagihan"
+            @click="openSendTagihan"
           >
-            {{ sendingTagihan ? "Mengirim…" : "Bill" }}
+            Bill
           </button>
           <p
             v-if="outboundResultMsg"
@@ -1270,6 +1292,50 @@ onUnmounted(() => {
             @click="saveCreatePermintaan"
           >
             {{ creatingPermintaan ? "Menyimpan…" : "Buat" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showSendTagihanModal"
+      class="fixed inset-0 z-[706] flex items-center justify-center p-4"
+      @click="closeSendTagihan"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Kirim Bill</h3>
+        <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+          Kirim tagihan ke
+          <span class="text-[var(--wa-text-primary)] font-medium">{{ conversation?.name || "pelanggan" }}</span>
+          <span v-if="conversation?.wa_number" class="font-mono">
+            ({{ formatPhoneTo08(conversation.wa_number) }})
+          </span>?
+        </p>
+        <p class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+          Pesan tagihan akan dikirim langsung ke WhatsApp pelanggan.
+        </p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            :disabled="sendingTagihan"
+            @click="closeSendTagihan"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
+            :disabled="sendingTagihan"
+            @click="confirmSendTagihan"
+          >
+            {{ sendingTagihan ? "Mengirim…" : "Kirim" }}
           </button>
         </div>
       </div>

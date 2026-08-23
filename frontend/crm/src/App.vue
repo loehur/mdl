@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4492,6 +4492,11 @@ onMounted(() => {
       return 'delivery_request_closed';
     }
 
+    if (showSendTagihanModal.value) {
+      showSendTagihanModal.value = false;
+      return 'send_tagihan_closed';
+    }
+
     if (showCustomerPanel.value) {
       showCustomerPanel.value = false;
       return 'customer_panel_closed';
@@ -4872,6 +4877,11 @@ function handleBackButtonPress() {
   if (showDeliveryRequestModal.value) {
     showDeliveryRequestModal.value = false;
     return "delivery_request_closed";
+  }
+
+  if (showSendTagihanModal.value) {
+    showSendTagihanModal.value = false;
+    return "send_tagihan_closed";
   }
 
   if (showCustomerPanel.value) {
