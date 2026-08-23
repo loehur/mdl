@@ -879,68 +879,66 @@ class WhatsApp extends Controller
     }
 
     /**
-     * WAMID pesan asli dari payload revoke (HP hapus pesan / clear chat).
+     * Anchor pesan asli dari payload revoke (HP hapus pesan).
+     * YCloud smb echo sering tidak kirim revoke.original_message_id — wamid/id pada whatsappMessage = pesan yang dihapus.
      */
-    private function extractRevokedOriginalWamid(array $msg): ?string
+    private function extractRevokedOriginalAnchor(array $msg): ?string
     {
-        $fromRevoke = $msg['revoke']['original_message_id'] ?? null;
-        if (is_string($fromRevoke) && $fromRevoke !== '') {
-            return $fromRevoke;
-        }
+        $candidates = [
+            $msg['revoke']['original_message_id'] ?? null,
+            $msg['revoke']['originalMessageId'] ?? null,
+            $msg['context']['message_id'] ?? null,
+            $msg['context']['id'] ?? null,
+            $msg['wamid'] ?? null,
+            $msg['id'] ?? null,
+        ];
 
-        $fromContext = $msg['context']['message_id'] ?? ($msg['context']['id'] ?? null);
-        if (is_string($fromContext) && $fromContext !== '') {
-            return $fromContext;
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && $candidate !== '') {
+                return $candidate;
+            }
         }
 
         return null;
     }
 
     /**
-     * Hapus baris wa_messages_out saat staff revoke pesan dari WhatsApp Business app.
-     * Revoke echo tidak disimpan sebagai outbound.
+     * Hapus baris wa_messages_out + broadcast message_deleted ke CRM.
      */
-    private function handleSmbOutboundRevoke($db, array $msg, ?string $waNumber): void
+    private function deleteOutboundMessageByAnchors($db, ?string $wamid, ?string $messageId, ?string $externalId, ?string $phoneHint = null, string $logPrefix = 'Outbound revoke'): bool
     {
-        $originalWamid = $this->extractRevokedOriginalWamid($msg);
-        if (!$originalWamid) {
-            \Log::write(
-                'SMB revoke missing original_message_id | phone=' . ($waNumber ?: '-'),
-                'wa_error',
-                'Webhook'
-            );
-
-            return;
-        }
-
-        $existing = $this->findWaMessagesOutRowByAnchors($db, $originalWamid, null, null);
+        $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId);
         if (!$existing) {
             \Log::write(
-                'SMB revoke: outbound not found wamid=' . $originalWamid . ' phone=' . ($waNumber ?: '-'),
+                $logPrefix . ': not found wamid=' . ($wamid ?: '-')
+                . ' message_id=' . ($messageId ?: '-')
+                . ' phone=' . ($phoneHint ?: '-'),
                 'webhook',
                 'WhatsApp'
             );
 
-            return;
+            return false;
         }
 
         $localId = (int) ($existing->id ?? 0);
-        $phone = $existing->phone ?? $waNumber;
+        $phone = $existing->phone ?? $phoneHint;
 
         try {
             $db->delete('wa_messages_out', ['id' => $localId]);
         } catch (\Throwable $e) {
             \Log::write(
-                'SMB revoke delete failed id=' . $localId . ': ' . $e->getMessage(),
+                $logPrefix . ' delete failed id=' . $localId . ': ' . $e->getMessage(),
                 'wa_error',
                 'Webhook'
             );
 
-            return;
+            return false;
         }
 
         \Log::write(
-            'SMB revoke deleted outbound id=' . $localId . ' wamid=' . $originalWamid . ' phone=' . ($phone ?: '-'),
+            $logPrefix . ' deleted outbound id=' . $localId
+            . ' wamid=' . ($existing->wamid ?? '-')
+            . ' phone=' . ($phone ?: '-'),
             'webhook',
             'WhatsApp'
         );
@@ -955,9 +953,32 @@ class WhatsApp extends Controller
             'conversation_id' => $conversationId,
             'message' => [
                 'id' => $localId,
-                'wamid' => $originalWamid,
+                'wamid' => $existing->wamid ?? $wamid,
             ],
         ]);
+
+        return true;
+    }
+
+    /**
+     * Hapus baris wa_messages_out saat staff revoke pesan dari WhatsApp Business app.
+     * Revoke echo tidak disimpan sebagai outbound.
+     */
+    private function handleSmbOutboundRevoke($db, array $msg, ?string $waNumber): void
+    {
+        $anchor = $this->extractRevokedOriginalAnchor($msg);
+        if (!$anchor) {
+            \Log::write(
+                'SMB revoke missing anchor | phone=' . ($waNumber ?: '-')
+                . ' keys=' . implode(',', array_keys($msg)),
+                'wa_error',
+                'Webhook'
+            );
+
+            return;
+        }
+
+        $this->deleteOutboundMessageByAnchors($db, $anchor, $anchor, null, $waNumber, 'SMB revoke');
     }
 
     /**
@@ -1231,6 +1252,24 @@ class WhatsApp extends Controller
             return;
         }
 
+        if (strtolower((string) $status) === 'revoked') {
+            $phoneHint = null;
+            $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId);
+            if ($existing) {
+                $phoneHint = $existing->phone ?? null;
+            }
+            $this->deleteOutboundMessageByAnchors(
+                $db,
+                $wamid,
+                $messageId,
+                $externalId,
+                $phoneHint,
+                'Status update revoked'
+            );
+
+            return;
+        }
+
         $existing = $this->findWaMessagesOutRowByAnchors($db, $wamid, $messageId, $externalId);
         $phoneForCsw = $existing ? ($existing->phone ?? null) : null;
         $norm = $this->normalizeWaOutboundStatusForCswRetry($db, $status, $errorMessage, $phoneForCsw, $existing);
@@ -1340,6 +1379,20 @@ class WhatsApp extends Controller
 
         if (!$wamid && !$messageId && !$externalId) {
             \Log::write("No wamid/message_id/externalId in message.updated event", 'wa_error', 'Webhook');
+            return;
+        }
+
+        if (strtolower((string) $status) === 'revoked') {
+            $waNumber = $this->normalizePhoneNumber($message['to'] ?? null);
+            $this->deleteOutboundMessageByAnchors(
+                $db,
+                $wamid,
+                $messageId,
+                $externalId,
+                $waNumber,
+                'Message updated revoked'
+            );
+
             return;
         }
 
