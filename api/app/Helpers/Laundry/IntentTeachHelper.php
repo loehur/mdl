@@ -3,7 +3,7 @@
 namespace App\Helpers\Laundry;
 
 /**
- * Intent Lab — usulkan pattern + potongan ai_prompt agar kalimat masuk / keluar intent target.
+ * Intent Lab — usulkan pattern + tulis ulang ai_prompt ringkas (hanya kriteria positif).
  */
 class IntentTeachHelper
 {
@@ -67,6 +67,17 @@ class IntentTeachHelper
             foreach ($patRows as $r) {
                 $pat = $r['pattern'];
                 if ($pat !== '' && @preg_match($pat, $text) === 1) {
+                    $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
+                    $promptRewrite = self::askAiForPromptRewrite($text, $intentCode, $currentPrompt, 'include');
+                    $proposedPrompt = trim((string) ($promptRewrite['proposed_prompt'] ?? ''));
+                    if ($proposedPrompt === '') {
+                        $proposedPrompt = $currentPrompt;
+                    }
+                    $reason = trim((string) ($promptRewrite['reason'] ?? ''));
+                    if ($reason === '') {
+                        $reason = 'Kalimat sudah match pattern aktif. Prompt AI ditulis ulang agar lebih ringkas.';
+                    }
+
                     return [
                         'ok' => true,
                         'intent' => $intentCode,
@@ -76,11 +87,11 @@ class IntentTeachHelper
                         'existing_pattern' => $pat,
                         'pattern' => $pat,
                         'prompt_append' => '',
-                        'reason' => 'Kalimat sudah match pattern aktif intent ini. Cukup perkuat AI prompt bila klasifikasi AI masih salah.',
+                        'reason' => $reason,
                         'matches_text' => true,
                         'pattern_exists' => true,
-                        'current_prompt' => (string) ($intent['ai_prompt'] ?? ''),
-                        'proposed_prompt' => (string) ($intent['ai_prompt'] ?? ''),
+                        'current_prompt' => $currentPrompt,
+                        'proposed_prompt' => $proposedPrompt,
                         'already_covered' => true,
                     ];
                 }
@@ -173,13 +184,18 @@ class IntentTeachHelper
                 }
             }
 
-            if ($promptAppend === '' && $action === 'insert') {
-                $promptAppend = '| ' . self::shortExample($text) . ' |';
-            }
-
             $pattern = self::normalizePatternForText($pattern, $text);
             $valid = @preg_match($pattern, $text);
             $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
+            $promptRewrite = self::askAiForPromptRewrite($text, $intentCode, $currentPrompt, 'include');
+            $proposedPrompt = trim((string) ($promptRewrite['proposed_prompt'] ?? ''));
+            if ($proposedPrompt === '') {
+                $proposedPrompt = $currentPrompt;
+            }
+            $promptReason = trim((string) ($promptRewrite['reason'] ?? ''));
+            if ($promptReason !== '') {
+                $reason = $reason !== '' ? ($reason . ' | ' . $promptReason) : $promptReason;
+            }
             return [
                 'ok' => true,
                 'intent' => $intentCode,
@@ -188,12 +204,12 @@ class IntentTeachHelper
                 'pattern_id' => $patternId,
                 'existing_pattern' => $existingPattern,
                 'pattern' => $pattern,
-                'prompt_append' => $promptAppend,
+                'prompt_append' => '',
                 'reason' => $reason !== '' ? $reason : 'Usulan AI',
                 'matches_text' => $valid === 1,
                 'pattern_exists' => $exists,
                 'current_prompt' => $currentPrompt,
-                'proposed_prompt' => self::mergePromptDraft($currentPrompt, $promptAppend),
+                'proposed_prompt' => $proposedPrompt,
                 'already_covered' => false,
             ];
         } catch (\Throwable $e) {
@@ -246,29 +262,28 @@ class IntentTeachHelper
                 return ['ok' => false, 'message' => 'Intent tidak ditemukan / nonaktif: ' . $intentCode];
             }
 
-            $patRows = $db->query(
-                'SELECT id, pattern, note FROM wa_autoreply_patterns WHERE intent_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC',
-                [(int) $intent['id']]
-            )->result_array();
-
-            $samplePatterns = [];
-            foreach ($patRows ?: [] as $r) {
-                $pat = (string) ($r['pattern'] ?? '');
-                if ($pat !== '') {
-                    $samplePatterns[] = $pat;
-                }
-            }
-
             $found = self::findMatchingPatternsForUntouch($db, $text, $intentCode);
             $matching = $found['matching'];
             $matchingOther = $found['matching_other'];
 
-            $ai = self::askAiForUntouchProposal(
+            $matchList = $matching === []
+                ? ''
+                : "Pattern yang akan dinonaktifkan:\n" . implode("\n", array_map(
+                    static function ($m) {
+                        $src = strtoupper(trim((string) ($m['source_intent'] ?? '')));
+                        $prefix = $src !== '' ? '[' . $src . '] ' : '';
+                        return '- id=' . $m['id'] . ' ' . $prefix . $m['pattern'];
+                    },
+                    array_slice($matching, 0, 15)
+                ));
+
+            $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
+            $ai = self::askAiForPromptRewrite(
                 $text,
                 $intentCode,
-                (string) ($intent['ai_prompt'] ?? ''),
-                $samplePatterns,
-                $matching
+                $currentPrompt,
+                'exclude',
+                $matchList
             );
             if (empty($ai['ok'])) {
                 return $ai;
@@ -277,7 +292,7 @@ class IntentTeachHelper
             $proposedPrompt = trim((string) ($ai['proposed_prompt'] ?? ''));
             $reason = trim((string) ($ai['reason'] ?? ''));
             if ($proposedPrompt === '') {
-                $proposedPrompt = (string) ($intent['ai_prompt'] ?? '');
+                $proposedPrompt = $currentPrompt;
             }
             $otherCodes = [];
             foreach ($matchingOther as $m) {
@@ -294,10 +309,9 @@ class IntentTeachHelper
                     . ' yang match, lalu PHP remap ke ' . $intentCode
                     . '. Pattern ' . $intentCode . ' sendiri tidak match teks ini. Nonaktifkan pattern sumber itu.';
             } elseif ($reason === '') {
-                $reason = 'Nonaktifkan pattern yang match teks ini, lalu update ai_prompt bila perlu.';
+                $reason = 'Nonaktifkan pattern yang match teks ini, lalu persempit ai_prompt (hanya kriteria positif).';
             }
 
-            $currentPrompt = (string) ($intent['ai_prompt'] ?? '');
             return [
                 'ok' => true,
                 'intent' => $intentCode,
@@ -366,16 +380,17 @@ class IntentTeachHelper
     }
 
     /**
-     * @param list<string> $samplePatterns
-     * @param list<array{id:int,pattern:string,note?:string,source_intent?:string}> $matching
+     * Tulis ulang ai_prompt lengkap — ringkas, hanya kriteria positif (tanpa FALSE/Bukan/contoh kalimat).
+     *
+     * @param 'include'|'exclude' $mode include=masukkan ke intent, exclude=persempit agar teks keluar
      * @return array{ok:bool,proposed_prompt?:string,reason?:string,message?:string,error?:string}
      */
-    private static function askAiForUntouchProposal(
+    private static function askAiForPromptRewrite(
         string $text,
         string $intentCode,
         string $currentPrompt,
-        array $samplePatterns,
-        array $matching
+        string $mode,
+        string $extraContext = ''
     ): array {
         if (!class_exists('\\App\\Config\\AI')) {
             require_once __DIR__ . '/../../Config/AI.php';
@@ -398,44 +413,38 @@ class IntentTeachHelper
             ];
         }
 
-        $matchList = $matching === []
-            ? '(tidak ada pattern aktif yang match teks ini)'
-            : implode("\n", array_map(
-                static function ($m) {
-                    $src = strtoupper(trim((string) ($m['source_intent'] ?? '')));
-                    $prefix = $src !== '' ? '[' . $src . '] ' : '';
-                    return '- id=' . $m['id'] . ' ' . $prefix . $m['pattern'];
-                },
-                array_slice($matching, 0, 15)
-            ));
-        $patList = $samplePatterns === []
-            ? '(belum ada)'
-            : implode("\n", array_map(static fn ($p) => '- ' . $p, array_slice($samplePatterns, 0, 10)));
         $promptToRevise = trim($currentPrompt);
         if ($promptToRevise === '') {
-            $promptToRevise = '(kosong)';
+            $promptToRevise = '(kosong — tulis definisi intent dari awal)';
         } elseif (mb_strlen($promptToRevise) > 8000) {
             $promptToRevise = mb_substr($promptToRevise, 0, 8000);
         }
 
-        $system = "Kamu membantu merawat klasifikasi intent WhatsApp laundry (PHP PCRE + prompt AI).\n"
-            . "Tugas: agar pesan customer TIDAK MASUK / KELUAR dari intent target.\n"
-            . "Sistem akan menonaktifkan pattern yang match teks ini (jika ada).\n"
-            . "Pattern match bisa milik intent LAIN jika Cek Intent hasil remap PHP (mis. ESTIMASI_SELESAI→PERMINTAAN). Tetap sebutkan itu di reason.\n"
-            . "Tugas utama: tulis ULANG ai_prompt LENGKAP agar pesan contoh tidak lagi masuk intent target.\n"
-            . "JANGAN hanya menambahkan satu baris pengecualian di akhir prompt.\n"
-            . "Pertahankan seluruh aturan/contoh yang masih relevan; ubah atau tambahkan aturan FALSE pada bagian yang tepat agar batas intent jelas.\n"
-            . "Gunakan struktur yang rapi dan konsisten: TRUE jika: dan FALSE jika:.\n"
-            . "PRIORITAS FALSE: jika pesan match contoh/frasa di bagian FALSE, intent harus FALSE (FALSE menang atas TRUE).\n"
-            . "Jangan mengarahkan ke intent lain; untuk kasus yang tidak cocok cukup tulis FALSE.\n"
-            . "Balas HANYA JSON valid tanpa markdown:\n"
-            . '{"proposed_prompt":"isi ai_prompt lengkap hasil revisi","reason":"perubahan inti secara singkat"}';
+        $taskLine = $mode === 'exclude'
+            ? "Persempit definisi intent {$intentCode} agar pesan contoh di bawah TIDAK lagi masuk intent ini."
+            : "Perluas/pastikan definisi intent {$intentCode} agar pesan contoh di bawah MASUK intent ini.";
 
-        $user = "Intent yang harus DILEWATI (keluarkan):\n{$intentCode}\n"
-            . "Pesan customer:\n\"\"\"\n{$text}\n\"\"\"\n\n"
-            . "Pattern aktif yang MATCH teks ini (akan dinonaktifkan):\n{$matchList}\n\n"
-            . "Sample pattern aktif intent ini:\n{$patList}\n\n"
-            . "AI prompt saat ini (revisi seluruh teks ini):\n{$promptToRevise}\n";
+        $textRole = $mode === 'exclude'
+            ? 'Pesan yang harus KELUAR dari intent (tidak lagi masuk):'
+            : 'Pesan yang harus MASUK intent:';
+
+        $system = "Kamu merawat ai_prompt klasifikasi intent WhatsApp laundry.\n"
+            . "Tugas utama: tulis ULANG ai_prompt LENGKAP (ganti seluruh isi, bukan append).\n"
+            . "Aturan wajib:\n"
+            . "- Lebih ringkas dan padat; hapus redundansi dari prompt lama\n"
+            . "- Hanya aturan POSITIF: jelaskan apa saja jenis pesan yang MASUK intent ini\n"
+            . "- JANGAN tulis Bukan, FALSE, pengecualian, atau daftar yang tidak masuk\n"
+            . "- JANGAN contoh kalimat customer, kutipan teks, atau baris | ... |\n"
+            . "- Gunakan kriteria/abstraksi singkat (kata kunci, tema, situasi)\n"
+            . "- Jangan arahkan ke intent lain\n"
+            . "Balas HANYA JSON valid tanpa markdown:\n"
+            . '{"proposed_prompt":"isi ai_prompt lengkap hasil revisi","reason":"perubahan inti singkat"}';
+
+        $user = "Intent: {$intentCode}\n"
+            . "Tugas: {$taskLine}\n\n"
+            . "{$textRole}\n\"\"\"\n{$text}\n\"\"\"\n\n"
+            . ($extraContext !== '' ? trim($extraContext) . "\n\n" : '')
+            . "Prompt saat ini (revisi seluruh teks ini):\n{$promptToRevise}\n";
 
         $messages = [
             ['role' => 'system', 'content' => $system],
@@ -443,7 +452,7 @@ class IntentTeachHelper
         ];
 
         try {
-            $raw = self::chatCompletions($messages, 2200, true);
+            $raw = self::chatCompletions($messages, 1200, true);
         } catch (\Throwable $e) {
             return [
                 'ok' => true,
@@ -461,14 +470,44 @@ class IntentTeachHelper
             ];
         }
 
-        $proposedPrompt = trim((string) ($parsed['proposed_prompt'] ?? ''));
-        $reason = trim((string) ($parsed['reason'] ?? 'Usulan AI keluarkan'));
+        $proposedPrompt = self::sanitizeInclusionOnlyPrompt(trim((string) ($parsed['proposed_prompt'] ?? '')));
+        $reason = trim((string) ($parsed['reason'] ?? 'Usulan AI prompt'));
 
         return [
             'ok' => true,
             'proposed_prompt' => $proposedPrompt,
             'reason' => $reason,
         ];
+    }
+
+    /** Hapus baris pengecualian/contoh kalimat dari hasil AI. */
+    public static function sanitizeInclusionOnlyPrompt(string $prompt): string
+    {
+        if ($prompt === '') {
+            return '';
+        }
+        $lines = preg_split('/\r\n|\n/', $prompt) ?: [];
+        $out = [];
+        foreach ($lines as $line) {
+            $t = trim($line);
+            if ($t === '') {
+                $out[] = '';
+                continue;
+            }
+            if (preg_match('/^(FALSE|Bukan|BUKAN|Tidak termasuk|Pengecualian|Contoh)\b/iu', $t)) {
+                continue;
+            }
+            if (preg_match('/^\|\s*.+\s*\|$/u', $t)) {
+                continue;
+            }
+            if (preg_match('/^TRUE\s+jika\s*:/iu', $t) || preg_match('/^FALSE\s+jika\s*:/iu', $t)) {
+                continue;
+            }
+            $out[] = $line;
+        }
+        $joined = trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", $out)) ?? '');
+
+        return $joined;
     }
 
     /**
@@ -537,11 +576,9 @@ class IntentTeachHelper
             . "- Prefer \\b untuk kata kunci; izinkan spasi fleksibel \\s*\n"
             . "- JANGAN \\b setelah tanda baca akhir (? ! . ,); cukup akhiri dengan \\? atau \\! literal\n"
             . "- Jangan bentrok intent lain secara agresif\n"
-            . "Aturan prompt_append:\n"
-            . "- Jika action=update karena huruf berulang, prompt_append boleh string kosong\n"
-            . "- Jika insert, satu baris pendek: | contoh kalimat |\n"
+            . "Jangan ubah ai_prompt di respons ini — prompt ditangani terpisah.\n"
             . "Balas HANYA JSON valid tanpa markdown:\n"
-            . '{"action":"update|insert","pattern_id":0,"existing_pattern":"","pattern":"/.../iu","prompt_append":"","reason":"singkat"}';
+            . '{"action":"update|insert","pattern_id":0,"existing_pattern":"","pattern":"/.../iu","reason":"singkat"}';
 
         $user = $hint
             . "Intent target: {$intentCode}\n"
@@ -575,7 +612,6 @@ class IntentTeachHelper
         }
 
         $pattern = trim((string) ($parsed['pattern'] ?? ''));
-        $promptAppend = trim((string) ($parsed['prompt_append'] ?? ''));
         $reason = trim((string) ($parsed['reason'] ?? 'Usulan AI'));
         $action = strtolower(trim((string) ($parsed['action'] ?? 'insert')));
         if ($action !== 'update') {
@@ -599,7 +635,7 @@ class IntentTeachHelper
             'pattern_id' => $patternId,
             'existing_pattern' => $existingPattern,
             'pattern' => $pattern,
-            'prompt_append' => $promptAppend,
+            'prompt_append' => '',
             'reason' => $reason,
         ];
     }
@@ -705,7 +741,7 @@ class IntentTeachHelper
             'pattern_id' => 0,
             'existing_pattern' => '',
             'pattern' => $fallback,
-            'prompt_append' => '| ' . self::shortExample($text) . ' |',
+            'prompt_append' => '',
             'reason' => trim((string) ($ai['reason'] ?? '') . ' | Fallback regex cerdas (huruf berulang → +).'),
         ];
     }
@@ -807,7 +843,7 @@ class IntentTeachHelper
             'pattern_id' => 0,
             'existing_pattern' => '',
             'pattern' => $smart,
-            'prompt_append' => '| ' . self::shortExample($text) . ' |',
+            'prompt_append' => '',
             'reason' => 'Tidak ada pattern existing yang cukup dekat; usul pattern baru yang sudah meng-generalisasi huruf berulang.',
         ];
     }
@@ -1168,15 +1204,6 @@ class IntentTeachHelper
             return $append;
         }
         return $current . "\n" . $append;
-    }
-
-    private static function shortExample(string $text): string
-    {
-        $t = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
-        if (mb_strlen($t) > 80) {
-            $t = mb_substr($t, 0, 77) . '...';
-        }
-        return $t;
     }
 
     /** Cek match regex + toleransi typo slesainya ↔ selesainya. */

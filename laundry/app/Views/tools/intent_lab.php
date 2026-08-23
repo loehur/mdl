@@ -467,7 +467,7 @@
           <label class="il-label" for="ilTeachPattern" id="ilTeachPatternLabel">Pattern (PHP regex)</label>
           <textarea id="ilTeachPattern" class="il-textarea" style="min-height:70px;font-family:ui-monospace,Consolas,monospace;font-size:.85rem"></textarea>
 
-          <label class="il-label" for="ilTeachPrompt" style="margin-top:10px">AI prompt (lengkap)</label>
+          <label class="il-label" for="ilTeachPrompt" style="margin-top:10px">AI prompt (lengkap, ringkas — tanpa contoh kalimat)</label>
           <textarea id="ilTeachPrompt" class="il-textarea" style="min-height:180px"></textarea>
 
           <label class="il-check">
@@ -498,7 +498,7 @@
           <p class="il-lead" style="margin:0 0 8px;font-size:0.82rem">Kalau Cek Intent <code>source: regex</code> tapi list ini tadinya kosong, biasanya pattern yang match ada di intent ASAL (lihat TRACE remap, mis. ESTIMASI_SELESAI→PERMINTAAN), bukan di intent hasil remap.</p>
           <div id="ilUntouchPatterns"></div>
 
-          <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">AI prompt (lengkap)</label>
+          <label class="il-label" for="ilUntouchPrompt" style="margin-top:10px">AI prompt (lengkap, ringkas — hanya kriteria positif)</label>
           <textarea id="ilUntouchPrompt" class="il-textarea" style="min-height:180px"></textarea>
 
           <label class="il-check">
@@ -821,7 +821,7 @@
       var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent target', 'warn'); return; }
-      setLoading(true, 'AI menyusun usulan…', 'Lebarkan pattern existing bila bisa, baru pattern baru');
+      setLoading(true, 'AI menyusun usulan…', 'Pattern + tulis ulang ai_prompt ringkas (tanpa contoh kalimat)');
       $('#ilBtnPropose').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
       $applyMsg.text('');
       $untouchBox.removeClass('is-show');
@@ -938,7 +938,7 @@
       var intent = getTeachIntent();
       if (!text) { toast('Isi teks pesan dulu', 'warn'); return; }
       if (!intent) { toast('Pilih intent yang akan dikeluarkan', 'warn'); return; }
-      setLoading(true, 'AI merevisi prompt…', 'Susun ulang aturan TRUE/FALSE agar teks keluar dari intent');
+      setLoading(true, 'AI merevisi prompt…', 'Tulis ulang ai_prompt ringkas — hanya kriteria positif');
       $('#ilBtnProposeUntouch').html('<i class="fas fa-spinner fa-spin"></i> Menyusun…');
       $untouchMsg.text('');
       $teachBox.removeClass('is-show');

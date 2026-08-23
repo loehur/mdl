@@ -575,7 +575,7 @@ class IntentLab extends Controller
     private function resolvePromptReplace(string $current, ?string $aiPrompt, string $promptAppend): string
     {
         if ($aiPrompt !== null) {
-            return $aiPrompt;
+            return $this->sanitizeInclusionOnlyPrompt($aiPrompt);
         }
         $promptAppend = trim($promptAppend);
         if ($promptAppend === '' || mb_stripos($current, $promptAppend) !== false) {
@@ -583,6 +583,19 @@ class IntentLab extends Controller
         }
         $sep = ($current !== '' && !preg_match('/\n\s*$/', $current)) ? "\n" : '';
         return $current . $sep . $promptAppend;
+    }
+
+    private function sanitizeInclusionOnlyPrompt(string $prompt): string
+    {
+        $helper = dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/IntentTeachHelper.php';
+        if (is_file($helper)) {
+            require_once $helper;
+            if (class_exists('\\App\\Helpers\\Laundry\\IntentTeachHelper')) {
+                return \App\Helpers\Laundry\IntentTeachHelper::sanitizeInclusionOnlyPrompt($prompt);
+            }
+        }
+
+        return trim($prompt);
     }
 
     /**

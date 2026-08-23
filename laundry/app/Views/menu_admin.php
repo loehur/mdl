@@ -78,24 +78,6 @@ $menu[1] = [
     ],
     [
         'c' => '#',
-        'title' => 'Tiket',
-        'icon' => 'fas fa-ticket-alt',
-        'txt' => 'Tiket',
-        'submenu' => [
-            [
-                'c' => '@Tiket/i/0',
-                'title' => 'Tiket Proses',
-                'txt' => 'Proses'
-            ],
-            [
-                'c' => '@Tiket/i/1',
-                'title' => 'Tiket Selesai',
-                'txt' => 'Selesai'
-            ],
-        ]
-    ],
-    [
-        'c' => '#',
         'title' => 'Tools',
         'icon' => 'fas fa-tools',
         'txt' => 'Tools',
@@ -134,6 +116,11 @@ $menu[1] = [
                 'c' => '@WaGateway',
                 'title' => 'WhatsApp',
                 'txt' => 'WhatsApp'
+            ],
+            [
+                'c' => '@CrmDevices',
+                'title' => 'CRM Devices',
+                'txt' => 'CRM Devices'
             ]
         ]
     ],
