@@ -797,13 +797,27 @@ class WhatsAppService
                 return (int)($existing->id ?? 0);
             }
 
-            return $db->insert('wa_messages_out', $messageData);
+            return $this->insertWaMessagesOut($db, $messageData);
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write("!! EXCEPTION in saveOutboundQueueMessage: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
             }
             return null;
         }
+    }
+    
+    /**
+     * @param array<string,mixed> $messageData
+     */
+    private function insertWaMessagesOut(\App\Core\DB $db, array $messageData)
+    {
+        $msgId = $db->insert('wa_messages_out', $messageData);
+        if (!$msgId && isset($messageData['sender_id'])) {
+            unset($messageData['sender_id']);
+            $msgId = $db->insert('wa_messages_out', $messageData);
+        }
+
+        return $msgId;
     }
     
     /**
@@ -1059,7 +1073,7 @@ class WhatsAppService
             }
 
             if (!$msgId) {
-                $msgId = $db->insert('wa_messages_out', $messageData);
+                $msgId = $this->insertWaMessagesOut($db, $messageData);
                 $isNewOutboundInsert = (bool) $msgId;
             }
             

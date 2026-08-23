@@ -19,7 +19,7 @@ FOKUS:
 - Hanya tujuan isi pesan — tidak berbelit, ringkas
 - Bahasa formal-profesional, sopan, dan jelas — BUKAN santai/casual
 - Nada: seperti CS profesional via WhatsApp — hangat tapi tetap beradab, tidak gaul
-- Hindari slang, singkatan gaul, dan emoji berlebihan
+- Hindari slang, singkatan gaul, dan emoji berlebihan (lebih dari 1)
 - Hindari bahasa kantor berlebihan: "dengan hormat", "kami informasikan", "mohon kesediaannya", "terlampir", dll.
 - Pakai sapaan pelanggan dari data (Kak/Pak/Bu/Bang/Mas/Mbak) — tulis dengan huruf kapital di awal
 - Typo/kalimat kasar → rapikan jadi sopan dan profesional
@@ -36,7 +36,7 @@ Balas HANYA JSON valid, tanpa markdown:
 atau
 {"status":false,"reason":"penjelasan singkat Bahasa Indonesia"}
 
-new_words: satu pesan siap kirim WA, formal-profesional (tidak santai, tidak terlalu kaku), berikan maksimal 1 emote bila perlu.
+new_words: satu pesan siap kirim WA, formal-profesional (tidak santai, tidak terlalu kaku), wajib berikan 1 emote yang sesuai.
 PROMPT;
 
     /**

@@ -339,6 +339,7 @@ const crewPolishApproved = ref(false);
 const crewPolishLoading = ref(false);
 const crewSending = ref(false);
 const crewPolishSapaan = ref("");
+const crewPolishToken = ref("");
 const crewFormMsg = ref("");
 
 const resetCrewSendForm = () => {
@@ -349,6 +350,7 @@ const resetCrewSendForm = () => {
   crewPolishReason.value = "";
   crewPolishApproved.value = false;
   crewPolishSapaan.value = "";
+  crewPolishToken.value = "";
   crewFormMsg.value = "";
 };
 
@@ -387,6 +389,7 @@ watch([crewDraft, crewKaryawanId, crewAccessKey], () => {
   crewPolishReason.value = "";
   crewPolishApproved.value = false;
   crewPolishSapaan.value = "";
+  crewPolishToken.value = "";
 });
 
 const canCrewPolish = computed(() => {
@@ -397,6 +400,7 @@ const canCrewSend = computed(() => {
   return !!(
     crewPolishApproved.value
     && crewPolishPreview.value.trim()
+    && crewPolishToken.value
     && crewKaryawanId.value
     && /^\d{4}$/.test(crewAccessKey.value)
     && !crewSending.value
@@ -414,6 +418,7 @@ const crewPolish = async () => {
   try {
     const res = await fetch(`${props.API_BASE}/CRM/Chat/crewPolish`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         phone: props.activeConversation.wa_number,
@@ -423,10 +428,11 @@ const crewPolish = async () => {
     }).then((r) => r.json());
 
     crewPolishSapaan.value = res?.sapaan || "";
+    crewPolishToken.value = res?.polish_token || "";
 
     if (res?.status || res?.ok) {
       crewPolishPreview.value = res?.new_words || "";
-      crewPolishApproved.value = !!crewPolishPreview.value;
+      crewPolishApproved.value = !!crewPolishPreview.value && !!crewPolishToken.value;
       crewPolishReason.value = "";
     } else {
       crewPolishReason.value = res?.reason || res?.message || "Pesan ditolak AI";
@@ -445,6 +451,7 @@ const crewSendMessage = async () => {
   const text = crewPolishPreview.value.trim();
   const idKaryawan = Number(crewKaryawanId.value);
   const accessKey = crewAccessKey.value;
+  const polishToken = crewPolishToken.value;
   crewSending.value = true;
   crewFormMsg.value = "";
 
@@ -472,12 +479,14 @@ const crewSendMessage = async () => {
   try {
     const res = await fetch(`${props.API_BASE}/CRM/Chat/crewReply`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         phone: props.activeConversation.wa_number,
         message: text,
         id_karyawan: idKaryawan,
         access_key: accessKey,
+        polish_token: polishToken,
         user_id: props.authId,
       }),
     }).then((r) => r.json());

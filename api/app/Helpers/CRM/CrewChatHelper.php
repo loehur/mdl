@@ -69,10 +69,14 @@ class CrewChatHelper
         $polisher = new CrewMessagePolisher();
         $result = $polisher->polish($draft, $sapaan);
 
+        $polishToken = '';
         if (!empty($result['status']) && !empty($result['new_words'])) {
-            self::storePolishApproval($phone, (string) $result['new_words']);
+            $approvedText = (string) $result['new_words'];
+            self::storePolishApproval($phone, $approvedText);
+            $polishToken = self::createPolishToken($phone, $approvedText);
         } else {
             self::clearPolishApproval($phone);
+            $polishToken = '';
         }
 
         return [
@@ -81,6 +85,7 @@ class CrewChatHelper
             'new_words' => (string) ($result['new_words'] ?? ''),
             'reason' => (string) ($result['reason'] ?? ''),
             'sapaan' => (string) ($result['sapaan'] ?? $sapaan),
+            'polish_token' => $polishToken,
         ];
     }
 
@@ -118,7 +123,7 @@ class CrewChatHelper
             return $cswDeny;
         }
 
-        if (!self::verifyPolishApproval($phone, $message)) {
+        if (!self::verifyPolishApproval($phone, $message, (string) ($input['polish_token'] ?? ''))) {
             return ['ok' => false, 'message' => 'Pesan belum disetujui AI — klik Cek AI terlebih dahulu'];
         }
 
@@ -263,8 +268,12 @@ class CrewChatHelper
         ];
     }
 
-    private static function verifyPolishApproval(string $phone, string $message): bool
+    private static function verifyPolishApproval(string $phone, string $message, string $polishToken = ''): bool
     {
+        if ($polishToken !== '' && self::verifyPolishToken($phone, $message, $polishToken)) {
+            return true;
+        }
+
         $entry = $_SESSION[self::SESSION_KEY]['crew_polish'][$phone] ?? null;
         if (!is_array($entry)) {
             return false;
@@ -274,6 +283,76 @@ class CrewChatHelper
         }
 
         return hash_equals((string) ($entry['message'] ?? ''), $message);
+    }
+
+    public static function createPolishToken(string $phone, string $message): string
+    {
+        $phoneKey = self::phoneKey($phone);
+        if ($phoneKey === '' || $message === '') {
+            return '';
+        }
+
+        $exp = time() + self::POLISH_TTL;
+        $msgHash = hash('sha256', $message);
+        $payload = $phoneKey . '|' . $exp . '|' . $msgHash;
+        $sig = hash_hmac('sha256', $payload, self::polishTokenSecret());
+
+        return rtrim(strtr(base64_encode($payload . '|' . $sig), '+/', '-_'), '=');
+    }
+
+    private static function verifyPolishToken(string $phone, string $message, string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+
+        $raw = base64_decode(strtr($token, '-_', '+/'), true);
+        if (!is_string($raw) || $raw === '') {
+            return false;
+        }
+
+        $parts = explode('|', $raw);
+        if (count($parts) !== 4) {
+            return false;
+        }
+
+        [$phoneKey, $expStr, $msgHash, $sig] = $parts;
+        if ($phoneKey !== self::phoneKey($phone)) {
+            return false;
+        }
+
+        $exp = (int) $expStr;
+        if ($exp <= 0 || time() > $exp) {
+            return false;
+        }
+
+        if (!hash_equals($msgHash, hash('sha256', $message))) {
+            return false;
+        }
+
+        $payload = $phoneKey . '|' . $expStr . '|' . $msgHash;
+        $expected = hash_hmac('sha256', $payload, self::polishTokenSecret());
+
+        return hash_equals($expected, $sig);
+    }
+
+    private static function phoneKey(string $phone): string
+    {
+        if (!class_exists(WaSenderContext::class)) {
+            require_once __DIR__ . '/WaSenderContext.php';
+        }
+
+        return WaSenderContext::key($phone);
+    }
+
+    private static function polishTokenSecret(): string
+    {
+        if (class_exists('Env', false) && defined('Env::CRON_SECRET')) {
+            return (string) Env::CRON_SECRET;
+        }
+
+        return 'mdl_crm_crew_polish';
     }
 
     private static function clearPolishApproval(string $phone): void

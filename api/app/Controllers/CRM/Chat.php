@@ -1872,6 +1872,7 @@ class Chat extends Controller
             'new_words' => $res['new_words'] ?? '',
             'reason' => $res['reason'] ?? '',
             'sapaan' => $res['sapaan'] ?? '',
+            'polish_token' => $res['polish_token'] ?? '',
             'message' => !empty($res['status']) ? 'Pesan siap dikirim' : ($res['reason'] ?? 'Pesan ditolak'),
         ]);
     }
