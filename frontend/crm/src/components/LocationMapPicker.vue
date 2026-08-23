@@ -422,7 +422,7 @@ onUnmounted(() => {
         </div>
         <button
           type="button"
-          class="absolute right-3 bottom-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-text-primary)] shadow-lg transition hover:border-[var(--wa-accent-green)] hover:text-[var(--wa-accent-green)] disabled:opacity-50"
+          class="absolute right-3 bottom-12 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
           :disabled="loading || locatingUser"
           title="Ke lokasi saya"
           aria-label="Ke lokasi saya"
@@ -431,24 +431,24 @@ onUnmounted(() => {
           <svg
             v-if="!locatingUser"
             xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
+            class="block h-[22px] w-[22px] shrink-0"
             viewBox="0 0 24 24"
+            fill="none"
             stroke="currentColor"
             stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 8a3 3 0 100 6 3 3 0 000-6zm8.94 3a8.94 8.94 0 01-1.88 2.83l1.42 1.42a.75.75 0 11-1.06 1.06l-1.42-1.42A8.94 8.94 0 0112 20.94V22a.75.75 0 01-1.5 0v-1.06A8.94 8.94 0 014.06 15.3l-1.42 1.42a.75.75 0 11-1.06-1.06l1.42-1.42A8.94 8.94 0 013.06 12H2a.75.75 0 010-1.5h1.06A8.94 8.94 0 014.94 6.7L3.52 5.28a.75.75 0 111.06-1.06l1.42 1.42A8.94 8.94 0 0112 3.06V2a.75.75 0 011.5 0v1.06A8.94 8.94 0 0119.94 8.7l1.42-1.42a.75.75 0 111.06 1.06l-1.42 1.42A8.94 8.94 0 0120.94 12H22a.75.75 0 010 1.5h-1.06z"
-            />
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
           </svg>
           <svg
             v-else
             xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 animate-spin"
+            class="block h-[22px] w-[22px] shrink-0 animate-spin"
             fill="none"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -536,7 +536,7 @@ onUnmounted(() => {
       </div>
       <button
         type="button"
-        class="absolute right-3 bottom-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-text-primary)] shadow-lg transition hover:border-[var(--wa-accent-green)] hover:text-[var(--wa-accent-green)] disabled:opacity-50"
+        class="absolute right-3 bottom-12 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
         :disabled="loading || locatingUser"
         title="Ke lokasi saya"
         aria-label="Ke lokasi saya"
@@ -545,24 +545,24 @@ onUnmounted(() => {
         <svg
           v-if="!locatingUser"
           xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5"
-          fill="none"
+          class="block h-[22px] w-[22px] shrink-0"
           viewBox="0 0 24 24"
+          fill="none"
           stroke="currentColor"
           stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M12 8a3 3 0 100 6 3 3 0 000-6zm8.94 3a8.94 8.94 0 01-1.88 2.83l1.42 1.42a.75.75 0 11-1.06 1.06l-1.42-1.42A8.94 8.94 0 0112 20.94V22a.75.75 0 01-1.5 0v-1.06A8.94 8.94 0 014.06 15.3l-1.42 1.42a.75.75 0 11-1.06-1.06l1.42-1.42A8.94 8.94 0 013.06 12H2a.75.75 0 010-1.5h1.06A8.94 8.94 0 014.94 6.7L3.52 5.28a.75.75 0 111.06-1.06l1.42 1.42A8.94 8.94 0 0112 3.06V2a.75.75 0 011.5 0v1.06A8.94 8.94 0 0119.94 8.7l1.42-1.42a.75.75 0 111.06 1.06l-1.42 1.42A8.94 8.94 0 0120.94 12H22a.75.75 0 010 1.5h-1.06z"
-          />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
         </svg>
         <svg
           v-else
           xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5 animate-spin"
+          class="block h-[22px] w-[22px] shrink-0 animate-spin"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
