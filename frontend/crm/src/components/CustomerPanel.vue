@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
 import { formatPermintaanSummary, normalizePermintaanItems } from "../utils/permintaanSummary.js";
+import LocationMapPicker from "./LocationMapPicker.vue";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -97,8 +98,7 @@ const isEditLokasi = computed(() => formIdLokasi.value > 0);
 const canSaveLokasi = computed(() => {
   if (savingLokasi.value) return false;
   if (!formNama.value.trim() || !formDetail.value.trim()) return false;
-  if (isEditLokasi.value) return formLatt.value != null && formLongt.value != null;
-  return !!(formGmaps.value.trim() || (formLatt.value != null && formLongt.value != null));
+  return formLatt.value != null && formLongt.value != null;
 });
 
 const custId = computed(() => Number(props.conversation?.cust_id) || 0);
@@ -734,10 +734,6 @@ const loadLokasi = async () => {
 const resolveGmaps = async () => {
   const url = formGmaps.value.trim();
   if (!url) {
-    if (!isEditLokasi.value) {
-      formLatt.value = null;
-      formLongt.value = null;
-    }
     return;
   }
   resolvingMaps.value = true;
@@ -1262,7 +1258,7 @@ onUnmounted(() => {
     >
       <div class="absolute inset-0 bg-black/50"></div>
       <div
-        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        class="relative w-full max-w-lg bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5 max-h-[90vh] overflow-y-auto"
         @click.stop
       >
         <div class="flex items-center justify-between mb-4">
@@ -1302,7 +1298,10 @@ onUnmounted(() => {
             ></textarea>
           </div>
           <div>
-            <label class="text-xs text-[var(--wa-text-tertiary)]">URL Google Maps</label>
+            <LocationMapPicker v-model:lat="formLatt" v-model:lng="formLongt" />
+          </div>
+          <div>
+            <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
             <input
               v-model="formGmaps"
               type="url"
@@ -1311,11 +1310,8 @@ onUnmounted(() => {
               @blur="resolveGmaps"
             />
             <p v-if="resolvingMaps" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Membaca koordinat…</p>
-            <p v-else-if="formLatt != null && formLongt != null" class="text-[11px] text-[var(--wa-accent-green)] mt-1 font-mono">
-              {{ formLatt }}, {{ formLongt }}
-            </p>
             <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
-              {{ isEditLokasi ? "Isi ulang URL hanya jika ingin mengubah titik." : "Wajib. Koordinat diambil dari URL." }}
+              Opsional. Paste link jika tidak memakai pencarian/geser peta di atas.
             </p>
           </div>
           <p v-if="formMsg" class="text-xs text-red-400">{{ formMsg }}</p>
