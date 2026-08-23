@@ -142,7 +142,7 @@ class CrewChatHelper
         }
 
         $wa = new WhatsAppService();
-        $res = $wa->sendFreeText($phone, $message, null, 'CR', null, $lineKey);
+        $res = $wa->sendFreeText($phone, $message, null, 'CR', null, $lineKey, $idKaryawan);
 
         if (empty($res['success'])) {
             return [

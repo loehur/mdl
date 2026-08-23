@@ -40,7 +40,7 @@ class ResendWAQueue extends Controller
 
         // Only text messages can be safely resent from stored "content"
         $sql = "
-            SELECT id, external_id, phone, type, content, sender_code, quoted_message_id, created_at
+            SELECT id, external_id, phone, type, content, sender_code, sender_id, quoted_message_id, created_at
             FROM wa_messages_out
             WHERE status = 'queue'
               AND external_id IS NOT NULL
@@ -85,6 +85,7 @@ class ResendWAQueue extends Controller
             $type = $r['type'] ?? 'text';
             $content = $r['content'] ?? '';
             $senderCode = $r['sender_code'] ?? null;
+            $senderId = isset($r['sender_id']) ? (int) $r['sender_id'] : null;
             $quotedMessageId = $r['quoted_message_id'] ?? null;
             $queueCreatedAt = $r['created_at'] ?? null;
 
@@ -147,7 +148,7 @@ class ResendWAQueue extends Controller
             }
 
             try {
-                $result = $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId);
+                $result = $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId, null, $senderId > 0 ? $senderId : null);
                 if (!empty($result['success'])) {
                     $processed++;
                     $output .= "OK id={$id} phone={$phone} external_id={$externalId}\n";

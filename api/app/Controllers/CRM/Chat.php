@@ -503,6 +503,7 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         NULL as sender_code,
+                        NULL as sender_id,
                         0 as `private`,
                         COALESCE(business_phone, '+6281170706611') as business_phone
                      FROM wa_messages_in 
@@ -522,6 +523,7 @@ class Chat extends Controller
                         quoted_message_id,
                         quoted_message_body,
                         sender_code,
+                        sender_id,
                         COALESCE(`private`, 0) as `private`,
                         COALESCE(business_phone, '+6281170706611') as business_phone
                      FROM wa_messages_out 
