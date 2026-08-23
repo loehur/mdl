@@ -521,7 +521,7 @@ class Delivery extends Controller
          // ===== Jemput / Jemput & Antar: selesai jemput =====
          if ($jenis === 'jemput' || $jenis === 'jemput_antar') {
             if ($idKaryawan <= 0) {
-               throw new Exception('Wajib pilih penyelesai jemput');
+               throw new Exception('Wajib pilih petugas jemput');
             }
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item jemput');
@@ -752,7 +752,7 @@ class Delivery extends Controller
 
                $msg = $inserted > 0
                   ? "Delivery antar selesai ($inserted item)"
-                  : 'Antar sudah tercatat — penyelesai diperbarui';
+                  : 'Antar sudah tercatat — petugas antar diperbarui';
                if ($idReqAntar > 0) {
                   $msg .= " · Request antar #$idReqAntar ditutup";
                }
@@ -806,7 +806,7 @@ class Delivery extends Controller
             $noRefAntar = SurcasKurir::pickRefForIds($this->db(0), $ids);
             if ($noRefAntar !== null && $noRefAntar !== ''
                && SurcasKurir::findExistingSurcasOnRef($this->db(0), $noRefAntar, $idCabang, (int) AntarTarif::SURCAS_JENIS_PENGANTARAN) > 0) {
-               throw new Exception('Surcas antar sudah ada di nota ini. Isi penyelesai untuk menyelesaikan antar.');
+               throw new Exception('Surcas antar sudah ada di nota ini. Isi petugas antar untuk menyelesaikan antar.');
             }
 
             $asPending = $wantPendingAntar;
@@ -1081,7 +1081,8 @@ class Delivery extends Controller
             throw new Exception('Jenis harus jemput atau antar');
          }
          if ($idKaryawan <= 0) {
-            throw new Exception('Pilih karyawan yang menyelesaikan');
+            $msg = $jenis === 'antar' ? 'Pilih petugas antar' : ($jenis === 'jemput' ? 'Pilih petugas jemput' : 'Pilih petugas');
+            throw new Exception($msg);
          }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
@@ -1215,18 +1216,9 @@ class Delivery extends Controller
          if ($idRequest <= 0) {
             throw new Exception('Request tidak valid');
          }
-         if ($idKaryawan <= 0) {
-            throw new Exception('Pilih karyawan yang menyelesaikan');
-         }
          if (empty($ids)) {
             throw new Exception('Pilih minimal satu item penjualan');
          }
-
-         $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
-         if (!$karyawan) {
-            throw new Exception('Karyawan tidak ditemukan');
-         }
-         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
 
          $req = $this->db(0)->get_where_row(
             'delivery_request',
@@ -1240,6 +1232,16 @@ class Delivery extends Controller
          if (!in_array($jenis, ['antar', 'jemput'], true)) {
             throw new Exception('Jenis request tidak valid');
          }
+         if ($idKaryawan <= 0) {
+            $msg = $jenis === 'antar' ? 'Pilih petugas antar' : 'Pilih petugas jemput';
+            throw new Exception($msg);
+         }
+
+         $karyawan = $this->db(0)->get_where_row('user', 'id_user = ' . $idKaryawan . ' AND en = 1');
+         if (!$karyawan) {
+            throw new Exception('Karyawan tidak ditemukan');
+         }
+         $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
 
          $layanan = strtolower((string) ($req['layanan'] ?? 'sameday'));
          if ($layanan === 'instant') {
@@ -2076,17 +2078,50 @@ class Delivery extends Controller
    }
 
    /**
+    * Delivery request aktif milik satu pelanggan (Operasi / portal).
+    */
+   public function pendingCustomerRequestsForPelanggan(int $idPelanggan): array
+   {
+      if ($idPelanggan <= 0) {
+         return [];
+      }
+      $idCabang = (int) ($this->id_cabang ?? 0);
+      return $this->fetchPendingCustomerRequests($idPelanggan, $idCabang);
+   }
+
+   /**
     * Request kurir customer (delivery_request berjalan) — semua cabang.
     */
    private function getPendingCustomerRequests(): array
    {
+      return $this->fetchPendingCustomerRequests(null, null);
+   }
+
+   /**
+    * @param int|null $idPelanggan Filter pelanggan; null = semua (board Delivery).
+    * @param int|null $idCabang Filter cabang saat idPelanggan diisi.
+    */
+   private function fetchPendingCustomerRequests(?int $idPelanggan, ?int $idCabang): array
+   {
+      if ($idPelanggan !== null && $idPelanggan > 0) {
+         $where = "r.delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
+            . ' AND r.id_pelanggan = ' . (int) $idPelanggan;
+         if ($idCabang !== null && $idCabang > 0) {
+            $where .= ' AND r.id_cabang = ' . (int) $idCabang;
+         }
+         $limit = 50;
+      } else {
+         $where = "r.delivery_status = 'berjalan'";
+         $limit = 200;
+      }
+
       $rows = $this->db(0)->query_array(
          "SELECT r.*, p.nama_pelanggan, p.nomor_pelanggan
           FROM delivery_request r
           LEFT JOIN pelanggan p ON p.id_pelanggan = r.id_pelanggan
-          WHERE r.delivery_status = 'berjalan'
+          WHERE $where
           ORDER BY r.insertTime DESC
-          LIMIT 200"
+          LIMIT $limit"
       );
       if (!is_array($rows)) {
          return [];
@@ -2618,7 +2653,7 @@ class Delivery extends Controller
          $id = (int) $id;
          if ($id > 0 && !isset($selesaiSet[$id])) {
             throw new Exception(
-               'Item #' . $id . ' belum selesai laundry. Kosongkan penyelesai untuk buat request, atau pilih item yang sudah selesai.'
+               'Item #' . $id . ' belum selesai laundry. Kosongkan petugas antar untuk buat request, atau pilih item yang sudah selesai.'
             );
          }
       }

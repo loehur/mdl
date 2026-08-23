@@ -243,8 +243,12 @@ class Controller extends URL
             return false;
         }
 
-        if (!$this->refDeliverySelesaiUntukTuntas($ref)) {
-            $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: delivery jemput/antar belum selesai");
+        $deliveryCheck = $this->refDeliveryTuntasCheck($ref);
+        if (!$deliveryCheck['ok']) {
+            $this->model('Log')->write(
+                "[tuntasOrder] SKIP ref=$ref: " . ($deliveryCheck['block'] ?: 'delivery')
+                . ' — ' . ($deliveryCheck['message'] ?? '')
+            );
             return false;
         }
 
@@ -272,41 +276,183 @@ class Controller extends URL
     }
 
     /**
-     * Ada surcas jemput (3) / antar (2)? Delivery jenis itu harus sudah selesai
-     * (riwayat ada, request tidak masih berjalan) sebelum ref boleh dituntaskan.
+     * Status binding surcas kurir (jemput/antar) per item di satu no_ref.
+     *
+     * @return array{
+     *   sale_ids: int[],
+     *   id_pelanggan: int,
+     *   has_jemput: bool,
+     *   has_antar: bool,
+     *   bound_jemput: bool,
+     *   bound_antar: bool,
+     *   fully_bound: bool,
+     *   surcas_rows: array
+     * }
      */
-    protected function refDeliverySelesaiUntukTuntas($ref): bool
+    protected function refSurcasBindingStatus(string $ref): array
     {
-        $ref = trim((string) $ref);
+        $ref = trim($ref);
+        $empty = [
+            'sale_ids' => [],
+            'id_pelanggan' => 0,
+            'has_jemput' => false,
+            'has_antar' => false,
+            'bound_jemput' => true,
+            'bound_antar' => true,
+            'fully_bound' => false,
+            'surcas_rows' => [],
+        ];
         if ($ref === '') {
-            return true;
+            return $empty;
         }
 
         $this->helper('AntarTarif');
+        $this->helper('SurcasKurir');
         $jenisAntar = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
         $jenisJemput = (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
 
         $db = $this->db(0);
         $refSql = "'" . $db->escape($ref) . "'";
+        $sales = $db->get_where('sale', $this->wCabang . " AND no_ref = $refSql AND bin = 0");
+        if (!is_array($sales) || $sales === []) {
+            return $empty;
+        }
+
+        $saleIds = [];
+        $idPelanggan = 0;
+        foreach ($sales as $s) {
+            $sid = (int) ($s['id_penjualan'] ?? 0);
+            if ($sid > 0) {
+                $saleIds[$sid] = $sid;
+            }
+            if ($idPelanggan <= 0) {
+                $idPelanggan = (int) ($s['id_pelanggan'] ?? 0);
+            }
+        }
+
         $surcas = $db->get_where(
             'surcas',
             $this->wCabang . " AND transaksi_jenis = 1 AND no_ref = $refSql"
             . " AND id_jenis_surcas IN ($jenisAntar, $jenisJemput)"
         );
-        if (!is_array($surcas) || $surcas === []) {
-            return true;
+        if (!is_array($surcas)) {
+            $surcas = [];
         }
 
-        $needJemput = false;
-        $needAntar = false;
-        $reqIds = [];
+        $hasJemput = false;
+        $hasAntar = false;
         foreach ($surcas as $sc) {
             $jid = (int) ($sc['id_jenis_surcas'] ?? 0);
             if ($jid === $jenisJemput) {
-                $needJemput = true;
+                $hasJemput = true;
             } elseif ($jid === $jenisAntar) {
-                $needAntar = true;
+                $hasAntar = true;
             }
+        }
+
+        $saleIdsList = array_values($saleIds);
+        $boundJemput = true;
+        $boundAntar = true;
+        if ($hasJemput && $saleIdsList !== []) {
+            $boundJ = SurcasKurir::boundSaleIds($db, $saleIdsList, $jenisJemput);
+            foreach ($saleIdsList as $id) {
+                if (!isset($boundJ[(int) $id])) {
+                    $boundJemput = false;
+                    break;
+                }
+            }
+        }
+        if ($hasAntar && $saleIdsList !== []) {
+            $boundA = SurcasKurir::boundSaleIds($db, $saleIdsList, $jenisAntar);
+            foreach ($saleIdsList as $id) {
+                if (!isset($boundA[(int) $id])) {
+                    $boundAntar = false;
+                    break;
+                }
+            }
+        }
+
+        $hasKurirSurcas = $hasJemput || $hasAntar;
+        if (!$hasKurirSurcas) {
+            $fullyBound = false;
+        } else {
+            $fullyBound = (!$hasJemput || $boundJemput) && (!$hasAntar || $boundAntar);
+        }
+
+        return [
+            'sale_ids' => $saleIdsList,
+            'id_pelanggan' => $idPelanggan,
+            'has_jemput' => $hasJemput,
+            'has_antar' => $hasAntar,
+            'bound_jemput' => $boundJemput,
+            'bound_antar' => $boundAntar,
+            'fully_bound' => $fullyBound,
+            'surcas_rows' => $surcas,
+        ];
+    }
+
+    /**
+     * Ada delivery_request aktif milik pelanggan di cabang ini?
+     */
+    protected function pelangganHasPendingDeliveryRequest(int $idPelanggan): bool
+    {
+        if ($idPelanggan <= 0) {
+            return false;
+        }
+
+        $idCabang = (int) ($this->id_cabang ?? 0);
+        $where = 'id_pelanggan = ' . $idPelanggan
+            . " AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')";
+        if ($idCabang > 0) {
+            $where .= ' AND id_cabang = ' . $idCabang;
+        }
+
+        try {
+            $count = $this->db(0)->count_where('delivery_request', $where);
+            return is_numeric($count) && (int) $count > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Gate delivery/surcas sebelum ref dituntaskan.
+     *
+     * @return array{ok: bool, message: string, fully_bound: bool, block: string}
+     */
+    protected function refDeliveryTuntasCheck(string $ref): array
+    {
+        $ref = trim($ref);
+        if ($ref === '') {
+            return ['ok' => true, 'message' => '', 'fully_bound' => true, 'block' => ''];
+        }
+
+        $bind = $this->refSurcasBindingStatus($ref);
+        $fullyBound = (bool) ($bind['fully_bound'] ?? false);
+
+        if (!$fullyBound) {
+            $idPel = (int) ($bind['id_pelanggan'] ?? 0);
+            if ($this->pelangganHasPendingDeliveryRequest($idPel)) {
+                return [
+                    'ok' => false,
+                    'message' => 'Selesaikan delivery request pelanggan yang masih menggantung sebelum menuntaskan nota.',
+                    'fully_bound' => false,
+                    'block' => 'pending_dr_pelanggan',
+                ];
+            }
+
+            return ['ok' => true, 'message' => '', 'fully_bound' => false, 'block' => ''];
+        }
+
+        $needJemput = (bool) ($bind['has_jemput'] ?? false);
+        $needAntar = (bool) ($bind['has_antar'] ?? false);
+        if (!$needJemput && !$needAntar) {
+            return ['ok' => true, 'message' => '', 'fully_bound' => true, 'block' => ''];
+        }
+
+        $db = $this->db(0);
+        $reqIds = [];
+        foreach ((array) ($bind['surcas_rows'] ?? []) as $sc) {
             $rid = (int) ($sc['id_delivery_request'] ?? 0);
             if ($rid > 0) {
                 $reqIds[$rid] = $rid;
@@ -320,22 +466,25 @@ class Controller extends URL
                 "id_request IN ($reqIn) AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')"
             );
             if ((int) $aktif > 0) {
-                return false;
+                return [
+                    'ok' => false,
+                    'message' => 'Delivery request terikat surcas masih berjalan — selesaikan terlebih dahulu.',
+                    'fully_bound' => true,
+                    'block' => 'active_dr_surcas',
+                ];
             }
         }
 
-        $sales = $db->get_where('sale', $this->wCabang . " AND no_ref = $refSql AND bin = 0");
-        $saleIds = [];
-        foreach ((array) $sales as $s) {
-            $sid = (int) ($s['id_penjualan'] ?? 0);
-            if ($sid > 0) {
-                $saleIds[$sid] = $sid;
-            }
-        }
+        $saleIds = (array) ($bind['sale_ids'] ?? []);
         if ($saleIds === []) {
-            return !$needJemput && !$needAntar;
+            return [
+                'ok' => false,
+                'message' => 'Data item nota tidak ditemukan.',
+                'fully_bound' => true,
+                'block' => 'no_sales',
+            ];
         }
-        $idsIn = implode(',', $saleIds);
+        $idsIn = implode(',', array_map('intval', $saleIds));
 
         $hasJ = false;
         $hasA = false;
@@ -348,11 +497,21 @@ class Controller extends URL
                 $hasA = true;
             }
         }
+
+        $tunggu = [];
         if ($needJemput && !$hasJ) {
-            return false;
+            $tunggu[] = 'jemput';
         }
         if ($needAntar && !$hasA) {
-            return false;
+            $tunggu[] = 'antar';
+        }
+        if ($tunggu !== []) {
+            return [
+                'ok' => false,
+                'message' => 'Menunggu delivery ' . implode('/', $tunggu) . ' selesai.',
+                'fully_bound' => true,
+                'block' => 'delivery_riwayat',
+            ];
         }
 
         try {
@@ -367,10 +526,20 @@ class Controller extends URL
                 foreach ($rows as $row) {
                     $j = strtolower((string) ($row['jenis'] ?? ''));
                     if ($needJemput && $j === 'jemput') {
-                        return false;
+                        return [
+                            'ok' => false,
+                            'message' => 'Delivery request jemput item nota masih berjalan.',
+                            'fully_bound' => true,
+                            'block' => 'active_dr_item',
+                        ];
                     }
                     if ($needAntar && $j === 'antar') {
-                        return false;
+                        return [
+                            'ok' => false,
+                            'message' => 'Delivery request antar item nota masih berjalan.',
+                            'fully_bound' => true,
+                            'block' => 'active_dr_item',
+                        ];
                     }
                 }
             }
@@ -378,7 +547,16 @@ class Controller extends URL
             // tabel request belum ada — cukup cek riwayat
         }
 
-        return true;
+        return ['ok' => true, 'message' => '', 'fully_bound' => true, 'block' => ''];
+    }
+
+    /**
+     * Ada surcas jemput (3) / antar (2)? Delivery jenis itu harus sudah selesai
+     * (riwayat ada, request tidak masih berjalan) sebelum ref boleh dituntaskan.
+     */
+    protected function refDeliverySelesaiUntukTuntas($ref): bool
+    {
+        return $this->refDeliveryTuntasCheck((string) $ref)['ok'];
     }
 
     /**

@@ -1077,7 +1077,7 @@ $canCekDetail = !empty($data['canCekDetail']);
               </span>
             </div>
           </div>
-          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan">Karyawan yang menyelesaikan</label>
+          <label class="dlv-field-label mt-2" for="dlvSelesaiKaryawan" id="dlvSelesaiKaryawanLabel">Petugas</label>
           <select id="dlvSelesaiKaryawan" name="id_karyawan" class="form-control tize" style="width:100%" required>
             <option value="" selected disabled></option>
             <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? 'Cabang') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
@@ -1711,6 +1711,7 @@ $canCekDetail = !empty($data['canCekDetail']);
       }
       if (freeWrap) freeWrap.hidden = true;
       if (lockedWrap) lockedWrap.hidden = false;
+      syncSelesaiKaryawanLabel();
       return;
     }
 
@@ -1721,6 +1722,7 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (lockedVal) lockedVal.value = '';
     if (freeWrap) freeWrap.hidden = false;
     if (lockedWrap) lockedWrap.hidden = true;
+    syncSelesaiKaryawanLabel();
   }
 
   function getSelesaiJenis() {
@@ -1730,6 +1732,19 @@ $canCekDetail = !empty($data['canCekDetail']);
       return locked;
     }
     return ((document.getElementById('dlvSelesaiJenis') || {}).value || '').toLowerCase();
+  }
+
+  function syncSelesaiKaryawanLabel() {
+    var label = document.getElementById('dlvSelesaiKaryawanLabel');
+    if (!label) return;
+    var jenis = getSelesaiJenis();
+    if (jenis === 'antar') {
+      label.textContent = 'Petugas Antar';
+    } else if (jenis === 'jemput') {
+      label.textContent = 'Petugas Jemput';
+    } else {
+      label.textContent = 'Petugas';
+    }
   }
 
   function resetSelesaiForm() {
@@ -1794,6 +1809,7 @@ $canCekDetail = !empty($data['canCekDetail']);
       var sel = document.getElementById('dlvSelesaiKaryawan');
       if (sel) sel.value = '';
     }
+    syncSelesaiKaryawanLabel();
   }
 
   function isSelesaiSurcasBound() {
@@ -2247,6 +2263,7 @@ $canCekDetail = !empty($data['canCekDetail']);
     var title = document.getElementById('dlvSelesaiTitle');
     if (title) title.textContent = 'Selesai Delivery';
     openModal('dlvSelesaiModal');
+    syncSelesaiKaryawanLabel();
   }
 
   function openSelesaiRequest(btn) {
@@ -2315,6 +2332,7 @@ $canCekDetail = !empty($data['canCekDetail']);
       var surcasAntar2 = document.getElementById('dlvSurcasAntarRow');
       if (surcasAntar2) surcasAntar2.hidden = true;
     }
+    syncSelesaiKaryawanLabel();
     loadSalesOptions();
   }
 
@@ -2452,7 +2470,10 @@ $canCekDetail = !empty($data['canCekDetail']);
     if (mode === 'crm' && !phone) { toast('Nomor tidak valid', 'error'); return; }
     if (mode === 'request' && !idRequest) { toast('Request tidak valid', 'error'); return; }
     if (!jenis) { toast('Pilih jenis jemput/antar', 'warn'); return; }
-    if (!idKaryawan) { toast('Pilih karyawan yang menyelesaikan', 'warn'); return; }
+    if (!idKaryawan) {
+      toast(jenis === 'antar' ? 'Pilih petugas antar' : (jenis === 'jemput' ? 'Pilih petugas jemput' : 'Pilih petugas'), 'warn');
+      return;
+    }
     if (!checks.length) { toast('Pilih minimal satu item', 'warn'); return; }
     if (jenis === 'jemput') {
       var jemputInput = document.getElementById('dlvSurcasJemputJumlah');
@@ -3072,6 +3093,7 @@ $canCekDetail = !empty($data['canCekDetail']);
         input.value = '';
       }
       syncSurcasJemputUi();
+      syncSelesaiKaryawanLabel();
       loadSalesOptions();
     });
   }

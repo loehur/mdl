@@ -2011,6 +2011,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   }
 </style>
 
+<?php include __DIR__ . '/delivery_request_modals.php'; ?>
+
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasKurir"
      aria-labelledby="offcanvasKurirLabel"
      data-bs-backdrop="true" data-bs-scroll="true"
@@ -2069,7 +2071,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       </div>
     </div>
     <div class="kurir-field" id="kurirKaryawanWrap">
-      <label class="kurir-label" for="kurirKaryawan" id="kurirKaryawanLabel">Penyelesai (opsional)</label>
+      <label class="kurir-label" for="kurirKaryawan" id="kurirKaryawanLabel">Petugas (opsional)</label>
       <select id="kurirKaryawan" class="tize" style="width:100%">
         <option value="">— Request saja —</option>
         <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? '') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
@@ -2254,11 +2256,15 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         : 'Item Jemput (wajib — surcas ke nota)';
     }
     if (karyLabel) {
-      karyLabel.textContent = forceComplete
-        ? 'Penyelesai (wajib)'
-        : ((isJemput || isCombo)
-          ? 'Penyelesai Jemput (wajib)'
-          : 'Penyelesai Antar (opsional)');
+      if (forceComplete) {
+        karyLabel.textContent = isJemput ? 'Petugas Jemput (wajib)' : 'Petugas Antar (wajib)';
+      } else if (isJemput || isCombo) {
+        karyLabel.textContent = 'Petugas Jemput (wajib)';
+      } else if (isAntar) {
+        karyLabel.textContent = 'Petugas Antar (opsional)';
+      } else {
+        karyLabel.textContent = 'Petugas (opsional)';
+      }
     }
 
     loadSales(isCombo ? 'jemput' : (isJemput || isAntar ? jenis : ''));
@@ -2291,7 +2297,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       }
       if (hint) {
         hint.style.display = 'block';
-        hint.textContent = 'Ada item belum selesai laundry — kosongkan item itu atau selesaikan tanpa penyelesai (request/pending).';
+        hint.textContent = 'Ada item belum selesai laundry — kosongkan item itu atau selesaikan tanpa petugas antar (request/pending).';
       }
       syncPendingUi();
       syncSubmitLabel();
@@ -2771,7 +2777,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         var karySel = root.querySelector('#kurirKaryawan');
         if (karySel) karySel.value = '';
       }
-      toast('Item belum selesai laundry — penyelesai antar tidak bisa diisi', 'warn');
+      toast('Item belum selesai laundry — petugas antar tidak bisa diisi', 'warn');
     }
     syncPenyelesaiLock();
   }
@@ -2856,7 +2862,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       return;
     }
     if (forceComplete && idKaryawan <= 0) {
-      toast('Wajib pilih penyelesai', 'warn');
+      toast('Wajib pilih petugas', 'warn');
       return;
     }
 
@@ -2868,7 +2874,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
     if (jenis === 'jemput' || jenis === 'jemput_antar') {
       if (idKaryawan <= 0) {
-        toast('Wajib pilih penyelesai jemput', 'warn');
+        toast('Wajib pilih petugas jemput', 'warn');
         return;
       }
       if (!ids.length) {
@@ -2898,7 +2904,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           if (cb.getAttribute('data-belum-selesai') === '1') adaBelum = true;
         });
         if (adaBelum) {
-          toast('Item belum selesai laundry. Kosongkan penyelesai untuk buat request, atau pilih item yang sudah selesai.', 'warn');
+          toast('Item belum selesai laundry. Kosongkan petugas antar untuk buat request, atau pilih item yang sudah selesai.', 'warn');
           return;
         }
       }

@@ -225,6 +225,11 @@ class Operasi extends Controller
       $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3") ?? 0;
       $usage = $this->db(0)->sum_col_where('kas', 'jumlah', "id_client = '$id_pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2") ?? 0;
 
+      $customerDeliveryRequests = [];
+      if ($mode == 0 && $id_pelanggan > 0) {
+         $customerDeliveryRequests = (new Delivery())->pendingCustomerRequestsForPelanggan($id_pelanggan);
+      }
+
       $this->view('operasi/view_load', [
          'modeView' => $modeView, 'pelanggan' => $pelanggan, 'data_main' => $data_main2,
          'operasi' => $operasi, 'kas' => $kas, 'notif_bon' => $notifBon, 'notif_selesai' => $notifSelesai,
@@ -233,6 +238,7 @@ class Operasi extends Controller
          'users' => $this->db(0)->get('user', 'id_user'), 'finance_history' => $finance_history,
          'delivery_badge' => $delivery_badge,
          'delivery_done' => $delivery_done,
+         'customer_delivery_requests' => $customerDeliveryRequests,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
       ]);
    }
