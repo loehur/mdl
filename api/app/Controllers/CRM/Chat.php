@@ -1142,7 +1142,7 @@ class Chat extends Controller
                 $this->error('Case Delivery Request mengikuti delivery_request aktif dan tidak bisa di-resolve manual');
             }
             if ($targetCase === 3) {
-                $this->error('Case Permintaan mengikuti wa_permintaan_session aktif dan tidak bisa di-resolve manual — gunakan tombol Selesai di panel Laundry');
+                $this->error('Case Permintaan mengikuti wa_permintaan_session aktif dan tidak bisa di-resolve manual — gunakan tombol Selesai di CRM atau panel Laundry');
             }
             
             $db = $this->db(0);

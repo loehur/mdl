@@ -94,6 +94,38 @@ class PermintaanStore
     }
 
     /**
+     * Tandai permintaan selesai — sama seperti Estimasi/selesaiPermintaan di laundry.
+     *
+     * @param array{phone?:string,wa_number?:string,cust_id?:int,id_pelanggan?:int,user_id?:string} $input
+     * @return array{ok:bool,message?:string,session_closed?:bool,case_closed?:bool,phone?:string}
+     */
+    public static function complete(array $input): array
+    {
+        $idPelanggan = (int) ($input['id_pelanggan'] ?? $input['cust_id'] ?? 0);
+        $waNumber = trim((string) ($input['phone'] ?? $input['wa_number'] ?? ''));
+
+        if ($idPelanggan <= 0 && $waNumber === '') {
+            return ['ok' => false, 'message' => 'wa_number atau cust_id wajib'];
+        }
+
+        $sessionClosed = self::markOpenSessionsFulfilled($idPelanggan, $waNumber);
+        $caseResult = self::closePermintaanCase($idPelanggan, $waNumber, $input['user_id'] ?? null);
+        $caseClosed = !empty($caseResult['closed']);
+
+        if (!$sessionClosed && !$caseClosed) {
+            return ['ok' => false, 'message' => 'Permintaan tidak ditemukan atau sudah selesai'];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'Permintaan ditandai selesai',
+            'session_closed' => $sessionClosed,
+            'case_closed' => $caseClosed,
+            'phone' => (string) ($caseResult['wa_number'] ?? ''),
+        ];
+    }
+
+    /**
      * Ubah isi ringkasan permintaan (field summary saja).
      *
      * @param array{phone?:string,wa_number?:string,cust_id?:int,id_pelanggan?:int,summary:string} $input
@@ -366,6 +398,150 @@ class PermintaanStore
         } catch (\Throwable $e) {
             // conversation opsional — session permintaan tetap dibuat
         }
+    }
+
+    /**
+     * @return array{closed:bool,wa_number:?string,all_closed:bool}
+     */
+    private static function closePermintaanCase(int $idPelanggan, string $waNumber, $userId = null): array
+    {
+        $phoneKey = self::resolvePhoneKeyForLookup($idPelanggan, $waNumber);
+        if ($phoneKey === '') {
+            return ['closed' => false, 'wa_number' => null, 'all_closed' => false];
+        }
+
+        try {
+            $db = DB::getInstance(0);
+            $conv = $db->query(
+                "SELECT id, wa_number, conv_case FROM wa_conversations
+                 WHERE REPLACE(REPLACE(wa_number, '+', ''), ' ', '') = ?
+                 LIMIT 1",
+                [$phoneKey]
+            )->row_array();
+            if (!is_array($conv) || empty($conv['id'])) {
+                return ['closed' => false, 'wa_number' => null, 'all_closed' => false];
+            }
+
+            $caseList = json_decode((string) ($conv['conv_case'] ?? '[]'), true);
+            if (!is_array($caseList)) {
+                $caseList = [];
+            }
+
+            $changed = false;
+            foreach ($caseList as &$item) {
+                if ((int) ($item['case'] ?? 0) === 3 && ($item['status'] ?? 'open') !== 'closed') {
+                    $item['status'] = 'closed';
+                    $changed = true;
+                }
+            }
+            unset($item);
+
+            if (!$changed) {
+                return [
+                    'closed' => false,
+                    'wa_number' => (string) ($conv['wa_number'] ?? ''),
+                    'all_closed' => false,
+                ];
+            }
+
+            $db->query(
+                'UPDATE wa_conversations SET conv_case = ? WHERE id = ?',
+                [json_encode(array_values($caseList), JSON_UNESCAPED_UNICODE), (int) $conv['id']]
+            );
+
+            $hasOpenCases = false;
+            foreach ($caseList as $c) {
+                if (($c['status'] ?? 'open') === 'open') {
+                    $hasOpenCases = true;
+                    break;
+                }
+            }
+
+            $waNumberOut = (string) ($conv['wa_number'] ?? '');
+            if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+                require_once __DIR__ . '/../CRM/CrmChatMergeHelper.php';
+            }
+            \App\Helpers\CRM\CrmChatMergeHelper::pushWebSocket([
+                'type' => 'case_resolved',
+                'phone' => $waNumberOut,
+                'case' => 3,
+                'target_id' => '0',
+                'sender_id' => $userId !== null && $userId !== '' ? (string) $userId : 'crm',
+                'all_closed' => !$hasOpenCases,
+            ]);
+
+            return [
+                'closed' => true,
+                'wa_number' => $waNumberOut,
+                'all_closed' => !$hasOpenCases,
+            ];
+        } catch (\Throwable $e) {
+            return ['closed' => false, 'wa_number' => null, 'all_closed' => false];
+        }
+    }
+
+    private static function markOpenSessionsFulfilled(int $idPelanggan, string $waNumber): bool
+    {
+        $phoneKey = self::resolvePhoneKeyForLookup($idPelanggan, $waNumber);
+        if ($idPelanggan <= 0 && $phoneKey === '') {
+            return false;
+        }
+
+        try {
+            $db = DB::getInstance(0);
+            if ($idPelanggan > 0 && $phoneKey !== '') {
+                $db->query(
+                    "UPDATE wa_permintaan_session
+                     SET status = 'fulfilled', updated_at = NOW()
+                     WHERE status = 'open'
+                       AND notify_expires_at > NOW()
+                       AND (
+                         id_pelanggan = ?
+                         OR REPLACE(REPLACE(phone, '+', ''), ' ', '') = ?
+                       )",
+                    [$idPelanggan, $phoneKey]
+                );
+            } elseif ($idPelanggan > 0) {
+                $db->query(
+                    "UPDATE wa_permintaan_session
+                     SET status = 'fulfilled', updated_at = NOW()
+                     WHERE status = 'open'
+                       AND notify_expires_at > NOW()
+                       AND id_pelanggan = ?",
+                    [$idPelanggan]
+                );
+            } else {
+                $db->query(
+                    "UPDATE wa_permintaan_session
+                     SET status = 'fulfilled', updated_at = NOW()
+                     WHERE status = 'open'
+                       AND notify_expires_at > NOW()
+                       AND REPLACE(REPLACE(phone, '+', ''), ' ', '') = ?",
+                    [$phoneKey]
+                );
+            }
+
+            return $db->affected_rows() > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private static function resolvePhoneKeyForLookup(int $idPelanggan, string $waNumber): string
+    {
+        $phoneKey = self::normalizePhoneKey($waNumber);
+
+        if ($idPelanggan > 0) {
+            $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
+            if ($pel !== null) {
+                $fromPel = self::normalizePhoneKey((string) ($pel['nomor_pelanggan'] ?? ''));
+                if ($fromPel !== '') {
+                    $phoneKey = $phoneKey !== '' ? $phoneKey : $fromPel;
+                }
+            }
+        }
+
+        return $phoneKey;
     }
 
     /**

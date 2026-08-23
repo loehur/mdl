@@ -50,6 +50,7 @@ const createPermintaanMsg = ref("");
 const creatingPermintaan = ref(false);
 const permintaanResultMsg = ref("");
 const permintaanResultOk = ref(false);
+const completingPermintaanPhone = ref("");
 const outboundResultMsg = ref("");
 const outboundResultOk = ref(false);
 const sendingTagihan = ref(false);
@@ -569,6 +570,45 @@ const saveEditPermintaan = async () => {
   }
 };
 
+const completePermintaan = async (item) => {
+  if (!isAdmin.value || !item || completingPermintaanPhone.value) return;
+
+  completingPermintaanPhone.value = item.phone || "__pending__";
+  permintaanResultMsg.value = "";
+  permintaanResultOk.value = false;
+  try {
+    const payload = {};
+    if (item.phone) payload.phone = item.phone;
+    if (custId.value) payload.cust_id = custId.value;
+    else if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+    if (props.authId) payload.user_id = props.authId;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Permintaan/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      permintaanResultOk.value = false;
+      permintaanResultMsg.value = res?.message || "Gagal menandai selesai";
+      return;
+    }
+
+    permintaanOpenItems.value = permintaanOpenItems.value.filter(
+      (it) => (it.phone || "") !== (item.phone || "")
+    );
+    syncConversationCases();
+    permintaanResultOk.value = true;
+    permintaanResultMsg.value = res?.message || "Permintaan ditandai selesai";
+  } catch (_) {
+    permintaanResultOk.value = false;
+    permintaanResultMsg.value = "Gagal menandai selesai";
+  } finally {
+    completingPermintaanPhone.value = "";
+  }
+};
+
 const loadDeliveryAktif = async () => {
   if (!custId.value) {
     deliveryAktifItems.value = [];
@@ -1084,10 +1124,19 @@ onUnmounted(() => {
               <p v-if="item.updated_at" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
                 {{ formatRequestTime(item.updated_at) }}
               </p>
-              <div v-if="isAdmin" class="mt-2">
+              <div v-if="isAdmin" class="mt-2 flex items-center gap-3">
                 <button
                   type="button"
-                  class="text-[11px] font-bold text-[var(--wa-accent-green)]"
+                  class="text-[11px] font-bold text-[var(--wa-accent-green)] disabled:opacity-40"
+                  :disabled="!!completingPermintaanPhone"
+                  @click="completePermintaan(item)"
+                >
+                  {{ completingPermintaanPhone === (item.phone || "__pending__") ? "Menyimpan…" : "Selesai" }}
+                </button>
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-[var(--wa-text-secondary)] disabled:opacity-40"
+                  :disabled="!!completingPermintaanPhone"
                   @click="openEditPermintaan(item)"
                 >
                   Edit
