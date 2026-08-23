@@ -8,6 +8,24 @@ $menu[1] = [
     ],
     [
         'c' => '#',
+        'title' => 'Non Tunai',
+        'icon' => 'fas fa-credit-card',
+        'txt' => 'Non Tunai',
+        'submenu' => [
+            [
+                'c' => '@NonTunaiAdmin/bcaMutasi',
+                'title' => 'BCA Mutasi',
+                'txt' => 'BCA Mutasi'
+            ],
+            [
+                'c' => '@NonTunaiAdmin/bcaQris',
+                'title' => 'BCA QRIS',
+                'txt' => 'BCA QRIS'
+            ],
+        ]
+    ],
+    [
+        'c' => '#',
         'title' => 'Sales Ops',
         'icon' => 'fas fa-shopping-cart',
         'txt' => 'Sales Ops',
