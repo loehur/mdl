@@ -32,9 +32,6 @@ let lastEmitted = { lat: null, lng: null };
 let destroyed = false;
 let searchTimer = null;
 let searchSeq = 0;
-let AutocompleteSessionTokenClass = null;
-let AutocompleteSuggestionClass = null;
-let sessionToken = null;
 
 const roundCoord = (value) => Math.round(Number(value) * 1e7) / 1e7;
 
@@ -128,55 +125,42 @@ const fetchSuggestions = async (query) => {
     searching.value = false;
     return;
   }
-  if (!AutocompleteSuggestionClass || !sessionToken) {
-    geoHint.value = "Pencarian alamat belum siap. Tunggu peta selesai dimuat.";
-    return;
-  }
 
   const seq = ++searchSeq;
   searching.value = true;
   geoHint.value = "";
 
-  const request = {
-    input: q,
-    sessionToken,
-    language: "id",
-    region: "id",
-  };
+  const payload = { input: q };
   const bias = getMapBiasCoords();
   if (bias.lat != null && bias.lng != null) {
-    request.origin = { lat: bias.lat, lng: bias.lng };
+    payload.lat = bias.lat;
+    payload.lng = bias.lng;
   }
 
   try {
-    const { suggestions: rawSuggestions } =
-      await AutocompleteSuggestionClass.fetchAutocompleteSuggestions(request);
+    const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/autocomplete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
 
     if (seq !== searchSeq || destroyed) return;
 
-    const items = [];
-    for (const suggestion of rawSuggestions || []) {
-      const pred = suggestion?.placePrediction;
-      if (!pred) continue;
-      const label = pred.text?.text || String(pred.text || "");
-      if (!label) continue;
-      items.push({
-        id: pred.placeId || label,
-        label,
-        placePrediction: pred,
-      });
-      if (items.length >= 8) break;
+    if (!res?.ok && !res?.status) {
+      suggestions.value = [];
+      geoHint.value = res?.message || "Gagal memuat saran alamat.";
+      return;
     }
 
-    suggestions.value = items;
-    showSuggestions.value = items.length > 0;
-    if (!items.length) {
+    suggestions.value = Array.isArray(res.items) ? res.items : [];
+    showSuggestions.value = suggestions.value.length > 0;
+    if (!suggestions.value.length) {
       geoHint.value = "Tidak ada hasil untuk pencarian ini.";
     }
-  } catch (err) {
+  } catch (_) {
     if (seq !== searchSeq) return;
     suggestions.value = [];
-    geoHint.value = err?.message || "Gagal memuat saran alamat.";
+    geoHint.value = "Gagal memuat saran alamat.";
   } finally {
     if (seq === searchSeq) {
       searching.value = false;
@@ -206,25 +190,31 @@ const closeSuggestions = () => {
 };
 
 const selectSuggestion = async (item) => {
-  if (!item?.placePrediction || selectingPlace.value) return;
+  if (!item?.place_id || selectingPlace.value) return;
   selectingPlace.value = true;
   searchQuery.value = item.label || "";
   closeSuggestions();
   geoHint.value = "";
 
   try {
-    const place = item.placePrediction.toPlace();
-    await place.fetchFields({ fields: ["location", "formattedAddress"] });
-    if (AutocompleteSessionTokenClass) {
-      sessionToken = new AutocompleteSessionTokenClass();
+    const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/placeDetails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place_id: item.place_id }),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      geoHint.value = res?.message || "Gagal memuat detail lokasi.";
+      return;
     }
-    if (place.location) {
-      panToCoords(place.location.lat(), place.location.lng(), SELECT_ZOOM);
+
+    if (res.lat != null && res.lng != null) {
+      panToCoords(res.lat, res.lng, SELECT_ZOOM);
     } else {
       geoHint.value = "Koordinat lokasi tidak ditemukan.";
     }
-  } catch (err) {
-    geoHint.value = err?.message || "Gagal memuat detail lokasi.";
+  } catch (_) {
+    geoHint.value = "Gagal memuat detail lokasi.";
   } finally {
     selectingPlace.value = false;
   }
@@ -266,10 +256,6 @@ const initMap = async () => {
       version: "weekly",
     });
     const { Map } = await loader.importLibrary("maps");
-    const { AutocompleteSessionToken, AutocompleteSuggestion } = await loader.importLibrary("places");
-    AutocompleteSessionTokenClass = AutocompleteSessionToken;
-    AutocompleteSuggestionClass = AutocompleteSuggestion;
-    sessionToken = new AutocompleteSessionTokenClass();
     if (destroyed) return;
 
     const hasCoords = lat.value != null && lng.value != null;
@@ -351,7 +337,7 @@ onUnmounted(() => {
         v-if="showSuggestions && suggestions.length"
         class="absolute left-0 right-0 top-full z-[900] mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
       >
-        <li v-for="item in suggestions" :key="item.id">
+        <li v-for="item in suggestions" :key="item.place_id">
           <button
             type="button"
             class="w-full px-3 py-2.5 text-left text-sm text-[var(--wa-text-primary)] hover:bg-[var(--wa-bg-secondary)]"
