@@ -430,7 +430,13 @@ const crewPolish = async () => {
     crewPolishSapaan.value = res?.sapaan || "";
     crewPolishToken.value = res?.polish_token || "";
 
-    if (res?.status || res?.ok) {
+    if (!res?.ok && res?.message) {
+      crewPolishReason.value = res.message;
+      crewPolishApproved.value = false;
+      return;
+    }
+
+    if (res?.status) {
       crewPolishPreview.value = res?.new_words || "";
       crewPolishApproved.value = !!crewPolishPreview.value && !!crewPolishToken.value;
       crewPolishReason.value = "";

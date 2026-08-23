@@ -72,11 +72,23 @@ class CrewChatHelper
         $polishToken = '';
         if (!empty($result['status']) && !empty($result['new_words'])) {
             $approvedText = (string) $result['new_words'];
-            self::storePolishApproval($phone, $approvedText);
-            $polishToken = self::createPolishToken($phone, $approvedText);
+            try {
+                self::storePolishApproval($phone, $approvedText);
+                $polishToken = self::createPolishToken($phone, $approvedText);
+            } catch (\Throwable $e) {
+                return [
+                    'ok' => false,
+                    'message' => 'Gagal membuat token persetujuan: ' . $e->getMessage(),
+                ];
+            }
+            if ($polishToken === '') {
+                return [
+                    'ok' => false,
+                    'message' => 'Gagal membuat token persetujuan pesan',
+                ];
+            }
         } else {
             self::clearPolishApproval($phone);
-            $polishToken = '';
         }
 
         return [
@@ -348,8 +360,8 @@ class CrewChatHelper
 
     private static function polishTokenSecret(): string
     {
-        if (class_exists('Env', false) && defined('Env::CRON_SECRET')) {
-            return (string) Env::CRON_SECRET;
+        if (class_exists('\\Env', false)) {
+            return (string) \Env::CRON_SECRET;
         }
 
         return 'mdl_crm_crew_polish';

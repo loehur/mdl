@@ -1867,8 +1867,8 @@ class Chat extends Controller
         }
 
         $this->json([
+            'ok' => true,
             'status' => !empty($res['status']),
-            'ok' => !empty($res['status']),
             'new_words' => $res['new_words'] ?? '',
             'reason' => $res['reason'] ?? '',
             'sapaan' => $res['sapaan'] ?? '',
