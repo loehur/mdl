@@ -8,7 +8,7 @@ namespace App\Helpers;
 class BcaMutasiMatcher
 {
     /**
-     * Cari mutasi CR unlinked — nominal ±CRON_NOMINAL_TOLERANCE, ambil selisih terkecil.
+     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE jika mutasi genap ribuan.
      * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
      * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
@@ -26,8 +26,14 @@ class BcaMutasiMatcher
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
                AND m.mutasi = ?
-               AND m.nominal >= ?
-               AND m.nominal <= ?
+               AND (
+                 m.nominal = ?
+                 OR (
+                   MOD(m.nominal, 1000) = 0
+                   AND m.nominal >= ?
+                   AND m.nominal <= ?
+                 )
+               )
                AND (
                  (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)
                  OR (
@@ -44,6 +50,7 @@ class BcaMutasiMatcher
              LIMIT 1',
             [
                 'CR',
+                $nominal,
                 $bounds['min'],
                 $bounds['max'],
                 $startYmd,

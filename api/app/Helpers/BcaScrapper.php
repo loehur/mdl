@@ -333,6 +333,7 @@ class BcaScrapper
 
     /**
      * Batas bawah/atas nominal untuk matching cron (±CRON_NOMINAL_TOLERANCE).
+     * Hanya dipakai jika nominal mutasi/QRIS genap ribuan (MOD 1000 = 0).
      *
      * @return array{min:string,max:string}
      */
@@ -345,6 +346,16 @@ class BcaScrapper
             'min' => number_format(max(0, $n - $tol), 2, '.', ''),
             'max' => number_format($n + $tol, 2, '.', ''),
         ];
+    }
+
+    /**
+     * Nominal genap ribuan (akhiran 000) — eligible toleransi cron ±CRON_NOMINAL_TOLERANCE.
+     */
+    public static function isRoundThousandNominal($nominal): bool
+    {
+        $n = (float) self::formatNominal($nominal);
+
+        return fmod($n, 1000.0) === 0.0;
     }
 
     /**
