@@ -1870,7 +1870,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     border-radius: 0 !important;
   }
   #offcanvasKurir .offcanvas-header {
-    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+    background: linear-gradient(105deg, #6d28d9 0%, #9333ea 100%);
     color: #fff;
     border-bottom: 0;
     padding: 1rem 1.15rem;
@@ -1881,7 +1881,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     margin: 0;
   }
   #offcanvasKurir .offcanvas-body {
-    background: linear-gradient(180deg, #eef4ff 0%, #f8fafc 55%, #fff 100%);
+    background: linear-gradient(180deg, #f5f3ff 0%, #faf5ff 55%, #fff 100%);
   }
   #offcanvasKurir .kurir-field { margin-bottom: 12px; }
   #offcanvasKurir .kurir-label {
@@ -1929,7 +1929,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     font-size: 0.78rem;
     font-weight: 700;
   }
-  #offcanvasKurir .kurir-item:hover { background: #eff6ff; }
+  #offcanvasKurir .kurir-item:hover { background: #f5f3ff; }
   #offcanvasKurir .kurir-item.is-locked { opacity: 0.55; cursor: not-allowed; }
   #offcanvasKurir .kurir-item__meta { font-size: 0.68rem; color: #64748b; font-weight: 700; }
   #offcanvasKurir .kurir-actions {
@@ -1950,7 +1950,7 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   }
   #offcanvasKurir .kurir-btn--ghost { background: #e2e8f0; color: #0f172a; }
   #offcanvasKurir .kurir-btn--go {
-    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    background: linear-gradient(180deg, #9333ea, #7c3aed);
     color: #fff;
   }
   #offcanvasKurir .kurir-btn:disabled { opacity: 0.55; cursor: wait; }

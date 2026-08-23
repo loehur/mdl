@@ -355,8 +355,9 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
     color: #fff;
   }
   #fabOperasiButtons .operasi-fab--kurir {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
     color: #fff;
+    box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35);
   }
   #offcanvasBukaOrderOp,
   #offcanvasPayment,

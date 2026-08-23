@@ -31,7 +31,8 @@ if (empty($customerDeliveryRequests) || (int) ($data['modeView'] ?? 0) === 2) {
     width: 100%;
     height: 100%;
     padding: 8px 10px;
-    border: 1px solid #93c5fd;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-top: 4px solid #7c3aed;
     background: #fff;
     min-width: 0;
     box-sizing: border-box;
@@ -39,6 +40,7 @@ if (empty($customerDeliveryRequests) || (int) ($data['modeView'] ?? 0) === 2) {
   }
   #op-dlv-root .dlv-item--request {
     border-color: rgba(15, 23, 42, 0.08);
+    border-top-color: #7c3aed;
   }
   #op-dlv-root .dlv-item__text { min-width: 0; flex: 1; }
   #op-dlv-root .dlv-item__title {
