@@ -63,8 +63,22 @@ class Env
     const MAPS_SERVER_TOKEN = ''; // sama dengan MAPS_SERVER_TOKEN di node/maps_server/.env (opsional)
 
     // Google Maps — WAJIB dua key berbeda:
-    // GOOGLE_MAPS_API_KEY      → browser/peta CRM (HTTP referrers: ml.nalju.com/*, localhost/*)
-    // GOOGLE_MAPS_SERVER_KEY   → autocomplete server (IP: 194.233.94.47, Places API New)
+    // Google Maps — 2 key terpisah (Google Cloud Console, project yang sama):
+    //
+    // GOOGLE_MAPS_API_KEY (browser / peta di CRM)
+    //   Application: HTTP referrers
+    //     https://api.nalju.com/*
+    //     https://*.nalju.com/*
+    //     http://localhost/*
+    //   API restrictions (Restrict key):
+    //     Maps JavaScript API
+    //     Map Tiles API
+    //   Library harus ENABLED di project: Maps JavaScript API + Map Tiles API
+    //
+    // GOOGLE_MAPS_SERVER_KEY (autocomplete REST dari VPS)
+    //   Application: IP addresses → IP VPS (mis. 194.233.94.47)
+    //   API restrictions: Places API (New)
+    //
     const GOOGLE_MAPS_API_KEY = '';
     const GOOGLE_MAPS_SERVER_KEY = '';
 

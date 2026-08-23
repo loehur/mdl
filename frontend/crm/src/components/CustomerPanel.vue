@@ -1258,10 +1258,10 @@ onUnmounted(() => {
     >
       <div class="absolute inset-0 bg-black/50"></div>
       <div
-        class="relative w-full max-w-lg bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5 max-h-[90vh] overflow-y-auto"
+        class="relative w-full max-w-5xl bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto"
         @click.stop
       >
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-4 sm:mb-5">
           <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">
             {{ isEditLokasi ? "Edit Lokasi" : "Tambah Lokasi" }}
           </h3>
@@ -1276,46 +1276,56 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs text-[var(--wa-text-tertiary)]">Nama lokasi</label>
-            <input
-              v-model="formNama"
-              type="text"
-              maxlength="50"
-              placeholder="Rumah / Kos / Kantor"
-              class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Nama lokasi</label>
+              <input
+                v-model="formNama"
+                type="text"
+                maxlength="50"
+                placeholder="Rumah / Kos / Kantor"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Detail alamat</label>
+              <textarea
+                v-model="formDetail"
+                rows="4"
+                maxlength="255"
+                placeholder="Ciri / patokan / nomor rumah"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+              ></textarea>
+            </div>
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
+              <input
+                v-model="formGmaps"
+                type="url"
+                placeholder="https://maps.app.goo.gl/…"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+                @blur="resolveGmaps"
+              />
+              <p v-if="resolvingMaps" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Membaca koordinat…</p>
+              <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+                Opsional. Paste link jika tidak memakai pencarian/geser peta di sebelah kanan.
+              </p>
+            </div>
+          </div>
+
+          <div class="min-h-0">
+            <LocationMapPicker
+              v-model:lat="formLatt"
+              v-model:lng="formLongt"
+              :api-base="props.apiBase"
+              map-height-class="h-[280px] lg:h-[420px]"
             />
           </div>
-          <div>
-            <label class="text-xs text-[var(--wa-text-tertiary)]">Detail alamat</label>
-            <textarea
-              v-model="formDetail"
-              rows="3"
-              maxlength="255"
-              placeholder="Ciri / patokan / nomor rumah"
-              class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
-            ></textarea>
-          </div>
-          <div>
-            <LocationMapPicker v-model:lat="formLatt" v-model:lng="formLongt" :api-base="props.apiBase" />
-          </div>
-          <div>
-            <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
-            <input
-              v-model="formGmaps"
-              type="url"
-              placeholder="https://maps.app.goo.gl/…"
-              class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
-              @blur="resolveGmaps"
-            />
-            <p v-if="resolvingMaps" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Membaca koordinat…</p>
-            <p v-else class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
-              Opsional. Paste link jika tidak memakai pencarian/geser peta di atas.
-            </p>
-          </div>
-          <p v-if="formMsg" class="text-xs text-red-400">{{ formMsg }}</p>
-          <div class="flex gap-2 pt-1">
+        </div>
+
+        <p v-if="formMsg" class="text-xs text-red-400 mt-4">{{ formMsg }}</p>
+        <div class="flex gap-2 pt-4 mt-1">
             <button
               type="button"
               class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
@@ -1332,7 +1342,6 @@ onUnmounted(() => {
               {{ savingLokasi ? "Menyimpan…" : "Simpan" }}
             </button>
           </div>
-        </div>
       </div>
     </div>
   </Teleport>

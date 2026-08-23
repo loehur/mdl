@@ -12,6 +12,7 @@ use App\Helpers\GoogleMapsPlaces;
  * - GET  /Laundry/MapsConfig/get
  * - POST /Laundry/MapsConfig/autocomplete
  * - POST /Laundry/MapsConfig/placeDetails
+ * - GET  /Laundry/MapsConfig/diagnose
  */
 class MapsConfig extends Controller
 {
@@ -62,6 +63,78 @@ class MapsConfig extends Controller
         $body = $this->mergedInput();
         $placeId = trim((string) ($body['place_id'] ?? ''));
         $this->reply(GoogleMapsPlaces::placeDetails($placeId));
+    }
+
+    /** GET — cek konfigurasi key browser/server (admin/debug). */
+    public function diagnose()
+    {
+        $this->jsonHeader();
+
+        $browserKey = GoogleMaps::getApiKey();
+        $serverKey = GoogleMaps::getServerApiKey();
+        if ($browserKey === '') {
+            $this->fail('GOOGLE_MAPS_API_KEY kosong di Env.php', 503);
+            return;
+        }
+
+        $auto = GoogleMapsPlaces::autocomplete('fullhouse', -6.2, 106.8);
+        $mapsJs = $this->probeMapsJs($browserKey);
+
+        echo json_encode([
+            'ok' => true,
+            'status' => true,
+            'browser_key_suffix' => substr($browserKey, -6),
+            'server_key_suffix' => $serverKey !== '' ? substr($serverKey, -6) : '',
+            'keys_are_same' => $browserKey === $serverKey,
+            'crm_referrer' => 'https://api.nalju.com/public/crm/',
+            'maps_js_probe' => $mapsJs,
+            'autocomplete_probe' => [
+                'ok' => !empty($auto['ok']),
+                'items' => isset($auto['items']) ? count($auto['items']) : 0,
+                'message' => (string) ($auto['message'] ?? ''),
+            ],
+            'checklist_browser_key' => [
+                'Application restriction: HTTP referrers → https://api.nalju.com/* dan https://*.nalju.com/*',
+                'API restrictions: Maps JavaScript API + Map Tiles API (atau sementara None untuk uji)',
+                'Library enabled di project key yang sama: Maps JavaScript API, Map Tiles API',
+                'Billing account aktif di project tersebut',
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function probeMapsJs(string $apiKey): array
+    {
+        $url = 'https://maps.googleapis.com/maps/api/js?key=' . rawurlencode($apiKey) . '&v=weekly';
+        $ch = curl_init($url);
+        if ($ch === false) {
+            return ['ok' => false, 'message' => 'curl init gagal'];
+        }
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_HTTPHEADER => [
+                'Referer: https://api.nalju.com/public/crm/',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if (!is_string($body) || $body === '') {
+            return ['ok' => false, 'http' => $code, 'message' => 'response kosong'];
+        }
+        foreach (['ApiNotActivatedMapError', 'RefererNotAllowedMapError', 'InvalidKeyMapError'] as $err) {
+            if (stripos($body, $err) !== false) {
+                return ['ok' => false, 'http' => $code, 'message' => $err];
+            }
+        }
+        return [
+            'ok' => stripos($body, 'google.maps') !== false,
+            'http' => $code,
+            'bytes' => strlen($body),
+        ];
     }
 
     private function jsonHeader(): void

@@ -7,6 +7,7 @@ const lng = defineModel("lng", { type: Number, default: null });
 
 const props = defineProps({
   apiBase: { type: String, required: true },
+  mapHeightClass: { type: String, default: "h-[280px]" },
 });
 
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
@@ -144,7 +145,7 @@ const fetchSuggestions = async (query) => {
       body: JSON.stringify(payload),
     }).then((r) => r.json());
 
-    if (seq !== searchSeq || destroyed) return;
+    if (seq !== searchSeq || destroyed || selectingPlace.value) return;
 
     if (!res?.ok && !res?.status) {
       suggestions.value = [];
@@ -153,6 +154,7 @@ const fetchSuggestions = async (query) => {
     }
 
     suggestions.value = Array.isArray(res.items) ? res.items : [];
+    if (selectingPlace.value) return;
     showSuggestions.value = suggestions.value.length > 0;
     if (!suggestions.value.length) {
       geoHint.value = "Tidak ada hasil untuk pencarian ini.";
@@ -187,13 +189,24 @@ const onSearchInput = () => {
 
 const closeSuggestions = () => {
   showSuggestions.value = false;
+  suggestions.value = [];
+};
+
+const dismissSuggestions = () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+  searchSeq++;
+  searching.value = false;
+  closeSuggestions();
 };
 
 const selectSuggestion = async (item) => {
   if (!item?.place_id || selectingPlace.value) return;
   selectingPlace.value = true;
   searchQuery.value = item.label || "";
-  closeSuggestions();
+  dismissSuggestions();
   geoHint.value = "";
 
   try {
@@ -229,6 +242,11 @@ const onDocumentClick = (event) => {
 const initMap = async () => {
   if (!mapEl.value) return;
 
+  window.gm_authFailure = () => {
+    error.value =
+      "Google Maps menolak API key browser. Aktifkan Maps JavaScript API + Map Tiles API di project key browser, dan tambahkan referrer https://api.nalju.com/*";
+  };
+
   let apiKey = "";
   try {
     const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/get`).then((r) => r.json());
@@ -254,9 +272,13 @@ const initMap = async () => {
     const loader = new Loader({
       apiKey,
       version: "weekly",
+      language: "id",
+      region: "ID",
+      authReferrerPolicy: "origin",
     });
-    const { Map } = await loader.importLibrary("maps");
+    await loader.load();
     if (destroyed) return;
+    const { Map } = google.maps;
 
     const hasCoords = lat.value != null && lng.value != null;
     const start = await resolveStartCenter(hasCoords);
@@ -283,7 +305,11 @@ const initMap = async () => {
       readCenterCoords();
     }
   } catch (err) {
-    error.value = err?.message || "Gagal memuat Google Maps.";
+    error.value =
+      (err?.message || "Gagal memuat Google Maps.") +
+      " Cek: " +
+      props.apiBase +
+      "/Laundry/MapsConfig/diagnose";
   } finally {
     loading.value = false;
   }
@@ -306,6 +332,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   destroyed = true;
+  if (window.gm_authFailure) {
+    delete window.gm_authFailure;
+  }
   document.removeEventListener("click", onDocumentClick);
   if (searchTimer) {
     clearTimeout(searchTimer);
@@ -331,16 +360,18 @@ onUnmounted(() => {
         autocomplete="off"
         @input="onSearchInput"
         @focus="onSearchInput"
+        @keydown.escape="dismissSuggestions"
       />
       <p v-if="searching" class="mt-1 text-[11px] text-[var(--wa-text-tertiary)]">Mencari…</p>
       <ul
         v-if="showSuggestions && suggestions.length"
-        class="absolute left-0 right-0 top-full z-[900] mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
+        class="absolute left-0 right-0 bottom-full z-[900] mb-1 max-h-36 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
       >
         <li v-for="item in suggestions" :key="item.place_id">
           <button
             type="button"
             class="w-full px-3 py-2.5 text-left text-sm text-[var(--wa-text-primary)] hover:bg-[var(--wa-bg-secondary)]"
+            @mousedown.prevent
             @click="selectSuggestion(item)"
           >
             {{ item.label }}
@@ -351,7 +382,7 @@ onUnmounted(() => {
 
     <label class="text-xs text-[var(--wa-text-tertiary)]">Titik lokasi di peta</label>
     <div class="relative rounded-lg overflow-hidden border border-[var(--wa-border)]">
-      <div ref="mapEl" class="h-[280px] w-full bg-[var(--wa-bg-secondary)]"></div>
+      <div ref="mapEl" class="w-full bg-[var(--wa-bg-secondary)]" :class="mapHeightClass"></div>
       <div
         class="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
         aria-hidden="true"
