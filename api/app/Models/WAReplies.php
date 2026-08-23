@@ -805,6 +805,9 @@ class WAReplies
         if (in_array($h, $allow, true)) {
             return true;
         }
+        if ($h === 'PENUTUP') {
+            return true;
+        }
 
         return $this->intentIsStaffTarget($handler);
     }
@@ -1582,14 +1585,23 @@ class WAReplies
         if (strtoupper($handler) !== 'PENUTUP') {
             return false;
         }
-        if ($this->messageLooksLikePaymentConfirmationPenutup($textBody)) {
-            return false;
-        }
-        if ($this->messageLooksLikeThanksPenutup($textBody)) {
+        if ($this->penutupShouldAutoreplyThanksOrPayment($textBody)) {
             return false;
         }
 
         return true;
+    }
+
+    /** Ucapan thanks / konfirmasi bayar — selalu balas (lewati human-active & rate limit). */
+    private function penutupShouldAutoreplyThanksOrPayment(?string $textBody): bool
+    {
+        if ($textBody === null || trim($textBody) === '') {
+            return false;
+        }
+        $norm = $this->normalizeTextBodyForRegex($textBody);
+
+        return $this->messageLooksLikeThanksPenutup($norm)
+            || $this->messageLooksLikePaymentConfirmationPenutup($norm);
     }
 
     /** PEMBUKA skip sapaan karena chat masih hangat — jangan catat cooldown 30 menit. */
@@ -1795,7 +1807,7 @@ class WAReplies
         }
         $t = trim($text);
 
-        // (1) Terima kasih (termasuk typo: trima ksih, dll.)
+        // (1) Terima kasih (termasuk typo: trima ksih, mksh kk, dll.)
         if ($this->messageLooksLikeThanksPenutup($t)) {
             return true;
         }
@@ -2787,6 +2799,7 @@ class WAReplies
                     // Rate limit: cek saja; catat log setelah handler sukses dijalankan
                     // Case CRM (simbol kuning case 2, dll.) tetap dibentuk meski autoreply di-skip
                     if (!$this->handlerSkipsAutoreplyRateLimit($handler)
+                        && !($handler === 'PENUTUP' && $this->penutupShouldAutoreplyThanksOrPayment($textBody))
                         && $this->isInAutoreplyCooldown($waNumber, $handler)) {
                         $this->logAutoreplyTrace($waNumber, 'EXIT', 'regex_rate_limit handler=' . $handler);
                         $conversationId = $this->getOrCreateConversationWithCase(
@@ -3131,6 +3144,7 @@ class WAReplies
             // Rate limit check for AI intent
             // ========================================
             if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
+                && !($aiIntent === 'PENUTUP' && $this->penutupShouldAutoreplyThanksOrPayment($textBody))
                 && $this->isInAutoreplyCooldown($waNumber, $aiIntent)) {
                 $this->logAutoreplyTrace($waNumber, 'EXIT', 'ai_rate_limit intent=' . $aiIntent);
                 // Rate limited - tetap tulis case ke CRM (jangan null), skip auto-reply saja
@@ -3766,8 +3780,11 @@ class WAReplies
      */
     private function handlePenutup($phoneIn, $waNumber, $textBody = '')
     {
+        $textNorm = $this->normalizeTextBodyForRegex((string) ($textBody ?? ''));
+        $shouldReplyThanksOrPayment = $this->penutupShouldAutoreplyThanksOrPayment($textBody);
+
         $inHours = $this->isOperatingHours();
-        if (!$inHours) {
+        if (!$inHours && !$shouldReplyThanksOrPayment) {
             if ($this->intentLabMode) {
                 $this->logAutoreplyTrace($waNumber, 'LAB_NOTE', 'live would skip: di luar jam operasional');
             } else {
@@ -3776,27 +3793,25 @@ class WAReplies
             }
         }
 
-        $textTrimmed = trim($textBody ?? '');
-
         $ctx = $this->getGreetingContext($waNumber);
         $sapaan = $ctx['sapaan'];
 
         // (2) Sudah bayar/lunas — prioritas di atas thanks (pesan campur sering ada makasih)
-        if ($this->messageLooksLikePaymentConfirmationPenutup($textBody)) {
+        if ($this->messageLooksLikePaymentConfirmationPenutup($textNorm)) {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=payment');
             $this->sendAutoreplyText($waNumber, $this->pickPenutupPaymentReply($sapaan));
             return;
         }
 
         // (1) Ucapan terima kasih
-        if ($this->messageLooksLikeThanksPenutup($textBody)) {
+        if ($this->messageLooksLikeThanksPenutup($textNorm)) {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'penutup_subtype=thanks');
             $this->sendAutoreplyText($waNumber, $this->pickPenutupThanksReply($sapaan));
             return;
         }
 
         // (3) Lainnya: ok/siap/sticker/emoji/ack — tidak balas
-        $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_subtype=other_no_reply len=' . mb_strlen($textTrimmed));
+        $this->logAutoreplyTrace($waNumber, 'EXIT', 'penutup_subtype=other_no_reply len=' . mb_strlen($textNorm));
     }
 
     /**
