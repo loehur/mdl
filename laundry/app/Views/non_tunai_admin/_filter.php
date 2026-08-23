@@ -60,6 +60,16 @@ $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
       border-color: var(--nta-line);
       vertical-align: middle;
     }
+    #nta-root table.nta-table th:nth-child(1),
+    #nta-root table.nta-table td:nth-child(1),
+    #nta-root table.nta-table th:nth-child(3),
+    #nta-root table.nta-table td:nth-child(3) {
+      text-align: right;
+    }
+    #nta-root table.nta-table td:nth-child(3) .nta-nominal-pair {
+      justify-content: flex-end;
+      width: 100%;
+    }
     #nta-root .nta-empty {
       text-align: center;
       padding: 36px 16px;
