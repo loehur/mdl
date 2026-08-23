@@ -137,12 +137,7 @@ class Chat extends Controller
 
             $conversations = $query->result();
 
-            $activeDeliveryByCustId = $this->fetchActiveDeliveryMap($db, array_map(
-                static function ($conv) {
-                    return (int) ($conv->cust_id ?? 0);
-                },
-                $conversations
-            ));
+            $activeDeliveryFlags = $this->fetchActiveDeliveryMap($conversations);
 
             $activePermintaanByPhone = $this->fetchActivePermintaanMap($db, array_map(
                 static function ($conv) {
@@ -200,7 +195,7 @@ class Chat extends Controller
                 $conv->unread_count = CrmChatMergeHelper::countUnreadForPhone($db, (string) ($conv->wa_number ?? ''));
 
                 $caseList = $this->normalizeCaseList($conv->conv_case ?? null);
-                $hasActiveDelivery = !empty($activeDeliveryByCustId[(int) ($conv->cust_id ?? 0)]);
+                $hasActiveDelivery = $this->conversationHasActiveDelivery($conv, $activeDeliveryFlags);
                 $caseList = $this->mergeDeliveryCase($caseList, $hasActiveDelivery);
                 $hasActivePermintaan = !empty($activePermintaanByPhone[
                     $this->normalizePermintaanPhoneKey((string) ($conv->wa_number ?? ''))
@@ -316,38 +311,92 @@ class Chat extends Controller
         return array_values($filtered);
     }
 
-    private function fetchActiveDeliveryMap($db, array $custIds): array
+    /**
+     * delivery_request aktif (berjalan / menunggu pembayaran) di mdl_laundry (db 1).
+     * @return array{by_pelanggan: array<int,true>, by_phone: array<string,true>}
+     */
+    private function fetchActiveDeliveryMap(array $conversations): array
     {
-        $custIds = array_values(array_unique(array_filter(array_map('intval', $custIds))));
-        if ($custIds === []) {
-            return [];
-        }
-
-        // delivery_request ada di mdl_laundry (db index 1), bukan mdl_main (db index 0)
-        $dbLaundry = $this->db(1);
-        $placeholders = implode(',', array_fill(0, count($custIds), '?'));
-        try {
-            $rows = $dbLaundry->query(
-                "SELECT cust_id
-                 FROM delivery_request
-                 WHERE cust_id IN ($placeholders)
-                   AND delivery_status IN ('berjalan','menunggu_pembayaran')
-                 GROUP BY cust_id",
-                $custIds
-            )->result_array();
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        $map = [];
-        foreach ($rows as $row) {
-            $custId = (int) ($row['cust_id'] ?? 0);
-            if ($custId > 0) {
-                $map[$custId] = true;
+        $pelIds = [];
+        $phoneKeys = [];
+        foreach ($conversations as $conv) {
+            $id = (int) ($conv->cust_id ?? 0);
+            if ($id > 0) {
+                $pelIds[$id] = true;
+            }
+            $pk = $this->deliveryPhoneKey((string) ($conv->wa_number ?? ''));
+            if ($pk !== '') {
+                $phoneKeys[$pk] = true;
             }
         }
 
-        return $map;
+        if ($pelIds === [] && $phoneKeys === []) {
+            return ['by_pelanggan' => [], 'by_phone' => []];
+        }
+
+        $dbLaundry = $this->db(1);
+        $clauses = [];
+        $params = [];
+
+        if ($pelIds !== []) {
+            $ids = array_keys($pelIds);
+            $clauses[] = 'id_pelanggan IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            foreach ($ids as $id) {
+                $params[] = (int) $id;
+            }
+        }
+        if ($phoneKeys !== []) {
+            $phones = array_keys($phoneKeys);
+            $clauses[] = 'phone_tail IN (' . implode(',', array_fill(0, count($phones), '?')) . ')';
+            foreach ($phones as $p) {
+                $params[] = $p;
+            }
+        }
+
+        try {
+            $rows = $dbLaundry->query(
+                "SELECT id_pelanggan, phone_tail
+                 FROM delivery_request
+                 WHERE delivery_status IN ('berjalan','menunggu_pembayaran')
+                   AND (" . implode(' OR ', $clauses) . ")
+                 GROUP BY id_pelanggan, phone_tail",
+                $params
+            )->result_array();
+        } catch (\Throwable $e) {
+            return ['by_pelanggan' => [], 'by_phone' => []];
+        }
+
+        $byPelanggan = [];
+        $byPhone = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id_pelanggan'] ?? 0);
+            if ($id > 0) {
+                $byPelanggan[$id] = true;
+            }
+            $tail = trim((string) ($row['phone_tail'] ?? ''));
+            if ($tail !== '') {
+                $byPhone[$tail] = true;
+            }
+        }
+
+        return ['by_pelanggan' => $byPelanggan, 'by_phone' => $byPhone];
+    }
+
+    /** Nomor nasional 852… — sama seperti delivery_request.phone_tail / WaSenderContext::key. */
+    private function deliveryPhoneKey(?string $phone): string
+    {
+        $key = WaSenderContext::key((string) $phone);
+        return $key !== '' ? $key : '';
+    }
+
+    private function conversationHasActiveDelivery(object $conv, array $flags): bool
+    {
+        $id = (int) ($conv->cust_id ?? 0);
+        if ($id > 0 && !empty($flags['by_pelanggan'][$id])) {
+            return true;
+        }
+        $pk = $this->deliveryPhoneKey((string) ($conv->wa_number ?? ''));
+        return $pk !== '' && !empty($flags['by_phone'][$pk]);
     }
 
     /**

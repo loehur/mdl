@@ -133,7 +133,7 @@ class Estimasi extends Controller
     }
 
     /**
-     * Tandai permintaan pelanggan sudah ditangani: set status='closed' di wa_permintaan_session
+     * Tandai permintaan pelanggan sudah ditangani: set status='fulfilled' di wa_permintaan_session
      * dan resolve case 3 di wa_conversations.
      * POST: phone
      */
@@ -154,19 +154,37 @@ class Estimasi extends Controller
         try {
             $db = $this->db(100);
             $phoneEsc = $db->escape($phone);
+            $nomor = $this->phoneKey($phone);
+            $phoneWhere = "phone = '" . $phoneEsc . "'";
+            if ($nomor !== '') {
+                $phoneWhere = '(' . $phoneWhere . ' OR ' . $this->phoneLikeSql($nomor, 'phone') . ')';
+            }
 
             // Tutup semua record terbuka untuk nomor ini
-            $db->query(
-                "UPDATE wa_permintaan_session SET status = 'closed'
-                 WHERE (" . $this->permintaanNotifyOpenWhereSql() . ")
-                   AND (phone = '" . $phoneEsc . "')"
+            $updateResult = $db->update(
+                'wa_permintaan_session',
+                ['status' => 'fulfilled'],
+                '(' . $this->permintaanNotifyOpenWhereSql() . ') AND (' . $phoneWhere . ')'
             );
+            $sessionClosed = (int) ($updateResult['affected_rows'] ?? 0) > 0;
 
             // Resolve case 3 di wa_conversations (jika ada)
-            $conv = $db->get_where_row(
-                'wa_conversations',
-                "wa_number = '" . $phoneEsc . "'"
-            );
+            $conv = null;
+            if ($nomor !== '') {
+                $convRows = $db->query_array(
+                    "SELECT id, wa_number, conv_case FROM wa_conversations
+                     WHERE " . $this->waNumberLikeSql($nomor) . "
+                     LIMIT 1"
+                );
+                $conv = is_array($convRows[0] ?? null) ? $convRows[0] : null;
+            }
+            if (!$conv) {
+                $conv = $db->get_where_row(
+                    'wa_conversations',
+                    "wa_number = '" . $phoneEsc . "'"
+                );
+            }
+            $caseClosed = false;
             if (!empty($conv['id'])) {
                 $cases = json_decode($conv['conv_case'] ?? '[]', true);
                 $changed = false;
@@ -185,6 +203,7 @@ class Estimasi extends Controller
                         ['conv_case' => json_encode($cases)],
                         "id = " . (int) $conv['id']
                     );
+                    $caseClosed = true;
                     $this->pushToWebSocket([
                         'type'      => 'case_resolved',
                         'phone'     => $conv['wa_number'],
@@ -193,6 +212,11 @@ class Estimasi extends Controller
                         'sender_id' => $_SESSION[URL::SESSID]['user']['id_user'] ?? 'system',
                     ]);
                 }
+            }
+
+            if (!$sessionClosed && !$caseClosed) {
+                $this->echoJson(['ok' => 0, 'msg' => 'Permintaan tidak ditemukan atau sudah selesai']);
+                return;
             }
 
             $count = $this->syncNotifTaskCount();
