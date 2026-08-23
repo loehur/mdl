@@ -14,16 +14,24 @@ const DEFAULT_ZOOM = 15;
 const SELECT_ZOOM = 17;
 
 const mapEl = ref(null);
-const autocompleteHost = ref(null);
+const searchWrap = ref(null);
+const searchQuery = ref("");
+const suggestions = ref([]);
+const showSuggestions = ref(false);
+const searching = ref(false);
+const selectingPlace = ref(false);
 const loading = ref(true);
+const locatingUser = ref(false);
 const error = ref("");
+const geoHint = ref("");
 
 let mapInstance = null;
 let idleListener = null;
-let autocompleteEl = null;
 let suppressIdle = false;
 let lastEmitted = { lat: null, lng: null };
 let destroyed = false;
+let searchTimer = null;
+let searchSeq = 0;
 
 const roundCoord = (value) => Math.round(Number(value) * 1e7) / 1e7;
 
@@ -55,8 +63,165 @@ const panToCoords = (nextLat, nextLng, zoom = null) => {
   }, 350);
 };
 
+const getUserLocation = () =>
+  new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("unsupported"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  });
+
+const goToMyLocation = async () => {
+  if (!mapInstance || locatingUser.value) return;
+  locatingUser.value = true;
+  geoHint.value = "";
+  try {
+    const pos = await getUserLocation();
+    panToCoords(pos.lat, pos.lng, SELECT_ZOOM);
+  } catch (_) {
+    geoHint.value = "Tidak bisa mengakses lokasi perangkat. Izinkan akses lokasi/GPS di browser.";
+  } finally {
+    locatingUser.value = false;
+  }
+};
+
+const resolveStartCenter = async (hasCoords) => {
+  if (hasCoords) {
+    return { lat: lat.value, lng: lng.value, fromDevice: false };
+  }
+  try {
+    const pos = await getUserLocation();
+    return { ...pos, fromDevice: true };
+  } catch (_) {
+    geoHint.value = "Lokasi perangkat tidak tersedia. Peta dimulai dari Jakarta — gunakan tombol lokasi atau cari alamat.";
+    return { ...DEFAULT_CENTER, fromDevice: false };
+  }
+};
+
+const getMapBiasCoords = () => {
+  if (!mapInstance) {
+    return { lat: lat.value, lng: lng.value };
+  }
+  const center = mapInstance.getCenter();
+  if (!center) {
+    return { lat: lat.value, lng: lng.value };
+  }
+  return { lat: center.lat(), lng: center.lng() };
+};
+
+const fetchSuggestions = async (query) => {
+  const q = query.trim();
+  if (q.length < 2) {
+    suggestions.value = [];
+    searching.value = false;
+    return;
+  }
+
+  const seq = ++searchSeq;
+  searching.value = true;
+  const bias = getMapBiasCoords();
+  const payload = { input: q };
+  if (bias.lat != null && bias.lng != null) {
+    payload.lat = bias.lat;
+    payload.lng = bias.lng;
+  }
+
+  try {
+    const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/autocomplete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (seq !== searchSeq || destroyed) return;
+
+    if (!res?.ok && !res?.status) {
+      suggestions.value = [];
+      geoHint.value = res?.message || "Gagal memuat saran alamat.";
+      return;
+    }
+
+    geoHint.value = "";
+    suggestions.value = Array.isArray(res.items) ? res.items : [];
+    showSuggestions.value = suggestions.value.length > 0;
+  } catch (_) {
+    if (seq !== searchSeq) return;
+    suggestions.value = [];
+    geoHint.value = "Gagal memuat saran alamat.";
+  } finally {
+    if (seq === searchSeq) {
+      searching.value = false;
+    }
+  }
+};
+
+const onSearchInput = () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+  }
+  const q = searchQuery.value.trim();
+  if (q.length < 2) {
+    suggestions.value = [];
+    showSuggestions.value = false;
+    searching.value = false;
+    return;
+  }
+  showSuggestions.value = true;
+  searchTimer = window.setTimeout(() => {
+    fetchSuggestions(q);
+  }, 280);
+};
+
+const closeSuggestions = () => {
+  showSuggestions.value = false;
+};
+
+const selectSuggestion = async (item) => {
+  if (!item?.place_id || selectingPlace.value) return;
+  selectingPlace.value = true;
+  searchQuery.value = item.label || "";
+  closeSuggestions();
+  geoHint.value = "";
+
+  try {
+    const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/placeDetails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place_id: item.place_id }),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      geoHint.value = res?.message || "Gagal memuat detail lokasi.";
+      return;
+    }
+
+    if (res.lat != null && res.lng != null) {
+      panToCoords(res.lat, res.lng, SELECT_ZOOM);
+    }
+  } catch (_) {
+    geoHint.value = "Gagal memuat detail lokasi.";
+  } finally {
+    selectingPlace.value = false;
+  }
+};
+
+const onDocumentClick = (event) => {
+  const wrap = searchWrap.value;
+  if (!wrap || wrap.contains(event.target)) return;
+  closeSuggestions();
+};
+
 const initMap = async () => {
-  if (!mapEl.value || !autocompleteHost.value) return;
+  if (!mapEl.value) return;
 
   let apiKey = "";
   try {
@@ -85,37 +250,20 @@ const initMap = async () => {
       version: "weekly",
     });
     const { Map } = await loader.importLibrary("maps");
-    const { PlaceAutocompleteElement } = await loader.importLibrary("places");
     if (destroyed) return;
 
-    const startLat = lat.value != null ? lat.value : DEFAULT_CENTER.lat;
-    const startLng = lng.value != null ? lng.value : DEFAULT_CENTER.lng;
     const hasCoords = lat.value != null && lng.value != null;
+    const start = await resolveStartCenter(hasCoords);
+    if (destroyed) return;
+    const startLat = start.lat;
+    const startLng = start.lng;
 
     mapInstance = new Map(mapEl.value, {
       center: { lat: startLat, lng: startLng },
-      zoom: hasCoords ? SELECT_ZOOM : DEFAULT_ZOOM,
+      zoom: hasCoords || start.fromDevice ? SELECT_ZOOM : DEFAULT_ZOOM,
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
-    });
-
-    autocompleteEl = new PlaceAutocompleteElement({
-      includedRegionCodes: ["id"],
-    });
-    autocompleteEl.placeholder = "Cari alamat…";
-    autocompleteHost.value.appendChild(autocompleteEl);
-
-    autocompleteEl.addEventListener("gmp-placeselect", async ({ place }) => {
-      if (!place || !mapInstance) return;
-      try {
-        await place.fetchFields({ fields: ["location", "formattedAddress"] });
-        if (place.location) {
-          panToCoords(place.location.lat(), place.location.lng(), SELECT_ZOOM);
-        }
-      } catch (_) {
-        error.value = "Gagal memuat detail lokasi dari pencarian.";
-      }
     });
 
     idleListener = mapInstance.addListener("idle", () => {
@@ -145,19 +293,21 @@ watch(
 );
 
 onMounted(async () => {
+  document.addEventListener("click", onDocumentClick);
   await nextTick();
   await initMap();
 });
 
 onUnmounted(() => {
   destroyed = true;
+  document.removeEventListener("click", onDocumentClick);
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
   if (idleListener && window.google?.maps?.event) {
     google.maps.event.removeListener(idleListener);
     idleListener = null;
-  }
-  if (autocompleteEl?.remove) {
-    autocompleteEl.remove();
-    autocompleteEl = null;
   }
   mapInstance = null;
 });
@@ -165,12 +315,35 @@ onUnmounted(() => {
 
 <template>
   <div class="space-y-2">
-    <label class="text-xs text-[var(--wa-text-tertiary)]">Titik lokasi di peta</label>
-    <div
-      ref="autocompleteHost"
-      class="location-autocomplete-host w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] overflow-hidden"
-    ></div>
+    <label class="text-xs text-[var(--wa-text-tertiary)]">Cari alamat</label>
+    <div ref="searchWrap" class="relative z-[800]">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Ketik nama jalan, tempat, atau alamat…"
+        class="w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] px-3 py-2 text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:border-[var(--wa-accent-green)] focus:outline-none"
+        autocomplete="off"
+        @input="onSearchInput"
+        @focus="onSearchInput"
+      />
+      <p v-if="searching" class="mt-1 text-[11px] text-[var(--wa-text-tertiary)]">Mencari…</p>
+      <ul
+        v-if="showSuggestions && suggestions.length"
+        class="absolute left-0 right-0 top-full z-[900] mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] shadow-2xl"
+      >
+        <li v-for="item in suggestions" :key="item.place_id">
+          <button
+            type="button"
+            class="w-full px-3 py-2.5 text-left text-sm text-[var(--wa-text-primary)] hover:bg-[var(--wa-bg-secondary)]"
+            @click="selectSuggestion(item)"
+          >
+            {{ item.label }}
+          </button>
+        </li>
+      </ul>
+    </div>
 
+    <label class="text-xs text-[var(--wa-text-tertiary)]">Titik lokasi di peta</label>
     <div class="relative rounded-lg overflow-hidden border border-[var(--wa-border)]">
       <div ref="mapEl" class="h-[280px] w-full bg-[var(--wa-bg-secondary)]"></div>
       <div
@@ -186,6 +359,40 @@ onUnmounted(() => {
           />
         </svg>
       </div>
+      <button
+        type="button"
+        class="absolute right-3 bottom-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-text-primary)] shadow-lg transition hover:border-[var(--wa-accent-green)] hover:text-[var(--wa-accent-green)] disabled:opacity-50"
+        :disabled="loading || locatingUser"
+        title="Ke lokasi saya"
+        aria-label="Ke lokasi saya"
+        @click="goToMyLocation"
+      >
+        <svg
+          v-if="!locatingUser"
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M12 8a3 3 0 100 6 3 3 0 000-6zm8.94 3a8.94 8.94 0 01-1.88 2.83l1.42 1.42a.75.75 0 11-1.06 1.06l-1.42-1.42A8.94 8.94 0 0112 20.94V22a.75.75 0 01-1.5 0v-1.06A8.94 8.94 0 014.06 15.3l-1.42 1.42a.75.75 0 11-1.06-1.06l1.42-1.42A8.94 8.94 0 013.06 12H2a.75.75 0 010-1.5h1.06A8.94 8.94 0 014.94 6.7L3.52 5.28a.75.75 0 111.06-1.06l1.42 1.42A8.94 8.94 0 0112 3.06V2a.75.75 0 011.5 0v1.06A8.94 8.94 0 0119.94 8.7l1.42-1.42a.75.75 0 111.06 1.06l-1.42 1.42A8.94 8.94 0 0120.94 12H22a.75.75 0 010 1.5h-1.06z"
+          />
+        </svg>
+        <svg
+          v-else
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 animate-spin"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+      </button>
       <div
         v-if="loading"
         class="absolute inset-0 flex items-center justify-center bg-black/20 text-xs text-[var(--wa-text-primary)]"
@@ -195,6 +402,7 @@ onUnmounted(() => {
     </div>
 
     <p v-if="error" class="text-[11px] text-red-400">{{ error }}</p>
+    <p v-else-if="geoHint" class="text-[11px] text-amber-400/90">{{ geoHint }}</p>
     <p v-else-if="lat != null && lng != null" class="text-[11px] text-[var(--wa-accent-green)] font-mono">
       {{ lat }}, {{ lng }}
     </p>
@@ -203,24 +411,3 @@ onUnmounted(() => {
     </p>
   </div>
 </template>
-
-<style scoped>
-.location-autocomplete-host :deep(gmp-place-autocomplete) {
-  width: 100%;
-  color-scheme: dark;
-}
-
-.location-autocomplete-host :deep(input) {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  background: transparent;
-  color: var(--wa-text-primary);
-  border: none;
-  outline: none;
-}
-
-.location-autocomplete-host :deep(input::placeholder) {
-  color: var(--wa-text-tertiary);
-}
-</style>

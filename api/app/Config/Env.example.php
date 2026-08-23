@@ -63,7 +63,8 @@ class Env
     const MAPS_SERVER_TOKEN = ''; // sama dengan MAPS_SERVER_TOKEN di node/maps_server/.env (opsional)
 
     // Google Maps JavaScript API + Places API (New) — CRM, laundry kasir, picker lokasi
-    const GOOGLE_MAPS_API_KEY = ''; // browser-restricted key; HTTP referrer restriction wajib
+    // Untuk Maps JS (browser) + Places REST autocomplete/details (server-side)
+    const GOOGLE_MAPS_API_KEY = ''; // aktifkan Maps JavaScript API + Places API (New)
 
     // Nomor admin (fitur khusus WA replies)
     const ADMIN_NUMBERS = ['0812xxxxxxxx', '0852xxxxxxxx'];
