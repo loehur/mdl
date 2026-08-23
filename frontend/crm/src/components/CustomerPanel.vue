@@ -903,6 +903,27 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <section v-if="isAdmin && canSendTagihan">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
+            Kirim ke pelanggan
+          </h3>
+          <button
+            type="button"
+            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="sendingTagihan"
+            @click="sendTagihan"
+          >
+            {{ sendingTagihan ? "Mengirim…" : "Bill" }}
+          </button>
+          <p
+            v-if="outboundResultMsg"
+            class="text-xs mt-2"
+            :class="outboundResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ outboundResultMsg }}
+          </p>
+        </section>
+
         <section v-if="isAdmin">
           <div class="grid grid-cols-2 gap-2">
             <button
@@ -922,7 +943,7 @@ onUnmounted(() => {
               :disabled="!custId"
               @click="openDeliveryRequest"
             >
-              Delivery
+              Kurir
             </button>
           </div>
           <p v-if="!canUsePermintaanAction && !custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
@@ -941,27 +962,6 @@ onUnmounted(() => {
             :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
           >
             {{ deliveryResultMsg }}
-          </p>
-        </section>
-
-        <section v-if="isAdmin && canSendTagihan">
-          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
-            Kirim ke pelanggan
-          </h3>
-          <button
-            type="button"
-            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-            :disabled="sendingTagihan"
-            @click="sendTagihan"
-          >
-            {{ sendingTagihan ? "Mengirim…" : "Bill" }}
-          </button>
-          <p
-            v-if="outboundResultMsg"
-            class="text-xs mt-2"
-            :class="outboundResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
-          >
-            {{ outboundResultMsg }}
           </p>
         </section>
 
