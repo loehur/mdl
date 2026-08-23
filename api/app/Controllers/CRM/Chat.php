@@ -202,7 +202,9 @@ class Chat extends Controller
                 $caseList = $this->normalizeCaseList($conv->conv_case ?? null);
                 $hasActiveDelivery = !empty($activeDeliveryByCustId[(int) ($conv->cust_id ?? 0)]);
                 $caseList = $this->mergeDeliveryCase($caseList, $hasActiveDelivery);
-                $hasActivePermintaan = !empty($activePermintaanByPhone[ltrim((string) ($conv->wa_number ?? ''), '+')]);
+                $hasActivePermintaan = !empty($activePermintaanByPhone[
+                    $this->normalizePermintaanPhoneKey((string) ($conv->wa_number ?? ''))
+                ]);
                 $caseList = $this->mergePermintaanCase($caseList, $hasActivePermintaan);
                 $conv->case_history = $caseList;
 
@@ -281,6 +283,22 @@ class Chat extends Controller
         return [];
     }
 
+    /** Nomor WA → digits 62… (tanpa +) untuk match wa_permintaan_session ↔ wa_conversations. */
+    private function normalizePermintaanPhoneKey(?string $phone): string
+    {
+        $d = preg_replace('/[^0-9]/', '', (string) $phone);
+        if ($d === '') {
+            return '';
+        }
+        if ($d[0] === '0') {
+            return '62' . substr($d, 1);
+        }
+        if (substr($d, 0, 2) !== '62' && $d[0] === '8') {
+            return '62' . $d;
+        }
+        return $d;
+    }
+
     private function mergeDeliveryCase(array $caseList, bool $hasActiveDelivery): array
     {
         $filtered = [];
@@ -334,14 +352,14 @@ class Chat extends Controller
 
     /**
      * Fetch wa_permintaan_session yang masih aktif (status='open' + notify_expires_at > NOW()).
-     * Return map: wa_number (tanpa leading '+') => true.
-     * Tabel ada di mdl_laundry (db index 1).
+     * Return map: nomor digits tanpa '+' => true (mis. 628123456789).
+     * Tabel ada di mdl_main (db index 0, sama dengan wa_conversations).
      */
     private function fetchActivePermintaanMap($db, array $phones): array
     {
         $phones = array_values(array_unique(array_filter(array_map(
-            static function ($p) {
-                return ltrim(preg_replace('/[^0-9+]/', '', (string) $p), '+');
+            function ($p) {
+                return $this->normalizePermintaanPhoneKey((string) $p);
             },
             $phones
         ))));
@@ -350,16 +368,14 @@ class Chat extends Controller
             return [];
         }
 
-        // wa_permintaan_session ada di mdl_laundry (db index 1)
-        $dbLaundry = $this->db(1);
         $placeholders = implode(',', array_fill(0, count($phones), '?'));
         try {
-            $rows = $dbLaundry->query(
+            $rows = $db->query(
                 "SELECT phone
                  FROM wa_permintaan_session
                  WHERE status = 'open'
                    AND notify_expires_at > NOW()
-                   AND phone IN ($placeholders)
+                   AND REPLACE(REPLACE(phone, '+', ''), ' ', '') IN ($placeholders)
                  GROUP BY phone",
                 $phones
             )->result_array();
@@ -370,7 +386,7 @@ class Chat extends Controller
 
         $map = [];
         foreach ($rows as $row) {
-            $p = ltrim(preg_replace('/[^0-9]/', '', (string) ($row['phone'] ?? '')), '');
+            $p = $this->normalizePermintaanPhoneKey((string) ($row['phone'] ?? ''));
             if ($p !== '') {
                 $map[$p] = true;
             }
