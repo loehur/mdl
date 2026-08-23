@@ -5,6 +5,10 @@ import { Loader } from "@googlemaps/js-api-loader";
 const lat = defineModel("lat", { type: Number, default: null });
 const lng = defineModel("lng", { type: Number, default: null });
 
+const props = defineProps({
+  apiBase: { type: String, required: true },
+});
+
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
 const DEFAULT_ZOOM = 15;
 const SELECT_ZOOM = 17;
@@ -52,14 +56,28 @@ const panToCoords = (nextLat, nextLng, zoom = null) => {
 };
 
 const initMap = async () => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  if (!apiKey) {
-    error.value = "API key Google Maps belum dikonfigurasi (VITE_GOOGLE_MAPS_API_KEY).";
+  if (!mapEl.value || !autocompleteHost.value) return;
+
+  let apiKey = "";
+  try {
+    const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/get`).then((r) => r.json());
+    if (!res?.ok && !res?.status) {
+      error.value = res?.message || "Gagal memuat konfigurasi Google Maps dari server.";
+      loading.value = false;
+      return;
+    }
+    apiKey = String(res.api_key || "").trim();
+  } catch (_) {
+    error.value = "Gagal memuat konfigurasi Google Maps dari server.";
     loading.value = false;
     return;
   }
 
-  if (!mapEl.value || !autocompleteHost.value) return;
+  if (!apiKey) {
+    error.value = "Google Maps API key belum dikonfigurasi di server.";
+    loading.value = false;
+    return;
+  }
 
   try {
     const loader = new Loader({

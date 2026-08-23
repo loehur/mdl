@@ -1298,7 +1298,7 @@ onUnmounted(() => {
             ></textarea>
           </div>
           <div>
-            <LocationMapPicker v-model:lat="formLatt" v-model:lng="formLongt" />
+            <LocationMapPicker v-model:lat="formLatt" v-model:lng="formLongt" :api-base="props.apiBase" />
           </div>
           <div>
             <label class="text-xs text-[var(--wa-text-tertiary)]">Alternatif: URL Google Maps</label>
