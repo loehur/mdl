@@ -97,10 +97,10 @@ if (count($data['cek']) == 0) { ?>
     $kasirUrl = 'https://ml.nalju.com/Operasi/i/0/' . (int) $f17 . '/0';
   ?>
   <div class="aa-card aa-card--pending nt-row" data-id-cabang="<?= $idCabang ?>">
+    <?php if ($idCabang > 0) { ?>
+      <span class="aa-cabang-badge nt-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
+    <?php } ?>
     <div class="nt-cabang-actions">
-      <?php if ($idCabang > 0) { ?>
-        <span class="aa-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
-      <?php } ?>
       <button type="button"
         class="nt-icon-btn nt-invoice-link"
         title="Lihat tagihan"
@@ -168,15 +168,24 @@ if (count($data['cek']) == 0) { ?>
 
 <!-- Lebar mengikuti nota (~640px). Tinggi ~85vh -->
 <style>
+  #aa-root #load .nt-row {
+    position: relative;
+    padding-top: 12px;
+    padding-right: 52px;
+  }
+  #aa-root #load .nt-cabang-badge {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    margin: 0;
+    z-index: 1;
+  }
   #aa-root #load .nt-cabang-actions {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 8px;
-  }
-  #aa-root #load .nt-cabang-actions .aa-cabang-badge {
-    margin-bottom: 0;
   }
   .nt-icon-btn {
     box-sizing: border-box;

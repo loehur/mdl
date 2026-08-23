@@ -7,11 +7,11 @@ use App\Helpers\Payment\QrisService;
 
 /**
  * CleanKas Controller
- * Proses kas QRIS pending yang sudah > 1 jam (semua id_user).
+ * Proses kas QRIS pending yang sudah > 5 menit (semua id_user).
  * Hapus hanya jika: id_user = 0 dan payment_qr_string kosong.
  * Cek Tokopay jika sudah ada payment_trx_id:
  *   paid → status_mutasi=3, payment_state=status tokopay
- *   expired/failed/cancel/unpaid/pending → status_mutasi=4 (gagal; >1 jam tidak di-skip)
+ *   expired/failed/cancel/unpaid/pending → status_mutasi=4 (gagal; >5 menit tidak di-skip)
  * Log setiap cek ke kas_qris_cleanup_log (upsert by ref_finance).
  *
  * URL example:
@@ -39,7 +39,7 @@ class CleanKas extends Controller
         $whereBase = "UPPER(note) = 'QRIS'"
             . " AND metode_mutasi = 2"
             . " AND status_mutasi = 2"
-            . " AND insertTime < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
+            . " AND insertTime < DATE_SUB(NOW(), INTERVAL 5 MINUTE)";
 
         $whereDelete = $whereBase
             . " AND id_user = 0"
@@ -246,7 +246,7 @@ class CleanKas extends Controller
             return 'failed';
         }
 
-        // Unpaid/pending/not_found: query sudah filter umur > 1 jam → anggap gagal
+        // Unpaid/pending/not_found: query sudah filter umur > 5 menit → anggap gagal
         if ($statusTrx === 'unpaid' || $statusTrx === 'pending' || $statusTrx === 'not_found') {
             return 'failed';
         }
