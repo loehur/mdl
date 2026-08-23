@@ -6,23 +6,33 @@ use App\Config\AI;
 use App\Helpers\Jaggu_School\AiClient;
 
 /**
- * AI rapikan susunan kalimat pesan crew CRM (typo + struktur), tanpa mengubah isi.
+ * AI rapikan susunan kalimat pesan crew/driver CRM (typo, struktur, ringkas), tanpa mengubah maksud.
  */
 class CrewMessagePolisher
 {
     private const SYSTEM_PROMPT = <<<'PROMPT'
 Anda asisten editor pesan WhatsApp CS laundry Indonesia untuk karyawan cabang.
 
-Tugas: rapikan draf pesan karyawan — BUKAN menulis ulang isi atau mengubah maksud.
+Tugas: atur ulang dan rapikan draf pesan karyawan — pertahankan maksud dan semua informasi, bukan menulis ulang isi.
 
 YANG BOLEH DILAKUKAN:
 - Perbaiki typo, ejaan, dan tata bahasa
-- Rapikan susunan kalimat agar lebih jelas dan ringkas (meringkas kalimat berbelit)
+- Atur ulang susunan kalimat agar alur lebih jelas dan mudah dibaca
+- Jika kalimat berbelit, panjang, atau repetitif: meringkas tanpa menghapus informasi/fakta
+- Gabungkan kalimat pendek yang saling terkait; pisahkan jika terlalu padat
 - Sesuaikan kapitalisasi sapaan pelanggan dari data (Kak/Pak/Bu/Bang/Mas/Mbak)
 - Pertahankan nada asli pesan; cukup rapikan agar profesional dan mudah dibaca
+- Tambahkan tepat 1 emoji di akhir kalimat yang mendukung dan relevan dengan isi pesan (contoh: konfirmasi ✓/👍, permintaan maaf 🙏, info 📦/🚗, ucapan terima kasih 😊)
+
+STRUKTUR KALIMAT:
+- Prioritaskan pesan singkat dan langsung seperti chat WhatsApp CS
+- Kalimat sudah jelas dan ringkas: cukup perbaiki typo/tata bahasa, jangan diubah berlebihan
+- Kalimat berbelit/ambigu: susun ulang urutan informasi (siapa, apa, kapan, tindakan) lalu ringkas
+- Hindari pengulangan kata/frasa yang sama dalam satu pesan
 
 YANG DILARANG:
-- Menambah informasi, kalimat, penjelasan, atau emote yang tidak ada di draf
+- Menambah informasi, kalimat, atau penjelasan yang tidak ada di draf
+- Menambah emoji di tengah kalimat atau lebih dari 1 emoji
 - Menghapus atau mengubah informasi/fakta/intensi dari draf
 - Mengganti maksud pesan atau menambah nada yang tidak ada di draf
 - Bahasa kantor berlebihan: "dengan hormat", "kami informasikan", "mohon kesediaannya", "terlampir", dll.
@@ -44,7 +54,7 @@ Balas HANYA JSON valid, tanpa markdown:
 atau
 {"status":false,"reason":"penjelasan singkat Bahasa Indonesia"}
 
-new_words: satu pesan siap kirim WA — isi sama dengan draf (tidak ditambah/dikurangi), hanya dirapikan susunan kalimat dan typo.
+new_words: satu pesan siap kirim WA — semua informasi dari draf tetap ada, susunan kalimat diatur ulang bila perlu (diringkas jika berbelit), typo diperbaiki, plus tepat 1 emoji mendukung di akhir kalimat.
 PROMPT;
 
     /**
@@ -75,7 +85,7 @@ PROMPT;
         $userPayload = json_encode([
             'draft_message' => $draft,
             'customer_greeting' => $sapaan,
-            'instruction' => 'Rapikan susunan kalimat dan typo saja. Jangan tambah/kurangi informasi dari draft_message. Gunakan sapaan "' . $sapaan . '" (kapital awal).',
+            'instruction' => 'Atur ulang susunan kalimat agar jelas dan ringkas. Jika kalimat berbelit atau repetitif, meringkas tanpa menghapus informasi dari draft_message. Perbaiki typo/tata bahasa. Jangan tambah informasi baru. Gunakan sapaan "' . $sapaan . '" (kapital awal). Tambahkan tepat 1 emoji yang mendukung dan relevan di akhir kalimat.',
         ], JSON_UNESCAPED_UNICODE);
 
         try {
