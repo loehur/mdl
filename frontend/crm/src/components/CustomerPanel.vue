@@ -73,8 +73,16 @@ const canUsePermintaanAction = computed(() => {
 
 const hasOpenPermintaan = computed(() => permintaanOpenItems.value.length > 0);
 
+const cswOpen = computed(() => {
+  const c = props.conversation;
+  if (!c) return false;
+  if (c.can_reply === true) return true;
+  if (c.can_reply === false) return false;
+  return !!(c.ycloud_open || c.fonnte_open);
+});
+
 const canSendTagihan = computed(() => {
-  return !!(custId.value || props.conversation?.wa_number);
+  return !!(custId.value || props.conversation?.wa_number) && cswOpen.value;
 });
 
 const deliveryJenisOptions = [
@@ -439,6 +447,12 @@ const sendTagihan = async () => {
     if (res?.cooldown) {
       outboundResultOk.value = false;
       outboundResultMsg.value = res?.message || "Cooldown TAGIHAN masih aktif";
+      return;
+    }
+
+    if (res?.outcome === "csw_closed") {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "CSW sudah tutup — tidak bisa kirim tagihan";
       return;
     }
 

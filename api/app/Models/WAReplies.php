@@ -1083,7 +1083,28 @@ class WAReplies
             $ctx['is_pelanggan'] = true;
         }
         $this->setSenderContext($ctx);
-        $this->setAutoReplyProvider('A');
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+        if (!class_exists('\\App\\Config\\WaLines')) {
+            require_once __DIR__ . '/../Config/WaLines.php';
+        }
+
+        $dbCsw = DB::getInstance(0);
+        $csw = \App\Helpers\CRM\CrmChatMergeHelper::getCswStatus($dbCsw, $waNumber);
+        $lineKey = \App\Helpers\CRM\CrmChatMergeHelper::resolveReplyLine($csw, 'auto');
+        if ($lineKey === null) {
+            return [
+                'ok' => false,
+                'message' => 'CSW sudah tutup — tidak bisa kirim tagihan',
+                'outcome' => 'csw_closed',
+            ];
+        }
+
+        $lineMeta = \App\Config\WaLines::get($lineKey);
+        $this->setInboundLine($lineKey, is_array($lineMeta) ? ($lineMeta['phone'] ?? null) : null);
+        $this->setAutoReplyProvider($lineKey === \App\Config\WaLines::KEY_ADMIN ? 'B' : 'A');
 
         if ($this->isInHandlerCooldownAnyProvider($waNumber, 'TAGIHAN')) {
             return [
