@@ -50,6 +50,9 @@ const createPermintaanMsg = ref("");
 const creatingPermintaan = ref(false);
 const permintaanResultMsg = ref("");
 const permintaanResultOk = ref(false);
+const outboundResultMsg = ref("");
+const outboundResultOk = ref(false);
+const sendingTagihan = ref(false);
 
 const canSavePermintaan = computed(() => {
   if (savingPermintaan.value) return false;
@@ -66,6 +69,10 @@ const canUsePermintaanAction = computed(() => {
 });
 
 const hasOpenPermintaan = computed(() => permintaanOpenItems.value.length > 0);
+
+const canSendTagihan = computed(() => {
+  return !!(custId.value || props.conversation?.wa_number);
+});
 
 const deliveryJenisOptions = [
   { id: "jemput", label: "Jemput" },
@@ -409,6 +416,43 @@ const handlePermintaanAction = () => {
   openCreatePermintaan();
 };
 
+const sendTagihan = async () => {
+  if (!isAdmin.value || !canSendTagihan.value || sendingTagihan.value) return;
+
+  sendingTagihan.value = true;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  try {
+    const payload = {};
+    if (custId.value) payload.cust_id = custId.value;
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Outbound/tagihan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (res?.cooldown) {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "Cooldown TAGIHAN masih aktif";
+      return;
+    }
+
+    if (!res?.ok && !res?.status) {
+      outboundResultMsg.value = res?.message || "Gagal mengirim tagihan";
+      return;
+    }
+
+    outboundResultOk.value = true;
+    outboundResultMsg.value = res?.message || "Tagihan terkirim.";
+  } catch (_) {
+    outboundResultMsg.value = "Gagal mengirim tagihan";
+  } finally {
+    sendingTagihan.value = false;
+  }
+};
+
 const saveCreatePermintaan = async () => {
   if (!isAdmin.value || !canCreatePermintaan.value) return;
 
@@ -707,6 +751,8 @@ watch(
     deliveryResultOk.value = false;
     permintaanResultMsg.value = "";
     permintaanResultOk.value = false;
+    outboundResultMsg.value = "";
+    outboundResultOk.value = false;
     closeEditPermintaan();
     closeCreatePermintaan();
   }
@@ -895,6 +941,27 @@ onUnmounted(() => {
             :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
           >
             {{ deliveryResultMsg }}
+          </p>
+        </section>
+
+        <section v-if="isAdmin && canSendTagihan">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
+            Kirim ke pelanggan
+          </h3>
+          <button
+            type="button"
+            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="sendingTagihan"
+            @click="sendTagihan"
+          >
+            {{ sendingTagihan ? "Mengirim…" : "Bill" }}
+          </button>
+          <p
+            v-if="outboundResultMsg"
+            class="text-xs mt-2"
+            :class="outboundResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ outboundResultMsg }}
           </p>
         </section>
 

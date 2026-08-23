@@ -572,12 +572,15 @@ class WhatsApp extends Controller
                 }
 
                 // 3) Intent detect + auto-reply (bisa lambat: OpenAI/DeepSeek)
-                // Gabungkan text + media_url + caption agar pin lokasi / link maps terbaca di kurir flow
+                // Caption/teks untuk intent; URL maps hanya untuk lokasi (bukan image/video — URL panjang memblokir PENUTUP maxlength)
                 $processText = trim((string) ($messageText !== '' ? $messageText : ($textBody ?? '')));
                 if (!empty($mediaCaption) && stripos($processText, (string) $mediaCaption) === false) {
                     $processText = trim($processText . ' ' . $mediaCaption);
                 }
-                if (!empty($mediaUrl) && stripos($processText, (string) $mediaUrl) === false) {
+                if ($messageType === 'location'
+                    && !empty($mediaUrl)
+                    && stripos($processText, (string) $mediaUrl) === false
+                ) {
                     $processText = trim($processText . ' ' . $mediaUrl);
                 }
                 $autoReplyResult = $replies->process(

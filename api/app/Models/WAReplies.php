@@ -82,6 +82,9 @@ class WAReplies
     /** True jika PEMBUKA skip kirim sapaan (outbound masih hangat) — jangan catat cooldown. */
     private $pembukaSkippedGreeting = false;
 
+    /** Hasil kirim tagihan manual CRM: sent|no_pelanggan|no_data|skipped */
+    private $tagihanSendOutcome = null;
+
     /** Idle agent manusia (menit) sebelum AI kembali boleh balas intent sosial */
     private const HUMAN_ACTIVE_IDLE_MINUTES = 60;
 
@@ -573,9 +576,19 @@ class WAReplies
     }
 
     /** Intent boleh diproses (regex/AI/handler) untuk panjang pesan ini. */
-    private function intentAllowedForMessageLength(string $handler, array $fullKeywordConfig, int $messageLength): bool
-    {
+    private function intentAllowedForMessageLength(
+        string $handler,
+        array $fullKeywordConfig,
+        int $messageLength,
+        ?string $textBody = null
+    ): bool {
         if ($handler === '' || $handler === 'FALSE') {
+            return true;
+        }
+        if (strtoupper($handler) === 'PENUTUP'
+            && $textBody !== null
+            && $this->penutupShouldAutoreplyThanksOrPayment($textBody)
+        ) {
             return true;
         }
 
@@ -586,14 +599,23 @@ class WAReplies
      * @param array<string, mixed> $keywordConfig
      * @return array<string, mixed>
      */
-    private function filterKeywordConfigByChatMaxlength(array $keywordConfig, int $messageLength): array
-    {
+    private function filterKeywordConfigByChatMaxlength(
+        array $keywordConfig,
+        int $messageLength,
+        ?string $textBody = null
+    ): array {
         $out = [];
         foreach ($keywordConfig as $code => $config) {
             if (!is_array($config)) {
                 continue;
             }
             if ($this->intentExceedsChatMaxlength($config, $messageLength)) {
+                if (strtoupper((string) $code) === 'PENUTUP'
+                    && $textBody !== null
+                    && $this->penutupShouldAutoreplyThanksOrPayment($textBody)
+                ) {
+                    $out[$code] = $config;
+                }
                 continue;
             }
             $out[$code] = $config;
@@ -1027,6 +1049,101 @@ class WAReplies
         $this->currentHandler = 'DEFAULT';
 
         return $this->sendAutoreplyText($waNumber, $text);
+    }
+
+    /**
+     * Kirim tagihan manual dari CRM — logic sama handleTagihan + cooldown handler TAGIHAN.
+     *
+     * @return array{ok:bool,message?:string,cooldown?:bool,outcome?:string}
+     */
+    public function sendTagihanFromCrm(string $waNumber, ?int $custId = null): array
+    {
+        $waNumber = (string) ($this->normalizePhoneNumber($waNumber) ?? '');
+        if ($waNumber === '') {
+            return ['ok' => false, 'message' => 'Nomor WA tidak valid'];
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $ctx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+        if ($custId !== null && $custId > 0) {
+            $ctx['id_pelanggan'] = $custId;
+            $ctx['cust_id'] = $custId;
+            if (!in_array($custId, $ctx['ids_pelanggan'] ?? [], true)) {
+                $ctx['ids_pelanggan'][] = $custId;
+            }
+            $ctx['is_pelanggan'] = true;
+        }
+        $this->setSenderContext($ctx);
+        $this->setAutoReplyProvider('A');
+
+        if ($this->isInHandlerCooldownAnyProvider($waNumber, 'TAGIHAN')) {
+            return [
+                'ok' => false,
+                'message' => 'Cooldown TAGIHAN masih aktif — tunggu sebentar',
+                'cooldown' => true,
+            ];
+        }
+
+        $nomor = (string) ($ctx['nomor'] ?? '');
+        if ($nomor === '') {
+            $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber) ?? '';
+        }
+        if ($nomor === '') {
+            return ['ok' => false, 'message' => 'Nomor WA tidak valid'];
+        }
+
+        $phoneIn = \App\Helpers\CRM\WaSenderContext::phoneInClause($nomor);
+        $this->tagihanSendOutcome = null;
+        $this->handleTagihan($phoneIn, $waNumber, 'bill', true);
+        $this->recordHandlerCooldown($waNumber, 'TAGIHAN');
+
+        $outcome = (string) ($this->tagihanSendOutcome ?? 'skipped');
+        if ($outcome === 'sent') {
+            return ['ok' => true, 'message' => 'Tagihan terkirim', 'outcome' => $outcome];
+        }
+        if ($outcome === 'no_data') {
+            return ['ok' => true, 'message' => 'Info belum ada tagihan terkirim', 'outcome' => $outcome];
+        }
+        if ($outcome === 'no_pelanggan') {
+            return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan di laundry', 'outcome' => $outcome];
+        }
+
+        return ['ok' => false, 'message' => 'Tagihan tidak terkirim', 'outcome' => $outcome];
+    }
+
+    /**
+     * Cooldown handler lintas provider (CRM manual ↔ autoreply A/B).
+     */
+    private function isInHandlerCooldownAnyProvider(string $waNumber, string $handler): bool
+    {
+        if ($this->intentLabMode) {
+            return false;
+        }
+        $handler = strtoupper(trim($handler));
+        if ($handler === '') {
+            return false;
+        }
+        $cooldownMinutes = $this->getAutoreplyCooldownMinutes($handler);
+        $db = DB::getInstance(0);
+        $result = $db->query(
+            "SELECT created_at FROM wa_auto_reply_log
+             WHERE phone = ? AND handler = ?
+             ORDER BY created_at DESC LIMIT 1",
+            [$waNumber, $handler]
+        );
+        if (!$result || $result->num_rows() === 0) {
+            return false;
+        }
+        $lastReply = $result->row()->created_at ?? null;
+        if (!$lastReply) {
+            return false;
+        }
+        $cooldownEnd = date('Y-m-d H:i:s', strtotime((string) $lastReply) + ($cooldownMinutes * 60));
+
+        return date('Y-m-d H:i:s') < $cooldownEnd;
     }
 
     /**
@@ -2102,10 +2219,13 @@ class WAReplies
     /**
      * Balasan generik "belum ada tagihan..." — hanya saat tidak ada data + pola tegas.
      */
-    private function trySendBelumAdaTagihanAutoreply($waService, string $waNumber, ?string $textBody, string $namaPelanggan, ?string $linkSuffix = null, string $logPrefix = 'SKIP'): void
+    private function trySendBelumAdaTagihanAutoreply($waService, string $waNumber, ?string $textBody, string $namaPelanggan, ?string $linkSuffix = null, string $logPrefix = 'SKIP', bool $force = false): void
     {
-        if (!$this->shouldSendGenericNoDataAutoreply($textBody)) {
+        if (!$force && !$this->shouldSendGenericNoDataAutoreply($textBody)) {
             $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_skipped_not_strict_keyword');
+            if ($force === false && $logPrefix === 'TAGIHAN') {
+                $this->tagihanSendOutcome = 'skipped';
+            }
             return;
         }
         $text = 'Pak/Bu *' . $namaPelanggan . '*, belum ada tagihan dan semua laundry sudah di ambil. Terima kasih 😊';
@@ -2115,6 +2235,11 @@ class WAReplies
         $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            if ($logPrefix === 'TAGIHAN') {
+                $this->tagihanSendOutcome = 'no_data';
+            }
+        } elseif ($logPrefix === 'TAGIHAN') {
+            $this->tagihanSendOutcome = 'skipped';
         }
         $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_sent');
     }
@@ -2353,7 +2478,7 @@ class WAReplies
             'GATE_FILTER',
             'intents=' . count($keywordConfig) . '/' . count($fullKeywordConfig)
         );
-        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
+        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength, $textBody);
         $this->logAutoreplyTrace(
             $waNumber,
             'MAXLENGTH_FILTER',
@@ -2597,7 +2722,7 @@ class WAReplies
                         continue;
                     }
                     if ($handler !== 'PENUTUP' && $this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
-                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength, $textBody)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP payment_confirm');
                         $handler = 'PENUTUP';
@@ -2605,7 +2730,7 @@ class WAReplies
                     if ($handler !== 'PENUTUP'
                         && $this->messageLooksLikeThanksPenutup($textBodyToCheck)
                         && !$this->messageLooksLikeQuestion($textBody)
-                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+                        && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength, $textBody)
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP thanks');
                         $handler = 'PENUTUP';
@@ -2746,7 +2871,7 @@ class WAReplies
                     $handler = $this->applyPermintaanHandlerMeta($handler, $fullKeywordConfig, $caseVal, $notify, $config);
 
                     // Pesan melebihi chat_maxlength intent (termasuk hasil remap) → skip
-                    if (!$this->intentAllowedForMessageLength($handler, $fullKeywordConfig, $messageLength)) {
+                    if (!$this->intentAllowedForMessageLength($handler, $fullKeywordConfig, $messageLength, $textBody)) {
                         $this->logAutoreplyTrace(
                             $waNumber,
                             'REGEX_SKIP',
@@ -2896,7 +3021,7 @@ class WAReplies
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
 
         if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
-            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength, $textBody)
         ) {
                 if (!is_array($aiResult)) {
                     $aiResult = [];
@@ -2908,7 +3033,7 @@ class WAReplies
                 $aiResult['intent'] = 'PENUTUP';
         } elseif ($this->messageLooksLikeThanksPenutup($textBodyToCheck)
             && !$this->messageLooksLikeQuestion($textBody)
-            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength)
+            && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength, $textBody)
         ) {
                 if (!is_array($aiResult)) {
                     $aiResult = [];
@@ -3094,7 +3219,7 @@ class WAReplies
             }
 
             if ($aiIntent !== 'FALSE'
-                && !$this->intentAllowedForMessageLength($aiIntent, $fullKeywordConfig, $messageLength)
+                && !$this->intentAllowedForMessageLength($aiIntent, $fullKeywordConfig, $messageLength, $textBody)
             ) {
                 $this->logAutoreplyTrace(
                     $waNumber,
@@ -3760,7 +3885,7 @@ class WAReplies
 
         $keywordConfig = $this->loadAutoreplyKeywordConfig();
         unset($keywordConfig['PEMBUKA']);
-        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
+        $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength, $textBody);
         $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
         if ($aiResult && isset($aiResult['intent']) && strtoupper($aiResult['intent']) !== 'FALSE') {
             $aiIntent = strtoupper($aiResult['intent']);
@@ -3882,7 +4007,7 @@ class WAReplies
         return false;
     }
 
-    private function handleTagihan($phoneIn, $waNumber, $textBody = '')
+    private function handleTagihan($phoneIn, $waNumber, $textBody = '', bool $crmManual = false)
     {
         $waService = $this->getWaService();
         $db = DB::getInstance(1);
@@ -3891,6 +4016,9 @@ class WAReplies
 
         if (empty($pelanggan)) {
             $this->logAutoreplyTrace($waNumber, 'TAGIHAN', 'no_pelanggan');
+            if ($crmManual) {
+                $this->tagihanSendOutcome = 'no_pelanggan';
+            }
             return;
         }
 
@@ -3914,7 +4042,7 @@ class WAReplies
         if (empty($id_pelanggans_to_check)) {
             $id_pelanggan = $this->senderIdPelanggan() ?: (int) $id_pelanggans[0];
             $nama_pelanggan = strtoupper(trim((string) ($pelanggan[array_search($id_pelanggan, $id_pelanggans)]['nama_pelanggan'] ?? $pelanggan[0]['nama_pelanggan'] ?? 'PELANGGAN')));
-            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, 'https://ml.nalju.com/I/' . $id_pelanggan, 'TAGIHAN');
+            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, 'https://ml.nalju.com/I/' . $id_pelanggan, 'TAGIHAN', $crmManual);
             return;
         }
 
@@ -4014,7 +4142,7 @@ class WAReplies
 
         if (empty($lines)) {
             // Sale/member ada di DB tapi rincian kosong (mis. sudah lunas): generik hanya pola tegas
-            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, $link, 'TAGIHAN');
+            $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, $link, 'TAGIHAN', $crmManual);
             return;
         }
 
@@ -4024,6 +4152,11 @@ class WAReplies
         $res = $this->sendQuotedFreeText($waNumber, $text);
         if ($res['success']) {
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+            if ($crmManual) {
+                $this->tagihanSendOutcome = 'sent';
+            }
+        } elseif ($crmManual) {
+            $this->tagihanSendOutcome = 'skipped';
         }
     }
 
@@ -7153,7 +7286,7 @@ class WAReplies
             $textBodyNorm = preg_replace('/[*_~`]/', '', (string) $textBody);
             $textBodyNorm = preg_replace('/^>\s*/m', '', $textBodyNorm ?? '');
             $messageLength = mb_strlen(strtolower(trim($textBodyNorm ?? '')));
-            $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength);
+            $keywordConfig = $this->filterKeywordConfigByChatMaxlength($keywordConfig, $messageLength, $textBody);
 
             $prompt = $this->buildAiIntentClassifierPrompt($textBody, $keywordConfig);
 
