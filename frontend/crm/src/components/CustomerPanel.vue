@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
+import { formatPermintaanSummary, normalizePermintaanItems } from "../utils/permintaanSummary.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -374,7 +375,7 @@ const loadPermintaanOpen = async () => {
       syncConversationCases();
       return;
     }
-    permintaanOpenItems.value = Array.isArray(res.items) ? res.items : [];
+    permintaanOpenItems.value = normalizePermintaanItems(Array.isArray(res.items) ? res.items : []);
     syncConversationCases();
   } catch (_) {
     permintaanOpenItems.value = [];
@@ -398,7 +399,7 @@ const closeEditPermintaan = () => {
 const openEditPermintaan = (item) => {
   if (!isAdmin.value || !item) return;
   editPermintaanTarget.value = item;
-  editPermintaanSummary.value = item.summary || "";
+  editPermintaanSummary.value = formatPermintaanSummary(item.summary || "");
   editPermintaanMsg.value = "";
   showEditPermintaanModal.value = true;
 };
@@ -1116,7 +1117,7 @@ onUnmounted(() => {
               class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-red-400/40"
             >
               <div class="flex items-start justify-between gap-2">
-                <p class="text-sm font-medium text-[var(--wa-text-primary)] break-words">{{ item.summary }}</p>
+                <p class="text-sm font-medium text-[var(--wa-text-primary)] break-words leading-relaxed">{{ formatPermintaanSummary(item.summary) }}</p>
                 <span class="text-[11px] font-bold text-red-400 flex-shrink-0">
                   {{ item.status_label || "Open" }}
                 </span>

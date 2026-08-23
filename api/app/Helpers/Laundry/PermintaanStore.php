@@ -137,6 +137,10 @@ class PermintaanStore
         if ($summary === '') {
             return ['ok' => false, 'message' => 'Isi permintaan wajib diisi'];
         }
+        $summary = PermintaanSummaryHelper::finalize($summary, 2000);
+        if ($summary === '') {
+            return ['ok' => false, 'message' => 'Isi permintaan wajib diisi'];
+        }
         if (mb_strlen($summary) > 2000) {
             return ['ok' => false, 'message' => 'Isi permintaan maks. 2000 karakter'];
         }
@@ -178,6 +182,10 @@ class PermintaanStore
     public static function create(array $input): array
     {
         $summary = trim((string) ($input['summary'] ?? ''));
+        if ($summary === '') {
+            return ['ok' => false, 'message' => 'Isi permintaan wajib diisi'];
+        }
+        $summary = PermintaanSummaryHelper::finalize($summary, 2000);
         if ($summary === '') {
             return ['ok' => false, 'message' => 'Isi permintaan wajib diisi'];
         }
@@ -582,26 +590,19 @@ class PermintaanStore
      */
     private static function formatSummary(array $row): string
     {
-        $summary = trim((string) ($row['summary'] ?? ''));
-        $summary = preg_replace('/^[io]\-\s+/iu', '', $summary) ?? $summary;
-        $summary = trim($summary);
+        $summary = PermintaanSummaryHelper::finalize((string) ($row['summary'] ?? ''), 500);
         if ($summary !== '' && mb_strlen($summary) > 8) {
             return $summary;
         }
 
         $raw = trim((string) ($row['raw_log'] ?? ''));
         if ($raw !== '') {
-            $lines = preg_split('/\r?\n/', $raw) ?: [];
-            foreach ($lines as $line) {
-                $line = trim((string) $line);
-                $line = preg_replace('/^[io]\-\s+/iu', '', $line) ?? $line;
-                $line = trim($line);
-                if ($line !== '') {
-                    return mb_substr($line, 0, 240);
-                }
+            $fromRaw = PermintaanSummaryHelper::fallbackFromRawLog($raw);
+            if ($fromRaw !== '') {
+                return $fromRaw;
             }
         }
 
-        return 'Permintaan pelanggan';
+        return 'Permintaan atau pertanyaan pelanggan.';
     }
 }

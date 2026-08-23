@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Core\DB;
+use App\Helpers\Laundry\PermintaanSummaryHelper;
 
 /**
  * Intent PERMINTAAN — session standby (tanpa autoreply), AI merangkum pertanyaan + permintaan pelanggan.
@@ -250,10 +251,9 @@ trait WARepliesPermintaanTrait
 
         $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $newRaw);
         if ($summary === '') {
-            $summary = $this->permintaanFallbackSummary($newRaw, $prevSummary, $msg);
+            $summary = PermintaanSummaryHelper::fallbackFromRawLog($newRaw, $prevSummary, $msg);
         }
-        // Jangan simpan preview CRM "i- …" sebagai summary
-        $summary = $this->permintaanStripPreviewPrefix($summary);
+        $summary = PermintaanSummaryHelper::finalize($summary, 500);
 
         $this->savePermintaanSession($waNumber, [
             'id_pelanggan' => $idPelanggan,
@@ -263,6 +263,19 @@ trait WARepliesPermintaanTrait
             'raw_log' => $newRaw,
         ]);
 
+        $isNewSession = ($session === null);
+        $summaryChanged = !$isNewSession
+            && $summary !== ''
+            && mb_strtolower(trim($prevSummary)) !== mb_strtolower(trim($summary));
+        if ($isNewSession || $summaryChanged) {
+            $this->permintaanForwardToCabangGroup(
+                $waNumber,
+                !empty($idCabang) ? (int) $idCabang : null,
+                $summary,
+                !$isNewSession
+            );
+        }
+
         $this->logAutoreplyTrace(
             $waNumber,
             'PERMINTAAN',
@@ -270,6 +283,99 @@ trait WARepliesPermintaanTrait
         );
 
         return true;
+    }
+
+    /**
+     * Notif ke group Fonnte cabang (id_group_fonnte), fallback group estimasi global.
+     */
+    private function permintaanForwardToCabangGroup(
+        string $waNumber,
+        ?int $idCabang,
+        string $summary,
+        bool $isUpdate = false
+    ): void {
+        if ($this->intentLabMode) {
+            return;
+        }
+
+        $nama = $this->permintaanFormatGroupNama($waNumber);
+        $ringkas = PermintaanSummaryHelper::finalize($summary, 280);
+        if ($ringkas === '') {
+            $ringkas = 'Permintaan atau pertanyaan pelanggan.';
+        }
+        $lines = ["*{$nama}*", $ringkas];
+        if ($isUpdate) {
+            $lines[] = '(update)';
+        }
+        $groupText = implode("\n", $lines);
+
+        try {
+            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
+                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
+            }
+            if (!class_exists('\\App\\Config\\Fonnte')) {
+                require_once __DIR__ . '/../Config/Fonnte.php';
+            }
+            $groupId = $this->resolvePermintaanFonnteGroupId($idCabang);
+            if ($groupId === '') {
+                $this->logAutoreplyTrace(
+                    $waNumber,
+                    'PERMINTAAN',
+                    'forward_group skip_no_group_id cabang=' . ($idCabang ?? 0)
+                );
+                return;
+            }
+            $fonnte = new \App\Helpers\CRM\FonnteService();
+            $res = $fonnte->sendToGroup($groupId, $groupText, ['delay' => '0']);
+            $ok = !empty($res['success']);
+            $this->logAutoreplyTrace(
+                $waNumber,
+                'PERMINTAAN',
+                'forward_group cabang=' . ($idCabang ?? 0) . ' target=' . $groupId . ' '
+                . ($ok ? 'ok' : ('fail=' . ($res['error'] ?? 'unknown')))
+                . ($isUpdate ? ' update=1' : '')
+            );
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('permintaanForwardToCabangGroup: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+            $this->logAutoreplyTrace($waNumber, 'PERMINTAAN', 'forward_group exception');
+        }
+    }
+
+    private function permintaanFormatGroupNama(string $waNumber): string
+    {
+        $nama = trim($this->getContactNameForGreeting($waNumber));
+        if ($nama === '') {
+            $nama = 'Pelanggan';
+        }
+
+        return mb_strtoupper($nama, 'UTF-8');
+    }
+
+    /**
+     * Group Fonnte per cabang (mdl_laundry.cabang.id_group_fonnte), fallback config default.
+     */
+    private function resolvePermintaanFonnteGroupId(?int $idCabang): string
+    {
+        if ($idCabang !== null && $idCabang > 0) {
+            try {
+                $rows = DB::getInstance(1)->query(
+                    'SELECT id_group_fonnte FROM cabang WHERE id_cabang = ? LIMIT 1',
+                    [$idCabang]
+                )->result_array();
+                $fromCabang = trim((string) ($rows[0]['id_group_fonnte'] ?? ''));
+                if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
+                    return $fromCabang;
+                }
+            } catch (\Throwable $e) {
+                if (class_exists('\Log')) {
+                    \Log::write('resolvePermintaanFonnteGroupId: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+                }
+            }
+        }
+
+        return \App\Config\Fonnte::getEstimasiGroupId();
     }
 
     /**
@@ -422,7 +528,7 @@ trait WARepliesPermintaanTrait
     {
         $fullRawLog = trim($fullRawLog);
         if ($fullRawLog === '') {
-            return trim($prevSummary);
+            return PermintaanSummaryHelper::finalize($prevSummary, 500);
         }
 
         $chatLines = preg_split('/\n---\n/', $fullRawLog) ?: [$fullRawLog];
@@ -434,25 +540,12 @@ trait WARepliesPermintaanTrait
             $chatBlock .= ($i + 1) . '. ' . $line . "\n";
         }
 
-        $system = "Kamu merangkum pertanyaan DAN permintaan pelanggan laundry menjadi SATU kalimat singkat, jelas, dan rapi dalam Bahasa Indonesia.\n"
-            . "WAJIB gabungkan SEMUA pesan chat bernomor di bawah (bukan hanya yang terakhir).\n"
-            . "Pertanyaan = tanya info/kapan/jam/estimasi/bisa-tidak (contoh: kapan siap, jam berapa bisa dijemput).\n"
-            . "Permintaan = minta aksi/perlakuan khusus (contoh: dulukan seragam, plastik terpisah, ambil dulu item X).\n"
-            . "Contoh gabungan: (1) kapan siap kak (2) dulukan baju sekolah (3) seragam merah putih dulu "
-            . "→ \"Tanya kapan siap; dulukan seragam merah putih dan baju sekolah\".\n"
-            . "Contoh permintaan saja: (1) dulukan baju sekolah (2) sekalian pramuka "
-            . "→ \"Dulukan seragam merah putih dan baju pramuka\".\n"
-            . "Contoh pertanyaan saja: (1) jam berapa bisa diambil (2) besok pagi bisa "
-            . "→ \"Tanya jam/besok pagi bisa diambil\".\n"
-            . "Sertakan SEMUA poin penting dari pesan mana pun — jangan buang pertanyaan karena ada permintaan, atau sebaliknya.\n"
-            . "Jangan salin mentah satu bubble terakhir saja.\n"
-            . "Tanpa sapaan (kak/bu/pak), tanpa emoji, tanpa tanda kutip, tanpa nomor urut, tanpa prefix i-/o-.\n"
-            . "Jawaban HANYA teks ringkasan, maksimal ~220 karakter.";
+        $system = PermintaanSummaryHelper::aiSystemPrompt(220);
 
         $user = "Ringkasan sebelumnya (opsional): " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n\n"
             . "Semua chat pelanggan di sesi ini (urut waktu, WAJIB digabung):\n"
             . $chatBlock . "\n"
-            . "Tulis SATU ringkasan yang mencakup SEMUA pertanyaan dan permintaan di atas:";
+            . "Tulis SATU ringkasan formal:";
 
         try {
             $raw = $this->executeOpenAIRequestWithMessages(
@@ -463,35 +556,14 @@ trait WARepliesPermintaanTrait
                 180,
                 $waNumber
             );
-            $out = trim(preg_replace('/\s+/u', ' ', (string) $raw));
-            $out = trim($out, " \t\n\r\0\x0B\"'");
-            $out = preg_replace('/^(baik|oke|ok|siap)[,.]?\s+/iu', '', (string) $out);
-            $out = trim((string) $out);
+            $out = PermintaanSummaryHelper::finalize((string) $raw, 500);
             if ($out === '') {
-                return $this->permintaanFallbackSummary($fullRawLog, $prevSummary, '');
+                return PermintaanSummaryHelper::fallbackFromRawLog($fullRawLog, $prevSummary, '');
             }
-            return mb_substr($out, 0, 500);
+            return $out;
         } catch (\Throwable $e) {
             $this->logAutoreplyTrace($waNumber, 'PERMINTAAN', 'ai_summary_fail: ' . mb_substr($e->getMessage(), 0, 120));
-            return $this->permintaanFallbackSummary($fullRawLog, $prevSummary, '');
+            return PermintaanSummaryHelper::fallbackFromRawLog($fullRawLog, $prevSummary, '');
         }
-    }
-
-    /** Fallback tanpa AI: gabung semua baris raw_log. */
-    private function permintaanFallbackSummary(string $fullRawLog, string $prevSummary, string $newMsg): string
-    {
-        $parts = preg_split('/\n---\n/', trim($fullRawLog)) ?: [];
-        $parts = array_values(array_filter(array_map('trim', $parts), static function ($l) {
-            return $l !== '';
-        }));
-        if ($parts !== []) {
-            return mb_substr(implode('; ', $parts), 0, 500);
-        }
-        if ($prevSummary !== '') {
-            return $newMsg !== ''
-                ? mb_substr($prevSummary . '; ' . $newMsg, 0, 500)
-                : mb_substr($prevSummary, 0, 500);
-        }
-        return mb_substr($newMsg, 0, 280);
     }
 }

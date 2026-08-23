@@ -572,7 +572,7 @@ class Estimasi extends Controller
                     );
                 }
                 if ($summary === '') {
-                    $summary = 'Permintaan pelanggan';
+                    $summary = 'Permintaan atau pertanyaan pelanggan.';
                 }
                 $items[] = [
                     'task_type' => 'permintaan',
@@ -597,12 +597,20 @@ class Estimasi extends Controller
         return $items;
     }
 
+    /** Muat helper ringkasan permintaan (shared dengan API/CRM). */
+    private function loadPermintaanSummaryHelper(): void
+    {
+        if (!class_exists('\\App\\Helpers\\Laundry\\PermintaanSummaryHelper', false)) {
+            require_once dirname(__DIR__, 3) . '/api/app/Helpers/Laundry/PermintaanSummaryHelper.php';
+        }
+    }
+
     /** Buang prefix preview CRM Fonnte "i- "/"o- ". */
     private function normalizePermintaanDisplayText(string $text): string
     {
-        $text = trim($text);
-        $text = preg_replace('/^[io]\-\s+/iu', '', $text) ?? $text;
-        return trim($text);
+        $this->loadPermintaanSummaryHelper();
+
+        return \App\Helpers\Laundry\PermintaanSummaryHelper::stripPreviewPrefix($text);
     }
 
     /**
@@ -615,28 +623,32 @@ class Estimasi extends Controller
         string $rawLog,
         bool $persistToSession
     ): string {
-        $sessionSummary = $this->normalizePermintaanDisplayText($sessionSummary);
+        $this->loadPermintaanSummaryHelper();
+        $H = \App\Helpers\Laundry\PermintaanSummaryHelper::class;
+
+        $sessionSummary = $H::stripPreviewPrefix($sessionSummary);
         $lines = $this->permintaanCollectChatLines($phone, $rawLog);
 
-        if ($sessionSummary !== '' && !$this->permintaanLooksLikeRawDump($sessionSummary, $lines)) {
-            return mb_substr($sessionSummary, 0, 280);
+        if ($sessionSummary !== '' && !$H::looksLikeRawDump($sessionSummary, $lines)) {
+            return $H::finalize($sessionSummary, 280);
         }
 
         if ($lines === []) {
-            return $sessionSummary !== '' ? mb_substr($sessionSummary, 0, 280) : '';
+            return $sessionSummary !== '' ? $H::finalize($sessionSummary, 280) : '';
         }
 
         $ai = $this->permintaanAiRangkumLines($lines, $sessionSummary);
         if ($ai === '') {
-            // Fallback singkat: jangan dump semua; ambil inti 1–2 klausa terakhir yang unik
-            $ai = $this->permintaanShortFallbackFromLines($lines);
+            $ai = $H::shortFallbackFromLines($lines);
         }
+
+        $ai = $H::finalize($ai, 280);
 
         if ($persistToSession && $ai !== '') {
             $this->permintaanPersistSessionSummary($phone, $ai, $lines);
         }
 
-        return mb_substr($ai, 0, 280);
+        return $ai;
     }
 
     /** @return list<string> */
@@ -711,31 +723,9 @@ class Estimasi extends Controller
     /** @param list<string> $lines */
     private function permintaanLooksLikeRawDump(string $summary, array $lines): bool
     {
-        if (preg_match('/^[io]\-\s+/iu', $summary)) {
-            return true;
-        }
-        if (substr_count($summary, ';') >= 1) {
-            return true;
-        }
-        if (count($lines) >= 2) {
-            $last = mb_strtolower(trim((string) end($lines)));
-            if ($last !== '' && mb_strtolower($summary) === $last) {
-                return true;
-            }
-        }
-        // terlalu mirip dump gabungan
-        if (count($lines) >= 2 && mb_strlen($summary) > 90) {
-            $hits = 0;
-            foreach ($lines as $line) {
-                if (mb_stripos($summary, mb_substr($line, 0, min(20, mb_strlen($line)))) !== false) {
-                    $hits++;
-                }
-            }
-            if ($hits >= 2) {
-                return true;
-            }
-        }
-        return false;
+        $this->loadPermintaanSummaryHelper();
+
+        return \App\Helpers\Laundry\PermintaanSummaryHelper::looksLikeRawDump($summary, $lines);
     }
 
     /** @param list<string> $lines */
@@ -745,24 +735,18 @@ class Estimasi extends Controller
             return '';
         }
 
+        $this->loadPermintaanSummaryHelper();
+        $H = \App\Helpers\Laundry\PermintaanSummaryHelper::class;
+
         $chatBlock = '';
         foreach ($lines as $i => $line) {
             $chatBlock .= ($i + 1) . '. ' . $line . "\n";
         }
 
-        $system = "Kamu merangkum pertanyaan DAN permintaan pelanggan laundry menjadi SATU kalimat singkat Bahasa Indonesia.\n"
-            . "WAJIB gabungkan SEMUA poin chat (bukan hanya yang terakhir, jangan salin mentah).\n"
-            . "Pertanyaan = tanya info/kapan/jam/estimasi. Permintaan = minta aksi/perlakuan khusus.\n"
-            . "Contoh gabungan: kapan siap + dulukan seragam → \"Tanya kapan siap; dulukan seragam merah putih\".\n"
-            . "Contoh permintaan: dulukan baju sekolah + pramuka → \"Dulukan seragam merah putih dan baju pramuka\".\n"
-            . "Contoh pertanyaan: jam berapa bisa diambil → \"Tanya jam bisa diambil\".\n"
-            . "Jangan buang pertanyaan karena ada permintaan, atau sebaliknya.\n"
-            . "Tanpa sapaan kak/bu/pak, tanpa emoji, tanpa tanda kutip, tanpa nomor, tanpa titik koma daftar chat.\n"
-            . "HANYA teks ringkasan, maksimal 180 karakter.";
-
-        $user = "Ringkasan lama (opsional): " . ($prevSummary !== '' && !$this->permintaanLooksLikeRawDump($prevSummary, $lines) ? $prevSummary : '(abaikan)') . "\n\n"
-            . "Chat pelanggan:\n{$chatBlock}\n"
-            . "Tulis SATU ringkasan pertanyaan/permintaan:";
+        $system = $H::aiSystemPrompt(180);
+        $user = 'Ringkasan lama (opsional): '
+            . ($prevSummary !== '' && !$H::looksLikeRawDump($prevSummary, $lines) ? $prevSummary : '(abaikan)')
+            . "\n\nChat pelanggan:\n{$chatBlock}\nTulis SATU ringkasan formal:";
 
         try {
             /** @var AiChat $ai */
@@ -771,13 +755,11 @@ class Estimasi extends Controller
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
             ], 100, 0.2, 10));
-            $out = $this->normalizePermintaanDisplayText($out);
-            $out = trim($out, " \t\n\r\0\x0B\"'");
-            $out = preg_replace('/\s+/u', ' ', $out) ?? $out;
-            if ($out === '' || $this->permintaanLooksLikeRawDump($out, $lines)) {
+            $out = $H::finalize($out, 280);
+            if ($out === '' || $H::looksLikeRawDump($out, $lines)) {
                 return '';
             }
-            return mb_substr($out, 0, 280);
+            return $out;
         } catch (\Throwable $e) {
             return '';
         }
@@ -786,14 +768,9 @@ class Estimasi extends Controller
     /** @param list<string> $lines */
     private function permintaanShortFallbackFromLines(array $lines): string
     {
-        if ($lines === []) {
-            return '';
-        }
-        // Satu kalimat sederhana dari item unik, bukan dump penuh
-        $joined = implode(' dan ', array_slice($lines, -3));
-        $joined = preg_replace('/\b(kak|gan|bos|min)\b/iu', '', $joined) ?? $joined;
-        $joined = preg_replace('/\s+/u', ' ', trim($joined)) ?? $joined;
-        return mb_substr($joined, 0, 220);
+        $this->loadPermintaanSummaryHelper();
+
+        return \App\Helpers\Laundry\PermintaanSummaryHelper::shortFallbackFromLines($lines);
     }
 
     /** @param list<string> $lines */
