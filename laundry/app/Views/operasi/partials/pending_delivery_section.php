@@ -57,10 +57,11 @@ if (empty($customerDeliveryRequests) || (int) ($data['modeView'] ?? 0) === 2) {
   }
   #op-dlv-root .dlv-item__actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 6px;
-    justify-content: flex-end;
     flex-shrink: 0;
+    align-self: flex-start;
   }
   #op-dlv-root .dlv-btn {
     display: inline-flex;
@@ -119,14 +120,6 @@ if (empty($customerDeliveryRequests) || (int) ($data['modeView'] ?? 0) === 2) {
     #op-dlv-root .op-dlv-grid__item {
       width: 460px;
       max-width: 460px;
-    }
-    #op-dlv-root .dlv-item {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    #op-dlv-root .dlv-item__actions {
-      width: 100%;
-      justify-content: flex-start;
     }
   }
 </style>

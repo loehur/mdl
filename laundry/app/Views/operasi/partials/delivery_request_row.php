@@ -124,14 +124,6 @@ $statusLbl = htmlspecialchars((string) ($rq['delivery_status'] ?? 'berjalan'), E
     <?php } ?>
   </div>
   <div class="dlv-item__actions">
-    <?php if ($canSelesai && $jenis === 'antar' && !$isInstant) { ?>
-      <button type="button"
-              class="dlv-btn dlv-btn--pending"
-              data-dlv-pending-request="<?= $idReq ?>"
-              data-nama="<?= $nama ?>">
-        <i class="fas fa-pause"></i> Pending
-      </button>
-    <?php } ?>
     <?php if ($canSelesai && $jenisOk) { ?>
       <button type="button"
               class="dlv-btn dlv-btn--selesai dlv-btn--icon"
@@ -166,8 +158,16 @@ $statusLbl = htmlspecialchars((string) ($rq['delivery_status'] ?? 'berjalan'), E
               aria-label="Selesai">
         <i class="fas fa-check" aria-hidden="true"></i>
       </button>
-    <?php } else { ?>
-      <span class="dlv-item__meta" style="align-self:center;opacity:.75">Track only</span>
+    <?php } ?>
+    <?php if ($canSelesai && $jenis === 'antar' && !$isInstant) { ?>
+      <button type="button"
+              class="dlv-btn dlv-btn--pending"
+              data-dlv-pending-request="<?= $idReq ?>"
+              data-nama="<?= $nama ?>">
+        <i class="fas fa-pause"></i> Pending
+      </button>
+    <?php } elseif (!$canSelesai) { ?>
+      <span class="dlv-item__meta" style="opacity:.75">Track only</span>
     <?php } ?>
   </div>
 </div>
