@@ -130,6 +130,18 @@ class CrewChatHelper
             return ['ok' => false, 'message' => 'phone dan pesan wajib'];
         }
 
+        $accessDeny = self::validateKaryawanAccessKey($idKaryawan, $crewCabang, $accessKey);
+        if ($accessDeny !== null) {
+            if (class_exists('\\Log')) {
+                \Log::write(
+                    'crewReply access_key reject id_karyawan=' . $idKaryawan . ' cabang=' . $crewCabang,
+                    'crm_crew',
+                    'Chat'
+                );
+            }
+            return $accessDeny;
+        }
+
         $deny = self::assertCrewConversation($phone, $crewCabang);
         if ($deny !== null) {
             return $deny;
@@ -148,19 +160,7 @@ class CrewChatHelper
                     'Chat'
                 );
             }
-            return ['ok' => false, 'message' => 'Pesan belum disetujui AI — klik Cek AI terlebih dahulu'];
-        }
-
-        $accessDeny = self::validateKaryawanAccessKey($idKaryawan, $crewCabang, $accessKey);
-        if ($accessDeny !== null) {
-            if (class_exists('\\Log')) {
-                \Log::write(
-                    'crewReply access_key reject id_karyawan=' . $idKaryawan . ' cabang=' . $crewCabang,
-                    'crm_crew',
-                    'Chat'
-                );
-            }
-            return $accessDeny;
+            return ['ok' => false, 'message' => 'Pesan belum dirapikan — klik Rapikan Pesan terlebih dahulu'];
         }
 
         $csw = CrmChatMergeHelper::getCswStatus(DB::getInstance(0), $phone);
