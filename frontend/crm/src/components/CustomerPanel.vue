@@ -887,20 +887,17 @@ onUnmounted(() => {
 
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
         <section class="grid grid-cols-2 gap-3">
-          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] min-w-0">
-            <label class="text-xs text-[var(--wa-text-tertiary)]">WA</label>
-            <div class="flex items-center justify-between gap-2 mt-0.5">
-              <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
-                {{ formatPhoneTo08(conversation?.wa_number) }}
-              </p>
-              <button
-                type="button"
-                class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
-                @click="copyPhoneNumber"
-              >
-                {{ copiedPhone ? "Copied!" : "Copy" }}
-              </button>
-            </div>
+          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] min-w-0 flex items-center justify-between gap-2">
+            <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
+              {{ formatPhoneTo08(conversation?.wa_number) }}
+            </p>
+            <button
+              type="button"
+              class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
+              @click="copyPhoneNumber"
+            >
+              {{ copiedPhone ? "Copied!" : "Copy" }}
+            </button>
           </div>
 
           <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] flex items-center justify-between gap-2">
