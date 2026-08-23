@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -45,11 +45,27 @@ const editPermintaanTarget = ref(null);
 const editPermintaanSummary = ref("");
 const editPermintaanMsg = ref("");
 const savingPermintaan = ref(false);
+const createPermintaanSummary = ref("");
+const createPermintaanMsg = ref("");
+const creatingPermintaan = ref(false);
+const permintaanResultMsg = ref("");
+const permintaanResultOk = ref(false);
 
 const canSavePermintaan = computed(() => {
   if (savingPermintaan.value) return false;
   return editPermintaanSummary.value.trim().length > 0;
 });
+
+const canCreatePermintaan = computed(() => {
+  if (creatingPermintaan.value) return false;
+  return createPermintaanSummary.value.trim().length > 0;
+});
+
+const canUsePermintaanAction = computed(() => {
+  return !!(custId.value || props.conversation?.wa_number);
+});
+
+const hasOpenPermintaan = computed(() => permintaanOpenItems.value.length > 0);
 
 const deliveryJenisOptions = [
   { id: "jemput", label: "Jemput" },
@@ -368,6 +384,70 @@ const openEditPermintaan = (item) => {
   showEditPermintaanModal.value = true;
 };
 
+const resetCreatePermintaanForm = () => {
+  createPermintaanSummary.value = "";
+  createPermintaanMsg.value = "";
+};
+
+const closeCreatePermintaan = () => {
+  showCreatePermintaanModal.value = false;
+  resetCreatePermintaanForm();
+};
+
+const openCreatePermintaan = () => {
+  if (!isAdmin.value || !canUsePermintaanAction.value) return;
+  resetCreatePermintaanForm();
+  showCreatePermintaanModal.value = true;
+};
+
+const handlePermintaanAction = () => {
+  if (!isAdmin.value || !canUsePermintaanAction.value) return;
+  if (hasOpenPermintaan.value) {
+    openEditPermintaan(permintaanOpenItems.value[0]);
+    return;
+  }
+  openCreatePermintaan();
+};
+
+const saveCreatePermintaan = async () => {
+  if (!isAdmin.value || !canCreatePermintaan.value) return;
+
+  creatingPermintaan.value = true;
+  createPermintaanMsg.value = "";
+  try {
+    const payload = {
+      summary: createPermintaanSummary.value.trim(),
+    };
+    if (custId.value) payload.cust_id = custId.value;
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Permintaan/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      createPermintaanMsg.value = res?.message || "Gagal membuat permintaan";
+      return;
+    }
+
+    permintaanResultOk.value = true;
+    permintaanResultMsg.value = res?.message || "Permintaan dibuat.";
+    if (res.item) {
+      permintaanOpenItems.value = [res.item];
+      syncConversationCases();
+    } else {
+      await loadPermintaanOpen();
+    }
+    closeCreatePermintaan();
+  } catch (_) {
+    createPermintaanMsg.value = "Gagal membuat permintaan";
+  } finally {
+    creatingPermintaan.value = false;
+  }
+};
+
 const saveEditPermintaan = async () => {
   const target = editPermintaanTarget.value;
   if (!isAdmin.value || !target || !canSavePermintaan.value) return;
@@ -601,6 +681,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showCreatePermintaanModal.value) {
+    closeCreatePermintaan();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showDeliveryRequestModal.value) {
     closeDeliveryRequest();
     e.stopImmediatePropagation();
@@ -620,7 +705,10 @@ watch(
     closeDeliveryRequest();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
+    permintaanResultMsg.value = "";
+    permintaanResultOk.value = false;
     closeEditPermintaan();
+    closeCreatePermintaan();
   }
 );
 
@@ -643,12 +731,17 @@ watch(showEditPermintaanModal, (open) => {
   if (!open) resetEditPermintaanForm();
 });
 
+watch(showCreatePermintaanModal, (open) => {
+  if (!open) resetCreatePermintaanForm();
+});
+
 watch(isAdmin, (admin) => {
   if (!admin) {
     closeAddLokasi();
     closeDeleteLokasi();
     closeDeliveryRequest();
     closeEditPermintaan();
+    closeCreatePermintaan();
   }
 });
 
@@ -660,6 +753,9 @@ watch(
       closeDeleteLokasi();
       closeDeliveryRequest();
       closeEditPermintaan();
+      closeCreatePermintaan();
+      permintaanResultMsg.value = "";
+      permintaanResultOk.value = false;
       lokasiItems.value = [];
       lokasiError.value = "";
       deliveryAktifItems.value = [];
@@ -761,6 +857,47 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <section v-if="isAdmin">
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed"
+              :class="hasOpenPermintaan
+                ? 'bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border-red-400/50'
+                : 'bg-red-500 text-white border-transparent'"
+              :disabled="!canUsePermintaanAction"
+              @click="handlePermintaanAction"
+            >
+              Permintaan
+            </button>
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!custId"
+              @click="openDeliveryRequest"
+            >
+              Delivery
+            </button>
+          </div>
+          <p v-if="!canUsePermintaanAction && !custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+            Customer belum terhubung ke data laundry.
+          </p>
+          <p
+            v-if="permintaanResultMsg"
+            class="text-xs mt-2"
+            :class="permintaanResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ permintaanResultMsg }}
+          </p>
+          <p
+            v-else-if="deliveryResultMsg"
+            class="text-xs mt-2"
+            :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ deliveryResultMsg }}
+          </p>
+        </section>
+
         <section v-if="(custId || conversation?.wa_number) && (permintaanOpenLoading || permintaanOpenItems.length)">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Permintaan</h3>
           <p v-if="permintaanOpenLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat permintaan…</p>
@@ -792,34 +929,12 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="isAdmin || (custId && (deliveryAktifLoading || deliveryAktifItems.length))">
-          <h3 v-if="!isAdmin" class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
+        <section v-if="custId && (deliveryAktifLoading || deliveryAktifItems.length)">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
             Delivery Request
           </h3>
-          <template v-if="isAdmin">
-            <button
-              type="button"
-              class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!custId"
-              @click="openDeliveryRequest"
-            >
-              Delivery Request
-            </button>
-            <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
-              Customer belum terhubung ke data laundry.
-            </p>
-            <p
-              v-else-if="deliveryResultMsg"
-              class="text-xs mt-2"
-              :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
-            >
-              {{ deliveryResultMsg }}
-            </p>
-          </template>
-          <p v-if="custId && deliveryAktifLoading && !deliveryAktifItems.length" class="text-xs text-[var(--wa-text-tertiary)] mt-3">
-            Memuat request…
-          </p>
-          <div v-else-if="deliveryAktifItems.length" class="space-y-2" :class="isAdmin ? 'mt-3' : ''">
+          <p v-if="deliveryAktifLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat request…</p>
+          <div v-else class="space-y-2">
             <div
               v-for="req in deliveryAktifItems"
               :key="req.id_request"
@@ -1030,6 +1145,64 @@ onUnmounted(() => {
             @click="confirmDeleteLokasi"
           >
             {{ deletingLokasi ? "Menghapus…" : "Hapus" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showCreatePermintaanModal"
+      class="fixed inset-0 z-[704] flex items-center justify-center p-4"
+      @click="closeCreatePermintaan"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Buat Permintaan</h3>
+          <button
+            type="button"
+            class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
+            @click="closeCreatePermintaan"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div>
+          <label class="text-xs text-[var(--wa-text-tertiary)]">Isi permintaan</label>
+          <textarea
+            v-model="createPermintaanSummary"
+            rows="5"
+            maxlength="2000"
+            placeholder="Tulis pertanyaan / permintaan pelanggan"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+          ></textarea>
+          <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">Maks. 2000 karakter. Case Permintaan akan aktif 24 jam.</p>
+        </div>
+
+        <p v-if="createPermintaanMsg" class="text-xs text-red-400 mt-3">{{ createPermintaanMsg }}</p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            @click="closeCreatePermintaan"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
+            :disabled="!canCreatePermintaan"
+            @click="saveCreatePermintaan"
+          >
+            {{ creatingPermintaan ? "Menyimpan…" : "Buat" }}
           </button>
         </div>
       </div>

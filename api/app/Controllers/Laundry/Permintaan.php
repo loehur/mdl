@@ -7,7 +7,7 @@ use App\Helpers\Laundry\PermintaanStore;
 
 /**
  * Permintaan pelanggan (wa_permintaan_session) — CRM Customer Panel.
- * URL: /Laundry/Permintaan/listOpen | /Laundry/Permintaan/update
+ * URL: /Laundry/Permintaan/listOpen | /Laundry/Permintaan/update | /Laundry/Permintaan/create
  */
 class Permintaan extends Controller
 {
@@ -43,6 +43,16 @@ class Permintaan extends Controller
             return;
         }
         $this->reply(PermintaanStore::updateSummary($this->mergedInput()));
+    }
+
+    public function create()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $this->reply(PermintaanStore::create($this->mergedInput()));
     }
 
     private function fail(string $message, int $code = 400): void

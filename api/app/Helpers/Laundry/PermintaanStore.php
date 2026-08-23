@@ -9,6 +9,9 @@ use App\Core\DB;
  */
 class PermintaanStore
 {
+    private const SESSION_TTL_MINUTES = 60;
+    private const NOTIFY_TTL_HOURS = 24;
+
     /**
      * @return array{ok:bool,message?:string,items?:list<array<string,mixed>>}
      */
@@ -135,6 +138,100 @@ class PermintaanStore
     }
 
     /**
+     * Buat session permintaan open manual dari CRM.
+     *
+     * @param array{phone?:string,wa_number?:string,cust_id?:int,id_pelanggan?:int,summary:string} $input
+     * @return array{ok:bool,message?:string,item?:array<string,mixed>}
+     */
+    public static function create(array $input): array
+    {
+        $summary = trim((string) ($input['summary'] ?? ''));
+        if ($summary === '') {
+            return ['ok' => false, 'message' => 'Isi permintaan wajib diisi'];
+        }
+        if (mb_strlen($summary) > 2000) {
+            return ['ok' => false, 'message' => 'Isi permintaan maks. 2000 karakter'];
+        }
+
+        $idPelanggan = (int) ($input['id_pelanggan'] ?? $input['cust_id'] ?? 0);
+        $waNumber = trim((string) ($input['phone'] ?? $input['wa_number'] ?? ''));
+
+        $phoneStorage = self::resolvePhoneStorage($idPelanggan, $waNumber);
+        if ($phoneStorage === '') {
+            return ['ok' => false, 'message' => 'Nomor WA wajib'];
+        }
+
+        if (self::findOpenSessionRow($idPelanggan, $phoneStorage) !== null) {
+            return ['ok' => false, 'message' => 'Permintaan open sudah ada — gunakan Edit'];
+        }
+
+        $idCabang = 0;
+        if ($idPelanggan > 0) {
+            $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
+            if ($pel !== null) {
+                $idCabang = (int) ($pel['id_cabang'] ?? 0);
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $expires = date('Y-m-d H:i:s', time() + (self::SESSION_TTL_MINUTES * 60));
+        $notifyExpires = date('Y-m-d H:i:s', time() + (self::NOTIFY_TTL_HOURS * 3600));
+        $rawLog = '[CRM manual] ' . $summary;
+
+        try {
+            $db = DB::getInstance(0);
+            $db->query(
+                'INSERT INTO wa_permintaan_session
+                 (phone, id_pelanggan, id_cabang, status, summary, raw_log,
+                  reject_reason, reject_alt, reply_text, updated_at, expires_at, notify_expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    id_pelanggan = VALUES(id_pelanggan),
+                    id_cabang = VALUES(id_cabang),
+                    status = VALUES(status),
+                    summary = VALUES(summary),
+                    raw_log = VALUES(raw_log),
+                    reject_reason = NULL,
+                    reject_alt = NULL,
+                    reply_text = NULL,
+                    updated_at = VALUES(updated_at),
+                    expires_at = VALUES(expires_at),
+                    notify_expires_at = VALUES(notify_expires_at)',
+                [
+                    $phoneStorage,
+                    $idPelanggan > 0 ? $idPelanggan : null,
+                    $idCabang > 0 ? $idCabang : null,
+                    'open',
+                    $summary,
+                    $rawLog,
+                    $now,
+                    $expires,
+                    $notifyExpires,
+                ]
+            );
+
+            self::openPermintaanCase($db, $phoneStorage);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
+        }
+
+        $row = [
+            'phone' => $phoneStorage,
+            'id_pelanggan' => $idPelanggan > 0 ? $idPelanggan : null,
+            'summary' => $summary,
+            'updated_at' => $now,
+            'notify_expires_at' => $notifyExpires,
+            'expires_at' => $expires,
+        ];
+
+        return [
+            'ok' => true,
+            'message' => 'Permintaan dibuat',
+            'item' => self::formatItem($row, $summary),
+        ];
+    }
+
+    /**
      * @return array<string,mixed>|null
      */
     private static function findOpenSessionRow(int $idPelanggan, string $waNumber): ?array
@@ -201,6 +298,74 @@ class PermintaanStore
         }
 
         return is_array($row) && !empty($row['phone']) ? $row : null;
+    }
+
+    private static function resolvePhoneStorage(int $idPelanggan, string $waNumber): string
+    {
+        $phoneStorage = self::normalizePhoneStorage($waNumber);
+        if ($phoneStorage !== '') {
+            return $phoneStorage;
+        }
+
+        if ($idPelanggan > 0) {
+            $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
+            if ($pel !== null) {
+                return self::normalizePhoneStorage((string) ($pel['nomor_pelanggan'] ?? ''));
+            }
+        }
+
+        return '';
+    }
+
+    private static function normalizePhoneStorage(string $phone): string
+    {
+        $key = self::normalizePhoneKey($phone);
+        if ($key === '') {
+            return '';
+        }
+
+        return '+' . $key;
+    }
+
+    private static function openPermintaanCase(DB $db, string $phoneStorage): void
+    {
+        $phoneKey = self::normalizePhoneKey($phoneStorage);
+        if ($phoneKey === '') {
+            return;
+        }
+
+        try {
+            $conv = $db->query(
+                "SELECT id, conv_case FROM wa_conversations
+                 WHERE REPLACE(REPLACE(wa_number, '+', ''), ' ', '') = ?
+                 LIMIT 1",
+                [$phoneKey]
+            )->row_array();
+            if (!is_array($conv) || empty($conv['id'])) {
+                return;
+            }
+
+            $caseList = json_decode((string) ($conv['conv_case'] ?? '[]'), true);
+            if (!is_array($caseList)) {
+                $caseList = [];
+            }
+
+            $filtered = [];
+            foreach ($caseList as $item) {
+                if ((int) ($item['case'] ?? 0) === 3) {
+                    continue;
+                }
+                $filtered[] = $item;
+            }
+            $filtered[] = ['case' => 3, 'status' => 'open'];
+
+            $db->query(
+                'UPDATE wa_conversations SET conv_case = ? WHERE id = ?',
+                [json_encode(array_values($filtered), JSON_UNESCAPED_UNICODE), (int) $conv['id']]
+            );
+        } catch (\Throwable $e) {
+            // conversation opsional — session permintaan tetap dibuat
+        }
     }
 
     /**
