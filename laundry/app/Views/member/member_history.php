@@ -140,7 +140,7 @@ $nTampil = count($tampil);
 
 <head>
   <meta charset="utf-8">
-  <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg" type="image/svg+xml">
+  <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/app-icon-192.png" type="image/png">
   <title><?= strtoupper($data['data_pelanggan']['nama_pelanggan']) ?> | MDL</title>
   <meta name="viewport" content="width=480px, user-scalable=no">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">

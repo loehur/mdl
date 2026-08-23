@@ -26,7 +26,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
 
 <head>
     <meta charset="utf-8">
-    <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg" type="image/svg+xml">
+    <link rel="icon" href="<?= URL::IN_ASSETS ?>icon/app-icon-192.png" type="image/png">
     <title><?= strtoupper($dPelanggan['nama_pelanggan']) ?> | MDL</title>
     <meta name="viewport" content="width=410, user-scalable=no">
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">

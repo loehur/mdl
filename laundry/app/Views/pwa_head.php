@@ -4,4 +4,4 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="MDL Laundry">
-<link rel="apple-touch-icon" href="<?= URL::IN_ASSETS ?>icon/j-icon.svg">
+<link rel="apple-touch-icon" href="<?= URL::IN_ASSETS ?>icon/j-icon-192.png">

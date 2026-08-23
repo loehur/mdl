@@ -24,10 +24,6 @@ $base = $data['base'];
   </nav>
 </div>
 
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('<?= $base ?>Pwa/sw', { scope: '<?= $base ?>' }).catch(function () {});
-}
-</script>
+<?php require_once __DIR__ . '/../pwa_register.php'; ?>
 </body>
 </html>
