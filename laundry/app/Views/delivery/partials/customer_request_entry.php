@@ -1,7 +1,7 @@
 <?php
 /**
  * Satu baris customer + request di board Delivery.
- * @var array $rq request enriched (siap_selesai, block_hint, …)
+ * @var array $rq request dari Delivery::fetchPendingCustomerRequests
  */
 $tail = htmlspecialchars((string) ($rq['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
 $phoneShow = htmlspecialchars((string) ($rq['phone_display'] ?? $rq['phone_tail'] ?? ''), ENT_QUOTES, 'UTF-8');
@@ -25,7 +25,7 @@ $mapsHref = '';
 if ($lokLatt !== null && $lokLongt !== null && (float) $lokLatt != 0.0 && (float) $lokLongt != 0.0) {
   $mapsHref = 'https://www.google.com/maps?q=' . rawurlencode(((float) $lokLatt) . ',' . ((float) $lokLongt));
 }
-$hasLokasi = !empty($rq['has_lokasi']) || ($lokNama !== '' || $lokDetail !== '' || $mapsHref !== '');
+$hasLokasi = ($lokNama !== '' || $lokDetail !== '' || $mapsHref !== '');
 $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
   ? (int) $rq['tarif_surcas']
   : '';
@@ -39,9 +39,6 @@ $ongkir = isset($rq['ongkir']) ? (int) $rq['ongkir'] : 0;
 $catatanKurir = trim((string) ($rq['catatan_kurir'] ?? ''));
 $surcasBound = !empty($rq['surcas_bound']);
 $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
-$siapSelesai = !empty($rq['siap_selesai']);
-$blockHint = trim((string) ($rq['block_hint'] ?? ''));
-$siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
 ?>
 <div class="dlv-item dlv-item--customer dlv-item--group" data-phone-tail="<?= $tail ?>" data-phone-display="<?= $phoneShow ?>" data-source="merged">
   <div class="dlv-item__head-row">
@@ -61,7 +58,7 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
     </div>
   </div>
 
-  <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?><?= $siapSelesai ? ' dlv-item--request-siap' : ' dlv-item--request-belum' ?>"
+  <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
        data-id-request="<?= $idReq ?>"
        data-id-pelanggan="<?= $idPelangganRq ?>"
        data-phone-tail="<?= $tail ?>"
@@ -82,13 +79,6 @@ $siapItemCount = (int) ($rq['siap_item_count'] ?? 0);
         <?php } ?>
         <?php if (!$hasLokasi && !$isInstant) { ?>
           <span class="dlv-jenis-pill" style="background:#fef3c7;color:#92400e">Lokasi menyusul</span>
-        <?php } ?>
-        <?php
-          $belumItemCount = (int) ($rq['belum_item_count'] ?? 0);
-          if ($siapSelesai && $siapItemCount > 0) { ?>
-          <span class="dlv-jenis-pill" style="background:#dcfce7;color:#166534"><?= $siapItemCount ?> item siap<?= $belumItemCount > 0 ? ', ' . $belumItemCount . ' menunggu' : '' ?></span>
-        <?php } elseif (!$siapSelesai && $blockHint !== '') { ?>
-          <span class="dlv-jenis-pill" style="background:#fee2e2;color:#991b1b"><?= htmlspecialchars($blockHint, ENT_QUOTES, 'UTF-8') ?></span>
         <?php } ?>
         <span class="dlv-kode">#<?= $idReq ?></span>
       </p>
