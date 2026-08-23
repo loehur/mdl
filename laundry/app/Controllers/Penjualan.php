@@ -18,7 +18,7 @@ class Penjualan extends Controller
    {
       $this->operating_data();
       $this->harga = $this->filterHargaAktif($this->harga);
-      require_once "app/Views/" . $file . ".php";
+      require "app/Views/" . $file . ".php";
    }
 
    public function index()

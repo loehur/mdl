@@ -29,10 +29,10 @@ $this->view('non_tunai_admin/_filter', [
         <table class="table table-sm table-bordered table-hover nta-table mb-0">
           <thead>
             <tr>
+              <th>ID Link</th>
               <th>Tanggal</th>
               <th>Nominal</th>
               <th>Pelanggan</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -76,7 +76,7 @@ $this->view('non_tunai_admin/_filter', [
               }
 
               $detailPayload = [
-                  'title' => 'Detail BCA Mutasi',
+                  'title' => 'Detail BCA Mutasi #' . (int) ($row['link_id'] ?? 0),
                   'fields' => [
                       ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
                       ['label' => 'Nominal Mutasi', 'value' => $fmtRp($row['nominal'] ?? null)],
@@ -90,24 +90,25 @@ $this->view('non_tunai_admin/_filter', [
                       ['label' => 'Pelanggan', 'html' => $pelangganHtml],
                       ['label' => 'Waktu Bind', 'value' => $linkedAt],
                       ['label' => 'Created Mutasi', 'value' => $mutasiCreated],
-                      ['label' => 'ID Link', 'value' => (string) ($row['link_id'] ?? '')],
                       ['label' => 'ID Mutasi', 'value' => (string) ($row['mutasi_id'] ?? '')],
                   ],
               ];
+              $detailJson = json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+              if (!is_string($detailJson)) {
+                  $detailJson = '{}';
+              }
             ?>
             <tr>
+              <td><?php $this->view('non_tunai_admin/_link_id_cell', [
+                  'linkId' => (int) ($row['link_id'] ?? 0),
+                  'detailJson' => $detailJson,
+              ]); ?></td>
               <td><?= htmlspecialchars($tanggalLabel) ?></td>
               <td><?php $this->view('non_tunai_admin/_nominal_bind_cell', [
                   'nominal' => $nominal,
                   'billNominal' => $billNominal,
               ]); ?></td>
               <td><?php $this->view('non_tunai_admin/_pelanggan_cell', ['p' => $pRow]); ?></td>
-              <td class="text-end">
-                <button type="button" class="btn btn-outline-primary btn-sm nta-detail-btn"
-                  data-detail="<?= htmlspecialchars(json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>">
-                  Detail
-                </button>
-              </td>
             </tr>
             <?php } ?>
           </tbody>

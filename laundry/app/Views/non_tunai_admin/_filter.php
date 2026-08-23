@@ -113,6 +113,17 @@ $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
       font-weight: 800;
       padding: 2px 10px;
     }
+    #nta-root .nta-link-id {
+      font-weight: 800;
+      color: var(--nta-blue);
+      text-decoration: none;
+      font-size: 0.84rem;
+      border: 0;
+    }
+    #nta-root .nta-link-id:hover {
+      text-decoration: underline;
+      color: #1d4ed8;
+    }
   </style>
   <style>
     #ntaDetailModal .nta-detail-list .nta-detail-row {

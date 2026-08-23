@@ -9,7 +9,7 @@ class Controller extends URL
     public function view($file, $data = [])
     {
         $this->operating_data();
-        require_once "app/Views/" . $file . ".php";
+        require "app/Views/" . $file . ".php";
     }
 
     public function model($file)
