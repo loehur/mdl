@@ -507,23 +507,12 @@ if (isset($data['data_operasi'])) {
             background-image: linear-gradient(105deg, #7dd5e4 0%, #b0e8f0 100%) !important;
             border-bottom-color: rgba(21, 94, 117, 0.12);
         }
-        /* Ada notifikasi: border-bottom merah pekat tebal + berkedip */
-        @keyframes mdl-topbar-notif-border {
-            0%, 100% {
-                border-bottom-color: #7f1d1d;
-                border-bottom-width: 4px;
-            }
-            50% {
-                border-bottom-color: #dc2626;
-                border-bottom-width: 4px;
-            }
-        }
+        /* Ada notifikasi: border-bottom merah pekat tebal (tanpa kedip — kedip hanya di badge angka) */
         .main-header.mdl-topbar.has-notif {
             border-bottom-style: solid;
             border-bottom-width: 4px;
             border-bottom-color: #7f1d1d;
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
-            animation: mdl-topbar-notif-border 0.9s ease-in-out infinite;
         }
         .main-header.mdl-topbar:not(.has-notif) {
             border-bottom-width: 1px;
@@ -678,8 +667,26 @@ if (isset($data['data_operasi'])) {
             display: none;
             box-sizing: border-box;
         }
+        @keyframes mdl-bell-badge-blink {
+            0%, 100% {
+                opacity: 1;
+                background: #ef4444;
+                color: #fff;
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+            }
+            50% {
+                opacity: 0.35;
+                background: #b91c1c;
+                color: #fff;
+                box-shadow: 0 0 10px 2px rgba(239, 68, 68, 0.75);
+            }
+        }
         .mdl-bell-badge.is-on {
             display: block;
+            background: #ef4444;
+            border-color: #7f1d1d;
+            color: #fff;
+            animation: mdl-bell-badge-blink 0.85s ease-in-out infinite;
         }
 
         /* Offcanvas Notifikasi */
@@ -1344,7 +1351,6 @@ if (isset($data['data_operasi'])) {
         }
         body.mode-training .main-header.mdl-topbar.has-notif {
             border-bottom-color: #7f1d1d;
-            animation: mdl-topbar-notif-border 0.9s ease-in-out infinite;
         }
         body.mode-training .mode-live-toggle {
             background: rgba(15, 23, 42, 0.28);

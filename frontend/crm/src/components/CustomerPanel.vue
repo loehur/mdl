@@ -39,6 +39,8 @@ const deliveryResultOk = ref(false);
 const submittingDelivery = ref(false);
 const deliveryAktifItems = ref([]);
 const deliveryAktifLoading = ref(false);
+const permintaanOpenItems = ref([]);
+const permintaanOpenLoading = ref(false);
 
 const deliveryJenisOptions = [
   { id: "jemput", label: "Jemput" },
@@ -278,7 +280,7 @@ const submitDeliveryRequest = async () => {
     deliveryResultMsg.value = res?.message || "Permintaan terkirim.";
     if (Array.isArray(res.items)) {
       deliveryAktifItems.value = res.items;
-      syncConversationDeliveryCase(deliveryAktifItems.value);
+      syncConversationCases();
     } else {
       loadDeliveryAktif();
     }
@@ -290,20 +292,58 @@ const submitDeliveryRequest = async () => {
   }
 };
 
-const syncConversationDeliveryCase = (items = deliveryAktifItems.value) => {
+const syncConversationCases = () => {
   if (!props.conversation) return;
-  const hasActive = Array.isArray(items) && items.length > 0;
   const existingCases = Array.isArray(props.conversation.cases) ? props.conversation.cases : [];
-  const withoutDelivery = existingCases.filter((c) => Number(c?.case) !== 2);
-  props.conversation.cases = hasActive
-    ? [...withoutDelivery, { case: 2, status: "open" }]
-    : withoutDelivery;
+  const preserved = existingCases.filter((c) => {
+    const caseNum = Number(c?.case);
+    return caseNum !== 2 && caseNum !== 3;
+  });
+  const next = [...preserved];
+  if (Array.isArray(permintaanOpenItems.value) && permintaanOpenItems.value.length > 0) {
+    next.push({ case: 3, status: "open" });
+  }
+  if (Array.isArray(deliveryAktifItems.value) && deliveryAktifItems.value.length > 0) {
+    next.push({ case: 2, status: "open" });
+  }
+  props.conversation.cases = next;
+};
+
+const loadPermintaanOpen = async () => {
+  if (!custId.value && !props.conversation?.wa_number) {
+    permintaanOpenItems.value = [];
+    syncConversationCases();
+    return;
+  }
+  permintaanOpenLoading.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (custId.value) params.set("cust_id", String(custId.value));
+    if (props.conversation?.wa_number) {
+      params.set("wa_number", props.conversation.wa_number);
+    }
+    const res = await fetch(
+      `${props.apiBase}/Laundry/Permintaan/listOpen?${params.toString()}`
+    ).then((r) => r.json());
+    if (!res?.ok && !res?.status) {
+      permintaanOpenItems.value = [];
+      syncConversationCases();
+      return;
+    }
+    permintaanOpenItems.value = Array.isArray(res.items) ? res.items : [];
+    syncConversationCases();
+  } catch (_) {
+    permintaanOpenItems.value = [];
+    syncConversationCases();
+  } finally {
+    permintaanOpenLoading.value = false;
+  }
 };
 
 const loadDeliveryAktif = async () => {
   if (!custId.value) {
     deliveryAktifItems.value = [];
-    syncConversationDeliveryCase([]);
+    syncConversationCases();
     return;
   }
   deliveryAktifLoading.value = true;
@@ -313,14 +353,14 @@ const loadDeliveryAktif = async () => {
     ).then((r) => r.json());
     if (!res?.ok && !res?.status) {
       deliveryAktifItems.value = [];
-      syncConversationDeliveryCase([]);
+      syncConversationCases();
       return;
     }
     deliveryAktifItems.value = Array.isArray(res.items) ? res.items : [];
-    syncConversationDeliveryCase(deliveryAktifItems.value);
+    syncConversationCases();
   } catch (_) {
     deliveryAktifItems.value = [];
-    syncConversationDeliveryCase([]);
+    syncConversationCases();
   } finally {
     deliveryAktifLoading.value = false;
   }
@@ -530,7 +570,7 @@ watch(isAdmin, (admin) => {
 });
 
 watch(
-  [() => showCustomerPanel.value, custId],
+  [() => showCustomerPanel.value, custId, () => props.conversation?.wa_number],
   ([open, id]) => {
     if (!open) {
       closeAddLokasi();
@@ -539,8 +579,10 @@ watch(
       lokasiItems.value = [];
       lokasiError.value = "";
       deliveryAktifItems.value = [];
+      permintaanOpenItems.value = [];
       return;
     }
+    loadPermintaanOpen();
     if (id) {
       loadLokasi();
       loadDeliveryAktif();
@@ -635,29 +677,56 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="isAdmin">
-          <button
-            type="button"
-            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            :disabled="!custId"
-            @click="openDeliveryRequest"
-          >
+        <section v-if="(custId || conversation?.wa_number) && (permintaanOpenLoading || permintaanOpenItems.length)">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Permintaan</h3>
+          <p v-if="permintaanOpenLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat permintaan…</p>
+          <div v-else class="space-y-2">
+            <div
+              v-for="(item, idx) in permintaanOpenItems"
+              :key="'perm-' + (item.phone || idx)"
+              class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-red-400/40"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-medium text-[var(--wa-text-primary)] break-words">{{ item.summary }}</p>
+                <span class="text-[11px] font-bold text-red-400 flex-shrink-0">
+                  {{ item.status_label || "Open" }}
+                </span>
+              </div>
+              <p v-if="item.updated_at" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+                {{ formatRequestTime(item.updated_at) }}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="isAdmin || (custId && (deliveryAktifLoading || deliveryAktifItems.length))">
+          <h3 v-if="!isAdmin" class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
             Delivery Request
-          </button>
-          <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
-            Customer belum terhubung ke data laundry.
-          </p>
-          <p
-            v-else-if="deliveryResultMsg"
-            class="text-xs mt-2"
-            :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
-          >
-            {{ deliveryResultMsg }}
-          </p>
+          </h3>
+          <template v-if="isAdmin">
+            <button
+              type="button"
+              class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!custId"
+              @click="openDeliveryRequest"
+            >
+              Delivery Request
+            </button>
+            <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+              Customer belum terhubung ke data laundry.
+            </p>
+            <p
+              v-else-if="deliveryResultMsg"
+              class="text-xs mt-2"
+              :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+            >
+              {{ deliveryResultMsg }}
+            </p>
+          </template>
           <p v-if="custId && deliveryAktifLoading && !deliveryAktifItems.length" class="text-xs text-[var(--wa-text-tertiary)] mt-3">
             Memuat request…
           </p>
-          <div v-else-if="deliveryAktifItems.length" class="space-y-2 mt-3">
+          <div v-else-if="deliveryAktifItems.length" class="space-y-2" :class="isAdmin ? 'mt-3' : ''">
             <div
               v-for="req in deliveryAktifItems"
               :key="req.id_request"
@@ -680,35 +749,6 @@ onUnmounted(() => {
                 #{{ req.id_request }}
                 <span v-if="req.layanan && req.layanan !== 'sameday'"> · {{ req.layanan }}</span>
                 <span v-if="req.insertTime"> · {{ formatRequestTime(req.insertTime) }}</span>
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section v-else-if="custId">
-          <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">Request aktif</p>
-          <p v-if="deliveryAktifLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat request…</p>
-          <p v-else-if="!deliveryAktifItems.length" class="text-xs text-[var(--wa-text-tertiary)]">
-            Tidak ada request aktif.
-          </p>
-          <div v-else class="space-y-2">
-            <div
-              v-for="req in deliveryAktifItems"
-              :key="'view-' + req.id_request"
-              class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)]"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <p class="text-sm font-medium text-[var(--wa-text-primary)]">{{ deliveryJenisLabel(req) }}</p>
-                <span class="text-[11px] font-bold text-[var(--wa-accent-green)] flex-shrink-0">
-                  {{ req.status_label || "Berjalan" }}
-                </span>
-              </div>
-              <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5">
-                {{ req.lokasi_nama || "Lokasi" }}
-                <span v-if="req.lokasi_detail"> · {{ req.lokasi_detail }}</span>
-              </p>
-              <p v-if="req.catatan_kurir" class="text-xs text-[var(--wa-text-secondary)] mt-1 break-words">
-                {{ req.catatan_kurir }}
               </p>
             </div>
           </div>
