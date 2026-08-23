@@ -1863,7 +1863,11 @@ class Chat extends Controller
 
         $res = \App\Helpers\CRM\CrewChatHelper::polishMessage($body);
         if (empty($res['ok'])) {
-            $this->error($res['message'] ?? 'Gagal memproses', 400);
+            $this->json([
+                'ok' => false,
+                'message' => $res['message'] ?? 'Gagal memproses',
+                'field' => $res['field'] ?? null,
+            ]);
         }
 
         $this->json([
@@ -1898,6 +1902,13 @@ class Chat extends Controller
 
         $res = \App\Helpers\CRM\CrewChatHelper::sendReply($body);
         if (empty($res['ok'])) {
+            if (class_exists('\\Log')) {
+                \Log::write(
+                    'crewReply HTTP reject: ' . ($res['message'] ?? 'unknown') . ' phone=' . ($body['phone'] ?? ''),
+                    'crm_crew',
+                    'Chat'
+                );
+            }
             $this->error($res['message'] ?? 'Gagal mengirim', 400);
         }
 

@@ -341,6 +341,44 @@ const crewSending = ref(false);
 const crewPolishSapaan = ref("");
 const crewPolishToken = ref("");
 const crewFormMsg = ref("");
+const crewKaryawanWarning = ref("");
+const crewAccessKeyWarning = ref("");
+
+const clearCrewFieldWarnings = () => {
+  crewKaryawanWarning.value = "";
+  crewAccessKeyWarning.value = "";
+};
+
+const applyCrewAccessError = (res) => {
+  const field = res?.field || res?.data?.field;
+  const msg = res?.message || "";
+  if (!msg) return;
+  if (field === "access_key") {
+    crewAccessKeyWarning.value = msg;
+  } else if (field === "karyawan") {
+    crewKaryawanWarning.value = msg;
+  } else {
+    crewFormMsg.value = msg;
+  }
+};
+
+const validateCrewAccessFields = () => {
+  clearCrewFieldWarnings();
+  let valid = true;
+  if (!crewKaryawanId.value) {
+    crewKaryawanWarning.value = "Pilih karyawan terlebih dahulu";
+    valid = false;
+  }
+  const key = crewAccessKey.value.trim();
+  if (!key) {
+    crewAccessKeyWarning.value = "Access key wajib diisi";
+    valid = false;
+  } else if (!/^\d{4}$/.test(key)) {
+    crewAccessKeyWarning.value = "Access key harus 4 digit";
+    valid = false;
+  }
+  return valid;
+};
 
 const resetCrewSendForm = () => {
   crewKaryawanId.value = "";
@@ -352,6 +390,7 @@ const resetCrewSendForm = () => {
   crewPolishSapaan.value = "";
   crewPolishToken.value = "";
   crewFormMsg.value = "";
+  clearCrewFieldWarnings();
 };
 
 const loadCrewKaryawan = async () => {
@@ -390,6 +429,7 @@ watch([crewDraft, crewKaryawanId, crewAccessKey], () => {
   crewPolishApproved.value = false;
   crewPolishSapaan.value = "";
   crewPolishToken.value = "";
+  clearCrewFieldWarnings();
 });
 
 const canCrewPolish = computed(() => {
@@ -402,13 +442,13 @@ const canCrewSend = computed(() => {
     && crewPolishPreview.value.trim()
     && crewPolishToken.value
     && crewKaryawanId.value
-    && /^\d{4}$/.test(crewAccessKey.value)
     && !crewSending.value
   );
 });
 
 const crewPolish = async () => {
   if (!canCrewReply.value || !canCrewPolish.value || !props.activeConversation?.wa_number) return;
+  if (!validateCrewAccessFields()) return;
 
   crewPolishLoading.value = true;
   crewFormMsg.value = "";
@@ -424,17 +464,19 @@ const crewPolish = async () => {
         phone: props.activeConversation.wa_number,
         draft: crewDraft.value.trim(),
         user_id: props.authId,
+        id_karyawan: Number(crewKaryawanId.value),
+        access_key: crewAccessKey.value.trim(),
       }),
     }).then((r) => r.json());
 
-    crewPolishSapaan.value = res?.sapaan || "";
-    crewPolishToken.value = res?.polish_token || "";
-
-    if (!res?.ok && res?.message) {
-      crewPolishReason.value = res.message;
+    if (res?.ok === false) {
+      applyCrewAccessError(res);
       crewPolishApproved.value = false;
       return;
     }
+
+    crewPolishSapaan.value = res?.sapaan || "";
+    crewPolishToken.value = res?.polish_token || "";
 
     if (res?.status) {
       crewPolishPreview.value = res?.new_words || "";
@@ -445,7 +487,7 @@ const crewPolish = async () => {
       crewPolishApproved.value = false;
     }
   } catch (_) {
-    crewFormMsg.value = "Gagal memproses Cek AI";
+    crewFormMsg.value = "Gagal merapikan pesan";
   } finally {
     crewPolishLoading.value = false;
   }
@@ -511,9 +553,14 @@ const crewSendMessage = async () => {
       });
     } else {
       bumpMessageStatus(newMsg, "failed");
+      const errMsg = res?.message || res?.data?.message || "Gagal kirim pesan crew";
+      crewFormMsg.value = errMsg;
+      alert(errMsg);
     }
   } catch (_) {
     bumpMessageStatus(newMsg, "error");
+    crewFormMsg.value = "Gagal kirim pesan crew";
+    alert("Gagal kirim pesan crew — cek koneksi");
   } finally {
     crewSending.value = false;
   }
@@ -1891,6 +1938,7 @@ onUnmounted(() => {
                   {{ k.nama_user }}
                 </option>
               </select>
+              <p v-if="crewKaryawanWarning" class="mt-1 text-xs text-red-400">{{ crewKaryawanWarning }}</p>
             </div>
 
             <div>
@@ -1902,8 +1950,10 @@ onUnmounted(() => {
                 maxlength="4"
                 autocomplete="one-time-code"
                 placeholder="••••"
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] focus:outline-none focus:border-[var(--wa-accent-green)] font-mono tracking-widest"
+                class="mt-1 w-full px-3 py-2 rounded-lg border bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] focus:outline-none font-mono tracking-widest"
+                :class="crewAccessKeyWarning ? 'border-red-400 focus:border-red-400' : 'border-[var(--wa-border)] focus:border-[var(--wa-accent-green)]'"
               />
+              <p v-if="crewAccessKeyWarning" class="mt-1 text-xs text-red-400">{{ crewAccessKeyWarning }}</p>
             </div>
 
             <div>
@@ -1923,8 +1973,11 @@ onUnmounted(() => {
               :disabled="!canCrewPolish"
               @click="crewPolish"
             >
-              {{ crewPolishLoading ? "Memproses AI…" : "Cek AI" }}
+              {{ crewPolishLoading ? "Merapikan…" : "Rapikan Pesan" }}
             </button>
+            <p class="text-[11px] text-[var(--wa-text-tertiary)] leading-snug">
+              Pesan bisa dirapikan ulang, tekan kirim jika sudah cocok
+            </p>
 
             <div v-if="crewPolishPreview || crewPolishReason" class="rounded-xl border p-3" :class="crewPolishApproved ? 'border-[var(--wa-accent-green)]/50 bg-[var(--wa-accent-green)]/5' : 'border-red-400/50 bg-red-500/5'">
               <p class="text-xs font-semibold uppercase tracking-wide mb-2" :class="crewPolishApproved ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">

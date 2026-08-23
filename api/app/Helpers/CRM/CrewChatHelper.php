@@ -23,7 +23,7 @@ class CrewChatHelper
 
         $db = DB::getInstance(1);
         $rows = $db->query(
-            'SELECT id_user, nama_user FROM user WHERE id_cabang = ? AND en = 1 ORDER BY nama_user ASC',
+            'SELECT id_user, nama_user FROM user WHERE id_cabang = ? AND en = 1 AND access_key IS NOT NULL AND access_key <> \'\' ORDER BY nama_user ASC',
             [$idCabang]
         )->result_array();
 
@@ -40,7 +40,7 @@ class CrewChatHelper
 
     /**
      * @param array<string,mixed> $input
-     * @return array{ok:bool,status?:bool,new_words?:string,reason?:string,sapaan?:string,message?:string}
+     * @return array{ok:bool,status?:bool,new_words?:string,reason?:string,sapaan?:string,message?:string,field?:string}
      */
     public static function polishMessage(array $input): array
     {
@@ -53,6 +53,15 @@ class CrewChatHelper
         $draft = trim((string) ($input['draft'] ?? $input['message'] ?? ''));
         if ($phone === '' || $draft === '') {
             return ['ok' => false, 'message' => 'phone dan pesan wajib'];
+        }
+
+        $accessDeny = self::validateKaryawanAccessKey(
+            (int) ($input['id_karyawan'] ?? $input['id_user'] ?? 0),
+            $crewCabang,
+            (string) ($input['access_key'] ?? '')
+        );
+        if ($accessDeny !== null) {
+            return $accessDeny;
         }
 
         $deny = self::assertCrewConversation($phone, $crewCabang);
@@ -71,7 +80,7 @@ class CrewChatHelper
 
         $polishToken = '';
         if (!empty($result['status']) && !empty($result['new_words'])) {
-            $approvedText = (string) $result['new_words'];
+            $approvedText = self::normalizeApprovedMessage((string) $result['new_words']);
             try {
                 self::storePolishApproval($phone, $approvedText);
                 $polishToken = self::createPolishToken($phone, $approvedText);
@@ -117,12 +126,8 @@ class CrewChatHelper
         $idKaryawan = (int) ($input['id_karyawan'] ?? $input['id_user'] ?? 0);
         $accessKey = trim((string) ($input['access_key'] ?? ''));
 
-        if ($phone === '' || $message === '' || $idKaryawan <= 0 || $accessKey === '') {
-            return ['ok' => false, 'message' => 'phone, message, karyawan, dan access_key wajib'];
-        }
-
-        if (!preg_match('/^\d{4}$/', $accessKey)) {
-            return ['ok' => false, 'message' => 'Access key harus 4 digit'];
+        if ($phone === '' || $message === '') {
+            return ['ok' => false, 'message' => 'phone dan pesan wajib'];
         }
 
         $deny = self::assertCrewConversation($phone, $crewCabang);
@@ -136,16 +141,26 @@ class CrewChatHelper
         }
 
         if (!self::verifyPolishApproval($phone, $message, (string) ($input['polish_token'] ?? ''))) {
+            if (class_exists('\\Log')) {
+                \Log::write(
+                    'crewReply polish reject phone=' . $phone . ' token_len=' . strlen((string) ($input['polish_token'] ?? '')),
+                    'crm_crew',
+                    'Chat'
+                );
+            }
             return ['ok' => false, 'message' => 'Pesan belum disetujui AI — klik Cek AI terlebih dahulu'];
         }
 
-        $dbLaundry = DB::getInstance(1);
-        $dbLaundry->query(
-            'SELECT id_user, nama_user FROM user WHERE id_user = ? AND id_cabang = ? AND access_key = ? AND en = 1 LIMIT 1',
-            [$idKaryawan, $crewCabang, $accessKey]
-        );
-        if ($dbLaundry->num_rows() === 0) {
-            return ['ok' => false, 'message' => 'Karyawan atau access key tidak valid'];
+        $accessDeny = self::validateKaryawanAccessKey($idKaryawan, $crewCabang, $accessKey);
+        if ($accessDeny !== null) {
+            if (class_exists('\\Log')) {
+                \Log::write(
+                    'crewReply access_key reject id_karyawan=' . $idKaryawan . ' cabang=' . $crewCabang,
+                    'crm_crew',
+                    'Chat'
+                );
+            }
+            return $accessDeny;
         }
 
         $csw = CrmChatMergeHelper::getCswStatus(DB::getInstance(0), $phone);
@@ -162,6 +177,13 @@ class CrewChatHelper
         $res = $wa->sendFreeText($phone, $message, null, 'CR', null, $lineKey, $idKaryawan);
 
         if (empty($res['success'])) {
+            if (class_exists('\\Log')) {
+                \Log::write(
+                    'crewReply WA fail phone=' . $phone . ' err=' . ($res['error'] ?? '') . ' http=' . ($res['http_code'] ?? ''),
+                    'crm_crew',
+                    'Chat'
+                );
+            }
             return [
                 'ok' => false,
                 'message' => 'Gagal kirim WhatsApp: ' . ($res['error'] ?? 'Unknown error'),
@@ -229,6 +251,36 @@ class CrewChatHelper
     }
 
     /** @return array{ok:bool,message?:string}|null */
+    /**
+     * @return array{ok:false,message:string,field:string}|null
+     */
+    private static function validateKaryawanAccessKey(int $idKaryawan, int $crewCabang, string $accessKey): ?array
+    {
+        if ($idKaryawan <= 0) {
+            return ['ok' => false, 'message' => 'Pilih karyawan terlebih dahulu', 'field' => 'karyawan'];
+        }
+
+        $accessKey = trim($accessKey);
+        if ($accessKey === '') {
+            return ['ok' => false, 'message' => 'Access key wajib diisi', 'field' => 'access_key'];
+        }
+
+        if (!preg_match('/^\d{4}$/', $accessKey)) {
+            return ['ok' => false, 'message' => 'Access key harus 4 digit', 'field' => 'access_key'];
+        }
+
+        $dbLaundry = DB::getInstance(1);
+        $dbLaundry->query(
+            'SELECT id_user FROM user WHERE id_user = ? AND id_cabang = ? AND access_key = ? AND en = 1 LIMIT 1',
+            [$idKaryawan, $crewCabang, $accessKey]
+        );
+        if ($dbLaundry->num_rows() === 0) {
+            return ['ok' => false, 'message' => 'Access key salah', 'field' => 'access_key'];
+        }
+
+        return null;
+    }
+
     private static function assertCrewConversation(string $phone, int $crewCabang): ?array
     {
         $db = DB::getInstance(0);
@@ -266,8 +318,14 @@ class CrewChatHelper
         return null;
     }
 
+    private static function normalizeApprovedMessage(string $message): string
+    {
+        return trim($message);
+    }
+
     private static function storePolishApproval(string $phone, string $message): void
     {
+        $message = self::normalizeApprovedMessage($message);
         if (!isset($_SESSION[self::SESSION_KEY])) {
             $_SESSION[self::SESSION_KEY] = [];
         }
@@ -282,6 +340,7 @@ class CrewChatHelper
 
     private static function verifyPolishApproval(string $phone, string $message, string $polishToken = ''): bool
     {
+        $message = trim($message);
         if ($polishToken !== '' && self::verifyPolishToken($phone, $message, $polishToken)) {
             return true;
         }
@@ -299,6 +358,7 @@ class CrewChatHelper
 
     public static function createPolishToken(string $phone, string $message): string
     {
+        $message = trim($message);
         $phoneKey = self::phoneKey($phone);
         if ($phoneKey === '' || $message === '') {
             return '';
@@ -314,6 +374,7 @@ class CrewChatHelper
 
     private static function verifyPolishToken(string $phone, string $message, string $token): bool
     {
+        $message = trim($message);
         $token = trim($token);
         if ($token === '') {
             return false;
