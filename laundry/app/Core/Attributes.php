@@ -563,6 +563,103 @@ trait Attributes
         return $data_user;
     }
 
+    /**
+     * Pindah cabang aktif user (DB + session) — logic sama Cabang_List/selectCabang.
+     *
+     * @return array{ok:bool,message?:string,switched?:bool}
+     */
+    protected function switchUserCabang(int $idCabang): array
+    {
+        if ($idCabang <= 0) {
+            return ['ok' => false, 'message' => 'ID cabang tidak valid'];
+        }
+        if ($this->isTrainingMode()) {
+            return ['ok' => false, 'message' => 'Tidak bisa ganti cabang saat Mode Training'];
+        }
+
+        $trainId = $this->getTrainingCabangId();
+        if ($trainId > 0 && $idCabang === $trainId) {
+            return ['ok' => false, 'message' => 'Cabang training tidak bisa dipilih'];
+        }
+
+        $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+        if ($idUser <= 0) {
+            return ['ok' => false, 'message' => 'Session tidak valid'];
+        }
+
+        $currentCabang = (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+        if ($currentCabang === $idCabang) {
+            return ['ok' => true, 'switched' => false];
+        }
+
+        $up = $this->db(0)->update('user', ['id_cabang' => $idCabang], 'id_user = ' . $idUser);
+        if (($up['errno'] ?? 1) != 0) {
+            return ['ok' => false, 'message' => $up['error'] ?? 'Gagal update cabang'];
+        }
+
+        $_SESSION[URL::SESSID]['training']['active'] = false;
+        $_SESSION[URL::SESSID]['training']['id_cabang_origin'] = $idCabang;
+        $this->dataSynchrone($idUser);
+
+        return ['ok' => true, 'switched' => true];
+    }
+
+    /**
+     * Pastikan session_aktif di cabang tempat id_pelanggan berada.
+     * Dipakai deep-link Operasi/i/0/{id_pelanggan}.
+     */
+    protected function ensureCabangForPelanggan(int $idPelanggan, bool $redirectIfSwitched = true, ?string $redirectUrl = null): void
+    {
+        $idPelanggan = (int) $idPelanggan;
+        if ($idPelanggan <= 0) {
+            return;
+        }
+
+        if (!empty($this->pelanggan[$idPelanggan])) {
+            return;
+        }
+
+        $row = $this->db(0)->get_where_row('pelanggan', 'id_pelanggan = ' . $idPelanggan);
+        if (!is_array($row) || empty($row['id_pelanggan'])) {
+            return;
+        }
+
+        $targetCabang = (int) ($row['id_cabang'] ?? 0);
+        if ($targetCabang <= 0) {
+            return;
+        }
+
+        $currentCabang = (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+        if ($currentCabang === $targetCabang) {
+            $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
+            if ($idUser > 0) {
+                $this->dataSynchrone($idUser);
+            }
+            return;
+        }
+
+        $switch = $this->switchUserCabang($targetCabang);
+        if (!$switch['ok']) {
+            if (method_exists($this, 'model')) {
+                $this->model('Log')->write(
+                    '[ensureCabangForPelanggan] pid=' . $idPelanggan
+                    . ' cabang=' . $targetCabang
+                    . ' err=' . ($switch['message'] ?? '')
+                );
+            }
+            return;
+        }
+
+        if ($redirectIfSwitched && !empty($switch['switched'])) {
+            $url = $redirectUrl;
+            if ($url === null || $url === '') {
+                $url = $_SERVER['REQUEST_URI'] ?? (URL::BASE_URL . 'Operasi/i/0/' . $idPelanggan);
+            }
+            header('Location: ' . $url);
+            exit;
+        }
+    }
+
     function valid_number($number)
     {
         if (!is_numeric($number)) {

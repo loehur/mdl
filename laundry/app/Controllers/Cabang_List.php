@@ -51,25 +51,13 @@ class Cabang_List extends Controller
    public function selectCabang()
    {
       $this->session_cek(2);
-      if ($this->isTrainingMode()) {
-         echo "Tidak bisa ganti cabang saat Mode Training";
+      $id_cabang = (int) ($_POST['id'] ?? 0);
+      $result = $this->switchUserCabang($id_cabang);
+      if (!$result['ok']) {
+         echo $result['message'] ?? 'Gagal ganti cabang';
          return;
       }
-      $id_cabang = (int) $_POST['id'];
-      $trainId = $this->getTrainingCabangId();
-      if ($trainId > 0 && $id_cabang === $trainId) {
-         echo "Cabang training tidak bisa dipilih";
-         return;
-      }
-      $table  = 'user';
-      $set = [
-         'id_cabang' => $id_cabang
-      ];
-      $where = "id_user = " . $_SESSION[URL::SESSID]['user']['id_user'];
-      $this->db(0)->update($table, $set, $where);
-      $_SESSION[URL::SESSID]['training']['active'] = false;
-      $_SESSION[URL::SESSID]['training']['id_cabang_origin'] = $id_cabang;
-      $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      echo 0;
    }
 
    public function selectBook()

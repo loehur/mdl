@@ -10,6 +10,10 @@ class Operasi extends Controller
 
    public function i($modeOperasi, $id_pelanggan)
    {
+      $id_pelanggan = (int) $id_pelanggan;
+      $this->ensureCabangForPelanggan($id_pelanggan, true);
+      $this->operating_data();
+
       $viewData = 'operasi/form_proses';
       
       // Year data for tuntas mode
@@ -44,6 +48,10 @@ class Operasi extends Controller
 
    public function loadData($id_pelanggan, $mode = 0)
    {
+      $id_pelanggan = (int) $id_pelanggan;
+      $this->ensureCabangForPelanggan($id_pelanggan, false);
+      $this->operating_data();
+
       $pelanggan = $this->pelanggan[$id_pelanggan] ?? 0;
       if ($pelanggan == 0) {
          echo "<div class='text-center mt-5'>
