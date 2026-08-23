@@ -5,7 +5,7 @@ import EmojiPicker from "./EmojiPicker.vue";
 import CustomerPanel from "./CustomerPanel.vue";
 import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, LAUNDRY_BASE } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -245,6 +245,10 @@ const isAdmin = computed(() => {
   return props.currentUserRole === "admin";
 });
 
+const isCrew = computed(() => props.currentUserRole === "crew");
+
+const canCrewReply = computed(() => isCrew.value && cswOpen.value);
+
 const isPrivateMessage = (msg) => {
   if (!msg) return false;
   const privateVal = msg.private;
@@ -322,6 +326,182 @@ const openOperasiKasir = () => {
   showChatMenu.value = false;
   showResolveMenu.value = false;
   emit("open-internal-browser", url);
+};
+
+const crewKaryawanList = ref([]);
+const crewKaryawanLoading = ref(false);
+const crewKaryawanId = ref("");
+const crewAccessKey = ref("");
+const crewDraft = ref("");
+const crewPolishPreview = ref("");
+const crewPolishReason = ref("");
+const crewPolishApproved = ref(false);
+const crewPolishLoading = ref(false);
+const crewSending = ref(false);
+const crewPolishSapaan = ref("");
+const crewFormMsg = ref("");
+
+const resetCrewSendForm = () => {
+  crewKaryawanId.value = "";
+  crewAccessKey.value = "";
+  crewDraft.value = "";
+  crewPolishPreview.value = "";
+  crewPolishReason.value = "";
+  crewPolishApproved.value = false;
+  crewPolishSapaan.value = "";
+  crewFormMsg.value = "";
+};
+
+const loadCrewKaryawan = async () => {
+  if (!props.authId) return;
+  crewKaryawanLoading.value = true;
+  try {
+    const res = await fetch(
+      `${props.API_BASE}/CRM/Chat/crewKaryawan?user_id=${encodeURIComponent(props.authId)}`
+    ).then((r) => r.json());
+    crewKaryawanList.value = Array.isArray(res?.data?.items) ? res.data.items : (res?.items || []);
+  } catch (_) {
+    crewKaryawanList.value = [];
+    crewFormMsg.value = "Gagal memuat daftar karyawan";
+  } finally {
+    crewKaryawanLoading.value = false;
+  }
+};
+
+const openCrewSendModal = () => {
+  if (!canCrewReply.value) return;
+  resetCrewSendForm();
+  showCrewSendModal.value = true;
+  if (!crewKaryawanList.value.length) {
+    loadCrewKaryawan();
+  }
+};
+
+const closeCrewSendModal = () => {
+  showCrewSendModal.value = false;
+  resetCrewSendForm();
+};
+
+watch([crewDraft, crewKaryawanId, crewAccessKey], () => {
+  crewPolishPreview.value = "";
+  crewPolishReason.value = "";
+  crewPolishApproved.value = false;
+  crewPolishSapaan.value = "";
+});
+
+const canCrewPolish = computed(() => {
+  return !!(crewDraft.value.trim() && !crewPolishLoading.value);
+});
+
+const canCrewSend = computed(() => {
+  return !!(
+    crewPolishApproved.value
+    && crewPolishPreview.value.trim()
+    && crewKaryawanId.value
+    && /^\d{4}$/.test(crewAccessKey.value)
+    && !crewSending.value
+  );
+});
+
+const crewPolish = async () => {
+  if (!canCrewReply.value || !canCrewPolish.value || !props.activeConversation?.wa_number) return;
+
+  crewPolishLoading.value = true;
+  crewFormMsg.value = "";
+  crewPolishPreview.value = "";
+  crewPolishReason.value = "";
+  crewPolishApproved.value = false;
+  try {
+    const res = await fetch(`${props.API_BASE}/CRM/Chat/crewPolish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: props.activeConversation.wa_number,
+        draft: crewDraft.value.trim(),
+        user_id: props.authId,
+      }),
+    }).then((r) => r.json());
+
+    crewPolishSapaan.value = res?.sapaan || "";
+
+    if (res?.status || res?.ok) {
+      crewPolishPreview.value = res?.new_words || "";
+      crewPolishApproved.value = !!crewPolishPreview.value;
+      crewPolishReason.value = "";
+    } else {
+      crewPolishReason.value = res?.reason || res?.message || "Pesan ditolak AI";
+      crewPolishApproved.value = false;
+    }
+  } catch (_) {
+    crewFormMsg.value = "Gagal memproses Cek AI";
+  } finally {
+    crewPolishLoading.value = false;
+  }
+};
+
+const crewSendMessage = async () => {
+  if (!canCrewSend.value || !props.activeConversation?.wa_number) return;
+
+  const text = crewPolishPreview.value.trim();
+  const idKaryawan = Number(crewKaryawanId.value);
+  const accessKey = crewAccessKey.value;
+  crewSending.value = true;
+  crewFormMsg.value = "";
+
+  const tempId = Date.now();
+  const newMsg = {
+    id: tempId,
+    text,
+    sender: "me",
+    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+    rawTime: formatLocalDateTime(),
+    timestamp: Date.now(),
+    status: "pending",
+    sender_code: "CR",
+    provider: LINE_CS,
+    line_key: LINE_CS,
+    line_label: lineLabel(LINE_CS),
+  };
+
+  props.activeConversation.messages.push(newMsg);
+  props.activeConversation.lastMessage = "You: " + text;
+  props.activeConversation.lastTime = newMsg.time;
+  closeCrewSendModal();
+  scrollToBottom({ force: true });
+
+  try {
+    const res = await fetch(`${props.API_BASE}/CRM/Chat/crewReply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: props.activeConversation.wa_number,
+        message: text,
+        id_karyawan: idKaryawan,
+        access_key: accessKey,
+        user_id: props.authId,
+      }),
+    }).then((r) => r.json());
+
+    if (res?.status) {
+      const sentLine = res.data?.line_key || res.data?.provider || LINE_CS;
+      const sentLabel = res.data?.line_label || lineLabel(sentLine);
+      bumpMessageStatus(newMsg, "sent", {
+        ...(res.data?.local_id != null ? { id: sentLine + "-" + res.data.local_id } : {}),
+        ...(res.data?.wamid || res.data?.id || res.data?.message_id
+          ? { wamid: res.data.wamid || res.data.id || res.data.message_id }
+          : {}),
+        provider: sentLine,
+        line_key: sentLine,
+        line_label: sentLabel,
+      });
+    } else {
+      bumpMessageStatus(newMsg, "failed");
+    }
+  } catch (_) {
+    bumpMessageStatus(newMsg, "error");
+  } finally {
+    crewSending.value = false;
+  }
 };
 
 // --- HANDLERS ---
@@ -959,8 +1139,8 @@ const attachScrollListener = () => {
 
 // Watch for activeConversation changes to re-attach listener
 watch(() => props.activeConversation, (newVal, oldVal) => {
-  // Remove old listener when conversation changes
   if (oldVal !== newVal) {
+    closeCrewSendModal();
     removeScrollListener();
   }
   
@@ -1508,18 +1688,20 @@ onUnmounted(() => {
                 </span>
              </button>
 
-             <!-- Case 2: CSW open tapi bukan admin -->
-             <div
-               v-else-if="!isAdmin"
-               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-bg-tertiary)] rounded-lg border border-[var(--wa-border)] w-full min-h-[46px]"
+             <!-- Crew: CSW open — kirim via modal + AI -->
+             <button
+               v-else-if="canCrewReply"
+               type="button"
+               class="flex items-center justify-center gap-2 p-3 bg-[var(--wa-accent-green)]/10 rounded-lg border border-[var(--wa-accent-green)]/40 w-full min-h-[46px] hover:bg-[var(--wa-accent-green)]/15 transition-colors"
+               @click="openCrewSendModal"
              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-text-tertiary)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span class="text-[var(--wa-text-secondary)] text-sm font-medium">Hanya admin yang dapat membalas chat</span>
-             </div>
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--wa-accent-green)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+               </svg>
+               <span class="text-[var(--wa-accent-green)] text-sm font-bold">Kirim Pesan</span>
+             </button>
 
-             <template v-else>
+             <template v-else-if="isAdmin">
              <!-- Quick Replies Popup -->
              <div v-if="showQuickReplies" class="bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-xl shadow-2xl mb-2 max-h-60 overflow-y-auto">
                   <div class="sticky top-0 bg-[var(--wa-bg-panel)] border-b border-[var(--wa-border)] px-3 py-2">
@@ -1660,6 +1842,108 @@ onUnmounted(() => {
       :is-mobile="windowWidth < 768"
       :current-user-role="currentUserRole"
     />
+
+    <Teleport to="body">
+      <div
+        v-if="showCrewSendModal && canCrewReply"
+        class="fixed inset-0 z-[720] flex items-center justify-center p-4"
+        @click="closeCrewSendModal"
+      >
+        <div class="absolute inset-0 bg-black/50"></div>
+        <div
+          class="relative w-full max-w-md bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5 max-h-[90vh] overflow-y-auto"
+          @click.stop
+        >
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Kirim Pesan</h3>
+            <button type="button" class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]" @click="closeCrewSendModal">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Karyawan</label>
+              <select
+                v-model="crewKaryawanId"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+                :disabled="crewKaryawanLoading"
+              >
+                <option value="">Pilih karyawan</option>
+                <option v-for="k in crewKaryawanList" :key="k.id_user" :value="String(k.id_user)">
+                  {{ k.nama_user }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Access Key (4 digit)</label>
+              <input
+                v-model="crewAccessKey"
+                type="password"
+                inputmode="numeric"
+                maxlength="4"
+                autocomplete="one-time-code"
+                placeholder="••••"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] focus:outline-none focus:border-[var(--wa-accent-green)] font-mono tracking-widest"
+              />
+            </div>
+
+            <div>
+              <label class="text-xs text-[var(--wa-text-tertiary)]">Pesan</label>
+              <textarea
+                v-model="crewDraft"
+                rows="4"
+                maxlength="2000"
+                placeholder="Tulis pesan untuk pelanggan…"
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)] resize-none"
+              ></textarea>
+            </div>
+
+            <button
+              type="button"
+              class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40"
+              :disabled="!canCrewPolish"
+              @click="crewPolish"
+            >
+              {{ crewPolishLoading ? "Memproses AI…" : "Cek AI" }}
+            </button>
+
+            <div v-if="crewPolishPreview || crewPolishReason" class="rounded-xl border p-3" :class="crewPolishApproved ? 'border-[var(--wa-accent-green)]/50 bg-[var(--wa-accent-green)]/5' : 'border-red-400/50 bg-red-500/5'">
+              <p class="text-xs font-semibold uppercase tracking-wide mb-2" :class="crewPolishApproved ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">
+                {{ crewPolishApproved ? "Preview" : "Ditolak AI" }}
+              </p>
+              <p v-if="crewPolishSapaan && crewPolishApproved" class="text-[11px] text-[var(--wa-text-tertiary)] mb-1">Sapaan: {{ crewPolishSapaan }}</p>
+              <p v-if="crewPolishPreview" class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words">{{ crewPolishPreview }}</p>
+              <p v-if="crewPolishReason" class="text-sm text-red-400 whitespace-pre-wrap break-words">{{ crewPolishReason }}</p>
+            </div>
+
+            <p v-if="crewFormMsg" class="text-xs text-red-400">{{ crewFormMsg }}</p>
+          </div>
+
+          <div class="flex gap-2 pt-4">
+            <button
+              type="button"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+              :disabled="crewSending"
+              @click="closeCrewSendModal"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40"
+              :disabled="!canCrewSend"
+              @click="crewSendMessage"
+            >
+              {{ crewSending ? "Mengirim…" : "Kirim" }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     </main>
 </template>
 

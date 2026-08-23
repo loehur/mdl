@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal } from "../stores/chatStore.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -53,6 +53,9 @@ const permintaanResultOk = ref(false);
 const outboundResultMsg = ref("");
 const outboundResultOk = ref(false);
 const sendingTagihan = ref(false);
+const cancelDeliveryTarget = ref(null);
+const cancelDeliveryMsg = ref("");
+const cancellingDelivery = ref(false);
 
 const canSavePermintaan = computed(() => {
   if (savingPermintaan.value) return false;
@@ -580,6 +583,65 @@ const loadDeliveryAktif = async () => {
 
 const deliveryJenisLabel = (req) => req?.jenis_label || (req?.sekalian_jemput ? "Antar & Jemput" : (req?.jenis === "antar" ? "Antar" : "Jemput"));
 
+const canCancelDelivery = (req) => {
+  if (!req?.id_request) return false;
+  const layanan = String(req.layanan || "sameday").toLowerCase();
+  return layanan !== "instant";
+};
+
+const openCancelDelivery = (req) => {
+  if (!isAdmin.value || !canCancelDelivery(req) || cancellingDelivery.value) return;
+  cancelDeliveryTarget.value = req;
+  cancelDeliveryMsg.value = "";
+  showCancelDeliveryModal.value = true;
+};
+
+const closeCancelDelivery = () => {
+  showCancelDeliveryModal.value = false;
+  cancelDeliveryTarget.value = null;
+  cancelDeliveryMsg.value = "";
+};
+
+const confirmCancelDelivery = async () => {
+  const target = cancelDeliveryTarget.value;
+  if (!isAdmin.value || !target?.id_request || !custId.value || cancellingDelivery.value) return;
+
+  cancellingDelivery.value = true;
+  cancelDeliveryMsg.value = "";
+  try {
+    const payload = {
+      id_request: target.id_request,
+      cust_id: custId.value,
+    };
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/DeliveryRequest/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (!res?.ok && !res?.status) {
+      cancelDeliveryMsg.value = res?.message || "Gagal membatalkan delivery request";
+      return;
+    }
+
+    deliveryResultOk.value = true;
+    deliveryResultMsg.value = res?.message || "Delivery request dibatalkan.";
+    if (Array.isArray(res.items)) {
+      deliveryAktifItems.value = res.items;
+      syncConversationCases();
+    } else {
+      await loadDeliveryAktif();
+    }
+    closeCancelDelivery();
+  } catch (_) {
+    cancelDeliveryMsg.value = "Gagal membatalkan delivery request";
+  } finally {
+    cancellingDelivery.value = false;
+  }
+};
+
 const formatRequestTime = (raw) => {
   if (!raw) return "";
   const d = new Date(String(raw).replace(" ", "T"));
@@ -756,6 +818,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showCancelDeliveryModal.value) {
+    closeCancelDelivery();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showCustomerPanel.value) {
     closePanel();
   }
@@ -769,6 +836,7 @@ watch(
     closeDeleteLokasi();
     closeDeliveryRequest();
     closeSendTagihan();
+    closeCancelDelivery();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
     permintaanResultMsg.value = "";
@@ -1044,6 +1112,16 @@ onUnmounted(() => {
                 <span v-if="req.layanan && req.layanan !== 'sameday'"> · {{ req.layanan }}</span>
                 <span v-if="req.insertTime"> · {{ formatRequestTime(req.insertTime) }}</span>
               </p>
+              <div v-if="isAdmin && canCancelDelivery(req)" class="mt-2">
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-red-400 disabled:opacity-40"
+                  :disabled="cancellingDelivery"
+                  @click="openCancelDelivery(req)"
+                >
+                  Batal
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1333,6 +1411,49 @@ onUnmounted(() => {
             @click="confirmSendTagihan"
           >
             {{ sendingTagihan ? "Mengirim…" : "Kirim" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showCancelDeliveryModal && cancelDeliveryTarget"
+      class="fixed inset-0 z-[707] flex items-center justify-center p-4"
+      @click="closeCancelDelivery"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Batalkan Delivery Request</h3>
+        <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+          Batalkan
+          <span class="text-[var(--wa-text-primary)] font-medium">{{ deliveryJenisLabel(cancelDeliveryTarget) }}</span>
+          #{{ cancelDeliveryTarget.id_request }}?
+        </p>
+        <p class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+          Surcas pengantaran yang terikat akan dihapus. Pembatalan ditolak jika order menjadi overpay.
+        </p>
+        <p v-if="cancelDeliveryMsg" class="text-xs text-red-400 mt-3">{{ cancelDeliveryMsg }}</p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            :disabled="cancellingDelivery"
+            @click="closeCancelDelivery"
+          >
+            Kembali
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-red-500 text-white disabled:opacity-50"
+            :disabled="cancellingDelivery"
+            @click="confirmCancelDelivery"
+          >
+            {{ cancellingDelivery ? "Membatalkan…" : "Ya, Batalkan" }}
           </button>
         </div>
       </div>

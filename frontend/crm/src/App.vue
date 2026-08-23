@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal, showCrewSendModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4448,6 +4448,16 @@ onMounted(() => {
       return 'send_tagihan_closed';
     }
 
+    if (showCancelDeliveryModal.value) {
+      showCancelDeliveryModal.value = false;
+      return 'cancel_delivery_closed';
+    }
+
+    if (showCrewSendModal.value) {
+      showCrewSendModal.value = false;
+      return 'crew_send_closed';
+    }
+
     if (showCustomerPanel.value) {
       showCustomerPanel.value = false;
       return 'customer_panel_closed';
@@ -4833,6 +4843,16 @@ function handleBackButtonPress() {
   if (showSendTagihanModal.value) {
     showSendTagihanModal.value = false;
     return "send_tagihan_closed";
+  }
+
+  if (showCancelDeliveryModal.value) {
+    showCancelDeliveryModal.value = false;
+    return "cancel_delivery_closed";
+  }
+
+  if (showCrewSendModal.value) {
+    showCrewSendModal.value = false;
+    return "crew_send_closed";
   }
 
   if (showCustomerPanel.value) {

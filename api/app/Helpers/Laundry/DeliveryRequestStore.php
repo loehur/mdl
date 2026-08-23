@@ -227,6 +227,141 @@ class DeliveryRequestStore
     }
 
     /**
+     * Batalkan delivery request aktif dari CRM Customer Panel.
+     * Surcas terikat dihapus jika tidak menyebabkan overpay.
+     *
+     * @param array{id_request:int,cust_id?:int,id_pelanggan?:int,wa_number?:string} $input
+     * @return array{ok:bool,message?:string,items?:array,case_closed?:bool,surcas_removed?:int}
+     */
+    public static function cancel(array $input): array
+    {
+        $idRequest = (int) ($input['id_request'] ?? 0);
+        $idPelanggan = (int) ($input['id_pelanggan'] ?? $input['cust_id'] ?? 0);
+        $waNumber = trim((string) ($input['wa_number'] ?? ''));
+
+        if ($idRequest <= 0 || $idPelanggan <= 0) {
+            return ['ok' => false, 'message' => 'id_request dan cust_id wajib'];
+        }
+
+        $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
+        if ($pel === null) {
+            return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
+        }
+
+        $db = PelangganLokasiStore::laundryDb();
+        $req = $db->query(
+            "SELECT id_request, id_pelanggan, id_cabang, jenis, layanan, delivery_status, phone_tail, tarif_surcas
+             FROM delivery_request
+             WHERE id_request = ? AND id_pelanggan = ?
+             LIMIT 1",
+            [$idRequest, $idPelanggan]
+        )->row_array();
+
+        if (!is_array($req) || empty($req['id_request'])) {
+            return ['ok' => false, 'message' => 'Delivery request tidak ditemukan'];
+        }
+
+        $status = strtolower((string) ($req['delivery_status'] ?? ''));
+        if (!in_array($status, ['berjalan', 'menunggu_pembayaran'], true)) {
+            return ['ok' => false, 'message' => 'Request sudah tidak aktif'];
+        }
+
+        $layanan = strtolower((string) ($req['layanan'] ?? 'sameday'));
+        if ($layanan === 'instant') {
+            return ['ok' => false, 'message' => 'Request Instant tidak bisa dibatalkan dari CRM'];
+        }
+
+        $idCabang = (int) ($req['id_cabang'] ?? 0);
+        $surcasRows = $db->query(
+            'SELECT id_surcas, no_ref, jumlah, id_jenis_surcas FROM surcas WHERE id_delivery_request = ?',
+            [$idRequest]
+        )->result_array();
+
+        foreach (is_array($surcasRows) ? $surcasRows : [] as $sc) {
+            $idSurcas = (int) ($sc['id_surcas'] ?? 0);
+            if ($idSurcas <= 0) {
+                continue;
+            }
+            $check = OrderRefPaymentGuard::canRemoveSurcas($idCabang, $idSurcas);
+            if (empty($check['ok'])) {
+                return [
+                    'ok' => false,
+                    'message' => $check['message'] ?? 'Surcas tidak dapat dihapus (order overpay)',
+                ];
+            }
+        }
+
+        try {
+            $surcasRemoved = 0;
+            foreach (is_array($surcasRows) ? $surcasRows : [] as $sc) {
+                $idSurcas = (int) ($sc['id_surcas'] ?? 0);
+                if ($idSurcas <= 0) {
+                    continue;
+                }
+                try {
+                    $db->delete('surcas_item', 'id_surcas = ' . $idSurcas);
+                } catch (\Throwable $e) {
+                    // opsional
+                }
+                $del = $db->delete('surcas', 'id_cabang = ' . $idCabang . ' AND id_surcas = ' . $idSurcas);
+                if ($del === false) {
+                    return ['ok' => false, 'message' => 'Gagal menghapus surcas delivery'];
+                }
+                $surcasRemoved++;
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $upd = $db->update(
+                'delivery_request',
+                [
+                    'delivery_status' => 'batal',
+                    'catatan_batal' => 'Dibatalkan dari CRM Customer Panel',
+                    'selesaiTime' => $now,
+                ],
+                [
+                    'id_request' => $idRequest,
+                    'delivery_status' => $status,
+                ]
+            );
+            if ($upd === false) {
+                return ['ok' => false, 'message' => 'Gagal membatalkan delivery request'];
+            }
+
+            $caseClosed = false;
+            if ($waNumber !== '') {
+                $caseClosed = DeliveryCaseHelper::maybeCloseCase2($waNumber, $idPelanggan);
+            } else {
+                $phoneTail = trim((string) ($req['phone_tail'] ?? ''));
+                if ($phoneTail !== '') {
+                    $caseClosed = DeliveryCaseHelper::maybeCloseCase2ByPhoneTail($phoneTail);
+                }
+            }
+
+            $listed = self::listAktif($idPelanggan);
+            $msg = 'Delivery request dibatalkan';
+            if ($surcasRemoved > 0) {
+                $msg .= " ({$surcasRemoved} surcas dihapus)";
+            }
+            if ($caseClosed) {
+                $msg .= '. Case CRM ditutup';
+            }
+
+            return [
+                'ok' => true,
+                'message' => $msg,
+                'items' => $listed['items'] ?? [],
+                'case_closed' => $caseClosed,
+                'surcas_removed' => $surcasRemoved,
+            ];
+        } catch (\Throwable $e) {
+            if (class_exists('\Log')) {
+                \Log::write('DeliveryRequestStore cancel: ' . $e->getMessage(), 'wa_error', 'DeliveryRequest');
+            }
+            return ['ok' => false, 'message' => 'Gagal membatalkan delivery request'];
+        }
+    }
+
+    /**
      * @param array<string,mixed> $r
      * @return array<string,mixed>
      */

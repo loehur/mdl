@@ -53,6 +53,22 @@ class DeliveryRequest extends Controller
         $this->reply(DeliveryRequestStore::listAktif($id));
     }
 
+    public function cancel()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        $body['id_pelanggan'] = (int) (
+            $body['id_pelanggan']
+            ?? $body['cust_id']
+            ?? 0
+        );
+        $this->reply(DeliveryRequestStore::cancel($body));
+    }
+
     private function jsonHeader(): void
     {
         header('Content-Type: application/json; charset=utf-8');

@@ -1817,4 +1817,88 @@ class Chat extends Controller
         }
     }
 
+    /**
+     * GET /CRM/Chat/crewKaryawan?user_id={id_cabang}
+     */
+    public function crewKaryawan()
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\CrewChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrewChatHelper.php';
+        }
+
+        $userId = $_GET['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        $idCabang = \App\Helpers\CRM\CrewChatHelper::resolveCrewCabangId($userId);
+        if ($idCabang <= 0) {
+            $this->error('Akses crew tidak valid', 403);
+        }
+
+        $res = \App\Helpers\CRM\CrewChatHelper::listKaryawan($idCabang);
+        if (empty($res['ok'])) {
+            $this->error($res['message'] ?? 'Gagal memuat karyawan', 400);
+        }
+
+        $this->success(['items' => $res['items'] ?? []], 'OK');
+    }
+
+    /**
+     * POST /CRM/Chat/crewPolish — Cek AI rapikan pesan crew
+     */
+    public function crewPolish()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrewChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrewChatHelper.php';
+        }
+
+        $body = $this->getBody();
+        $userId = $body['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        if (!\App\Helpers\CRM\CrewChatHelper::isCrewUser($userId)) {
+            $this->error('Akses crew tidak valid', 403);
+        }
+
+        $res = \App\Helpers\CRM\CrewChatHelper::polishMessage($body);
+        if (empty($res['ok'])) {
+            $this->error($res['message'] ?? 'Gagal memproses', 400);
+        }
+
+        $this->json([
+            'status' => !empty($res['status']),
+            'ok' => !empty($res['status']),
+            'new_words' => $res['new_words'] ?? '',
+            'reason' => $res['reason'] ?? '',
+            'sapaan' => $res['sapaan'] ?? '',
+            'message' => !empty($res['status']) ? 'Pesan siap dikirim' : ($res['reason'] ?? 'Pesan ditolak'),
+        ]);
+    }
+
+    /**
+     * POST /CRM/Chat/crewReply — kirim pesan crew (setelah Cek AI)
+     */
+    public function crewReply()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrewChatHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrewChatHelper.php';
+        }
+
+        $body = $this->getBody();
+        $userId = $body['user_id'] ?? $_SERVER['HTTP_USER_ID'] ?? null;
+        if (!\App\Helpers\CRM\CrewChatHelper::isCrewUser($userId)) {
+            $this->error('Akses crew tidak valid', 403);
+        }
+
+        $res = \App\Helpers\CRM\CrewChatHelper::sendReply($body);
+        if (empty($res['ok'])) {
+            $this->error($res['message'] ?? 'Gagal mengirim', 400);
+        }
+
+        $this->success($res['data'] ?? [], $res['message'] ?? 'Pesan terkirim');
+    }
+
 }
