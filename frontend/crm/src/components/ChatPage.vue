@@ -5,7 +5,7 @@ import EmojiPicker from "./EmojiPicker.vue";
 import CustomerPanel from "./CustomerPanel.vue";
 import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, LAUNDRY_BASE } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -308,6 +308,20 @@ const getCaseLabel = (caseId) => {
 const isCaseOpen = (caseId) => {
     if(!props.activeConversation?.cases) return false;
     return props.activeConversation.cases.some(c => parseInt(c.case) === parseInt(caseId) && (c.status || 'open') !== 'closed');
+};
+
+const operasiKasirUrl = computed(() => {
+  const custId = props.activeConversation?.cust_id;
+  if (!custId) return null;
+  return `${LAUNDRY_BASE}/Operasi/i/0/${custId}/0`;
+});
+
+const openOperasiKasir = () => {
+  const url = operasiKasirUrl.value;
+  if (!url) return;
+  showChatMenu.value = false;
+  showResolveMenu.value = false;
+  emit("open-internal-browser", url);
 };
 
 // --- HANDLERS ---
@@ -1055,6 +1069,23 @@ onUnmounted(() => {
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5h4a2 2 0 012 2v10a2 2 0 01-2 2h-4M15 5v14M15 5H5a2 2 0 00-2 2v10a2 2 0 002 2h10" />
+                      </svg>
+                    </button>
+                    <button
+                      v-if="operasiKasirUrl"
+                      type="button"
+                      class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"
+                      title="Operasi Kasir"
+                      @click.stop="openOperasiKasir"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v10H4V6z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 6V4h8v2" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 10h4" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 13h2" />
+                        <circle cx="16.5" cy="13.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="19" cy="13.5" r="1" fill="currentColor" stroke="none" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 16h12v2H6v-2z" />
                       </svg>
                     </button>
                     <!-- Resolve Menu (admin) -->
