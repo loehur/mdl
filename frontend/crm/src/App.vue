@@ -3207,6 +3207,7 @@ const connectWebSocket = () => {
         if (
           [
             "status_update",
+            "message_deleted",
             "wa_masuk",
             "case_updated",
             "case_resolved",
@@ -3259,6 +3260,48 @@ const connectWebSocket = () => {
 
         if (payload.type === "status_update") {
           handleIncomingMessage(payload);
+          return;
+        }
+
+        if (payload.type === "message_deleted") {
+          const { conversation_id, message, phone } = payload;
+          if (!message) return;
+
+          const digits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
+          const conversation = conversations.value.find(
+            (c) =>
+              (conversation_id && c.id == conversation_id) ||
+              (phone && c.wa_number == phone) ||
+              (phone &&
+                digits(c.wa_number) &&
+                digits(c.wa_number) === digits(phone))
+          );
+
+          if (conversation && Array.isArray(conversation.messages)) {
+            const msgIndex = conversation.messages.findIndex(
+              (m) =>
+                (message.id != null && m.id == message.id) ||
+                (message.wamid && m.wamid && m.wamid == message.wamid) ||
+                (message.wamid &&
+                  m.message_id &&
+                  m.message_id == message.wamid)
+            );
+
+            if (msgIndex !== -1) {
+              conversation.messages.splice(msgIndex, 1);
+              conversation.messages = [...conversation.messages];
+
+              const convIndex = conversations.value.findIndex(
+                (c) => c.id === conversation.id
+              );
+              if (convIndex !== -1) {
+                conversations.value[convIndex] = { ...conversation };
+                conversations.value = [...conversations.value];
+              }
+
+              messageUpdateTrigger.value++;
+            }
+          }
           return;
         }
 

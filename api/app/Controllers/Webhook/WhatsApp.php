@@ -879,6 +879,88 @@ class WhatsApp extends Controller
     }
 
     /**
+     * WAMID pesan asli dari payload revoke (HP hapus pesan / clear chat).
+     */
+    private function extractRevokedOriginalWamid(array $msg): ?string
+    {
+        $fromRevoke = $msg['revoke']['original_message_id'] ?? null;
+        if (is_string($fromRevoke) && $fromRevoke !== '') {
+            return $fromRevoke;
+        }
+
+        $fromContext = $msg['context']['message_id'] ?? ($msg['context']['id'] ?? null);
+        if (is_string($fromContext) && $fromContext !== '') {
+            return $fromContext;
+        }
+
+        return null;
+    }
+
+    /**
+     * Hapus baris wa_messages_out saat staff revoke pesan dari WhatsApp Business app.
+     * Revoke echo tidak disimpan sebagai outbound.
+     */
+    private function handleSmbOutboundRevoke($db, array $msg, ?string $waNumber): void
+    {
+        $originalWamid = $this->extractRevokedOriginalWamid($msg);
+        if (!$originalWamid) {
+            \Log::write(
+                'SMB revoke missing original_message_id | phone=' . ($waNumber ?: '-'),
+                'wa_error',
+                'Webhook'
+            );
+
+            return;
+        }
+
+        $existing = $this->findWaMessagesOutRowByAnchors($db, $originalWamid, null, null);
+        if (!$existing) {
+            \Log::write(
+                'SMB revoke: outbound not found wamid=' . $originalWamid . ' phone=' . ($waNumber ?: '-'),
+                'webhook',
+                'WhatsApp'
+            );
+
+            return;
+        }
+
+        $localId = (int) ($existing->id ?? 0);
+        $phone = $existing->phone ?? $waNumber;
+
+        try {
+            $db->delete('wa_messages_out', ['id' => $localId]);
+        } catch (\Throwable $e) {
+            \Log::write(
+                'SMB revoke delete failed id=' . $localId . ': ' . $e->getMessage(),
+                'wa_error',
+                'Webhook'
+            );
+
+            return;
+        }
+
+        \Log::write(
+            'SMB revoke deleted outbound id=' . $localId . ' wamid=' . $originalWamid . ' phone=' . ($phone ?: '-'),
+            'webhook',
+            'WhatsApp'
+        );
+
+        $conv = $db->get_where('wa_conversations', ['wa_number' => $phone])->row();
+        $conversationId = $conv ? (int) ($conv->id ?? 0) : 0;
+
+        $this->pushIncomingToWebSocket([
+            'type' => 'message_deleted',
+            'target_id' => '0',
+            'phone' => $phone,
+            'conversation_id' => $conversationId,
+            'message' => [
+                'id' => $localId,
+                'wamid' => $originalWamid,
+            ],
+        ]);
+    }
+
+    /**
      * Pesan outbound dikirim dari WhatsApp Business app (HP) — sync via YCloud smb.message.echoes.
      * Insert ke wa_messages_out jika belum ada (API/CRM send sudah insert → update status saja).
      */
@@ -893,6 +975,17 @@ class WhatsApp extends Controller
         $messageId = $msg['id'] ?? null;
         $wamid = $msg['wamid'] ?? null;
         $waNumber = $this->normalizePhoneNumber($msg['to'] ?? null);
+        $messageType = $msg['type'] ?? 'text';
+
+        if ($messageType === 'revoke') {
+            if (!$waNumber) {
+                \Log::write('SMB revoke missing to', 'wa_error', 'Webhook');
+                return;
+            }
+            $this->handleSmbOutboundRevoke($db, $msg, $waNumber);
+
+            return;
+        }
 
         if (!$waNumber || (!$messageId && !$wamid)) {
             \Log::write('SMB echo missing to/messageId/wamid', 'wa_error', 'Webhook');
@@ -912,7 +1005,6 @@ class WhatsApp extends Controller
         $businessPhone = $outboundLine['phone'];
         $lineKey = $outboundLine['key'];
 
-        $messageType = $msg['type'] ?? 'text';
         $content = null;
         $mediaUrl = null;
 
