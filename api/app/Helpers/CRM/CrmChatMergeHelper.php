@@ -505,6 +505,90 @@ class CrmChatMergeHelper
         return 0;
     }
 
+    /**
+     * Pesan teks keluar sejak balasan inbound terakhir (belum dibalas pelanggan).
+     * Kosong jika pesan terakhir dari pelanggan atau tidak ada outbound pending.
+     *
+     * @return list<array{body:string,created_at:string}>
+     */
+    public static function findUnansweredOutboundTexts($db, string $phone): array
+    {
+        [$inSql, $variants] = self::phoneInClause($phone);
+        if ($inSql === '') {
+            return [];
+        }
+
+        $outWhere = "phone IN ({$inSql}) AND type = 'text' AND COALESCE(`private`, 0) = 0"
+            . " AND COALESCE(status, '') NOT IN ('queue', 'processing')";
+
+        try {
+            $latest = $db->query(
+                "SELECT direction, type, body FROM (
+                    SELECT 'in' AS direction, type, COALESCE(text, '') AS body, created_at AS ts
+                    FROM wa_messages_in WHERE phone IN ({$inSql})
+                    UNION ALL
+                    SELECT 'out', type, COALESCE(content, ''), created_at
+                    FROM wa_messages_out WHERE {$outWhere}
+                ) combined ORDER BY ts DESC LIMIT 1",
+                array_merge($variants, $variants)
+            )->row_array();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if (!$latest || ($latest['direction'] ?? '') !== 'out' || ($latest['type'] ?? '') !== 'text') {
+            return [];
+        }
+
+        if (trim((string) ($latest['body'] ?? '')) === '') {
+            return [];
+        }
+
+        $lastInTs = null;
+        try {
+            $inRow = $db->query(
+                "SELECT MAX(created_at) AS last_in FROM wa_messages_in WHERE phone IN ({$inSql})",
+                $variants
+            )->row_array();
+            $lastInTs = $inRow['last_in'] ?? null;
+        } catch (\Throwable $e) {
+            $lastInTs = null;
+        }
+
+        $params = $variants;
+        $afterClause = '';
+        if ($lastInTs !== null && $lastInTs !== '') {
+            $afterClause = ' AND created_at > ?';
+            $params[] = $lastInTs;
+        }
+
+        try {
+            $rows = $db->query(
+                "SELECT COALESCE(content, '') AS body, created_at
+                 FROM wa_messages_out
+                 WHERE {$outWhere}{$afterClause}
+                 ORDER BY created_at ASC",
+                $params
+            )->result_array();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            $text = trim((string) ($row['body'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $items[] = [
+                'body' => $text,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ];
+        }
+
+        return $items;
+    }
+
     /** Tandai semua inbound yCloud untuk nomor ini sebagai read (semua varian phone). */
     public static function markYcloudInboundRead($db, string $phone): int
     {

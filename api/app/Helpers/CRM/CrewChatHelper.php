@@ -163,7 +163,30 @@ class CrewChatHelper
             return ['ok' => false, 'message' => 'Pesan belum dirapikan — klik Rapikan Pesan terlebih dahulu'];
         }
 
-        $csw = CrmChatMergeHelper::getCswStatus(DB::getInstance(0), $phone);
+        $db = DB::getInstance(0);
+        $pendingOutbound = CrmChatMergeHelper::findUnansweredOutboundTexts($db, $phone);
+        if ($pendingOutbound !== []) {
+            if (!class_exists(CrewOutboundSpamGuard::class)) {
+                require_once __DIR__ . '/CrewOutboundSpamGuard.php';
+            }
+            $pendingBodies = array_column($pendingOutbound, 'body');
+            $spam = (new CrewOutboundSpamGuard())->check($pendingBodies, $message);
+            if (!empty($spam['duplicate_spam'])) {
+                if (class_exists('\\Log')) {
+                    \Log::write(
+                        'crewReply spam reject phone=' . $phone . ' pending=' . count($pendingBodies),
+                        'crm_crew',
+                        'Chat'
+                    );
+                }
+                return [
+                    'ok' => false,
+                    'message' => $spam['message'] ?: CrewOutboundSpamGuard::REJECT_MESSAGE,
+                ];
+            }
+        }
+
+        $csw = CrmChatMergeHelper::getCswStatus($db, $phone);
         $lineKey = CrmChatMergeHelper::resolveReplyLine($csw, 'auto');
         if ($lineKey === null) {
             return ['ok' => false, 'message' => 'CSW sudah tutup — tidak bisa kirim pesan'];
@@ -190,7 +213,6 @@ class CrewChatHelper
             ];
         }
 
-        $db = DB::getInstance(0);
         $conv = CrmChatMergeHelper::findWaConversation($db, $phone);
         if ($conv && !empty($conv->wa_number)) {
             $db->update('wa_conversations', [
