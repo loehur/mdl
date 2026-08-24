@@ -312,6 +312,28 @@
   .kas-pg-modal-grid .pg-ket-wrap {
     margin-bottom: 0;
   }
+  .kas-nontunai-row {
+    display: grid;
+    gap: 12px 14px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 420px) {
+    .kas-nontunai-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .kas-nontunai-row__bca {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .kas-nontunai-row__bca.is-visible {
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .kas-pg-modal-grid > .op-field.is-hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
   .kas-limit-hint {
     display: block;
     margin-top: 4px;

@@ -304,33 +304,37 @@
             <div class="kas-saldo-box saldoPenarikan">Rp <?= number_format($kas); ?></div>
             <input type="hidden" name="kas" class="saldoPenarikanHidden" value="<?= $kas ?>">
           </div>
-          <div class="op-field penarikanNonTunaiField" style="display:none;">
-            <label class="op-label">Tujuan Non Tunai</label>
-            <div class="d-flex gap-3 flex-wrap">
-              <label class="d-flex align-items-center gap-2 mb-0">
-                <input type="radio" name="note" value="BCA" class="penarikanNoteRadio">
-                <span>BCA</span>
-              </label>
-              <label class="d-flex align-items-center gap-2 mb-0">
-                <input type="radio" name="note" value="QRIS" class="penarikanNoteRadio" checked>
-                <span>QRIS</span>
-              </label>
+          <div class="op-field kas-pg-span-2 penarikanNonTunaiRow" style="display:none;">
+            <div class="kas-nontunai-row">
+              <div class="kas-nontunai-row__tujuan">
+                <label class="op-label">Tujuan Non Tunai</label>
+                <div class="d-flex gap-3 flex-wrap">
+                  <label class="d-flex align-items-center gap-2 mb-0">
+                    <input type="radio" name="note" value="BCA" class="penarikanNoteRadio">
+                    <span>BCA</span>
+                  </label>
+                  <label class="d-flex align-items-center gap-2 mb-0">
+                    <input type="radio" name="note" value="QRIS" class="penarikanNoteRadio" checked>
+                    <span>QRIS</span>
+                  </label>
+                </div>
+              </div>
+              <?php $bcaGuide = URL::NON_TUNAI_GUIDE['BCA'] ?? null; ?>
+              <div class="kas-nontunai-row__bca penarikanBcaRekeningField">
+                <label class="op-label">Data Rekening BCA</label>
+                <?php if ($bcaGuide) { ?>
+                  <div class="kas-bca-rekening">
+                    <div class="kas-bca-rekening__label"><?= htmlspecialchars($bcaGuide['label']) ?></div>
+                    <div class="kas-bca-rekening__number"><?= htmlspecialchars($bcaGuide['number']) ?></div>
+                    <div class="kas-bca-rekening__name">a.n. <?= htmlspecialchars($bcaGuide['name']) ?></div>
+                  </div>
+                <?php } else { ?>
+                  <div class="kas-bca-rekening kas-bca-rekening--empty">Data rekening BCA belum tersedia</div>
+                <?php } ?>
+              </div>
             </div>
           </div>
-          <?php $bcaGuide = URL::NON_TUNAI_GUIDE['BCA'] ?? null; ?>
-          <div class="op-field penarikanBcaRekeningField" style="display:none;">
-            <label class="op-label">Data Rekening BCA</label>
-            <?php if ($bcaGuide) { ?>
-              <div class="kas-bca-rekening">
-                <div class="kas-bca-rekening__label"><?= htmlspecialchars($bcaGuide['label']) ?></div>
-                <div class="kas-bca-rekening__number"><?= htmlspecialchars($bcaGuide['number']) ?></div>
-                <div class="kas-bca-rekening__name">a.n. <?= htmlspecialchars($bcaGuide['name']) ?></div>
-              </div>
-            <?php } else { ?>
-              <div class="kas-bca-rekening kas-bca-rekening--empty">Data rekening BCA belum tersedia</div>
-            <?php } ?>
-          </div>
-          <div class="op-field">
+          <div class="op-field penarikanJumlahField">
             <label class="op-label">Jumlah Rp</label>
             <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahPenarikan" required>
             <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
@@ -614,9 +618,9 @@
     var isBca = isNonTunai && note === 'BCA';
 
     $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
-    $form.find('.penarikanNonTunaiField').toggle(isNonTunai);
-    $form.find('.penarikanBcaRekeningField').toggle(isBca);
-    $form.find('.penarikanKeteranganField').toggle(!isNonTunai);
+    $form.find('.penarikanNonTunaiRow').toggle(isNonTunai);
+    $form.find('.penarikanBcaRekeningField').toggleClass('is-visible', isBca);
+    $form.find('.penarikanKeteranganField').toggleClass('is-hidden', isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
     $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
     $form.find('.keteranganPenarikan').prop('required', !isNonTunai);
