@@ -156,8 +156,28 @@
           </div>
         </div>
 
+        <!-- Payment method -->
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            @click="onSelectPaymentMethod('qris')"
+            class="rounded-xl border-2 px-4 py-3 text-sm font-semibold transition"
+            :class="selectedPaymentMethod === 'qris' ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-gray-200 text-gray-600 hover:border-pink-300'"
+          >
+            QRIS
+          </button>
+          <button
+            type="button"
+            @click="onSelectPaymentMethod('bca')"
+            class="rounded-xl border-2 px-4 py-3 text-sm font-semibold transition"
+            :class="selectedPaymentMethod === 'bca' ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-gray-200 text-gray-600 hover:border-pink-300'"
+          >
+            Transfer BCA
+          </button>
+        </div>
+
         <!-- Pay Button -->
-        <div class="mt-8 text-center">
+        <div class="mt-4 text-center">
           <button 
             @click="createPayment"
             :disabled="processing"
@@ -182,10 +202,29 @@
         <div v-if="showPaymentModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div class="p-4 border-b border-gray-100 bg-gradient-to-r from-pink-500 to-purple-500 rounded-t-2xl">
-              <h3 class="text-lg font-bold text-white text-center">Scan QRIS</h3>
+              <h3 class="text-lg font-bold text-white text-center">
+                {{ isBcaPayment ? 'Transfer BCA' : 'Scan QRIS' }}
+              </h3>
             </div>
             
             <div class="p-4 space-y-3">
+              <template v-if="isBcaPayment">
+                <div class="rounded-xl border-2 border-pink-200 bg-pink-50/50 p-4 text-sm space-y-2">
+                  <p class="font-semibold text-gray-800">{{ paymentData?.bank_account?.label || 'BCA' }}</p>
+                  <p class="font-mono text-xl font-bold tracking-wide text-pink-600">{{ paymentData?.bank_account?.number }}</p>
+                  <p class="text-gray-600">a/n {{ paymentData?.bank_account?.name }}</p>
+                  <div class="mt-2 rounded-lg bg-white p-3 border border-pink-100">
+                    <p class="text-xs text-gray-500">Nominal transfer (exact)</p>
+                    <p class="text-2xl font-bold text-pink-600">{{ formatPrice(paymentData?.amount) }}</p>
+                    <p v-if="paymentData?.unique_nominal" class="mt-1 text-xs text-amber-600">
+                      Nominal unik — transfer persis hingga digit terakhir
+                    </p>
+                  </div>
+                </div>
+                <p class="text-[10px] text-gray-500 text-center">Konfirmasi otomatis setelah transfer terdeteksi</p>
+              </template>
+
+              <template v-else>
               <!-- QR Code Display -->
               <div class="flex justify-center">
                 <div v-if="paymentData?.qr_string && !paymentExpired" class="p-2 bg-white border-2 border-pink-200 rounded-xl flex justify-center">
@@ -201,6 +240,7 @@
                   <div class="animate-spin rounded-full h-8 w-8 border-4 border-pink-500 border-t-transparent"></div>
                 </div>
               </div>
+              </template>
 
               <!-- Payment Info -->
               <div class="bg-gray-50 rounded-lg p-3 space-y-1 text-xs">
@@ -244,7 +284,7 @@
                     {{ checkingPayment ? 'Memeriksa...' : 'Cek Status Pembayaran' }}
                   </button>
                   <button
-                    v-else
+                    v-else-if="!isBcaPayment"
                     @click="refreshExpiredPayment"
                     :disabled="processing"
                     class="w-full px-4 py-2 bg-pink-50 text-pink-700 font-semibold rounded-lg hover:bg-pink-100 transition flex items-center justify-center gap-2 border border-pink-200 text-sm"
@@ -262,7 +302,15 @@
               </div>
             </div>
             
-            <div class="p-4 border-t border-gray-100">
+            <div class="p-4 border-t border-gray-100 space-y-2">
+              <button
+                v-if="!paymentSuccess && paymentData?.payment_ref"
+                @click="cancelActivePayment()"
+                :disabled="processing"
+                class="w-full px-4 py-2 border border-red-200 text-red-600 font-semibold rounded-lg hover:bg-red-50 transition text-sm disabled:opacity-50"
+              >
+                {{ processing ? 'Membatalkan...' : 'Batalkan Pembayaran' }}
+              </button>
               <button 
                 @click="closePaymentModal"
                 class="w-full px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition text-sm"
@@ -416,6 +464,7 @@ const paymentHistory = ref([]);
 const selectedPlan = ref('monthly');
 const selectedMonths = ref(1);
 const selectedAmount = ref(60000);
+const selectedPaymentMethod = ref('qris');
 const showPaymentModal = ref(false);
 const paymentData = ref(null);
 const checkingPayment = ref(false);
@@ -463,6 +512,44 @@ const daysRemaining = computed(() => {
   const days = subscription.value?.days_remaining ?? 0;
   return days < 0 ? 0 : days;
 });
+
+const isBcaPayment = computed(() => paymentData.value?.payment_method === 'bca');
+
+const activePendingPayment = computed(() => {
+  if (paymentData.value?.payment_ref) return paymentData.value;
+  return paymentHistory.value.find((p) => p.payment_status === 'pending') || null;
+});
+
+function onSelectPaymentMethod(method) {
+  if (method === selectedPaymentMethod.value && !activePendingPayment.value) {
+    return;
+  }
+
+  const pending = activePendingPayment.value;
+  if (pending?.payment_ref && (pending.payment_method || 'qris') !== method) {
+    showConfirm(
+      'Ganti Metode Bayar?',
+      'Pembayaran pending akan dibatalkan agar Anda bisa memilih metode lain. Lanjutkan?',
+      'Ya, Batalkan',
+      'bg-red-600 hover:bg-red-700 focus:ring-red-500',
+      async () => {
+        showConfirmModal.value = false;
+        const ok = await cancelActivePayment(pending.payment_ref, false);
+        if (ok) {
+          selectedPaymentMethod.value = method;
+          if (showPaymentModal.value) {
+            showPaymentModal.value = false;
+            stopCheckingPayment();
+            paymentData.value = null;
+          }
+        }
+      }
+    );
+    return;
+  }
+
+  selectedPaymentMethod.value = method;
+}
 
 function selectPlan(plan, months) {
   selectedPlan.value = plan;
@@ -521,7 +608,7 @@ async function createPayment() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         months: selectedMonths.value,
-        payment_method: 'qris'
+        payment_method: selectedPaymentMethod.value
       })
     });
     const data = await res.json();
@@ -532,9 +619,12 @@ async function createPayment() {
       showAlert(data.message || 'Pembayaran sudah berhasil!', 'Sukses', 'success');
       return;
     }
-    if (data.success && data.data?.qr_string) {
+    if (data.success && (data.data?.qr_string || data.data?.payment_method === 'bca')) {
       openPaymentModal(data.data);
       fetchPaymentHistory();
+    } else if (res.status === 409) {
+      await fetchPaymentHistory();
+      showAlert(data.message || 'Batalkan pembayaran pending dulu sebelum ganti metode.', 'Pending', 'info');
     } else {
       await fetchPaymentHistory();
       showAlert(data.message || 'Gagal membuat invoice', 'Gagal', 'error');
@@ -577,7 +667,7 @@ async function resumePayment(payment) {
       return;
     }
 
-    if (data.success && data.data?.qr_string) {
+    if (data.success && (data.data?.qr_string || data.data?.payment_method === 'bca')) {
       let months = 1;
       if (data.data.amount >= PRICES.value.yearly) months = 12;
       else if (data.data.amount >= PRICES.value.quarterly) months = 3;
@@ -585,7 +675,7 @@ async function resumePayment(payment) {
 
       openPaymentModal(data.data);
       fetchPaymentHistory();
-      if (data.refreshed) {
+      if (data.refreshed && data.data?.qr_string) {
         showAlert('QRIS diperbarui. Silakan scan ulang.', 'QRIS Baru', 'info');
       }
     } else if (data.expired) {
@@ -774,44 +864,59 @@ function showAlert(message, title = 'Informasi', type = 'info') {
 function cancelPayment(payment) {
   showConfirm(
     'Batalkan Pembayaran?',
-    'Apakah Anda yakin ingin membatalkan pembayaran ini? Tindakan ini tidak dapat dibatalkan.',
+    'Apakah Anda yakin ingin membatalkan pembayaran ini? Anda dapat membuat pembayaran baru dengan metode lain.',
     'Ya, Batalkan',
     'bg-red-600 hover:bg-red-700 focus:ring-red-500',
-    () => doCancelPayment(payment)
+    () => cancelActivePayment(payment.payment_ref, true)
   );
 }
 
-async function doCancelPayment(payment) {
+async function cancelActivePayment(paymentRef = null, closeModal = true) {
+  const ref = paymentRef || paymentData.value?.payment_ref;
+  if (!ref) return false;
+
   processing.value = true;
   try {
     const res = await fetch(`${API_BASE_URL}/Beauty_Salon/Subscription/cancel`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payment_ref: payment.payment_ref
-      })
+      body: JSON.stringify({ payment_ref: ref })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showConfirmModal.value = false;
+
+    if (data.data?.status === 'paid' || data.status === 'paid') {
+      await fetchSubscription();
       await fetchPaymentHistory();
-    } else {
-      showConfirmModal.value = false; // Close confirm modal to show alert
-      setTimeout(() => {
-          showAlert(data.message || 'Gagal membatalkan pembayaran', 'Gagal', 'error');
-      }, 300);
+      showAlert('Pembayaran sudah berhasil diverifikasi.', 'Sukses', 'success');
+      return false;
     }
+
+    if (!data.success && !data.status) {
+      showAlert(data.message || 'Gagal membatalkan pembayaran', 'Gagal', 'error');
+      return false;
+    }
+
+    stopCheckingPayment();
+    paymentData.value = null;
+    paymentExpired.value = false;
+    if (closeModal) {
+      showPaymentModal.value = false;
+      showAlert(data.message || 'Pembayaran dibatalkan.', 'Dibatalkan', 'success');
+    }
+    await fetchPaymentHistory();
+    return true;
   } catch (err) {
     console.error('Failed to cancel payment:', err);
-    showConfirmModal.value = false;
-    setTimeout(() => {
-        showAlert('Terjadi kesalahan: ' + err.message, 'Error', 'error');
-    }, 300);
+    showAlert('Terjadi kesalahan: ' + err.message, 'Error', 'error');
+    return false;
   } finally {
     processing.value = false;
   }
+}
+
+async function doCancelPayment(payment) {
+  await cancelActivePayment(payment.payment_ref, true);
 }
 
 // ... helper functions ...

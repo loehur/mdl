@@ -3,6 +3,9 @@
 namespace App\Controllers\Beauty_Salon;
 
 use App\Core\Controller;
+use App\Helpers\Beauty_Salon\SalonBcaConfirm;
+use App\Helpers\Payment\BankAccountGuide;
+use App\Helpers\Payment\BcaUniqueNominal;
 
 /**
  * Beauty Salon Subscription Controller
@@ -164,6 +167,12 @@ class Subscription extends Controller
                 $this->error('Salon ID tidak ditemukan. Silakan login ulang.', 401);
             }
 
+            $body = $this->getBody();
+            $paymentMethod = strtolower(trim((string) ($body['payment_method'] ?? 'qris')));
+            if (!in_array($paymentMethod, ['qris', 'bca'], true)) {
+                $paymentMethod = 'qris';
+            }
+
             // Resolve existing pending first (like laundry: reuse / refresh / mark failed)
             $pending_payment = $this->db($this->db_index)
                 ->get_where('subscription_payments', [
@@ -173,37 +182,60 @@ class Subscription extends Controller
                 ->row_array();
 
             if ($pending_payment) {
-                // On pay: reuse/check pending, but do NOT silently refresh into old invoice.
-                // If expired → mark failed and allow creating the newly selected plan.
-                $resolved = $this->resolvePendingQris($pending_payment, false);
+                $pendingMethod = strtolower(trim((string) ($pending_payment['payment_method'] ?? 'qris')));
+                $createdAt = !empty($pending_payment['created_at']) ? strtotime($pending_payment['created_at']) : 0;
+                $withinWindow = $createdAt > 0 && (time() - $createdAt) < (BcaUniqueNominal::LOOKBACK_DAYS * 86400);
+                $resolved = [];
 
-                if (!empty($resolved['paid'])) {
+                if ($withinWindow && $pendingMethod === $paymentMethod && $paymentMethod === 'bca') {
                     $this->json([
                         'success' => true,
-                        'status' => 'paid',
-                        'data' => $resolved['data'] ?? null,
-                        'message' => $resolved['message'] ?? 'Pembayaran sudah berhasil'
+                        'data' => $this->buildBcaPayResponse($pending_payment),
+                        'message' => 'Melanjutkan pembayaran BCA tertunda'
                     ]);
                 }
 
-                if (!empty($resolved['qr_string'])) {
-                    $this->json([
-                        'success' => true,
-                        'data' => $resolved['data'],
-                        'message' => $resolved['message'] ?? 'Melanjutkan pembayaran tertunda Anda'
-                    ]);
+                if ($pendingMethod === 'qris' && $paymentMethod === 'qris') {
+                    $resolved = $this->resolvePendingQris($pending_payment, false);
+
+                    if (!empty($resolved['paid'])) {
+                        $this->json([
+                            'success' => true,
+                            'status' => 'paid',
+                            'data' => $resolved['data'] ?? null,
+                            'message' => $resolved['message'] ?? 'Pembayaran sudah berhasil'
+                        ]);
+                    }
+
+                    if (!empty($resolved['qr_string'])) {
+                        $this->json([
+                            'success' => true,
+                            'data' => $resolved['data'],
+                            'message' => $resolved['message'] ?? 'Melanjutkan pembayaran tertunda Anda'
+                        ]);
+                    }
+
+                    if (empty($resolved['allow_new'])) {
+                        $this->error(
+                            $resolved['message'] ?? 'Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan di riwayat.',
+                            400
+                        );
+                    }
                 }
 
-                // Expired/failed already marked — continue create new payment below
-                if (empty($resolved['allow_new'])) {
-                    $this->error(
-                        $resolved['message'] ?? 'Anda memiliki pembayaran yang belum selesai. Mohon selesaikan atau batalkan di riwayat.',
-                        400
-                    );
+                if ($pendingMethod !== $paymentMethod || !empty($resolved['allow_new'])) {
+                    if ($pendingMethod !== $paymentMethod) {
+                        $this->error(
+                            'Masih ada pembayaran pending dengan metode ' . strtoupper($pendingMethod) . '. Batalkan dulu sebelum ganti metode.',
+                            409,
+                            ['pending_payment_ref' => $pending_payment['payment_ref'], 'pending_payment_method' => $pendingMethod]
+                        );
+                    }
+                    $this->markPaymentFailed($pending_payment['payment_ref']);
+                } elseif ($pendingMethod === 'bca' && !$withinWindow) {
+                    $this->markPaymentFailed($pending_payment['payment_ref']);
                 }
             }
-
-            $body = $this->getBody();
 
             $months = isset($body['months']) ? (int)$body['months'] : 1;
             if ($months < 1 || $months > 12) {
@@ -244,8 +276,42 @@ class Subscription extends Controller
             $end_date->modify("+{$months} months");
 
             $payment_ref = 'SALONSUB_' . $salon_id . '_' . time();
+            $notes = "Perpanjangan {$months} bulan" . ($discount > 0 ? " (Diskon " . ($months >= 12 ? '15%' : '5%') . ")" : "");
 
-            $this->db($this->db_index)->insert('subscription_payments', [
+            if ($paymentMethod === 'bca') {
+                $uniqueAmount = BcaUniqueNominal::allocate(
+                    (int) round($amount),
+                    $this->db(6),
+                    $this->db($this->db_index),
+                    $this->db(1)
+                );
+
+                $insert = [
+                    'salon_id' => $salon_id,
+                    'subscription_id' => $subscription['id'],
+                    'amount' => $uniqueAmount,
+                    'payment_method' => 'bca',
+                    'payment_ref' => $payment_ref,
+                    'payment_status' => 'pending',
+                    'period_start' => $start_date->format('Y-m-d'),
+                    'period_end' => $end_date->format('Y-m-d'),
+                    'notes' => $notes,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ];
+                $this->tryInsertSubscriptionBaseAmount($insert, (int) round($amount));
+                $this->db($this->db_index)->insert('subscription_payments', $insert);
+
+                $this->json([
+                    'success' => true,
+                    'data' => $this->buildBcaPayResponse(array_merge($insert, [
+                        'months' => $months,
+                        'discount' => $discount,
+                    ])),
+                    'message' => 'Transfer BCA Rp ' . number_format($uniqueAmount, 0, ',', '.') . ' (exact)'
+                ]);
+            }
+
+            $insert = [
                 'salon_id' => $salon_id,
                 'subscription_id' => $subscription['id'],
                 'amount' => $amount,
@@ -254,9 +320,11 @@ class Subscription extends Controller
                 'payment_status' => 'pending',
                 'period_start' => $start_date->format('Y-m-d'),
                 'period_end' => $end_date->format('Y-m-d'),
-                'notes' => "Perpanjangan {$months} bulan" . ($discount > 0 ? " (Diskon " . ($months >= 12 ? '15%' : '5%') . ")" : ""),
+                'notes' => $notes,
                 'created_at' => date('Y-m-d H:i:s')
-            ]);
+            ];
+            $this->tryInsertSubscriptionBaseAmount($insert, (int) round($amount));
+            $this->db($this->db_index)->insert('subscription_payments', $insert);
 
             $order = $this->createTokopayOrder((int)$amount, $payment_ref);
 
@@ -270,7 +338,9 @@ class Subscription extends Controller
                 'success' => true,
                 'data' => [
                     'payment_ref' => $payment_ref,
+                    'payment_method' => 'qris',
                     'amount' => $amount,
+                    'base_amount' => (int) round($amount),
                     'months' => $months,
                     'discount' => $discount,
                     'period_start' => $start_date->format('Y-m-d'),
@@ -331,6 +401,15 @@ class Subscription extends Controller
                     'expired' => true,
                     'status' => $payment['payment_status'],
                     'message' => 'Pembayaran ini sudah tidak aktif. Silakan buat pembayaran baru.'
+                ]);
+            }
+
+            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
+            if ($method === 'bca') {
+                $this->json([
+                    'success' => true,
+                    'data' => $this->buildBcaPayResponse($payment),
+                    'message' => 'Silakan transfer BCA sesuai nominal'
                 ]);
             }
 
@@ -409,6 +488,13 @@ class Subscription extends Controller
                 $this->error('Hanya pembayaran pending yang dapat dibatalkan', 400);
             }
 
+            if ($this->resolvePaymentPaidBeforeCancel($payment)) {
+                SalonBcaConfirm::activatePayment($this->db($this->db_index), $payment);
+                $this->error('Pembayaran sudah berhasil diverifikasi', 400, [
+                    'status' => 'paid',
+                ]);
+            }
+
             // Update status to failed (since cancelled might not be in enum)
             $this->db($this->db_index)->update('subscription_payments', [
                 'payment_status' => 'failed'
@@ -416,7 +502,8 @@ class Subscription extends Controller
 
             $this->json([
                 'success' => true,
-                'message' => 'Pembayaran berhasil dibatalkan'
+                'status' => 'cancelled',
+                'message' => 'Pembayaran berhasil dibatalkan. Anda dapat memilih metode bayar lain.'
             ]);
 
         } catch (\Exception $e) {
@@ -635,6 +722,15 @@ class Subscription extends Controller
                     'success' => true,
                     'status' => 'expired',
                     'message' => 'Pembayaran sudah kadaluarsa/gagal. Silakan buat pembayaran baru.'
+                ]);
+            }
+
+            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
+            if ($method === 'bca') {
+                $this->json([
+                    'success' => true,
+                    'status' => 'pending',
+                    'message' => 'Menunggu transfer BCA...'
                 ]);
             }
 
@@ -1071,22 +1167,69 @@ class Subscription extends Controller
 
     private function activatePayment(array $payment)
     {
-        $payment_ref = $payment['payment_ref'];
-        $salon_id = $payment['salon_id'];
+        SalonBcaConfirm::activatePayment($this->db($this->db_index), $payment);
+    }
 
-        $this->db($this->db_index)->update('subscription_payments', [
-            'payment_status' => 'success'
-        ], ['payment_ref' => $payment_ref]);
+    /**
+     * @param array<string,mixed> $payment
+     * @return array<string,mixed>
+     */
+    private function buildBcaPayResponse(array $payment): array
+    {
+        $amount = (float) ($payment['amount'] ?? 0);
+        $baseAmount = (float) ($payment['base_amount'] ?? $amount);
 
-        $this->db($this->db_index)->update('subscriptions', [
-            'status' => 'active',
-            'start_date' => $payment['period_start'],
-            'end_date' => $payment['period_end'],
-            'last_payment_date' => date('Y-m-d'),
-            'last_payment_amount' => $payment['amount'],
-            'payment_ref' => $payment_ref,
-            'reminder_sent' => 0
-        ], ['salon_id' => $salon_id]);
+        return [
+            'payment_ref' => $payment['payment_ref'] ?? '',
+            'payment_method' => 'bca',
+            'amount' => $amount,
+            'base_amount' => $baseAmount,
+            'unique_nominal' => $amount !== $baseAmount,
+            'months' => $payment['months'] ?? null,
+            'discount' => $payment['discount'] ?? 0,
+            'period_start' => $payment['period_start'] ?? null,
+            'period_end' => $payment['period_end'] ?? null,
+            'bank_account' => BankAccountGuide::bcaAccount(),
+            'bank_message' => BankAccountGuide::bcaTransferMessage(),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $payment
+     */
+    private function resolvePaymentPaidBeforeCancel(array $payment): bool
+    {
+        if (in_array($payment['payment_status'] ?? '', ['success', 'paid'], true)) {
+            return true;
+        }
+
+        $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
+        if ($method === 'bca') {
+            return false;
+        }
+
+        $paymentRef = trim((string) ($payment['payment_ref'] ?? ''));
+        $amount = (int) round((float) ($payment['amount'] ?? 0));
+        if ($paymentRef === '' || $amount < 1) {
+            return false;
+        }
+
+        $status = $this->fetchTokopayPaymentStatus($paymentRef, $amount);
+
+        return !empty($status['paid']);
+    }
+
+    /**
+     * @param array<string,mixed> $insert
+     */
+    private function tryInsertSubscriptionBaseAmount(array &$insert, int $baseAmount): void
+    {
+        try {
+            $this->db($this->db_index)->query('SELECT base_amount FROM subscription_payments LIMIT 1');
+            $insert['base_amount'] = $baseAmount;
+        } catch (\Throwable $e) {
+            // column belum dimigrate
+        }
     }
 
     private function getSalonId()

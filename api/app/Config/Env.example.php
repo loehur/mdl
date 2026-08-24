@@ -168,6 +168,23 @@ class Env
     const BCA_SCRAPPER_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
     const BCA_SCRAPPER_QRIS_URL = 'http://127.0.0.1:3021/qris/transactions';
 
+    // Rekening pembayaran terpusat (BCA auto-confirm, invoice, salon, CRM /rekening)
+    const BCA_PAYMENT_ACCOUNTS = [
+        'BCA' => [
+            'label' => 'BCA (BANK CENTRAL ASIA)',
+            'number' => '8455103793',
+            'name' => 'LUHUR GUNAWAN',
+        ],
+        'BRI' => [
+            'label' => 'BRI (BANK RAKYAT INDONESIA)',
+            'number' => '327901031534535',
+            'name' => 'LUHUR GUNAWAN',
+        ],
+    ];
+
+    // URL QRIS publik (opsional — untuk payload /Payment/BankAccounts)
+    const QRIS_PUBLIC_URL = 'https://ml.nalju.com/I/q';
+
     // Invoice Subscriptions API: header X-Invoice-Api-Key
     const INVOICE_API_KEY = 'change-me-invoice-api-key';
 

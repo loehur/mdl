@@ -3,18 +3,20 @@
 namespace App\Controllers\Cron;
 
 use App\Core\Controller;
+use App\Helpers\Beauty_Salon\SalonBcaConfirm;
 use App\Helpers\BcaMutasiMatcher;
 use App\Helpers\BcaScrapper;
+use App\Helpers\Invoice\InvoiceBcaConfirm;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
+use App\Helpers\Payment\BcaUniqueNominal;
 
 /**
- * Konfirmasi otomatis kas BCA pending jika mutasi CR cocok (exact, atau ± Rp 1.000).
- * Mutasi PEND dianggap valid — tidak menunggu tanggal_iso/posted.
- * Scrape on-demand 6 hari terakhir dari hari ini jika ada kas pending BCA.
- * Mutasi PEND: lookback 30 hari (created_at), tidak terikat rentang posted.
+ * Konfirmasi otomatis transfer BCA pending:
+ * - kas laundry (± Rp 1.000)
+ * - invoice project (exact nominal)
+ * - beauty salon subscription (exact nominal)
  *
- * URL:
- * /Cron/BcaKasConfirm/index?secret=YOUR_CRON_SECRET
+ * URL: /Cron/BcaKasConfirm/index?secret=YOUR_CRON_SECRET
  */
 class BcaKasConfirm extends Controller
 {
@@ -31,6 +33,9 @@ class BcaKasConfirm extends Controller
 
         $dbMain = $this->db(0);
         $dbLaundry = $this->db(1);
+        $dbSalon = $this->db(4);
+        $dbInvoice = $this->db(6);
+
         if (!$dbMain || !$dbLaundry) {
             echo "ERROR: Database connection failed\n";
             return;
@@ -43,6 +48,66 @@ class BcaKasConfirm extends Controller
             echo "ERROR: Tabel bca_mutasi / bca_mutasi_link belum ada. Jalankan migration main.\n";
             return;
         }
+
+        echo 'BcaKasConfirm run at ' . date('Y-m-d H:i:s') . "\n";
+
+        $expired = BcaUniqueNominal::expireStalePending($dbInvoice, $dbSalon);
+        if (($expired['invoice'] ?? 0) > 0 || ($expired['salon'] ?? 0) > 0) {
+            echo sprintf(
+                "EXPIRE stale BCA pending: invoice=%d salon=%d\n",
+                (int) ($expired['invoice'] ?? 0),
+                (int) ($expired['salon'] ?? 0)
+            );
+        }
+
+        $crmDb = $this->resolveCrmDb();
+
+        $kasStats = $this->processKasLaundry($dbMain, $dbLaundry, $crmDb);
+        $invoiceStats = $this->processInvoiceBca($dbMain, $dbInvoice);
+        $salonStats = $this->processSalonBca($dbMain, $dbSalon);
+
+        echo sprintf(
+            "\nDone kas: checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
+            $kasStats['checked'],
+            $kasStats['matched'],
+            $kasStats['confirmed'],
+            $kasStats['scraped'],
+            $kasStats['skipped'],
+            $kasStats['errors']
+        );
+        echo sprintf(
+            "Done invoice: checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
+            $invoiceStats['checked'],
+            $invoiceStats['matched'],
+            $invoiceStats['confirmed'],
+            $invoiceStats['scraped'],
+            $invoiceStats['skipped'],
+            $invoiceStats['errors']
+        );
+        echo sprintf(
+            "Done salon: checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
+            $salonStats['checked'],
+            $salonStats['matched'],
+            $salonStats['confirmed'],
+            $salonStats['scraped'],
+            $salonStats['skipped'],
+            $salonStats['errors']
+        );
+    }
+
+    /**
+     * @return array{checked:int,matched:int,confirmed:int,scraped:int,skipped:int,errors:int}
+     */
+    private function processKasLaundry($dbMain, $dbLaundry, $crmDb): array
+    {
+        $stats = [
+            'checked' => 0,
+            'matched' => 0,
+            'confirmed' => 0,
+            'scraped' => 0,
+            'skipped' => 0,
+            'errors' => 0,
+        ];
 
         $pendingRows = $dbLaundry->query(
             "SELECT ref_finance,
@@ -61,25 +126,11 @@ class BcaKasConfirm extends Controller
         )->result_array();
 
         $pendingCount = is_array($pendingRows) ? count($pendingRows) : 0;
-        echo 'BcaKasConfirm run at ' . date('Y-m-d H:i:s') . "\n";
-
-        if ($pendingCount === 0) {
-            echo "SKIP: no pending BCA kas\n";
-            return;
-        }
-
         echo "Pending BCA kas: {$pendingCount}\n";
 
-        $stats = [
-            'checked' => 0,
-            'matched' => 0,
-            'confirmed' => 0,
-            'scraped' => 0,
-            'skipped' => 0,
-            'errors' => 0,
-        ];
-
-        $crmDb = $this->resolveCrmDb();
+        if ($pendingCount === 0) {
+            return $stats;
+        }
 
         foreach ($pendingRows as $row) {
             if (!is_array($row)) {
@@ -91,7 +142,7 @@ class BcaKasConfirm extends Controller
             $match = BcaMutasiMatcher::matchAndBindForKas($dbMain, $row);
             if (empty($match['ok'])) {
                 $stats['errors']++;
-                echo "ERR {$refFinance}: " . ($match['message'] ?? 'match_failed') . "\n";
+                echo "ERR [Kas] {$refFinance}: " . ($match['message'] ?? 'match_failed') . "\n";
                 continue;
             }
 
@@ -101,7 +152,7 @@ class BcaKasConfirm extends Controller
 
             if (empty($match['matched'])) {
                 $stats['skipped']++;
-                echo "SKIP {$refFinance}: mutasi CR nominal {$row['total']} tidak ditemukan";
+                echo "SKIP [Kas] {$refFinance}: mutasi CR nominal {$row['total']} tidak ditemukan";
                 if (!empty($match['range_start']) && !empty($match['range_end'])) {
                     echo " ({$match['range_start']}..{$match['range_end']})";
                 }
@@ -120,29 +171,209 @@ class BcaKasConfirm extends Controller
                     $refFinance
                 );
                 $stats['errors']++;
-                echo "ERR {$refFinance}: konfirmasi kas gagal — " . ($confirm['message'] ?? '') . " (link dibatalkan)\n";
+                echo "ERR [Kas] {$refFinance}: konfirmasi gagal — " . ($confirm['message'] ?? '') . " (link dibatalkan)\n";
                 continue;
             }
 
             $stats['confirmed']++;
             $jenisLabel = ((int) ($row['jenis_transaksi'] ?? 0) === 2) ? 'Penarikan' : 'Bayar';
-            echo "OK [{$jenisLabel}] {$refFinance}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
+            echo "OK [Kas][{$jenisLabel}] {$refFinance}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
         }
 
-        echo sprintf(
-            "\nDone. checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
-            $stats['checked'],
-            $stats['matched'],
-            $stats['confirmed'],
-            $stats['scraped'],
-            $stats['skipped'],
-            $stats['errors']
-        );
+        return $stats;
     }
 
     /**
-     * CRM db untuk wa_conversations — best effort (db(0) di setup API).
-     *
+     * @return array{checked:int,matched:int,confirmed:int,scraped:int,skipped:int,errors:int}
+     */
+    private function processInvoiceBca($dbMain, $dbInvoice): array
+    {
+        $stats = [
+            'checked' => 0,
+            'matched' => 0,
+            'confirmed' => 0,
+            'scraped' => 0,
+            'skipped' => 0,
+            'errors' => 0,
+        ];
+
+        if (!$dbInvoice) {
+            echo "SKIP invoice: db unavailable\n";
+            return $stats;
+        }
+
+        try {
+            $pendingRows = $dbInvoice->query(
+                "SELECT payment_ref,
+                        amount AS total,
+                        created_at AS insertTime
+                 FROM invoice_payments
+                 WHERE payment_method = 'bca'
+                   AND payment_status = 'pending'
+                 ORDER BY created_at ASC
+                 LIMIT 30"
+            )->result_array();
+        } catch (\Throwable $e) {
+            echo "SKIP invoice: " . $e->getMessage() . "\n";
+            return $stats;
+        }
+
+        $pendingCount = is_array($pendingRows) ? count($pendingRows) : 0;
+        echo "Pending BCA invoice: {$pendingCount}\n";
+
+        foreach ($pendingRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $stats['checked']++;
+            $paymentRef = trim((string) ($row['payment_ref'] ?? ''));
+
+            $match = BcaMutasiMatcher::matchAndBindForEntity(
+                $dbMain,
+                $row,
+                BcaScrapper::ENTITY_INVOICE,
+                $paymentRef,
+                true
+            );
+
+            if (empty($match['ok'])) {
+                $stats['errors']++;
+                echo "ERR [Invoice] {$paymentRef}: " . ($match['message'] ?? 'match_failed') . "\n";
+                continue;
+            }
+
+            if (!empty($match['scraped'])) {
+                $stats['scraped']++;
+            }
+
+            if (empty($match['matched'])) {
+                $stats['skipped']++;
+                echo "SKIP [Invoice] {$paymentRef}: mutasi CR exact {$row['total']} tidak ditemukan";
+                if (!empty($match['range_start']) && !empty($match['range_end'])) {
+                    echo " ({$match['range_start']}..{$match['range_end']})";
+                }
+                echo "\n";
+                continue;
+            }
+
+            $stats['matched']++;
+            $mutasiId = (int) ($match['mutasi_id'] ?? 0);
+
+            $confirm = InvoiceBcaConfirm::approve($dbInvoice, $paymentRef);
+            if (empty($confirm['ok'])) {
+                BcaMutasiMatcher::unbindEntity(
+                    $dbMain,
+                    BcaScrapper::ENTITY_INVOICE,
+                    $paymentRef
+                );
+                $stats['errors']++;
+                echo "ERR [Invoice] {$paymentRef}: konfirmasi gagal — " . ($confirm['message'] ?? '') . " (link dibatalkan)\n";
+                continue;
+            }
+
+            $stats['confirmed']++;
+            echo "OK [Invoice] {$paymentRef}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @return array{checked:int,matched:int,confirmed:int,scraped:int,skipped:int,errors:int}
+     */
+    private function processSalonBca($dbMain, $dbSalon): array
+    {
+        $stats = [
+            'checked' => 0,
+            'matched' => 0,
+            'confirmed' => 0,
+            'scraped' => 0,
+            'skipped' => 0,
+            'errors' => 0,
+        ];
+
+        if (!$dbSalon) {
+            echo "SKIP salon: db unavailable\n";
+            return $stats;
+        }
+
+        try {
+            $pendingRows = $dbSalon->query(
+                "SELECT payment_ref,
+                        amount AS total,
+                        created_at AS insertTime
+                 FROM subscription_payments
+                 WHERE payment_method = 'bca'
+                   AND payment_status = 'pending'
+                 ORDER BY created_at ASC
+                 LIMIT 30"
+            )->result_array();
+        } catch (\Throwable $e) {
+            echo "SKIP salon: " . $e->getMessage() . "\n";
+            return $stats;
+        }
+
+        $pendingCount = is_array($pendingRows) ? count($pendingRows) : 0;
+        echo "Pending BCA salon: {$pendingCount}\n";
+
+        foreach ($pendingRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $stats['checked']++;
+            $paymentRef = trim((string) ($row['payment_ref'] ?? ''));
+
+            $match = BcaMutasiMatcher::matchAndBindForEntity(
+                $dbMain,
+                $row,
+                BcaScrapper::ENTITY_SALON_SUBSCRIPTION,
+                $paymentRef,
+                true
+            );
+
+            if (empty($match['ok'])) {
+                $stats['errors']++;
+                echo "ERR [Salon] {$paymentRef}: " . ($match['message'] ?? 'match_failed') . "\n";
+                continue;
+            }
+
+            if (!empty($match['scraped'])) {
+                $stats['scraped']++;
+            }
+
+            if (empty($match['matched'])) {
+                $stats['skipped']++;
+                echo "SKIP [Salon] {$paymentRef}: mutasi CR exact {$row['total']} tidak ditemukan";
+                if (!empty($match['range_start']) && !empty($match['range_end'])) {
+                    echo " ({$match['range_start']}..{$match['range_end']})";
+                }
+                echo "\n";
+                continue;
+            }
+
+            $stats['matched']++;
+            $mutasiId = (int) ($match['mutasi_id'] ?? 0);
+
+            $confirm = SalonBcaConfirm::approve($dbSalon, $paymentRef);
+            if (empty($confirm['ok'])) {
+                BcaMutasiMatcher::unbindEntity(
+                    $dbMain,
+                    BcaScrapper::ENTITY_SALON_SUBSCRIPTION,
+                    $paymentRef
+                );
+                $stats['errors']++;
+                echo "ERR [Salon] {$paymentRef}: konfirmasi gagal — " . ($confirm['message'] ?? '') . " (link dibatalkan)\n";
+                continue;
+            }
+
+            $stats['confirmed']++;
+            echo "OK [Salon] {$paymentRef}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
+        }
+
+        return $stats;
+    }
+
+    /**
      * @return object|null
      */
     private function resolveCrmDb()

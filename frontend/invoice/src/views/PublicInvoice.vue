@@ -111,6 +111,24 @@
         </div>
 
         <div v-if="invoice.can_pay" class="mt-3 page-enter space-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="rounded-xl border px-3 py-2 text-sm font-semibold transition"
+              :class="selectedPaymentMethod === 'qris' ? 'border-ledger bg-ledger/10 text-pearl' : 'border-ink-200 text-mist'"
+              @click="onSelectPaymentMethod('qris')"
+            >
+              QRIS
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border px-3 py-2 text-sm font-semibold transition"
+              :class="selectedPaymentMethod === 'bca' ? 'border-ledger bg-ledger/10 text-pearl' : 'border-ink-200 text-mist'"
+              @click="onSelectPaymentMethod('bca')"
+            >
+              Transfer BCA
+            </button>
+          </div>
           <button class="btn-primary w-full" :disabled="paying" @click="startPayment">
             {{ paying ? "Memproses..." : `Bayar Rp ${formatRupiah(invoice.total)}` }}
           </button>
@@ -139,18 +157,48 @@
       <div v-if="showPaymentModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="w-full max-w-md rounded-2xl bg-ink-50 shadow-2xl">
           <div class="rounded-t-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow p-4">
-            <h3 class="text-center text-lg font-bold text-white">Scan QRIS</h3>
+            <h3 class="text-center text-lg font-bold text-white">
+              {{ isBcaPayment ? "Transfer BCA" : "Scan QRIS" }}
+            </h3>
           </div>
 
           <div class="space-y-3 p-4">
-            <div class="flex justify-center">
-              <div v-if="paymentData?.qr_string" class="rounded-xl border-2 border-ledger/20 bg-white p-2">
-                <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
+            <template v-if="isBcaPayment">
+              <div class="space-y-2 rounded-xl border border-ledger/20 bg-white p-4 text-sm">
+                <p class="font-semibold text-pearl">{{ paymentData?.bank_account?.label || "BCA" }}</p>
+                <p class="font-mono text-lg font-bold tracking-wide text-ledger-dim">
+                  {{ paymentData?.bank_account?.number }}
+                </p>
+                <p class="text-mist">a/n {{ paymentData?.bank_account?.name }}</p>
+                <div class="mt-3 rounded-lg bg-ink-100 p-3">
+                  <p class="text-xs text-mist">Nominal transfer (exact)</p>
+                  <p class="text-xl font-bold tabular-nums text-ledger-dim">
+                    Rp {{ formatRupiah(paymentData?.amount) }}
+                  </p>
+                  <p v-if="paymentData?.unique_nominal" class="mt-1 text-xs text-amber-600">
+                    Nominal unik — transfer persis hingga digit terakhir
+                  </p>
+                </div>
               </div>
-              <div v-else class="flex h-48 w-48 items-center justify-center rounded-xl bg-ink-100">
-                <PageLoader />
+              <p class="text-center text-xs text-mist">
+                Setelah transfer, konfirmasi otomatis dalam beberapa menit
+              </p>
+            </template>
+
+            <template v-else>
+              <div class="flex justify-center">
+                <div v-if="paymentData?.qr_string" class="rounded-xl border-2 border-ledger/20 bg-white p-2">
+                  <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
+                </div>
+                <div v-else class="flex h-48 w-48 items-center justify-center rounded-xl bg-ink-100">
+                  <PageLoader />
+                </div>
               </div>
-            </div>
+
+              <p class="text-center text-xs text-mist">
+                Scan dengan aplikasi e-wallet atau mobile banking Anda
+              </p>
+            </template>
 
             <div class="space-y-1 rounded-lg bg-ink-100 p-3 text-xs">
               <div class="flex justify-between">
@@ -163,16 +211,21 @@
               </div>
             </div>
 
-            <p class="text-center text-xs text-mist">
-              Scan dengan aplikasi e-wallet atau mobile banking Anda
-            </p>
-
             <button
               class="btn-primary w-full"
               :disabled="checking"
               @click="checkPayment"
             >
               {{ checking ? "Mengecek..." : paymentSuccess ? "Pembayaran Berhasil!" : "Cek Status Pembayaran" }}
+            </button>
+
+            <button
+              v-if="!paymentSuccess"
+              class="btn-ghost w-full text-red-500"
+              :disabled="cancelling"
+              @click="cancelActivePayment"
+            >
+              {{ cancelling ? "Membatalkan..." : "Batalkan Pembayaran" }}
             </button>
 
             <button class="btn-ghost w-full" @click="closePaymentModal">Tutup</button>
@@ -184,7 +237,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import QrcodeVue from "qrcode.vue";
 import MeshBackground from "../components/MeshBackground.vue";
@@ -198,6 +251,7 @@ const route = useRoute();
 const loading = ref(true);
 const invoice = ref(null);
 const paying = ref(false);
+const cancelling = ref(false);
 const checking = ref(false);
 const downloading = ref(false);
 const showPaymentModal = ref(false);
@@ -205,6 +259,15 @@ const paymentData = ref(null);
 const paymentSuccess = ref(false);
 const message = ref("");
 const isError = ref(false);
+const selectedPaymentMethod = ref("qris");
+const pendingPayment = ref(null);
+let pollInterval = null;
+
+const activePendingRef = computed(() =>
+  paymentData.value?.payment_ref || pendingPayment.value?.payment_ref || null
+);
+
+const isBcaPayment = computed(() => paymentData.value?.payment_method === "bca");
 
 const paymentLabel = computed(() => {
   if (!invoice.value) return "";
@@ -220,11 +283,89 @@ async function loadInvoice() {
     const data = await res.json();
     if (res.ok && data.status) {
       invoice.value = data.data;
+      pendingPayment.value = data.data.pending_payment || null;
+      if (pendingPayment.value?.payment_method) {
+        selectedPaymentMethod.value = pendingPayment.value.payment_method;
+      }
     }
   } catch {
     /* ignore */
   } finally {
     loading.value = false;
+  }
+}
+
+async function onSelectPaymentMethod(method) {
+  if (method === selectedPaymentMethod.value && !activePendingRef.value) {
+    return;
+  }
+
+  const currentPending = paymentData.value || pendingPayment.value;
+  if (currentPending?.payment_ref && currentPending.payment_method !== method) {
+    const ok = await cancelActivePayment(currentPending.payment_ref, false);
+    if (!ok) return;
+  }
+
+  selectedPaymentMethod.value = method;
+
+  if (showPaymentModal.value && !paymentData.value) {
+    showPaymentModal.value = false;
+  }
+}
+
+async function cancelActivePayment(paymentRef = null, closeModal = true) {
+  const ref = paymentRef || activePendingRef.value;
+  if (!ref || cancelling.value) return false;
+
+  cancelling.value = true;
+  message.value = "";
+  isError.value = false;
+
+  try {
+    const res = await fetch("/api/Invoice/PublicView/cancelPayment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: route.params.token,
+        payment_ref: ref,
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.status) {
+      if (data.data?.payment_status === 'paid') {
+        paymentSuccess.value = true;
+        await loadInvoice();
+        stopPolling();
+        showPaymentModal.value = false;
+        message.value = "Pembayaran sudah berhasil";
+        isError.value = false;
+        return false;
+      }
+      message.value = data.message || "Gagal membatalkan pembayaran";
+      isError.value = true;
+      return false;
+    }
+
+    stopPolling();
+    paymentData.value = null;
+    pendingPayment.value = null;
+    if (invoice.value) {
+      invoice.value.payment_status = "unpaid";
+    }
+    if (closeModal) {
+      showPaymentModal.value = false;
+      message.value = "Pembayaran dibatalkan. Silakan pilih metode bayar.";
+      isError.value = false;
+    }
+    await loadInvoice();
+    return true;
+  } catch {
+    message.value = "Gagal membatalkan pembayaran";
+    isError.value = true;
+    return false;
+  } finally {
+    cancelling.value = false;
   }
 }
 
@@ -237,13 +378,29 @@ async function startPayment() {
     const res = await fetch("/api/Invoice/PublicView/pay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: route.params.token }),
+      body: JSON.stringify({
+        token: route.params.token,
+        payment_method: selectedPaymentMethod.value,
+      }),
     });
     const data = await res.json();
 
     if (res.ok && data.status) {
       paymentData.value = data.data;
+      pendingPayment.value = {
+        payment_ref: data.data.payment_ref,
+        payment_method: data.data.payment_method,
+        amount: data.data.amount,
+      };
       showPaymentModal.value = true;
+      startPolling();
+    } else if (res.status === 409 && data.data?.pending_payment_ref) {
+      message.value = data.message || "Batalkan pembayaran pending dulu.";
+      isError.value = true;
+      pendingPayment.value = {
+        payment_ref: data.data.pending_payment_ref,
+        payment_method: data.data.pending_payment_method || "qris",
+      };
     } else {
       message.value = data.message || "Gagal membuat pembayaran";
       isError.value = true;
@@ -256,10 +413,10 @@ async function startPayment() {
   }
 }
 
-async function checkPayment() {
+async function checkPayment(silent = false) {
   if (!paymentData.value?.payment_ref) return;
 
-  checking.value = true;
+  if (!silent) checking.value = true;
   try {
     const res = await fetch(
       `/api/Invoice/PublicView/checkPayment?payment_ref=${paymentData.value.payment_ref}`
@@ -270,30 +427,52 @@ async function checkPayment() {
       paymentSuccess.value = true;
       invoice.value.payment_status = "paid";
       invoice.value.can_pay = false;
+      stopPolling();
       showPaymentModal.value = false;
       paymentData.value = null;
       message.value = "";
       isError.value = false;
     } else if (data.data?.payment_status === "expired") {
-      message.value = "Pembayaran kadaluarsa. Silakan buat pembayaran baru.";
-      isError.value = true;
+      if (!silent) {
+        message.value = "Pembayaran kadaluarsa. Silakan buat pembayaran baru.";
+        isError.value = true;
+      }
+      stopPolling();
       showPaymentModal.value = false;
-    } else {
-      message.value = "Pembayaran belum diterima. Coba lagi setelah scan.";
+    } else if (!silent) {
+      message.value = isBcaPayment.value
+        ? "Transfer belum terdeteksi. Pastikan nominal exact, lalu coba lagi."
+        : "Pembayaran belum diterima. Coba lagi setelah scan.";
       isError.value = true;
     }
   } catch {
     message.value = "Gagal cek status pembayaran";
     isError.value = true;
   } finally {
-    checking.value = false;
+    if (!silent) checking.value = false;
   }
 }
 
 function closePaymentModal() {
   showPaymentModal.value = false;
+  stopPolling();
   if (paymentSuccess.value) {
     loadInvoice();
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  if (!paymentData.value?.payment_ref) return;
+  pollInterval = setInterval(() => {
+    checkPayment(true);
+  }, 4000);
+}
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
   }
 }
 
@@ -317,4 +496,5 @@ function onDownloadPdf() {
 }
 
 onMounted(loadInvoice);
+onUnmounted(stopPolling);
 </script>

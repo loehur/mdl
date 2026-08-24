@@ -14,10 +14,47 @@ class BcaMutasiMatcher
      *
      * @return array|null row bca_mutasi
      */
-    public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
+    public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd, bool $exact = false): ?array
     {
         $today = date('Y-m-d');
         $pendStart = BcaScrapper::lookbackMinStart();
+
+        if ($exact) {
+            $row = $mainDb->query(
+                'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
+                 FROM bca_mutasi m
+                 LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
+                 WHERE l.id IS NULL
+                   AND m.mutasi = ?
+                   AND m.nominal = ?
+                   AND (
+                     (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)
+                     OR (
+                       UPPER(m.tanggal) = ?
+                       AND DATE(m.created_at) >= ?
+                       AND DATE(m.created_at) <= ?
+                     )
+                   )
+                 ORDER BY
+                   CASE WHEN UPPER(m.tanggal) = ? THEN 0 ELSE 1 END,
+                   m.tanggal_iso ASC,
+                   m.id ASC
+                 LIMIT 1',
+                [
+                    'CR',
+                    $nominal,
+                    $startYmd,
+                    $endYmd,
+                    'PEND',
+                    $pendStart,
+                    $today,
+                    'PEND',
+                ]
+            )->row_array();
+
+            return is_array($row) && !empty($row['id']) ? $row : null;
+        }
+
         $bounds = BcaScrapper::cronNominalBounds($nominal);
 
         $row = $mainDb->query(
@@ -199,28 +236,40 @@ class BcaMutasiMatcher
     }
 
     /**
-     * Proses satu kas BCA pending: cari di DB → scrape 6 hari terakhir jika perlu → bind.
-     * PEND mutasi: lookback 30 hari (created_at), tidak terikat rentang 6 hari posted.
-     *
-     * @param array<string,mixed> $kasRow grouped row (ref_finance, total/jumlah, insertTime)
-     * @return array{ok:bool,matched?:bool,confirmed?:bool,scraped?:bool,mutasi_id?:int,message?:string}
+     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      */
-    public static function matchAndBindForKas($mainDb, array $kasRow): array
+    public static function findUnlinkedMatchExact($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
     {
-        $refFinance = trim((string) ($kasRow['ref_finance'] ?? ''));
-        $insertTime = trim((string) ($kasRow['insertTime'] ?? ''));
-        $nominalRaw = $kasRow['total'] ?? $kasRow['jumlah'] ?? 0;
+        return self::findUnlinkedMatch($mainDb, $nominal, $startYmd, $endYmd, true);
+    }
+
+    /**
+     * Proses satu entitas BCA pending: cari di DB → scrape → bind.
+     *
+     * @param array<string,mixed> $row grouped row (ref/total/insertTime)
+     * @return array{ok:bool,matched?:bool,scraped?:bool,mutasi_id?:int,message?:string,nominal?:string,range_start?:string,range_end?:string}
+     */
+    public static function matchAndBindForEntity(
+        $mainDb,
+        array $row,
+        string $entityType,
+        string $entityRef,
+        bool $exact = false
+    ): array {
+        $entityRef = trim($entityRef);
+        $insertTime = trim((string) ($row['insertTime'] ?? $row['created_at'] ?? ''));
+        $nominalRaw = $row['total'] ?? $row['jumlah'] ?? $row['amount'] ?? 0;
         $nominal = BcaScrapper::formatNominal($nominalRaw);
 
-        if ($refFinance === '' || $insertTime === '' || (float) $nominal <= 0) {
-            return ['ok' => false, 'message' => 'invalid_kas_row'];
+        if ($entityRef === '' || (float) $nominal <= 0) {
+            return ['ok' => false, 'message' => 'invalid_entity_row'];
         }
 
         $range = BcaScrapper::listRange();
         $start = (string) $range['start'];
         $end = (string) $range['end'];
 
-        $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+        $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact);
         $scraped = false;
 
         if ($mutasi === null) {
@@ -235,7 +284,7 @@ class BcaMutasiMatcher
                 ];
             }
             $scraped = empty($fetch['skipped_scrape']);
-            $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+            $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact);
         }
 
         if ($mutasi === null) {
@@ -252,8 +301,8 @@ class BcaMutasiMatcher
         $bound = self::bindMutasi(
             $mainDb,
             $mutasiId,
-            BcaScrapper::ENTITY_KAS_LAUNDRY,
-            $refFinance,
+            $entityType,
+            $entityRef,
             $nominal,
             $mutasi['nominal'] ?? null
         );
@@ -272,10 +321,33 @@ class BcaMutasiMatcher
             'matched' => true,
             'scraped' => $scraped,
             'mutasi_id' => $mutasiId,
-            'ref_finance' => $refFinance,
+            'entity_ref' => $entityRef,
             'nominal' => $nominal,
             'range_start' => $start,
             'range_end' => $end,
         ];
+    }
+
+    /**
+     * Proses satu kas BCA pending: cari di DB → scrape 6 hari terakhir jika perlu → bind.
+     * PEND mutasi: lookback 30 hari (created_at), tidak terikat rentang 6 hari posted.
+     *
+     * @param array<string,mixed> $kasRow grouped row (ref_finance, total/jumlah, insertTime)
+     * @return array{ok:bool,matched?:bool,confirmed?:bool,scraped?:bool,mutasi_id?:int,message?:string}
+     */
+    public static function matchAndBindForKas($mainDb, array $kasRow): array
+    {
+        $refFinance = trim((string) ($kasRow['ref_finance'] ?? ''));
+        if ($refFinance === '') {
+            return ['ok' => false, 'message' => 'invalid_kas_row'];
+        }
+
+        return self::matchAndBindForEntity(
+            $mainDb,
+            $kasRow,
+            BcaScrapper::ENTITY_KAS_LAUNDRY,
+            $refFinance,
+            false
+        );
     }
 }

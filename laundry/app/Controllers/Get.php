@@ -28,10 +28,38 @@ class Get extends Controller
          return;
       }
 
+      $payload = $this->fetchBankAccountsPayload();
+      echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+   }
+
+   /**
+    * Ambil rekening dari API terpusat; fallback ke URL::NON_TUNAI_GUIDE.
+    *
+    * @return array<string,mixed>
+    */
+   private function fetchBankAccountsPayload()
+   {
       $qrisUrl = URL::QRIS_PUBLIC_URL;
       $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
       $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'ml.nalju.com'));
       $qrisImageUrl = $scheme . '://' . $host . URL::IN_ASSETS . 'img/qris/qris_1.jpeg';
+
+      $apiPaths = [
+         $scheme . '://' . $host . '/api/Payment/BankAccounts/index',
+         $scheme . '://' . $host . '/mdl/api/Payment/BankAccounts/index',
+      ];
+
+      foreach ($apiPaths as $apiUrl) {
+         $query = http_build_query([
+            'qris_url' => $qrisUrl,
+            'qris_image_url' => $qrisImageUrl,
+         ]);
+         $json = $this->httpGetJson($apiUrl . '?' . $query);
+         if (!empty($json['ok'])) {
+            return $json;
+         }
+      }
+
       $guide = URL::NON_TUNAI_GUIDE;
       $accounts = [];
       $lines = ['QRIS', $qrisUrl, ''];
@@ -59,13 +87,41 @@ class Get extends Controller
       }
       $lines[] = 'an. ' . $ownerName;
 
-      echo json_encode([
+      return [
          'ok' => true,
          'qris_url' => $qrisUrl,
          'qris_image_url' => $qrisImageUrl,
          'accounts' => $accounts,
+         'bca' => $accounts[0] ?? null,
          'message' => rtrim(implode("\n", $lines)),
-      ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+      ];
+   }
+
+   /**
+    * @return array<string,mixed>|null
+    */
+   private function httpGetJson($url)
+   {
+      if (!function_exists('curl_init')) {
+         return null;
+      }
+      $ch = curl_init($url);
+      curl_setopt_array($ch, [
+         CURLOPT_RETURNTRANSFER => true,
+         CURLOPT_TIMEOUT => 5,
+         CURLOPT_CONNECTTIMEOUT => 3,
+         CURLOPT_FOLLOWLOCATION => true,
+         CURLOPT_HTTPHEADER => ['Accept: application/json'],
+      ]);
+      $raw = curl_exec($ch);
+      $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+      if ($raw === false || $code < 200 || $code >= 300) {
+         return null;
+      }
+      $json = json_decode($raw, true);
+
+      return is_array($json) ? $json : null;
    }
 
    /**

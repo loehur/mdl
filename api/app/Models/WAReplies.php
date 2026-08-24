@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Core\DB;
+use App\Helpers\Payment\BankAccountGuide;
 
 // Pastikan trait ter-load (jangan andalkan autoload saja saat require_once WAReplies.php dari webhook)
 require_once __DIR__ . '/WARepliesKurirTrait.php';
@@ -3913,90 +3914,36 @@ class WAReplies
      */
     private function fetchLaundryQrisMedia(): array
     {
-        $fallback = [
-            'page_url' => 'https://ml.nalju.com/I/q',
-            'image_url' => 'https://ml.nalju.com/mdl/laundry/in_assets/img/qris/qris_1.jpeg',
+        $qrisUrl = (class_exists('Env') && defined('Env::QRIS_PUBLIC_URL'))
+            ? (string) \Env::QRIS_PUBLIC_URL
+            : 'https://ml.nalju.com/I/q';
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'ml.nalju.com'));
+        $imageUrl = $scheme . '://' . $host . '/mdl/laundry/in_assets/img/qris/qris_1.jpeg';
+
+        $payload = BankAccountGuide::publicPayload($qrisUrl, $imageUrl);
+
+        return [
+            'page_url' => trim((string) ($payload['qris_url'] ?? $qrisUrl)),
+            'image_url' => trim((string) ($payload['qris_image_url'] ?? $imageUrl)),
         ];
-
-        $url = 'https://ml.nalju.com/Get/rekening';
-        try {
-            if (!function_exists('curl_init')) {
-                return $fallback;
-            }
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 5,
-                CURLOPT_CONNECTTIMEOUT => 3,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-            ]);
-            $raw = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($raw === false || $code < 200 || $code >= 300) {
-                return $fallback;
-            }
-            $json = json_decode($raw, true);
-            if (!is_array($json) || empty($json['ok'])) {
-                return $fallback;
-            }
-
-            $pageUrl = trim((string) ($json['qris_url'] ?? $fallback['page_url']));
-            $imageUrl = trim((string) ($json['qris_image_url'] ?? ''));
-            if ($pageUrl === '') {
-                $pageUrl = $fallback['page_url'];
-            }
-            if ($imageUrl === '') {
-                $imageUrl = $fallback['image_url'];
-            }
-
-            return [
-                'page_url' => $pageUrl,
-                'image_url' => $imageUrl,
-            ];
-        } catch (\Throwable $e) {
-            return $fallback;
-        }
     }
 
     private function fetchLaundryRekeningMessage(): string
     {
-        $fallback =
-            "QRIS\nhttps://ml.nalju.com/I/q\n\n" .
-            "BCA (BANK CENTRAL ASIA)\n8455103793\n\n" .
-            "BRI (BANK RAKYAT INDONESIA)\n327901031534535\n\n" .
-            "an. LUHUR GUNAWAN";
+        $qrisUrl = (class_exists('Env') && defined('Env::QRIS_PUBLIC_URL'))
+            ? (string) \Env::QRIS_PUBLIC_URL
+            : 'https://ml.nalju.com/I/q';
 
-        $url = 'https://ml.nalju.com/Get/rekening';
-        try {
-            if (!function_exists('curl_init')) {
-                return $fallback;
-            }
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 5,
-                CURLOPT_CONNECTTIMEOUT => 3,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-            ]);
-            $raw = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($raw === false || $code < 200 || $code >= 300) {
-                return $fallback;
-            }
-            $json = json_decode($raw, true);
-            if (!empty($json['ok']) && !empty($json['message']) && is_string($json['message'])) {
-                return trim($json['message']);
-            }
-        } catch (\Throwable $e) {
-            // keep fallback
+        $payload = BankAccountGuide::publicPayload($qrisUrl);
+        if (!empty($payload['message']) && is_string($payload['message'])) {
+            return trim($payload['message']);
         }
-        return $fallback;
+
+        return "QRIS\nhttps://ml.nalju.com/I/q\n\n"
+            . "BCA (BANK CENTRAL ASIA)\n8455103793\n\n"
+            . "BRI (BANK RAKYAT INDONESIA)\n327901031534535\n\n"
+            . "an. LUHUR GUNAWAN";
     }
 
     /**

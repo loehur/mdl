@@ -15,6 +15,8 @@ class BcaScrapper
     public const MAX_SYNC_CHUNKS = 10;
 
     public const ENTITY_KAS_LAUNDRY = 'kas_laundry';
+    public const ENTITY_INVOICE = 'invoice';
+    public const ENTITY_SALON_SUBSCRIPTION = 'salon_subscription';
     public const CRON_NOMINAL_TOLERANCE = 1000;
 
     private const DEFAULT_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';
