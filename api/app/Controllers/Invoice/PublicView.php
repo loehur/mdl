@@ -77,8 +77,8 @@ class PublicView extends InvoiceController
 
         try {
             $body = $this->getBody();
-            $token = trim($body['token'] ?? '');
-            $paymentMethod = strtolower(trim((string) ($body['payment_method'] ?? 'qris')));
+            $token = $this->strFromBody($body, 'token');
+            $paymentMethod = strtolower($this->strFromBody($body, 'payment_method', 'qris'));
             if (!in_array($paymentMethod, ['qris', 'bca'], true)) {
                 $paymentMethod = 'qris';
             }
@@ -258,8 +258,8 @@ class PublicView extends InvoiceController
 
         try {
             $body = $this->getBody();
-            $token = trim($body['token'] ?? '');
-            $paymentRef = trim($body['payment_ref'] ?? '');
+            $token = $this->strFromBody($body, 'token');
+            $paymentRef = $this->strFromBody($body, 'payment_ref');
 
             if ($token === '' || $paymentRef === '') {
                 $this->error('Token dan payment_ref diperlukan', 400);
@@ -333,6 +333,13 @@ class PublicView extends InvoiceController
 
         $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
         if ($method === 'bca') {
+            return false;
+        }
+
+        $trxId = trim((string) ($payment['trx_id'] ?? ''));
+        $qrString = trim((string) ($payment['qr_string'] ?? ''));
+        if ($trxId === '' && $qrString === '') {
+            // Transfer BCA / non-QRIS — tidak ada order di Tokopay
             return false;
         }
 

@@ -714,15 +714,15 @@ abstract class InvoiceController extends BaseController
         $statusTrx = '';
 
         if (isset($data['data'])) {
-            if (!empty($data['data']['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['data']['status_pembayaran']));
-            } elseif (!empty($data['data']['status']) && is_string($data['data']['status'])) {
+            if (!empty($data['data']['status']) && is_string($data['data']['status'])) {
                 $statusTrx = strtolower(trim($data['data']['status']));
+            } elseif (!empty($data['data']['status_pembayaran'])) {
+                $statusTrx = $this->paymentStatusStringLower($data['data']['status_pembayaran']);
             }
         }
 
         if ($statusTrx === '' && !empty($data['status_pembayaran'])) {
-            $statusTrx = strtolower(trim($data['status_pembayaran']));
+            $statusTrx = $this->paymentStatusStringLower($data['status_pembayaran']);
         }
 
         if ($statusTrx === '') {
@@ -761,5 +761,20 @@ abstract class InvoiceController extends BaseController
             'payment_status' => 'paid',
             'status' => 'paid',
         ], ['id' => $invoiceId]);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function paymentStatusStringLower($value): string
+    {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+        if (!is_scalar($value) && $value !== null) {
+            return '';
+        }
+
+        return strtolower(trim((string) ($value ?? '')));
     }
 }

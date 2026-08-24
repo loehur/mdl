@@ -170,4 +170,27 @@ class Controller
         
         return true;
     }
+
+    /**
+     * Ambil string aman dari JSON body (hindari trim(array) di PHP 8+).
+     *
+     * @param array<string,mixed> $body
+     */
+    protected function strFromBody(array $body, string $key, string $default = ''): string
+    {
+        if (!array_key_exists($key, $body)) {
+            return $default;
+        }
+
+        $value = $body[$key];
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+
+        if (!is_scalar($value) && $value !== null) {
+            return $default;
+        }
+
+        return trim((string) ($value ?? $default));
+    }
 }

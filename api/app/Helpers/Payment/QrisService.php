@@ -146,31 +146,47 @@ class QrisService
         if (isset($data['data']) && is_array($data['data'])) {
             if (!empty($data['data']['status']) && is_string($data['data']['status'])) {
                 $statusTrx = strtolower(trim($data['data']['status']));
-            } elseif (!empty($data['data']['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['data']['status_pembayaran']));
-            } elseif (!empty($data['data']['status_detail'])) {
-                $statusTrx = strtolower(trim($data['data']['status_detail']));
+            } else {
+                $statusTrx = $this->statusStringLower($data['data']['status_pembayaran'] ?? null);
+                if ($statusTrx === '') {
+                    $statusTrx = $this->statusStringLower($data['data']['status_detail'] ?? null);
+                }
             }
         }
 
         if ($statusTrx === '') {
             if (!empty($data['trx_status'])) {
-                $statusTrx = strtolower(trim((string) $data['trx_status']));
+                $statusTrx = $this->statusStringLower($data['trx_status']);
             } elseif (!empty($data['status_pembayaran'])) {
-                $statusTrx = strtolower(trim($data['status_pembayaran']));
+                $statusTrx = $this->statusStringLower($data['status_pembayaran']);
             } elseif (!empty($data['status_detail'])) {
-                $statusTrx = strtolower(trim($data['status_detail']));
+                $statusTrx = $this->statusStringLower($data['status_detail']);
             } elseif (!empty($data['payment_status'])) {
-                $statusTrx = strtolower(trim($data['payment_status']));
+                $statusTrx = $this->statusStringLower($data['payment_status']);
             }
         }
 
-        $trxStatus = isset($data['trx_status']) ? strtolower(trim((string) $data['trx_status'])) : '';
+        $trxStatus = $this->statusStringLower($data['trx_status'] ?? null);
         if ($trxStatus === 'unpaid' && ($statusTrx === '' || $statusTrx === 'pending')) {
             $statusTrx = 'unpaid';
         }
 
         return $statusTrx !== '' ? $statusTrx : 'pending';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function statusStringLower($value): string
+    {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+        if (!is_scalar($value) && $value !== null) {
+            return '';
+        }
+
+        return strtolower(trim((string) ($value ?? '')));
     }
 
     public function extractQrString(?array $data): string
