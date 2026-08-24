@@ -262,32 +262,69 @@ class BcaMutasiUnbind
         }
 
         $status = (string) ($payment['payment_status'] ?? '');
-        if (!in_array($status, ['pending', 'success'], true)) {
-            return ['ok' => false, 'message' => 'Status pembayaran tidak dapat di-unbind (' . $status . ')'];
-        }
-
         $invoiceId = (int) ($payment['invoice_id'] ?? 0);
         if ($invoiceId < 1) {
             return ['ok' => false, 'message' => 'invoice_id tidak valid'];
         }
 
-        $invoice = $invoiceDb->query(
-            'SELECT status, payment_status FROM invoices WHERE id = ? LIMIT 1',
-            [$invoiceId]
-        )->row_array();
+        // Sudah gagal/expired (mis. unbind sebelumnya gagal setelah update payment) — lanjut sync + unbind link
+        if (in_array($status, ['failed', 'expired', 'cancelled'], true)) {
+            self::syncInvoiceAfterPaymentFailed($invoiceDb, $invoiceId, (int) $payment['id']);
+
+            return [
+                'ok' => true,
+                'detail' => [
+                    'payment_ref' => $paymentRef,
+                    'invoice_id' => $invoiceId,
+                    'payment_already_failed' => true,
+                ],
+            ];
+        }
+
+        if (!in_array($status, ['pending', 'success'], true)) {
+            return ['ok' => false, 'message' => 'Status pembayaran tidak dapat di-unbind (' . $status . ')'];
+        }
 
         $invoiceDb->update('invoice_payments', [
             'payment_status' => 'failed',
             'paid_at' => null,
         ], ['id' => (int) $payment['id']]);
 
+        self::syncInvoiceAfterPaymentFailed($invoiceDb, $invoiceId, (int) $payment['id']);
+
+        return [
+            'ok' => true,
+            'detail' => [
+                'payment_ref' => $paymentRef,
+                'invoice_id' => $invoiceId,
+            ],
+        ];
+    }
+
+    /**
+     * Sinkronkan invoices setelah payment BCA gagal / di-unbind.
+     *
+     * @param object $invoiceDb
+     */
+    private static function syncInvoiceAfterPaymentFailed($invoiceDb, int $invoiceId, int $excludePaymentId = 0): void
+    {
+        $invoice = $invoiceDb->query(
+            'SELECT status, payment_status FROM invoices WHERE id = ? LIMIT 1',
+            [$invoiceId]
+        )->row_array();
+
+        if (!is_array($invoice) || empty($invoice)) {
+            return;
+        }
+
         $invoiceUpdate = [];
 
         $stillPending = $invoiceDb->query(
             "SELECT id FROM invoice_payments
-             WHERE invoice_id = ? AND payment_status = 'pending' AND id <> ?
-             LIMIT 1",
-            [$invoiceId, (int) $payment['id']]
+             WHERE invoice_id = ? AND payment_status = 'pending'"
+             . ($excludePaymentId > 0 ? ' AND id <> ?' : '')
+             . ' LIMIT 1',
+            $excludePaymentId > 0 ? [$invoiceId, $excludePaymentId] : [$invoiceId]
         )->row_array();
 
         if (empty($stillPending['id'])) {
@@ -302,14 +339,6 @@ class BcaMutasiUnbind
         if ($invoiceUpdate !== []) {
             $invoiceDb->update('invoices', $invoiceUpdate, ['id' => $invoiceId]);
         }
-
-        return [
-            'ok' => true,
-            'detail' => [
-                'payment_ref' => $paymentRef,
-                'invoice_id' => $invoiceId,
-            ],
-        ];
     }
 
     /**
@@ -338,13 +367,24 @@ class BcaMutasiUnbind
         }
 
         $status = (string) ($payment['payment_status'] ?? '');
-        if (!in_array($status, ['pending', 'success'], true)) {
-            return ['ok' => false, 'message' => 'Status pembayaran tidak dapat di-unbind (' . $status . ')'];
-        }
-
         $salonId = (int) ($payment['salon_id'] ?? 0);
         if ($salonId < 1) {
             return ['ok' => false, 'message' => 'salon_id tidak valid'];
+        }
+
+        if (in_array($status, ['failed', 'expired', 'cancelled'], true)) {
+            return [
+                'ok' => true,
+                'detail' => [
+                    'payment_ref' => $paymentRef,
+                    'salon_id' => $salonId,
+                    'payment_already_failed' => true,
+                ],
+            ];
+        }
+
+        if (!in_array($status, ['pending', 'success'], true)) {
+            return ['ok' => false, 'message' => 'Status pembayaran tidak dapat di-unbind (' . $status . ')'];
         }
 
         $salonDb->update('subscription_payments', [
