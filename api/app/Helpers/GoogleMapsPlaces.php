@@ -153,7 +153,8 @@ class GoogleMapsPlaces
         if ($restrictLat !== null && $restrictLng !== null) {
             $dist = self::distanceMeters($restrictLat, $restrictLng, $lat, $lng);
             if ($dist > $restrictRadius) {
-                return ['ok' => false, 'message' => 'Lokasi di luar kota cabang'];
+                $km = (int) round($restrictRadius / 1000);
+                return ['ok' => false, 'message' => 'Lokasi terlalu jauh dari pusat kota (maks. ' . $km . ' km)'];
             }
         }
 

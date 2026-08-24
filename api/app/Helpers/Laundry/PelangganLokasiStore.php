@@ -10,6 +10,9 @@ use App\Helpers\CRM\MapsServer;
  */
 class PelangganLokasiStore
 {
+    /** Radius pencarian alamat dari pusat kota cabang pelanggan (meter). */
+    public const KOTA_SEARCH_RADIUS_M = 50000;
+
     public static function laundryDb(): DB
     {
         return DB::getInstance(1);
@@ -150,6 +153,36 @@ class PelangganLokasiStore
             'nama_kota' => (string) ($kota['nama_kota'] ?? ''),
             'source' => 'kota',
         ];
+    }
+
+    /**
+     * Batasi autocomplete/placeDetails ke radius kota cabang pelanggan.
+     *
+     * @param array<string,mixed> $body
+     * @return array<string,mixed>
+     */
+    public static function applyPelangganSearchRestrict(array $body): array
+    {
+        $idPel = (int) ($body['cust_id'] ?? $body['id_pelanggan'] ?? 0);
+        if ($idPel <= 0) {
+            return $body;
+        }
+
+        $kota = self::getDefaultMapCoords($idPel);
+        $lat = (float) ($kota['latt'] ?? 0);
+        $lng = (float) ($kota['longt'] ?? 0);
+        if ($lat == 0.0 && $lng == 0.0) {
+            return $body;
+        }
+
+        $body['lat'] = $lat;
+        $body['lng'] = $lng;
+        $body['hard_restrict'] = true;
+        $body['restrict_radius'] = self::KOTA_SEARCH_RADIUS_M;
+        $body['restrict_lat'] = $lat;
+        $body['restrict_lng'] = $lng;
+
+        return $body;
     }
 
     /**

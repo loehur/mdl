@@ -2,6 +2,8 @@
 
 class Cabang_List extends Controller
 {
+   /** Radius pencarian maps cabang dari pusat kota (meter). */
+   private const KOTA_SEARCH_RADIUS_M = 50000;
 
    public function __construct()
    {
@@ -248,12 +250,9 @@ class Cabang_List extends Controller
          $body['lat'] = $kota['lat'];
          $body['lng'] = $kota['lng'];
          $body['hard_restrict'] = true;
-         $body['restrict_radius'] = 25000;
+         $body['restrict_radius'] = self::KOTA_SEARCH_RADIUS_M;
          $body['restrict_lat'] = $kota['lat'];
          $body['restrict_lng'] = $kota['lng'];
-      }
-      if ($kota['city_name'] !== '') {
-         $body['city_name'] = $kota['city_name'];
       }
       return $body;
    }

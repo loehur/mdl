@@ -5,6 +5,7 @@ namespace App\Controllers\Laundry;
 use App\Config\GoogleMaps;
 use App\Core\Controller;
 use App\Helpers\GoogleMapsPlaces;
+use App\Helpers\Laundry\PelangganLokasiStore;
 
 /**
  * Konfigurasi Google Maps untuk client (CRM, laundry kasir, J, dll.).
@@ -46,6 +47,7 @@ class MapsConfig extends Controller
         }
 
         $body = $this->mergedInput();
+        $body = PelangganLokasiStore::applyPelangganSearchRestrict($body);
         $input = trim((string) ($body['input'] ?? ''));
         $lat = isset($body['lat']) ? (float) $body['lat'] : null;
         $lng = isset($body['lng']) ? (float) $body['lng'] : null;
@@ -72,6 +74,7 @@ class MapsConfig extends Controller
         }
 
         $body = $this->mergedInput();
+        $body = PelangganLokasiStore::applyPelangganSearchRestrict($body);
         $placeId = trim((string) ($body['place_id'] ?? ''));
         $options = [];
         if (isset($body['restrict_lat'])) {

@@ -656,6 +656,7 @@ foreach ($kotaOptions as $k) {
   var KOTA_MAP = <?= json_encode($kotaMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
   var FALLBACK_LAT = 0.507068;
   var FALLBACK_LNG = 101.447779;
+  var KOTA_SEARCH_RADIUS_KM = 50;
   var MAP_ZOOM = 17;
   var root = document.getElementById('cabang-root');
   if (!root) return;
@@ -1033,7 +1034,7 @@ foreach ($kotaOptions as $k) {
         }
         if (!items.length) {
           closeMapsSearchSuggestions();
-          setMapsHint('Tidak ada hasil di kota cabang untuk pencarian ini.', true);
+          setMapsHint('Tidak ada hasil dalam radius ' + KOTA_SEARCH_RADIUS_KM + ' km dari pusat kota.', true);
           return;
         }
         list.innerHTML = items
@@ -1145,7 +1146,7 @@ foreach ($kotaOptions as $k) {
       document.getElementById('mapsLatt').value = '';
       document.getElementById('mapsLong').value = '';
       document.getElementById('mapsGmaps').value = '';
-      setMapsHint('Peta dimulai dari ' + kotaDefault.label + '. Pencarian dibatasi ke kota cabang.');
+      setMapsHint('Peta dimulai dari ' + kotaDefault.label + '. Pencarian maks. ' + KOTA_SEARCH_RADIUS_KM + ' km dari pusat kota.');
     }
 
     document.getElementById('cabangMapsTitle').textContent = 'Maps · ' + (kode || id);

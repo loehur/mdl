@@ -1685,6 +1685,7 @@ class J extends Controller
       if (!is_array($body)) {
          $body = $_POST;
       }
+      $body = $this->applyKurirMapsSearchRestrict($body);
       $this->helper('MapsConfigApi');
       echo json_encode(MapsConfigApi::autocomplete($body), JSON_UNESCAPED_UNICODE);
    }
@@ -1698,6 +1699,7 @@ class J extends Controller
       if (!is_array($body)) {
          $body = $_POST;
       }
+      $body = $this->applyKurirMapsSearchRestrict($body);
       $this->helper('MapsConfigApi');
       echo json_encode(MapsConfigApi::placeDetails($body), JSON_UNESCAPED_UNICODE);
    }
@@ -2718,6 +2720,30 @@ class J extends Controller
          return "Item #$sid sudah ada di permintaan antar yang berjalan";
       }
       return '';
+   }
+
+   /** Radius pencarian alamat dari pusat kota cabang (meter). */
+   private const KOTA_SEARCH_RADIUS_M = 50000;
+
+   /**
+    * @param array<string,mixed> $body
+    * @return array<string,mixed>
+    */
+   private function applyKurirMapsSearchRestrict(array $body): array
+   {
+      $kota = $this->getDefaultMapCoords();
+      $lat = (float) ($kota['latt'] ?? 0);
+      $lng = (float) ($kota['longt'] ?? 0);
+      if ($lat == 0.0 && $lng == 0.0) {
+         return $body;
+      }
+      $body['lat'] = $lat;
+      $body['lng'] = $lng;
+      $body['hard_restrict'] = true;
+      $body['restrict_radius'] = self::KOTA_SEARCH_RADIUS_M;
+      $body['restrict_lat'] = $lat;
+      $body['restrict_lng'] = $lng;
+      return $body;
    }
 
    /** Default titik peta: kota cabang pelanggan (kota.latt / kota.longt) */

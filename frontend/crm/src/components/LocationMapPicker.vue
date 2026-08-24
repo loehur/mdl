@@ -15,6 +15,7 @@ const props = defineProps({
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
 const DEFAULT_ZOOM = 15;
 const SELECT_ZOOM = 17;
+const KOTA_SEARCH_RADIUS_KM = 50;
 
 const mapEl = ref(null);
 const searchWrap = ref(null);
@@ -24,9 +25,9 @@ const showSuggestions = ref(false);
 const searching = ref(false);
 const selectingPlace = ref(false);
 const loading = ref(true);
-const locatingUser = ref(false);
 const error = ref("");
 const geoHint = ref("");
+const searchCenter = ref({ lat: null, lng: null, label: "" });
 
 let mapInstance = null;
 let idleListener = null;
@@ -66,37 +67,6 @@ const panToCoords = (nextLat, nextLng, zoom = null) => {
   }, 350);
 };
 
-const getUserLocation = () =>
-  new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("unsupported"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        }),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
-    );
-  });
-
-const goToMyLocation = async () => {
-  if (!mapInstance || locatingUser.value) return;
-  locatingUser.value = true;
-  geoHint.value = "";
-  try {
-    const pos = await getUserLocation();
-    panToCoords(pos.lat, pos.lng, SELECT_ZOOM);
-  } catch (_) {
-    geoHint.value = "Tidak bisa mengakses lokasi perangkat. Izinkan akses lokasi/GPS di browser.";
-  } finally {
-    locatingUser.value = false;
-  }
-};
-
 const fetchKotaFallback = async () => {
   if (props.custId <= 0) return null;
   try {
@@ -119,36 +89,41 @@ const fetchKotaFallback = async () => {
   }
 };
 
-const resolveStartCenter = async (hasCoords) => {
-  if (hasCoords) {
-    return { lat: lat.value, lng: lng.value, fromDevice: false };
+const loadSearchCenter = async () => {
+  const kota = await fetchKotaFallback();
+  if (kota) {
+    searchCenter.value = {
+      lat: kota.lat,
+      lng: kota.lng,
+      label: kota.label || "kota cabang",
+    };
+    return searchCenter.value;
   }
-  try {
-    const pos = await getUserLocation();
-    return { ...pos, fromDevice: true };
-  } catch (_) {
-    const kota = await fetchKotaFallback();
-    if (kota) {
-      geoHint.value = kota.label
-        ? `Lokasi perangkat tidak tersedia. Peta dimulai dari ${kota.label}.`
-        : "Lokasi perangkat tidak tersedia. Peta dimulai dari kota cabang pelanggan.";
-      return { lat: kota.lat, lng: kota.lng, fromDevice: false };
-    }
-    geoHint.value =
-      "Lokasi perangkat tidak tersedia. Peta dimulai dari Jakarta — gunakan tombol lokasi atau cari alamat.";
-    return { ...DEFAULT_CENTER, fromDevice: false };
-  }
+  searchCenter.value = {
+    lat: DEFAULT_CENTER.lat,
+    lng: DEFAULT_CENTER.lng,
+    label: "Jakarta",
+  };
+  return searchCenter.value;
 };
 
-const getMapBiasCoords = () => {
-  if (!mapInstance) {
+const resolveStartCenter = async (hasCoords) => {
+  if (hasCoords) {
     return { lat: lat.value, lng: lng.value };
   }
-  const center = mapInstance.getCenter();
-  if (!center) {
-    return { lat: lat.value, lng: lng.value };
+  const center = await loadSearchCenter();
+  geoHint.value = center.label
+    ? `Peta dimulai dari ${center.label}. Pencarian maks. ${KOTA_SEARCH_RADIUS_KM} km dari pusat kota.`
+    : `Pencarian maks. ${KOTA_SEARCH_RADIUS_KM} km dari pusat kota.`;
+  return { lat: center.lat, lng: center.lng };
+};
+
+const getSearchBiasCoords = () => {
+  const c = searchCenter.value;
+  if (c.lat != null && c.lng != null && !Number.isNaN(c.lat) && !Number.isNaN(c.lng)) {
+    return { lat: c.lat, lng: c.lng };
   }
-  return { lat: center.lat(), lng: center.lng() };
+  return null;
 };
 
 const fetchSuggestions = async (query) => {
@@ -164,8 +139,11 @@ const fetchSuggestions = async (query) => {
   geoHint.value = "";
 
   const payload = { input: q };
-  const bias = getMapBiasCoords();
-  if (bias.lat != null && bias.lng != null) {
+  if (props.custId > 0) {
+    payload.cust_id = props.custId;
+  }
+  const bias = getSearchBiasCoords();
+  if (bias) {
     payload.lat = bias.lat;
     payload.lng = bias.lng;
   }
@@ -189,7 +167,7 @@ const fetchSuggestions = async (query) => {
     if (selectingPlace.value) return;
     showSuggestions.value = suggestions.value.length > 0;
     if (!suggestions.value.length) {
-      geoHint.value = "Tidak ada hasil untuk pencarian ini.";
+      geoHint.value = `Tidak ada hasil dalam radius ${KOTA_SEARCH_RADIUS_KM} km dari pusat kota.`;
     }
   } catch (_) {
     if (seq !== searchSeq) return;
@@ -242,10 +220,14 @@ const selectSuggestion = async (item) => {
   geoHint.value = "";
 
   try {
+    const detailsPayload = { place_id: item.place_id };
+    if (props.custId > 0) {
+      detailsPayload.cust_id = props.custId;
+    }
     const res = await fetch(`${props.apiBase}/Laundry/MapsConfig/placeDetails`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ place_id: item.place_id }),
+      body: JSON.stringify(detailsPayload),
     }).then((r) => r.json());
 
     if (!res?.ok && !res?.status) {
@@ -319,7 +301,7 @@ const initMap = async () => {
 
     mapInstance = new Map(mapEl.value, {
       center: { lat: startLat, lng: startLng },
-      zoom: hasCoords || start.fromDevice ? SELECT_ZOOM : DEFAULT_ZOOM,
+      zoom: hasCoords ? SELECT_ZOOM : DEFAULT_ZOOM,
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
@@ -452,40 +434,6 @@ onUnmounted(() => {
             />
           </svg>
         </div>
-        <button
-          type="button"
-          class="absolute right-3 bottom-5 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
-          :disabled="loading || locatingUser"
-          title="Ke lokasi saya"
-          aria-label="Ke lokasi saya"
-          @click="goToMyLocation"
-        >
-          <svg
-            v-if="!locatingUser"
-            xmlns="http://www.w3.org/2000/svg"
-            class="block h-[22px] w-[22px] shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
-          </svg>
-          <svg
-            v-else
-            xmlns="http://www.w3.org/2000/svg"
-            class="block h-[22px] w-[22px] shrink-0 animate-spin"
-            fill="none"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-          </svg>
-        </button>
         <div
           v-if="loading"
           class="absolute inset-0 flex items-center justify-center bg-black/20 text-xs text-[var(--wa-text-primary)]"
@@ -566,40 +514,6 @@ onUnmounted(() => {
           />
         </svg>
       </div>
-      <button
-        type="button"
-        class="absolute right-3 bottom-5 z-20 grid h-11 w-11 place-items-center rounded-full border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-[var(--wa-accent-green)] shadow-md transition hover:border-[var(--wa-accent-green)] hover:bg-[var(--wa-bg-secondary)] disabled:opacity-50"
-        :disabled="loading || locatingUser"
-        title="Ke lokasi saya"
-        aria-label="Ke lokasi saya"
-        @click="goToMyLocation"
-      >
-        <svg
-          v-if="!locatingUser"
-          xmlns="http://www.w3.org/2000/svg"
-          class="block h-[22px] w-[22px] shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
-        </svg>
-        <svg
-          v-else
-          xmlns="http://www.w3.org/2000/svg"
-          class="block h-[22px] w-[22px] shrink-0 animate-spin"
-          fill="none"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-        </svg>
-      </button>
       <div
         v-if="loading"
         class="absolute inset-0 flex items-center justify-center bg-black/20 text-xs text-[var(--wa-text-primary)]"

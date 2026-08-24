@@ -295,12 +295,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
                 <path fill="#ef4444" stroke="#fff" stroke-width="1.5" d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/>
               </svg>
             </div>
-            <button type="button" class="j-kurir-map-gps" id="jBtnLokasiGps" title="Ke lokasi saya" aria-label="Ke lokasi saya">
-              <svg xmlns="http://www.w3.org/2000/svg" class="j-kurir-map-gps__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
-              </svg>
-            </button>
             <div class="j-kurir-map-overlay" id="jKurirMapOverlay" hidden>
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
               <span>Mencari titik…</span>
