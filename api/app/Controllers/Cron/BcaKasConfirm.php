@@ -8,6 +8,7 @@ use App\Helpers\BcaMutasiMatcher;
 use App\Helpers\BcaScrapper;
 use App\Helpers\Invoice\InvoiceBcaConfirm;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
+use App\Helpers\Payment\BcaMutasiUnbind;
 use App\Helpers\Payment\BcaUniqueNominal;
 
 /**
@@ -228,6 +229,15 @@ class BcaKasConfirm extends Controller
             $stats['checked']++;
             $paymentRef = trim((string) ($row['payment_ref'] ?? ''));
 
+            if (BcaMutasiUnbind::isBindBlocked($dbMain, BcaScrapper::ENTITY_INVOICE, $paymentRef, $dbInvoice)) {
+                $stats['skipped']++;
+                $invNo = BcaMutasiUnbind::resolveInvoiceNumber($dbInvoice, $paymentRef);
+                echo "SKIP [Invoice] {$paymentRef}: diblokir admin"
+                    . ($invNo !== '' ? " ({$invNo})" : '')
+                    . "\n";
+                continue;
+            }
+
             $match = BcaMutasiMatcher::matchAndBindForEntity(
                 $dbMain,
                 $row,
@@ -322,6 +332,15 @@ class BcaKasConfirm extends Controller
             }
             $stats['checked']++;
             $paymentRef = trim((string) ($row['payment_ref'] ?? ''));
+
+            if (BcaMutasiUnbind::isBindBlocked($dbMain, BcaScrapper::ENTITY_SALON_SUBSCRIPTION, $paymentRef, null, $dbSalon)) {
+                $stats['skipped']++;
+                $salonId = BcaMutasiUnbind::resolveSalonId($dbSalon, $paymentRef);
+                echo "SKIP [Salon] {$paymentRef}: diblokir admin"
+                    . ($salonId !== '' ? " (salon#{$salonId})" : '')
+                    . "\n";
+                continue;
+            }
 
             $match = BcaMutasiMatcher::matchAndBindForEntity(
                 $dbMain,

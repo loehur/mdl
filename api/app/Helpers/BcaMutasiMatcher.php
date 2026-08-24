@@ -167,7 +167,7 @@ class BcaMutasiMatcher
             return false;
         }
 
-        if (BcaMutasiUnbind::isBlocked($mainDb, $entityType, $entityRef)) {
+        if (BcaMutasiUnbind::isBindBlocked($mainDb, $entityType, $entityRef)) {
             return false;
         }
 

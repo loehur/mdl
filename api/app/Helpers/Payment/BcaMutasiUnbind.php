@@ -48,7 +48,7 @@ class BcaMutasiUnbind
             return ['ok' => false, 'message' => 'Data entity bind tidak valid'];
         }
 
-        if (self::isBlocked($mainDb, $entityType, $entityRef)) {
+        if (self::isBindBlocked($mainDb, $entityType, $entityRef, $invoiceDb, $salonDb)) {
             return ['ok' => false, 'message' => 'Entity sudah diblokir sebelumnya'];
         }
 
@@ -64,6 +64,8 @@ class BcaMutasiUnbind
             return ['ok' => false, 'message' => 'Gagal memulai transaksi'];
         }
 
+        $blockRef = self::resolveBlockEntityRef($entityType, $entityRef, $invoiceDb, $salonDb);
+
         try {
             $deleted = $mainDb->delete('bca_mutasi_link', ['id' => $linkId]);
             if (!$deleted) {
@@ -73,7 +75,7 @@ class BcaMutasiUnbind
 
             $insertId = $mainDb->insert('bca_mutasi_link_block', [
                 'entity_type' => $entityType,
-                'entity_ref' => $entityRef,
+                'entity_ref' => $blockRef,
                 'bca_mutasi_id' => $mutasiId > 0 ? $mutasiId : null,
                 'link_id' => $linkId,
                 'reason' => $reason !== '' ? $reason : null,
@@ -96,8 +98,163 @@ class BcaMutasiUnbind
             'ok' => true,
             'entity_type' => $entityType,
             'entity_ref' => $entityRef,
+            'blocked_ref' => $blockRef,
             'revert' => $revert,
         ];
+    }
+
+    /**
+     * Cek blokir bind:
+     * - invoice: nomor INV-xxxx (bukan hanya payment_ref MDLINV_*)
+     * - salon: salon_id (bukan hanya payment_ref SALONSUB_*)
+     *
+     * @param object $mainDb
+     * @param object|null $invoiceDb api db(6), opsional (lazy load)
+     * @param object|null $salonDb api db(4), opsional (lazy load)
+     */
+    public static function isBindBlocked(
+        $mainDb,
+        string $entityType,
+        string $entityRef,
+        $invoiceDb = null,
+        $salonDb = null
+    ): bool {
+        if (self::isBlocked($mainDb, $entityType, $entityRef)) {
+            return true;
+        }
+
+        if ($entityType === BcaScrapper::ENTITY_INVOICE) {
+            $invoiceNumber = self::resolveInvoiceNumber($invoiceDb, $entityRef);
+            if ($invoiceNumber !== '') {
+                return self::isBlocked($mainDb, $entityType, $invoiceNumber);
+            }
+        }
+
+        if ($entityType === BcaScrapper::ENTITY_SALON_SUBSCRIPTION) {
+            $salonId = self::resolveSalonId($salonDb, $entityRef);
+            if ($salonId !== '') {
+                return self::isBlocked($mainDb, $entityType, $salonId);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Referensi yang disimpan di bca_mutasi_link_block.
+     *
+     * @param object|null $invoiceDb
+     * @param object|null $salonDb
+     */
+    public static function resolveBlockEntityRef(
+        string $entityType,
+        string $entityRef,
+        $invoiceDb = null,
+        $salonDb = null
+    ): string {
+        if ($entityType === BcaScrapper::ENTITY_INVOICE) {
+            $invoiceNumber = self::resolveInvoiceNumber($invoiceDb, $entityRef);
+            if ($invoiceNumber !== '') {
+                return $invoiceNumber;
+            }
+        }
+
+        if ($entityType === BcaScrapper::ENTITY_SALON_SUBSCRIPTION) {
+            $salonId = self::resolveSalonId($salonDb, $entityRef);
+            if ($salonId !== '') {
+                return $salonId;
+            }
+        }
+
+        return trim($entityRef);
+    }
+
+    /**
+     * @param object|null $invoiceDb
+     */
+    public static function resolveInvoiceNumber($invoiceDb, string $paymentRef): string
+    {
+        $paymentRef = trim($paymentRef);
+        if ($paymentRef === '') {
+            return '';
+        }
+
+        try {
+            if ($invoiceDb === null) {
+                if (!class_exists('\\App\\Core\\DB', false)) {
+                    require_once __DIR__ . '/../../Core/DB.php';
+                }
+                $invoiceDb = \App\Core\DB::getInstance(6);
+            }
+
+            $row = $invoiceDb->query(
+                'SELECT i.invoice_number
+                 FROM invoice_payments p
+                 INNER JOIN invoices i ON i.id = p.invoice_id
+                 WHERE p.payment_ref = ?
+                 LIMIT 1',
+                [$paymentRef]
+            )->row_array();
+
+            if (is_array($row) && !empty($row['invoice_number'])) {
+                return trim((string) $row['invoice_number']);
+            }
+
+            if (preg_match('/^MDLINV_(\d+)_/', $paymentRef, $m)) {
+                $byId = $invoiceDb->query(
+                    'SELECT invoice_number FROM invoices WHERE id = ? LIMIT 1',
+                    [(int) $m[1]]
+                )->row_array();
+                if (is_array($byId) && !empty($byId['invoice_number'])) {
+                    return trim((string) $byId['invoice_number']);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[BcaMutasiUnbind] resolveInvoiceNumber: ' . $e->getMessage());
+        }
+
+        return '';
+    }
+
+    /**
+     * @param object|null $salonDb
+     */
+    public static function resolveSalonId($salonDb, string $paymentRef): string
+    {
+        $paymentRef = trim($paymentRef);
+        if ($paymentRef === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d+$/', $paymentRef)) {
+            return $paymentRef;
+        }
+
+        try {
+            if ($salonDb === null) {
+                if (!class_exists('\\App\\Core\\DB', false)) {
+                    require_once __DIR__ . '/../../Core/DB.php';
+                }
+                $salonDb = \App\Core\DB::getInstance(4);
+            }
+
+            $row = $salonDb->query(
+                'SELECT salon_id FROM subscription_payments WHERE payment_ref = ? LIMIT 1',
+                [$paymentRef]
+            )->row_array();
+
+            if (is_array($row) && !empty($row['salon_id'])) {
+                return (string) (int) $row['salon_id'];
+            }
+
+            if (preg_match('/^SALONSUB_(\d+)_/', $paymentRef, $m)) {
+                return (string) (int) $m[1];
+            }
+        } catch (\Throwable $e) {
+            error_log('[BcaMutasiUnbind] resolveSalonId: ' . $e->getMessage());
+        }
+
+        return '';
     }
 
     /**
