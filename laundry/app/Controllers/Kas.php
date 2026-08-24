@@ -187,6 +187,12 @@ class Kas extends Controller
          return;
       }
 
+      if (trim((string) $keterangan) === '') {
+         header('HTTP/1.1 422 Unprocessable Entity');
+         echo json_encode(['error' => 'Keterangan wajib diisi']);
+         return;
+      }
+
       $saldoTersedia = $this->getSaldoKas();
       if ($jumlah > $saldoTersedia) {
          header('HTTP/1.1 422 Unprocessable Entity');
@@ -262,8 +268,6 @@ class Kas extends Controller
 
    {
 
-      $keterangan = trim((string) ($_POST['f1'] ?? ''));
-
       $jumlah = intval($_POST['f2'] ?? 0);
 
       $penarik = intval($_POST['f3'] ?? 0);
@@ -333,8 +337,6 @@ class Kas extends Controller
 
       $refFinance = date('YmdHis') . rand(0, 9) . rand(0, 9) . rand(0, 9);
 
-      $notePrimary = $keterangan !== '' ? $keterangan : 'Penarikan';
-
 
 
       $data = [
@@ -351,7 +353,7 @@ class Kas extends Controller
 
          'note' => $note,
 
-         'note_primary' => $notePrimary,
+         'note_primary' => 'Penarikan',
 
          'status_mutasi' => 2,
 

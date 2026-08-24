@@ -322,9 +322,9 @@
             <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahPenarikan" required>
             <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
           </div>
-          <div class="op-field">
+          <div class="op-field penarikanKeteranganField">
             <label class="op-label">Keterangan</label>
-            <input type="text" name="f1" class="op-input keteranganPenarikan">
+            <input type="text" name="f1" class="op-input keteranganPenarikan" required>
           </div>
           <div class="op-field kas-pg-span-2">
             <label class="op-label">Penarik Kas</label>
@@ -572,9 +572,13 @@
 
     $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
     $form.find('.penarikanNonTunaiField').toggle(isNonTunai);
+    $form.find('.penarikanKeteranganField').toggle(!isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
     $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
     $form.find('.keteranganPenarikan').prop('required', !isNonTunai);
+    if (isNonTunai) {
+      $form.find('.keteranganPenarikan').val('');
+    }
     $form.find('.saldoPenarikanLabel').text('Saldo Kas');
     $form.find('.saldoPenarikan').text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
     $form.find('.saldoPenarikanHidden').val(saldoKas);
