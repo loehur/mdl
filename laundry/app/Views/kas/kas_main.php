@@ -292,14 +292,14 @@
     <form class="op-modal__form-wrap formPenarikan" action="<?= URL::BASE_URL; ?>Kas/insert_penarikan_tunai" method="POST" data-action-tunai="<?= URL::BASE_URL; ?>Kas/insert_penarikan_tunai" data-action-nontunai="<?= URL::BASE_URL; ?>Kas/insert_penarikan_nontunai">
       <div class="op-modal__body">
         <div class="kas-pg-modal-grid">
-          <div class="op-field kas-pg-span-2">
+          <div class="op-field">
             <label class="op-label">Metode Penarikan</label>
             <select name="metode_penarikan" class="op-input metodePenarikan" required>
               <option value="1" selected>Tunai</option>
               <option value="2">Non Tunai</option>
             </select>
           </div>
-          <div class="op-field kas-pg-span-2">
+          <div class="op-field">
             <label class="op-label saldoPenarikanLabel">Saldo Kas</label>
             <div class="kas-saldo-box saldoPenarikan">Rp <?= number_format($kas); ?></div>
             <input type="hidden" name="kas" class="saldoPenarikanHidden" value="<?= $kas ?>">
