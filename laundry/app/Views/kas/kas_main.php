@@ -1,8 +1,4 @@
-<?php
-$kas = $data['saldo'];
-$saldoBca = (int) ($data['saldoBca'] ?? 0);
-$saldoQris = (int) ($data['saldoQris'] ?? 0);
-?>
+<?php $kas = $data['saldo']; ?>
 <div class="content">
   <div class="container-fluid">
     <div class="row">
@@ -304,7 +300,7 @@ $saldoQris = (int) ($data['saldoQris'] ?? 0);
             </select>
           </div>
           <div class="op-field kas-pg-span-2">
-            <label class="op-label saldoPenarikanLabel">Saldo Kas Tunai</label>
+            <label class="op-label saldoPenarikanLabel">Saldo Kas</label>
             <div class="kas-saldo-box saldoPenarikan">Rp <?= number_format($kas); ?></div>
             <input type="hidden" name="kas" class="saldoPenarikanHidden" value="<?= $kas ?>">
           </div>
@@ -443,8 +439,6 @@ $saldoQris = (int) ($data['saldoQris'] ?? 0);
 
 <script>
   var saldoKas = <?= $kas ?>;
-  var saldoBca = <?= $saldoBca ?>;
-  var saldoQris = <?= $saldoQris ?>;
 
   function formatRupiah(num) {
     return 'Rp ' + new Intl.NumberFormat('id-ID', {
@@ -570,38 +564,25 @@ $saldoQris = (int) ($data['saldoQris'] ?? 0);
   });
 
   function getSaldoPenarikanAktif($form) {
-    if (!$form || !$form.hasClass('formPenarikan')) {
-      return saldoKas;
-    }
-    if ($form.find('.metodePenarikan').val() === '2') {
-      var note = ($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase();
-      return note === 'BCA' ? saldoBca : saldoQris;
-    }
     return saldoKas;
   }
 
   function syncPenarikanForm($form) {
     var isNonTunai = $form.find('.metodePenarikan').val() === '2';
-    var saldoNow = getSaldoPenarikanAktif($form);
-    var minJumlah = isNonTunai
-      ? (($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase() === 'BCA' ? 10000 : 1000)
-      : 1000;
 
     $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
     $form.find('.penarikanNonTunaiField').toggle(isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
     $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
     $form.find('.keteranganPenarikan').prop('required', !isNonTunai);
-    $form.find('.saldoPenarikanLabel').text(isNonTunai
-      ? ('Saldo ' + (($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase()))
-      : 'Saldo Kas Tunai');
-    $form.find('.saldoPenarikan').text(formatRupiah(saldoNow)).removeClass('kas-saldo--minus');
-    $form.find('.saldoPenarikanHidden').val(saldoNow);
-    $form.find('.jumlahPenarikan').attr('min', minJumlah);
+    $form.find('.saldoPenarikanLabel').text('Saldo Kas');
+    $form.find('.saldoPenarikan').text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
+    $form.find('.saldoPenarikanHidden').val(saldoKas);
+    $form.find('.jumlahPenarikan').attr('min', 1000);
 
     var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
     if (potong > 0) {
-      var sisa = saldoNow - potong;
+      var sisa = saldoKas - potong;
       $form.find('.saldoPenarikan').text(formatRupiah(sisa));
       $form.find('.saldoPenarikanHidden').val(sisa);
       if (sisa < 0) {
@@ -610,7 +591,7 @@ $saldoQris = (int) ($data['saldoQris'] ?? 0);
     }
   }
 
-  $(document).on('change', '.metodePenarikan, .penarikanNoteRadio', function() {
+  $(document).on('change', '.metodePenarikan', function() {
     syncPenarikanForm($(this).closest('form.formPenarikan'));
   });
 
