@@ -90,14 +90,11 @@ class NonTunaiAdmin extends Controller
         }
 
         try {
-            $this->bootstrapApi();
+            $this->helper('BcaMutasiAdminApi');
+            $api = new BcaMutasiAdminApi();
             $blockedBy = trim((string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? 'admin'));
 
-            $result = \App\Helpers\Payment\BcaMutasiUnbind::execute(
-                \App\Core\DB::getInstance(0),
-                \App\Core\DB::getInstance(1),
-                \App\Core\DB::getInstance(6),
-                \App\Core\DB::getInstance(4),
+            $result = $api->unbind(
                 $linkId,
                 $reason !== '' ? $reason : 'Unbind admin BCA Mutasi',
                 $blockedBy
@@ -111,21 +108,6 @@ class NonTunaiAdmin extends Controller
                 'message' => 'Unbind gagal: ' . $e->getMessage(),
             ], JSON_UNESCAPED_UNICODE);
         }
-    }
-
-    private function bootstrapApi(): void
-    {
-        if (class_exists('\\App\\Core\\DB', false)) {
-            return;
-        }
-
-        $apiRoot = dirname(__DIR__, 3) . '/api/app';
-        require_once $apiRoot . '/Config/Env.php';
-        require_once $apiRoot . '/Config/DBC.php';
-        require_once $apiRoot . '/Core/DB.php';
-        require_once $apiRoot . '/Helpers/BcaScrapper.php';
-        require_once $apiRoot . '/Helpers/Laundry/KasNonTunaiConfirm.php';
-        require_once $apiRoot . '/Helpers/Payment/BcaMutasiUnbind.php';
     }
 
     /**
@@ -475,47 +457,18 @@ class NonTunaiAdmin extends Controller
      */
     private function loadInvoicePayerByRef(array $refs): array
     {
-        try {
-            $this->bootstrapApi();
-            $invoiceDb = \App\Core\DB::getInstance(6);
-        } catch (\Throwable $e) {
+        if ($refs === []) {
             return [];
         }
 
-        $out = [];
-        foreach ($refs as $ref) {
-            $payment = $invoiceDb->query(
-                'SELECT p.payment_ref, i.invoice_number, i.public_token
-                 FROM invoice_payments p
-                 INNER JOIN invoices i ON i.id = p.invoice_id
-                 WHERE p.payment_ref = ?
-                 LIMIT 1',
-                [$ref]
-            )->row_array();
-
-            if (!is_array($payment) || empty($payment['payment_ref'])) {
-                $out[$ref] = [
-                    'name' => $ref,
-                    'url' => null,
-                    'badge' => 'Invoice',
-                    'jenis_transaksi' => 0,
-                ];
-                continue;
-            }
-
-            $number = trim((string) ($payment['invoice_number'] ?? ''));
-            $token = trim((string) ($payment['public_token'] ?? ''));
-            $name = $number !== '' ? $number : $ref;
-
-            $out[$ref] = [
-                'name' => $name,
-                'url' => $token !== '' ? ('https://ml.nalju.com/invoice/' . rawurlencode($token)) : null,
-                'badge' => 'Invoice',
-                'jenis_transaksi' => 0,
-            ];
+        try {
+            $this->helper('BcaMutasiAdminApi');
+            $api = new BcaMutasiAdminApi();
+            return $api->resolvePayers(array_values($refs), []);
+        } catch (\Throwable $e) {
+            error_log('[NonTunaiAdmin::loadInvoicePayerByRef] ' . $e->getMessage());
+            return [];
         }
-
-        return $out;
     }
 
     /**
@@ -524,38 +477,18 @@ class NonTunaiAdmin extends Controller
      */
     private function loadSalonPayerByRef(array $refs): array
     {
-        try {
-            $this->bootstrapApi();
-            $salonDb = \App\Core\DB::getInstance(4);
-        } catch (\Throwable $e) {
+        if ($refs === []) {
             return [];
         }
 
-        $out = [];
-        foreach ($refs as $ref) {
-            $payment = $salonDb->query(
-                'SELECT p.payment_ref, p.salon_id, s.salon_name
-                 FROM subscription_payments p
-                 LEFT JOIN salon s ON s.salon_id = p.salon_id
-                 WHERE p.payment_ref = ?
-                 LIMIT 1',
-                [$ref]
-            )->row_array();
-
-            $salonName = trim((string) ($payment['salon_name'] ?? ''));
-            if ($salonName === '') {
-                $salonName = 'Salon #' . (int) ($payment['salon_id'] ?? 0);
-            }
-
-            $out[$ref] = [
-                'name' => $salonName,
-                'url' => null,
-                'badge' => 'Salon',
-                'jenis_transaksi' => 0,
-            ];
+        try {
+            $this->helper('BcaMutasiAdminApi');
+            $api = new BcaMutasiAdminApi();
+            return $api->resolvePayers([], array_values($refs));
+        } catch (\Throwable $e) {
+            error_log('[NonTunaiAdmin::loadSalonPayerByRef] ' . $e->getMessage());
+            return [];
         }
-
-        return $out;
     }
 
     /**
