@@ -5,7 +5,7 @@ import EmojiPicker from "./EmojiPicker.vue";
 import CustomerPanel from "./CustomerPanel.vue";
 import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
-import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE, mergeOpenCaseLocal } from "../stores/chatStore.js";
+import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE } from "../stores/chatStore.js";
 
 const props = defineProps({
   activeConversation: {
@@ -133,9 +133,7 @@ const showQuotedMessageModal = ref(false);
 const quotedMessageToShow = ref(null);
 
 // Chat Action Menus
-const showChatMenu = ref(false);
 const showResolveMenu = ref(false);
-const isFollowUp = ref(false);
 const resolvingCaseId = ref(null);
 
 // Emoji & Quick Reply
@@ -325,11 +323,6 @@ const getCaseLabel = (caseId) => {
   }
 };
 
-const isCaseOpen = (caseId) => {
-    if(!props.activeConversation?.cases) return false;
-    return props.activeConversation.cases.some(c => parseInt(c.case) === parseInt(caseId) && (c.status || 'open') !== 'closed');
-};
-
 const operasiKasirUrl = computed(() => {
   const custId = props.activeConversation?.cust_id;
   if (!custId) return null;
@@ -339,7 +332,6 @@ const operasiKasirUrl = computed(() => {
 const openOperasiKasir = () => {
   const url = operasiKasirUrl.value;
   if (!url) return;
-  showChatMenu.value = false;
   showResolveMenu.value = false;
   emit("open-internal-browser", url);
 };
@@ -631,27 +623,6 @@ const openLocation = (url) => {
 };
 
 // --- CASE ACTIONS (API CALLS) ---
-// These update the activeConversation state which is passed by reference/prop
-const updateCase = async (caseId, loadingRef) => {
-    if (!props.activeConversation || loadingRef.value) return;
-    try {
-        loadingRef.value = true;
-        const res = await fetch(`${props.API_BASE}/CRM/Chat/updateCase`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: props.activeConversation.wa_number, case: caseId, user_id: props.authId }),
-        }).then(r => r.json());
-
-        if (res.status) {
-             if (!props.activeConversation.cases) props.activeConversation.cases = [];
-             props.activeConversation.cases = mergeOpenCaseLocal(props.activeConversation.cases, caseId);
-             showChatMenu.value = false;
-        }
-    } catch(e) { console.error(e); }
-    finally { setTimeout(() => loadingRef.value = false, 3000); }
-};
-
-const followUp = () => updateCase(4, isFollowUp);
-
 const resolveCase = async (caseId) => {
     if (!props.activeConversation || resolvingCaseId.value) return;
     try {
@@ -1261,7 +1232,6 @@ onMounted(() => {
 
 // Handle click outside to close menus
 const handleClickOutside = () => {
-    showChatMenu.value = false;
     showResolveMenu.value = false;
     showEmojiPicker.value = false;
     showQuickReplies.value = false;
@@ -1350,7 +1320,7 @@ onUnmounted(() => {
                     </button>
                     <!-- Resolve Menu (admin) -->
                     <div v-if="isAdmin" class="relative">
-                        <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu; showChatMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
+                        <button v-if="resolveableCases.length > 0" @click.stop="showResolveMenu = !showResolveMenu" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full text-green-500">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         </button>
                         <div v-if="showResolveMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
@@ -1365,17 +1335,6 @@ onUnmounted(() => {
                                   {{ getCaseLabel(c.case) }}
                              </button>
                         </div>
-                    </div>
-                    <!-- Chat Menu (admin) -->
-                    <div v-if="isAdmin" class="relative">
-                        <button @click.stop="showChatMenu = !showChatMenu; showResolveMenu = false" class="hover:text-[var(--wa-text-primary)] p-2 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg></button>
-                         <div v-if="showChatMenu" @click.stop class="absolute right-0 top-full mt-2 w-44 bg-[var(--wa-bg-secondary)] rounded-xl shadow-2xl overflow-hidden z-50 py-1">
-                               <button v-if="!isCaseOpen(4)" @click="followUp" :disabled="isFollowUp" class="w-full px-4 py-2.5 text-left hover:bg-[var(--wa-hover)] text-sm text-[var(--wa-text-primary)] flex items-center gap-3">
-                                    <div v-if="isFollowUp" class="w-3 h-3 border-2 border-purple-200 border-t-purple-500 rounded-full animate-spin flex-shrink-0"></div>
-                                    <span v-else class="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></span>
-                                    Follow Up
-                               </button>
-                         </div>
                     </div>
                </div>
                <div

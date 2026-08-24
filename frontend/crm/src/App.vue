@@ -52,12 +52,11 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showSendQrisModal, showCancelDeliveryModal, showCrewSendModal,
+  showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showSendQrisModal, showCancelDeliveryModal, showCrewSendModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
-  isMarkingAsDone, isFollowUp,
-  isReopeningConversation, isRefreshingChat, isLoadingQuickReplies,
+  isRefreshingChat, isLoadingQuickReplies,
   // Settings
   fontSize, theme, notificationSoundEnabled, notificationAudio,
   // Quick Reply
@@ -65,8 +64,8 @@ import {
   // Title Blink
   originalTitle, titleBlinkInterval, isTitleRed,
   // Helpers
-  getAvatarColor, getCaseColor, getCaseLabel, isCaseOpen, isNativeApp,
-  enforceCaseFourExclusivity, mergeOpenCaseLocal, sanitizeActiveCaseIds, CASE_FOLLOW_UP,
+  getAvatarColor, getCaseColor, getCaseLabel, isNativeApp,
+  enforceCaseFourExclusivity, mergeOpenCaseLocal, sanitizeActiveCaseIds,
   // Computed
   activeConversation, filteredConversations, totalUnreadCount, totalOpenCasesCount,
   // Trigger
@@ -1601,150 +1600,6 @@ const markMessagesRead = async (phone) => {
   }
 };
 
-const markAsDone = async () => {
-  if (!activeConversation.value || isMarkingAsDone.value) return;
-
-  try {
-    isMarkingAsDone.value = true;
-    showChatMenu.value = false; // Close menu
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/markAsDone`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      // Update local cases — pertahankan case 2 open (dituntaskan via laundry Delivery)
-      const keepPickup = (activeConversation.value.cases || []).filter(
-        (c) => parseInt(c.case) === 2 && (c.status || "open") !== "closed"
-      );
-      activeConversation.value.cases = keepPickup.length
-        ? keepPickup.map((c) => ({ case: 2, status: "open" }))
-        : [{ case: 0 }];
-
-      // ℹ️ SSE will broadcast update to all other clients automatically!
-      // No manual refresh needed - real-time magic! ✨
-    } else {
-      console.error("Failed to mark as done:", res.message);
-    }
-
-    // Keep loading for 3 seconds
-    setTimeout(() => {
-      isMarkingAsDone.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error marking as done:", e);
-    isMarkingAsDone.value = false;
-  }
-};
-
-const followUp = async () => {
-  if (!activeConversation.value || isFollowUp.value) return;
-
-  try {
-    isFollowUp.value = true;
-    showChatMenu.value = false; // Close menu
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/updateCase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        case: 4,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      if (!activeConversation.value.cases) activeConversation.value.cases = [];
-      activeConversation.value.cases = mergeOpenCaseLocal(
-        activeConversation.value.cases,
-        CASE_FOLLOW_UP
-      );
-    } else {
-      console.error("Failed to mark for follow up:", res.message);
-    }
-
-    // Keep loading for 3 seconds
-    setTimeout(() => {
-      isFollowUp.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error marking for follow up:", e);
-    isFollowUp.value = false;
-  }
-};
-
-const reopenConversation = async () => {
-  if (!activeConversation.value || isReopeningConversation.value) return;
-
-  try {
-    isReopeningConversation.value = true;
-    showChatMenu.value = false; // Close menu
-
-    const response = await fetch(`${API_BASE}/CRM/Chat/reopenConversation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        user_id: authId.value,
-      }),
-    });
-
-    const res = await response.json();
-
-    if (res.status) {
-      // Update local cases
-      activeConversation.value.cases = [{ case: 4 }];
-    } else {
-      console.error("Failed to reopen conversation:", res.message);
-    }
-
-    // Keep loading for 3 seconds
-    setTimeout(() => {
-      isReopeningConversation.value = false;
-    }, 3000);
-  } catch (e) {
-    console.error("Error reopening conversation:", e);
-    isReopeningConversation.value = false;
-  }
-};
-
-const resolveCase = async (caseId) => {
-  if (!activeConversation.value) return;
-  try {
-    const response = await fetch(`${API_BASE}/CRM/Chat/resolveCase`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone: activeConversation.value.wa_number,
-        case: parseInt(caseId),
-        user_id: authId.value,
-      }),
-    });
-    const res = await response.json();
-    if (res.status) {
-      // Optimistic Update: Remove from local list (use parseInt for type-safe comparison)
-      if (activeConversation.value.cases) {
-        activeConversation.value.cases = activeConversation.value.cases.filter(
-          (x) => parseInt(x.case) !== parseInt(caseId)
-        );
-      }
-      showResolveMenu.value = false;
-    }
-  } catch (e) {
-    console.error("Error resolving case:", e);
-  }
-};
-
 const selectChat = async (id, isRefresh = false) => {
   // Check if chat exists first before setting any state
   const chat = conversations.value.find((c) => c.id === id);
@@ -2670,16 +2525,10 @@ const handlePaste = async (event) => {
   }
 };
 
-// Close menu when clicking outside
-const handleClickOutside = (event) => {
-  if (showChatMenu.value) showChatMenu.value = false;
-  if (showResolveMenu.value) showResolveMenu.value = false;
-
-};
+// Close menu when clicking outside — handled in ChatPage
 
 onUnmounted(() => {
   window.removeEventListener("paste", handlePaste);
-  window.removeEventListener("click", handleClickOutside);
 
   // Clear polling interval
   if (refreshInterval.value) {
@@ -4551,10 +4400,6 @@ onMounted(() => {
     }
     return false;
   };
-
-  // --- CLICK OUTSIDE HANDLER ---
-  // Close menu when clicking anywhere
-  window.addEventListener("click", handleClickOutside);
 
   // --- PASTE HANDLER ---
   // Handle pasted images

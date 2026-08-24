@@ -250,8 +250,6 @@ export const showExitToast = ref(false);
 // ============================================================================
 // UI State - Menus & Modals
 // ============================================================================
-export const showChatMenu = ref(false);
-export const showResolveMenu = ref(false);
 export const showSettingsModal = ref(false);
 export const showCustomerPanel = ref(false);
 export const showAddLokasiModal = ref(false);
@@ -278,10 +276,7 @@ export const isInternalBrowserLoading = ref(true);
 // ============================================================================
 // UI State - Loading/Action States
 // ============================================================================
-export const isMarkingAsDone = ref(false);
 export const isPickupDelivery = ref(false);
-export const isFollowUp = ref(false);
-export const isReopeningConversation = ref(false);
 export const isRefreshingChat = ref(false);
 export const isLoadingQuickReplies = ref(false);
 
