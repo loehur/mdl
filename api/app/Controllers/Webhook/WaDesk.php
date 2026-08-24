@@ -5,6 +5,7 @@ namespace App\Controllers\Webhook;
 use App\Core\Controller;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateFailLogger;
+use App\Helpers\WaDesk\TemplateQuota;
 
 /**
  * Kirimin.id webhook for WaDesk — /Webhook/WaDesk
@@ -622,7 +623,7 @@ class WaDesk extends Controller
         if (strtolower((string) ($row['type'] ?? '')) !== 'template') {
             return false;
         }
-        return in_array($status, ['failed', 'undelivered', 'error'], true);
+        return in_array($status, ['failed', 'undelivered', 'error', 'rejected'], true);
     }
 
     /** @param array<string,mixed> $row @param array<string,mixed> $conv @param array<string,mixed> $data @param array<string,mixed> $statusBlock */
@@ -737,6 +738,19 @@ class WaDesk extends Controller
                     'status' => 'failed',
                     'error' => mb_substr($provErr['message'], 0, 500),
                 ], ['id' => (int) $blastMeta['id']]);
+            }
+
+            $teamId = (int) ($conv['team_id'] ?? 0);
+            if ($teamId > 0 && $msgId > 0) {
+                $teamQuota = new TemplateQuota($db);
+                $teamQuota->refundForMessage(
+                    $teamId,
+                    $tenantId,
+                    $msgId,
+                    ((int) ($row['sent_by_user_id'] ?? 0)) ?: null,
+                    'webhook',
+                    'refund: template delivery failed'
+                );
             }
         } catch (\Throwable $e) {
             $this->logWebhook('template_fail_log webhook error: ' . $e->getMessage());

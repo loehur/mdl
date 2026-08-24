@@ -4,7 +4,7 @@ namespace App\Helpers\WaDesk;
 
 /**
  * Per-team template message balance (shared by TL + agents on that team).
- * Consume only after a successful YCloud template send.
+ * Consume only after provider accepts a template send; refund if delivery fails.
  */
 class TemplateQuota
 {
@@ -101,6 +101,104 @@ class TemplateQuota
         ]);
 
         return ['ok' => true, 'balance' => $balance, 'error' => ''];
+    }
+
+    /**
+     * Restore 1 quota when a template message later fails (webhook delivery failure).
+     *
+     * @return array{ok:bool,balance:int,error:string,refunded:bool}
+     */
+    public function refundForMessage(
+        int $teamId,
+        int $tenantId,
+        int $messageId,
+        ?int $userId = null,
+        string $source = 'webhook',
+        ?string $note = null
+    ): array {
+        if ($messageId <= 0) {
+            return [
+                'ok' => false,
+                'balance' => $this->getBalance($teamId),
+                'error' => 'message_id invalid',
+                'refunded' => false,
+            ];
+        }
+
+        if (!$this->hasConsumeForMessage($messageId)) {
+            return [
+                'ok' => true,
+                'balance' => $this->getBalance($teamId),
+                'error' => '',
+                'refunded' => false,
+            ];
+        }
+
+        if ($this->hasRefundForMessage($messageId)) {
+            return [
+                'ok' => true,
+                'balance' => $this->getBalance($teamId),
+                'error' => '',
+                'refunded' => false,
+            ];
+        }
+
+        $this->ensureRow($teamId, $tenantId);
+
+        $this->db->query(
+            "UPDATE wa_team_template_quotas
+             SET balance = balance + 1, updated_at = NOW()
+             WHERE team_id = ?",
+            [$teamId]
+        );
+
+        $balance = $this->getBalance($teamId);
+        $this->insertLog([
+            'tenant_id' => $tenantId,
+            'team_id' => $teamId,
+            'type' => 'adjust',
+            'amount' => 1,
+            'balance_after' => $balance,
+            'user_id' => $userId ?: null,
+            'source' => $source,
+            'ref_type' => 'message',
+            'ref_id' => $messageId,
+            'note' => $note ?: 'refund template failed',
+        ]);
+
+        return ['ok' => true, 'balance' => $balance, 'error' => '', 'refunded' => true];
+    }
+
+    public function hasConsumeForMessage(int $messageId): bool
+    {
+        if ($messageId <= 0) {
+            return false;
+        }
+
+        $row = $this->db->query(
+            "SELECT id FROM wa_team_template_quota_logs
+             WHERE ref_type = 'message' AND ref_id = ? AND type = 'consume'
+             LIMIT 1",
+            [$messageId]
+        )->row_array();
+
+        return !empty($row);
+    }
+
+    public function hasRefundForMessage(int $messageId): bool
+    {
+        if ($messageId <= 0) {
+            return false;
+        }
+
+        $row = $this->db->query(
+            "SELECT id FROM wa_team_template_quota_logs
+             WHERE ref_type = 'message' AND ref_id = ? AND type = 'adjust' AND amount > 0
+             LIMIT 1",
+            [$messageId]
+        )->row_array();
+
+        return !empty($row);
     }
 
     /**

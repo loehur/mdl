@@ -300,6 +300,12 @@ class Kas extends Controller
          return;
       }
 
+      if ($note === 'QRIS' && $jumlah > 500000) {
+         header('HTTP/1.1 422 Unprocessable Entity');
+         echo json_encode(['error' => 'Maksimal penarikan QRIS Rp 500.000']);
+         return;
+      }
+
       $saldoTersedia = $this->getSaldoKas();
       if ($jumlah > $saldoTersedia) {
          header('HTTP/1.1 422 Unprocessable Entity');

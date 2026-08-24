@@ -312,4 +312,43 @@
   .kas-pg-modal-grid .pg-ket-wrap {
     margin-bottom: 0;
   }
+  .kas-limit-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  .kas-bca-rekening {
+    padding: 10px 12px;
+    border: 1px solid #93c5fd;
+    background: linear-gradient(180deg, #eff6ff, #fff);
+    border-radius: 4px;
+    line-height: 1.35;
+  }
+  .kas-bca-rekening--empty {
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .kas-bca-rekening__label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .kas-bca-rekening__number {
+    margin-top: 4px;
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    color: #0f172a;
+  }
+  .kas-bca-rekening__name {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+  }
 </style>

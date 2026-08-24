@@ -304,7 +304,7 @@
             <div class="kas-saldo-box saldoPenarikan">Rp <?= number_format($kas); ?></div>
             <input type="hidden" name="kas" class="saldoPenarikanHidden" value="<?= $kas ?>">
           </div>
-          <div class="op-field kas-pg-span-2 penarikanNonTunaiField" style="display:none;">
+          <div class="op-field penarikanNonTunaiField" style="display:none;">
             <label class="op-label">Tujuan Non Tunai</label>
             <div class="d-flex gap-3 flex-wrap">
               <label class="d-flex align-items-center gap-2 mb-0">
@@ -317,10 +317,24 @@
               </label>
             </div>
           </div>
+          <?php $bcaGuide = URL::NON_TUNAI_GUIDE['BCA'] ?? null; ?>
+          <div class="op-field penarikanBcaRekeningField" style="display:none;">
+            <label class="op-label">Data Rekening BCA</label>
+            <?php if ($bcaGuide) { ?>
+              <div class="kas-bca-rekening">
+                <div class="kas-bca-rekening__label"><?= htmlspecialchars($bcaGuide['label']) ?></div>
+                <div class="kas-bca-rekening__number"><?= htmlspecialchars($bcaGuide['number']) ?></div>
+                <div class="kas-bca-rekening__name">a.n. <?= htmlspecialchars($bcaGuide['name']) ?></div>
+              </div>
+            <?php } else { ?>
+              <div class="kas-bca-rekening kas-bca-rekening--empty">Data rekening BCA belum tersedia</div>
+            <?php } ?>
+          </div>
           <div class="op-field">
             <label class="op-label">Jumlah Rp</label>
             <input type="number" name="f2" min="1000" class="op-input jumlahTarik jumlahPenarikan" required>
             <small class="kas-live-amt"><strong>Jumlah:</strong> <span class="liveAmount">Rp 0</span></small>
+            <small class="kas-limit-hint penarikanLimitHint">Min Rp 1.000</small>
           </div>
           <div class="op-field penarikanKeteranganField">
             <label class="op-label">Keterangan</label>
@@ -439,6 +453,8 @@
 
 <script>
   var saldoKas = <?= $kas ?>;
+  var PENARIKAN_MIN = 1000;
+  var PENARIKAN_QRIS_MAX = 500000;
 
   function formatRupiah(num) {
     return 'Rp ' + new Intl.NumberFormat('id-ID', {
@@ -477,6 +493,19 @@
         return;
       }
       var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
+      if (potong < PENARIKAN_MIN) {
+        var msgMin = 'Minimal penarikan Rp 1.000';
+        if (window.MdlToast) window.MdlToast.error(msgMin);
+        else alert(msgMin);
+        return;
+      }
+      var note = ($form.find('.penarikanNoteRadio:checked').val() || '').toUpperCase();
+      if (isNonTunai && note === 'QRIS' && potong > PENARIKAN_QRIS_MAX) {
+        var msgQrisMax = 'Maksimal penarikan QRIS Rp 500.000';
+        if (window.MdlToast) window.MdlToast.error(msgQrisMax);
+        else alert(msgQrisMax);
+        return;
+      }
       var saldoNow = getSaldoPenarikanAktif($form);
       if (potong > saldoNow) {
         var msgOver = 'Jumlah melebihi saldo tersedia';
@@ -567,11 +596,26 @@
     return saldoKas;
   }
 
+  function getPenarikanNote($form) {
+    return String($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase();
+  }
+
+  function getPenarikanJumlahMax($form) {
+    var isNonTunai = $form.find('.metodePenarikan').val() === '2';
+    if (isNonTunai && getPenarikanNote($form) === 'QRIS') {
+      return PENARIKAN_QRIS_MAX;
+    }
+    return null;
+  }
+
   function syncPenarikanForm($form) {
     var isNonTunai = $form.find('.metodePenarikan').val() === '2';
+    var note = getPenarikanNote($form);
+    var isBca = isNonTunai && note === 'BCA';
 
     $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
     $form.find('.penarikanNonTunaiField').toggle(isNonTunai);
+    $form.find('.penarikanBcaRekeningField').toggle(isBca);
     $form.find('.penarikanKeteranganField').toggle(!isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
     $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
@@ -582,9 +626,24 @@
     $form.find('.saldoPenarikanLabel').text('Saldo Kas');
     $form.find('.saldoPenarikan').text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
     $form.find('.saldoPenarikanHidden').val(saldoKas);
-    $form.find('.jumlahPenarikan').attr('min', 1000);
 
-    var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
+    var $jumlah = $form.find('.jumlahPenarikan');
+    $jumlah.attr('min', PENARIKAN_MIN);
+    var maxJumlah = getPenarikanJumlahMax($form);
+    var effectiveMax = maxJumlah ? Math.min(maxJumlah, saldoKas) : saldoKas;
+    if (effectiveMax >= PENARIKAN_MIN) {
+      $jumlah.attr('max', effectiveMax);
+    } else {
+      $jumlah.removeAttr('max');
+    }
+
+    var limitHint = 'Min Rp 1.000';
+    if (isNonTunai && note === 'QRIS') {
+      limitHint += ' · Max Rp 500.000';
+    }
+    $form.find('.penarikanLimitHint').text(limitHint);
+
+    var potong = parseInt($jumlah.val(), 10) || 0;
     if (potong > 0) {
       var sisa = saldoKas - potong;
       $form.find('.saldoPenarikan').text(formatRupiah(sisa));
@@ -596,6 +655,10 @@
   }
 
   $(document).on('change', '.metodePenarikan', function() {
+    syncPenarikanForm($(this).closest('form.formPenarikan'));
+  });
+
+  $(document).on('change', '.penarikanNoteRadio', function() {
     syncPenarikanForm($(this).closest('form.formPenarikan'));
   });
 
