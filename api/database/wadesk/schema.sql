@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS messages (
   direction ENUM('in', 'out') NOT NULL,
   type VARCHAR(32) NOT NULL DEFAULT 'text',
   body TEXT NULL,
+  body_raw TEXT NULL,
   template_name VARCHAR(150) NULL,
   params_json JSON NULL,
   media_url VARCHAR(500) NULL,

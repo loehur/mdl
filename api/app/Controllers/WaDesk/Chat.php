@@ -448,7 +448,7 @@ class Chat extends WaDeskController
 
         $limitGuard->recordSuccess((int) $channel['tenant_id'], $phone, (int) $user['id'], 'free');
 
-        $msgId = $this->storeOutbound($conv, $user, 'text', $message, null, null, $result);
+        $msgId = $this->storeOutbound($conv, $user, 'text', $message, null, null, $result, $originalMessage);
         $this->touchConversationOut($conv['id'], $message);
 
         WaDeskServer::push([
@@ -518,12 +518,20 @@ class Chat extends WaDeskController
         )->row_array();
     }
 
-    private function storeOutbound(array $conv, array $user, string $type, string $body, ?string $templateName, ?array $params, array $result): int
-    {
+    private function storeOutbound(
+        array $conv,
+        array $user,
+        string $type,
+        string $body,
+        ?string $templateName,
+        ?array $params,
+        array $result,
+        ?string $bodyRaw = null
+    ): int {
         $providerId = $result['data']['message_id']
             ?? $result['data']['id']
             ?? ($result['data']['wamid'] ?? null);
-        return (int) $this->db($this->db_index)->insert('messages', [
+        $row = [
             'conversation_id' => (int) $conv['id'],
             'direction' => 'out',
             'type' => $type,
@@ -534,7 +542,11 @@ class Chat extends WaDeskController
             'external_id' => $result['external_id'] ?? null,
             'status' => 'sent',
             'sent_by_user_id' => (int) $user['id'],
-        ]);
+        ];
+        if ($bodyRaw !== null && trim($bodyRaw) !== '') {
+            $row['body_raw'] = $bodyRaw;
+        }
+        return (int) $this->db($this->db_index)->insert('messages', $row);
     }
 
     /** Last free-text outbound not yet followed by any inbound reply. */
