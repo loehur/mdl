@@ -5,16 +5,16 @@
         <span
           v-if="templateQuotaBalance !== null"
           class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
-          title="Sisa kuota template team"
+          title="Team template quota remaining"
         >
-          Kuota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
+          Quota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
         </span>
         <span
           v-if="dailyLimitRemaining !== null"
           class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
           :title="dailyLimitTitle"
         >
-          Daily sisa:
+          Daily Left:
           <span
             class="font-semibold"
             :class="dailyLimitRemaining <= 0 ? 'text-rose-400' : dailyLimitRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'"
@@ -330,7 +330,7 @@ const dailyLimitUsed = ref(null);
 const dailyLimitMax = ref(null);
 const dailyLimitTitle = computed(() => {
   if (dailyLimitMax.value === null) return "";
-  return `Nomor unik terkirim hari ini: ${dailyLimitUsed.value ?? 0} / ${dailyLimitMax.value}`;
+  return `Unique recipients sent today: ${dailyLimitUsed.value ?? 0} / ${dailyLimitMax.value}`;
 });
 const freeReject = reactive({ open: false, message: "" });
 let pollTimer = null;

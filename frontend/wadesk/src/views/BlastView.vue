@@ -29,16 +29,16 @@
           </select>
           <p v-if="keyQuota !== null" class="text-xs mt-1.5 space-y-1">
             <span :class="keyQuota.balance > 0 ? 'text-slate-400' : 'text-rose-400'">
-              Kuota template team <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
+              Quota · <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
               <span class="font-semibold text-accent">{{ keyQuota.balance }}</span>
             </span>
             <span
               v-if="keyQuota.daily_remaining !== null"
               class="block"
               :class="keyQuota.daily_remaining <= 0 ? 'text-rose-400' : keyQuota.daily_remaining <= 20 ? 'text-amber-300' : 'text-slate-400'"
-              :title="`Nomor unik terkirim hari ini: ${keyQuota.daily_used ?? 0} / ${keyQuota.daily_limit}`"
+              :title="`Unique recipients sent today: ${keyQuota.daily_used ?? 0} / ${keyQuota.daily_limit}`"
             >
-              Daily sisa (WABA):
+              Daily Left:
               <span class="font-semibold text-emerald-400">{{ keyQuota.daily_remaining }}</span>
               <span class="text-slate-500"> / {{ keyQuota.daily_limit }}</span>
             </span>
@@ -168,7 +168,7 @@
             v-if="keyQuota !== null && parsedRows.length > keyQuota.balance"
             class="text-sm text-rose-400 mb-2"
           >
-            Kuota team tidak cukup: butuh {{ parsedRows.length }}, sisa {{ keyQuota.balance }}.
+            Template quota insufficient: need {{ parsedRows.length }}, {{ keyQuota.balance }} left.
           </p>
           <div
             v-if="aiWarning"
@@ -637,7 +637,7 @@ async function submitBlast() {
     return;
   }
   if (keyQuota.value !== null && parsedRows.value.length > keyQuota.value.balance) {
-    submitError.value = `Kuota team tidak cukup: butuh ${parsedRows.value.length}, sisa ${keyQuota.value.balance}.`;
+    submitError.value = `Template quota insufficient: need ${parsedRows.value.length}, ${keyQuota.value.balance} left.`;
     return;
   }
 
