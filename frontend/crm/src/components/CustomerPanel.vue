@@ -1291,6 +1291,7 @@ onUnmounted(() => {
           v-model:lat="formLatt"
           v-model:lng="formLongt"
           :api-base="props.apiBase"
+          :cust-id="custId"
           layout="modal"
           map-height-class="h-[280px] lg:h-[420px]"
         >

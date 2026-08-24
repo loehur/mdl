@@ -9,6 +9,7 @@ const props = defineProps({
   apiBase: { type: String, required: true },
   mapHeightClass: { type: String, default: "h-[280px]" },
   layout: { type: String, default: "stacked" },
+  custId: { type: Number, default: 0 },
 });
 
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
@@ -96,6 +97,28 @@ const goToMyLocation = async () => {
   }
 };
 
+const fetchKotaFallback = async () => {
+  if (props.custId <= 0) return null;
+  try {
+    const res = await fetch(
+      `${props.apiBase}/Laundry/PelangganLokasi/defaultMap?cust_id=${props.custId}`
+    ).then((r) => r.json());
+    if (!res?.ok && !res?.status) return null;
+    const nextLat = res.latt != null ? Number(res.latt) : null;
+    const nextLng = res.longt != null ? Number(res.longt) : null;
+    if (nextLat == null || nextLng == null || Number.isNaN(nextLat) || Number.isNaN(nextLng)) {
+      return null;
+    }
+    return {
+      lat: nextLat,
+      lng: nextLng,
+      label: String(res.nama_kota || "").trim(),
+    };
+  } catch (_) {
+    return null;
+  }
+};
+
 const resolveStartCenter = async (hasCoords) => {
   if (hasCoords) {
     return { lat: lat.value, lng: lng.value, fromDevice: false };
@@ -104,7 +127,15 @@ const resolveStartCenter = async (hasCoords) => {
     const pos = await getUserLocation();
     return { ...pos, fromDevice: true };
   } catch (_) {
-    geoHint.value = "Lokasi perangkat tidak tersedia. Peta dimulai dari Jakarta — gunakan tombol lokasi atau cari alamat.";
+    const kota = await fetchKotaFallback();
+    if (kota) {
+      geoHint.value = kota.label
+        ? `Lokasi perangkat tidak tersedia. Peta dimulai dari ${kota.label}.`
+        : "Lokasi perangkat tidak tersedia. Peta dimulai dari kota cabang pelanggan.";
+      return { lat: kota.lat, lng: kota.lng, fromDevice: false };
+    }
+    geoHint.value =
+      "Lokasi perangkat tidak tersedia. Peta dimulai dari Jakarta — gunakan tombol lokasi atau cari alamat.";
     return { ...DEFAULT_CENTER, fromDevice: false };
   }
 };

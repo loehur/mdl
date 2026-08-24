@@ -7,7 +7,7 @@ use App\Helpers\Laundry\PelangganLokasiStore;
 
 /**
  * Lokasi pelanggan (pelanggan_lokasi) — dipakai CRM + laundry.
- * URL: /Laundry/PelangganLokasi/{listLokasi|add|update|delete|resolveMaps}
+ * URL: /Laundry/PelangganLokasi/{listLokasi|defaultMap|add|update|delete|resolveMaps}
  */
 class PelangganLokasi extends Controller
 {
@@ -25,6 +25,17 @@ class PelangganLokasi extends Controller
             return;
         }
         $this->reply(PelangganLokasiStore::list($id));
+    }
+
+    public function defaultMap()
+    {
+        $this->jsonHeader();
+        $id = $this->idPelangganFromRequest();
+        if ($id <= 0) {
+            $this->fail('id_pelanggan / cust_id wajib', 400);
+            return;
+        }
+        $this->reply(array_merge(['ok' => true], PelangganLokasiStore::getDefaultMapCoords($id)));
     }
 
     public function add()

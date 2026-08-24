@@ -85,6 +85,70 @@ class PelangganLokasiStore
                 'nomor_pelanggan' => (string) ($pel['nomor_pelanggan'] ?? ''),
             ],
             'items' => $items,
+            'default_map' => self::getDefaultMapCoords($idPelanggan),
+        ];
+    }
+
+    /**
+     * Titik peta default: koordinat kota cabang pelanggan (kota.latt / kota.longt).
+     *
+     * @return array{latt:float,longt:float,nama_kota:string,source:string}
+     */
+    public static function getDefaultMapCoords(int $idPelanggan): array
+    {
+        $fallback = [
+            'latt' => 0.507068,
+            'longt' => 101.447779,
+            'nama_kota' => 'PEKANBARU',
+            'source' => 'fallback',
+        ];
+
+        $pel = self::findPelanggan($idPelanggan);
+        if ($pel === null) {
+            return $fallback;
+        }
+
+        $idCabang = (int) ($pel['id_cabang'] ?? 0);
+        if ($idCabang <= 0) {
+            return $fallback;
+        }
+
+        $cabang = self::laundryDb()
+            ->query(
+                'SELECT id_kota FROM cabang WHERE id_cabang = ? LIMIT 1',
+                [$idCabang]
+            )
+            ->row_array();
+        if (!is_array($cabang)) {
+            return $fallback;
+        }
+
+        $idKota = (int) ($cabang['id_kota'] ?? 0);
+        if ($idKota <= 0) {
+            return $fallback;
+        }
+
+        $kota = self::laundryDb()
+            ->query(
+                'SELECT nama_kota, latt, longt FROM kota WHERE id_kota = ? LIMIT 1',
+                [$idKota]
+            )
+            ->row_array();
+        if (!is_array($kota)) {
+            return $fallback;
+        }
+
+        $latt = (float) ($kota['latt'] ?? 0);
+        $longt = (float) ($kota['longt'] ?? 0);
+        if ($latt == 0.0 && $longt == 0.0) {
+            return $fallback;
+        }
+
+        return [
+            'latt' => $latt,
+            'longt' => $longt,
+            'nama_kota' => (string) ($kota['nama_kota'] ?? ''),
+            'source' => 'kota',
         ];
     }
 
