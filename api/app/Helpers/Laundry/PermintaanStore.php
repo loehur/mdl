@@ -163,6 +163,14 @@ class PermintaanStore
             return ['ok' => false, 'message' => 'Gagal memperbarui permintaan'];
         }
 
+        $idCabang = (int) ($row['id_cabang'] ?? 0);
+        PermintaanNotifyHelper::forwardToCabangGroup(
+            (string) ($row['phone'] ?? ''),
+            $idCabang > 0 ? $idCabang : null,
+            $summary,
+            true
+        );
+
         $row['summary'] = $summary;
         $row['updated_at'] = date('Y-m-d H:i:s');
 
@@ -254,6 +262,13 @@ class PermintaanStore
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
         }
+
+        PermintaanNotifyHelper::forwardToCabangGroup(
+            $phoneStorage,
+            $idCabang > 0 ? $idCabang : null,
+            $summary,
+            false
+        );
 
         $row = [
             'phone' => $phoneStorage,

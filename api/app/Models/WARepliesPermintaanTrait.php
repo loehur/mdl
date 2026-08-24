@@ -298,49 +298,25 @@ trait WARepliesPermintaanTrait
             return;
         }
 
-        $nama = $this->permintaanFormatGroupNama($waNumber);
-        $ringkas = PermintaanSummaryHelper::finalize($summary, 280);
-        if ($ringkas === '') {
-            $ringkas = 'Permintaan atau pertanyaan pelanggan.';
+        if (!class_exists('\\App\\Helpers\\Laundry\\PermintaanNotifyHelper')) {
+            require_once __DIR__ . '/../Helpers/Laundry/PermintaanNotifyHelper.php';
         }
-        $lines = ["*{$nama}*", $ringkas];
-        if ($isUpdate) {
-            $lines[] = '(update)';
-        }
-        $groupText = implode("\n", $lines);
 
-        try {
-            if (!class_exists('\\App\\Helpers\\CRM\\FonnteService')) {
-                require_once __DIR__ . '/../Helpers/CRM/FonnteService.php';
-            }
-            if (!class_exists('\\App\\Config\\Fonnte')) {
-                require_once __DIR__ . '/../Config/Fonnte.php';
-            }
-            $groupId = $this->resolvePermintaanFonnteGroupId($idCabang);
-            if ($groupId === '') {
-                $this->logAutoreplyTrace(
-                    $waNumber,
-                    'PERMINTAAN',
-                    'forward_group skip_no_group_id cabang=' . ($idCabang ?? 0)
-                );
-                return;
-            }
-            $fonnte = new \App\Helpers\CRM\FonnteService();
-            $res = $fonnte->sendToGroup($groupId, $groupText, ['delay' => '0']);
-            $ok = !empty($res['success']);
-            $this->logAutoreplyTrace(
-                $waNumber,
-                'PERMINTAAN',
-                'forward_group cabang=' . ($idCabang ?? 0) . ' target=' . $groupId . ' '
-                . ($ok ? 'ok' : ('fail=' . ($res['error'] ?? 'unknown')))
-                . ($isUpdate ? ' update=1' : '')
-            );
-        } catch (\Throwable $e) {
-            if (class_exists('\Log')) {
-                \Log::write('permintaanForwardToCabangGroup: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-            }
-            $this->logAutoreplyTrace($waNumber, 'PERMINTAAN', 'forward_group exception');
-        }
+        $ok = \App\Helpers\Laundry\PermintaanNotifyHelper::forwardToCabangGroup(
+            $waNumber,
+            $idCabang,
+            $summary,
+            $isUpdate
+        );
+
+        $groupId = \App\Helpers\Laundry\PermintaanNotifyHelper::resolveFonnteGroupId($idCabang);
+        $this->logAutoreplyTrace(
+            $waNumber,
+            'PERMINTAAN',
+            'forward_group cabang=' . ($idCabang ?? 0) . ' target=' . $groupId . ' '
+            . ($ok ? 'ok' : 'fail')
+            . ($isUpdate ? ' update=1' : '')
+        );
     }
 
     private function permintaanFormatGroupNama(string $waNumber): string
@@ -354,28 +330,15 @@ trait WARepliesPermintaanTrait
     }
 
     /**
-     * Group Fonnte per cabang (mdl_laundry.cabang.id_group_fonnte), fallback config default.
+     * @deprecated use PermintaanNotifyHelper::resolveFonnteGroupId
      */
     private function resolvePermintaanFonnteGroupId(?int $idCabang): string
     {
-        if ($idCabang !== null && $idCabang > 0) {
-            try {
-                $rows = DB::getInstance(1)->query(
-                    'SELECT id_group_fonnte FROM cabang WHERE id_cabang = ? LIMIT 1',
-                    [$idCabang]
-                )->result_array();
-                $fromCabang = trim((string) ($rows[0]['id_group_fonnte'] ?? ''));
-                if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
-                    return $fromCabang;
-                }
-            } catch (\Throwable $e) {
-                if (class_exists('\Log')) {
-                    \Log::write('resolvePermintaanFonnteGroupId: ' . $e->getMessage(), 'wa_error', 'Autoreply');
-                }
-            }
+        if (!class_exists('\\App\\Helpers\\Laundry\\PermintaanNotifyHelper')) {
+            require_once __DIR__ . '/../Helpers/Laundry/PermintaanNotifyHelper.php';
         }
 
-        return \App\Config\Fonnte::getEstimasiGroupId();
+        return \App\Helpers\Laundry\PermintaanNotifyHelper::resolveFonnteGroupId($idCabang);
     }
 
     /**
