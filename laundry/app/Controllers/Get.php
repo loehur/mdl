@@ -136,6 +136,57 @@ class Get extends Controller
       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
    }
 
+   /**
+    * GET /Get/quickReplies — balas cepat kustom CRM (publik)
+    */
+   public function quickReplies()
+   {
+      $this->corsJsonHeaders();
+      if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+         http_response_code(204);
+         return;
+      }
+      if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+         http_response_code(405);
+         echo json_encode(['ok' => false, 'message' => 'Method not allowed']);
+         return;
+      }
+
+      $data = [];
+      try {
+         $rows = $this->db(100)->get_where_order(
+            'crm_quick_replies',
+            'is_active = 1',
+            'sort_order ASC, id ASC'
+         );
+         if (is_array($rows)) {
+            foreach ($rows as $row) {
+               $shortcut = trim((string) ($row['shortcut'] ?? ''));
+               $title = trim((string) ($row['title'] ?? ''));
+               $message = trim((string) ($row['message'] ?? ''));
+               if ($shortcut === '' || $title === '' || $message === '') {
+                  continue;
+               }
+               $data[] = [
+                  'id' => (int) ($row['id'] ?? 0),
+                  'shortcut' => $shortcut,
+                  'title' => $title,
+                  'message' => $message,
+               ];
+            }
+         }
+      } catch (\Throwable $e) {
+         http_response_code(500);
+         echo json_encode(['ok' => false, 'message' => 'Gagal memuat quick replies', 'data' => []]);
+         return;
+      }
+
+      echo json_encode([
+         'ok' => true,
+         'data' => $data,
+      ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+   }
+
    private function corsJsonHeaders()
    {
       header('Access-Control-Allow-Origin: *');

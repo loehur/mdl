@@ -15,9 +15,12 @@ export const LAUNDRY_BASE = "https://ml.nalju.com";
  * Returns [{ id, shortcut, title, message }, ...]
  */
 export async function loadQuickRepliesFromLaundry() {
-  const [rekeningRes, lokasiRes] = await Promise.all([
+  const [rekeningRes, lokasiRes, customRes] = await Promise.all([
     fetch(`${LAUNDRY_BASE}/Get/rekening`).then((r) => r.json()),
     fetch(`${LAUNDRY_BASE}/Get/lokasi`).then((r) => r.json()),
+    fetch(`${LAUNDRY_BASE}/Get/quickReplies`)
+      .then((r) => r.json())
+      .catch(() => ({ ok: false, data: [] })),
   ]);
 
   const list = [];
@@ -45,6 +48,21 @@ export async function loadQuickRepliesFromLaundry() {
         id: id++,
         shortcut: `/${kode.toLowerCase()}-location`,
         title: `Lokasi ${nama.toUpperCase()} - ${kode.toUpperCase()}`,
+        message,
+      });
+    }
+  }
+
+  if (customRes?.ok && Array.isArray(customRes.data)) {
+    for (const item of customRes.data) {
+      const shortcut = String(item.shortcut || "").trim();
+      const title = String(item.title || "").trim();
+      const message = String(item.message || "").trim();
+      if (!shortcut || !title || !message) continue;
+      list.push({
+        id: id++,
+        shortcut,
+        title,
         message,
       });
     }

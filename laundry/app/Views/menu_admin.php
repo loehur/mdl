@@ -78,6 +78,24 @@ $menu[1] = [
     ],
     [
         'c' => '#',
+        'title' => 'CRM Setting',
+        'icon' => 'fas fa-headset',
+        'txt' => 'CRM Setting',
+        'submenu' => [
+            [
+                'c' => '@CrmQuickReplies',
+                'title' => 'Quick Replies',
+                'txt' => 'Quick Replies'
+            ],
+            [
+                'c' => '@CrmDevices',
+                'title' => 'CRM Devices',
+                'txt' => 'CRM Devices'
+            ],
+        ]
+    ],
+    [
+        'c' => '#',
         'title' => 'Tools',
         'icon' => 'fas fa-tools',
         'txt' => 'Tools',
@@ -117,11 +135,6 @@ $menu[1] = [
                 'title' => 'WhatsApp',
                 'txt' => 'WhatsApp'
             ],
-            [
-                'c' => '@CrmDevices',
-                'title' => 'CRM Devices',
-                'txt' => 'CRM Devices'
-            ]
         ]
     ],
 ];
