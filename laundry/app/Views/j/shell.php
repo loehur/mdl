@@ -19,6 +19,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link rel="apple-touch-icon" href="<?= $assets ?>icon/j-icon-192.png">
   <link rel="manifest" href="<?= $base ?>J/manifest/<?= $id ?>">
   <meta name="theme-color" content="#0B3D3A">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MDL">
@@ -27,7 +28,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=64">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=65">
 </head>
 <body>
 <div class="j-app"
@@ -287,7 +288,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
             <ul id="jLokasiSearchList" class="j-kurir-map-search-list" hidden></ul>
           </div>
           <p class="j-kurir-map-hint" id="jLokasiMapHint">Geser peta agar pin berada di titik yang tepat.</p>
-          <label class="j-field-label" style="margin-top:10px">Titik lokasi di peta</label>
           <div class="j-kurir-map-wrap" id="jKurirMapWrap">
             <div id="jKurirMap" class="j-kurir-map" aria-label="Peta lokasi"></div>
             <div class="j-kurir-map-pin" aria-hidden="true">

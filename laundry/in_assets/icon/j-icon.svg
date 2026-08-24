@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MDL Laundry">
+  <rect width="512" height="512" rx="96" fill="#0B3D3A"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M176 176H128l36 96v144h184V272l36-96h-48"/>
+    <path d="M176 176c0-36 36-64 80-64s80 28 80 64"/>
+    <path d="M256 112v64"/>
+  </g>
+</svg>

@@ -19,6 +19,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link rel="apple-touch-icon" href="<?= $assets ?>icon/j-icon-192.png">
   <link rel="manifest" href="<?= $base ?>J/manifest/<?= $id ?>">
   <meta name="theme-color" content="#0B3D3A">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MDL">

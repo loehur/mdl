@@ -2191,7 +2191,7 @@ a { color: inherit; text-decoration: none; }
 }
 .j-kurir-map {
   width: 100%;
-  height: 260px;
+  height: clamp(160px, 32dvh, 220px);
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 12px;
   background: #e2e8f0;
@@ -2528,6 +2528,33 @@ a { color: inherit; text-decoration: none; }
 .j-nota-detail-btn i {
   font-size: 0.62rem;
   color: var(--j-mint);
+}
+
+/* Modal kurir lokasi — body scroll, footer tetap terlihat */
+#jModalKurirLokasi .modal-dialog {
+  max-height: calc(100dvh - 24px);
+  margin: 12px auto;
+}
+#jModalKurirLokasi .j-sheet {
+  max-height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#jModalKurirLokasi .j-sheet-head,
+#jModalKurirLokasi .j-sheet-foot {
+  flex-shrink: 0;
+}
+#jModalKurirLokasi .j-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+#jModalKurirLokasi .j-sheet-foot {
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 /* Detail nota timeline (tema Portal J) */
