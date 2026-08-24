@@ -884,11 +884,14 @@ const resolveGmaps = async () => {
       body: JSON.stringify({ url }),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {
-      if (!isEditLokasi.value) {
+      const hasMapCoords = formLatt.value != null && formLongt.value != null;
+      if (!isEditLokasi.value && !hasMapCoords) {
         formLatt.value = null;
         formLongt.value = null;
       }
-      formMsg.value = res?.message || "Gagal membaca koordinat dari URL";
+      if (!hasMapCoords) {
+        formMsg.value = res?.message || "Gagal membaca koordinat dari URL";
+      }
       return;
     }
     formLatt.value = res.latt;
@@ -919,11 +922,12 @@ const saveLokasi = async () => {
       nama: formNama.value.trim(),
       detail: formDetail.value.trim(),
     };
-    const gmaps = formGmaps.value.trim();
-    if (gmaps) payload.gmaps_url = gmaps;
     if (formLatt.value != null && formLongt.value != null) {
       payload.latt = formLatt.value;
       payload.longt = formLongt.value;
+    } else {
+      const gmaps = formGmaps.value.trim();
+      if (gmaps) payload.gmaps_url = gmaps;
     }
     if (isEdit) payload.id_lokasi = formIdLokasi.value;
 

@@ -305,19 +305,10 @@ class PelangganLokasiStore
             'nama' => $nama,
             'detail' => $detail,
         ];
-        $gmapsUrl = trim((string) ($input['gmaps_url'] ?? $input['url'] ?? ''));
-        if ($gmapsUrl !== '') {
-            $coords = self::coordsFromResolve(MapsServer::resolve($gmapsUrl));
-            if ($coords === null) {
-                return ['ok' => false, 'message' => 'Gagal membaca koordinat dari URL'];
-            }
-            $set['latt'] = $coords['latt'];
-            $set['longt'] = $coords['longt'];
-        } elseif (self::hasPostedCoords($input)) {
-            $coords = self::postedCoords($input);
-            if ($coords === null) {
-                return ['ok' => false, 'message' => 'Koordinat belum valid'];
-            }
+        // Koordinat dari peta (posted) lebih diutamakan daripada resolve URL —
+        // URL opsional bisa gagal parse meski titik peta sudah valid.
+        $coords = self::resolveInputCoords($input);
+        if ($coords !== null) {
             $set['latt'] = $coords['latt'];
             $set['longt'] = $coords['longt'];
         }

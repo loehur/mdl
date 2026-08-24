@@ -2003,6 +2003,10 @@
   }
 
   function saveKurirLokasi(btn) {
+    // Pastikan hidden field terisi dari titik peta saat ini
+    if (kurirMap) {
+      readKurirMapCenter();
+    }
     var nama = String((document.getElementById('jLokasiNama') || {}).value || '').trim();
     var detail = String((document.getElementById('jLokasiDetail') || {}).value || '').trim();
     var latt = parseFloat((document.getElementById('jLokasiLatt') || {}).value || '');

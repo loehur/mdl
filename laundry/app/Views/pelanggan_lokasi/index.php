@@ -513,7 +513,14 @@ $base = htmlspecialchars(URL::BASE_URL, ENT_QUOTES, 'UTF-8');
       nama: nama,
       detail: detail
     };
-    if (gmaps) payload.gmaps_url = gmaps;
+    var latt = parseFloat($('plLatt').value || '');
+    var longt = parseFloat($('plLongt').value || '');
+    if (!isNaN(latt) && !isNaN(longt) && !(latt === 0 && longt === 0)) {
+      payload.latt = latt;
+      payload.longt = longt;
+    } else if (gmaps) {
+      payload.gmaps_url = gmaps;
+    }
     if (!isNew) payload.id_lokasi = idLokasi;
 
     setMsg('Menyimpan…', true);
