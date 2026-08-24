@@ -27,8 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=61">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=62">
 </head>
 <body>
 <div class="j-app"
@@ -284,17 +283,30 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           <input type="text" id="jLokasiNama" class="j-select" maxlength="50" placeholder="Rumah, Kantor, Kos">
           <label class="j-field-label" for="jLokasiDetail" style="margin-top:10px">Detail</label>
           <input type="text" id="jLokasiDetail" class="j-select" maxlength="255" placeholder="Perum. Graha Nusa, No. 31, Pagar Hitam atau Merek Usaha">
-          <div class="j-kurir-map-tools">
-            <button type="button" class="j-btn j-btn-soft" id="jBtnLokasiGps">
-              <i class="fas fa-location-arrow"></i> Titik saya
-            </button>
-            <small id="jLokasiMapHint">Klik peta untuk geser pin</small>
+          <label class="j-field-label" for="jLokasiSearch" style="margin-top:10px">Cari alamat</label>
+          <div class="j-kurir-map-search-wrap" id="jLokasiSearchWrap">
+            <input type="text" id="jLokasiSearch" class="j-select" placeholder="Ketik nama jalan, tempat, atau alamat…" autocomplete="off" aria-autocomplete="list">
+            <ul id="jLokasiSearchList" class="j-kurir-map-search-list" hidden></ul>
           </div>
+          <p class="j-kurir-map-hint" id="jLokasiMapHint">Geser peta agar pin berada di titik yang tepat.</p>
+          <label class="j-field-label" style="margin-top:10px">Titik lokasi di peta</label>
           <div class="j-kurir-map-wrap" id="jKurirMapWrap">
             <div id="jKurirMap" class="j-kurir-map" aria-label="Peta lokasi"></div>
+            <div class="j-kurir-map-pin" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" class="j-kurir-map-pin__icon">
+                <path fill="#ef4444" stroke="#fff" stroke-width="1.5" d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/>
+              </svg>
+            </div>
+            <button type="button" class="j-kurir-map-gps" id="jBtnLokasiGps" title="Titik saya" aria-label="Titik saya">
+              <i class="fas fa-location-arrow" aria-hidden="true"></i>
+            </button>
             <div class="j-kurir-map-overlay" id="jKurirMapOverlay" hidden>
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
               <span>Mencari titik…</span>
+            </div>
+            <div class="j-kurir-map-loading" id="jKurirMapLoading" hidden>
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Memuat peta…</span>
             </div>
           </div>
           <input type="hidden" id="jLokasiLatt" value="">
@@ -442,10 +454,9 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 </div>
 
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= $assets ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=31"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=32"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <?php require_once __DIR__ . '/../pwa_register.php'; ?>
 </body>

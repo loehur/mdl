@@ -1673,6 +1673,41 @@ class J extends Controller
       ], JSON_UNESCAPED_UNICODE);
    }
 
+   /** GET JSON: Google Maps browser API key (proxy api.nalju.com) */
+   public function kurirMapsConfig($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->bootCustomer($pelanggan);
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::get(), JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST JSON: Places autocomplete (proxy) */
+   public function kurirMapsAutocomplete($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->bootCustomer($pelanggan);
+      $body = json_decode((string) file_get_contents('php://input'), true);
+      if (!is_array($body)) {
+         $body = $_POST;
+      }
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::autocomplete($body), JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST JSON: Places place details (proxy) */
+   public function kurirMapsPlaceDetails($pelanggan)
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->bootCustomer($pelanggan);
+      $body = json_decode((string) file_get_contents('php://input'), true);
+      if (!is_array($body)) {
+         $body = $_POST;
+      }
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::placeDetails($body), JSON_UNESCAPED_UNICODE);
+   }
+
    /** POST: tambah lokasi pelanggan */
    public function kurirLokasiAdd($pelanggan)
    {

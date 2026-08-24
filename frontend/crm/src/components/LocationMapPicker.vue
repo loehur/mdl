@@ -386,6 +386,7 @@ onUnmounted(() => {
   <div v-if="layout === 'modal'" class="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
     <div class="space-y-3">
       <slot name="form" />
+      <slot name="form-after-search" />
       <div class="space-y-2">
         <label class="text-xs text-[var(--wa-text-tertiary)]">Cari alamat</label>
         <div ref="searchWrap" class="relative z-[800]">
@@ -433,7 +434,6 @@ onUnmounted(() => {
         </div>
         <p v-if="geoHint && !error" class="text-[11px] text-amber-400/90">{{ geoHint }}</p>
       </div>
-      <slot name="form-after-search" />
     </div>
 
     <div class="min-h-0 space-y-2">
