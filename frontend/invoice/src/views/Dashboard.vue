@@ -4,22 +4,16 @@
 
     <template v-else>
       <div class="grid grid-cols-2 gap-3">
-        <div class="stat-tile">
-          <p class="label-caps">Sudah Dibayar</p>
-          <p class="money-display-sm mt-2 text-credit-dim">Rp {{ formatRupiah(summary.paid_amount) }}</p>
-        </div>
         <router-link to="/berjalan?filter=belum" class="stat-tile block transition hover:border-ledger/30">
           <p class="label-caps">Belum Dibayar</p>
           <p class="money-display-sm mt-2 text-debit-dim">Rp {{ formatRupiah(summary.unpaid_amount) }}</p>
         </router-link>
-        <router-link to="/berjalan?filter=telat" class="stat-tile col-span-2 block transition hover:border-debit-dim/30">
+        <router-link to="/berjalan?filter=telat" class="stat-tile block transition hover:border-debit-dim/30">
           <p class="label-caps">Lewat Jatuh Tempo</p>
-          <div class="mt-2 flex items-end justify-between gap-3">
-            <p class="money-display-sm text-debit-dim">{{ summary.overdue_count || 0 }}</p>
-            <p class="text-sm font-semibold text-debit-dim">
-              Rp {{ formatRupiah(summary.overdue_amount) }}
-            </p>
-          </div>
+          <p class="money-display-sm mt-2 text-debit-dim">{{ summary.overdue_count || 0 }}</p>
+          <p class="mt-0.5 text-sm font-semibold text-debit-dim">
+            Rp {{ formatRupiah(summary.overdue_amount) }}
+          </p>
         </router-link>
       </div>
 
@@ -97,7 +91,6 @@ import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStat
 
 const loading = ref(true);
 const summary = ref({
-  paid_amount: 0,
   unpaid_amount: 0,
   overdue_count: 0,
   overdue_amount: 0,
