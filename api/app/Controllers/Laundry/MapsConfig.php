@@ -49,7 +49,18 @@ class MapsConfig extends Controller
         $input = trim((string) ($body['input'] ?? ''));
         $lat = isset($body['lat']) ? (float) $body['lat'] : null;
         $lng = isset($body['lng']) ? (float) $body['lng'] : null;
-        $this->reply(GoogleMapsPlaces::autocomplete($input, $lat, $lng));
+        $options = [];
+        if (!empty($body['hard_restrict'])) {
+            $options['hard_restrict'] = true;
+        }
+        if (isset($body['restrict_radius'])) {
+            $options['restrict_radius'] = (float) $body['restrict_radius'];
+        }
+        $cityName = trim((string) ($body['city_name'] ?? ''));
+        if ($cityName !== '') {
+            $options['city_name'] = $cityName;
+        }
+        $this->reply(GoogleMapsPlaces::autocomplete($input, $lat, $lng, $options));
     }
 
     public function placeDetails()
@@ -62,7 +73,21 @@ class MapsConfig extends Controller
 
         $body = $this->mergedInput();
         $placeId = trim((string) ($body['place_id'] ?? ''));
-        $this->reply(GoogleMapsPlaces::placeDetails($placeId));
+        $options = [];
+        if (isset($body['restrict_lat'])) {
+            $options['restrict_lat'] = (float) $body['restrict_lat'];
+        }
+        if (isset($body['restrict_lng'])) {
+            $options['restrict_lng'] = (float) $body['restrict_lng'];
+        }
+        if (isset($body['restrict_radius'])) {
+            $options['restrict_radius'] = (float) $body['restrict_radius'];
+        }
+        $cityName = trim((string) ($body['city_name'] ?? ''));
+        if ($cityName !== '') {
+            $options['city_name'] = $cityName;
+        }
+        $this->reply(GoogleMapsPlaces::placeDetails($placeId, $options));
     }
 
     /** GET — cek konfigurasi key browser/server (admin/debug). */

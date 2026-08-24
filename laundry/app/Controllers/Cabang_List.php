@@ -192,6 +192,7 @@ class Cabang_List extends Controller
       if (!is_array($body)) {
          $body = $_POST;
       }
+      $body = $this->applyKotaRestrictToPayload($body);
       $this->helper('MapsConfigApi');
       echo json_encode(MapsConfigApi::autocomplete($body), JSON_UNESCAPED_UNICODE);
    }
@@ -205,7 +206,55 @@ class Cabang_List extends Controller
       if (!is_array($body)) {
          $body = $_POST;
       }
+      $body = $this->applyKotaRestrictToPayload($body);
       $this->helper('MapsConfigApi');
       echo json_encode(MapsConfigApi::placeDetails($body), JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * @return array{city_name:string,lat:?float,lng:?float}
+    */
+   private function resolveKotaRestrict(int $idKota): array
+   {
+      $out = ['city_name' => '', 'lat' => null, 'lng' => null];
+      if ($idKota <= 0 || !is_array($this->dKota ?? null)) {
+         return $out;
+      }
+      foreach ($this->dKota as $k) {
+         if ((int) ($k['id_kota'] ?? 0) !== $idKota) {
+            continue;
+         }
+         $out['city_name'] = trim((string) ($k['nama_kota'] ?? ''));
+         $lat = (float) ($k['latt'] ?? 0);
+         $lng = (float) ($k['longt'] ?? 0);
+         if ($lat != 0.0 || $lng != 0.0) {
+            $out['lat'] = $lat;
+            $out['lng'] = $lng;
+         }
+         break;
+      }
+      return $out;
+   }
+
+   /**
+    * @param array<string,mixed> $body
+    * @return array<string,mixed>
+    */
+   private function applyKotaRestrictToPayload(array $body): array
+   {
+      $idKota = (int) ($body['id_kota'] ?? 0);
+      $kota = $this->resolveKotaRestrict($idKota);
+      if ($kota['lat'] !== null && $kota['lng'] !== null) {
+         $body['lat'] = $kota['lat'];
+         $body['lng'] = $kota['lng'];
+         $body['hard_restrict'] = true;
+         $body['restrict_radius'] = 25000;
+         $body['restrict_lat'] = $kota['lat'];
+         $body['restrict_lng'] = $kota['lng'];
+      }
+      if ($kota['city_name'] !== '') {
+         $body['city_name'] = $kota['city_name'];
+      }
+      return $body;
    }
 }

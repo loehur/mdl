@@ -10,9 +10,10 @@ use App\Config\GoogleMaps;
 class GoogleMapsPlaces
 {
     /**
+     * @param array{hard_restrict?:bool,restrict_radius?:float,city_name?:string} $options
      * @return array{ok:bool,message?:string,items?:array<int,array{place_id:string,label:string}>}
      */
-    public static function autocomplete(string $input, ?float $lat = null, ?float $lng = null): array
+    public static function autocomplete(string $input, ?float $lat = null, ?float $lng = null, array $options = []): array
     {
         $input = trim($input);
         if ($input === '') {
@@ -27,21 +28,32 @@ class GoogleMapsPlaces
             return ['ok' => false, 'message' => 'Google Maps API key belum dikonfigurasi di server.'];
         }
 
+        $hardRestrict = !empty($options['hard_restrict']);
+        $restrictRadius = (float) ($options['restrict_radius'] ?? 25000.0);
+        if ($restrictRadius <= 0) {
+            $restrictRadius = 25000.0;
+        }
+        $restrictRadius = min($restrictRadius, 50000.0);
+        $cityName = trim((string) ($options['city_name'] ?? ''));
+
         $payload = [
             'input' => $input,
             'includedRegionCodes' => ['id'],
             'languageCode' => 'id',
         ];
         if ($lat !== null && $lng !== null && $lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180) {
-            $payload['locationBias'] = [
-                'circle' => [
-                    'center' => [
-                        'latitude' => $lat,
-                        'longitude' => $lng,
-                    ],
-                    'radius' => 50000.0,
+            $circle = [
+                'center' => [
+                    'latitude' => $lat,
+                    'longitude' => $lng,
                 ],
+                'radius' => $restrictRadius,
             ];
+            if ($hardRestrict) {
+                $payload['locationRestriction'] = ['circle' => $circle];
+            } else {
+                $payload['locationBias'] = ['circle' => $circle];
+            }
         }
 
         $res = self::postJson('https://places.googleapis.com/v1/places:autocomplete', $payload, $apiKey);
@@ -76,6 +88,9 @@ class GoogleMapsPlaces
             if ($label === '') {
                 continue;
             }
+            if ($cityName !== '' && !self::labelMatchesCity($label, $cityName)) {
+                continue;
+            }
             $items[] = [
                 'place_id' => $placeId,
                 'label' => $label,
@@ -89,9 +104,10 @@ class GoogleMapsPlaces
     }
 
     /**
+     * @param array{restrict_lat?:float,restrict_lng?:float,restrict_radius?:float,city_name?:string} $options
      * @return array{ok:bool,message?:string,lat?:float,lng?:float,label?:string}
      */
-    public static function placeDetails(string $placeId): array
+    public static function placeDetails(string $placeId, array $options = []): array
     {
         $placeId = trim($placeId);
         if ($placeId === '') {
@@ -122,6 +138,24 @@ class GoogleMapsPlaces
         }
 
         $label = trim((string) ($res['formattedAddress'] ?? $res['displayName']['text'] ?? ''));
+
+        $restrictLat = isset($options['restrict_lat']) ? (float) $options['restrict_lat'] : null;
+        $restrictLng = isset($options['restrict_lng']) ? (float) $options['restrict_lng'] : null;
+        $restrictRadius = (float) ($options['restrict_radius'] ?? 25000.0);
+        if ($restrictRadius <= 0) {
+            $restrictRadius = 25000.0;
+        }
+        $cityName = trim((string) ($options['city_name'] ?? ''));
+
+        if ($cityName !== '' && !self::labelMatchesCity($label, $cityName)) {
+            return ['ok' => false, 'message' => 'Lokasi di luar kota cabang'];
+        }
+        if ($restrictLat !== null && $restrictLng !== null) {
+            $dist = self::distanceMeters($restrictLat, $restrictLng, $lat, $lng);
+            if ($dist > $restrictRadius) {
+                return ['ok' => false, 'message' => 'Lokasi di luar kota cabang'];
+            }
+        }
 
         return [
             'ok' => true,
@@ -192,5 +226,38 @@ class GoogleMapsPlaces
             return 'Autocomplete server ditolak Google. Set GOOGLE_MAPS_SERVER_KEY di Env.php (key tanpa HTTP referrer restriction, aktifkan Places API New).';
         }
         return $message;
+    }
+
+    private static function normalizeCityName(string $name): string
+    {
+        $n = mb_strtolower(trim($name));
+        $n = preg_replace('/^(kota|kabupaten|kab\.?|kota\s+administrasi)\s+/u', '', $n) ?? $n;
+        return preg_replace('/\s+/u', ' ', $n) ?? $n;
+    }
+
+    private static function labelMatchesCity(string $label, string $cityName): bool
+    {
+        $city = self::normalizeCityName($cityName);
+        if ($city === '') {
+            return true;
+        }
+        $hay = mb_strtolower($label);
+        if (mb_strpos($hay, $city) !== false) {
+            return true;
+        }
+        $citySpaced = str_replace(' ', '', $city);
+        $haySpaced = str_replace(' ', '', $hay);
+        return $citySpaced !== '' && mb_strpos($haySpaced, $citySpaced) !== false;
+    }
+
+    private static function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earth = 6371000.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }

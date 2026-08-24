@@ -1,5 +1,17 @@
 <?php
 $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
+$kotaMap = [];
+foreach ($kotaOptions as $k) {
+  $idKota = (string) ($k['id_kota'] ?? '');
+  if ($idKota === '') {
+    continue;
+  }
+  $kotaMap[$idKota] = [
+    'latt' => (float) ($k['latt'] ?? 0),
+    'longt' => (float) ($k['longt'] ?? 0),
+    'nama_kota' => (string) ($k['nama_kota'] ?? ''),
+  ];
+}
 ?>
 <div id="cabang-root">
   <style>
@@ -489,6 +501,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
                     data-latt="<?= htmlspecialchars((string) $latt, ENT_QUOTES) ?>"
                     data-long="<?= htmlspecialchars((string) $long, ENT_QUOTES) ?>"
                     data-gmaps="<?= htmlspecialchars($gmaps, ENT_QUOTES) ?>"
+                    data-kota="<?= htmlspecialchars($idKota, ENT_QUOTES) ?>"
                   ><i class="fas fa-map-marker-alt"></i> Maps</button>
                   <button
                     type="button"
@@ -640,8 +653,9 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
 <script>
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
-  var DEFAULT_LAT = 0.5071;
-  var DEFAULT_LNG = 101.4478;
+  var KOTA_MAP = <?= json_encode($kotaMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+  var FALLBACK_LAT = 0.507068;
+  var FALLBACK_LNG = 101.447779;
   var MAP_ZOOM = 17;
   var root = document.getElementById('cabang-root');
   if (!root) return;
@@ -661,6 +675,8 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
   var mapsSearchTimer = null;
   var mapsSearchSeq = 0;
   var mapsSelectingPlace = false;
+  var mapsDefaultCoords = { lat: FALLBACK_LAT, lng: FALLBACK_LNG, label: 'PEKANBARU' };
+  var mapsKotaId = '';
 
   function toast(msg, type) {
     type = type || 'info';
@@ -795,6 +811,22 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
   function parseCoord(val, fallback) {
     var n = parseFloat(val);
     return isNaN(n) ? fallback : n;
+  }
+
+  function resolveKotaDefaultCoords(idKota) {
+    var k = KOTA_MAP[String(idKota || '')];
+    if (k) {
+      var lat = parseFloat(k.latt);
+      var lng = parseFloat(k.longt);
+      if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+        return {
+          lat: lat,
+          lng: lng,
+          label: String(k.nama_kota || '').trim() || 'kota cabang'
+        };
+      }
+    }
+    return { lat: FALLBACK_LAT, lng: FALLBACK_LNG, label: 'PEKANBARU' };
   }
 
   function roundCoord(value) {
@@ -962,7 +994,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       var center = mapInstance.getCenter();
       if (center) return { lat: center.lat(), lng: center.lng() };
     }
-    return { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+    return { lat: mapsDefaultCoords.lat, lng: mapsDefaultCoords.lng };
   }
 
   function fetchMapsSearchSuggestions(query) {
@@ -972,7 +1004,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       return;
     }
     var seq = ++mapsSearchSeq;
-    var payload = { input: q };
+    var payload = { input: q, id_kota: mapsKotaId };
     var bias = getMapBiasCoords();
     payload.lat = bias.lat;
     payload.lng = bias.lng;
@@ -1001,7 +1033,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
         }
         if (!items.length) {
           closeMapsSearchSuggestions();
-          setMapsHint('Tidak ada hasil untuk pencarian ini.', true);
+          setMapsHint('Tidak ada hasil di kota cabang untuk pencarian ini.', true);
           return;
         }
         list.innerHTML = items
@@ -1054,7 +1086,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
         'X-Requested-With': 'XMLHttpRequest'
       },
       credentials: 'same-origin',
-      body: JSON.stringify({ place_id: placeId })
+      body: JSON.stringify({ place_id: placeId, id_kota: mapsKotaId })
     })
       .then(function (res) {
         return res.json();
@@ -1093,22 +1125,27 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
     var nama = btn.getAttribute('data-nama') || '';
     var latRaw = btn.getAttribute('data-latt');
     var lngRaw = btn.getAttribute('data-long');
+    var idKota = btn.getAttribute('data-kota') || '';
+    mapsKotaId = idKota;
     var hasCoords = latRaw !== '' && lngRaw !== '' && !isNaN(parseFloat(latRaw)) && !isNaN(parseFloat(lngRaw));
-    var lat = hasCoords ? parseCoord(latRaw, DEFAULT_LAT) : DEFAULT_LAT;
-    var lng = hasCoords ? parseCoord(lngRaw, DEFAULT_LNG) : DEFAULT_LNG;
+    var kotaDefault = resolveKotaDefaultCoords(idKota);
+    mapsDefaultCoords = kotaDefault;
+    var lat = hasCoords ? parseCoord(latRaw, kotaDefault.lat) : kotaDefault.lat;
+    var lng = hasCoords ? parseCoord(lngRaw, kotaDefault.lng) : kotaDefault.lng;
     var gmaps = btn.getAttribute('data-gmaps') || '';
 
     document.getElementById('mapsCabangId').value = id;
     document.getElementById('mapsSearch').value = '';
     closeMapsSearchSuggestions();
-    setMapsHint('Pilih alamat dari hasil pencarian. Koordinat dan link Google Maps terisi otomatis.');
 
     if (hasCoords) {
       setMapCoords(lat, lng, gmaps || buildGmapsUrl(lat, lng));
+      setMapsHint('Pilih alamat dari hasil pencarian untuk mengubah koordinat.');
     } else {
       document.getElementById('mapsLatt').value = '';
       document.getElementById('mapsLong').value = '';
       document.getElementById('mapsGmaps').value = '';
+      setMapsHint('Peta dimulai dari ' + kotaDefault.label + '. Pencarian dibatasi ke kota cabang.');
     }
 
     document.getElementById('cabangMapsTitle').textContent = 'Maps · ' + (kode || id);
