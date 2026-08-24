@@ -322,11 +322,17 @@
       grid-template-columns: 1fr 1fr;
     }
   }
-  .kas-nontunai-row__bca {
+  .kas-nontunai-row__side {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .kas-nontunai-row__panel {
+    grid-row: 1;
+    grid-column: 1;
     visibility: hidden;
     pointer-events: none;
   }
-  .kas-nontunai-row__bca.is-visible {
+  .kas-nontunai-row__panel.is-visible {
     visibility: visible;
     pointer-events: auto;
   }
@@ -372,5 +378,23 @@
     font-size: 0.78rem;
     font-weight: 700;
     color: #475569;
+  }
+  .kas-qris-guide {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 72px;
+    padding: 10px 12px;
+    border: 1px solid #86efac;
+    background: linear-gradient(180deg, #f0fdf4, #fff);
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #15803d;
+    line-height: 1.35;
+  }
+  .kas-qris-guide__icon {
+    font-size: 1.35rem;
+    flex-shrink: 0;
   }
 </style>

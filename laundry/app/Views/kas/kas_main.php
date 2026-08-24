@@ -320,17 +320,26 @@
                 </div>
               </div>
               <?php $bcaGuide = URL::NON_TUNAI_GUIDE['BCA'] ?? null; ?>
-              <div class="kas-nontunai-row__bca penarikanBcaRekeningField">
-                <label class="op-label">Data Rekening BCA</label>
-                <?php if ($bcaGuide) { ?>
-                  <div class="kas-bca-rekening">
-                    <div class="kas-bca-rekening__label"><?= htmlspecialchars($bcaGuide['label']) ?></div>
-                    <div class="kas-bca-rekening__number"><?= htmlspecialchars($bcaGuide['number']) ?></div>
-                    <div class="kas-bca-rekening__name">a.n. <?= htmlspecialchars($bcaGuide['name']) ?></div>
+              <div class="kas-nontunai-row__side">
+                <div class="kas-nontunai-row__panel penarikanQrisGuideField is-visible">
+                  <label class="op-label">Panduan QRIS</label>
+                  <div class="kas-qris-guide">
+                    <i class="fas fa-qrcode kas-qris-guide__icon"></i>
+                    <span>Scan pada QRIS Madinah Laundry</span>
                   </div>
-                <?php } else { ?>
-                  <div class="kas-bca-rekening kas-bca-rekening--empty">Data rekening BCA belum tersedia</div>
-                <?php } ?>
+                </div>
+                <div class="kas-nontunai-row__panel penarikanBcaRekeningField">
+                  <label class="op-label">Data Rekening BCA</label>
+                  <?php if ($bcaGuide) { ?>
+                    <div class="kas-bca-rekening">
+                      <div class="kas-bca-rekening__label"><?= htmlspecialchars($bcaGuide['label']) ?></div>
+                      <div class="kas-bca-rekening__number"><?= htmlspecialchars($bcaGuide['number']) ?></div>
+                      <div class="kas-bca-rekening__name">a.n. <?= htmlspecialchars($bcaGuide['name']) ?></div>
+                    </div>
+                  <?php } else { ?>
+                    <div class="kas-bca-rekening kas-bca-rekening--empty">Data rekening BCA belum tersedia</div>
+                  <?php } ?>
+                </div>
               </div>
             </div>
           </div>
@@ -366,7 +375,7 @@
       </div>
       <div class="op-modal__foot">
         <p class="kas-hint-warn penarikanHintTunai">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</p>
-        <p class="kas-hint-warn penarikanHintNonTunai" style="display:none;">Menunggu konfirmasi admin atau cron. QRIS tidak perlu scan.</p>
+        <p class="kas-hint-warn penarikanHintNonTunai" style="display:none;">Cek QRIS dan Rekening: Ketik <b>REK</b> kirim ke Whatsapp Madinah Laundry</p>
         <button type="submit" class="op-btn op-btn--blue op-btn--block">Tarik Kas</button>
       </div>
     </form>
@@ -619,6 +628,7 @@
 
     $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
     $form.find('.penarikanNonTunaiRow').toggle(isNonTunai);
+    $form.find('.penarikanQrisGuideField').toggleClass('is-visible', isNonTunai && note === 'QRIS');
     $form.find('.penarikanBcaRekeningField').toggleClass('is-visible', isBca);
     $form.find('.penarikanKeteranganField').toggleClass('is-hidden', isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
