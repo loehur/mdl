@@ -7,16 +7,45 @@ namespace App\Helpers;
  */
 class BcaQrisMatcher
 {
+    private const MATCH_CANDIDATE_LIMIT = 100;
+
     /**
      * Transaksi QRIS unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      *
+     * Tie-break: nominal terdekat → waktu terdekat ke referenceTime → random.
+     *
      * @return array|null row bca_qris_transaksi
      */
-    public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
-    {
-        $bounds = BcaScrapper::cronNominalBounds($nominal);
+    public static function findUnlinkedMatch(
+        $mainDb,
+        string $nominal,
+        string $startYmd,
+        string $endYmd,
+        string $referenceTime = ''
+    ): ?array {
+        $candidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd);
 
-        $row = $mainDb->query(
+        return BcaScrapper::pickBestPaymentMatch(
+            $candidates,
+            $nominal,
+            $referenceTime,
+            [BcaScrapper::class, 'qrisMatchTimestamp']
+        );
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function findUnlinkedCandidates(
+        $mainDb,
+        string $nominal,
+        string $startYmd,
+        string $endYmd
+    ): array {
+        $bounds = BcaScrapper::cronNominalBounds($nominal);
+        $limit = self::MATCH_CANDIDATE_LIMIT;
+
+        $rows = $mainDb->query(
             'SELECT t.id, t.tanggal, t.waktu, t.rrn, t.nominal, t.status, t.keterangan
              FROM bca_qris_transaksi t
              LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
@@ -27,12 +56,11 @@ class BcaQrisMatcher
                )
                AND t.tanggal >= ?
                AND t.tanggal <= ?
-             ORDER BY ABS(t.nominal - ?) ASC, t.tanggal DESC, t.waktu DESC, t.id ASC
-             LIMIT 1',
-            [$nominal, $bounds['min'], $bounds['max'], $startYmd, $endYmd, $nominal]
-        )->row_array();
+             LIMIT ' . (int) $limit,
+            [$nominal, $bounds['min'], $bounds['max'], $startYmd, $endYmd]
+        )->result_array();
 
-        return is_array($row) && !empty($row['id']) ? $row : null;
+        return is_array($rows) ? $rows : [];
     }
 
     /**
@@ -151,7 +179,7 @@ class BcaQrisMatcher
         $start = (string) $range['start'];
         $end = (string) $range['end'];
 
-        $qris = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+        $qris = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $insertTime);
         $scraped = false;
         $scrapeWindow = BcaScrapper::qrisScrapeWindow();
 
@@ -173,7 +201,7 @@ class BcaQrisMatcher
                 ];
             }
             $scraped = empty($fetch['skipped_scrape']);
-            $qris = self::findUnlinkedMatch($mainDb, $nominal, $start, $end);
+            $qris = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $insertTime);
         }
 
         if ($qris === null) {

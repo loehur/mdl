@@ -9,21 +9,52 @@ use App\Helpers\Payment\BcaMutasiUnbind;
  */
 class BcaMutasiMatcher
 {
+    private const MATCH_CANDIDATE_LIMIT = 100;
+
     /**
      * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
      * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
+     * Tie-break: nominal terdekat → waktu terdekat ke referenceTime → random.
+     *
      * @return array|null row bca_mutasi
      */
-    public static function findUnlinkedMatch($mainDb, string $nominal, string $startYmd, string $endYmd, bool $exact = false): ?array
-    {
+    public static function findUnlinkedMatch(
+        $mainDb,
+        string $nominal,
+        string $startYmd,
+        string $endYmd,
+        bool $exact = false,
+        string $referenceTime = ''
+    ): ?array {
+        $candidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd, $exact);
+
+        return BcaScrapper::pickBestPaymentMatch(
+            $candidates,
+            $nominal,
+            $referenceTime,
+            [BcaScrapper::class, 'mutasiMatchTimestamp']
+        );
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function findUnlinkedCandidates(
+        $mainDb,
+        string $nominal,
+        string $startYmd,
+        string $endYmd,
+        bool $exact
+    ): array {
         $today = date('Y-m-d');
         $pendStart = BcaScrapper::lookbackMinStart();
+        $limit = self::MATCH_CANDIDATE_LIMIT;
 
         if ($exact) {
-            $row = $mainDb->query(
-                'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
+            $rows = $mainDb->query(
+                'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi, m.created_at
                  FROM bca_mutasi m
                  LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
                  WHERE l.id IS NULL
@@ -37,11 +68,7 @@ class BcaMutasiMatcher
                        AND DATE(m.created_at) <= ?
                      )
                    )
-                 ORDER BY
-                   CASE WHEN UPPER(m.tanggal) = ? THEN 0 ELSE 1 END,
-                   m.tanggal_iso ASC,
-                   m.id ASC
-                 LIMIT 1',
+                 LIMIT ' . (int) $limit,
                 [
                     'CR',
                     $nominal,
@@ -50,17 +77,16 @@ class BcaMutasiMatcher
                     'PEND',
                     $pendStart,
                     $today,
-                    'PEND',
                 ]
-            )->row_array();
+            )->result_array();
 
-            return is_array($row) && !empty($row['id']) ? $row : null;
+            return is_array($rows) ? $rows : [];
         }
 
         $bounds = BcaScrapper::cronNominalBounds($nominal);
 
-        $row = $mainDb->query(
-            'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi
+        $rows = $mainDb->query(
+            'SELECT m.id, m.tanggal, m.tanggal_iso, m.keterangan, m.nominal, m.mutasi, m.created_at
              FROM bca_mutasi m
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
@@ -77,12 +103,7 @@ class BcaMutasiMatcher
                    AND DATE(m.created_at) <= ?
                  )
                )
-             ORDER BY
-               ABS(m.nominal - ?) ASC,
-               CASE WHEN UPPER(m.tanggal) = ? THEN 0 ELSE 1 END,
-               m.tanggal_iso ASC,
-               m.id ASC
-             LIMIT 1',
+             LIMIT ' . (int) $limit,
             [
                 'CR',
                 $nominal,
@@ -93,12 +114,10 @@ class BcaMutasiMatcher
                 'PEND',
                 $pendStart,
                 $today,
-                $nominal,
-                'PEND',
             ]
-        )->row_array();
+        )->result_array();
 
-        return is_array($row) && !empty($row['id']) ? $row : null;
+        return is_array($rows) ? $rows : [];
     }
 
     /**
@@ -244,9 +263,14 @@ class BcaMutasiMatcher
     /**
      * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      */
-    public static function findUnlinkedMatchExact($mainDb, string $nominal, string $startYmd, string $endYmd): ?array
-    {
-        return self::findUnlinkedMatch($mainDb, $nominal, $startYmd, $endYmd, true);
+    public static function findUnlinkedMatchExact(
+        $mainDb,
+        string $nominal,
+        string $startYmd,
+        string $endYmd,
+        string $referenceTime = ''
+    ): ?array {
+        return self::findUnlinkedMatch($mainDb, $nominal, $startYmd, $endYmd, true, $referenceTime);
     }
 
     /**
@@ -275,7 +299,7 @@ class BcaMutasiMatcher
         $start = (string) $range['start'];
         $end = (string) $range['end'];
 
-        $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact);
+        $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact, $insertTime);
         $scraped = false;
 
         if ($mutasi === null) {
@@ -290,7 +314,7 @@ class BcaMutasiMatcher
                 ];
             }
             $scraped = empty($fetch['skipped_scrape']);
-            $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact);
+            $mutasi = self::findUnlinkedMatch($mainDb, $nominal, $start, $end, $exact, $insertTime);
         }
 
         if ($mutasi === null) {

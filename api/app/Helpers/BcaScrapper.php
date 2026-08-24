@@ -360,6 +360,139 @@ class BcaScrapper
     }
 
     /**
+     * Pilih kandidat match terbaik: nominal terdekat → waktu terdekat → random jika seri.
+     *
+     * @param array<int,array<string,mixed>> $candidates
+     * @param callable(array<string,mixed>):int $resolveTimestamp
+     */
+    public static function pickBestPaymentMatch(
+        array $candidates,
+        string $targetNominal,
+        string $referenceTime,
+        callable $resolveTimestamp
+    ): ?array {
+        if ($candidates === []) {
+            return null;
+        }
+
+        $target = (float) self::formatNominal($targetNominal);
+        $refTs = self::parseMatchReferenceTime($referenceTime);
+
+        $scored = [];
+        foreach ($candidates as $row) {
+            if (!is_array($row) || empty($row['id'])) {
+                continue;
+            }
+
+            $nom = (float) self::formatNominal($row['nominal'] ?? 0);
+            $candidateTs = (int) $resolveTimestamp($row);
+            $timeDiff = ($refTs > 0 && $candidateTs > 0)
+                ? abs($candidateTs - $refTs)
+                : PHP_INT_MAX;
+
+            $scored[] = [
+                'row' => $row,
+                'nom_diff' => abs($nom - $target),
+                'time_diff' => $timeDiff,
+            ];
+        }
+
+        if ($scored === []) {
+            return null;
+        }
+
+        usort($scored, static function (array $a, array $b): int {
+            if ($a['nom_diff'] !== $b['nom_diff']) {
+                return $a['nom_diff'] <=> $b['nom_diff'];
+            }
+            if ($a['time_diff'] !== $b['time_diff']) {
+                return $a['time_diff'] <=> $b['time_diff'];
+            }
+
+            return 0;
+        });
+
+        $bestNom = $scored[0]['nom_diff'];
+        $bestTime = $scored[0]['time_diff'];
+        $ties = array_values(array_filter(
+            $scored,
+            static fn(array $s): bool => $s['nom_diff'] === $bestNom && $s['time_diff'] === $bestTime
+        ));
+
+        $picked = count($ties) > 1
+            ? $ties[random_int(0, count($ties) - 1)]
+            : $ties[0];
+
+        return $picked['row'];
+    }
+
+    public static function parseMatchReferenceTime(string $referenceTime): int
+    {
+        $referenceTime = trim($referenceTime);
+        if ($referenceTime === '') {
+            return time();
+        }
+
+        $ts = strtotime($referenceTime);
+
+        return $ts !== false ? $ts : time();
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    public static function mutasiMatchTimestamp(array $row): int
+    {
+        if (!empty($row['created_at'])) {
+            $ts = strtotime((string) $row['created_at']);
+            if ($ts !== false) {
+                return $ts;
+            }
+        }
+
+        if (!empty($row['tanggal_iso'])) {
+            $ts = strtotime((string) $row['tanggal_iso'] . ' 00:00:00');
+            if ($ts !== false) {
+                return $ts;
+            }
+        }
+
+        $tanggal = trim((string) ($row['tanggal'] ?? ''));
+        if ($tanggal !== '' && strtoupper($tanggal) !== 'PEND') {
+            $ts = strtotime($tanggal);
+            if ($ts !== false) {
+                return $ts;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    public static function qrisMatchTimestamp(array $row): int
+    {
+        $date = trim((string) ($row['tanggal'] ?? ''));
+        $time = trim((string) ($row['waktu'] ?? ''));
+        if ($date !== '' && $time !== '') {
+            $ts = strtotime($date . ' ' . $time);
+            if ($ts !== false) {
+                return $ts;
+            }
+        }
+
+        if ($date !== '') {
+            $ts = strtotime($date . ' 00:00:00');
+            if ($ts !== false) {
+                return $ts;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
      * @param array<int,array<string,mixed>> $rows
      * @return array{inserted:int,updated:int,skipped_dup:int}
      */
