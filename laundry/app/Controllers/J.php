@@ -752,15 +752,11 @@ class J extends Controller
 
       $payments = [];
       $totalBayar = 0;
-      $dibayar = 0;
       foreach ($kasRows as $ka) {
          $st = (int) ($ka['status_mutasi'] ?? 0);
          $jumlah = (int) ($ka['jumlah'] ?? 0);
          if ($st === 3) {
             $totalBayar += $jumlah;
-         }
-         if ($st !== 4) {
-            $dibayar += $jumlah;
          }
          $metodeId = (int) ($ka['metode_mutasi'] ?? 0);
          $payments[] = [
@@ -775,7 +771,7 @@ class J extends Controller
       }
 
       $subTotal = (int) round($subTotal);
-      $sisa = max(0, $subTotal - $dibayar);
+      $sisa = max(0, $subTotal - $totalBayar);
       $lunas = ($subTotal - $totalBayar) < 1;
 
       echo json_encode([
@@ -785,7 +781,7 @@ class J extends Controller
             'pelanggan' => $pelangganNama,
             'created_at' => $fmt($first['insertTime'] ?? ''),
             'total' => $subTotal,
-            'dibayar' => $dibayar,
+            'dibayar' => $totalBayar,
             'sisa' => $sisa,
             'lunas' => $lunas,
             'payments' => $payments,

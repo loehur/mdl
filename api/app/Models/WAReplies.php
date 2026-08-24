@@ -4139,9 +4139,9 @@ class WAReplies
                 $itemLines[] = "+ " . ($sc['surcas_jenis'] ?? 'Surcharge') . ": Rp " . number_format($j, 0, ',', '.');
             }
 
-            // Sama seperti I.php invoice: hitung pembayaran dengan status_mutasi <> 4 (exclude failed only)
+            // Hanya hitung pembayaran sukses (status_mutasi = 3); pending (2) tidak mengurangi sisa tagihan
             $payments = $db->query(
-                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 1 AND ref_transaksi = ? AND status_mutasi <> 4",
+                "SELECT COALESCE(SUM(jumlah), 0) as bayar FROM kas WHERE id_cabang = ? AND jenis_transaksi = 1 AND ref_transaksi = ? AND status_mutasi = 3",
                 [$id_cabang, $noRef]
             )->row();
             $bayar = (int) ($payments->bayar ?? 0);

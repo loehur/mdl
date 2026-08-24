@@ -137,7 +137,7 @@ class NonTunaiAdmin extends Controller
                 m.tanggal_iso,
                 m.keterangan,
                 m.nominal,
-                m.mutasi,
+                m.mutasi AS db_cr,
                 m.created_at AS mutasi_created_at
              FROM bca_mutasi_link l
              INNER JOIN bca_mutasi m ON m.id = l.bca_mutasi_id
@@ -212,12 +212,11 @@ class NonTunaiAdmin extends Controller
                 m.tanggal_iso,
                 m.keterangan,
                 m.nominal,
-                m.mutasi,
+                m.mutasi AS db_cr,
                 m.created_at AS mutasi_created_at
              FROM bca_mutasi m
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
-               AND m.mutasi = 'CR'
                AND (
                 (m.tanggal_iso IS NOT NULL
                  AND m.tanggal_iso >= '" . $startEsc . "'

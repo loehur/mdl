@@ -68,13 +68,17 @@ $fmtRp = static function ($value): string {
     }
     #nta-root table.nta-table th:nth-child(1),
     #nta-root table.nta-table td:nth-child(1),
-    #nta-root table.nta-table th:nth-child(3),
-    #nta-root table.nta-table td:nth-child(3) {
+    #nta-root table.nta-table th:nth-child(4),
+    #nta-root table.nta-table td:nth-child(4) {
       text-align: right;
     }
-    #nta-root table.nta-table td:nth-child(3) .nta-nominal-pair {
+    #nta-root table.nta-table td:nth-child(4) .nta-nominal-pair {
       justify-content: flex-end;
       width: 100%;
+    }
+    #nta-root table.nta-table th:nth-child(3),
+    #nta-root table.nta-table td:nth-child(3) {
+      text-align: center;
     }
     #nta-root .nta-empty {
       text-align: center;
@@ -125,6 +129,16 @@ $fmtRp = static function ($value): string {
       background: #fff7ed;
       color: #b45309;
       border-color: #fdba74;
+    }
+    #nta-root .nta-badge--cr {
+      background: #ecfdf5;
+      color: #047857;
+      border-color: #6ee7b7;
+    }
+    #nta-root .nta-badge--db {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fca5a5;
     }
     #nta-root .nta-nominal-single {
       font-weight: 800;
