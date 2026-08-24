@@ -43,6 +43,7 @@ $this->view('non_tunai_admin/_filter', [
               <th>DB / CR</th>
               <th>Nominal</th>
               <th>Payer</th>
+              <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -52,8 +53,15 @@ $this->view('non_tunai_admin/_filter', [
               }
               $entityType = (string) ($row['entity_type'] ?? '');
               $entityRef = (string) ($row['entity_ref'] ?? '');
-              $isKasLaundry = ($entityType === 'kas_laundry');
-              $payerRow = ($isKasLaundry && isset($payerByRef[$entityRef])) ? $payerByRef[$entityRef] : null;
+              $linkId = (int) ($row['link_id'] ?? 0);
+              $payerRow = isset($payerByRef[$entityRef]) ? $payerByRef[$entityRef] : null;
+
+              $entityLabels = [
+                  'kas_laundry' => 'Laundry',
+                  'invoice' => 'Invoice',
+                  'salon_subscription' => 'Salon',
+              ];
+              $entityLabel = $entityLabels[$entityType] ?? $entityType;
 
               $tanggalLabel = (string) ($row['tanggal'] ?? '');
               if (strtoupper($tanggalLabel) !== 'PEND' && !empty($row['tanggal_iso'])) {
@@ -99,7 +107,7 @@ $this->view('non_tunai_admin/_filter', [
                       ['label' => 'Bill Nominal', 'value' => $fmtRp($billNominal)],
                       ['label' => 'Selisih', 'value' => $selisih !== null ? $fmtRp($selisih) : '—'],
                       ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
-                      ['label' => 'Tipe Entity', 'value' => $entityType],
+                      ['label' => 'Tipe Entity', 'value' => $entityLabel . ($entityType !== '' ? ' (' . $entityType . ')' : '')],
                       ['label' => 'Referensi', 'value' => $entityRef],
                       ['label' => 'Jenis Kas', 'value' => is_array($payerRow) ? (string) ($payerRow['badge'] ?? '—') : '—'],
                       ['label' => 'Payer', 'html' => $payerHtml],
@@ -125,6 +133,16 @@ $this->view('non_tunai_admin/_filter', [
                   'billNominal' => $billNominal,
               ]); ?></td>
               <td><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
+              <td class="text-center">
+                <button type="button"
+                  class="btn btn-outline-danger btn-sm nta-unbind-btn"
+                  data-link-id="<?= $linkId ?>"
+                  data-entity-type="<?= htmlspecialchars($entityLabel, ENT_QUOTES, 'UTF-8') ?>"
+                  data-entity-ref="<?= htmlspecialchars($entityRef, ENT_QUOTES, 'UTF-8') ?>"
+                  title="Unbind &amp; blokir entity">
+                  <i class="fas fa-unlink me-1"></i>Unbind
+                </button>
+              </td>
             </tr>
             <?php } ?>
           </tbody>
@@ -210,5 +228,8 @@ $this->view('non_tunai_admin/_filter', [
 
 <?php
 $this->view('non_tunai_admin/_detail_modal');
+$this->view('non_tunai_admin/_unbind_modal', [
+    'unbindUrl' => URL::BASE_URL . 'NonTunaiAdmin/unbindMutasiLink',
+]);
 $this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
 ?>

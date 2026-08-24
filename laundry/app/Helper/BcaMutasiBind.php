@@ -129,6 +129,10 @@ class BcaMutasiBind
             return false;
         }
 
+        if (self::isEntityBlocked($dbMain, self::ENTITY_KAS_LAUNDRY, $refFinance)) {
+            return false;
+        }
+
         $row = self::getMutasiRow($dbMain, $mutasiId);
         if (!$row) {
             return false;
@@ -158,6 +162,30 @@ class BcaMutasiBind
         ]);
 
         return isset($ins['errno']) && (int) $ins['errno'] === 0;
+    }
+
+    /**
+     * @param object $dbMain
+     */
+    public static function isEntityBlocked($dbMain, string $entityType, string $entityRef): bool
+    {
+        $entityType = trim($entityType);
+        $entityRef = trim($entityRef);
+        if ($entityType === '' || $entityRef === '') {
+            return false;
+        }
+
+        try {
+            $row = $dbMain->get_where_row(
+                'bca_mutasi_link_block',
+                "entity_type = '" . $dbMain->escape($entityType) . "'"
+                . " AND entity_ref = '" . $dbMain->escape($entityRef) . "'"
+            );
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return is_array($row) && !empty($row['id']);
     }
 
     /**

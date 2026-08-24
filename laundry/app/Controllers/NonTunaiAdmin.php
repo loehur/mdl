@@ -75,6 +75,60 @@ class NonTunaiAdmin extends Controller
     }
 
     /**
+     * POST — unbind mutasi BCA, blokir entity, kembalikan status pembayaran.
+     */
+    public function unbindMutasiLink()
+    {
+        $this->session_cek(1);
+
+        $linkId = (int) ($_POST['link_id'] ?? 0);
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+
+        if ($linkId < 1) {
+            echo json_encode(['ok' => false, 'message' => 'link_id tidak valid'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $this->bootstrapApi();
+            $blockedBy = trim((string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? 'admin'));
+
+            $result = \App\Helpers\Payment\BcaMutasiUnbind::execute(
+                \App\Core\DB::getInstance(0),
+                \App\Core\DB::getInstance(1),
+                \App\Core\DB::getInstance(6),
+                \App\Core\DB::getInstance(4),
+                $linkId,
+                $reason !== '' ? $reason : 'Unbind admin BCA Mutasi',
+                $blockedBy
+            );
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            error_log('[NonTunaiAdmin::unbindMutasiLink] ' . $e->getMessage());
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Unbind gagal: ' . $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    private function bootstrapApi(): void
+    {
+        if (class_exists('\\App\\Core\\DB', false)) {
+            return;
+        }
+
+        $apiRoot = dirname(__DIR__, 3) . '/api/app';
+        require_once $apiRoot . '/Config/Env.php';
+        require_once $apiRoot . '/Config/DBC.php';
+        require_once $apiRoot . '/Core/DB.php';
+        require_once $apiRoot . '/Helpers/BcaScrapper.php';
+        require_once $apiRoot . '/Helpers/Laundry/KasNonTunaiConfirm.php';
+        require_once $apiRoot . '/Helpers/Payment/BcaMutasiUnbind.php';
+    }
+
+    /**
      * @return array{start:string,end:string}
      */
     private function parseDateRange(): array
@@ -294,24 +348,50 @@ class NonTunaiAdmin extends Controller
     {
         $this->helper('BcaMutasiBind');
 
-        $refs = [];
+        $kasRefs = [];
+        $invoiceRefs = [];
+        $salonRefs = [];
+
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
-            if ((string) ($row['entity_type'] ?? '') !== BcaMutasiBind::ENTITY_KAS_LAUNDRY) {
+            $entityType = (string) ($row['entity_type'] ?? '');
+            $ref = trim((string) ($row['entity_ref'] ?? ''));
+            if ($ref === '') {
                 continue;
             }
-            $ref = trim((string) ($row['entity_ref'] ?? ''));
-            if ($ref !== '') {
-                $refs[$ref] = $ref;
+
+            if ($entityType === BcaMutasiBind::ENTITY_KAS_LAUNDRY) {
+                $kasRefs[$ref] = $ref;
+            } elseif ($entityType === 'invoice') {
+                $invoiceRefs[$ref] = $ref;
+            } elseif ($entityType === 'salon_subscription') {
+                $salonRefs[$ref] = $ref;
             }
         }
 
-        if ($refs === []) {
-            return [];
+        $out = [];
+
+        if ($kasRefs !== []) {
+            $out = array_merge($out, $this->loadKasPayerByRef($kasRefs));
+        }
+        if ($invoiceRefs !== []) {
+            $out = array_merge($out, $this->loadInvoicePayerByRef($invoiceRefs));
+        }
+        if ($salonRefs !== []) {
+            $out = array_merge($out, $this->loadSalonPayerByRef($salonRefs));
         }
 
+        return $out;
+    }
+
+    /**
+     * @param array<string,string> $refs
+     * @return array<string,array{name:string,url:?string,badge:string,jenis_transaksi:int}>
+     */
+    private function loadKasPayerByRef(array $refs): array
+    {
         $in = implode(',', array_map(function ($ref) {
             return "'" . $this->db(0)->escape($ref) . "'";
         }, array_values($refs)));
@@ -384,6 +464,95 @@ class NonTunaiAdmin extends Controller
             if ($payer !== null) {
                 $out[$ref] = $payer;
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string,string> $refs payment_ref
+     * @return array<string,array{name:string,url:?string,badge:string,jenis_transaksi:int}>
+     */
+    private function loadInvoicePayerByRef(array $refs): array
+    {
+        try {
+            $this->bootstrapApi();
+            $invoiceDb = \App\Core\DB::getInstance(6);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($refs as $ref) {
+            $payment = $invoiceDb->query(
+                'SELECT p.payment_ref, i.invoice_number, i.public_token
+                 FROM invoice_payments p
+                 INNER JOIN invoices i ON i.id = p.invoice_id
+                 WHERE p.payment_ref = ?
+                 LIMIT 1',
+                [$ref]
+            )->row_array();
+
+            if (!is_array($payment) || empty($payment['payment_ref'])) {
+                $out[$ref] = [
+                    'name' => $ref,
+                    'url' => null,
+                    'badge' => 'Invoice',
+                    'jenis_transaksi' => 0,
+                ];
+                continue;
+            }
+
+            $number = trim((string) ($payment['invoice_number'] ?? ''));
+            $token = trim((string) ($payment['public_token'] ?? ''));
+            $name = $number !== '' ? $number : $ref;
+
+            $out[$ref] = [
+                'name' => $name,
+                'url' => $token !== '' ? ('https://ml.nalju.com/invoice/' . rawurlencode($token)) : null,
+                'badge' => 'Invoice',
+                'jenis_transaksi' => 0,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string,string> $refs payment_ref
+     * @return array<string,array{name:string,url:?string,badge:string,jenis_transaksi:int}>
+     */
+    private function loadSalonPayerByRef(array $refs): array
+    {
+        try {
+            $this->bootstrapApi();
+            $salonDb = \App\Core\DB::getInstance(4);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($refs as $ref) {
+            $payment = $salonDb->query(
+                'SELECT p.payment_ref, p.salon_id, s.salon_name
+                 FROM subscription_payments p
+                 LEFT JOIN salon s ON s.salon_id = p.salon_id
+                 WHERE p.payment_ref = ?
+                 LIMIT 1',
+                [$ref]
+            )->row_array();
+
+            $salonName = trim((string) ($payment['salon_name'] ?? ''));
+            if ($salonName === '') {
+                $salonName = 'Salon #' . (int) ($payment['salon_id'] ?? 0);
+            }
+
+            $out[$ref] = [
+                'name' => $salonName,
+                'url' => null,
+                'badge' => 'Salon',
+                'jenis_transaksi' => 0,
+            ];
         }
 
         return $out;

@@ -2,6 +2,8 @@
 
 namespace App\Helpers;
 
+use App\Helpers\Payment\BcaMutasiUnbind;
+
 /**
  * Cari mutasi BCA yang cocok dengan kas pending, bind ke entitas, fetch on-demand.
  */
@@ -162,6 +164,10 @@ class BcaMutasiMatcher
         $bindNominal = null
     ): bool {
         if ($mutasiId < 1 || $entityType === '' || $entityRef === '') {
+            return false;
+        }
+
+        if (BcaMutasiUnbind::isBlocked($mainDb, $entityType, $entityRef)) {
             return false;
         }
 
