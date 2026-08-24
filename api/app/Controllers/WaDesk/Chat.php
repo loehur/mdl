@@ -32,6 +32,17 @@ class Chat extends WaDeskController
         )->row_array();
         $unreadCount = (int) ($unreadRow['cnt'] ?? 0);
 
+        $openRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS cnt
+             FROM conversations c
+             INNER JOIN {$tbl} k ON k.id = c.channel_id
+             WHERE {$visSql}
+               AND c.last_in_at IS NOT NULL
+               AND c.last_in_at >= DATE_SUB(NOW(), INTERVAL 23 HOUR)",
+            $visBinds
+        )->row_array();
+        $openCount = (int) ($openRow['cnt'] ?? 0);
+
         $binds = $visBinds;
         $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
                        k.phone_number AS wa_number, t.name AS team_name,
@@ -62,6 +73,7 @@ class Chat extends WaDeskController
         $this->success([
             'conversations' => $rows,
             'unread_count' => $unreadCount,
+            'open_count' => $openCount,
         ]);
     }
 

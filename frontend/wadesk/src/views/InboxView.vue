@@ -54,11 +54,18 @@
             </button>
             <button
               type="button"
-              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium transition inline-flex items-center justify-center gap-1.5"
               :class="chat.listFilter === 'open' ? 'bg-accent text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'"
               @click="setListFilter('open')"
             >
               Open
+              <span
+                v-if="chat.openCount > 0"
+                class="min-w-[1.125rem] h-[1.125rem] px-1 rounded-full text-[10px] font-bold leading-none inline-flex items-center justify-center"
+                :class="chat.listFilter === 'open' ? 'bg-white/20 text-white' : 'bg-emerald-500 text-white'"
+              >
+                {{ chat.openCount > 99 ? '99+' : chat.openCount }}
+              </span>
             </button>
             <button
               type="button"
@@ -70,7 +77,7 @@
               <span
                 v-if="chat.unreadCount > 0"
                 class="min-w-[1.125rem] h-[1.125rem] px-1 rounded-full text-[10px] font-bold leading-none inline-flex items-center justify-center"
-                :class="chat.listFilter === 'unread' ? 'bg-white/20 text-white' : 'bg-accent text-white'"
+                :class="chat.listFilter === 'unread' ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'"
               >
                 {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
               </span>
@@ -111,7 +118,7 @@
               </div>
               <span
                 v-if="Number(c.unread) > 0"
-                class="shrink-0 min-w-[1.25rem] h-5 px-1 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center self-center"
+                class="shrink-0 min-w-[1.25rem] h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center self-center"
               >
                 {{ c.unread }}
               </span>

@@ -11,6 +11,7 @@ export const useChatStore = defineStore("chat", {
     search: "",
     listFilter: "all",
     unreadCount: 0,
+    openCount: 0,
     keys: [],
     templates: [],
     ws: null,
@@ -34,6 +35,7 @@ export const useChatStore = defineStore("chat", {
         const res = await api(`/WaDesk/Chat/getConversations${qs ? `?${qs}` : ""}`);
         this.conversations = res.data.conversations || [];
         this.unreadCount = Number(res.data.unread_count ?? 0);
+        this.openCount = Number(res.data.open_count ?? 0);
       } finally {
         if (showLoading) this.loadingList = false;
       }
