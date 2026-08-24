@@ -31,8 +31,18 @@ class TemplateSender
     ): array {
         try {
             $tenantId = (int) $channel['tenant_id'];
+            $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+            if ($wabaId === '') {
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'WABA ID belum diatur untuk channel ini. Isi manual di Admin → Channel.',
+                ];
+            }
+
             $limitGuard = new DailyKeyLimit($this->db);
-            $quota = $limitGuard->canSend($tenantId, $phone);
+            $quota = $limitGuard->canSend($wabaId, $tenantId, $phone);
             if (!$quota['allowed']) {
                 return [
                     'success' => false,
@@ -127,7 +137,7 @@ class TemplateSender
                 ];
             }
 
-            $limitGuard->recordSuccess($tenantId, $phone, $sentByUserId ?: null, 'blast');
+            $limitGuard->recordSuccess($wabaId, $tenantId, $phone, $sentByUserId ?: null, 'blast');
 
             $conv = $this->getOrCreateConversation($channel, $phone, null);
             $fakeUser = ['id' => $sentByUserId];

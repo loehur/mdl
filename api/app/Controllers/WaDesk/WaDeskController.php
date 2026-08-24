@@ -661,4 +661,41 @@ abstract class WaDeskController extends BaseController
             return false;
         }
     }
+
+    protected function getTenantDailyUniqueLimit(int $tenantId): int
+    {
+        $limit = \App\Helpers\WaDesk\DailyKeyLimit::DEFAULT_DAILY_UNIQUE_LIMIT;
+        try {
+            $row = $this->db($this->db_index)->query(
+                "SELECT daily_unique_limit FROM tenants WHERE id = ? LIMIT 1",
+                [$tenantId]
+            )->row_array();
+            $val = (int) ($row['daily_unique_limit'] ?? 0);
+            if ($val > 0) {
+                $limit = $val;
+            }
+        } catch (\Throwable $e) {
+            /* ignore */
+        }
+        return $limit;
+    }
+
+    protected function requireChannelWabaId(array $channel): string
+    {
+        $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+        if ($wabaId === '') {
+            $this->error(
+                'WABA ID belum diatur untuk channel ini. Isi manual di Admin → Channel.',
+                422,
+                ['channel_id' => (int) ($channel['id'] ?? 0)]
+            );
+        }
+        return $wabaId;
+    }
+
+    protected function syncWabaLimitRow(string $wabaId, int $tenantId, ?string $label = null): void
+    {
+        $guard = new \App\Helpers\WaDesk\DailyKeyLimit($this->db($this->db_index));
+        $guard->ensureLimitRow(trim($wabaId), $tenantId, $label);
+    }
 }

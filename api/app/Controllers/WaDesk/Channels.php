@@ -16,10 +16,12 @@ class Channels extends WaDeskController
         $tbl = $this->channelsTable();
         $scope = trim((string) $this->query('scope', 'operational'));
 
+        $select = "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
+                          k.waba_id, k.channel_type, k.status, k.created_at, t.name AS team_name";
+
         if ($user['role'] === 'admin' && $scope === 'all') {
             $rows = $this->db($this->db_index)->query(
-                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
-                        k.channel_type, k.status, k.created_at, t.name AS team_name
+                "{$select}
                  FROM {$tbl} k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ?
@@ -28,8 +30,7 @@ class Channels extends WaDeskController
             )->result_array();
         } elseif ($this->hasOperationalTeam($user)) {
             $rows = $this->db($this->db_index)->query(
-                "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
-                        k.channel_type, k.status, k.created_at, t.name AS team_name
+                "{$select}
                  FROM {$tbl} k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ? AND k.team_id = ? AND k.status = 'active'
@@ -58,9 +59,9 @@ class Channels extends WaDeskController
 
         $tbl = $this->channelsTable();
         $assigned = $this->db($this->db_index)->query(
-            "SELECT id, device_id, team_id, label, phone_number, status
+            "SELECT id, device_id, team_id, label, phone_number, waba_id, status
              FROM {$tbl} WHERE tenant_id = ?",
-            [(int) $admin['tenant_id']]
+            [$tenantId]
         )->result_array();
 
         $byDevice = [];
@@ -76,22 +77,34 @@ class Channels extends WaDeskController
             if (!is_array($dev)) {
                 continue;
             }
-            $deviceId = trim((string) (
-                $dev['device_id'] ?? $dev['id'] ?? $dev['deviceId'] ?? ''
-            ));
+            $deviceId = trim((string) ($dev['device_id'] ?? $dev['id'] ?? ''));
             if ($deviceId === '') {
                 continue;
             }
-            $phone = $this->normalizePhone((string) (
-                $dev['phone'] ?? $dev['phone_number'] ?? $dev['number'] ?? $dev['device_number'] ?? ''
-            ));
-            $typeRaw = strtolower((string) ($dev['type'] ?? $dev['device_type'] ?? 'waba'));
-            $channelType = str_contains($typeRaw, 'waba') ? 'waba' : 'device';
+
+            $phone = $this->normalizePhone((string) ($dev['phone_number'] ?? $dev['phone'] ?? ''));
+            $wabaId = trim((string) ($dev['waba_id'] ?? ''));
+            $channelType = strtolower((string) ($dev['channel_type'] ?? 'waba'));
+            if (!in_array($channelType, ['waba', 'device'], true)) {
+                $channelType = 'waba';
+            }
+
+            if (isset($byDevice[$deviceId]) && $wabaId !== '') {
+                $channelId = (int) ($byDevice[$deviceId]['id'] ?? 0);
+                $currentWaba = trim((string) ($byDevice[$deviceId]['waba_id'] ?? ''));
+                if ($channelId > 0 && $currentWaba === '') {
+                    $this->db($this->db_index)->update($tbl, ['waba_id' => $wabaId], ['id' => $channelId]);
+                    $byDevice[$deviceId]['waba_id'] = $wabaId;
+                    $this->syncWabaLimitRow($wabaId, $tenantId, (string) ($byDevice[$deviceId]['label'] ?? ''));
+                }
+            }
+
             $devices[] = [
                 'device_id' => $deviceId,
                 'phone_number' => $phone,
-                'label' => trim((string) ($dev['name'] ?? $dev['label'] ?? $deviceId)),
+                'label' => trim((string) ($dev['label'] ?? $dev['name'] ?? $deviceId)),
                 'channel_type' => $channelType,
+                'waba_id' => $wabaId !== '' ? $wabaId : null,
                 'status' => (string) ($dev['status'] ?? $dev['connection_status'] ?? ''),
                 'assigned' => $byDevice[$deviceId] ?? null,
             ];
@@ -115,9 +128,10 @@ class Channels extends WaDeskController
         $this->validate($body, ['device_id', 'team_id', 'label']);
 
         $teamId = (int) $body['team_id'];
+        $tenantId = (int) $admin['tenant_id'];
         $team = $this->db($this->db_index)->query(
             "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$teamId, (int) $admin['tenant_id']]
+            [$teamId, $tenantId]
         )->row_array();
         if (!$team) {
             $this->error('Team tidak ditemukan', 404);
@@ -128,7 +142,7 @@ class Channels extends WaDeskController
 
         $teamTaken = $this->db($this->db_index)->query(
             "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
-            [(int) $admin['tenant_id'], $teamId]
+            [$tenantId, $teamId]
         )->row_array();
         if ($teamTaken) {
             $this->error('Team sudah punya channel/nomor. Hapus mapping lama dulu.', 409);
@@ -142,20 +156,23 @@ class Channels extends WaDeskController
             $this->error('Device sudah di-assign ke team lain', 409);
         }
 
+        $meta = $this->resolveDeviceMeta($deviceId, $tenantId);
         $phone = isset($body['phone_number'])
             ? $this->normalizePhone((string) $body['phone_number'])
-            : '';
+            : ($meta['phone_number'] ?: '');
         if ($phone === '') {
-            $phone = $this->resolveDevicePhone($deviceId) ?: $deviceId;
+            $phone = $deviceId;
         }
 
-        $channelType = strtolower((string) ($body['channel_type'] ?? 'waba'));
+        $channelType = strtolower((string) ($body['channel_type'] ?? $meta['channel_type'] ?? 'waba'));
         if (!in_array($channelType, ['waba', 'device'], true)) {
             $channelType = 'waba';
         }
 
+        $wabaId = trim((string) ($body['waba_id'] ?? $meta['waba_id'] ?? ''));
+
         $insertData = [
-            'tenant_id' => (int) $admin['tenant_id'],
+            'tenant_id' => $tenantId,
             'team_id' => $teamId,
             'label' => trim($body['label']),
             'device_id' => $deviceId,
@@ -163,9 +180,23 @@ class Channels extends WaDeskController
             'phone_number' => $phone,
             'status' => 'active',
         ];
+        if ($wabaId !== '') {
+            $insertData['waba_id'] = $wabaId;
+        }
 
         $id = (int) $this->db($this->db_index)->insert($tbl, $insertData);
-        $this->success(['id' => $id, 'channel_id' => $id], 'Channel di-assign');
+        if ($wabaId !== '') {
+            $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
+        }
+
+        $this->success([
+            'id' => $id,
+            'channel_id' => $id,
+            'waba_id' => $wabaId !== '' ? $wabaId : null,
+            'needs_waba_id' => $wabaId === '',
+        ], $wabaId === ''
+            ? 'Channel di-assign. WABA ID kosong — isi manual di Admin agar bisa kirim pesan.'
+            : 'Channel di-assign');
     }
 
     public function update()
@@ -179,11 +210,12 @@ class Channels extends WaDeskController
         $body = $this->getBody();
         $this->validate($body, ['id']);
         $id = (int) $body['id'];
+        $tenantId = (int) $admin['tenant_id'];
         $tbl = $this->channelsTable();
 
         $channel = $this->db($this->db_index)->query(
             "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$id, (int) $admin['tenant_id']]
+            [$id, $tenantId]
         )->row_array();
         if (!$channel) {
             $this->error('Channel tidak ditemukan', 404);
@@ -199,18 +231,22 @@ class Channels extends WaDeskController
         if (isset($body['status']) && in_array($body['status'], ['active', 'inactive'], true)) {
             $data['status'] = $body['status'];
         }
+        if (array_key_exists('waba_id', $body)) {
+            $wabaId = trim((string) $body['waba_id']);
+            $data['waba_id'] = $wabaId !== '' ? $wabaId : null;
+        }
         if (isset($body['team_id'])) {
             $teamId = (int) $body['team_id'];
             $team = $this->db($this->db_index)->query(
                 "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$teamId, (int) $admin['tenant_id']]
+                [$teamId, $tenantId]
             )->row_array();
             if (!$team) {
                 $this->error('Team tidak ditemukan', 404);
             }
             $other = $this->db($this->db_index)->query(
                 "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? AND id <> ? LIMIT 1",
-                [(int) $admin['tenant_id'], $teamId, $id]
+                [$tenantId, $teamId, $id]
             )->row_array();
             if ($other) {
                 $this->error('Team sudah punya channel lain', 409);
@@ -224,6 +260,11 @@ class Channels extends WaDeskController
                 $this->db($this->db_index)->update('conversations', [
                     'team_id' => (int) $data['team_id'],
                 ], ['channel_id' => $id]);
+            }
+            $newWaba = trim((string) ($data['waba_id'] ?? $channel['waba_id'] ?? ''));
+            if ($newWaba !== '') {
+                $label = trim((string) ($data['label'] ?? $channel['label'] ?? ''));
+                $this->syncWabaLimitRow($newWaba, $tenantId, $label);
             }
         }
 
@@ -261,28 +302,35 @@ class Channels extends WaDeskController
         return $this->assign();
     }
 
-    private function resolveDevicePhone(string $deviceId): string
+    /** @return array{phone_number:string,waba_id:string,channel_type:string} */
+    private function resolveDeviceMeta(string $deviceId, int $tenantId): array
     {
+        $out = ['phone_number' => '', 'waba_id' => '', 'channel_type' => 'waba'];
         try {
-            $client = $this->requireKiriminConfigured((int) ($this->currentUser()['tenant_id'] ?? 0));
+            $client = $this->requireKiriminConfigured($tenantId);
             $fetched = $client->listDevices();
             if (!$fetched['success']) {
-                return '';
+                return $out;
             }
             foreach ($fetched['devices'] as $dev) {
                 if (!is_array($dev)) {
                     continue;
                 }
                 $id = trim((string) ($dev['device_id'] ?? $dev['id'] ?? ''));
-                if ($id === $deviceId) {
-                    return $this->normalizePhone((string) (
-                        $dev['phone'] ?? $dev['phone_number'] ?? $dev['number'] ?? ''
-                    ));
+                if ($id !== $deviceId) {
+                    continue;
                 }
+                $out['phone_number'] = $this->normalizePhone((string) (
+                    $dev['phone_number'] ?? $dev['phone'] ?? ''
+                ));
+                $out['waba_id'] = trim((string) ($dev['waba_id'] ?? ''));
+                $type = strtolower((string) ($dev['channel_type'] ?? 'waba'));
+                $out['channel_type'] = in_array($type, ['waba', 'device'], true) ? $type : 'waba';
+                break;
             }
         } catch (\Throwable $e) {
-            return '';
+            return $out;
         }
-        return '';
+        return $out;
     }
 }

@@ -152,14 +152,16 @@ class Blast extends WaDeskController
             $phones[] = $this->normalizePhone((string) ($row['phone'] ?? ''));
         }
 
+        $wabaId = $this->requireChannelWabaId($channel);
         $limitGuard = new WaDeskDailyKeyLimit($this->db($this->db_index));
-        $quota = $limitGuard->checkBatch((int) $user['tenant_id'], $phones);
+        $quota = $limitGuard->checkBatch($wabaId, (int) $user['tenant_id'], $phones);
         if (!$quota['allowed']) {
             $this->error($quota['error'], 422, [
                 'daily_limit' => $quota['limit'],
                 'used_today' => $quota['used'],
                 'new_unique_in_blast' => $quota['new_unique'],
                 'remaining_today' => $quota['remaining'],
+                'waba_id' => $wabaId,
             ]);
         }
 

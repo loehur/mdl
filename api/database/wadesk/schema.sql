@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   team_id INT UNSIGNED NOT NULL,
   label VARCHAR(150) NOT NULL,
   device_id VARCHAR(64) NULL,
+  waba_id VARCHAR(64) NULL,
   channel_type ENUM('waba','device') NOT NULL DEFAULT 'waba',
   phone_number VARCHAR(32) NOT NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   INDEX idx_channels_tenant (tenant_id),
   INDEX idx_channels_team (team_id),
   INDEX idx_channels_phone (phone_number),
+  INDEX idx_channels_waba (waba_id),
   CONSTRAINT fk_channels_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_channels_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -226,9 +228,21 @@ CREATE TABLE IF NOT EXISTS wa_blast_recipients (
   CONSTRAINT fk_recip_blast FOREIGN KEY (blast_id) REFERENCES wa_blasts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS wa_waba_daily_limits (
+  waba_id VARCHAR(64) NOT NULL,
+  tenant_id INT UNSIGNED NOT NULL,
+  daily_unique_limit INT UNSIGNED NOT NULL DEFAULT 250,
+  label VARCHAR(150) NULL,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (waba_id),
+  INDEX idx_waba_limit_tenant (tenant_id),
+  CONSTRAINT fk_waba_limit_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
+  waba_id VARCHAR(64) NOT NULL,
   contact_date DATE NOT NULL,
   phone VARCHAR(32) NOT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'sent',
@@ -238,9 +252,9 @@ CREATE TABLE IF NOT EXISTS wa_key_daily_contacts (
   last_source VARCHAR(32) NULL,
   first_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_tenant_contact_day (tenant_id, contact_date, phone),
-  INDEX idx_tenant_day (tenant_id, contact_date),
-  INDEX idx_tenant_day_status (tenant_id, contact_date, status),
+  UNIQUE KEY uq_waba_contact_day (waba_id, contact_date, phone),
+  INDEX idx_waba_day (waba_id, contact_date),
+  INDEX idx_waba_day_status (waba_id, contact_date, status),
   CONSTRAINT fk_tenant_daily_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_channel_daily_first_user FOREIGN KEY (first_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_channel_daily_last_user FOREIGN KEY (last_user_id) REFERENCES users(id) ON DELETE SET NULL

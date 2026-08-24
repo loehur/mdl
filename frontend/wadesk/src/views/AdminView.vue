@@ -243,12 +243,12 @@
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveDailyLimit">
           <p class="text-xs text-slate-400">
-            Limit harian nomor customer <strong>unik terkirim (status sent+)</strong> per tenant.
-            Pengiriman gagal tidak dihitung. Reset setiap hari.
+            <strong>Default</strong> limit harian nomor customer unik terkirim (status sent+) per WABA ID.
+            Channel tanpa WABA ID wajib diisi manual. Pengiriman gagal tidak dihitung. Reset setiap hari.
           </p>
           <div class="flex flex-col sm:flex-row gap-2 items-end">
             <div class="flex-1 w-full">
-              <label class="label">Maks. nomor unik terkirim per hari</label>
+              <label class="label">Default tenant (WABA baru)</label>
               <input
                 v-model.number="dailyLimitForm.daily_unique_limit"
                 type="number"
@@ -259,10 +259,45 @@
               />
             </div>
             <button type="submit" class="btn shrink-0" :disabled="savingDailyLimit">
-              {{ savingDailyLimit ? "Menyimpan..." : "Simpan limit" }}
+              {{ savingDailyLimit ? "Menyimpan..." : "Simpan default" }}
             </button>
           </div>
         </form>
+
+        <div v-if="wabaLimits.length" class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3">
+          <p class="text-xs font-medium text-slate-300">Limit per WABA ID</p>
+          <ul class="divide-y divide-white/5">
+            <li v-for="w in wabaLimits" :key="w.waba_id" class="py-3 space-y-2">
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span class="font-mono text-xs text-accent">{{ w.waba_id }}</span>
+                <span class="text-xs text-slate-500">{{ w.label }} · {{ w.team_names }}</span>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-2 items-end">
+                <div class="flex-1 w-full">
+                  <label class="label text-[11px]">Maks. nomor unik / hari</label>
+                  <input
+                    v-model.number="wabaLimitDrafts[w.waba_id]"
+                    type="number"
+                    min="1"
+                    max="100000"
+                    class="field"
+                  />
+                </div>
+                <p class="text-xs text-slate-500 shrink-0 pb-2">
+                  Terpakai hari ini: <span class="text-slate-200 font-medium">{{ w.used_today }}</span>
+                </p>
+                <button
+                  type="button"
+                  class="btn-sm shrink-0"
+                  :disabled="savingWabaLimitId === w.waba_id"
+                  @click="saveWabaLimit(w)"
+                >
+                  {{ savingWabaLimitId === w.waba_id ? "..." : "Simpan" }}
+                </button>
+              </div>
+            </li>
+          </ul>
+        </div>
 
         <p class="text-xs text-slate-400">
           Sync device dari Kirimin, lalu assign <strong>1 nomor = 1 team</strong>.
@@ -298,6 +333,12 @@
               <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveKey(k)">
                 <input v-model="editKeyForm.label" required class="field" placeholder="Label" />
                 <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
+                <input
+                  v-model="editKeyForm.waba_id"
+                  class="field sm:col-span-2"
+                  placeholder="WABA ID (wajib untuk kirim pesan)"
+                  required
+                />
                 <select v-model="editKeyForm.team_id" required class="field sm:col-span-2">
                   <option disabled value="">Assign ke team</option>
                   <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
@@ -315,6 +356,8 @@
                   <p class="text-xs text-slate-500">
                     {{ k.phone_number }}
                     <span v-if="k.device_id"> · device: {{ k.device_id }}</span>
+                    <span v-if="k.waba_id"> · WABA: {{ k.waba_id }}</span>
+                    <span v-else class="text-amber-400"> · WABA ID belum diisi</span>
                     · {{ k.team_name }} · {{ k.status }}
                   </p>
                 </div>
@@ -708,6 +751,9 @@ const availableDevices = ref([]);
 const channelForm = reactive({ device_id: "", label: "", team_id: "" });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const dailyLimitForm = reactive({ daily_unique_limit: 250 });
+const wabaLimits = ref([]);
+const wabaLimitDrafts = reactive({});
+const savingWabaLimitId = ref("");
 const openaiForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const savingKiriminKey = ref(false);
 const savingDailyLimit = ref(false);
@@ -774,7 +820,7 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const editKeyForm = reactive({ label: "", phone_number: "", team_id: "" });
+const editKeyForm = reactive({ label: "", phone_number: "", team_id: "", waba_id: "" });
 const savingKey = ref(false);
 const syncing = ref(false);
 const resyncingId = ref(null);
@@ -842,7 +888,7 @@ async function leaveOperationalTeam() {
 }
 
 async function refresh() {
-  const [t, u, k, tp, q, kir, oai] = await Promise.all([
+  const [t, u, k, tp, q, kir, oai, daily] = await Promise.all([
     api("/WaDesk/Teams/list"),
     api("/WaDesk/Users/list"),
     api("/WaDesk/Channels/list?scope=all"),
@@ -850,6 +896,7 @@ async function refresh() {
     api("/WaDesk/Quota/list"),
     api("/WaDesk/Settings/kirimin"),
     api("/WaDesk/Settings/openai"),
+    api("/WaDesk/Settings/dailyLimit"),
   ]);
   teams.value = t.data.teams || [];
   users.value = u.data.users || [];
@@ -859,7 +906,11 @@ async function refresh() {
   initMaxlengthDrafts(templates.value);
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
-  dailyLimitForm.daily_unique_limit = Number(kir.data?.daily_unique_limit) || 250;
+  dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit ?? kir.data?.daily_unique_limit) || 250;
+  wabaLimits.value = daily.data?.wabas || [];
+  for (const w of wabaLimits.value) {
+    wabaLimitDrafts[w.waba_id] = Number(w.daily_unique_limit) || dailyLimitForm.daily_unique_limit;
+  }
   openaiForm.configured = !!oai.data?.configured;
   openaiForm.api_key_masked = oai.data?.api_key_masked || "";
   if (tab.value === "log") {
@@ -1174,11 +1225,38 @@ async function saveDailyLimit() {
       body: { daily_unique_limit: limit },
     });
     dailyLimitForm.daily_unique_limit = Number(res.data?.daily_unique_limit) || limit;
-    flash(true, "Limit harian tenant disimpan");
+    wabaLimits.value = res.data?.wabas || wabaLimits.value;
+    flash(true, "Default limit harian tenant disimpan");
+    await refresh();
   } catch (e) {
     flash(false, e.message);
   } finally {
     savingDailyLimit.value = false;
+  }
+}
+
+async function saveWabaLimit(w) {
+  const limit = Number(wabaLimitDrafts[w.waba_id]);
+  if (!Number.isFinite(limit) || limit < 1) {
+    flash(false, "Limit WABA minimal 1");
+    return;
+  }
+  savingWabaLimitId.value = w.waba_id;
+  try {
+    await api("/WaDesk/Settings/wabaDailyLimit", {
+      method: "POST",
+      body: {
+        waba_id: w.waba_id,
+        daily_unique_limit: limit,
+        label: w.label || null,
+      },
+    });
+    flash(true, `Limit WABA ${w.waba_id} disimpan`);
+    await refresh();
+  } catch (e) {
+    flash(false, e.message);
+  } finally {
+    savingWabaLimitId.value = "";
   }
 }
 
@@ -1267,6 +1345,7 @@ function startEditKey(k) {
     label: k.label || "",
     phone_number: k.phone_number || "",
     team_id: String(k.team_id || ""),
+    waba_id: k.waba_id || "",
   });
 }
 
@@ -1283,6 +1362,7 @@ async function saveKey(k) {
       label: editKeyForm.label,
       phone_number: editKeyForm.phone_number,
       team_id: Number(editKeyForm.team_id),
+      waba_id: String(editKeyForm.waba_id || "").trim(),
     };
     await api("/WaDesk/Channels/update", { method: "POST", body });
     flash(true, "Channel diupdate");
