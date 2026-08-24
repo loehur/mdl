@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
 import { formatPermintaanSummary, normalizePermintaanItems } from "../utils/permintaanSummary.js";
 import LocationMapPicker from "./LocationMapPicker.vue";
 
@@ -56,6 +56,7 @@ const completingPermintaanPhone = ref("");
 const outboundResultMsg = ref("");
 const outboundResultOk = ref(false);
 const sendingTagihan = ref(false);
+const sendingStatus = ref(false);
 const cancelDeliveryTarget = ref(null);
 const cancelDeliveryMsg = ref("");
 const cancellingDelivery = ref(false);
@@ -96,6 +97,10 @@ const isPelanggan = computed(() => {
 });
 
 const canSendTagihan = computed(() => {
+  return isPelanggan.value && cswOpen.value;
+});
+
+const canSendStatus = computed(() => {
   return isPelanggan.value && cswOpen.value;
 });
 
@@ -499,6 +504,65 @@ const confirmSendTagihan = async () => {
   await sendTagihan();
 };
 
+const sendStatus = async () => {
+  if (!isAdmin.value || !canSendStatus.value || sendingStatus.value) return;
+
+  sendingStatus.value = true;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  try {
+    const payload = {};
+    if (custId.value) payload.cust_id = custId.value;
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Outbound/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (res?.cooldown) {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "Cooldown STATUS masih aktif";
+      return;
+    }
+
+    if (res?.outcome === "csw_closed") {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "CSW sudah tutup — tidak bisa kirim status";
+      return;
+    }
+
+    if (!res?.ok && !res?.status) {
+      outboundResultMsg.value = res?.message || "Gagal mengirim status";
+      return;
+    }
+
+    outboundResultOk.value = true;
+    outboundResultMsg.value = res?.message || "Status terkirim.";
+  } catch (_) {
+    outboundResultMsg.value = "Gagal mengirim status";
+  } finally {
+    sendingStatus.value = false;
+    closeSendStatus();
+  }
+};
+
+const openSendStatus = () => {
+  if (!isAdmin.value || !canSendStatus.value || sendingStatus.value) return;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  showSendStatusModal.value = true;
+};
+
+const closeSendStatus = () => {
+  showSendStatusModal.value = false;
+};
+
+const confirmSendStatus = async () => {
+  await sendStatus();
+};
+
 const saveCreatePermintaan = async () => {
   if (!isAdmin.value || !canCreatePermintaan.value) return;
 
@@ -880,6 +944,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showSendStatusModal.value) {
+    closeSendStatus();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showCancelDeliveryModal.value) {
     closeCancelDelivery();
     e.stopImmediatePropagation();
@@ -898,6 +967,7 @@ watch(
     closeDeleteLokasi();
     closeDeliveryRequest();
     closeSendTagihan();
+    closeSendStatus();
     closeCancelDelivery();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
@@ -1052,18 +1122,28 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="isAdmin && canSendTagihan">
+        <section v-if="isAdmin && (canSendTagihan || canSendStatus)">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
             Kirim ke pelanggan
           </h3>
-          <button
-            type="button"
-            class="w-full py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-            :disabled="sendingTagihan"
-            @click="openSendTagihan"
-          >
-            Bill
-          </button>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendTagihan || sendingTagihan || sendingStatus"
+              @click="openSendTagihan"
+            >
+              Bill
+            </button>
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendStatus || sendingTagihan || sendingStatus"
+              @click="openSendStatus"
+            >
+              Status
+            </button>
+          </div>
           <p
             v-if="outboundResultMsg"
             class="text-xs mt-2"
@@ -1491,6 +1571,50 @@ onUnmounted(() => {
             @click="confirmSendTagihan"
           >
             {{ sendingTagihan ? "Mengirim…" : "Kirim" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showSendStatusModal"
+      class="fixed inset-0 z-[706] flex items-center justify-center p-4"
+      @click="closeSendStatus"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Kirim Status</h3>
+        <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+          Kirim status laundry ke
+          <span class="text-[var(--wa-text-primary)] font-medium">{{ conversation?.name || "pelanggan" }}</span>
+          <span v-if="conversation?.wa_number" class="font-mono">
+            ({{ formatPhoneTo08(conversation.wa_number) }})
+          </span>?
+        </p>
+        <p class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+          Pesan status akan dikirim langsung ke WhatsApp pelanggan.
+        </p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            :disabled="sendingStatus"
+            @click="closeSendStatus"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
+            :disabled="sendingStatus"
+            @click="confirmSendStatus"
+          >
+            {{ sendingStatus ? "Mengirim…" : "Kirim" }}
           </button>
         </div>
       </div>

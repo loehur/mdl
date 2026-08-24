@@ -85,6 +85,9 @@ class WAReplies
     /** Hasil kirim tagihan manual CRM: sent|no_pelanggan|no_data|skipped */
     private $tagihanSendOutcome = null;
 
+    /** Hasil kirim status manual CRM: sent|no_pelanggan|no_data|skipped */
+    private $statusSendOutcome = null;
+
     /** Idle agent manusia (menit) sebelum AI kembali boleh balas intent sosial */
     private const HUMAN_ACTIVE_IDLE_MINUTES = 60;
 
@@ -1139,6 +1142,90 @@ class WAReplies
         }
 
         return ['ok' => false, 'message' => 'Tagihan tidak terkirim', 'outcome' => $outcome];
+    }
+
+    /**
+     * Kirim status manual dari CRM — logic sama handleStatus + cooldown handler STATUS.
+     *
+     * @return array{ok:bool,message?:string,cooldown?:bool,outcome?:string}
+     */
+    public function sendStatusFromCrm(string $waNumber, ?int $custId = null): array
+    {
+        $waNumber = (string) ($this->normalizePhoneNumber($waNumber) ?? '');
+        if ($waNumber === '') {
+            return ['ok' => false, 'message' => 'Nomor WA tidak valid'];
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $ctx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+        if ($custId !== null && $custId > 0) {
+            $ctx['id_pelanggan'] = $custId;
+            $ctx['cust_id'] = $custId;
+            if (!in_array($custId, $ctx['ids_pelanggan'] ?? [], true)) {
+                $ctx['ids_pelanggan'][] = $custId;
+            }
+            $ctx['is_pelanggan'] = true;
+        }
+        $this->setSenderContext($ctx);
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+        if (!class_exists('\\App\\Config\\WaLines')) {
+            require_once __DIR__ . '/../Config/WaLines.php';
+        }
+
+        $dbCsw = DB::getInstance(0);
+        $csw = \App\Helpers\CRM\CrmChatMergeHelper::getCswStatus($dbCsw, $waNumber);
+        $lineKey = \App\Helpers\CRM\CrmChatMergeHelper::resolveReplyLine($csw, 'auto');
+        if ($lineKey === null) {
+            return [
+                'ok' => false,
+                'message' => 'CSW sudah tutup — tidak bisa kirim status',
+                'outcome' => 'csw_closed',
+            ];
+        }
+
+        $lineMeta = \App\Config\WaLines::get($lineKey);
+        $this->setInboundLine($lineKey, is_array($lineMeta) ? ($lineMeta['phone'] ?? null) : null);
+        $this->setAutoReplyProvider($lineKey === \App\Config\WaLines::KEY_ADMIN ? 'B' : 'A');
+
+        if ($this->isInHandlerCooldownAnyProvider($waNumber, 'STATUS')) {
+            return [
+                'ok' => false,
+                'message' => 'Cooldown STATUS masih aktif — tunggu sebentar',
+                'cooldown' => true,
+            ];
+        }
+
+        $nomor = (string) ($ctx['nomor'] ?? '');
+        if ($nomor === '') {
+            $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber) ?? '';
+        }
+        if ($nomor === '') {
+            return ['ok' => false, 'message' => 'Nomor WA tidak valid'];
+        }
+
+        $phoneIn = \App\Helpers\CRM\WaSenderContext::phoneInClause($nomor);
+        $this->statusSendOutcome = null;
+        $this->handleStatus($phoneIn, $waNumber, 'status', true);
+        $this->recordHandlerCooldown($waNumber, 'STATUS');
+
+        $outcome = (string) ($this->statusSendOutcome ?? 'skipped');
+        if ($outcome === 'sent') {
+            return ['ok' => true, 'message' => 'Status terkirim', 'outcome' => $outcome];
+        }
+        if ($outcome === 'no_data') {
+            return ['ok' => true, 'message' => 'Info belum ada status laundry terkirim', 'outcome' => $outcome];
+        }
+        if ($outcome === 'no_pelanggan') {
+            return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan di laundry', 'outcome' => $outcome];
+        }
+
+        return ['ok' => false, 'message' => 'Status tidak terkirim', 'outcome' => $outcome];
     }
 
     /**
@@ -2274,6 +2361,8 @@ class WAReplies
             $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_skipped_not_strict_keyword');
             if ($force === false && $logPrefix === 'TAGIHAN') {
                 $this->tagihanSendOutcome = 'skipped';
+            } elseif ($force === false && $logPrefix === 'STATUS') {
+                $this->statusSendOutcome = 'skipped';
             }
             return;
         }
@@ -2286,9 +2375,13 @@ class WAReplies
             $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
             if ($logPrefix === 'TAGIHAN') {
                 $this->tagihanSendOutcome = 'no_data';
+            } elseif ($logPrefix === 'STATUS') {
+                $this->statusSendOutcome = 'no_data';
             }
         } elseif ($logPrefix === 'TAGIHAN') {
             $this->tagihanSendOutcome = 'skipped';
+        } elseif ($logPrefix === 'STATUS') {
+            $this->statusSendOutcome = 'skipped';
         }
         $this->logAutoreplyTrace($waNumber, $logPrefix, 'belum_ada_tagihan_sent');
     }
@@ -4615,7 +4708,7 @@ class WAReplies
         return !empty($sales);
     }
 
-    private function handleStatus($phoneIn, $waNumber, $textBody = '')
+    private function handleStatus($phoneIn, $waNumber, $textBody = '', bool $crmManual = false)
     {
         $waService = $this->getWaService();
 
@@ -4634,6 +4727,7 @@ class WAReplies
         
         // Track which id_penjualan already have pending notifs
         $pendingNotifIds = [];
+        $pendingSent = false;
         // --- Ada data: notif status pending — kirim tanpa cek pola tegas ---
         if (!empty($pendingNotifs)) {
             foreach ($pendingNotifs as $notif) {
@@ -4675,11 +4769,15 @@ class WAReplies
 
                 // Broadcast to WebSocket with future timestamp
                 if ($res['success']) {
+                    $pendingSent = true;
                     // Add 1 second to ensure auto-reply appears after customer message
                     $timestamp = date('Y-m-d H:i:s', strtotime('+1 second'));
                     $payload = $this->buildWsPayload($waNumber, $notif['text'], $msgId, $wamid, $timestamp);
                     $this->pushToWebSocket($payload);
                 }
+            }
+            if ($crmManual && $pendingSent) {
+                $this->statusSendOutcome = 'sent';
             }
             $this->logAutoreplyTrace($waNumber, 'STATUS_SEND', 'pending_notif count=' . count($pendingNotifs));
         }
@@ -4693,12 +4791,17 @@ class WAReplies
 
         if (empty($id_pelanggans)) {
             $this->logAutoreplyTrace($waNumber, 'STATUS', 'no_pelanggan_skip_sale_status');
+            if ($crmManual) {
+                $this->statusSendOutcome = 'no_pelanggan';
+            }
         } else {
             $ids_in = implode(',', $id_pelanggans);
             $sales = $db1->query("SELECT * FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($ids_in) GROUP BY no_ref, tuntas, id_pelanggan")->result_array();
             $noRefs = array_column($sales, 'no_ref');
             if (empty($noRefs)) {
-                $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, null, 'STATUS');
+                if (!($crmManual && $this->statusSendOutcome === 'sent')) {
+                    $this->trySendBelumAdaTagihanAutoreply($waService, $waNumber, $textBody, $nama_pelanggan, null, 'STATUS', $crmManual);
+                }
             } else {
                 // --- Ada data: sale aktif — kirim status tanpa cek pola tegas ---
                 $queuedItems = [];      // Dalam Antrian (deadline > today)
@@ -4816,6 +4919,11 @@ class WAReplies
                     $res = $this->sendQuotedFreeText($waNumber, $text);
                     if ($res['success']) {
                         $this->pushToWebSocket($this->buildWsPayload($waNumber, $text, $res['data']['id'] ?? null, $res['data']['wamid'] ?? null));
+                        if ($crmManual) {
+                            $this->statusSendOutcome = 'sent';
+                        }
+                    } elseif ($crmManual) {
+                        $this->statusSendOutcome = 'skipped';
                     }
                     $this->logAutoreplyTrace(
                         $waNumber,

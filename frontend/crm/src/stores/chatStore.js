@@ -242,6 +242,7 @@ export const showDeliveryRequestModal = ref(false);
 export const showEditPermintaanModal = ref(false);
 export const showCreatePermintaanModal = ref(false);
 export const showSendTagihanModal = ref(false);
+export const showSendStatusModal = ref(false);
 export const showCancelDeliveryModal = ref(false);
 export const showCrewSendModal = ref(false);
 export const showImageLightbox = ref(false);

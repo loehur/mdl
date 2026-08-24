@@ -7,7 +7,7 @@ use App\Helpers\Laundry\OutboundStore;
 
 /**
  * Kirim info dinamis ke pelanggan dari CRM.
- * URL: /Laundry/Outbound/tagihan
+ * URL: /Laundry/Outbound/{tagihan|status}
  */
 class Outbound extends Controller
 {
@@ -24,6 +24,16 @@ class Outbound extends Controller
             return;
         }
         $this->reply(OutboundStore::sendTagihan($this->mergedInput()));
+    }
+
+    public function status()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $this->reply(OutboundStore::sendStatus($this->mergedInput()));
     }
 
     private function jsonHeader(): void
