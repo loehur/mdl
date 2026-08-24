@@ -2233,7 +2233,10 @@ a { color: inherit; text-decoration: none; }
 }
 .j-kurir-map-gps:hover:not(:disabled) {
   border-color: #0B3D3A;
-  background: rgba(11, 61, 58, 0.06);
+  background: #f8fafc;
+}
+.j-kurir-map-gps:active:not(:disabled) {
+  background: #fff;
 }
 .j-kurir-map-gps:disabled {
   opacity: 0.5;
