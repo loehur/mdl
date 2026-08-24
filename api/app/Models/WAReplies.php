@@ -1229,6 +1229,96 @@ class WAReplies
     }
 
     /**
+     * Kirim gambar QRIS manual dari CRM — gambar sama dengan halaman Laundry/I/q.
+     *
+     * @return array{ok:bool,message?:string,cooldown?:bool,outcome?:string}
+     */
+    public function sendQrisFromCrm(string $waNumber, ?int $custId = null): array
+    {
+        $waNumber = (string) ($this->normalizePhoneNumber($waNumber) ?? '');
+        if ($waNumber === '') {
+            return ['ok' => false, 'message' => 'Nomor WA tidak valid'];
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $ctx = \App\Helpers\CRM\WaSenderContext::resolve($waNumber);
+        if ($custId !== null && $custId > 0) {
+            $ctx['id_pelanggan'] = $custId;
+            $ctx['cust_id'] = $custId;
+            if (!in_array($custId, $ctx['ids_pelanggan'] ?? [], true)) {
+                $ctx['ids_pelanggan'][] = $custId;
+            }
+            $ctx['is_pelanggan'] = true;
+        }
+        $this->setSenderContext($ctx);
+
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+        if (!class_exists('\\App\\Config\\WaLines')) {
+            require_once __DIR__ . '/../Config/WaLines.php';
+        }
+
+        $dbCsw = DB::getInstance(0);
+        $csw = \App\Helpers\CRM\CrmChatMergeHelper::getCswStatus($dbCsw, $waNumber);
+        $lineKey = \App\Helpers\CRM\CrmChatMergeHelper::resolveReplyLine($csw, 'auto');
+        if ($lineKey === null) {
+            return [
+                'ok' => false,
+                'message' => 'CSW sudah tutup — tidak bisa kirim QRIS',
+                'outcome' => 'csw_closed',
+            ];
+        }
+
+        $lineMeta = \App\Config\WaLines::get($lineKey);
+        $this->setInboundLine($lineKey, is_array($lineMeta) ? ($lineMeta['phone'] ?? null) : null);
+        $this->setAutoReplyProvider($lineKey === \App\Config\WaLines::KEY_ADMIN ? 'B' : 'A');
+
+        if ($this->isInHandlerCooldownAnyProvider($waNumber, 'REKENING')) {
+            return [
+                'ok' => false,
+                'message' => 'Cooldown REKENING masih aktif — tunggu sebentar',
+                'cooldown' => true,
+            ];
+        }
+
+        $qrisMedia = $this->fetchLaundryQrisMedia();
+        $imageUrl = trim((string) ($qrisMedia['image_url'] ?? ''));
+        $pageUrl = trim((string) ($qrisMedia['page_url'] ?? 'https://ml.nalju.com/I/q'));
+        if ($imageUrl === '') {
+            return ['ok' => false, 'message' => 'URL gambar QRIS tidak tersedia', 'outcome' => 'failed'];
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\SapaanStatsHelper')) {
+            require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
+        }
+        $senderCode = \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
+        $caption = "QRIS Madinah Laundry\n{$pageUrl}";
+
+        $res = $this->getWaService()->sendImage(
+            $waNumber,
+            $imageUrl,
+            $caption,
+            $senderCode,
+            $this->resolveOutboundLineKey()
+        );
+        $this->recordHandlerCooldown($waNumber, 'REKENING');
+
+        if (!empty($res['success'])) {
+            return ['ok' => true, 'message' => 'QRIS terkirim', 'outcome' => 'sent'];
+        }
+
+        return [
+            'ok' => false,
+            'message' => (string) ($res['error'] ?? 'Gagal mengirim QRIS'),
+            'outcome' => 'failed',
+        ];
+    }
+
+    /**
      * Cooldown handler lintas provider (CRM manual ↔ autoreply A/B).
      */
     private function isInHandlerCooldownAnyProvider(string $waNumber, string $handler): bool
@@ -3819,6 +3909,59 @@ class WAReplies
     /**
      * Ambil teks rekening terformat dari laundry public endpoint.
      */
+    /**
+     * @return array{page_url:string,image_url:string}
+     */
+    private function fetchLaundryQrisMedia(): array
+    {
+        $fallback = [
+            'page_url' => 'https://ml.nalju.com/I/q',
+            'image_url' => 'https://ml.nalju.com/mdl/laundry/in_assets/img/qris/qris_1.jpeg',
+        ];
+
+        $url = 'https://ml.nalju.com/Get/rekening';
+        try {
+            if (!function_exists('curl_init')) {
+                return $fallback;
+            }
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 5,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            ]);
+            $raw = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($raw === false || $code < 200 || $code >= 300) {
+                return $fallback;
+            }
+            $json = json_decode($raw, true);
+            if (!is_array($json) || empty($json['ok'])) {
+                return $fallback;
+            }
+
+            $pageUrl = trim((string) ($json['qris_url'] ?? $fallback['page_url']));
+            $imageUrl = trim((string) ($json['qris_image_url'] ?? ''));
+            if ($pageUrl === '') {
+                $pageUrl = $fallback['page_url'];
+            }
+            if ($imageUrl === '') {
+                $imageUrl = $fallback['image_url'];
+            }
+
+            return [
+                'page_url' => $pageUrl,
+                'image_url' => $imageUrl,
+            ];
+        } catch (\Throwable $e) {
+            return $fallback;
+        }
+    }
+
     private function fetchLaundryRekeningMessage(): string
     {
         $fallback =

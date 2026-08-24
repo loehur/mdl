@@ -51,7 +51,7 @@ import {
   windowWidth, showMobileChat, isEnteringChat,
   touchStartX, touchStartY, touchOffset, isDragging, minSwipeDistance, showExitToast,
   // UI - Menus & Modals
-  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showCancelDeliveryModal, showCrewSendModal,
+  showChatMenu, showResolveMenu, showSettingsModal, showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showSendQrisModal, showCancelDeliveryModal, showCrewSendModal,
   showImageLightbox, lightboxImageUrl, showQuickReplies,
   showInternalBrowser, internalBrowserUrl, isInternalBrowserEntering, isInternalBrowserExiting, isInternalBrowserLoading,
   // Loading States
@@ -4471,6 +4471,11 @@ onMounted(() => {
       return 'send_status_closed';
     }
 
+    if (showSendQrisModal.value) {
+      showSendQrisModal.value = false;
+      return 'send_qris_closed';
+    }
+
     if (showCancelDeliveryModal.value) {
       showCancelDeliveryModal.value = false;
       return 'cancel_delivery_closed';
@@ -4871,6 +4876,11 @@ function handleBackButtonPress() {
   if (showSendStatusModal.value) {
     showSendStatusModal.value = false;
     return "send_status_closed";
+  }
+
+  if (showSendQrisModal.value) {
+    showSendQrisModal.value = false;
+    return "send_qris_closed";
   }
 
   if (showCancelDeliveryModal.value) {

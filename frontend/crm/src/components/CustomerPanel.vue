@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
-import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
+import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showSendQrisModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
 import { formatPermintaanSummary, normalizePermintaanItems } from "../utils/permintaanSummary.js";
 import LocationMapPicker from "./LocationMapPicker.vue";
 
@@ -57,6 +57,7 @@ const outboundResultMsg = ref("");
 const outboundResultOk = ref(false);
 const sendingTagihan = ref(false);
 const sendingStatus = ref(false);
+const sendingQris = ref(false);
 const cancelDeliveryTarget = ref(null);
 const cancelDeliveryMsg = ref("");
 const cancellingDelivery = ref(false);
@@ -102,6 +103,10 @@ const canSendTagihan = computed(() => {
 
 const canSendStatus = computed(() => {
   return isPelanggan.value && cswOpen.value;
+});
+
+const canSendQris = computed(() => {
+  return cswOpen.value && !!props.conversation?.wa_number;
 });
 
 const deliveryJenisOptions = [
@@ -563,6 +568,65 @@ const confirmSendStatus = async () => {
   await sendStatus();
 };
 
+const sendQris = async () => {
+  if (!isAdmin.value || !canSendQris.value || sendingQris.value) return;
+
+  sendingQris.value = true;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  try {
+    const payload = {};
+    if (custId.value) payload.cust_id = custId.value;
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
+    const res = await fetch(`${props.apiBase}/Laundry/Outbound/qris`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    if (res?.cooldown) {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "Cooldown REKENING masih aktif";
+      return;
+    }
+
+    if (res?.outcome === "csw_closed") {
+      outboundResultOk.value = false;
+      outboundResultMsg.value = res?.message || "CSW sudah tutup — tidak bisa kirim QRIS";
+      return;
+    }
+
+    if (!res?.ok && !res?.status) {
+      outboundResultMsg.value = res?.message || "Gagal mengirim QRIS";
+      return;
+    }
+
+    outboundResultOk.value = true;
+    outboundResultMsg.value = res?.message || "QRIS terkirim.";
+  } catch (_) {
+    outboundResultMsg.value = "Gagal mengirim QRIS";
+  } finally {
+    sendingQris.value = false;
+    closeSendQris();
+  }
+};
+
+const openSendQris = () => {
+  if (!isAdmin.value || !canSendQris.value || sendingQris.value) return;
+  outboundResultMsg.value = "";
+  outboundResultOk.value = false;
+  showSendQrisModal.value = true;
+};
+
+const closeSendQris = () => {
+  showSendQrisModal.value = false;
+};
+
+const confirmSendQris = async () => {
+  await sendQris();
+};
+
 const saveCreatePermintaan = async () => {
   if (!isAdmin.value || !canCreatePermintaan.value) return;
 
@@ -949,6 +1013,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (showSendQrisModal.value) {
+    closeSendQris();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showCancelDeliveryModal.value) {
     closeCancelDelivery();
     e.stopImmediatePropagation();
@@ -968,6 +1037,7 @@ watch(
     closeDeliveryRequest();
     closeSendTagihan();
     closeSendStatus();
+    closeSendQris();
     closeCancelDelivery();
     deliveryResultMsg.value = "";
     deliveryResultOk.value = false;
@@ -1122,15 +1192,15 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section v-if="isAdmin && (canSendTagihan || canSendStatus)">
+        <section v-if="isAdmin && (canSendTagihan || canSendStatus || canSendQris)">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
             Kirim ke pelanggan
           </h3>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
               class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!canSendTagihan || sendingTagihan || sendingStatus"
+              :disabled="!canSendTagihan || sendingTagihan || sendingStatus || sendingQris"
               @click="openSendTagihan"
             >
               Bill
@@ -1138,10 +1208,18 @@ onUnmounted(() => {
             <button
               type="button"
               class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!canSendStatus || sendingTagihan || sendingStatus"
+              :disabled="!canSendStatus || sendingTagihan || sendingStatus || sendingQris"
               @click="openSendStatus"
             >
               Status
+            </button>
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendQris || sendingTagihan || sendingStatus || sendingQris"
+              @click="openSendQris"
+            >
+              QRIS
             </button>
           </div>
           <p
@@ -1615,6 +1693,50 @@ onUnmounted(() => {
             @click="confirmSendStatus"
           >
             {{ sendingStatus ? "Mengirim…" : "Kirim" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && showSendQrisModal"
+      class="fixed inset-0 z-[706] flex items-center justify-center p-4"
+      @click="closeSendQris"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Kirim QRIS</h3>
+        <p class="text-sm text-[var(--wa-text-tertiary)] mt-2">
+          Kirim gambar QRIS ke
+          <span class="text-[var(--wa-text-primary)] font-medium">{{ conversation?.name || "pelanggan" }}</span>
+          <span v-if="conversation?.wa_number" class="font-mono">
+            ({{ formatPhoneTo08(conversation.wa_number) }})
+          </span>?
+        </p>
+        <p class="text-xs text-[var(--wa-text-tertiary)] mt-2">
+          Gambar QRIS sama dengan halaman ml.nalju.com/I/q akan dikirim ke WhatsApp pelanggan.
+        </p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            :disabled="sendingQris"
+            @click="closeSendQris"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
+            :disabled="sendingQris"
+            @click="confirmSendQris"
+          >
+            {{ sendingQris ? "Mengirim…" : "Kirim" }}
           </button>
         </div>
       </div>

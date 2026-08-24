@@ -7,7 +7,7 @@ use App\Helpers\Laundry\OutboundStore;
 
 /**
  * Kirim info dinamis ke pelanggan dari CRM.
- * URL: /Laundry/Outbound/{tagihan|status}
+ * URL: /Laundry/Outbound/{tagihan|status|qris}
  */
 class Outbound extends Controller
 {
@@ -34,6 +34,16 @@ class Outbound extends Controller
             return;
         }
         $this->reply(OutboundStore::sendStatus($this->mergedInput()));
+    }
+
+    public function qris()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $this->reply(OutboundStore::sendQris($this->mergedInput()));
     }
 
     private function jsonHeader(): void

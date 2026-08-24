@@ -29,6 +29,9 @@ class Get extends Controller
       }
 
       $qrisUrl = URL::QRIS_PUBLIC_URL;
+      $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+      $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'ml.nalju.com'));
+      $qrisImageUrl = $scheme . '://' . $host . URL::IN_ASSETS . 'img/qris/qris_1.jpeg';
       $guide = URL::NON_TUNAI_GUIDE;
       $accounts = [];
       $lines = ['QRIS', $qrisUrl, ''];
@@ -59,6 +62,7 @@ class Get extends Controller
       echo json_encode([
          'ok' => true,
          'qris_url' => $qrisUrl,
+         'qris_image_url' => $qrisImageUrl,
          'accounts' => $accounts,
          'message' => rtrim(implode("\n", $lines)),
       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
