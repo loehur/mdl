@@ -22,7 +22,6 @@
                   <th>Cycle</th>
                   <th>Cycle Type</th>
                   <th>Range</th>
-                  <th>Notif Number</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
@@ -41,7 +40,6 @@
                   echo "<td><span class='cell' data-mode='4' data-id_value='" . $id . "' data-value='" . $a['cycle'] . "'>" . $a['cycle'] . "</span></td>";
                   echo "<td><span class='cell' data-mode='5' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['cycle_type']) . "'>" . htmlspecialchars($a['cycle_type']) . "</span></td>";
                   echo "<td><span class='cell' data-mode='6' data-id_value='" . $id . "' data-value='" . $a['range'] . "'>" . $a['range'] . "</span></td>";
-                  echo "<td><span class='cell' data-mode='7' data-id_value='" . $id . "' data-value='" . htmlspecialchars($a['notif_number']) . "'>" . htmlspecialchars($a['notif_number']) . "</span></td>";
                   echo "<td><button type='button' class='btn btn-sm btn-danger btn-delete' data-id='" . $id . "' data-name='" . htmlspecialchars($a['name']) . "'>Hapus</button></td>";
                   echo "</tr>";
                 }

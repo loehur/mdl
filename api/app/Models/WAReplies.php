@@ -5276,37 +5276,7 @@ class WAReplies
         try {
             $waService = $this->getWaService();
 
-            // Parse phone numbers from $phoneIn (format: '08123','08456')
-            // Remove quotes and split into array
-            $phones = array_map(function ($p) {
-                return trim($p, "' ");
-            }, explode(',', $phoneIn));
-
-            // Add waNumber (clean format) to the list
-            $cleanWaNumber = preg_replace('/[^0-9]/', '', $waNumber);
-            $phone0 = '0' . substr($cleanWaNumber, 2); // Convert 62xxx to 0xxx
-            $phones[] = $phone0;
-            $phones[] = $cleanWaNumber;
-            $phones = array_unique(array_filter($phones));
-
-            // Build FIND_IN_SET conditions for each phone
-            // This handles notif_number containing comma-separated values like "08123,08456"
-            $conditions = [];
-            foreach ($phones as $phone) {
-                if (!empty($phone)) {
-                    $escapedPhone = addslashes($phone);
-                    $conditions[] = "FIND_IN_SET('$escapedPhone', REPLACE(notif_number, ' ', ''))";
-                }
-            }
-
-            if (empty($conditions)) {
-                $text = "Tidak ada reminder yang ditemukan.";
-                $this->sendQuotedFreeText($waNumber, $text);
-                return;
-            }
-
-            $whereClause = implode(' OR ', $conditions);
-            $sql = "SELECT * FROM reminder WHERE $whereClause";
+            $sql = 'SELECT * FROM reminder';
 
             try {
                 $queryResult = DB::getInstance(0)->query($sql);
@@ -5357,7 +5327,7 @@ class WAReplies
                 $res = $this->sendQuotedFreeText($waNumber, $combined_text);
             } else {
                 // No reminders found
-                $text = "Tidak ada reminder yang ditemukan untuk nomor Anda.";
+                $text = "Tidak ada reminder dalam rentang waktu.";
                 $res = $this->sendQuotedFreeText($waNumber, $text);
             }
         } catch (\Exception $e) {

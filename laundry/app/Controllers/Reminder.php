@@ -36,7 +36,7 @@ class Reminder extends Controller
             'cycle' => (int)$_POST['cycle'],
             'cycle_type' => $_POST['cycle_type'],
             'range' => (int)$_POST['range'],
-            'notif_number' => '085278114125,081268098300'
+            'notif_number' => '',
         ];
 
         $in = $this->db(100)->insert($table, $data);
@@ -68,8 +68,6 @@ class Reminder extends Controller
             $kolom = 'cycle_type';
         } elseif ($mode == 6) {
             $kolom = 'range';
-        } elseif ($mode == 7) {
-            $kolom = 'notif_number';
         }
 
         if (empty($kolom)) {
