@@ -1527,33 +1527,61 @@
   }
 
   function loadGoogleMapsApi(apiKey) {
-    if (window.google && window.google.maps) {
-      return Promise.resolve(window.google.maps);
+    if (window.google && window.google.maps && window.google.maps.importLibrary) {
+      return window.google.maps.importLibrary('maps');
     }
     if (kurirMapsScriptPromise) return kurirMapsScriptPromise;
     kurirMapsScriptPromise = new Promise(function (resolve, reject) {
       window.gm_authFailure = function () {
         reject(new Error('Google Maps menolak API key browser'));
       };
-      window.__kurirGmReady = function () {
-        delete window.__kurirGmReady;
-        if (window.google && window.google.maps) {
-          resolve(window.google.maps);
-          return;
-        }
-        reject(new Error('Google Maps tidak tersedia'));
-      };
-      var script = document.createElement('script');
-      script.src =
-        'https://maps.googleapis.com/maps/api/js?key=' +
-        encodeURIComponent(apiKey) +
-        '&language=id&region=ID&callback=__kurirGmReady';
-      script.async = true;
-      script.defer = true;
-      script.onerror = function () {
-        reject(new Error('Gagal memuat Google Maps'));
-      };
-      document.head.appendChild(script);
+
+      var params = { key: apiKey, v: 'weekly', language: 'id', region: 'ID' };
+      (function (g) {
+        var h;
+        var a;
+        var k;
+        var p = 'The Google Maps JavaScript API';
+        var c = 'google';
+        var l = 'importLibrary';
+        var q = '__ib__';
+        var m = document;
+        var b = window;
+        b = b[c] || (b[c] = {});
+        var d = b.maps || (b.maps = {});
+        var r = new Set();
+        var e = new URLSearchParams();
+        var u = function () {
+          return (
+            h ||
+            (h = new Promise(function (f, n) {
+              a = m.createElement('script');
+              e.set('libraries', Array.from(r).join(','));
+              for (k in g) {
+                if (Object.prototype.hasOwnProperty.call(g, k) && g[k] != null && g[k] !== '') {
+                  e.set(k.replace(/[A-Z]/g, function (t) { return '_' + t[0].toLowerCase(); }), g[k]);
+                }
+              }
+              e.set('loading', 'async');
+              e.set('callback', c + '.maps.' + q);
+              a.src = 'https://maps.googleapis.com/maps/api/js?' + e.toString();
+              d[q] = f;
+              a.onerror = function () {
+                h = n(new Error(p + ' could not load.'));
+              };
+              a.async = true;
+              m.head.append(a);
+            }))
+          );
+        };
+        d[l] = function (f) {
+          return r.add(f) && u().then(function () {
+            return d[l](f);
+          });
+        };
+      })(params);
+
+      window.google.maps.importLibrary('maps').then(resolve).catch(reject);
     });
     return kurirMapsScriptPromise;
   }
@@ -1570,12 +1598,12 @@
         if (!apiKey) throw new Error('Google Maps API key belum dikonfigurasi');
         return loadGoogleMapsApi(apiKey);
       })
-      .then(function (maps) {
+      .then(function (mapsLib) {
         if (loadingEl) loadingEl.hidden = true;
         var el = document.getElementById('jKurirMap');
         if (!el) return;
         if (!kurirMap) {
-          kurirMap = new maps.Map(el, {
+          kurirMap = new mapsLib.Map(el, {
             center: { lat: lat, lng: lng },
             zoom: zoom,
             mapTypeControl: false,

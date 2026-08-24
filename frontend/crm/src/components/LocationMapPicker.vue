@@ -308,9 +308,8 @@ const initMap = async () => {
       region: "ID",
       authReferrerPolicy: "origin",
     });
-    await loader.load();
+    const { Map } = await loader.importLibrary("maps");
     if (destroyed) return;
-    const { Map } = google.maps;
 
     const hasCoords = lat.value != null && lng.value != null;
     const start = await resolveStartCenter(hasCoords);
