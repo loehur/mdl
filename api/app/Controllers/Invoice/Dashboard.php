@@ -58,7 +58,7 @@ class Dashboard extends InvoiceController
                  FROM invoices
                  WHERE user_id = ?
                  ORDER BY created_at DESC
-                 LIMIT 5",
+                 LIMIT 3",
                 [$userId]
             )->result_array();
 

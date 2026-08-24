@@ -57,6 +57,9 @@ class Invoices extends InvoiceController
                 $bind[] = $today;
             } elseif ($status === 'cancelled') {
                 $sql .= " AND status = 'cancelled'";
+            } elseif ($status === 'completed') {
+                // Riwayat: sudah tuntas (lunas atau dibatalkan)
+                $sql .= " AND (payment_status = 'paid' OR status = 'cancelled')";
             }
 
             if ($status === 'overdue') {
