@@ -261,8 +261,8 @@ class PublicView extends InvoiceController
             $token = $this->strFromBody($body, 'token');
             $paymentRef = $this->strFromBody($body, 'payment_ref');
 
-            if ($token === '' || $paymentRef === '') {
-                $this->error('Token dan payment_ref diperlukan', 400);
+            if ($token === '') {
+                $this->error('Token tidak valid', 400);
             }
 
             $invoice = $this->db($this->db_index)->query(
@@ -278,16 +278,33 @@ class PublicView extends InvoiceController
                 $this->error('Invoice sudah lunas', 400);
             }
 
-            $payment = $this->db($this->db_index)->query(
-                "SELECT * FROM invoice_payments
-                 WHERE payment_ref = ? AND invoice_id = ?
-                 LIMIT 1",
-                [$paymentRef, (int) $invoice['id']]
-            )->row_array();
+            $invoiceId = (int) $invoice['id'];
+            $payment = null;
+
+            if ($paymentRef !== '') {
+                $payment = $this->db($this->db_index)->query(
+                    "SELECT * FROM invoice_payments
+                     WHERE payment_ref = ? AND invoice_id = ?
+                     LIMIT 1",
+                    [$paymentRef, $invoiceId]
+                )->row_array();
+            }
+
+            if (!$payment) {
+                $payment = $this->db($this->db_index)->query(
+                    "SELECT * FROM invoice_payments
+                     WHERE invoice_id = ? AND payment_status = 'pending'
+                     ORDER BY id DESC
+                     LIMIT 1",
+                    [$invoiceId]
+                )->row_array();
+            }
 
             if (!$payment) {
                 $this->error('Pembayaran tidak ditemukan', 404);
             }
+
+            $paymentRef = trim((string) ($payment['payment_ref'] ?? $paymentRef));
 
             if ($payment['payment_status'] === 'success') {
                 $this->error('Pembayaran sudah berhasil, tidak dapat dibatalkan', 400);

@@ -223,7 +223,7 @@
               v-if="!paymentSuccess"
               class="btn-ghost w-full text-red-500"
               :disabled="cancelling"
-              @click="cancelActivePayment"
+              @click="cancelActivePayment()"
             >
               {{ cancelling ? "Membatalkan..." : "Batalkan Pembayaran" }}
             </button>
@@ -314,7 +314,10 @@ async function onSelectPaymentMethod(method) {
 }
 
 async function cancelActivePayment(paymentRef = null, closeModal = true) {
-  const ref = paymentRef || activePendingRef.value;
+  const ref =
+    typeof paymentRef === "string" && paymentRef.trim() !== ""
+      ? paymentRef.trim()
+      : activePendingRef.value;
   if (!ref || cancelling.value) return false;
 
   cancelling.value = true;
