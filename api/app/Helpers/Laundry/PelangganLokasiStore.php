@@ -11,7 +11,7 @@ use App\Helpers\CRM\MapsServer;
 class PelangganLokasiStore
 {
     /** Radius pencarian alamat dari pusat kota cabang pelanggan (meter). */
-    public const KOTA_SEARCH_RADIUS_M = 50000;
+    public const KOTA_SEARCH_RADIUS_M = 30000;
 
     public static function laundryDb(): DB
     {

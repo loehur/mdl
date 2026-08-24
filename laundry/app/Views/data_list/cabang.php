@@ -656,7 +656,7 @@ foreach ($kotaOptions as $k) {
   var KOTA_MAP = <?= json_encode($kotaMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
   var FALLBACK_LAT = 0.507068;
   var FALLBACK_LNG = 101.447779;
-  var KOTA_SEARCH_RADIUS_KM = 50;
+  var KOTA_SEARCH_RADIUS_KM = 30;
   var MAP_ZOOM = 17;
   var root = document.getElementById('cabang-root');
   if (!root) return;

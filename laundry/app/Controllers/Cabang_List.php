@@ -3,7 +3,7 @@
 class Cabang_List extends Controller
 {
    /** Radius pencarian maps cabang dari pusat kota (meter). */
-   private const KOTA_SEARCH_RADIUS_M = 50000;
+   private const KOTA_SEARCH_RADIUS_M = 30000;
 
    public function __construct()
    {

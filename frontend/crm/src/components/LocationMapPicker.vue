@@ -15,7 +15,7 @@ const props = defineProps({
 const DEFAULT_CENTER = { lat: -6.2088, lng: 106.8456 };
 const DEFAULT_ZOOM = 15;
 const SELECT_ZOOM = 17;
-const KOTA_SEARCH_RADIUS_KM = 50;
+const KOTA_SEARCH_RADIUS_KM = 30;
 
 const mapEl = ref(null);
 const searchWrap = ref(null);

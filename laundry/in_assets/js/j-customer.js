@@ -1284,7 +1284,7 @@
   var kurirEditingLokasiId = 0;
   var KURIR_DEFAULT_ZOOM = 15;
   var KURIR_SELECT_ZOOM = 17;
-  var KOTA_SEARCH_RADIUS_KM = 50;
+  var KOTA_SEARCH_RADIUS_KM = 30;
 
   function escapeHtmlKurir(s) {
     return String(s == null ? '' : s)

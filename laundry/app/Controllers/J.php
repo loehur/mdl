@@ -2723,7 +2723,7 @@ class J extends Controller
    }
 
    /** Radius pencarian alamat dari pusat kota cabang (meter). */
-   private const KOTA_SEARCH_RADIUS_M = 50000;
+   private const KOTA_SEARCH_RADIUS_M = 30000;
 
    /**
     * @param array<string,mixed> $body
