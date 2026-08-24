@@ -10,7 +10,8 @@ $unbindUrl = (string) ($data['unbindUrl'] ?? '');
       </div>
       <div class="modal-body">
         <p class="mb-2 small text-muted">
-          Mutasi akan dilepas dari entity. Referensi dan tipe bind akan diblokir agar tidak bisa di-bind ulang.
+          Mutasi akan dilepas dari entity. <strong>Referensi transaksi</strong> (entity type + ref) diblokir agar tidak bisa di-bind ulang.
+          Mutasi BCA itu sendiri tetap bebas di-bind ke transaksi lain.
           Status pembayaran dikembalikan (laundry: tidak tuntas, invoice: belum bayar, salon: subscription sebelumnya).
         </p>
         <dl class="nta-detail-list mb-3">

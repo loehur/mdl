@@ -271,15 +271,37 @@ class BcaMutasiUnbind
             return ['ok' => false, 'message' => 'invoice_id tidak valid'];
         }
 
+        $invoice = $invoiceDb->query(
+            'SELECT status, payment_status FROM invoices WHERE id = ? LIMIT 1',
+            [$invoiceId]
+        )->row_array();
+
         $invoiceDb->update('invoice_payments', [
             'payment_status' => 'failed',
             'paid_at' => null,
         ], ['id' => (int) $payment['id']]);
 
-        $invoiceDb->update('invoices', [
-            'payment_status' => 'unpaid',
-            'status' => 'unpaid',
-        ], ['id' => $invoiceId]);
+        $invoiceUpdate = [];
+
+        $stillPending = $invoiceDb->query(
+            "SELECT id FROM invoice_payments
+             WHERE invoice_id = ? AND payment_status = 'pending' AND id <> ?
+             LIMIT 1",
+            [$invoiceId, (int) $payment['id']]
+        )->row_array();
+
+        if (empty($stillPending['id'])) {
+            $invoiceUpdate['payment_status'] = 'unpaid';
+        }
+
+        // invoices.status ENUM: draft|sent|paid|cancelled — bukan 'unpaid'
+        if (strtolower((string) ($invoice['status'] ?? '')) === 'paid') {
+            $invoiceUpdate['status'] = 'sent';
+        }
+
+        if ($invoiceUpdate !== []) {
+            $invoiceDb->update('invoices', $invoiceUpdate, ['id' => $invoiceId]);
+        }
 
         return [
             'ok' => true,
