@@ -13,8 +13,8 @@ use App\Helpers\Payment\BcaUniqueNominal;
 /**
  * Konfirmasi otomatis transfer BCA pending:
  * - kas laundry (± Rp 1.000)
- * - invoice project (exact nominal)
- * - beauty salon subscription (exact nominal)
+ * - invoice project (± Rp 1.000)
+ * - beauty salon subscription (± Rp 1.000)
  *
  * URL: /Cron/BcaKasConfirm/index?secret=YOUR_CRON_SECRET
  */
@@ -233,7 +233,7 @@ class BcaKasConfirm extends Controller
                 $row,
                 BcaScrapper::ENTITY_INVOICE,
                 $paymentRef,
-                true
+                false
             );
 
             if (empty($match['ok'])) {
@@ -248,7 +248,7 @@ class BcaKasConfirm extends Controller
 
             if (empty($match['matched'])) {
                 $stats['skipped']++;
-                echo "SKIP [Invoice] {$paymentRef}: mutasi CR exact {$row['total']} tidak ditemukan";
+                echo "SKIP [Invoice] {$paymentRef}: mutasi CR nominal {$row['total']} (±1000) tidak ditemukan";
                 if (!empty($match['range_start']) && !empty($match['range_end'])) {
                     echo " ({$match['range_start']}..{$match['range_end']})";
                 }
@@ -328,7 +328,7 @@ class BcaKasConfirm extends Controller
                 $row,
                 BcaScrapper::ENTITY_SALON_SUBSCRIPTION,
                 $paymentRef,
-                true
+                false
             );
 
             if (empty($match['ok'])) {
@@ -343,7 +343,7 @@ class BcaKasConfirm extends Controller
 
             if (empty($match['matched'])) {
                 $stats['skipped']++;
-                echo "SKIP [Salon] {$paymentRef}: mutasi CR exact {$row['total']} tidak ditemukan";
+                echo "SKIP [Salon] {$paymentRef}: mutasi CR nominal {$row['total']} (±1000) tidak ditemukan";
                 if (!empty($match['range_start']) && !empty($match['range_end'])) {
                     echo " ({$match['range_start']}..{$match['range_end']})";
                 }
