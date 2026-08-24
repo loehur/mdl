@@ -6,6 +6,7 @@ import LoginModal from "./components/LoginModal.vue";
 import ChatPage from "./components/ChatPage.vue";
 import ConversationList from "./components/ConversationList.vue";
 import { getDeviceId } from "./utils/deviceId.js";
+import { classifyWsClose1008, wsClose1008Message } from "./utils/wsCloseReason.js";
 
 /** Debounce reconnect when visibility + Capacitor resume both fire */
 let resumeReconnectTimer = null;
@@ -922,7 +923,9 @@ const connect = async () => {
 
     connectWebSocket();
     fetchConversations();
-    fetchQuickReplies();
+    if (currentUserRole.value !== "driver") {
+      fetchQuickReplies();
+    }
 
     if (currentUserRole.value !== "driver") {
       oneSignalLogin(authId.value);
@@ -3142,6 +3145,88 @@ const forceDisconnect = () => {
   }
 };
 
+const clearLoginSession = () => {
+  localStorage.removeItem("cms_chat_id");
+  localStorage.removeItem("cms_chat_password");
+  localStorage.removeItem("cms_chat_expiry");
+  authId.value = "";
+  wasConnected.value = false;
+};
+
+/** Handle WebSocket close 1008 — jangan semua dianggap "duplicate connection". */
+const handleWsClose1008 = (event, isPreWelcome = false) => {
+  const reason = String(event.reason || "");
+  const kind = classifyWsClose1008(reason);
+  const logTag = isPreWelcome ? "pre-welcome" : "connected";
+
+  if (kind === "device_lock") {
+    duplicateWarning.value = wsClose1008Message(reason, kind);
+    connectionError.value = duplicateWarning.value;
+    isReconnecting.value = false;
+    showLoginPrompt.value = true;
+    return;
+  }
+
+  if (kind === "unauthorized" || kind === "config_error") {
+    duplicateRetryAttempts.value = 0;
+    connectionError.value = wsClose1008Message(reason, kind);
+    isReconnecting.value = false;
+    showLoginPrompt.value = true;
+    return;
+  }
+
+  if (kind === "lock_race") {
+    console.warn(`WS lock race (${logTag}): ${reason || "(empty)"}`);
+    connectionError.value = "Menghubungkan…";
+    isReconnecting.value = true;
+    setTimeout(() => {
+      if (!isConnected.value && authId.value) connectWebSocket();
+    }, isPreWelcome ? 800 : 1200);
+    return;
+  }
+
+  const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
+  if (isRecentResume) {
+    console.warn(`WS resume grace (${logTag}), retrying…`);
+    setTimeout(() => {
+      if (!isConnected.value && authId.value) connectWebSocket();
+    }, 1500);
+    return;
+  }
+
+  if (kind === "verify_failed") {
+    duplicateRetryAttempts.value++;
+    const attempt = duplicateRetryAttempts.value;
+    console.warn(`WS verify failed (${logTag}, attempt ${attempt})`);
+    connectionError.value = `Verifikasi koneksi… (${attempt})`;
+    isReconnecting.value = true;
+    setTimeout(() => {
+      if (!isConnected.value && authId.value) connectWebSocket();
+    }, 2000);
+    return;
+  }
+
+  if (duplicateRetryAttempts.value < maxDuplicateRetries) {
+    duplicateRetryAttempts.value++;
+    const attempt = duplicateRetryAttempts.value;
+    console.warn(`WS reconnect (${logTag}, attempt ${attempt})`);
+    connectionError.value = `Reconnecting... (${attempt})`;
+    isReconnecting.value = true;
+    setTimeout(() => {
+      if (!isConnected.value && authId.value) connectWebSocket();
+    }, duplicateRetryDelay);
+    return;
+  }
+
+  duplicateRetryAttempts.value = 0;
+  duplicateWarning.value =
+    "Koneksi gagal setelah beberapa percobaan. Silakan login ulang.";
+  connectionError.value = duplicateWarning.value;
+  clearLoginSession();
+  isReconnecting.value = false;
+  showLoginPrompt.value = true;
+};
+
 const connectWebSocket = () => {
   if (!authId.value) return;
 
@@ -3727,64 +3812,7 @@ const connectWebSocket = () => {
 
         // Device lock / unauthorized (1008)
         if (event.code === 1008) {
-          const reason = String(event.reason || "");
-          const reasonLower = reason.toLowerCase();
-          const isDeviceLock =
-            reasonLower.includes("device") ||
-            reasonLower.includes("kunci") ||
-            reasonLower.includes("lock") ||
-            reasonLower.includes("login");
-
-          if (isDeviceLock) {
-            console.warn("Device lock rejected:", reason);
-            duplicateWarning.value =
-              reason ||
-              "ID dikunci di device lain. Logout dari device tersebut terlebih dahulu.";
-            connectionError.value = duplicateWarning.value;
-            isReconnecting.value = false;
-            showLoginPrompt.value = true;
-            return;
-          }
-
-          // Legacy duplicate / limit — retry (same device should usually reclaim now)
-          const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
-
-          if (isRecentResume) {
-            console.warn(
-              "Ignoring duplicate connection error during resume grace period. Retrying..."
-            );
-            setTimeout(() => {
-              if (!isConnected.value && authId.value) connectWebSocket();
-            }, 1500);
-          } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
-            duplicateRetryAttempts.value++;
-            const attempt = duplicateRetryAttempts.value;
-
-            console.warn(
-              `Duplicate connection detected (attempt ${attempt}). ` +
-              `Waiting ${duplicateRetryDelay / 1000}s before retry...`
-            );
-
-            connectionError.value = `Reconnecting... (${attempt})`;
-            isReconnecting.value = true;
-
-            setTimeout(() => {
-              if (!isConnected.value && authId.value) {
-                connectWebSocket();
-              }
-            }, duplicateRetryDelay);
-          } else {
-            duplicateRetryAttempts.value = 0;
-            duplicateWarning.value =
-              "ID Anda sudah terkoneksi di device lain. Logout dari device tersebut untuk membuka kunci.";
-            localStorage.removeItem("cms_chat_id");
-            localStorage.removeItem("cms_chat_password");
-            localStorage.removeItem("cms_chat_expiry");
-            authId.value = "";
-            wasConnected.value = false;
-            isReconnecting.value = false;
-            showLoginPrompt.value = true;
-          }
+          handleWsClose1008(event, false);
           return;
         } else if (
           wasConnected.value &&
@@ -3830,62 +3858,8 @@ const connectWebSocket = () => {
         }
 
         if (event.code === 1008) {
-          const reason = String(event.reason || "");
-          const reasonLower = reason.toLowerCase();
-          const isDeviceLock =
-            reasonLower.includes("device") ||
-            reasonLower.includes("kunci") ||
-            reasonLower.includes("lock") ||
-            reasonLower.includes("login");
-
-          if (isDeviceLock) {
-            duplicateWarning.value =
-              reason ||
-              "ID dikunci di device lain. Logout dari device tersebut terlebih dahulu.";
-            connectionError.value = duplicateWarning.value;
-            isReconnecting.value = false;
-            showLoginPrompt.value = true;
-            return;
-          }
-
-          const isRecentResume = Date.now() - resumeTimestamp.value < 5000;
-
-          if (isRecentResume) {
-            console.warn("Ignoring duplicate connection error during resume (pre-welcome). Retrying...");
-            setTimeout(() => {
-              if (!isConnected.value && authId.value) connectWebSocket();
-            }, 1500);
-            return;
-          } else if (duplicateRetryAttempts.value < maxDuplicateRetries) {
-            duplicateRetryAttempts.value++;
-            const attempt = duplicateRetryAttempts.value;
-
-            console.warn(
-              `Duplicate connection detected (pre-welcome, attempt ${attempt}). Waiting ${duplicateRetryDelay / 1000}s...`
-            );
-
-            connectionError.value = `Reconnecting... (${attempt})`;
-            isReconnecting.value = true;
-
-            setTimeout(() => {
-              if (!isConnected.value && authId.value) {
-                connectWebSocket();
-              }
-            }, duplicateRetryDelay);
-            return;
-          } else {
-            duplicateRetryAttempts.value = 0;
-            duplicateWarning.value =
-              "ID Anda sudah terkoneksi di device lain. Logout dari device tersebut untuk membuka kunci.";
-            localStorage.removeItem("cms_chat_id");
-            localStorage.removeItem("cms_chat_password");
-            localStorage.removeItem("cms_chat_expiry");
-            authId.value = "";
-            wasConnected.value = false;
-            isReconnecting.value = false;
-            showLoginPrompt.value = true;
-            return;
-          }
+          handleWsClose1008(event, true);
+          return;
         } else if (
           event.code === 1006 &&
           wasConnected.value &&
@@ -4665,10 +4639,8 @@ onMounted(() => {
   // Clean up old password storage (migration)
   localStorage.removeItem("cms_chat_password");
 
-  if (storedRole && storedRole !== "driver") {
+  if (storedRole) {
     currentUserRole.value = storedRole;
-  } else if (storedRole === "driver") {
-    localStorage.removeItem("cms_chat_role");
   }
   if (storedName) userName.value = storedName;
   if (storedSenderCode) senderCode.value = storedSenderCode;

@@ -119,7 +119,7 @@ class CrmDevices extends Controller
 
         try {
             $admin = $dbMain->get_where_row('crm_users', "UPPER(username) = UPPER('" . $esc . "')");
-            if (is_array($admin) && ($admin['username'] ?? '') !== '') {
+            if (is_array($admin) && !empty($admin['username'])) {
                 $name = trim((string) ($admin['name'] ?? ''));
                 return [
                     'role' => 'Admin',
@@ -130,9 +130,19 @@ class CrmDevices extends Controller
             // ignore
         }
 
-        if (ctype_digit($username)) {
+        $isNumeric = ctype_digit($username);
+        $isPhoneLike = $isNumeric && strlen($username) >= 10;
+
+        if ($isPhoneLike) {
+            $driver = $this->resolveDriverLabel($username);
+            if ($driver !== null) {
+                return ['role' => 'Driver', 'label' => $driver];
+            }
+        }
+
+        if ($isNumeric) {
             $cabang = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . (int) $username);
-            if (is_array($cabang)) {
+            if (!empty($cabang['id_cabang'])) {
                 $kode = trim((string) ($cabang['kode_cabang'] ?? ''));
                 $nama = trim((string) ($cabang['nama'] ?? ''));
                 $label = $kode !== '' ? $kode : ('Cabang #' . $username);
@@ -165,7 +175,7 @@ class CrmDevices extends Controller
             $digits = substr($digits, 2);
         }
 
-        if ($digits === '' || strlen($digits) < 8) {
+        if ($digits === '' || strlen($digits) < 8 || !str_starts_with($digits, '8')) {
             return null;
         }
 

@@ -610,6 +610,43 @@ function verifyDeviceLock(username, deviceId) {
     });
 }
 
+/** Retry verify when login→WS race (lock row belum terbaca). */
+async function verifyDeviceLockWithRetry(username, deviceId, attempts = 4, delayMs = 450) {
+    let last = { ok: false, message: 'verify failed' };
+    for (let i = 0; i < attempts; i++) {
+        last = await verifyDeviceLock(username, deviceId);
+        if (last.ok) {
+            return last;
+        }
+        const msg = String(last.message || '').toLowerCase();
+        const retryable =
+            msg.includes('belum login') ||
+            msg.includes('lock tidak ada') ||
+            msg.includes('verify timeout') ||
+            msg.includes('verify request failed') ||
+            msg.includes('verify parse error');
+        if (!retryable || i === attempts - 1) {
+            break;
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+    }
+    return last;
+}
+
+/** Refresh role list from API if ID belum dikenali (driver baru / cache stale). */
+async function ensureIdAllowed(id) {
+    if (isIdAllowed(id)) {
+        return true;
+    }
+    console.log(`[ROLES] ID ${id} not in cache — refreshing from API…`);
+    await fetchRoles();
+    if (isIdAllowed(id)) {
+        console.log(`[ROLES] ID ${id} allowed after refresh`);
+        return true;
+    }
+    return false;
+}
+
 // Store connected clients: Map<id, Set<WebSocket>> — max 1 live socket per ID
 // Same device may REPLACE old sockets (reconnect/zombie). Other device rejected via API lock.
 const clients = new Map();
@@ -634,15 +671,15 @@ wss.on('connection', async (ws, req) => {
         return;
     }
 
-    // Check if ID is allowed (role list)
-    if (!isIdAllowed(id)) {
+    // Check if ID is allowed (role list) — refresh once if missing (driver baru)
+    if (!(await ensureIdAllowed(id))) {
         console.log(`Connection rejected: ID "${id}" is not in the allowed list`);
         ws.close(1008, 'Unauthorized ID');
         return;
     }
 
     // Device lock check (same device OK; other device rejected)
-    const verified = await verifyDeviceLock(id, deviceId);
+    const verified = await verifyDeviceLockWithRetry(id, deviceId);
 
     if (!verified.ok) {
         console.log(`Connection rejected for ID ${id}: device lock — ${verified.message}`);

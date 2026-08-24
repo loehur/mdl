@@ -102,7 +102,10 @@ class Auth extends Controller
                     'ok' => false,
                     'message' => 'username dan device wajib',
                 ], 400);
+                return;
             }
+
+            $username = $this->normalizeLockUsername($username);
 
             $result = $this->verifyOrRefreshLock($username, $deviceId);
 
@@ -204,6 +207,26 @@ class Auth extends Controller
             'code' => 'DR',
             'id_cabang' => (int) ($row['id_cabang'] ?? 0),
         ];
+    }
+
+    /** Samakan format username lock (driver = nomor nasional 8…). */
+    private function normalizeLockUsername(string $username): string
+    {
+        $username = strtoupper(trim($username));
+        if ($username === '') {
+            return '';
+        }
+
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $key = strtoupper(\App\Helpers\CRM\WaSenderContext::key($username));
+        if ($key !== '') {
+            return $key;
+        }
+
+        return $username;
     }
 
     private function ensureLockTable(): void
