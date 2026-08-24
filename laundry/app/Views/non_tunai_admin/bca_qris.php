@@ -3,6 +3,7 @@ $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
 $unboundRows = is_array($data['unboundRows'] ?? null) ? $data['unboundRows'] : [];
 $unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
+$payerByRef = is_array($data['payerByRef'] ?? null) ? $data['payerByRef'] : $pelangganByRef;
 $fmtRp = static function ($value): string {
     if ($value === null || $value === '') {
         return '—';
@@ -36,7 +37,7 @@ $this->view('non_tunai_admin/_filter', [
               <th>ID Link</th>
               <th>Tanggal</th>
               <th>Nominal</th>
-              <th>Pelanggan</th>
+              <th>Payer</th>
             </tr>
           </thead>
           <tbody>
@@ -47,7 +48,7 @@ $this->view('non_tunai_admin/_filter', [
               $entityType = (string) ($row['entity_type'] ?? '');
               $entityRef = (string) ($row['entity_ref'] ?? '');
               $isKasLaundry = ($entityType === 'kas_laundry');
-              $pRow = ($isKasLaundry && isset($pelangganByRef[$entityRef])) ? $pelangganByRef[$entityRef] : null;
+              $payerRow = ($isKasLaundry && isset($payerByRef[$entityRef])) ? $payerByRef[$entityRef] : null;
 
               $tanggal = (string) ($row['tanggal'] ?? '');
               $waktu = trim((string) ($row['waktu'] ?? ''));
@@ -61,17 +62,20 @@ $this->view('non_tunai_admin/_filter', [
               $ket = trim((string) ($row['keterangan'] ?? ''));
               $linkedAt = !empty($row['linked_at']) ? date('d/m/Y H:i', strtotime((string) $row['linked_at'])) : '—';
 
-              $pelangganHtml = '—';
-              if (is_array($pRow) && !empty($pRow['id_pelanggan'])) {
-                  $idPlg = (int) $pRow['id_pelanggan'];
-                  $namaPlg = trim((string) ($pRow['nama_pelanggan'] ?? ''));
-                  if ($namaPlg === '') {
-                      $namaPlg = (string) $idPlg;
+              $payerHtml = '—';
+              if (is_array($payerRow) && trim((string) ($payerRow['name'] ?? '')) !== '') {
+                  $namaUpper = mb_strtoupper(trim((string) $payerRow['name']), 'UTF-8');
+                  $badge = trim((string) ($payerRow['badge'] ?? ''));
+                  $urlPayer = trim((string) ($payerRow['url'] ?? ''));
+                  if ($urlPayer !== '') {
+                      $payerHtml = '<a href="' . htmlspecialchars($urlPayer, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer" class="nta-plg-link">'
+                          . htmlspecialchars($namaUpper) . '</a>';
+                  } else {
+                      $payerHtml = '<span class="nta-plg-link nta-plg-link--plain">' . htmlspecialchars($namaUpper) . '</span>';
                   }
-                  $namaUpper = mb_strtoupper($namaPlg, 'UTF-8');
-                  $urlPlg = 'https://ml.nalju.com/J/tagihan/' . $idPlg;
-                  $pelangganHtml = '<a href="' . htmlspecialchars($urlPlg) . '" target="_blank" rel="noopener noreferrer" class="nta-plg-link">'
-                      . htmlspecialchars($namaUpper) . '</a>';
+                  if ($badge !== '') {
+                      $payerHtml .= ' <small class="text-muted">(' . htmlspecialchars($badge) . ')</small>';
+                  }
               }
 
               $bindNominal = $row['bind_nominal'] ?? null;
@@ -94,7 +98,8 @@ $this->view('non_tunai_admin/_filter', [
                       ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
                       ['label' => 'Tipe Entity', 'value' => $entityType],
                       ['label' => 'Referensi', 'value' => $entityRef],
-                      ['label' => 'Pelanggan', 'html' => $pelangganHtml],
+                      ['label' => 'Jenis Kas', 'value' => is_array($payerRow) ? (string) ($payerRow['badge'] ?? '—') : '—'],
+                      ['label' => 'Payer', 'html' => $payerHtml],
                       ['label' => 'Waktu Bind', 'value' => $linkedAt],
                       ['label' => 'ID QRIS', 'value' => (string) ($row['qris_id'] ?? '')],
                   ],
@@ -114,7 +119,7 @@ $this->view('non_tunai_admin/_filter', [
                   'nominal' => $nominal,
                   'billNominal' => $billNominal,
               ]); ?></td>
-              <td><?php $this->view('non_tunai_admin/_pelanggan_cell', ['p' => $pRow]); ?></td>
+              <td><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
             </tr>
             <?php } ?>
           </tbody>

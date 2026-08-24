@@ -1,4 +1,8 @@
-<?php $kas = $data['saldo']; ?>
+<?php
+$kas = $data['saldo'];
+$saldoBca = (int) ($data['saldoBca'] ?? 0);
+$saldoQris = (int) ($data['saldoQris'] ?? 0);
+?>
 <div class="content">
   <div class="container-fluid">
     <div class="row">
@@ -289,13 +293,33 @@
       </div>
       <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
-    <form class="op-modal__form-wrap" action="<?= URL::BASE_URL; ?>Kas/insert" method="POST">
+    <form class="op-modal__form-wrap formPenarikan" action="<?= URL::BASE_URL; ?>Kas/insert_penarikan_tunai" method="POST" data-action-tunai="<?= URL::BASE_URL; ?>Kas/insert_penarikan_tunai" data-action-nontunai="<?= URL::BASE_URL; ?>Kas/insert_penarikan_nontunai">
       <div class="op-modal__body">
         <div class="kas-pg-modal-grid">
           <div class="op-field kas-pg-span-2">
-            <label class="op-label">Saldo Kas</label>
-            <div class="kas-saldo-box saldoKas">Rp <?= number_format($kas); ?></div>
-            <input type="hidden" name="kas" class="saldoKasHidden" value="<?= $kas ?>">
+            <label class="op-label">Metode Penarikan</label>
+            <select name="metode_penarikan" class="op-input metodePenarikan" required>
+              <option value="1" selected>Tunai</option>
+              <option value="2">Non Tunai</option>
+            </select>
+          </div>
+          <div class="op-field kas-pg-span-2">
+            <label class="op-label saldoPenarikanLabel">Saldo Kas Tunai</label>
+            <div class="kas-saldo-box saldoPenarikan">Rp <?= number_format($kas); ?></div>
+            <input type="hidden" name="kas" class="saldoPenarikanHidden" value="<?= $kas ?>">
+          </div>
+          <div class="op-field kas-pg-span-2 penarikanNonTunaiField" style="display:none;">
+            <label class="op-label">Tujuan Non Tunai</label>
+            <div class="d-flex gap-3 flex-wrap">
+              <label class="d-flex align-items-center gap-2 mb-0">
+                <input type="radio" name="note" value="BCA" class="penarikanNoteRadio">
+                <span>BCA</span>
+              </label>
+              <label class="d-flex align-items-center gap-2 mb-0">
+                <input type="radio" name="note" value="QRIS" class="penarikanNoteRadio" checked>
+                <span>QRIS</span>
+              </label>
+            </div>
           </div>
           <div class="op-field">
             <label class="op-label">Jumlah Rp</label>
@@ -304,7 +328,7 @@
           </div>
           <div class="op-field">
             <label class="op-label">Keterangan</label>
-            <input type="text" name="f1" class="op-input" required>
+            <input type="text" name="f1" class="op-input keteranganPenarikan">
           </div>
           <div class="op-field kas-pg-span-2">
             <label class="op-label">Penarik Kas</label>
@@ -327,7 +351,8 @@
         </div>
       </div>
       <div class="op-modal__foot">
-        <p class="kas-hint-warn">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</p>
+        <p class="kas-hint-warn penarikanHintTunai">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</p>
+        <p class="kas-hint-warn penarikanHintNonTunai" style="display:none;">Menunggu konfirmasi admin atau cron. QRIS tidak perlu scan.</p>
         <button type="submit" class="op-btn op-btn--blue op-btn--block">Tarik Kas</button>
       </div>
     </form>
@@ -418,6 +443,8 @@
 
 <script>
   var saldoKas = <?= $kas ?>;
+  var saldoBca = <?= $saldoBca ?>;
+  var saldoQris = <?= $saldoQris ?>;
 
   function formatRupiah(num) {
     return 'Rp ' + new Intl.NumberFormat('id-ID', {
@@ -447,6 +474,23 @@
   $("form").on("submit", function(e) {
     e.preventDefault();
     var $form = $(this);
+    if ($form.hasClass('formPenarikan')) {
+      var isNonTunai = $form.find('.metodePenarikan').val() === '2';
+      if (isNonTunai && !$form.find('.penarikanNoteRadio:checked').length) {
+        var msg = 'Pilih tujuan BCA atau QRIS';
+        if (window.MdlToast) window.MdlToast.error(msg);
+        else alert(msg);
+        return;
+      }
+      var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
+      var saldoNow = getSaldoPenarikanAktif($form);
+      if (potong > saldoNow) {
+        var msgOver = 'Jumlah melebihi saldo tersedia';
+        if (window.MdlToast) window.MdlToast.error(msgOver);
+        else alert(msgOver);
+        return;
+      }
+    }
     if (window.KasPengeluaranKendaraan && !KasPengeluaranKendaraan.prepareSubmit($form)) {
       return;
     }
@@ -497,19 +541,77 @@
   });
 
   $("input.jumlahTarik").on("input keyup change", function() {
-    var potong = parseInt($(this).val()) || 0;
-    var sisaKas = saldoKas - potong;
+    var $form = $(this).closest('form');
+    var potong = parseInt($(this).val(), 10) || 0;
+    var saldoAwal = $form.hasClass('formPenarikan')
+      ? getSaldoPenarikanAktif($form)
+      : saldoKas;
+    var sisaKas = saldoAwal - potong;
 
-    $(this).closest('form').find('.saldoKas').text(formatRupiah(sisaKas));
-    $(this).closest('form').find('.saldoKasHidden').val(sisaKas);
-
-    if (sisaKas < 0) {
-      $(this).closest('form').find('.saldoKas').addClass('kas-saldo--minus');
+    if ($form.hasClass('formPenarikan')) {
+      $form.find('.saldoPenarikan').text(formatRupiah(sisaKas));
+      $form.find('.saldoPenarikanHidden').val(sisaKas);
+      if (sisaKas < 0) {
+        $form.find('.saldoPenarikan').addClass('kas-saldo--minus');
+      } else {
+        $form.find('.saldoPenarikan').removeClass('kas-saldo--minus');
+      }
     } else {
-      $(this).closest('form').find('.saldoKas').removeClass('kas-saldo--minus');
+      $form.find('.saldoKas').text(formatRupiah(sisaKas));
+      $form.find('.saldoKasHidden').val(sisaKas);
+      if (sisaKas < 0) {
+        $form.find('.saldoKas').addClass('kas-saldo--minus');
+      } else {
+        $form.find('.saldoKas').removeClass('kas-saldo--minus');
+      }
     }
 
     $(this).siblings('small').find('.liveAmount').text(formatRupiah(potong));
+  });
+
+  function getSaldoPenarikanAktif($form) {
+    if (!$form || !$form.hasClass('formPenarikan')) {
+      return saldoKas;
+    }
+    if ($form.find('.metodePenarikan').val() === '2') {
+      var note = ($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase();
+      return note === 'BCA' ? saldoBca : saldoQris;
+    }
+    return saldoKas;
+  }
+
+  function syncPenarikanForm($form) {
+    var isNonTunai = $form.find('.metodePenarikan').val() === '2';
+    var saldoNow = getSaldoPenarikanAktif($form);
+    var minJumlah = isNonTunai
+      ? (($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase() === 'BCA' ? 10000 : 1000)
+      : 1000;
+
+    $form.attr('action', isNonTunai ? $form.data('action-nontunai') : $form.data('action-tunai'));
+    $form.find('.penarikanNonTunaiField').toggle(isNonTunai);
+    $form.find('.penarikanHintTunai').toggle(!isNonTunai);
+    $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
+    $form.find('.keteranganPenarikan').prop('required', !isNonTunai);
+    $form.find('.saldoPenarikanLabel').text(isNonTunai
+      ? ('Saldo ' + (($form.find('.penarikanNoteRadio:checked').val() || 'QRIS').toUpperCase()))
+      : 'Saldo Kas Tunai');
+    $form.find('.saldoPenarikan').text(formatRupiah(saldoNow)).removeClass('kas-saldo--minus');
+    $form.find('.saldoPenarikanHidden').val(saldoNow);
+    $form.find('.jumlahPenarikan').attr('min', minJumlah);
+
+    var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
+    if (potong > 0) {
+      var sisa = saldoNow - potong;
+      $form.find('.saldoPenarikan').text(formatRupiah(sisa));
+      $form.find('.saldoPenarikanHidden').val(sisa);
+      if (sisa < 0) {
+        $form.find('.saldoPenarikan').addClass('kas-saldo--minus');
+      }
+    }
+  }
+
+  $(document).on('change', '.metodePenarikan, .penarikanNoteRadio', function() {
+    syncPenarikanForm($(this).closest('form.formPenarikan'));
   });
 
   $("button.dropdown-toggle").on("click", function() {
@@ -524,6 +626,15 @@
 
   function resetKasModalSaldo($root) {
     saldoKas = <?= $kas ?>;
+    if ($root.hasClass('formPenarikan') || $root.find('.formPenarikan').length) {
+      var $penarikan = $root.hasClass('formPenarikan') ? $root : $root.find('.formPenarikan');
+      $penarikan.find('.metodePenarikan').val('1');
+      $penarikan.find('.penarikanNoteRadio[value="QRIS"]').prop('checked', true);
+      syncPenarikanForm($penarikan);
+      $penarikan.find('.liveAmount').text('Rp 0');
+      $penarikan.find('input.jumlahTarik').val('');
+      return;
+    }
     $root.find('.saldoKas').text(formatRupiah(saldoKas)).removeClass('kas-saldo--minus');
     $root.find('.saldoKasHidden').val(saldoKas);
     $root.find('.liveAmount').text('Rp 0');

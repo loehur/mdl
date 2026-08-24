@@ -48,7 +48,8 @@ class BcaKasConfirm extends Controller
             "SELECT ref_finance,
                     SUM(jumlah) AS total,
                     MIN(insertTime) AS insertTime,
-                    MAX(note) AS note
+                    MAX(note) AS note,
+                    MAX(jenis_transaksi) AS jenis_transaksi
              FROM kas
              WHERE metode_mutasi = 2
                AND status_mutasi = 2
@@ -124,7 +125,8 @@ class BcaKasConfirm extends Controller
             }
 
             $stats['confirmed']++;
-            echo "OK {$refFinance}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
+            $jenisLabel = ((int) ($row['jenis_transaksi'] ?? 0) === 2) ? 'Penarikan' : 'Bayar';
+            echo "OK [{$jenisLabel}] {$refFinance}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
         }
 
         echo sprintf(

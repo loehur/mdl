@@ -73,7 +73,8 @@ class BcaQrisConfirm extends Controller
             "SELECT ref_finance,
                     SUM(jumlah) AS total,
                     MIN(insertTime) AS insertTime,
-                    MAX(note) AS note
+                    MAX(note) AS note,
+                    MAX(jenis_transaksi) AS jenis_transaksi
              FROM kas
              WHERE metode_mutasi = 2
                AND status_mutasi = 2
@@ -150,7 +151,8 @@ class BcaQrisConfirm extends Controller
 
             $stats['confirmed']++;
             $rrn = (string) ($match['rrn'] ?? '');
-            echo "OK {$refFinance}: qris#{$qrisId} rrn={$rrn} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
+            $jenisLabel = ((int) ($row['jenis_transaksi'] ?? 0) === 2) ? 'Penarikan' : 'Bayar';
+            echo "OK [{$jenisLabel}] {$refFinance}: qris#{$qrisId} rrn={$rrn} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
         }
 
         echo sprintf(

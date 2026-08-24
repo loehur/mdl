@@ -29,14 +29,14 @@ class NonTunaiAdmin extends Controller
             $unboundRows = [];
         }
 
-        $pelangganByRef = $this->loadPelangganByEntityRef($rows);
+        $payerByRef = $this->loadPayerByEntityRef($rows);
 
         $this->view('layout', ['data_operasi' => ['title' => 'BCA Mutasi']]);
         $this->view('non_tunai_admin/bca_mutasi', [
             'rows' => $rows,
             'unboundRows' => $unboundRows,
             'unboundTotalNominal' => $this->sumNominal($unboundRows),
-            'pelangganByRef' => $pelangganByRef,
+            'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
             'maxRangeDays' => self::MAX_RANGE_DAYS,
@@ -60,14 +60,14 @@ class NonTunaiAdmin extends Controller
             $unboundRows = [];
         }
 
-        $pelangganByRef = $this->loadPelangganByEntityRef($rows);
+        $payerByRef = $this->loadPayerByEntityRef($rows);
 
         $this->view('layout', ['data_operasi' => ['title' => 'BCA QRIS']]);
         $this->view('non_tunai_admin/bca_qris', [
             'rows' => $rows,
             'unboundRows' => $unboundRows,
             'unboundTotalNominal' => $this->sumNominal($unboundRows),
-            'pelangganByRef' => $pelangganByRef,
+            'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
             'maxRangeDays' => self::MAX_RANGE_DAYS,
@@ -284,10 +284,13 @@ class NonTunaiAdmin extends Controller
     }
 
     /**
+     * Resolve payer (pelanggan / karyawan / umum) dari kas laundry via ref_finance.
+     * entity_type bind tetap kas_laundry — jenis_transaksi dibedakan di sini, bukan di link table.
+     *
      * @param list<array<string,mixed>> $rows
-     * @return array<string,array<string,mixed>>
+     * @return array<string,array{name:string,url:?string,badge:string,jenis_transaksi:int}>
      */
-    private function loadPelangganByEntityRef(array $rows): array
+    private function loadPayerByEntityRef(array $rows): array
     {
         $this->helper('BcaMutasiBind');
 
@@ -314,49 +317,181 @@ class NonTunaiAdmin extends Controller
         }, array_values($refs)));
 
         $kasRows = $this->db(0)->query_array(
-            "SELECT ref_finance, MAX(id_client) AS id_client
+            "SELECT ref_finance,
+                    MAX(jenis_transaksi) AS jenis_transaksi,
+                    MAX(id_client) AS id_client,
+                    MAX(id_user) AS id_user,
+                    MAX(note_primary) AS note_primary,
+                    MAX(ref_transaksi) AS ref_transaksi
              FROM kas
              WHERE ref_finance IN ($in)
              GROUP BY ref_finance"
         );
 
-        if (!is_array($kasRows)) {
+        if (!is_array($kasRows) || $kasRows === []) {
             return [];
         }
 
         $clientIds = [];
-        $refToClient = [];
+        $userIds = [];
+        foreach ($kasRows as $kasRow) {
+            if (!is_array($kasRow)) {
+                continue;
+            }
+            $jt = (int) ($kasRow['jenis_transaksi'] ?? 0);
+            $idClient = (int) ($kasRow['id_client'] ?? 0);
+            $idUser = (int) ($kasRow['id_user'] ?? 0);
+
+            if ($jt === 2) {
+                if ($idUser > 0) {
+                    $userIds[$idUser] = $idUser;
+                }
+            } elseif ($jt === 5) {
+                if ($idClient > 0) {
+                    $userIds[$idClient] = $idClient;
+                }
+            } elseif ($idClient > 0) {
+                $clientIds[$idClient] = $idClient;
+            } elseif ($idUser > 0) {
+                $userIds[$idUser] = $idUser;
+            }
+        }
+
+        $pelangganMap = [];
+        if ($clientIds !== []) {
+            $clientIn = implode(',', array_values($clientIds));
+            $map = $this->db(0)->get_where('pelanggan', "id_pelanggan IN ($clientIn)", 'id_pelanggan');
+            $pelangganMap = is_array($map) ? $map : [];
+        }
+
+        $userMap = [];
+        if ($userIds !== []) {
+            $userIn = implode(',', array_values($userIds));
+            $map = $this->db(0)->get_where('user', "id_user IN ($userIn)", 'id_user');
+            $userMap = is_array($map) ? $map : [];
+        }
+
+        $out = [];
         foreach ($kasRows as $kasRow) {
             if (!is_array($kasRow)) {
                 continue;
             }
             $ref = trim((string) ($kasRow['ref_finance'] ?? ''));
-            $idClient = (int) ($kasRow['id_client'] ?? 0);
-            if ($ref === '' || $idClient < 1) {
+            if ($ref === '') {
                 continue;
             }
-            $refToClient[$ref] = $idClient;
-            $clientIds[$idClient] = $idClient;
-        }
-
-        if ($clientIds === []) {
-            return [];
-        }
-
-        $clientIn = implode(',', array_values($clientIds));
-        $pelangganMap = $this->db(0)->get_where('pelanggan', "id_pelanggan IN ($clientIn)", 'id_pelanggan');
-        if (!is_array($pelangganMap)) {
-            $pelangganMap = [];
-        }
-
-        $out = [];
-        foreach ($refToClient as $ref => $idClient) {
-            if (!isset($pelangganMap[$idClient]) || !is_array($pelangganMap[$idClient])) {
-                continue;
+            $payer = $this->resolvePayerFromKasRow($kasRow, $pelangganMap, $userMap);
+            if ($payer !== null) {
+                $out[$ref] = $payer;
             }
-            $out[$ref] = $pelangganMap[$idClient];
         }
 
         return $out;
+    }
+
+    /**
+     * @param array<string,mixed> $kasRow
+     * @param array<int,array<string,mixed>> $pelangganMap
+     * @param array<int,array<string,mixed>> $userMap
+     * @return array{name:string,url:?string,badge:string,jenis_transaksi:int}|null
+     */
+    private function resolvePayerFromKasRow(array $kasRow, array $pelangganMap, array $userMap): ?array
+    {
+        $jt = (int) ($kasRow['jenis_transaksi'] ?? 0);
+        $idClient = (int) ($kasRow['id_client'] ?? 0);
+        $idUser = (int) ($kasRow['id_user'] ?? 0);
+        $notePrimary = trim((string) ($kasRow['note_primary'] ?? ''));
+        $refTransaksi = trim((string) ($kasRow['ref_transaksi'] ?? ''));
+
+        $badgeMap = [
+            1 => 'Laundry',
+            2 => 'Penarikan',
+            3 => 'Member',
+            5 => 'Kasbon',
+            6 => 'Deposit',
+            7 => 'Jualan',
+            10 => 'Instant',
+        ];
+        $badge = $badgeMap[$jt] ?? ('Kas #' . $jt);
+
+        if ($jt === 2) {
+            $nama = $this->userNameFromMap($userMap, $idUser);
+            if ($nama === '') {
+                $nama = $notePrimary !== '' ? $notePrimary : 'Kasir';
+            }
+
+            return [
+                'name' => $nama,
+                'url' => null,
+                'badge' => $badge,
+                'jenis_transaksi' => $jt,
+            ];
+        }
+
+        if ($jt === 5) {
+            $nama = $this->userNameFromMap($userMap, $idClient);
+            if ($nama === '') {
+                $nama = 'Karyawan';
+            }
+
+            return [
+                'name' => $nama,
+                'url' => null,
+                'badge' => $badge,
+                'jenis_transaksi' => $jt,
+            ];
+        }
+
+        if ($jt === 7 && $idClient < 1) {
+            return [
+                'name' => 'Umum',
+                'url' => $refTransaksi !== ''
+                    ? (URL::BASE_URL . 'Sales/preview_nota/' . rawurlencode($refTransaksi))
+                    : null,
+                'badge' => $badge,
+                'jenis_transaksi' => $jt,
+            ];
+        }
+
+        if ($idClient > 0 && isset($pelangganMap[$idClient]) && is_array($pelangganMap[$idClient])) {
+            $p = $pelangganMap[$idClient];
+            $nama = trim((string) ($p['nama_pelanggan'] ?? ''));
+            if ($nama === '') {
+                $nama = (string) $idClient;
+            }
+
+            return [
+                'name' => $nama,
+                'url' => 'https://ml.nalju.com/J/tagihan/' . $idClient,
+                'badge' => $badge,
+                'jenis_transaksi' => $jt,
+            ];
+        }
+
+        if ($idUser > 0) {
+            $nama = $this->userNameFromMap($userMap, $idUser);
+            if ($nama !== '') {
+                return [
+                    'name' => $nama,
+                    'url' => null,
+                    'badge' => $badge,
+                    'jenis_transaksi' => $jt,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $userMap
+     */
+    private function userNameFromMap(array $userMap, int $idUser): string
+    {
+        if ($idUser < 1 || !isset($userMap[$idUser]) || !is_array($userMap[$idUser])) {
+            return '';
+        }
+
+        return trim((string) ($userMap[$idUser]['nama_user'] ?? ''));
     }
 }

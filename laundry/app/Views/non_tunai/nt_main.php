@@ -49,6 +49,11 @@ if (count($data['cek']) == 0) { ?>
       case 1:
         $jenis_bill = "Laundry";
         break;
+      case 2:
+        $jenis_bill = "Penarikan";
+        $pelanggan = $karyawan !== '' ? $karyawan : 'Kasir';
+        $pRow = null;
+        break;
       case 3:
         $jenis_bill = "Member";
         break;
@@ -93,7 +98,9 @@ if (count($data['cek']) == 0) { ?>
       ? (URL::BASE_URL . 'NonTunai/mutasiList')
       : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
     $idAttr = htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8');
-    $showKasir = in_array((int) $jenisT, [1, 3, 6], true) && (int) $f17 > 0;
+    $isPenarikan = ((int) $jenisT === 2);
+    $showKasir = !$isPenarikan && in_array((int) $jenisT, [1, 3, 6], true) && (int) $f17 > 0;
+    $showInvoice = !$isPenarikan && (int) $f17 > 0;
     $kasirUrl = 'https://ml.nalju.com/Operasi/i/0/' . (int) $f17 . '/0';
   ?>
   <div class="aa-card aa-card--pending nt-row" data-id-cabang="<?= $idCabang ?>">
@@ -101,6 +108,7 @@ if (count($data['cek']) == 0) { ?>
       <span class="aa-cabang-badge nt-cabang-badge"><?= htmlspecialchars($this->cabangKodeById($idCabang), ENT_QUOTES, 'UTF-8') ?></span>
     <?php } ?>
     <div class="nt-cabang-actions">
+      <?php if ($showInvoice) { ?>
       <button type="button"
         class="nt-icon-btn nt-invoice-link"
         title="Lihat tagihan"
@@ -109,6 +117,7 @@ if (count($data['cek']) == 0) { ?>
         data-invoice-title="<?= htmlspecialchars($invoiceTitle, ENT_QUOTES, 'UTF-8') ?>">
         <i class="fas fa-receipt"></i>
       </button>
+      <?php } ?>
       <?php if ($showKasir) { ?>
       <a href="<?= htmlspecialchars($kasirUrl, ENT_QUOTES, 'UTF-8') ?>"
         class="nt-icon-btn nt-kasir-link"
@@ -138,7 +147,7 @@ if (count($data['cek']) == 0) { ?>
         data-nama="<?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?>"
         data-target="<?= URL::BASE_URL ?>NonTunai/operasi/4">Tolak</span>
       <div class="d-flex gap-2 align-items-center">
-        <?php if ($hp !== '') { ?>
+        <?php if ($hp !== '' && !$isPenarikan) { ?>
         <button type="button"
           class="nt-chat-btn nChat"
           title="Riwayat Chat"
