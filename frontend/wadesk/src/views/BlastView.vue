@@ -27,9 +27,21 @@
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
             </option>
           </select>
-          <p v-if="keyQuota !== null" class="text-xs mt-1.5" :class="keyQuota.balance > 0 ? 'text-slate-400' : 'text-rose-400'">
-            Kuota template team <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
-            <span class="font-semibold text-accent">{{ keyQuota.balance }}</span>
+          <p v-if="keyQuota !== null" class="text-xs mt-1.5 space-y-1">
+            <span :class="keyQuota.balance > 0 ? 'text-slate-400' : 'text-rose-400'">
+              Kuota template team <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
+              <span class="font-semibold text-accent">{{ keyQuota.balance }}</span>
+            </span>
+            <span
+              v-if="keyQuota.daily_remaining !== null"
+              class="block"
+              :class="keyQuota.daily_remaining <= 0 ? 'text-rose-400' : keyQuota.daily_remaining <= 20 ? 'text-amber-300' : 'text-slate-400'"
+              :title="`Nomor unik terkirim hari ini: ${keyQuota.daily_used ?? 0} / ${keyQuota.daily_limit}`"
+            >
+              Daily sisa (WABA):
+              <span class="font-semibold text-emerald-400">{{ keyQuota.daily_remaining }}</span>
+              <span class="text-slate-500"> / {{ keyQuota.daily_limit }}</span>
+            </span>
           </p>
         </div>
 
@@ -545,10 +557,14 @@ async function onKeyChange() {
 async function loadKeyQuota(keyId) {
   try {
     const res = await api(`/WaDesk/Quota/forChannel?channel_id=${keyId}`);
+    const dl = res.data?.daily_limit;
     keyQuota.value = {
       team_id: res.data?.team_id,
       team_name: res.data?.team_name,
       balance: Number(res.data?.balance ?? 0),
+      daily_remaining: dl?.configured ? Number(dl.remaining_today ?? 0) : null,
+      daily_used: dl?.configured ? Number(dl.used_today ?? 0) : null,
+      daily_limit: dl?.configured ? Number(dl.limit ?? 0) : null,
     };
   } catch (_) {
     keyQuota.value = null;

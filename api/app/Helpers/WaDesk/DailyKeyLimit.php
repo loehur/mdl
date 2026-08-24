@@ -127,7 +127,7 @@ class DailyKeyLimit
         }
 
         $limit = $this->getLimit($wabaId, $tenantId);
-        $today = date('Y-m-d');
+        $today = $this->todayDate();
 
         $existing = $this->findCountable($wabaId, $today, $phone);
         if ($existing) {
@@ -177,7 +177,7 @@ class DailyKeyLimit
 
         $this->ensureLimitRow($wabaId, $tenantId);
 
-        $today = date('Y-m-d');
+        $today = $this->todayDate();
         $now = date('Y-m-d H:i:s');
         $phone = trim($phone);
         if ($phone === '') {
@@ -210,6 +210,14 @@ class DailyKeyLimit
                 'last_attempt_at' => $now,
             ]);
         } catch (\Throwable $e) {
+            try {
+                \Log::write(
+                    'wa_key_daily_contacts insert failed waba=' . $wabaId . ' phone=' . $phone . ' err=' . $e->getMessage(),
+                    'wadesk',
+                    'DailyKeyLimit'
+                );
+            } catch (\Throwable $ignored) {
+            }
             $existing = $this->findCountable($wabaId, $today, $phone);
             if ($existing) {
                 $this->db->update('wa_key_daily_contacts', [
@@ -248,7 +256,7 @@ class DailyKeyLimit
         }
 
         $limit = $this->getLimit($wabaId, $tenantId);
-        $today = date('Y-m-d');
+        $today = $this->todayDate();
         $phones = array_values(array_unique(array_filter(array_map('strval', $phones))));
         if ($phones === []) {
             $used = $this->countUsed($wabaId, $today);
@@ -293,7 +301,13 @@ class DailyKeyLimit
 
     public function countUsedToday(string $wabaId): int
     {
-        return $this->countUsed(trim($wabaId), date('Y-m-d'));
+        $wabaId = trim($wabaId);
+        if ($wabaId === '') {
+            return 0;
+        }
+        $row = $this->db->query('SELECT CURDATE() AS d')->row_array();
+        $today = (string) ($row['d'] ?? date('Y-m-d'));
+        return $this->countUsed($wabaId, $today);
     }
 
     private function findCountable(string $wabaId, string $today, string $phone): ?array
@@ -444,5 +458,15 @@ class DailyKeyLimit
             $cache = false;
         }
         return $cache;
+    }
+
+    private function todayDate(): string
+    {
+        try {
+            $row = $this->db->query('SELECT CURDATE() AS d')->row_array();
+            return (string) ($row['d'] ?? date('Y-m-d'));
+        } catch (\Throwable $e) {
+            return date('Y-m-d');
+        }
     }
 }

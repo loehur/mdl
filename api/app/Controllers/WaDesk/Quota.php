@@ -145,7 +145,9 @@ class Quota extends WaDeskController
                 'team_id' => null,
                 'balance' => null,
                 'team_name' => null,
+                'daily_limit' => $this->dailyLimitStatusForChannel(null),
             ]);
+            return;
         }
 
         $team = $this->db($this->db_index)->query(
@@ -156,11 +158,14 @@ class Quota extends WaDeskController
         $quota = new WaDeskTemplateQuota($this->db($this->db_index));
         $quota->ensureRow($teamId, (int) $user['tenant_id']);
 
+        $channel = $this->findTeamChannel($teamId, (int) $user['tenant_id']);
+
         $this->success([
             'role' => $user['role'],
             'team_id' => $teamId,
             'team_name' => $team['name'] ?? null,
             'balance' => $quota->getBalance($teamId),
+            'daily_limit' => $this->dailyLimitStatusForChannel($channel),
         ]);
     }
 
@@ -182,7 +187,7 @@ class Quota extends WaDeskController
 
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
-            "SELECT k.id, k.team_id, k.label, k.tenant_id, t.name AS team_name
+            "SELECT k.id, k.team_id, k.label, k.tenant_id, k.waba_id, t.name AS team_name
              FROM {$tbl} k
              INNER JOIN teams t ON t.id = k.team_id
              WHERE k.id = ? AND k.tenant_id = ? LIMIT 1",
@@ -208,6 +213,7 @@ class Quota extends WaDeskController
             'key_label' => $channel['label'],
             'channel_label' => $channel['label'],
             'balance' => $quota->getBalance((int) $channel['team_id']),
+            'daily_limit' => $this->dailyLimitStatusForChannel($channel),
         ]);
     }
 }

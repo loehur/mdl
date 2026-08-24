@@ -698,4 +698,54 @@ abstract class WaDeskController extends BaseController
         $guard = new \App\Helpers\WaDesk\DailyKeyLimit($this->db($this->db_index));
         $guard->ensureLimitRow(trim($wabaId), $tenantId, $label);
     }
+
+    /** @return array{configured:bool,waba_id:?string,limit:?int,used_today:?int,remaining_today:?int} */
+    protected function dailyLimitStatusForChannel(?array $channel): array
+    {
+        if (!$channel) {
+            return [
+                'configured' => false,
+                'waba_id' => null,
+                'limit' => null,
+                'used_today' => null,
+                'remaining_today' => null,
+            ];
+        }
+
+        $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+        if ($wabaId === '') {
+            return [
+                'configured' => false,
+                'waba_id' => null,
+                'limit' => null,
+                'used_today' => null,
+                'remaining_today' => null,
+            ];
+        }
+
+        $tenantId = (int) ($channel['tenant_id'] ?? 0);
+        $guard = new \App\Helpers\WaDesk\DailyKeyLimit($this->db($this->db_index));
+        $limit = $guard->getLimit($wabaId, $tenantId);
+        $used = $guard->countUsedToday($wabaId);
+
+        return [
+            'configured' => true,
+            'waba_id' => $wabaId,
+            'limit' => $limit,
+            'used_today' => $used,
+            'remaining_today' => max(0, $limit - $used),
+        ];
+    }
+
+    protected function findTeamChannel(int $teamId, int $tenantId): ?array
+    {
+        if ($teamId <= 0) {
+            return null;
+        }
+        $tbl = $this->channelsTable();
+        return $this->db($this->db_index)->query(
+            "SELECT * FROM {$tbl} WHERE team_id = ? AND tenant_id = ? LIMIT 1",
+            [$teamId, $tenantId]
+        )->row_array() ?: null;
+    }
 }

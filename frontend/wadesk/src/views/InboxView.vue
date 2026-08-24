@@ -9,6 +9,19 @@
         >
           Kuota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
         </span>
+        <span
+          v-if="dailyLimitRemaining !== null"
+          class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
+          :title="dailyLimitTitle"
+        >
+          Daily sisa:
+          <span
+            class="font-semibold"
+            :class="dailyLimitRemaining <= 0 ? 'text-rose-400' : dailyLimitRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'"
+          >
+            {{ dailyLimitRemaining }}
+          </span>
+        </span>
       </template>
     </AppHeader>
 
@@ -287,7 +300,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
@@ -312,6 +325,13 @@ const tplSending = ref(false);
 const tplError = ref("");
 const scrollEl = ref(null);
 const templateQuotaBalance = ref(null);
+const dailyLimitRemaining = ref(null);
+const dailyLimitUsed = ref(null);
+const dailyLimitMax = ref(null);
+const dailyLimitTitle = computed(() => {
+  if (dailyLimitMax.value === null) return "";
+  return `Nomor unik terkirim hari ini: ${dailyLimitUsed.value ?? 0} / ${dailyLimitMax.value}`;
+});
 const freeReject = reactive({ open: false, message: "" });
 let pollTimer = null;
 
@@ -442,6 +462,7 @@ async function sendFree() {
     await chat.sendFree(draft.value.trim());
     draft.value = "";
     scrollToBottom();
+    await loadTemplateQuota();
   } catch (e) {
     if (e.status === 422 && (e.data?.status === false || e.data?.reason)) {
       freeReject.message = e.data.reason || e.message || "Pesan ditolak AI.";
@@ -517,6 +538,9 @@ async function onTemplateSubmit(payload) {
 async function loadTemplateQuota() {
   if (!auth.canSendWa) {
     templateQuotaBalance.value = null;
+    dailyLimitRemaining.value = null;
+    dailyLimitUsed.value = null;
+    dailyLimitMax.value = null;
     return;
   }
   try {
@@ -525,8 +549,21 @@ async function loadTemplateQuota() {
       res.data?.balance === null || res.data?.balance === undefined
         ? null
         : Number(res.data.balance);
+    const dl = res.data?.daily_limit;
+    if (dl?.configured) {
+      dailyLimitRemaining.value = Number(dl.remaining_today ?? 0);
+      dailyLimitUsed.value = Number(dl.used_today ?? 0);
+      dailyLimitMax.value = Number(dl.limit ?? 0);
+    } else {
+      dailyLimitRemaining.value = null;
+      dailyLimitUsed.value = null;
+      dailyLimitMax.value = null;
+    }
   } catch (_) {
     templateQuotaBalance.value = null;
+    dailyLimitRemaining.value = null;
+    dailyLimitUsed.value = null;
+    dailyLimitMax.value = null;
   }
 }
 
@@ -541,7 +578,10 @@ onMounted(async () => {
   await chat.loadKeys();
   await loadTemplateQuota();
   chat.connectWs(auth.user);
-  pollTimer = setInterval(() => chat.loadConversations({ silent: true }), 20000);
+  pollTimer = setInterval(() => {
+    chat.loadConversations({ silent: true });
+    loadTemplateQuota();
+  }, 20000);
 });
 
 onUnmounted(() => {
