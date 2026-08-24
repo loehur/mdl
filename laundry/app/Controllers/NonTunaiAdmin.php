@@ -19,11 +19,14 @@ class NonTunaiAdmin extends Controller
         $dbMain = $this->db(100);
 
         $rows = [];
+        $unboundRows = [];
         try {
             $dbMain->query('SELECT 1 FROM bca_mutasi_link LIMIT 1');
             $rows = $this->fetchBoundMutasi($dbMain, $range['start'], $range['end']);
+            $unboundRows = $this->fetchUnboundMutasi($dbMain, $range['start'], $range['end']);
         } catch (\Throwable $e) {
             $rows = [];
+            $unboundRows = [];
         }
 
         $pelangganByRef = $this->loadPelangganByEntityRef($rows);
@@ -31,6 +34,8 @@ class NonTunaiAdmin extends Controller
         $this->view('layout', ['data_operasi' => ['title' => 'BCA Mutasi']]);
         $this->view('non_tunai_admin/bca_mutasi', [
             'rows' => $rows,
+            'unboundRows' => $unboundRows,
+            'unboundTotalNominal' => $this->sumNominal($unboundRows),
             'pelangganByRef' => $pelangganByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
@@ -45,11 +50,14 @@ class NonTunaiAdmin extends Controller
         $dbMain = $this->db(100);
 
         $rows = [];
+        $unboundRows = [];
         try {
             $dbMain->query('SELECT 1 FROM bca_qris_link LIMIT 1');
             $rows = $this->fetchBoundQris($dbMain, $range['start'], $range['end']);
+            $unboundRows = $this->fetchUnboundQris($dbMain, $range['start'], $range['end']);
         } catch (\Throwable $e) {
             $rows = [];
+            $unboundRows = [];
         }
 
         $pelangganByRef = $this->loadPelangganByEntityRef($rows);
@@ -57,6 +65,8 @@ class NonTunaiAdmin extends Controller
         $this->view('layout', ['data_operasi' => ['title' => 'BCA QRIS']]);
         $this->view('non_tunai_admin/bca_qris', [
             'rows' => $rows,
+            'unboundRows' => $unboundRows,
+            'unboundTotalNominal' => $this->sumNominal($unboundRows),
             'pelangganByRef' => $pelangganByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
@@ -184,6 +194,94 @@ class NonTunaiAdmin extends Controller
         );
 
         return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @param object $dbMain
+     * @return list<array<string,mixed>>
+     */
+    private function fetchUnboundMutasi($dbMain, string $start, string $end): array
+    {
+        $startEsc = $dbMain->escape($start);
+        $endEsc = $dbMain->escape($end);
+
+        $rows = $dbMain->query_array(
+            "SELECT
+                m.id AS mutasi_id,
+                m.tanggal,
+                m.tanggal_iso,
+                m.keterangan,
+                m.nominal,
+                m.mutasi,
+                m.created_at AS mutasi_created_at
+             FROM bca_mutasi m
+             LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
+             WHERE l.id IS NULL
+               AND m.mutasi = 'CR'
+               AND (
+                (m.tanggal_iso IS NOT NULL
+                 AND m.tanggal_iso >= '" . $startEsc . "'
+                 AND m.tanggal_iso <= '" . $endEsc . "')
+                OR (
+                  UPPER(m.tanggal) = 'PEND'
+                  AND DATE(m.created_at) >= '" . $startEsc . "'
+                  AND DATE(m.created_at) <= '" . $endEsc . "'
+                )
+             )
+             ORDER BY
+               COALESCE(m.tanggal_iso, DATE(m.created_at)) DESC,
+               m.id DESC
+             LIMIT 500"
+        );
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @param object $dbMain
+     * @return list<array<string,mixed>>
+     */
+    private function fetchUnboundQris($dbMain, string $start, string $end): array
+    {
+        $startEsc = $dbMain->escape($start);
+        $endEsc = $dbMain->escape($end);
+
+        $rows = $dbMain->query_array(
+            "SELECT
+                t.id AS qris_id,
+                t.tanggal,
+                t.waktu,
+                t.rrn,
+                t.nominal,
+                t.status,
+                t.keterangan,
+                t.outlet_name
+             FROM bca_qris_transaksi t
+             LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
+             WHERE l.id IS NULL
+               AND t.tanggal >= '" . $startEsc . "'
+               AND t.tanggal <= '" . $endEsc . "'
+             ORDER BY t.tanggal DESC, t.waktu DESC, t.id DESC
+             LIMIT 500"
+        );
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private function sumNominal(array $rows): float
+    {
+        $sum = 0.0;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $sum += (float) ($row['nominal'] ?? 0);
+        }
+
+        return $sum;
     }
 
     /**

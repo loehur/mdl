@@ -1,5 +1,7 @@
 <?php
 $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
+$unboundRows = is_array($data['unboundRows'] ?? null) ? $data['unboundRows'] : [];
+$unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
 $fmtRp = static function ($value): string {
     if ($value === null || $value === '') {
@@ -16,6 +18,8 @@ $this->view('non_tunai_admin/_filter', [
     'filterTitle' => 'BCA QRIS — Data Binding',
     'filterIcon' => 'fa-qrcode',
     'rowCount' => count($rows),
+    'unboundCount' => count($unboundRows),
+    'unboundTotalNominal' => $unboundTotalNominal,
 ]);
 ?>
 
@@ -117,6 +121,79 @@ $this->view('non_tunai_admin/_filter', [
         </table>
       </div>
     <?php } ?>
+
+    <div class="nta-section">
+      <h6 class="nta-section-title">
+        <span><i class="fas fa-unlink me-1"></i>Belum Bind</span>
+        <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtRp($unboundTotalNominal) ?></span>
+      </h6>
+
+      <?php if ($unboundRows === []) { ?>
+        <div class="nta-empty">
+          <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+          Semua transaksi QRIS periode ini sudah ter-bind
+        </div>
+      <?php } else { ?>
+        <div class="nta-table-wrap">
+          <table class="table table-sm table-bordered table-hover nta-table mb-0">
+            <thead>
+              <tr>
+                <th>ID QRIS</th>
+                <th>Tanggal</th>
+                <th>Nominal</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($unboundRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $qrisId = (int) ($row['qris_id'] ?? 0);
+                $tanggal = (string) ($row['tanggal'] ?? '');
+                $waktu = trim((string) ($row['waktu'] ?? ''));
+                $dateLabel = $tanggal !== '' ? date('d/m/Y', strtotime($tanggal)) : '—';
+                if ($waktu !== '') {
+                    $dateLabel .= ' ' . $waktu;
+                }
+
+                $nominal = $row['nominal'] ?? null;
+                $ket = trim((string) ($row['keterangan'] ?? ''));
+
+                $detailPayload = [
+                    'title' => 'QRIS BCA Belum Bind #' . $qrisId,
+                    'fields' => [
+                        ['label' => 'Status Bind', 'value' => 'Belum bind'],
+                        ['label' => 'Tanggal', 'value' => $dateLabel],
+                        ['label' => 'Nominal', 'value' => $fmtRp($nominal)],
+                        ['label' => 'RRN', 'value' => (string) ($row['rrn'] ?? '')],
+                        ['label' => 'Status QRIS', 'value' => (string) ($row['status'] ?? '')],
+                        ['label' => 'Outlet', 'value' => (string) ($row['outlet_name'] ?? '')],
+                        ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
+                        ['label' => 'ID QRIS', 'value' => (string) $qrisId],
+                    ],
+                ];
+                $detailJson = json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (!is_string($detailJson)) {
+                    $detailJson = '{}';
+                }
+              ?>
+              <tr>
+                <td><?php $this->view('non_tunai_admin/_link_id_cell', [
+                    'linkId' => $qrisId,
+                    'detailJson' => $detailJson,
+                ]); ?></td>
+                <td><?= htmlspecialchars($dateLabel) ?></td>
+                <td><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
+                <td><span class="nta-badge nta-badge--unbound">Belum bind</span></td>
+              </tr>
+              <?php } ?>
+            </tbody>
+          </table>
+        </div>
+      <?php } ?>
+    </div>
   </div>
 </div>
 

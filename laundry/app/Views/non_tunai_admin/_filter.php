@@ -5,6 +5,12 @@ $maxRangeDays = (int) ($data['maxRangeDays'] ?? 7);
 $filterAction = $data['filterAction'] ?? '';
 $filterTitle = $data['filterTitle'] ?? 'Non Tunai';
 $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
+$rowCount = (int) ($data['rowCount'] ?? 0);
+$unboundCount = (int) ($data['unboundCount'] ?? 0);
+$unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
+$fmtRp = static function ($value): string {
+    return 'Rp ' . number_format((float) $value, 0, ',', '.');
+};
 ?>
 <div class="content" id="nta-root">
   <style>
@@ -99,6 +105,31 @@ $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
       color: var(--nta-muted);
       font-weight: 700;
     }
+    #nta-root .nta-count__unbound {
+      color: #b45309;
+    }
+    #nta-root .nta-section {
+      margin-top: 16px;
+    }
+    #nta-root .nta-section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 8px;
+      font-size: 0.92rem;
+      font-weight: 900;
+      color: var(--nta-ink);
+    }
+    #nta-root .nta-badge--unbound {
+      background: #fff7ed;
+      color: #b45309;
+      border-color: #fdba74;
+    }
+    #nta-root .nta-nominal-single {
+      font-weight: 800;
+      white-space: nowrap;
+    }
     #nta-root .nta-plg-link {
       font-weight: 800;
       color: var(--nta-blue);
@@ -173,7 +204,12 @@ $filterIcon = $data['filterIcon'] ?? 'fa-credit-card';
   <div class="nta-shell">
     <div class="nta-head">
       <h5 class="nta-title"><i class="fas <?= htmlspecialchars($filterIcon) ?> me-2"></i><?= htmlspecialchars($filterTitle) ?></h5>
-      <span class="nta-count"><?= (int) ($data['rowCount'] ?? 0) ?> binding</span>
+      <span class="nta-count">
+        <?= $rowCount ?> binding
+        <?php if ($unboundCount > 0) { ?>
+          · <span class="nta-count__unbound"><?= $unboundCount ?> belum bind (<?= $fmtRp($unboundTotalNominal) ?>)</span>
+        <?php } ?>
+      </span>
     </div>
 
     <div class="nta-filter">
