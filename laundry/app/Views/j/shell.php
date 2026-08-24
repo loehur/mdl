@@ -27,7 +27,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/fontawesome-free-5.15.4-web/css/all.css">
   <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/css/bootstrap.min.css">
-  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=62">
+  <link rel="stylesheet" href="<?= $assets ?>css/j-customer.css?v=63">
 </head>
 <body>
 <div class="j-app"
@@ -266,7 +266,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
       </div>
       <div class="j-sheet-body">
-        <p class="j-sheet-desc" id="jKurirJenisHint" style="margin-top:0"></p>
         <div id="jKurirLokasiPick">
           <p class="j-sheet-desc" style="margin-top:0">Pilih alamat untuk permintaan ini.</p>
           <div class="j-kurir-lokasi-list" id="jKurirLokasiList">
@@ -277,7 +276,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
           </button>
         </div>
         <div id="jKurirLokasiForm" hidden>
-          <p class="j-sheet-desc" id="jKurirLokasiFormDesc" style="margin-top:0">Isi nama &amp; detail, lalu set titik di peta.</p>
           <input type="hidden" id="jLokasiEditId" value="">
           <label class="j-field-label" for="jLokasiNama">Nama</label>
           <input type="text" id="jLokasiNama" class="j-select" maxlength="50" placeholder="Rumah, Kantor, Kos">
@@ -297,8 +295,11 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
                 <path fill="#ef4444" stroke="#fff" stroke-width="1.5" d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 15 9 15s9-8.25 9-15c0-4.97-4.03-9-9-9zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/>
               </svg>
             </div>
-            <button type="button" class="j-kurir-map-gps" id="jBtnLokasiGps" title="Titik saya" aria-label="Titik saya">
-              <i class="fas fa-location-arrow" aria-hidden="true"></i>
+            <button type="button" class="j-kurir-map-gps" id="jBtnLokasiGps" title="Ke lokasi saya" aria-label="Ke lokasi saya">
+              <svg xmlns="http://www.w3.org/2000/svg" class="j-kurir-map-gps__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />
+              </svg>
             </button>
             <div class="j-kurir-map-overlay" id="jKurirMapOverlay" hidden>
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -456,7 +457,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= $assets ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=32"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=33"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <?php require_once __DIR__ . '/../pwa_register.php'; ?>
 </body>

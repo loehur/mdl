@@ -911,13 +911,6 @@
     return kurirPendingLayanan === 'instant' ? 'Instant (Gojek/Grab)' : 'Sameday (Kurir Laundry)';
   }
 
-  function jenisHintText(jenis) {
-    if (jenis === 'antar') {
-      return 'Antar — Mengantar Pakaian dari Laundry ke Lokasi Anda.';
-    }
-    return 'Jemput — Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry.';
-  }
-
   function setKurirKickers() {
     var label = layananLabel();
     ['jKurirLokasiKicker', 'jKurirAntarKicker', 'jKurirJemputKicker'].forEach(function (id) {
@@ -1291,6 +1284,15 @@
   var kurirEditingLokasiId = 0;
   var KURIR_DEFAULT_ZOOM = 15;
   var KURIR_SELECT_ZOOM = 17;
+  var KURIR_GPS_ICON_HTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" class="j-kurir-map-gps__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M4 12H2M22 12h-2" />' +
+    '</svg>';
+  var KURIR_GPS_SPIN_HTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" class="j-kurir-map-gps__icon j-kurir-map-gps__icon--spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<circle class="j-kurir-map-gps__spin-track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
+    '<path class="j-kurir-map-gps__spin-head" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>' +
+    '</svg>';
 
   function escapeHtmlKurir(s) {
     return String(s == null ? '' : s)
@@ -1451,12 +1453,6 @@
     kurirEditingLokasiId = isEdit ? Number(editLok.id_lokasi) : 0;
     var editId = document.getElementById('jLokasiEditId');
     if (editId) editId.value = kurirEditingLokasiId ? String(kurirEditingLokasiId) : '';
-    var desc = document.getElementById('jKurirLokasiFormDesc');
-    if (desc) {
-      desc.textContent = isEdit
-        ? 'Ubah nama, detail, atau titik peta lokasi ini.'
-        : 'Isi nama & detail, lalu set titik di peta.';
-    }
     var saveLbl = document.getElementById('jBtnKurirLokasiSaveLabel');
     if (saveLbl) saveLbl.textContent = isEdit ? 'Simpan perubahan' : 'Simpan';
 
@@ -1586,7 +1582,7 @@
             streetViewControl: false,
             fullscreenControl: false,
             cameraControl: false,
-            zoomControl: true
+            zoomControl: false
           });
           kurirMapIdleListener = kurirMap.addListener('idle', function () {
             if (kurirMapSuppressIdle) return;
@@ -1781,9 +1777,7 @@
     if (!btn) return;
     btn.disabled = !!on;
     btn.setAttribute('aria-busy', on ? 'true' : 'false');
-    btn.innerHTML = on
-      ? '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>'
-      : '<i class="fas fa-location-arrow" aria-hidden="true"></i>';
+    btn.innerHTML = on ? KURIR_GPS_SPIN_HTML : KURIR_GPS_ICON_HTML;
   }
 
   function initKurirMapThenLocate() {
@@ -1895,10 +1889,6 @@
     var title = document.getElementById('jKurirLokasiTitle');
     if (title) {
       title.textContent = jenis === 'antar' ? 'Lokasi antar' : 'Lokasi jemput';
-    }
-    var hint = document.getElementById('jKurirJenisHint');
-    if (hint) {
-      hint.textContent = jenisHintText(jenis);
     }
     showLokasiPickView();
     showModal('jModalKurirLokasi');

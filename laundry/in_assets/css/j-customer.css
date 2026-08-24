@@ -2216,7 +2216,7 @@ a { color: inherit; text-decoration: none; }
 .j-kurir-map-gps {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 20px;
   z-index: 20;
   width: 44px;
   height: 44px;
@@ -2224,17 +2224,39 @@ a { color: inherit; text-decoration: none; }
   border-radius: 999px;
   background: #fff;
   color: #0B3D3A;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.1);
   display: grid;
   place-items: center;
+  padding: 0;
   cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.j-kurir-map-gps:hover:not(:disabled) {
+  border-color: #0B3D3A;
+  background: rgba(11, 61, 58, 0.06);
 }
 .j-kurir-map-gps:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
-.j-kurir-map-gps i {
-  font-size: 1rem;
+.j-kurir-map-gps__icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.j-kurir-map-gps__icon--spin {
+  animation: j-kurir-gps-spin 1s linear infinite;
+}
+.j-kurir-map-gps__spin-track {
+  opacity: 0.25;
+}
+.j-kurir-map-gps__spin-head {
+  opacity: 0.75;
+}
+@keyframes j-kurir-gps-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .j-kurir-map-overlay,
 .j-kurir-map-loading {
