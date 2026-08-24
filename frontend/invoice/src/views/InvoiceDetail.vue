@@ -140,55 +140,78 @@
         <h3 class="section-title mb-2">Bagikan Invoice</h3>
         <p class="mb-3 text-sm text-mist">Salin teks berikut dan kirim ke pelanggan:</p>
         <pre class="whitespace-pre-wrap break-all rounded-xl border border-ink-200 bg-ink-50 p-3 text-sm text-pearl">{{ invoice.share_text }}</pre>
-        <div class="mt-3 flex gap-3">
-          <button class="btn-primary flex-1" @click="copyShareText">
-            {{ copied ? "Tersalin!" : "Salin Teks" }}
+
+        <div class="mt-3 grid grid-cols-2 gap-2">
+          <button class="btn-primary w-full" type="button" @click="copyShareText">
+            {{ copiedText ? "Tersalin!" : "Salin Teks" }}
           </button>
-          <button class="btn-ghost flex-1" @click="copyLink">Salin Link</button>
+          <button class="btn-ghost w-full" type="button" @click="copyLink">
+            {{ copiedLink ? "Tersalin!" : "Salin Link" }}
+          </button>
+          <button
+            class="btn-ghost w-full"
+            type="button"
+            :disabled="downloadingPdf"
+            @click="onDownloadPdf"
+          >
+            {{ downloadingPdf ? "Menyiapkan..." : "Unduh PDF" }}
+          </button>
+          <a
+            v-if="invoice.public_url"
+            :href="invoice.public_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-ghost w-full"
+          >
+            Buka Link
+          </a>
+          <button
+            v-else
+            class="btn-ghost w-full"
+            type="button"
+            disabled
+          >
+            Buka Link
+          </button>
         </div>
-        <button
-          class="btn-ghost mt-3 w-full"
-          type="button"
-          :disabled="downloadingPdf"
-          @click="onDownloadPdf"
-        >
-          {{ downloadingPdf ? "Menyiapkan PDF..." : "Unduh PDF" }}
-        </button>
       </section>
 
       <div v-if="invoice.status === 'cancelled'" class="alert border-mist/30 bg-ink-100 text-mist">
         Invoice ini telah dibatalkan dan tidak dapat dibagikan atau dibayar.
       </div>
 
-      <button
+      <div
         v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
-        class="btn-primary w-full"
-        :disabled="actionLoading"
-        @click="openConfirm('paid')"
+        class="grid grid-cols-2 gap-2"
       >
-        Tandai Lunas
-      </button>
-
-      <router-link
-        v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
-        :to="`/edit/${invoice.id}`"
-        class="btn-ghost block w-full text-center"
-      >
-        Edit Invoice
-      </router-link>
-
-      <button
-        v-if="invoice.payment_status !== 'paid' && invoice.status !== 'cancelled'"
-        class="btn-debit w-full"
-        :disabled="actionLoading"
-        @click="openConfirm('cancel')"
-      >
-        Batalkan Invoice
-      </button>
+        <button
+          class="btn-primary w-full"
+          type="button"
+          :disabled="actionLoading"
+          @click="openConfirm('paid')"
+        >
+          Tandai Lunas
+        </button>
+        <router-link
+          :to="`/edit/${invoice.id}`"
+          class="btn-ghost w-full text-center"
+        >
+          Edit Invoice
+        </router-link>
+        <button
+          class="btn-debit col-span-2 w-full"
+          type="button"
+          :disabled="actionLoading"
+          @click="openConfirm('cancel')"
+        >
+          Batalkan Invoice
+        </button>
+      </div>
 
       <button
         v-if="invoice.status === 'cancelled'"
         class="btn-debit w-full"
+        type="button"
         :disabled="actionLoading"
         @click="openConfirm('delete')"
       >
@@ -227,7 +250,8 @@ const router = useRouter();
 
 const loading = ref(true);
 const invoice = ref(null);
-const copied = ref(false);
+const copiedText = ref(false);
+const copiedLink = ref(false);
 const downloadingPdf = ref(false);
 const message = ref("");
 const isError = ref(false);
@@ -388,8 +412,8 @@ async function copyShareText() {
   if (!invoice.value?.share_text) return;
   try {
     await navigator.clipboard.writeText(invoice.value.share_text);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
+    copiedText.value = true;
+    setTimeout(() => { copiedText.value = false; }, 2000);
   } catch {
     message.value = "Gagal menyalin teks";
     isError.value = true;
@@ -397,10 +421,16 @@ async function copyShareText() {
 }
 
 async function copyLink() {
-  if (!invoice.value?.public_url) return;
+  if (!invoice.value?.public_url) {
+    message.value = "Link invoice belum tersedia";
+    isError.value = true;
+    return;
+  }
   try {
     await navigator.clipboard.writeText(invoice.value.public_url);
-    message.value = "Link berhasil disalin";
+    copiedLink.value = true;
+    setTimeout(() => { copiedLink.value = false; }, 2000);
+    message.value = "";
     isError.value = false;
   } catch {
     message.value = "Gagal menyalin link";
