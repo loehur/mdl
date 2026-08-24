@@ -154,6 +154,11 @@ class Cabang_List extends Controller
          return;
       }
 
+      if ($gmaps === '') {
+         echo 'Link Google Maps belum terisi — pilih alamat dari pencarian';
+         return;
+      }
+
       $set = [
          'latt' => (float) $latt,
          'long' => (float) $long,
@@ -167,5 +172,40 @@ class Cabang_List extends Controller
       } else {
          echo $up['error'];
       }
+   }
+
+   /** GET JSON: Google Maps browser API key (proxy api.nalju.com) */
+   public function mapsConfig()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->session_cek(1);
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::get(), JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST JSON: Places autocomplete (proxy) */
+   public function mapsAutocomplete()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->session_cek(1);
+      $body = json_decode((string) file_get_contents('php://input'), true);
+      if (!is_array($body)) {
+         $body = $_POST;
+      }
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::autocomplete($body), JSON_UNESCAPED_UNICODE);
+   }
+
+   /** POST JSON: Places place details (proxy) */
+   public function mapsPlaceDetails()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $this->session_cek(1);
+      $body = json_decode((string) file_get_contents('php://input'), true);
+      if (!is_array($body)) {
+         $body = $_POST;
+      }
+      $this->helper('MapsConfigApi');
+      echo json_encode(MapsConfigApi::placeDetails($body), JSON_UNESCAPED_UNICODE);
    }
 }

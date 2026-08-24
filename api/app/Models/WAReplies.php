@@ -1287,7 +1287,6 @@ class WAReplies
 
         $qrisMedia = $this->fetchLaundryQrisMedia();
         $imageUrl = trim((string) ($qrisMedia['image_url'] ?? ''));
-        $pageUrl = trim((string) ($qrisMedia['page_url'] ?? 'https://ml.nalju.com/I/q'));
         if ($imageUrl === '') {
             return ['ok' => false, 'message' => 'URL gambar QRIS tidak tersedia', 'outcome' => 'failed'];
         }
@@ -1296,7 +1295,7 @@ class WAReplies
             require_once __DIR__ . '/../Helpers/CRM/SapaanStatsHelper.php';
         }
         $senderCode = \App\Helpers\CRM\SapaanStatsHelper::SENDER_CODE_AUTOREPLY;
-        $caption = "QRIS Madinah Laundry\n{$pageUrl}";
+        $caption = 'QRIS Madinah Laundry 😊';
 
         $res = $this->getWaService()->sendImage(
             $waNumber,

@@ -101,7 +101,8 @@ class Get extends Controller
          foreach ($rows as $row) {
             $latt = isset($row['latt']) ? (float) $row['latt'] : 0.0;
             $long = isset($row['long']) ? (float) $row['long'] : 0.0;
-            if ($latt == 0.0 && $long == 0.0) {
+            $gmaps = trim((string) ($row['gmaps'] ?? ''));
+            if ($gmaps === '' && $latt == 0.0 && $long == 0.0) {
                continue;
             }
             $kode = trim((string) ($row['kode_cabang'] ?? ''));
@@ -110,7 +111,9 @@ class Get extends Controller
             }
             $nama = trim((string) ($row['nama'] ?? ''));
             $alamat = (string) ($row['alamat'] ?? '');
-            $mapsUrl = 'https://www.google.com/maps?q=' . $latt . ',' . $long;
+            $mapsUrl = $gmaps !== ''
+               ? $gmaps
+               : ('https://www.google.com/maps?q=' . $latt . ',' . $long);
             $kodeUp = strtoupper($kode);
             $namaUp = strtoupper($nama !== '' ? $nama : 'MADINAH LAUNDRY');
             $message = $namaUp . ' (' . $kodeUp . ")\n" . $alamat . "\n" . $mapsUrl;
@@ -120,6 +123,7 @@ class Get extends Controller
                'alamat' => $alamat,
                'latt' => $latt,
                'long' => $long,
+               'gmaps' => $gmaps,
                'maps_url' => $mapsUrl,
                'message' => $message,
             ];

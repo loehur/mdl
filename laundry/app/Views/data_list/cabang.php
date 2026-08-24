@@ -239,15 +239,90 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       border: 1px solid var(--cb-line);
       background: #e2e8f0;
     }
+    #cabang-root .cb-map-wrap {
+      position: relative;
+      border: 1px solid var(--cb-line);
+      background: #e2e8f0;
+    }
+    #cabang-root .cb-map-wrap #cabangMap {
+      border: 0;
+    }
+    #cabang-root .cb-map-pin {
+      pointer-events: none;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      transform: translate(-50%, -100%);
+      color: #dc2626;
+      font-size: 2rem;
+      line-height: 1;
+      filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.35));
+    }
+    #cabang-root .cb-map-loading {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(226, 232, 240, 0.85);
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #475569;
+    }
+    #cabang-root .cb-map-loading[hidden] {
+      display: none !important;
+    }
+    #cabang-root .cb-search-wrap {
+      position: relative;
+      z-index: 5;
+    }
+    #cabang-root .cb-search-list {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 20;
+      max-height: 180px;
+      overflow-y: auto;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid var(--cb-line);
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.15);
+    }
+    #cabang-root .cb-search-list[hidden] {
+      display: none !important;
+    }
+    #cabang-root .cb-search-list button {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border: 0;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+      color: var(--cb-ink);
+      font-size: 0.82rem;
+      font-weight: 750;
+      text-align: left;
+      cursor: pointer;
+    }
+    #cabang-root .cb-search-list li:last-child button {
+      border-bottom: 0;
+    }
+    #cabang-root .cb-search-list button:hover {
+      background: #eff6ff;
+    }
     #cabang-root .cb-map-hint {
       margin: 0 0 10px;
       font-size: 0.78rem;
       font-weight: 750;
       color: #475569;
     }
-    #cabang-root .leaflet-container {
-      border-radius: 0 !important;
-      font-family: 'fontku', 'Segoe UI', sans-serif;
+    #cabang-root .cb-map-hint.is-warn {
+      color: #b45309;
     }
     #cabang-root .op-modal__head h3 {
       margin: 0;
@@ -512,15 +587,32 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
       <div class="op-modal__head op-modal__head--cyan">
         <div>
           <h3 id="cabangMapsTitle">Maps Cabang</h3>
-          <small id="cabangMapsSub">Klik peta untuk set koordinat</small>
+          <small id="cabangMapsSub">Cari alamat untuk set koordinat</small>
         </div>
         <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
       </div>
       <form id="formCabangMaps" autocomplete="off">
         <div class="op-modal__body">
           <input type="hidden" name="id" id="mapsCabangId" value="">
-          <p class="cb-map-hint">Klik lokasi di peta untuk menentukan latitude &amp; longitude.</p>
-          <div id="cabangMap"></div>
+          <div class="cb-field">
+            <label class="cb-label" for="mapsSearch">Cari alamat</label>
+            <div class="cb-search-wrap">
+              <input
+                type="text"
+                class="cb-input"
+                id="mapsSearch"
+                placeholder="Ketik nama jalan, tempat, atau alamat…"
+                autocomplete="off"
+              >
+              <ul class="cb-search-list" id="mapsSearchList" hidden></ul>
+            </div>
+          </div>
+          <p class="cb-map-hint" id="mapsHint">Pilih alamat dari hasil pencarian. Koordinat dan link Google Maps terisi otomatis.</p>
+          <div class="cb-map-wrap">
+            <div id="cabangMap"></div>
+            <div class="cb-map-pin" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></div>
+            <div class="cb-map-loading" id="cabangMapLoading">Memuat peta…</div>
+          </div>
           <div class="cb-row" style="margin-top:12px;">
             <div class="cb-field">
               <label class="cb-label" for="mapsLatt">Latitude (latt)</label>
@@ -533,7 +625,7 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
           </div>
           <div class="cb-field">
             <label class="cb-label" for="mapsGmaps">Link Google Maps</label>
-            <input type="text" class="cb-input" name="gmaps" id="mapsGmaps" placeholder="https://maps.google.com/... atau https://maps.app.goo.gl/...">
+            <input type="text" class="cb-input" name="gmaps" id="mapsGmaps" readonly required>
           </div>
         </div>
         <div class="op-modal__foot">
@@ -545,13 +637,12 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
   </div>
 </div>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
 (function () {
   var BASE = '<?= URL::BASE_URL ?>';
   var DEFAULT_LAT = 0.5071;
   var DEFAULT_LNG = 101.4478;
+  var MAP_ZOOM = 17;
   var root = document.getElementById('cabang-root');
   if (!root) return;
 
@@ -564,8 +655,12 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
   var mapsSubmitBtn = document.getElementById('mapsSubmitBtn');
   var idField = document.getElementById('cabangIdField');
   var editMode = false;
+
   var mapInstance = null;
-  var mapMarker = null;
+  var mapsScriptPromise = null;
+  var mapsSearchTimer = null;
+  var mapsSearchSeq = 0;
+  var mapsSelectingPlace = false;
 
   function toast(msg, type) {
     type = type || 'info';
@@ -702,57 +797,349 @@ $kotaOptions = is_array($this->dKota ?? null) ? $this->dKota : [];
     return isNaN(n) ? fallback : n;
   }
 
-  function setMarker(lat, lng) {
-    if (!mapInstance) return;
-    if (mapMarker) mapInstance.removeLayer(mapMarker);
-    mapMarker = L.marker([lat, lng]).addTo(mapInstance);
-    document.getElementById('mapsLatt').value = lat;
-    document.getElementById('mapsLong').value = lng;
+  function roundCoord(value) {
+    return Math.round(Number(value) * 1e7) / 1e7;
   }
 
-  function ensureMap(lat, lng) {
-    if (typeof L === 'undefined') {
-      toast('Leaflet gagal dimuat', 'error');
+  function buildGmapsUrl(lat, lng) {
+    return 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  }
+
+  function setMapsHint(text, isWarn) {
+    var hint = document.getElementById('mapsHint');
+    if (!hint) return;
+    hint.textContent = text || 'Pilih alamat dari hasil pencarian. Koordinat dan link Google Maps terisi otomatis.';
+    hint.classList.toggle('is-warn', !!isWarn);
+  }
+
+  function setMapCoords(lat, lng, gmapsUrl) {
+    document.getElementById('mapsLatt').value = roundCoord(lat);
+    document.getElementById('mapsLong').value = roundCoord(lng);
+    document.getElementById('mapsGmaps').value = gmapsUrl || buildGmapsUrl(roundCoord(lat), roundCoord(lng));
+  }
+
+  function syncMapCenter(lat, lng) {
+    if (!mapInstance) return;
+    if (window.google && google.maps && google.maps.event) {
+      google.maps.event.trigger(mapInstance, 'resize');
+    }
+    mapInstance.setCenter({ lat: lat, lng: lng });
+    mapInstance.setZoom(MAP_ZOOM);
+  }
+
+  function fetchMapsConfig() {
+    return fetch(BASE + 'Cabang_List/mapsConfig', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    }).then(function (res) {
+      return res.json();
+    });
+  }
+
+  function loadGoogleMapsApi(apiKey) {
+    if (window.google && window.google.maps && window.google.maps.importLibrary) {
+      return window.google.maps.importLibrary('maps');
+    }
+    if (mapsScriptPromise) return mapsScriptPromise;
+    mapsScriptPromise = new Promise(function (resolve, reject) {
+      window.gm_authFailure = function () {
+        reject(new Error('Google Maps menolak API key browser'));
+      };
+
+      var params = { key: apiKey, v: 'weekly', language: 'id', region: 'ID' };
+      (function (g) {
+        var h;
+        var a;
+        var k;
+        var p = 'The Google Maps JavaScript API';
+        var c = 'google';
+        var l = 'importLibrary';
+        var q = '__ib__';
+        var m = document;
+        var b = window;
+        b = b[c] || (b[c] = {});
+        var d = b.maps || (b.maps = {});
+        var r = new Set();
+        var e = new URLSearchParams();
+        var u = function () {
+          return (
+            h ||
+            (h = new Promise(function (f, n) {
+              a = m.createElement('script');
+              e.set('libraries', Array.from(r).join(','));
+              for (k in g) {
+                if (Object.prototype.hasOwnProperty.call(g, k) && g[k] != null && g[k] !== '') {
+                  e.set(k.replace(/[A-Z]/g, function (t) { return '_' + t[0].toLowerCase(); }), g[k]);
+                }
+              }
+              e.set('loading', 'async');
+              e.set('callback', c + '.maps.' + q);
+              a.src = 'https://maps.googleapis.com/maps/api/js?' + e.toString();
+              d[q] = f;
+              a.onerror = function () {
+                h = n(new Error(p + ' could not load.'));
+              };
+              a.async = true;
+              m.head.append(a);
+            }))
+          );
+        };
+        d[l] = function (f) {
+          return r.add(f) && u().then(function () {
+            return d[l](f);
+          });
+        };
+      })(params);
+
+      window.google.maps.importLibrary('maps').then(resolve).catch(reject);
+    });
+    return mapsScriptPromise;
+  }
+
+  function ensureGoogleMap(lat, lng) {
+    var loadingEl = document.getElementById('cabangMapLoading');
+    return fetchMapsConfig()
+      .then(function (cfg) {
+        if (!cfg || (!cfg.ok && !cfg.status)) {
+          throw new Error((cfg && cfg.message) || 'Gagal memuat konfigurasi Google Maps');
+        }
+        var apiKey = String(cfg.api_key || '').trim();
+        if (!apiKey) throw new Error('Google Maps API key belum dikonfigurasi');
+        return loadGoogleMapsApi(apiKey);
+      })
+      .then(function (mapsLib) {
+        if (loadingEl) loadingEl.hidden = true;
+        var el = document.getElementById('cabangMap');
+        if (!el) return;
+        if (!mapInstance) {
+          mapInstance = new mapsLib.Map(el, {
+            center: { lat: lat, lng: lng },
+            zoom: MAP_ZOOM,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            cameraControl: false,
+            zoomControl: false,
+            scrollwheel: false,
+            disableDoubleClickZoom: true,
+            draggable: false,
+            gestureHandling: 'none',
+            keyboardShortcuts: false
+          });
+        }
+        syncMapCenter(lat, lng);
+      })
+      .catch(function (err) {
+        if (loadingEl) loadingEl.hidden = true;
+        setMapsHint((err && err.message) || 'Peta gagal dimuat', true);
+        toast((err && err.message) || 'Peta gagal dimuat', 'error');
+      });
+  }
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function closeMapsSearchSuggestions() {
+    var list = document.getElementById('mapsSearchList');
+    if (list) {
+      list.hidden = true;
+      list.innerHTML = '';
+    }
+  }
+
+  function getMapBiasCoords() {
+    var lat = parseFloat(document.getElementById('mapsLatt').value);
+    var lng = parseFloat(document.getElementById('mapsLong').value);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return { lat: lat, lng: lng };
+    }
+    if (mapInstance && mapInstance.getCenter) {
+      var center = mapInstance.getCenter();
+      if (center) return { lat: center.lat(), lng: center.lng() };
+    }
+    return { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+  }
+
+  function fetchMapsSearchSuggestions(query) {
+    var q = String(query || '').trim();
+    if (q.length < 2) {
+      closeMapsSearchSuggestions();
       return;
     }
-    if (!mapInstance) {
-      mapInstance = L.map('cabangMap', { center: [lat, lng], zoom: 15 });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(mapInstance);
-      mapInstance.on('click', function (ev) {
-        setMarker(ev.latlng.lat, ev.latlng.lng);
+    var seq = ++mapsSearchSeq;
+    var payload = { input: q };
+    var bias = getMapBiasCoords();
+    payload.lat = bias.lat;
+    payload.lng = bias.lng;
+
+    fetch(BASE + 'Cabang_List/mapsAutocomplete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (seq !== mapsSearchSeq || mapsSelectingPlace) return;
+        var list = document.getElementById('mapsSearchList');
+        if (!list) return;
+        var items = data && Array.isArray(data.items) ? data.items : [];
+        if (!data || (!data.ok && !data.status)) {
+          closeMapsSearchSuggestions();
+          setMapsHint((data && data.message) || 'Gagal memuat saran alamat.', true);
+          return;
+        }
+        if (!items.length) {
+          closeMapsSearchSuggestions();
+          setMapsHint('Tidak ada hasil untuk pencarian ini.', true);
+          return;
+        }
+        list.innerHTML = items
+          .map(function (item) {
+            return (
+              '<li><button type="button" data-place-id="' +
+              escapeHtml(item.place_id || '') +
+              '" data-label="' +
+              escapeHtml(item.label || '') +
+              '">' +
+              escapeHtml(item.label || '') +
+              '</button></li>'
+            );
+          })
+          .join('');
+        list.hidden = false;
+        setMapsHint('Pilih salah satu hasil pencarian.');
+      })
+      .catch(function () {
+        if (seq !== mapsSearchSeq) return;
+        closeMapsSearchSuggestions();
+        setMapsHint('Gagal memuat saran alamat.', true);
       });
-    } else {
-      mapInstance.setView([lat, lng], 15);
+  }
+
+  function onMapsSearchInput() {
+    if (mapsSearchTimer) clearTimeout(mapsSearchTimer);
+    var input = document.getElementById('mapsSearch');
+    var q = input ? String(input.value || '').trim() : '';
+    if (q.length < 2) {
+      closeMapsSearchSuggestions();
+      return;
     }
-    setMarker(lat, lng);
-    setTimeout(function () {
-      if (mapInstance) mapInstance.invalidateSize();
-    }, 80);
+    mapsSearchTimer = setTimeout(function () {
+      fetchMapsSearchSuggestions(q);
+    }, 280);
+  }
+
+  function selectMapsSearchSuggestion(placeId, label) {
+    if (!placeId || mapsSelectingPlace) return;
+    mapsSelectingPlace = true;
+    closeMapsSearchSuggestions();
+    var input = document.getElementById('mapsSearch');
+    if (input) input.value = label || '';
+
+    fetch(BASE + 'Cabang_List/mapsPlaceDetails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({ place_id: placeId })
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || (!data.ok && !data.status)) {
+          setMapsHint((data && data.message) || 'Gagal memuat detail lokasi.', true);
+          return;
+        }
+        if (data.lat == null || data.lng == null) {
+          setMapsHint('Koordinat lokasi tidak ditemukan.', true);
+          return;
+        }
+        var lat = Number(data.lat);
+        var lng = Number(data.lng);
+        var gmaps = buildGmapsUrl(lat, lng);
+        setMapCoords(lat, lng, gmaps);
+        if (mapInstance) {
+          syncMapCenter(lat, lng);
+        } else {
+          ensureGoogleMap(lat, lng);
+        }
+        setMapsHint('Koordinat dan link Google Maps sudah terisi.');
+      })
+      .catch(function () {
+        setMapsHint('Gagal memuat detail lokasi.', true);
+      })
+      .finally(function () {
+        mapsSelectingPlace = false;
+      });
   }
 
   function openMapsModal(btn) {
     var id = btn.getAttribute('data-id') || '';
     var kode = btn.getAttribute('data-kode') || '';
     var nama = btn.getAttribute('data-nama') || '';
-    var lat = parseCoord(btn.getAttribute('data-latt'), DEFAULT_LAT);
-    var lng = parseCoord(btn.getAttribute('data-long'), DEFAULT_LNG);
+    var latRaw = btn.getAttribute('data-latt');
+    var lngRaw = btn.getAttribute('data-long');
+    var hasCoords = latRaw !== '' && lngRaw !== '' && !isNaN(parseFloat(latRaw)) && !isNaN(parseFloat(lngRaw));
+    var lat = hasCoords ? parseCoord(latRaw, DEFAULT_LAT) : DEFAULT_LAT;
+    var lng = hasCoords ? parseCoord(lngRaw, DEFAULT_LNG) : DEFAULT_LNG;
     var gmaps = btn.getAttribute('data-gmaps') || '';
 
     document.getElementById('mapsCabangId').value = id;
-    document.getElementById('mapsGmaps').value = gmaps;
+    document.getElementById('mapsSearch').value = '';
+    closeMapsSearchSuggestions();
+    setMapsHint('Pilih alamat dari hasil pencarian. Koordinat dan link Google Maps terisi otomatis.');
+
+    if (hasCoords) {
+      setMapCoords(lat, lng, gmaps || buildGmapsUrl(lat, lng));
+    } else {
+      document.getElementById('mapsLatt').value = '';
+      document.getElementById('mapsLong').value = '';
+      document.getElementById('mapsGmaps').value = '';
+    }
+
     document.getElementById('cabangMapsTitle').textContent = 'Maps · ' + (kode || id);
-    document.getElementById('cabangMapsSub').textContent = nama || 'Klik peta untuk set koordinat';
+    document.getElementById('cabangMapsSub').textContent = nama || 'Cari alamat cabang';
+
+    var loadingEl = document.getElementById('cabangMapLoading');
+    if (loadingEl) loadingEl.hidden = false;
 
     openModal('modalCabangMaps');
-    ensureMap(lat, lng);
+    ensureGoogleMap(lat, lng);
   }
 
   root.addEventListener('click', function (e) {
     var btn = e.target.closest('.btn-maps-cabang');
     if (!btn || !root.contains(btn)) return;
     openMapsModal(btn);
+  });
+
+  document.getElementById('mapsSearch').addEventListener('input', onMapsSearchInput);
+  document.getElementById('mapsSearch').addEventListener('focus', onMapsSearchInput);
+
+  document.getElementById('mapsSearchList').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-place-id]');
+    if (!btn) return;
+    selectMapsSearchSuggestion(btn.getAttribute('data-place-id'), btn.getAttribute('data-label'));
+  });
+
+  document.addEventListener('click', function (e) {
+    var wrap = document.querySelector('#cabang-root .cb-search-wrap');
+    if (!wrap || wrap.contains(e.target)) return;
+    closeMapsSearchSuggestions();
   });
 
   formMaps.addEventListener('submit', function (e) {
