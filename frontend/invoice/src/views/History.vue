@@ -1,11 +1,13 @@
 <template>
   <div class="space-y-3 pb-4">
+    <input v-model="month" class="field-input w-full" type="month" @change="loadList" />
+
     <PageLoader v-if="loading" />
 
     <EmptyState
       v-else-if="!invoices.length"
       title="Belum ada riwayat"
-      subtitle="Invoice yang sudah lunas atau dibatalkan akan muncul di sini."
+      subtitle="Invoice lunas atau dibatalkan untuk bulan ini belum ada."
     />
 
     <div v-else class="space-y-3">
@@ -38,16 +40,20 @@
 import { onMounted, ref } from "vue";
 import PageLoader from "../components/PageLoader.vue";
 import EmptyState from "../components/EmptyState.vue";
-import { formatDate, formatRupiah } from "../utils/format";
+import { currentMonth, formatDate, formatRupiah } from "../utils/format";
 import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStatus";
 
 const loading = ref(true);
+const month = ref(currentMonth());
 const invoices = ref([]);
 
 async function loadList() {
   loading.value = true;
   try {
-    const params = new URLSearchParams({ all: "1", status: "completed" });
+    const params = new URLSearchParams({
+      month: month.value,
+      status: "completed",
+    });
     const res = await fetch(`/api/Invoice/Invoices/list?${params}`);
     const data = await res.json();
     if (res.ok && data.status) {
