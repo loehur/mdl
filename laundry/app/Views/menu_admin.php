@@ -96,6 +96,29 @@ $menu[1] = [
     ],
     [
         'c' => '#',
+        'title' => 'Auto Reply',
+        'icon' => 'fas fa-reply-all',
+        'txt' => 'Auto Reply',
+        'submenu' => [
+            [
+                'c' => '@IntentLab',
+                'title' => 'Intent Lab',
+                'txt' => 'Intent Lab'
+            ],
+            [
+                'c' => '@AutoReplyKeywords',
+                'title' => 'Keyword',
+                'txt' => 'Keyword'
+            ],
+            [
+                'c' => '@WaGateway',
+                'title' => 'WhatsApp',
+                'txt' => 'WhatsApp'
+            ],
+        ]
+    ],
+    [
+        'c' => '#',
         'title' => 'Tools',
         'icon' => 'fas fa-tools',
         'txt' => 'Tools',
@@ -119,21 +142,6 @@ $menu[1] = [
                 'c' => '@ImportPelanggan',
                 'title' => 'Import Pelanggan',
                 'txt' => 'Import Pelanggan'
-            ],
-            [
-                'c' => '@IntentLab',
-                'title' => 'Intent Lab',
-                'txt' => 'Intent Lab'
-            ],
-            [
-                'c' => '@AutoReplyKeywords',
-                'title' => 'Auto Reply Keywords',
-                'txt' => 'Auto Reply Keywords'
-            ],
-            [
-                'c' => '@WaGateway',
-                'title' => 'WhatsApp',
-                'txt' => 'WhatsApp'
             ],
         ]
     ],
