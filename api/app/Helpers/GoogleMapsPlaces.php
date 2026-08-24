@@ -105,7 +105,7 @@ class GoogleMapsPlaces
 
     /**
      * @param array{restrict_lat?:float,restrict_lng?:float,restrict_radius?:float,city_name?:string} $options
-     * @return array{ok:bool,message?:string,lat?:float,lng?:float,label?:string}
+     * @return array{ok:bool,message?:string,lat?:float,lng?:float,label?:string,gmaps_url?:string,maps_url?:string}
      */
     public static function placeDetails(string $placeId, array $options = []): array
     {
@@ -122,7 +122,7 @@ class GoogleMapsPlaces
         $resource = str_starts_with($placeId, 'places/') ? $placeId : ('places/' . rawurlencode($placeId));
         $url = 'https://places.googleapis.com/v1/' . $resource;
 
-        $res = self::getJson($url, $apiKey, 'location,formattedAddress,displayName');
+        $res = self::getJson($url, $apiKey, 'location,formattedAddress,displayName,googleMapsUri,googleMapsLinks');
         if ($res === null) {
             return ['ok' => false, 'message' => 'Gagal menghubungi Google Places API'];
         }
@@ -158,12 +158,61 @@ class GoogleMapsPlaces
             }
         }
 
-        return [
+        $gmapsUrl = self::pickGoogleMapsUrl($res, $placeId, $label, $lat, $lng);
+
+        $out = [
             'ok' => true,
             'lat' => round($lat, 7),
             'lng' => round($lng, 7),
             'label' => $label,
         ];
+        if ($gmapsUrl !== '') {
+            $out['gmaps_url'] = $gmapsUrl;
+            $out['maps_url'] = $gmapsUrl;
+        }
+
+        return $out;
+    }
+
+    private static function pickGoogleMapsUrl(array $res, string $placeId, string $label, float $lat, float $lng): string
+    {
+        $candidates = [];
+        $links = is_array($res['googleMapsLinks'] ?? null) ? $res['googleMapsLinks'] : [];
+        $candidates[] = trim((string) ($links['placeUri'] ?? ''));
+        $candidates[] = trim((string) ($res['googleMapsUri'] ?? ''));
+
+        foreach ($candidates as $url) {
+            if ($url !== '' && self::isGoogleMapsHttpUrl($url)) {
+                return $url;
+            }
+        }
+
+        $pid = trim($placeId);
+        if (str_starts_with($pid, 'places/')) {
+            $pid = substr($pid, 7);
+        }
+        if ($pid !== '') {
+            $query = $label !== '' ? $label : ($lat . ',' . $lng);
+
+            return 'https://www.google.com/maps/search/?api=1&query='
+                . rawurlencode($query)
+                . '&query_place_id='
+                . rawurlencode($pid);
+        }
+
+        return 'https://www.google.com/maps?q=' . $lat . ',' . $lng;
+    }
+
+    private static function isGoogleMapsHttpUrl(string $url): bool
+    {
+        if (!preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '#^https?://(?:maps\.app\.goo\.gl|goo\.gl/maps|maps\.google\.|www\.google\.[^/]+/maps|google\.[^/]+/maps)#i',
+            $url
+        );
     }
 
     /**

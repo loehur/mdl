@@ -1103,8 +1103,8 @@ foreach ($kotaOptions as $k) {
         }
         var lat = Number(data.lat);
         var lng = Number(data.lng);
-        var gmaps = buildGmapsUrl(lat, lng);
-        setMapCoords(lat, lng, gmaps);
+        var gmaps = String(data.gmaps_url || data.maps_url || '').trim();
+        setMapCoords(lat, lng, gmaps || buildGmapsUrl(lat, lng));
         if (mapInstance) {
           syncMapCenter(lat, lng);
         } else {
