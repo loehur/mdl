@@ -5,14 +5,6 @@
     <template v-else>
       <div class="grid grid-cols-2 gap-3">
         <div class="stat-tile">
-          <p class="label-caps">Total Invoice</p>
-          <p class="money-display-sm mt-2 text-ledger-dim">{{ summary.total }}</p>
-        </div>
-        <div class="stat-tile">
-          <p class="label-caps">Bulan Ini</p>
-          <p class="money-display-sm mt-2">{{ summary.month_count }}</p>
-        </div>
-        <div class="stat-tile">
           <p class="label-caps">Sudah Dibayar</p>
           <p class="money-display-sm mt-2 text-credit-dim">Rp {{ formatRupiah(summary.paid_amount) }}</p>
         </div>
@@ -29,11 +21,6 @@
             </p>
           </div>
         </router-link>
-      </div>
-
-      <div class="flex gap-3">
-        <router-link to="/buat" class="btn-primary flex-1">Buat Invoice</router-link>
-        <router-link to="/riwayat" class="btn-ghost flex-1">Riwayat</router-link>
       </div>
 
       <section v-if="summary.overdue?.length" class="glass-strong border border-debit-dim/20 p-3.5">
@@ -110,12 +97,10 @@ import { invoiceStatusChipClass, invoiceStatusLabel } from "../utils/invoiceStat
 
 const loading = ref(true);
 const summary = ref({
-  total: 0,
   paid_amount: 0,
   unpaid_amount: 0,
   overdue_count: 0,
   overdue_amount: 0,
-  month_count: 0,
   overdue: [],
   recent: [],
 });
