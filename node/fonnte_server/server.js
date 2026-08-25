@@ -22,7 +22,7 @@ app.get('/', (_req, res) => {
   res.json({
     ok: true,
     service: 'fonnte_server',
-    endpoints: ['POST /send', 'POST /device', 'GET /health', 'GET /qr', 'GET /media/:file'],
+    endpoints: ['POST /send', 'POST /device', 'GET /health', 'GET /qr', 'GET /groups', 'GET /media/:file'],
   });
 });
 

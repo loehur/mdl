@@ -7,6 +7,7 @@ const {
   getConnectionState,
   getLastQr,
   getDeviceNumber,
+  listGroupsBaileys,
 } = require('./baileys');
 
 const TOKEN = String(process.env.FONNTE_TOKEN || '').trim();
@@ -120,6 +121,23 @@ function mountFonnteRoutes(app) {
       return res.status(404).json({ ok: false, message: 'QR belum tersedia — tunggu beberapa detik atau reset sesi' });
     }
     return res.json({ ok: true, qr });
+  });
+
+  /**
+   * Daftar id & nama group yang diikuti perangkat.
+   * GET /groups (Authorization: FONNTE_TOKEN)
+   */
+  app.get('/groups', requireToken, async (_req, res) => {
+    try {
+      const result = await listGroupsBaileys();
+      if (!result.status) {
+        return res.status(502).json({ ok: false, reason: result.reason || 'fetch groups failed' });
+      }
+      return res.json({ ok: true, count: result.groups.length, groups: result.groups });
+    } catch (err) {
+      console.error('[GET /groups]', err);
+      return res.status(500).json({ ok: false, reason: err.message || 'internal error' });
+    }
   });
 
   app.post('/logout', requireToken, async (_req, res) => {

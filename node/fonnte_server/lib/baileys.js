@@ -777,6 +777,35 @@ async function sendViaBaileys({ jid, message, url, filename, inboxid }) {
   }
 }
 
+/**
+ * Daftar semua group yang diikuti perangkat (untuk endpoint /groups).
+ * @returns {Promise<{status:boolean, groups?:Array, reason?:string}>}
+ */
+async function listGroupsBaileys() {
+  if (!sock || connectionState !== 'open') {
+    return { status: false, reason: 'WhatsApp not connected' };
+  }
+  try {
+    const meta = await sock.groupFetchAllParticipating();
+    const groups = Object.keys(meta || {}).map((jid) => {
+      const g = meta[jid] || {};
+      return {
+        id: jid,
+        name: g.subject || '',
+        desc: g.desc || '',
+        size: Array.isArray(g.participants) ? g.participants.length : 0,
+        owner: g.owner || '',
+        announce: Boolean(g.announce),
+        restrict: Boolean(g.restrict),
+      };
+    }).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    return { status: true, groups };
+  } catch (err) {
+    console.error('[groups] failed:', err.message || err);
+    return { status: false, reason: err.message || 'fetch groups failed' };
+  }
+}
+
 module.exports = {
   startBaileys,
   sendViaBaileys,
@@ -785,4 +814,5 @@ module.exports = {
   getLastQr,
   getDeviceNumber,
   getDeviceJid,
+  listGroupsBaileys,
 };
