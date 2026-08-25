@@ -34,9 +34,38 @@
   <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
   
   <script>
-    // Auto-reload mechanism for Android WebView stale cache issue
+    // Auto-reload mechanism for Android WebView stale cache issue.
+    // Hanya aktif di Android WebView — browser desktop tidak auto-reload
+    // (di jaringan lambat, asset >3s membuat loop reload yang terasa lemot).
     (function() {
-      var TIMEOUT_MS = 3000; // 3 seconds
+      var isAndroidWebView = /Android/i.test(navigator.userAgent) && /wv|WebView/i.test(navigator.userAgent);
+
+      // Expose function for Vue app to call when ready (selalu ada).
+      window.__cancelAppLoadingTimeout = function() {
+        var loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          loadingScreen.style.transition = 'opacity 0.3s ease';
+          setTimeout(function() {
+            loadingScreen.remove();
+          }, 300);
+        }
+        // Clear retry param from URL without reload
+        if (window.history && window.history.replaceState) {
+          var url = new URL(window.location.href);
+          url.searchParams.delete('_retry');
+          url.searchParams.delete('_t');
+          window.history.replaceState({}, '', url.pathname + url.search.replace(/^\?$/, ''));
+        }
+      };
+
+      if (!isAndroidWebView) {
+        // Browser biasa: sembunyikan loading screen langsung — tidak ada auto-reload.
+        window.__cancelAppLoadingTimeout();
+        return;
+      }
+
+      var TIMEOUT_MS = 15000; // 15 detik — toleran untuk jaringan lambat
       var reloadTimeout = setTimeout(function() {
         // If this runs, the app hasn't initialized yet
         console.warn('[AutoReload] App did not initialize in ' + TIMEOUT_MS + 'ms. Reloading...');
@@ -62,24 +91,11 @@
         }
       }, TIMEOUT_MS);
       
-      // Expose function for Vue app to call when ready
+      // Override: cancel juga matikan timer reload.
+      var origCancel = window.__cancelAppLoadingTimeout;
       window.__cancelAppLoadingTimeout = function() {
         clearTimeout(reloadTimeout);
-        var loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-          loadingScreen.style.opacity = '0';
-          loadingScreen.style.transition = 'opacity 0.3s ease';
-          setTimeout(function() {
-            loadingScreen.remove();
-          }, 300);
-        }
-        // Clear retry param from URL without reload
-        if (window.history && window.history.replaceState) {
-          var url = new URL(window.location.href);
-          url.searchParams.delete('_retry');
-          url.searchParams.delete('_t');
-          window.history.replaceState({}, '', url.pathname + url.search.replace(/^\?$/, ''));
-        }
+        origCancel();
       };
     })();
   </script>
