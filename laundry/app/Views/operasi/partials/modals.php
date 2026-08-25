@@ -2172,9 +2172,19 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
   /** Surcas (jemput/antar) untuk item terpilih/prefill sudah ada di nota? */
   function surcasSudahAda() {
+    // 1) Cek agregat per grup (data-surcas-jemput/antar = jumlah).
     var existJ = existingSurcasFromGroups('jemput');
     var existA = existingSurcasFromGroups('antar');
-    return existJ.jumlah !== null || existA.jumlah !== null;
+    if (existJ.jumlah !== null || existA.jumlah !== null) return true;
+
+    // 2) Fallback: cek flag bound per item checkbox (data-surcas-jemput/antar = "1").
+    var anyBound = false;
+    root.querySelectorAll('input[name="kurir_ids"]').forEach(function (cb) {
+      if (cb.getAttribute('data-surcas-jemput') === '1' || cb.getAttribute('data-surcas-antar') === '1') {
+        anyBound = true;
+      }
+    });
+    return anyBound;
   }
 
   function toast(msg, type) {
@@ -2881,8 +2891,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var idKaryawan = currentPenyelesai();
     var idPengisiSurcas = currentPengisiSurcas();
     var surcasAda = surcasSudahAda();
-    // Surcas sudah ada di nota -> pengisi tidak bisa diisi/diubah lagi (dari kasir atau portal J).
-    if (idPengisiSurcas <= 0 && !surcasAda) {
+    // Saat membuat request baru (bukan force/penyelesaian): pengisi surcas wajib.
+    // Saat force (selesai antar/jemput): kalau surcas sudah ada (dari kasir/portal J),
+    // pengisi tidak bisa diisi — lewati; backend tidak menimpa id_user existing.
+    if (idPengisiSurcas <= 0 && !forceComplete) {
       toast('Wajib pilih pengisi surcas', 'warn');
       return;
     }
