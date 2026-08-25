@@ -71,6 +71,16 @@ const phoneModalForm = ref("");
 const phoneModalMsg = ref("");
 const phoneModalOk = ref(false);
 
+const chatNumber = computed(() => String(props.conversation?.wa_number || "").replace(/\D/g, ""));
+const chatIsPrimary = computed(() => {
+  const p = String(phonePrimary.value || "").replace(/\D/g, "");
+  return p !== "" && chatNumber.value !== "" && (p === chatNumber.value || p.endsWith(chatNumber.value.slice(-9)) || chatNumber.value.endsWith(p.slice(-9)));
+});
+const chatIsAlt = computed(() => {
+  const s = String(phoneAlt.value || "").replace(/\D/g, "");
+  return s !== "" && chatNumber.value !== "" && (s === chatNumber.value || s.endsWith(chatNumber.value.slice(-9)) || chatNumber.value.endsWith(s.slice(-9)));
+});
+
 const canSavePermintaan = computed(() => {
   if (savingPermintaan.value) return false;
   return editPermintaanSummary.value.trim().length > 0;
@@ -1281,7 +1291,7 @@ onUnmounted(() => {
           <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] space-y-2">
             <p v-if="phoneLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat…</p>
             <template v-else>
-              <div class="flex items-center gap-2">
+              <div v-if="!custId" class="flex items-center gap-2">
                 <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">C</span>
                 <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
                   {{ conversation?.wa_number ? formatPhoneTo08(conversation.wa_number) : "—" }}
@@ -1301,6 +1311,11 @@ onUnmounted(() => {
                   <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
                     {{ phonePrimary ? formatPhoneTo08(phonePrimary) : "—" }}
                   </p>
+                  <span
+                    v-if="chatIsPrimary"
+                    class="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded bg-[var(--wa-accent-blue)] text-white"
+                    title="Nomor yang dipakai chat"
+                  >C</span>
                   <button
                     v-if="phonePrimary"
                     type="button"
@@ -1315,6 +1330,11 @@ onUnmounted(() => {
                   <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
                     {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
                   </p>
+                  <span
+                    v-if="chatIsAlt"
+                    class="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded bg-[var(--wa-accent-blue)] text-white"
+                    title="Nomor yang dipakai chat"
+                  >C</span>
                   <button
                     v-if="phoneAlt"
                     type="button"
