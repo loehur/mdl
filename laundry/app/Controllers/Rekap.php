@@ -24,38 +24,67 @@ class Rekap extends Controller
 
       $config = $modeConfig[$mode];
       $isDaily = $config['type'] === 'daily';
-      // Laundry-wide: abaikan cabang training (bukan data real)
-      $whereCabang = $config['useCabang']
-         ? $this->wCabang . " AND "
-         : $this->sqlExcludeTrainingCabang('id_cabang');
 
-      // Parse date from POST or use current date
-      if (isset($_POST['m'])) {
-         $year = $_POST['y'];
-         $month = $_POST['m'];
-         $day = $_POST['d'] ?? '01';
-         
-         if ($isDaily) {
-            $today = "$year-$month-$day";
-            $dataTanggal = ['tanggal' => $day, 'bulan' => $month, 'tahun' => $year];
-         } else {
-            $today = "$year-$month";
-            $dataTanggal = ['bulan' => $month, 'tahun' => $year];
-         }
+      // Parse date from POST/GET or use current date
+      $year = (int) ($_POST['y'] ?? $_GET['y'] ?? date('Y'));
+      $month = str_pad((string) ($_POST['m'] ?? $_GET['m'] ?? date('m')), 2, '0', STR_PAD_LEFT);
+      $day = str_pad((string) ($_POST['d'] ?? $_GET['d'] ?? date('d')), 2, '0', STR_PAD_LEFT);
+
+      if ($isDaily) {
+         $today = "$year-$month-$day";
+         $dataTanggal = ['tanggal' => $day, 'bulan' => $month, 'tahun' => $year];
       } else {
-         if ($isDaily) {
-            $today = date('Y-m-d');
-            $dataTanggal = ['tanggal' => date('d'), 'bulan' => date('m'), 'tahun' => date('Y')];
-         } else {
-            $today = date('Y-m');
-            $dataTanggal = ['bulan' => date('m'), 'tahun' => date('Y')];
-         }
+         $today = "$year-$month";
+         $dataTanggal = ['bulan' => $month, 'tahun' => $year];
       }
 
       $data_operasi = ['title' => $config['title']];
       if (isset($config['vLaundry'])) {
          $data_operasi['vLaundry'] = true;
       }
+
+      // AJAX: hitung data & render partial (tanpa layout) — dipakai lazy load.
+      if (!empty($_GET['ajax'])) {
+         header('Content-Type: text/html; charset=utf-8');
+         $data = $this->hitungDataRekap((int) $mode, $today, $isDaily, $config, $dataTanggal);
+         $this->view('rekap/rekap_data', $data);
+         return;
+      }
+
+      // Halaman utama: filter + skeleton. Data di-fetch via AJAX setelah load.
+      $data = [
+         'dataTanggal' => $dataTanggal,
+         'rekap_mode' => (int) $mode,
+         'data_main' => [],
+         'kasLaundry' => 0,
+         'kasMember' => 0,
+         'kas_keluar' => [],
+         'kas_tarik' => [],
+         'prepost_cost' => 0,
+         'gaji' => 0,
+         'barang_pakai' => 0,
+         'margin_penjualan' => 0,
+         'snapshot' => null,
+         'snapshot_meta' => null,
+      ];
+      if (!$isDaily && in_array((int) $mode, [2, 3], true)) {
+         $data['snapshot_meta'] = $this->getRekapSnapshotStatus((int) $mode, $today);
+         $data['snapshot'] = !empty($data['snapshot_meta']['complete']) ? ($data['snapshot_meta']['row'] ?? ['id' => 1]) : null;
+      }
+
+      $this->view('layout', ['data_operasi' => $data_operasi]);
+      $this->view('rekap/rekap', $data);
+   }
+
+   /**
+    * Hitung seluruh angka rekap untuk periode tertentu (dipakai AJAX lazy load).
+    * Logika sama dengan versi server-render lama.
+    */
+   private function hitungDataRekap(int $mode, string $today, bool $isDaily, array $config, array $dataTanggal): array
+   {
+      $whereCabang = $config['useCabang']
+         ? $this->wCabang . " AND "
+         : $this->sqlExcludeTrainingCabang('id_cabang');
 
       // OPTIMIZED: Single query for sale data with date range
       // Sargable range (pakai index insertTime) — DATE()/DATE_FORMAT() non-sargable bikin full scan.
@@ -298,8 +327,7 @@ class Rekap extends Controller
          $snapshot = !empty($snapshotMeta['complete']) ? ($snapshotMeta['row'] ?? ['id' => 1]) : null;
       }
 
-      $this->view('layout', ['data_operasi' => $data_operasi]);
-      $this->view('rekap/rekap', [
+      return [
          'data_main' => $data_main,
          'dataTanggal' => $dataTanggal,
          'kasLaundry' => $kas_laundry,
@@ -317,7 +345,7 @@ class Rekap extends Controller
          'snapshot' => $snapshot,
          'snapshot_meta' => $snapshotMeta,
          'rekap_mode' => (int) $mode,
-      ]);
+      ];
    }
 
    /**

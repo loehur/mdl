@@ -232,209 +232,9 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     </div>
 
     <div class="card">
-      <?php
-      $rekap = array();
-      $rekapQty = array();
-      foreach ($data['data_main'] as $a) {
-        $serLayanan = $a['list_layanan'];
-        if (isset($rekap[$a['id_penjualan_jenis']][$serLayanan]) ==  TRUE) {
-          $rekap[$a['id_penjualan_jenis']][$serLayanan] =  $rekap[$a['id_penjualan_jenis']][$serLayanan] + $a['qty'];
-        } else {
-          $rekap[$a['id_penjualan_jenis']][$serLayanan] = $a['qty'];
-        }
-
-        if (isset($rekapQty[$a['id_penjualan_jenis']]) ==  TRUE) {
-          $rekapQty[$a['id_penjualan_jenis']] =  $rekapQty[$a['id_penjualan_jenis']] + $a['qty'];
-        } else {
-          $rekapQty[$a['id_penjualan_jenis']] = $a['qty'];
-        }
-      }
-      ?>
-      <div class="card-body mt-1 p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <thead>
-            <tr>
-              <th colspan="2" class="text-success border-success">Pendapatan</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            foreach ($rekapQty as $keyA => $a) {
-              foreach ($this->dPenjualan as $b) {
-                if ($b['id_penjualan_jenis'] == $keyA) {
-                  $jenisPenjualan = $b['penjualan_jenis'];
-                  $unit = "";
-                  foreach ($this->dSatuan as $sa) {
-                    if ($sa['id_satuan'] == $b['id_satuan']) {
-                      $unit = $sa['nama_satuan'];
-                    }
-                  }
-                  echo "<tr>";
-                  echo "<td class='text-primary'>" . $jenisPenjualan . "</td>";
-                  echo "<td class='text-right'>" . $a . " " . $unit . "</td>";
-                  echo "</tr>";
-                }
-              }
-            }
-            ?>
-          </tbody>
-        </table>
-      </div>
-      <br>
-      <div class="card-body p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <tbody>
-            <?php
-            $jenisPenjualan = "";
-            $jenisPenjualanBefore = "";
-
-            foreach ($rekap as $keyA => $a) {
-              foreach ($this->dPenjualan as $b) {
-                if ($b['id_penjualan_jenis'] == $keyA) {
-                  $unit = "";
-                  foreach ($this->dSatuan as $sa) {
-                    if ($sa['id_satuan'] == $b['id_satuan']) {
-                      $unit = $sa['nama_satuan'];
-                    }
-                  }
-
-                  foreach ($a as $keyB => $c) {
-                    $serLayanan = $keyB;
-                    $arrLayanan = unserialize($keyB);
-                    $layanan = "";
-                    foreach ($arrLayanan as $d) {
-                      foreach ($this->dLayanan as $e) {
-                        if ($d == $e['id_layanan']) {
-                          $layanan = $layanan . " " . $e['layanan'];
-                        }
-                      }
-                    }
-                    $jenisPenjualan = $b['penjualan_jenis'];
-                    if ($jenisPenjualan == $jenisPenjualanBefore) {
-                      $jenisPenjualan = "";
-                    }
-                    echo "<tr>";
-                    echo "<td class='text-primary'>" . $jenisPenjualan . "</td>";
-                    echo "<td>" . $layanan . "</td>";
-                    echo "<td class='text-right'>" . $c . " " . $unit . "</td>";
-                    echo "</tr>";
-                    $jenisPenjualanBefore = $b['penjualan_jenis'];
-                  }
-                }
-              }
-            }
-            ?>
-          </tbody>
-        </table>
-      </div>
-
-      <?php $total_pendapatan = $data['kasLaundry'] + $data['kasMember'] + ($data['margin_penjualan'] ?? 0); ?>
-
-      <br>
-      <div class="card-body p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <tbody>
-            <tr>
-              <td>Pendapatan Laundry <span class="text-primary">Umum</span></td>
-              <td class="text-right">Rp<?= number_format($data['kasLaundry']) ?></td>
-            </tr>
-            <tr>
-              <td>Pendapatan Laundry <span class="text-success">Member</span></td>
-              <td class="text-right">Rp<?= number_format($data['kasMember']) ?></td>
-            </tr>
-            <tr role="button" class="align-middle" id="rekapMarginRow" style="cursor:pointer" title="Klik untuk rincian"
-              data-rekap-mode="<?= (int) $target_page_rekap ?>"
-              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
-              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
-              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
-              <td>Margin Penjualan Barang <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
-              <td class="text-right">Rp<?= number_format($data['margin_penjualan'] ?? 0) ?></td>
-            </tr>
-            <tr class="table-success">
-              <td class="fw-bold">Total Pendapatan</td>
-              <td class="text-right fw-bold">Rp<?= number_format($total_pendapatan) ?></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <thead>
-            <tr>
-              <th colspan="2" class="text-danger border-danger">Pengeluaran</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php
-            $total_keluar = 0;
-            foreach ($data['kas_keluar'] as $a) {
-              echo "<tr>";
-              echo "<td class=''>" . $a['note_primary'] . "</td>";
-              echo "<td class='text-right'>Rp" . number_format($a['total']) . "</td>";
-              echo "</tr>";
-              $total_keluar += $a['total'];
-            }
-
-            $gaji = $data['gaji'];
-            $gaji = (int)$gaji;
-
-            if ($gaji > 0) {
-              echo "<tr>";
-              echo "<td class=''>Gaji Karyawan</td>";
-              echo "<td class='text-right'>Rp" . number_format($gaji) . "</td>";
-              echo "</tr>";
-              $total_keluar += $gaji;
-            }
-
-            $total_keluar += $data['prepost_cost'];
-            ?>
-            <tr role="button" class="align-middle" id="rekapPrepostRow" style="cursor:pointer" title="Klik untuk rincian per cabang"
-              data-rekap-mode="<?= (int) $target_page_rekap ?>"
-              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
-              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
-              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
-              <td>Pre/Post Paid <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
-              <td class="text-end">Rp<?= number_format($data['prepost_cost']) ?></td>
-            </tr>
-            <?php
-            $barang_pakai = $data['barang_pakai'] ?? 0;
-            if ($barang_pakai > 0) {
-              $total_keluar += $barang_pakai;
-            }
-            ?>
-            <tr role="button" class="align-middle<?= $barang_pakai > 0 ? '' : ' text-muted' ?>" id="rekapBarangPakaiRow" style="cursor:pointer" title="Klik untuk rincian"
-              data-rekap-mode="<?= (int) $target_page_rekap ?>"
-              data-y="<?= htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') ?>"
-              data-m="<?= htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') ?>"
-              data-d="<?= htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') ?>">
-              <td>Barang Pakai <i class="fas fa-list-ul text-secondary small ms-1" aria-hidden="true"></i></td>
-              <td class="text-right">Rp<?= number_format($barang_pakai) ?></td>
-            </tr>
-            <tr class="table-danger">
-              <td><b>Total Pengeluaran</b></td>
-              <td class="text-right"><b>Rp<?= number_format($total_keluar) ?></b></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body m-0 p-0 table-responsive-sm">
-        <table class="table table-sm w-100">
-          <tbody>
-
-            <?php
-            echo "<tr class='table-primary'>";
-            echo "<td class='fw-bold'>Laba/Rugi</td>";
-            echo "<td class='text-right'><b>Rp " . number_format($total_pendapatan - $total_keluar) . "</b></td>";
-            echo "</tr>";
-            ?>
-          </tbody>
-        </table>
+      <div class="card-body text-center py-4" id="rekapContent">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="text-muted small mt-2 mb-0">Memuat data rekap…</p>
       </div>
     </div>
   </div>
@@ -691,23 +491,64 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
   var bindRow = function (rowId, buildUrl, ids, onSuccess) {
     var row = document.getElementById(rowId);
     if (!row) return;
+    // Hindari double-bind saat partial dimuat ulang via AJAX.
+    if (row.getAttribute('data-bound') === '1') return;
+    row.setAttribute('data-bound', '1');
     row.addEventListener('click', function () {
       var mode = row.getAttribute('data-rekap-mode') || '1';
       openFetchModal(row, buildUrl(mode) + periodParams(row), ids, onSuccess);
     });
   };
 
-  bindRow('rekapPrepostRow', function (mode) {
-    return '<?= URL::BASE_URL ?>Rekap/prepost_detail/' + encodeURIComponent(mode);
-  }, {
-    modal: 'modalPrepostDetail',
-    loading: 'modalPrepostLoading',
-    error: 'modalPrepostError',
-    tbody: 'modalPrepostTbody',
-    tfoot: 'modalPrepostTfoot',
-    empty: 'modalPrepostEmpty',
-    period: 'modalPrepostPeriod'
-  }, function (data) {
+  // Expose agar bisa di-bind ulang setelah lazy-load AJAX mengisi partial.
+  window.__rekapBindModals = function () {
+    bindRow('rekapPrepostRow', function (mode) {
+      return '<?= URL::BASE_URL ?>Rekap/prepost_detail/' + encodeURIComponent(mode);
+    }, {
+      modal: 'modalPrepostDetail',
+      loading: 'modalPrepostLoading',
+      error: 'modalPrepostError',
+      tbody: 'modalPrepostTbody',
+      tfoot: 'modalPrepostTfoot',
+      empty: 'modalPrepostEmpty',
+      period: 'modalPrepostPeriod'
+    }, function (data) {
+      window.__rekapRenderPrepost(data);
+    });
+    bindRow('rekapMarginRow', function (mode) {
+      return '<?= URL::BASE_URL ?>Rekap/margin_penjualan_detail/' + encodeURIComponent(mode);
+    }, {
+      modal: 'modalMarginDetail',
+      loading: 'modalMarginLoading',
+      error: 'modalMarginError',
+      tbody: 'modalMarginTbody',
+      tfoot: 'modalMarginTfoot',
+      empty: 'modalMarginEmpty',
+      period: 'modalMarginPeriod',
+      rekapWrap: 'modalMarginRekapWrap',
+      rekapTbody: 'modalMarginRekapTbody',
+      detailWrap: 'modalMarginDetailWrap'
+    }, function (data) {
+      window.__rekapRenderMargin(data);
+    });
+    bindRow('rekapBarangPakaiRow', function (mode) {
+      return '<?= URL::BASE_URL ?>Rekap/barang_pakai_detail/' + encodeURIComponent(mode);
+    }, {
+      modal: 'modalBarangPakaiDetail',
+      loading: 'modalBarangPakaiLoading',
+      error: 'modalBarangPakaiError',
+      tbody: 'modalBarangPakaiTbody',
+      tfoot: 'modalBarangPakaiTfoot',
+      empty: 'modalBarangPakaiEmpty',
+      period: 'modalBarangPakaiPeriod',
+      rekapWrap: 'modalBarangPakaiRekapWrap',
+      rekapTbody: 'modalBarangPakaiRekapTbody',
+      detailWrap: 'modalBarangPakaiDetailWrap'
+    }, function (data) {
+      window.__rekapRenderBarangPakai(data);
+    });
+  };
+  window.__rekapRenderPrepost = function (data) {
     var rows = data.rows || [];
     if (rows.length === 0) {
       document.getElementById('modalPrepostEmpty').classList.remove('d-none');
@@ -816,7 +657,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     document.getElementById('modalPrepostFootPost').textContent = 'Rp' + fmt(g.postpaid || 0);
     document.getElementById('modalPrepostFootSum').textContent = 'Rp' + fmt(g.total || 0);
     document.getElementById('modalPrepostTfoot').classList.remove('d-none');
-  });
+  };
 
   var renderBarangRekap = function (data, opts) {
     var rekap = data.rekap || [];
@@ -888,20 +729,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     document.getElementById(opts.tfootId).classList.remove('d-none');
   };
 
-  bindRow('rekapMarginRow', function (mode) {
-    return '<?= URL::BASE_URL ?>Rekap/margin_penjualan_detail/' + encodeURIComponent(mode);
-  }, {
-    modal: 'modalMarginDetail',
-    loading: 'modalMarginLoading',
-    error: 'modalMarginError',
-    tbody: 'modalMarginTbody',
-    tfoot: 'modalMarginTfoot',
-    empty: 'modalMarginEmpty',
-    period: 'modalMarginPeriod',
-    rekapWrap: 'modalMarginRekapWrap',
-    rekapTbody: 'modalMarginRekapTbody',
-    detailWrap: 'modalMarginDetailWrap'
-  }, function (data) {
+  window.__rekapRenderMargin = function (data) {
     renderBarangRows(data, {
       tbodyId: 'modalMarginTbody',
       tfootId: 'modalMarginTfoot',
@@ -916,22 +744,9 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       rekapSumId: 'modalMarginRekapSum',
       detailWrapId: 'modalMarginDetailWrap'
     });
-  });
+  };
 
-  bindRow('rekapBarangPakaiRow', function (mode) {
-    return '<?= URL::BASE_URL ?>Rekap/barang_pakai_detail/' + encodeURIComponent(mode);
-  }, {
-    modal: 'modalBarangPakaiDetail',
-    loading: 'modalBarangPakaiLoading',
-    error: 'modalBarangPakaiError',
-    tbody: 'modalBarangPakaiTbody',
-    tfoot: 'modalBarangPakaiTfoot',
-    empty: 'modalBarangPakaiEmpty',
-    period: 'modalBarangPakaiPeriod',
-    rekapWrap: 'modalBarangPakaiRekapWrap',
-    rekapTbody: 'modalBarangPakaiRekapTbody',
-    detailWrap: 'modalBarangPakaiDetailWrap'
-  }, function (data) {
+  window.__rekapRenderBarangPakai = function (data) {
     renderBarangRows(data, {
       tbodyId: 'modalBarangPakaiTbody',
       tfootId: 'modalBarangPakaiTfoot',
@@ -946,7 +761,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       rekapSumId: 'modalBarangPakaiRekapSum',
       detailWrapId: 'modalBarangPakaiDetailWrap'
     });
-  });
+  };
 
   // Snapshot rekap bulanan
   (function () {
@@ -1021,6 +836,61 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
           btn.textContent = prevText;
         });
     });
+  })();
+
+  // Lazy load data rekap via AJAX — halaman + filter tampil dulu, data muncul belakangan.
+  (function () {
+    // Bind modal detail (Prepost/Margin/BarangPakai) untuk baris yang sudah ada / setelah AJAX.
+    if (typeof window.__rekapBindModals === 'function') {
+      window.__rekapBindModals();
+    }
+
+    var content = document.getElementById('rekapContent');
+    if (!content) return;
+
+    var mode = <?= (int) $target_page_rekap ?>;
+    var baseUrl = '<?= URL::BASE_URL ?>Rekap/i/' + mode;
+
+    var loadRekap = function (y, m, d) {
+      content.innerHTML = '<div class="spinner-border text-success" role="status"></div>'
+        + '<p class="text-muted small mt-2 mb-0">Memuat data rekap…</p>';
+      var qs = '?ajax=1&y=' + encodeURIComponent(y) + '&m=' + encodeURIComponent(m)
+        + (d ? '&d=' + encodeURIComponent(d) : '');
+      fetch(baseUrl + qs, { credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          content.innerHTML = html;
+          // Re-bind modal detail rows yang ada di partial.
+          if (typeof bootstrap !== 'undefined' && window.__rekapBindModals) {
+            window.__rekapBindModals();
+          }
+        })
+        .catch(function () {
+          content.innerHTML = '<p class="text-danger small text-center py-3">Gagal memuat data rekap.</p>';
+        });
+    };
+
+    // Load pertama (periode dari server).
+    var f = content.closest('.card').querySelector('form');
+    var yEl = f ? f.querySelector('select[name="y"]') : null;
+    var mEl = f ? f.querySelector('select[name="m"]') : null;
+    var dEl = f ? f.querySelector('select[name="d"]') : null;
+    loadRekap(
+      yEl ? yEl.value : '<?= (int) $currentYear ?>',
+      mEl ? mEl.value : '<?= htmlspecialchars($currentMonth, ENT_QUOTES, "UTF-8") ?>',
+      dEl ? dEl.value : (<?= isset($data['dataTanggal']['tanggal']) ? "'" . htmlspecialchars($currentDay, ENT_QUOTES, 'UTF-8') . "'" : 'null' ?>)
+    );
+
+    // Submit filter → AJAX (tanpa reload penuh).
+    if (f) {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var y = f.querySelector('select[name="y"]').value;
+        var m = f.querySelector('select[name="m"]').value;
+        var d = f.querySelector('select[name="d"]');
+        loadRekap(y, m, d ? d.value : null);
+      });
+    }
   })();
 })();
 </script>
