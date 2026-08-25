@@ -638,49 +638,49 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<div id="plg-edit-modal" class="plg-modal" aria-hidden="true">
-  <div class="plg-modal__backdrop" data-plg-close></div>
-  <div class="plg-modal__box" role="dialog" aria-modal="true" aria-labelledby="plg-edit-title">
-    <div class="plg-modal__head">
-      <h3 id="plg-edit-title"><i class="fas fa-pen"></i> Edit Pelanggan</h3>
-      <button type="button" class="plg-modal__close" data-plg-close aria-label="Tutup">&times;</button>
+    <div id="plg-edit-modal" class="plg-modal" aria-hidden="true">
+      <div class="plg-modal__backdrop" data-plg-close></div>
+      <div class="plg-modal__box" role="dialog" aria-modal="true" aria-labelledby="plg-edit-title">
+        <div class="plg-modal__head">
+          <h3 id="plg-edit-title"><i class="fas fa-pen"></i> Edit Pelanggan</h3>
+          <button type="button" class="plg-modal__close" data-plg-close aria-label="Tutup">&times;</button>
+        </div>
+        <form id="plg-edit-form" autocomplete="off">
+          <input type="hidden" name="id" id="plg-edit-id">
+          <div class="plg-modal__body">
+            <div class="plg-field">
+              <label class="plg-label" for="plg-edit-nama">Nama/Panggilan</label>
+              <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="plg-input" required>
+            </div>
+            <div class="plg-row">
+              <div class="plg-field">
+                <label class="plg-label" for="plg-edit-nomor">Nomor HP</label>
+                <input type="text" id="plg-edit-nomor" name="nomor_pelanggan" class="plg-input" required inputmode="tel">
+              </div>
+              <div class="plg-field">
+                <label class="plg-label" for="plg-edit-nomor2">HP Alternatif</label>
+                <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="plg-input" inputmode="tel">
+              </div>
+            </div>
+            <div class="plg-field">
+              <label class="plg-label" for="plg-edit-alamat">Alamat</label>
+              <input type="text" id="plg-edit-alamat" name="alamat" class="plg-input">
+            </div>
+            <?php if ($canEditPartner) { ?>
+              <div class="plg-field">
+                <label class="plg-label" for="plg-edit-disc">Diskon Partner (%)</label>
+                <input type="number" id="plg-edit-disc" name="disc" class="plg-input" min="0" max="100" step="1">
+              </div>
+            <?php } ?>
+          </div>
+          <div class="plg-modal__foot">
+            <button type="button" class="plg-btn plg-btn--ghost" data-plg-close>Batal</button>
+            <button type="submit" class="plg-btn plg-btn--primary" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
+          </div>
+        </form>
+      </div>
     </div>
-    <form id="plg-edit-form" autocomplete="off">
-      <input type="hidden" name="id" id="plg-edit-id">
-      <div class="plg-modal__body">
-        <div class="plg-field">
-          <label class="plg-label" for="plg-edit-nama">Nama/Panggilan</label>
-          <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="plg-input" required>
-        </div>
-        <div class="plg-row">
-          <div class="plg-field">
-            <label class="plg-label" for="plg-edit-nomor">Nomor HP</label>
-            <input type="text" id="plg-edit-nomor" name="nomor_pelanggan" class="plg-input" required inputmode="tel">
-          </div>
-          <div class="plg-field">
-            <label class="plg-label" for="plg-edit-nomor2">HP Alternatif</label>
-            <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="plg-input" inputmode="tel">
-          </div>
-        </div>
-        <div class="plg-field">
-          <label class="plg-label" for="plg-edit-alamat">Alamat</label>
-          <input type="text" id="plg-edit-alamat" name="alamat" class="plg-input">
-        </div>
-        <?php if ($canEditPartner) { ?>
-          <div class="plg-field">
-            <label class="plg-label" for="plg-edit-disc">Diskon Partner (%)</label>
-            <input type="number" id="plg-edit-disc" name="disc" class="plg-input" min="0" max="100" step="1">
-          </div>
-        <?php } ?>
-      </div>
-      <div class="plg-modal__foot">
-        <button type="button" class="plg-btn plg-btn--ghost" data-plg-close>Batal</button>
-        <button type="submit" class="plg-btn plg-btn--primary" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
-      </div>
-    </form>
   </div>
 </div>
 
