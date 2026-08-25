@@ -12,7 +12,8 @@ class Operasi extends Controller
    {
       $id_pelanggan = (int) $id_pelanggan;
       $this->ensureCabangForPelanggan($id_pelanggan, true);
-      $this->operating_data();
+      // operating_data() sudah dipanggil di __construct + ensureCabangForPelanggan (dataSynchrone) —
+      // tidak perlu refresh ulang di sini (menghemat query session tiap load).
 
       $viewData = 'operasi/form_proses';
       
@@ -50,7 +51,7 @@ class Operasi extends Controller
    {
       $id_pelanggan = (int) $id_pelanggan;
       $this->ensureCabangForPelanggan($id_pelanggan, false);
-      $this->operating_data();
+      // operating_data() sudah di __construct; ensureCabangForPelanggan refresh saat perlu.
 
       $pelanggan = $this->pelanggan[$id_pelanggan] ?? 0;
       if ($pelanggan == 0) {
