@@ -823,6 +823,106 @@ class Operasi extends Controller
    }
 
    /**
+    * Ubah jumlah surcas Antar/Jemput di nota Operasi.
+    * Syarat: belum tuntas, tidak overpay; total baru tidak boleh < pembayaran Cek/Berhasil.
+    */
+   public function editSurcasKurir()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $idSurcas = (int) ($_POST['id_surcas'] ?? 0);
+      if ($idSurcas <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas tidak valid.']);
+         return;
+      }
+      if (!array_key_exists('jumlah', $_POST)) {
+         echo json_encode(['status' => 'error', 'message' => 'Jumlah surcas wajib diisi.']);
+         return;
+      }
+      $jumlahBaru = (int) $_POST['jumlah'];
+      if ($jumlahBaru < 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Jumlah surcas tidak boleh negatif.']);
+         return;
+      }
+
+      $this->helper('AntarTarif');
+      $jenisAntar = (int) AntarTarif::SURCAS_JENIS_PENGANTARAN;
+      $jenisJemput = (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+
+      $sc = $this->db(0)->get_where_row('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+      if (!$sc || !is_array($sc)) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas tidak ditemukan.']);
+         return;
+      }
+
+      $jenisId = (int) ($sc['id_jenis_surcas'] ?? 0);
+      if ($jenisId !== $jenisAntar && $jenisId !== $jenisJemput) {
+         echo json_encode(['status' => 'error', 'message' => 'Hanya surcas Antar/Jemput yang dapat diubah dari Operasi.']);
+         return;
+      }
+
+      $ref = trim((string) ($sc['no_ref'] ?? ''));
+      if ($ref === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Nota surcas tidak valid.']);
+         return;
+      }
+      $refEsc = $this->db(0)->escape($ref);
+
+      $sales = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
+      if (!is_array($sales) || empty($sales)) {
+         echo json_encode(['status' => 'error', 'message' => 'Nota tidak ditemukan atau sudah dihapus.']);
+         return;
+      }
+
+      $err = $this->validateOrderModifiable($sales[0]);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      $jumlahLama = (int) ($sc['jumlah'] ?? 0);
+      if ($jumlahLama === $jumlahBaru) {
+         echo json_encode(['status' => 'success', 'message' => 'Tidak ada perubahan jumlah surcas.']);
+         return;
+      }
+
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         echo json_encode(['status' => 'error', 'message' => 'Surcas tidak dapat diubah karena order overpay.']);
+         return;
+      }
+
+      $newSubTotal = $this->getRefSubTotal($ref, [], [], [$idSurcas => $jumlahBaru]);
+      $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+      if ($payErr !== null) {
+         echo json_encode(['status' => 'error', 'message' => $payErr]);
+         return;
+      }
+
+      $upd = $this->db(0)->update(
+         'surcas',
+         ['jumlah' => $jumlahBaru],
+         $this->wCabang . ' AND id_surcas = ' . $idSurcas
+      );
+      if (is_array($upd) && isset($upd['errno']) && (int) $upd['errno'] !== 0) {
+         $this->model('Log')->write("[Operasi::editSurcasKurir] Gagal update id=$idSurcas: " . ($upd['error'] ?? ''));
+         echo json_encode(['status' => 'error', 'message' => 'Gagal mengubah surcas. Silakan coba lagi.']);
+         return;
+      }
+
+      $this->resetBonNotif($ref);
+      $label = $jenisId === $jenisJemput ? 'jemput' : 'antar';
+      $this->model('Log')->write(
+         "[Operasi::editSurcasKurir] Surcas $label id=$idSurcas nota $ref: $jumlahLama → $jumlahBaru"
+      );
+      echo json_encode([
+         'status' => 'success',
+         'message' => 'Jumlah surcas ' . $label . ' berhasil diubah menjadi Rp' . number_format($jumlahBaru, 0, ',', '.'),
+      ]);
+   }
+
+   /**
     * Lepas binding badge kurir dari item Operasi (riwayat delivery / surcas).
     * POST: kind=riwayat|surcas, jenis=jemput|antar, id_penjualan, note
     */
@@ -1821,7 +1921,7 @@ class Operasi extends Controller
       return (int) round($total);
    }
 
-   private function getRefSubTotal($ref, $saleOverrides = [], $excludeSurcasIds = [])
+   private function getRefSubTotal($ref, $saleOverrides = [], $excludeSurcasIds = [], $surcasJumlahOverrides = [])
    {
       $refEsc = $this->db(0)->escape($ref);
       $sales = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
@@ -1842,6 +1942,14 @@ class Operasi extends Controller
          }
       }
 
+      $surcasOverrides = [];
+      foreach ($surcasJumlahOverrides as $sid => $jumlah) {
+         $sid = (int) $sid;
+         if ($sid > 0) {
+            $surcasOverrides[$sid] = max(0, (int) $jumlah);
+         }
+      }
+
       $subTotal = 0;
       foreach ($sales as $s) {
          $id = $this->normalizeSaleId($s['id_penjualan']);
@@ -1856,6 +1964,10 @@ class Operasi extends Controller
          foreach ($surcasList as $sc) {
             $sid = (int) ($sc['id_surcas'] ?? 0);
             if ($sid > 0 && isset($excludeSurcas[$sid])) {
+               continue;
+            }
+            if ($sid > 0 && isset($surcasOverrides[$sid])) {
+               $subTotal += $surcasOverrides[$sid];
                continue;
             }
             $subTotal += (int) ($sc['jumlah'] ?? 0);

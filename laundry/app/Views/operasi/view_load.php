@@ -740,6 +740,12 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
                 && !$refTuntas
                 && $modeView != 2
               );
+              $canEditSurcasKurir = (
+                $jenisDlvCas !== ''
+                && !$refIsOverpay
+                && !$refTuntas
+                && $modeView != 2
+              );
               $btnHapusSurcas = '';
               if ($canHapusSurcasKurir) {
                 $btnHapusSurcas = "<a href='#' class='hapusSurcasKurir text-danger'"
@@ -750,11 +756,25 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
                   . " role='button'><i class='fas fa-trash-alt'></i></a> ";
               }
 
+              $jumlahShow = number_format($jumlahCas);
+              if ($canEditSurcasKurir) {
+                $jumlahCell = "<span class='editSurcasKurir' style='cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-style:dotted;'"
+                  . " data-id='" . (int) $id_surcas . "'"
+                  . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
+                  . " data-jumlah='" . (int) $jumlahCas . "'"
+                  . " data-jenis='" . htmlspecialchars($jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
+                  . " data-nama='" . htmlspecialchars((string) ($surcasNya ?? 'Surcas'), ENT_QUOTES, 'UTF-8') . "'"
+                  . " title='Klik untuk ubah jumlah surcas " . htmlspecialchars($labelDlvCas ?? $jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
+                  . " role='button'>" . $jumlahShow . "</span>";
+              } else {
+                $jumlahCell = $jumlahShow;
+              }
+
               echo "<tr>
               <td class='text-center align-middle' style='vertical-align:middle;width:2rem;'>" . $btnHapusSurcas . "</td>
               <td class='align-middle'>" . $surcasNya . "</td>
               <td class='align-middle'>" . $tglCas . "</td>
-              <td align='right' class='align-middle'>" . number_format($jumlahCas) . "</td>
+              <td align='right' class='align-middle'>" . $jumlahCell . "</td>
             </tr>";
               $subTotal += $jumlahCas;
 
@@ -1385,6 +1405,38 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-unbind-kurir>Batal</button>
       <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiUnbindKurir"><i class="fas fa-unlink"></i> Lepas binding</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ubah jumlah surcas Antar/Jemput -->
+<div class="op-modal" id="modalEditSurcasKurir" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close data-close-edit-surcas></div>
+  <div class="op-modal__panel op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="editSurcasModalTitle">
+    <div class="op-modal__head op-modal__head--blue">
+      <div>
+        <h3 id="editSurcasModalTitle">Ubah jumlah surcas</h3>
+        <small>Syarat: belum tuntas, tidak overpay</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close data-close-edit-surcas aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <p style="margin:0 0 12px;">Nota <strong id="editSurcasRef"></strong> · <strong id="editSurcasNama"></strong></p>
+      <div class="op-field">
+        <label class="op-label" for="editSurcasJumlah">Jumlah baru (Rp)</label>
+        <input type="number" id="editSurcasJumlah" class="op-input" min="0" step="1000" inputmode="numeric" placeholder="0 = gratis">
+      </div>
+      <div class="op-alert" style="margin-top:0;margin-bottom:0;">
+        <i class="fas fa-shield-alt"></i>
+        Total nota setelah ubah tidak boleh lebih kecil dari pembayaran Cek/Berhasil.
+      </div>
+      <div id="editSurcasFeedback" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;border-radius:8px;">
+        <div id="editSurcasFeedbackMessage"></div>
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-edit-surcas>Batal</button>
+      <button type="button" class="op-btn op-btn--primary" id="btnKonfirmasiEditSurcas"><i class="fas fa-save"></i> Simpan</button>
     </div>
   </div>
 </div>

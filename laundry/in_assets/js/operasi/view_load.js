@@ -1636,6 +1636,119 @@
   });
   // --- Akhir hapus surcas Antar/Jemput ---
 
+  function tutupModalEditSurcas() {
+    if (window.OpModal) window.OpModal.close('modalEditSurcasKurir');
+    else $('#modalEditSurcasKurir').removeClass('is-open').attr('aria-hidden', 'true');
+    $('#editSurcasFeedback').addClass('d-none');
+    $('#editSurcasFeedbackMessage').text('');
+  }
+
+  function bukaModalEditSurcas(id, ref, jumlah, jenis, nama) {
+    var $modal = $('#modalEditSurcasKurir');
+    if ($modal.length === 0) {
+      opToast('Modal edit surcas tidak ditemukan. Muat ulang halaman.', 'error');
+      return;
+    }
+    var jenisLabel = jenis === 'jemput' ? 'Jemput' : 'Antar';
+    $('#editSurcasModalTitle').text('Ubah surcas ' + jenisLabel);
+    $('#editSurcasRef').text('#' + ref);
+    $('#editSurcasNama').text(nama || ('Surcas ' + jenisLabel));
+    $('#editSurcasJumlah').val(String(jumlah != null ? jumlah : '0')).css('border-color', '');
+    $('#editSurcasFeedback').addClass('d-none');
+    $('#btnKonfirmasiEditSurcas')
+      .attr('data-id', id)
+      .attr('data-ref', ref)
+      .attr('data-jenis', jenis);
+    if (window.OpModal) window.OpModal.open('modalEditSurcasKurir', { static: true });
+    else $modal.addClass('is-open').attr('aria-hidden', 'false');
+    setTimeout(function () { $('#editSurcasJumlah').focus().select(); }, 100);
+  }
+
+  $(document).on('click', '.editSurcasKurir', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var $el = $(this);
+    bukaModalEditSurcas(
+      $el.attr('data-id'),
+      $el.attr('data-ref'),
+      $el.attr('data-jumlah'),
+      $el.attr('data-jenis'),
+      $el.attr('data-nama')
+    );
+  });
+
+  $(document).on('click', '[data-close-edit-surcas]', function (e) {
+    e.preventDefault();
+    tutupModalEditSurcas();
+  });
+
+  $(document).on('input', '#editSurcasJumlah', function () {
+    $(this).css('border-color', '');
+    $('#editSurcasFeedback').addClass('d-none');
+  });
+
+  $(document).on('click', '#btnKonfirmasiEditSurcas', function () {
+    var $button = $(this);
+    var id = $button.attr('data-id');
+    var jumlahRaw = $('#editSurcasJumlah').val();
+    if (jumlahRaw === '' || jumlahRaw === null) {
+      $('#editSurcasJumlah').css('border-color', '#dc2626').focus();
+      $('#editSurcasFeedbackMessage').text('Jumlah surcas wajib diisi.');
+      $('#editSurcasFeedback').removeClass('d-none');
+      return;
+    }
+    var jumlah = parseInt(jumlahRaw, 10);
+    if (isNaN(jumlah) || jumlah < 0) {
+      $('#editSurcasJumlah').css('border-color', '#dc2626').focus();
+      $('#editSurcasFeedbackMessage').text('Jumlah surcas tidak valid.');
+      $('#editSurcasFeedback').removeClass('d-none');
+      return;
+    }
+    if (!id) {
+      opToast('Surcas tidak ditemukan. Muat ulang halaman.', 'error');
+      return;
+    }
+
+    var original = $button.html();
+    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+    $('#editSurcasFeedback').addClass('d-none');
+
+    $.ajax({
+      url: BASE_URL + 'Operasi/editSurcasKurir',
+      method: 'POST',
+      dataType: 'json',
+      data: { id_surcas: id, jumlah: jumlah },
+      success: function (response) {
+        if (response && response.status === 'success') {
+          tutupModalEditSurcas();
+          opToast(response.message || 'Jumlah surcas berhasil diubah.', 'ok');
+          loadDiv();
+          return;
+        }
+        var msg = (response && response.message) || 'Surcas tidak dapat diubah.';
+        $('#editSurcasFeedbackMessage').text(msg);
+        $('#editSurcasFeedback').removeClass('d-none');
+        opToast(msg, 'error');
+      },
+      error: function (xhr) {
+        var msg = 'Gagal mengubah surcas. Periksa koneksi lalu coba lagi.';
+        try {
+          var parsed = JSON.parse(xhr.responseText);
+          if (parsed && parsed.message) {
+            msg = parsed.message;
+          }
+        } catch (err) { }
+        $('#editSurcasFeedbackMessage').text(msg);
+        $('#editSurcasFeedback').removeClass('d-none');
+        opToast(msg, 'error');
+      },
+      complete: function () {
+        $button.prop('disabled', false).html(original);
+      }
+    });
+  });
+  // --- Akhir edit surcas Antar/Jemput ---
+
   function opToast(msg, type) {
     type = type || 'info';
     if (window.MdlToast) {
