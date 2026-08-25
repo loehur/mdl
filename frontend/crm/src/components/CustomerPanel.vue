@@ -674,6 +674,7 @@ const saveAltPhone = async () => {
       body: JSON.stringify({
         cust_id: custId.value,
         nomor_alternatif: altPhoneForm.value.replace(/\D/g, ""),
+        user_id: props.authId,
       }),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {

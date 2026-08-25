@@ -49,7 +49,7 @@ class Pelanggan extends Controller
         ]);
     }
 
-    /** POST set nomor alternatif (nomor_pelanggan_2). Body: cust_id/id_pelanggan + nomor_alternatif (boleh kosong = hapus). */
+    /** POST set nomor alternatif (nomor_pelanggan_2). Khusus admin. Body: cust_id/id_pelanggan + nomor_alternatif (boleh kosong = hapus). */
     public function setNomorAlternatif()
     {
         $this->jsonHeader();
@@ -58,6 +58,14 @@ class Pelanggan extends Controller
             return;
         }
         $body = $this->mergedInput();
+
+        // Khusus admin — role lain hanya boleh baca.
+        $userId = (string) ($body['user_id'] ?? $this->query('user_id') ?? '');
+        if (!$this->isAdminUser($userId)) {
+            $this->fail('Hanya admin yang dapat mengubah nomor alternatif', 403);
+            return;
+        }
+
         $id = $this->idPelangganFromRequest($body);
         if ($id <= 0) {
             $this->fail('id_pelanggan / cust_id wajib', 400);
@@ -179,5 +187,33 @@ class Pelanggan extends Controller
             $json = [];
         }
         return array_merge($_GET, $_POST, $json);
+    }
+
+    /** Cek role admin CRM (session mdl_crm_session dulu, lalu tabel crm_users). */
+    private function isAdminUser(string $userId = ''): bool
+    {
+        $sessionUser = $_SESSION['mdl_crm_session']['user'] ?? null;
+        if (is_array($sessionUser)) {
+            if (strtolower((string) ($sessionUser['role'] ?? '')) === 'admin') {
+                return true;
+            }
+            if ($userId === '') {
+                $userId = (string) ($sessionUser['username'] ?? '');
+            }
+        }
+
+        if ($userId === '') {
+            return false;
+        }
+
+        try {
+            $row = $this->db(0)->query(
+                'SELECT role FROM crm_users WHERE LOWER(username) = ? LIMIT 1',
+                [strtolower($userId)]
+            )->row_array();
+            return is_array($row) && strtolower((string) ($row['role'] ?? '')) === 'admin';
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }
