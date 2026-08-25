@@ -420,18 +420,26 @@ class Penjualan extends Controller
    public function tambahPelanggan()
    {
       header('Content-Type: application/json; charset=utf-8');
-      echo json_encode($this->helper('PelangganDaftar')->tambahFromPost());
+      $res = $this->helper('PelangganApi')->tambah($_POST, (int) $this->id_cabang);
+      if (!empty($res['ok'])) {
+         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      }
+      echo json_encode($res);
    }
 
    public function cekPelangganHp()
    {
       header('Content-Type: application/json; charset=utf-8');
-      echo json_encode($this->helper('PelangganDaftar')->cekHpFromPost());
+      echo json_encode($this->helper('PelangganApi')->cekHp((string) ($_POST['f2'] ?? ''), (int) $this->id_cabang));
    }
 
    public function pilihPelanggan()
    {
       header('Content-Type: application/json; charset=utf-8');
-      echo json_encode($this->helper('PelangganDaftar')->pilihFromPost());
+      $res = $this->helper('PelangganApi')->pilih((int) ($_POST['id'] ?? 0), (string) ($_POST['nama'] ?? ''), (int) $this->id_cabang);
+      if (!empty($res['ok'])) {
+         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+      }
+      echo json_encode($res);
    }
 }

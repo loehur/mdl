@@ -145,7 +145,11 @@ class Data_List extends Controller
             break;
          case "pelanggan":
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($this->helper('PelangganDaftar')->tambahFromPost());
+            $res = $this->helper('PelangganApi')->tambah($_POST, (int) $this->id_cabang);
+            if (!empty($res['ok'])) {
+                $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+            }
+            echo json_encode($res);
             return;
          case "user":
             $this->session_cek(1);

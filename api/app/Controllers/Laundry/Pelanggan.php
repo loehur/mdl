@@ -4,16 +4,127 @@ namespace App\Controllers\Laundry;
 
 use App\Core\Controller;
 use App\Helpers\CRM\WaSenderContext;
+use App\Helpers\Laundry\PelangganStore;
 
 /**
- * Data pelanggan laundry (tabel pelanggan di mdl_laundry) — dipakai CRM.
- * URL: /Laundry/Pelanggan/{get|setNomorAlternatif}
+ * Data pelanggan laundry (tabel pelanggan di mdl_laundry) — dipakai CRM + Laundry (terpusat).
+ * URL: /Laundry/Pelanggan/{get|setNomorAlternatif|cekHp|tambah|pilih|update|cekEdit|updateCell}
  */
 class Pelanggan extends Controller
 {
     public function __construct()
     {
         $this->handleCors();
+    }
+
+    /** POST cek nomor HP (dipanggil Laundry). Body: hp, id_cabang. */
+    public function cekHp()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $this->reply(PelangganStore::cekHp((string) ($body['hp'] ?? ''), $idCabang));
+    }
+
+    /** POST tambah pelanggan (dipanggil Laundry). Body: nama/f1, hp/f2, hp2/f3, cek_mirip, id_cabang. */
+    public function tambah()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $this->reply(PelangganStore::tambah($body, $idCabang));
+    }
+
+    /** POST pilih/rename pelanggan (dipanggil Laundry). Body: id, nama, id_cabang. */
+    public function pilih()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $this->reply(PelangganStore::pilih((int) ($body['id'] ?? 0), (string) ($body['nama'] ?? ''), $idCabang));
+    }
+
+    /** POST update seluruh field (dipanggil Laundry). Body: id, nama_pelanggan, nomor_pelanggan, nomor_pelanggan_2, disc, id_cabang, can_edit_disc. */
+    public function update()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $canEditDisc = !empty($body['can_edit_disc']) || $body['can_edit_disc'] === '1';
+        $this->reply(PelangganStore::update($body, $idCabang, $canEditDisc));
+    }
+
+    /** POST cek sebelum simpan edit (dipanggil Laundry). Body: id, nama_pelanggan, nomor_pelanggan, nomor_pelanggan_2, id_cabang. */
+    public function cekEdit()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $this->reply(PelangganStore::cekEdit($body, $idCabang));
+    }
+
+    /** POST update satu kolom (dipanggil Laundry). Body: id, mode, value, id_cabang, can_edit_disc. */
+    public function updateCell()
+    {
+        $this->jsonHeader();
+        if (!$this->isPost()) {
+            $this->fail('Method not allowed', 405);
+            return;
+        }
+        $body = $this->mergedInput();
+        if (!$this->verifyCronSecret()) {
+            $this->fail('Akses ditolak', 403);
+            return;
+        }
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
+        $canEditDisc = !empty($body['can_edit_disc']) || $body['can_edit_disc'] === '1';
+        $this->reply(PelangganStore::updateCell(
+            (int) ($body['id'] ?? 0),
+            (string) ($body['mode'] ?? ''),
+            $body['value'] ?? '',
+            $idCabang,
+            $canEditDisc
+        ));
     }
 
     /** GET info pelanggan: id, nama, nomor utama, nomor alternatif. */
@@ -72,53 +183,12 @@ class Pelanggan extends Controller
             return;
         }
 
+        $idCabang = (int) ($body['id_cabang'] ?? 0);
         $nomor2 = preg_replace('/\D/', '', (string) ($body['nomor_alternatif'] ?? ''));
 
-        $db = $this->db(1);
-        $row = $db->query(
-            'SELECT id_cabang, nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
-            [$id]
-        )->row_array();
-        if (!is_array($row) || empty($row['id_pelanggan'])) {
-            $this->fail('Pelanggan tidak ditemukan', 404);
-            return;
-        }
-
-        $nomorUtama = preg_replace('/\D/', '', (string) ($row['nomor_pelanggan'] ?? ''));
-
-        if ($nomor2 !== '') {
-            if (strlen($nomor2) < 8) {
-                $this->fail('Nomor alternatif minimal 8 digit', 400);
-                return;
-            }
-            if ($nomorUtama !== '' && $nomor2 === $nomorUtama) {
-                $this->fail('Nomor alternatif tidak boleh sama dengan nomor utama', 400);
-                return;
-            }
-
-            // Normalisasi ke nasional (852…) untuk cek duplikat pelanggan lain di cabang sama.
-            $n = WaSenderContext::toNomorNasional($nomor2);
-            if ($n !== null && strlen($n) >= 8) {
-                $esc = $db->escape($n);
-                $expr = WaSenderContext::sqlDigitsExpr('nomor_pelanggan');
-                $expr2 = WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2');
-                $dup = $db->query(
-                    'SELECT id_pelanggan FROM pelanggan
-                     WHERE id_cabang = ' . (int) ($row['id_cabang'] ?? 0)
-                        . ' AND id_pelanggan <> ' . $id
-                        . " AND ({$expr} LIKE '%{$esc}' OR {$expr2} LIKE '%{$esc}')
-                     LIMIT 1"
-                )->row_array();
-                if (!empty($dup['id_pelanggan'])) {
-                    $this->fail('Nomor alternatif sudah digunakan pelanggan lain di cabang yang sama', 400);
-                    return;
-                }
-            }
-        }
-
-        $up = $db->update('pelanggan', ['nomor_pelanggan_2' => $nomor2 !== '' ? $nomor2 : null], 'id_pelanggan = ' . $id);
-        if (!empty($up['errno'])) {
-            $this->fail('Gagal menyimpan nomor alternatif: ' . ($up['error'] ?? 'error'), 500);
+        $res = PelangganStore::setNomorAlternatif($id, $nomor2, $idCabang);
+        if (empty($res['ok'])) {
+            $this->fail($res['msg'] ?? 'Gagal menyimpan nomor alternatif', 400);
             return;
         }
 
@@ -130,6 +200,40 @@ class Pelanggan extends Controller
             ],
             'message' => $nomor2 !== '' ? 'Nomor alternatif disimpan' : 'Nomor alternatif dihapus',
         ]);
+    }
+
+    /**
+     * Verifikasi secret server-to-server (Laundry → API), pola Biteship/Fonnte.
+     * - Env::CRON_SECRET kosong → izinkan (compat)
+     * - secret tidak dikirim → izinkan (compat, log) selama API belum wajib
+     * - secret dikirim tapi salah → tolak
+     */
+    private function verifyCronSecret(): bool
+    {
+        $expected = '';
+        if (class_exists('Env') && defined('Env::CRON_SECRET')) {
+            $expected = (string) \Env::CRON_SECRET;
+        }
+        if ($expected === '') {
+            $expected = (string) (getenv('CRON_SECRET') ?: '');
+        }
+
+        $provided = trim((string) ($_GET['secret'] ?? ''));
+        if ($provided === '' && !empty($_SERVER['HTTP_X_CRON_SECRET'])) {
+            $provided = trim((string) $_SERVER['HTTP_X_CRON_SECRET']);
+        }
+
+        if ($expected === '') {
+            return true;
+        }
+        if ($provided === '') {
+            if (class_exists('\\Log', false)) {
+                \Log::write('Pelanggan API: no secret from laundry (compat allow)', 'api', 'Pelanggan');
+            }
+            return true;
+        }
+
+        return hash_equals($expected, $provided);
     }
 
     private function jsonHeader(): void
