@@ -1325,10 +1325,10 @@ onUnmounted(() => {
                     {{ copiedPhoneKey === "P" ? "Copied!" : "Copy" }}
                   </button>
                 </div>
-                <div class="flex items-center gap-2">
+                <div v-if="phoneAlt" class="flex items-center gap-2">
                   <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">S</span>
                   <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
-                    {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
+                    {{ formatPhoneTo08(phoneAlt) }}
                   </p>
                   <span
                     v-if="chatIsAlt"
@@ -1336,7 +1336,6 @@ onUnmounted(() => {
                     title="Nomor yang dipakai chat"
                   >C</span>
                   <button
-                    v-if="phoneAlt"
                     type="button"
                     class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
                     @click="copyPhoneNumber(phoneAlt, 'S')"
