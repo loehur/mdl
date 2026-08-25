@@ -5,7 +5,12 @@
  */
 class BcaMutasiAdminApi
 {
-    private $apiUrl = 'https://api.nalju.com/Payment/BcaMutasiAdmin';
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->apiUrl = ApiLoopback::baseUrl() . '/Payment/BcaMutasiAdmin';
+    }
 
     /**
      * @return array{ok:bool,message?:string,entity_type?:string,entity_ref?:string,revert?:array}
@@ -66,6 +71,7 @@ class BcaMutasiAdminApi
         }
 
         $headers = ['Content-Type: application/json', 'Accept: application/json'];
+        $headers = ApiLoopback::headers($url, $headers);
         if ($secret !== '') {
             $headers[] = 'X-Cron-Secret: ' . $secret;
         }
@@ -77,6 +83,10 @@ class BcaMutasiAdminApi
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        if (ApiLoopback::isLoopback($url)) {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        }
 
         $raw = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

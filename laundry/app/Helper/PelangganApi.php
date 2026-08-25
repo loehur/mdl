@@ -9,7 +9,12 @@
  */
 class PelangganApi
 {
-    private static $apiUrl = 'https://api.nalju.com/Laundry/Pelanggan';
+    private static $apiUrl;
+
+    private static function base(): string
+    {
+        return ApiLoopback::baseUrl() . '/Laundry/Pelanggan';
+    }
 
     /** @return array{ok:int,exists?:bool,items?:list<array{id:int,nama:string,hp:string}>} */
     public static function cekHp(string $hp, int $idCabang): array
@@ -72,7 +77,7 @@ class PelangganApi
      */
     private static function request(string $path, array $payload): array
     {
-        $url = rtrim(self::$apiUrl, '/') . '/' . ltrim($path, '/');
+        $url = rtrim(self::base(), '/') . '/' . ltrim($path, '/');
 
         $secret = (string) (getenv('API_CRON_SECRET') ?: '');
         if ($secret === '') {
@@ -87,8 +92,14 @@ class PelangganApi
             $headers[] = 'X-Cron-Secret: ' . $secret;
         }
 
+        $isLoopback = self::isLoopbackBase();
+        if ($isLoopback) {
+            // Host header tetap domain asli agar vhost Apache cocok.
+            $headers[] = 'Host: ' . ApiLoopback::apiHost();
+        }
+
         $ch = curl_init();
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => $headers,
@@ -97,7 +108,13 @@ class PelangganApi
             CURLOPT_TIMEOUT => 25,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-        ]);
+        ];
+        if ($isLoopback) {
+            // http loopback: tidak perlu verify TLS (tidak pakai https)
+            $opts[CURLOPT_SSL_VERIFYPEER] = false;
+            $opts[CURLOPT_SSL_VERIFYHOST] = 0;
+        }
+        curl_setopt_array($ch, $opts);
         $raw = curl_exec($ch);
         $curlErr = curl_error($ch);
         $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -127,5 +144,11 @@ class PelangganApi
         }
 
         return $decoded;
+    }
+
+    /** Base URL pakai 127.0.0.1 / localhost? (satu VPS → loopback cepat). */
+    private static function isLoopbackBase(): bool
+    {
+        return ApiLoopback::isLoopback(ApiLoopback::baseUrl());
     }
 }

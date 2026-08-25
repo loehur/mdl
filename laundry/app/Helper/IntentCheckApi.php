@@ -5,7 +5,12 @@
  */
 class IntentCheckApi
 {
-    private $apiUrl = 'https://api.nalju.com/Laundry/IntentCheck';
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->apiUrl = ApiLoopback::baseUrl() . '/Laundry/IntentCheck';
+    }
 
     /**
      * @return array{ok:bool,intent?:?string,source?:?string,case?:mixed,notify?:bool,trace?:list<string>,message?:string}
@@ -56,6 +61,7 @@ class IntentCheckApi
             'Content-Type: application/json',
             'Accept: application/json',
         ];
+        $headers = ApiLoopback::headers($url, $headers);
         $secret = $this->cronSecret();
         if ($secret !== '') {
             $headers[] = 'X-Cron-Secret: ' . $secret;
@@ -70,6 +76,7 @@ class IntentCheckApi
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
         ];
+        $opts = ApiLoopback::curlOpts($url, $opts);
         if ($post) {
             $opts[CURLOPT_POST] = true;
             $opts[CURLOPT_POSTFIELDS] = $jsonBody ?? '{}';

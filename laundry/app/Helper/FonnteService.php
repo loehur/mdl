@@ -12,7 +12,12 @@
  */
 class FonnteService
 {
-    private static $apiUrl = 'https://api.nalju.com/Laundry/Fonnte';
+    private static $apiUrl;
+
+    private static function base(): string
+    {
+        return ApiLoopback::baseUrl() . '/Laundry/Fonnte';
+    }
 
     /** Fallback sama App\Config\Fonnte (bukan secret). */
     private static $driverGroupId = '6281268098300-1625376610@g.us';
@@ -117,7 +122,7 @@ class FonnteService
     private static function callApi(string $path, array $data = []): array
     {
         $secret = self::resolveCronSecret();
-        $url = rtrim(self::$apiUrl, '/') . $path;
+        $url = rtrim(self::base(), '/') . $path;
         if ($secret !== '') {
             $url .= (strpos($url, '?') === false ? '?' : '&') . 'secret=' . rawurlencode($secret);
         }
@@ -126,12 +131,13 @@ class FonnteService
             'Content-Type: application/json',
             'Accept: application/json',
         ];
+        $headers = ApiLoopback::headers($url, $headers);
         if ($secret !== '') {
             $headers[] = 'X-Cron-Secret: ' . $secret;
         }
 
         $ch = curl_init();
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
@@ -142,7 +148,9 @@ class FonnteService
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
-        ]);
+        ];
+        $opts = ApiLoopback::curlOpts($url, $opts);
+        curl_setopt_array($ch, $opts);
         $raw = curl_exec($ch);
         $curlErr = curl_error($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

@@ -5,7 +5,12 @@
  */
 class BiteshipApi
 {
-    private $apiUrl = 'https://api.nalju.com/Laundry/Biteship';
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->apiUrl = ApiLoopback::baseUrl() . '/Laundry/Biteship';
+    }
 
     public function rates(array $payload)
     {
@@ -79,6 +84,10 @@ class BiteshipApi
         if ($cronSecret !== '') {
             $headers[] = 'X-Cron-Secret: ' . $cronSecret;
         }
+        // Loopback (API_BASE_URL=127.0.0.1/localhost): Host header tetap domain asli.
+        if (self::isLoopbackUrl($url)) {
+            $headers[] = 'Host: ' . ApiLoopback::apiHost();
+        }
 
         $options = [
             CURLOPT_URL => $url,
@@ -107,5 +116,11 @@ class BiteshipApi
         }
         $decoded = json_decode((string) $response, true);
         return is_array($decoded) ? $decoded : ['ok' => false, 'message' => 'Invalid JSON', 'raw' => $response];
+    }
+
+    private static function isLoopbackUrl(string $url): bool
+    {
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
+        return $host === '127.0.0.1' || $host === 'localhost' || $host === '::1';
     }
 }

@@ -6,7 +6,12 @@
  */
 class QRISApi
 {
-    private $apiUrl = 'https://api.nalju.com/Laundry/QRIS';
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->apiUrl = ApiLoopback::baseUrl() . '/Laundry/QRIS';
+    }
     
     /**
      * Generate QRIS payment
@@ -94,6 +99,14 @@ class QRISApi
         } else {
             $options[CURLOPT_CUSTOMREQUEST] = 'GET';
         }
+
+        // Loopback (API_BASE_URL=127.0.0.1/localhost): Host header tetap domain asli.
+        if (self::isLoopbackUrl($url)) {
+            $options[CURLOPT_HTTPHEADER] = array_merge(
+                $options[CURLOPT_HTTPHEADER] ?? [],
+                ['Host: ' . ApiLoopback::apiHost()]
+            );
+        }
         
         curl_setopt_array($curl, $options);
 
@@ -139,6 +152,12 @@ class QRISApi
         
         // Return as-is, sudah dalam format yang benar
         return $decoded ?: ['status' => false, 'message' => 'Invalid response'];
+    }
+
+    private static function isLoopbackUrl(string $url): bool
+    {
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
+        return $host === '127.0.0.1' || $host === 'localhost' || $host === '::1';
     }
 
     private function logLatency($text)

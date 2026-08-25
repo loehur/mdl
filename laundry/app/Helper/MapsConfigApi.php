@@ -6,7 +6,12 @@
  */
 class MapsConfigApi
 {
-    private static $apiUrl = 'https://api.nalju.com/Laundry/MapsConfig';
+    private static $apiUrl;
+
+    private static function base(): string
+    {
+        return ApiLoopback::baseUrl() . '/Laundry/MapsConfig';
+    }
 
     public static function get(): array
     {
@@ -35,11 +40,12 @@ class MapsConfigApi
      */
     private static function request(string $path, ?array $payload, bool $post): array
     {
-        $url = rtrim(self::$apiUrl, '/') . '/' . ltrim($path, '/');
+        $url = rtrim(self::base(), '/') . '/' . ltrim($path, '/');
         $headers = [
             'Content-Type: application/json',
             'Accept: application/json',
         ];
+        $headers = ApiLoopback::headers($url, $headers);
 
         $ch = curl_init();
         $opts = [
@@ -50,6 +56,7 @@ class MapsConfigApi
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
         ];
+        $opts = ApiLoopback::curlOpts($url, $opts);
         if ($post) {
             $opts[CURLOPT_POST] = true;
             $opts[CURLOPT_POSTFIELDS] = json_encode($payload ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

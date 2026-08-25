@@ -5,7 +5,12 @@
  */
 class FonnteGatewayApi
 {
-    private static $apiUrl = 'https://api.nalju.com/Laundry/Fonnte';
+    private static $apiUrl;
+
+    private static function base(): string
+    {
+        return ApiLoopback::baseUrl() . '/Laundry/Fonnte';
+    }
 
     /** @return array<string,mixed> */
     public static function status(): array
@@ -29,12 +34,13 @@ class FonnteGatewayApi
     private static function callApi(string $path, string $method = 'GET'): array
     {
         $secret = self::resolveCronSecret();
-        $url = rtrim(self::$apiUrl, '/') . $path;
+        $url = rtrim(self::base(), '/') . $path;
         if ($secret !== '') {
             $url .= (strpos($url, '?') === false ? '?' : '&') . 'secret=' . rawurlencode($secret);
         }
 
         $headers = ['Accept: application/json'];
+        $headers = ApiLoopback::headers($url, $headers);
         if ($secret !== '') {
             $headers[] = 'X-Cron-Secret: ' . $secret;
         }
@@ -50,6 +56,7 @@ class FonnteGatewayApi
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
         ];
+        $opts = ApiLoopback::curlOpts($url, $opts);
         if (strtoupper($method) === 'POST') {
             $opts[CURLOPT_POST] = true;
             $opts[CURLOPT_POSTFIELDS] = '{}';

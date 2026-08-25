@@ -6,7 +6,12 @@
  */
 class OperatingHours
 {
-    private $apiUrl = 'https://api.nalju.com/Laundry/OperatingHours';
+    private $apiUrl;
+
+    public function __construct()
+    {
+        $this->apiUrl = ApiLoopback::baseUrl() . '/Laundry/OperatingHours';
+    }
 
     /**
      * Status apakah Order Kurir Instant boleh dibuat sekarang.
@@ -57,6 +62,7 @@ class OperatingHours
     {
         $curl = curl_init();
         $headers = ['Accept: application/json'];
+        $headers = ApiLoopback::headers($url, $headers);
 
         $options = [
             CURLOPT_URL => $url,
@@ -72,6 +78,7 @@ class OperatingHours
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
         ];
+        $options = ApiLoopback::curlOpts($url, $options);
         curl_setopt_array($curl, $options);
         $response = curl_exec($curl);
         $error = curl_error($curl);

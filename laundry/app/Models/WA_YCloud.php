@@ -4,8 +4,13 @@ class WA_YCloud extends DB
 {
     // API Endpoint Lokal (Centralized Logic)
     // Arahkan ke endpoint API Backend yang sudah kita update
-    // Sesuaikan domain jika di hosting (misal https://api.nalju.com/Laundry/WhatsApp/send)
-    private $local_api_url = 'https://api.nalju.com/Laundry/WhatsApp/send';
+    private $local_api_url;
+
+    public function __construct($db = 0)
+    {
+        parent::__construct($db);
+        $this->local_api_url = ApiLoopback::baseUrl() . '/Laundry/WhatsApp/send';
+    }
 
     // Modifikasi: param ke-3 jadi message_mode untuk support template; ke-4 id_pelanggan untuk antrian wa_messages_out; ke-5 phone_2 (nomor alternatif).
     public function send($phone, $message, $template_name = 'free', $id_pelanggan = 0, $phone_2 = null)
@@ -63,18 +68,23 @@ class WA_YCloud extends DB
             @\Log::write("[WA_YCloud] Sending to API - Phone: $phone, Mode: " . ($data['message_mode'] ?? 'unknown') . ", Payload: " . json_encode($data), 'whatsapp', 'model');
         }
 
+        $headers = ['Content-Type: application/json'];
+        $headers = ApiLoopback::headers($this->local_api_url, $headers);
+
         $ch = curl_init($this->local_api_url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         // Timeout agak lama karena API Server mungkin query DB dan forward ke YCloud
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        if (ApiLoopback::isLoopback($this->local_api_url)) {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        }
         
         $t0 = microtime(true);
         $response = curl_exec($ch);

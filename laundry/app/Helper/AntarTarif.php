@@ -17,7 +17,12 @@ class AntarTarif
    const SURCAS_JENIS_PENGANTARAN = 2;
    const SURCAS_JENIS_PENJEMPUTAN = 3;
 
-   private $apiUrl = 'https://api.nalju.com/Laundry/AntarTarif';
+   private $apiUrl;
+
+   public function __construct()
+   {
+      $this->apiUrl = ApiLoopback::baseUrl() . '/Laundry/AntarTarif';
+   }
 
    /**
     * @return array{min_tarif:int,rate_per_km:int,free_km:float}
@@ -145,6 +150,7 @@ class AntarTarif
    {
       $curl = curl_init();
       $headers = ['Accept: application/json'];
+      $headers = ApiLoopback::headers($url, $headers);
 
       $options = [
          CURLOPT_URL => $url,
@@ -160,6 +166,7 @@ class AntarTarif
          CURLOPT_SSL_VERIFYPEER => false,
          CURLOPT_SSL_VERIFYHOST => false,
       ];
+      $options = ApiLoopback::curlOpts($url, $options);
       curl_setopt_array($curl, $options);
       $response = curl_exec($curl);
       $error = curl_error($curl);
