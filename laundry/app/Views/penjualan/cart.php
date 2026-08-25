@@ -312,6 +312,9 @@ if (empty($data['data_main'])) {
     $("#diskon_harga_asli").val(harga);
     $("#diskon_harga_asli_view").val(harga.toLocaleString('id-ID'));
     $("#diskon_harga_input").val(hargaDiskon);
+    $("#diskon_access_key").val("");
+    var $msg = $("#diskonMsg");
+    if ($msg.length) { $msg.hide().text(""); }
     if (typeof window.openOrdDiskonModal === "function") {
       window.openOrdDiskonModal();
     }
@@ -322,6 +325,10 @@ if (empty($data['data_main'])) {
     var id = $("#diskon_id_penjualan").val();
     var hargaDiskon = parseFloat($("#diskon_harga_input").val());
     var hargaAsli = parseFloat($("#diskon_harga_asli").val());
+    var accessKey = String($("#diskon_access_key").val() || "").trim();
+    var $msg = $("#diskonMsg");
+
+    if ($msg.length) { $msg.hide().text(""); }
 
     if (isNaN(hargaDiskon) || hargaDiskon < 0) {
       alert("Harga diskon tidak valid");
@@ -331,10 +338,15 @@ if (empty($data['data_main'])) {
       alert("Harga diskon tidak boleh lebih besar dari harga asli");
       return;
     }
+    if (!/^\d{4}$/.test(accessKey)) {
+      if ($msg.length) { $msg.text("Access Key Admin wajib 4 digit").show(); }
+      else { alert("Access Key Admin wajib 4 digit"); }
+      return;
+    }
 
     $.ajax({
       url: "<?= URL::BASE_URL ?>Penjualan/setDiskonHarga",
-      data: { 'id': id, 'harga_diskon': hargaDiskon },
+      data: { 'id': id, 'harga_diskon': hargaDiskon, 'access_key': accessKey },
       type: 'POST',
       success: function(res) {
         if (res == 0) {
@@ -347,7 +359,11 @@ if (empty($data['data_main'])) {
             $('div#cart').load('<?= URL::BASE_URL ?>Penjualan/cart');
           }
         } else {
-          alert(res);
+          if ($msg.length && res.indexOf("Access Key") !== -1) {
+            $msg.text(res).show();
+          } else {
+            alert(res);
+          }
         }
       },
     });

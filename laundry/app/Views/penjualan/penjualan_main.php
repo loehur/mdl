@@ -642,6 +642,12 @@
           <label class="ord-diskon-fo__label" for="diskon_harga_input">Harga setelah diskon / unit</label>
           <input type="number" min="0" step="0.01" id="diskon_harga_input" name="harga_diskon" class="ord-diskon-fo__input" required>
         </div>
+        <div class="ord-diskon-fo__field">
+          <label class="ord-diskon-fo__label" for="diskon_access_key">Access Key Admin</label>
+          <input type="password" id="diskon_access_key" name="access_key" inputmode="numeric" maxlength="4" autocomplete="one-time-code" placeholder="4 digit" class="ord-diskon-fo__input" required>
+          <small style="display:block;margin-top:4px;color:#64748b;font-size:0.78rem;">Wajib Access Key Admin untuk mengubah diskon.</small>
+        </div>
+        <p id="diskonMsg" class="ord-diskon-fo__msg" style="display:none;color:#dc2626;font-size:0.8rem;font-weight:700;"></p>
       </div>
       <div class="ord-diskon-fo__foot">
         <button type="button" class="ord-diskon-fo__btn ord-diskon-fo__btn--ghost" data-ord-diskon-close>Batal</button>

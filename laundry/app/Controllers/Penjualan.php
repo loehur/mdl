@@ -343,9 +343,16 @@ class Penjualan extends Controller
    {
       $id = $_POST['id'] ?? '';
       $hargaDiskon = (float) ($_POST['harga_diskon'] ?? 0);
+      $accessKey = trim((string) ($_POST['access_key'] ?? ''));
 
       if (strlen($id) == 0) {
          echo "ID tidak valid";
+         return;
+      }
+
+      // Wajib Access Key user Admin (privilege 100) — hanya admin yang boleh memberi diskon.
+      if (!$this->verifyAdminAccessKey($accessKey)) {
+         echo 'Akses ditolak. Wajib Access Key Admin untuk mengubah diskon.';
          return;
       }
 
@@ -441,5 +448,38 @@ class Penjualan extends Controller
          $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
       }
       echo json_encode($res);
+   }
+
+   /**
+    * Verifikasi Access Key milik user Admin (privilege 100) yang sedang login.
+    * Hanya admin yang boleh memberi diskon.
+    */
+   private function verifyAdminAccessKey(string $accessKey): bool
+   {
+      if (!preg_match('/^\d{4}$/', $accessKey)) {
+         return false;
+      }
+
+      $sess = $_SESSION[URL::SESSID]['user'] ?? [];
+      $idUser = (int) ($sess['id_user'] ?? 0);
+      $privSess = (int) ($sess['id_privilege'] ?? 0);
+      if ($idUser < 1 || $privSess !== 100) {
+         return false;
+      }
+
+      $row = $this->db(0)->get_where_row('user', 'id_user = ' . $idUser . ' AND en = 1');
+      if (!is_array($row) || empty($row['id_user'])) {
+         return false;
+      }
+      if ((int) ($row['id_privilege'] ?? 0) !== 100) {
+         return false;
+      }
+
+      $stored = trim((string) ($row['access_key'] ?? ''));
+      if ($stored === '' || !preg_match('/^\d{4}$/', $stored)) {
+         return false;
+      }
+
+      return hash_equals($stored, $accessKey);
    }
 }
