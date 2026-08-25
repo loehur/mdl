@@ -403,20 +403,20 @@ class Antrian extends Controller
                   'insertTime' => $time,
                   'id_cabang' => $this->id_cabang,
                   'no_ref' => $penjualan,
-                  'phone' => $hp,
+                  'id_pelanggan' => (int) $id_pelanggan,
                   'text' => $text,
                   'state' => 'pending',
                   'tipe' => 2
                ];
 
-               $this->model('Log')->write("[operasi] Attempting insert notif - Phone: " . $hp . " | Ref: " . $penjualan);
+               $this->model('Log')->write("[operasi] Attempting insert notif - id_pelanggan: " . $id_pelanggan . " | Ref: " . $penjualan);
 
                $do = $this->db(0)->insert('notif', $notifData);
                if ($do['errno'] <> 0) {
                   throw new Exception("Insert Notif Error: " . $do['error']);
                }
                $notifInserted = true;
-               $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | Phone: " . $hp . " | State: pending");
+               $this->model('Log')->write("[operasi] Insert Notif Success - ID: " . $notifData['id_notif'] . " | id_pelanggan: " . $id_pelanggan . " | State: pending");
             } else {
                $this->model('Log')->write("[operasi] WARNING: Notif already exists - skipped insert for: " . $penjualan);
             }
@@ -599,16 +599,18 @@ class Antrian extends Controller
          return;
       }
       
-      $hp = $dm['phone'];
-      $text = $dm['text'];
-      
-      // Validate phone and text
-      if (empty($hp)) {
-         $this->model('Log')->write("[notifReadySend] ERROR: Phone number empty - ID: " . $idPenjualan);
+      $id_pelanggan = (int) ($dm['id_pelanggan'] ?? 0);
+      $this->helper('NotifRecipient');
+      $hp = NotifRecipient::phoneById($this->db(0), $id_pelanggan);
+
+      if ($hp === null || $hp === '' || $id_pelanggan <= 0) {
+         $this->model('Log')->write("[notifReadySend] ERROR: Phone number empty - ID: " . $idPenjualan . " | id_pelanggan: " . $id_pelanggan);
          // Set back to pending
          $this->db(0)->update('notif', ['state' => 'pending'], $where);
          return;
       }
+      
+      $text = $dm['text'];
       
       if (empty($text)) {
          $this->model('Log')->write("[notifReadySend] ERROR: Text empty - ID: " . $idPenjualan);
@@ -617,10 +619,9 @@ class Antrian extends Controller
          return;
       }
       
-      $this->model('Log')->write("[notifReadySend] Sending WA - ID: " . $idPenjualan . " | Phone: " . $hp);
-      
-      // Text sudah final dari WAGenerator, tidak perlu replace lagi
-      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
+      $this->model('Log')->write("[notifReadySend] Sending WA - ID: " . $idPenjualan . " | id_pelanggan: " . $id_pelanggan . " | HP: " . $hp);
+
+      $res = $this->helper('Notif')->send_wa($id_pelanggan, $text, 'free');
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
@@ -634,7 +635,7 @@ class Antrian extends Controller
             $this->model('Log')->write("[notifReadySend] ERROR: Update notif to sent failed - ID: " . $idPenjualan . " | Error: " . $updateResult['error']);
          } else {
             $this->model('Log')->write("[notifReadySend] SUCCESS: WA sent - ID: " . $idPenjualan . " | API ID: " . $idApi . " | Phone: " . $hp);
-            $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
+            $this->helper('Notif')->deleteMatchingWaOutQueue($id_pelanggan, $text);
          }
       } else {
          $errorMsg = $res['message'] ?? $res['error'] ?? 'Unknown error';
@@ -654,6 +655,20 @@ class Antrian extends Controller
       $hp = $_POST['hp'];
       $noref = $_POST['ref'];
       $time =  $_POST['time'];
+
+      $refEsc = $this->db(0)->escape($noref);
+      $saleRow = $this->db(0)->query_array(
+         'SELECT id_pelanggan FROM sale WHERE ' . $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0 LIMIT 1"
+      );
+      $id_pelanggan = (int) ($saleRow[0]['id_pelanggan'] ?? 0);
+      if ($id_pelanggan <= 0) {
+         $this->helper('PelangganByPhone');
+         $id_pelanggan = (int) (new PelangganByPhone())->id($hp);
+      }
+      if ($id_pelanggan <= 0) {
+         echo json_encode(['status' => 'error', 'message' => 'Pelanggan tidak ditemukan']);
+         return;
+      }
 
       $waGen = $this->helper('WAGenerator');
       $jsonText = $waGen->get_nota($noref);
@@ -693,11 +708,15 @@ class Antrian extends Controller
       $whereUser = "no_user IN (" . implode(', ', $hpVariations) . ")";
       $userExists = $this->db(0)->count_where('user', $whereUser);
 
-      // Template WA: hanya jika nomor pelanggan belum pernah ada di wa_messages_out (satu nomor = no_pelanggan / $_POST['hp'])
+      // Template WA: cek wa_messages_out by id_pelanggan atau nomor
       $this->helper('PelangganByPhone');
+      $this->helper('NotifRecipient');
       $matchDigitsWa = PelangganByPhone::key($hpClean);
-      $whereWaOut = PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone');
-      $waOutCount = $this->db(100)->count_where('wa_messages_out', $whereWaOut);
+      $waOutClauses = ['id_pelanggan = ' . (int) $id_pelanggan];
+      if ($matchDigitsWa !== '') {
+         $waOutClauses[] = PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone');
+      }
+      $waOutCount = $this->db(100)->count_where('wa_messages_out', '(' . implode(' OR ', $waOutClauses) . ')');
       $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
       
       // Check if notification already exists to prevent duplicate sends
@@ -720,7 +739,7 @@ class Antrian extends Controller
          'insertTime' => $time,
          'id_cabang' => $this->id_cabang,
          'no_ref' => $noref,
-         'phone' => $hp,
+         'id_pelanggan' => $id_pelanggan,
          'text' => $text,
          'tipe' => $tipe,
          'id_api' => '',
@@ -744,7 +763,7 @@ class Antrian extends Controller
       } else {
          $template_name = URL::TEMPLATE_NOTA;
       }
-      $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
+      $res = $this->helper('Notif')->send_wa($id_pelanggan, $jsonText, $template_name);
 
       // Mode free hanya boleh jika CSW terbuka (cek di API: wa_conversations.last_in_at).
       // Jika CSW tertutup, API bisa mengembalikan 400 + csw_expired.
@@ -761,7 +780,7 @@ class Antrian extends Controller
                $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), TIDAK fallback template — nomor sudah pernah di wa_messages_out — Ref: " . $noref . " | HP: " . $hp);
             } else {
                $this->model('Log')->write("[sendNotif] Free ditolak (CSW tertutup), fallback template — Ref: " . $noref . " | HP: " . $hp);
-               $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+               $res = $this->helper('Notif')->send_wa($id_pelanggan, $jsonText, URL::TEMPLATE_NOTA);
             }
          }
       }
@@ -776,7 +795,7 @@ class Antrian extends Controller
             'state' => 'sent'
          ];
          $this->db(0)->update('notif', $updateVals, $where);
-         $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
+         $this->helper('Notif')->deleteMatchingWaOutQueue($id_pelanggan, $text);
          echo 0;
       } else {
          // WA send failed — tetap pending untuk retry; tanpa alert di UI (response sama seperti sukses agar loadDiv refresh)

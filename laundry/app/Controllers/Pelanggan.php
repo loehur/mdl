@@ -55,6 +55,9 @@ class Pelanggan extends Controller
         } elseif ($mode === '2') {
             $col = 'nomor_pelanggan';
             $value = preg_replace('/\D/', '', (string) $value);
+        } elseif ($mode === '6') {
+            $col = 'nomor_pelanggan_2';
+            $value = preg_replace('/\D/', '', (string) $value);
         } elseif ($mode === '4') {
             $col = 'alamat';
         } elseif ($mode === '5') {
@@ -73,7 +76,7 @@ class Pelanggan extends Controller
         $where = $this->wCabang . ' AND id_pelanggan = ' . $id;
         $up = $this->db(0)->update('pelanggan', [$col => $value], $where);
         echo $up['errno'] == 0 ? 0 : ($up['error'] ?? 'Gagal update');
-        if ($up['errno'] == 0 && in_array($col, ['nama_pelanggan', 'nomor_pelanggan'], true)) {
+        if ($up['errno'] == 0 && in_array($col, ['nama_pelanggan', 'nomor_pelanggan', 'nomor_pelanggan_2'], true)) {
             $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
         }
     }

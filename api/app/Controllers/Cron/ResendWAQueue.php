@@ -40,7 +40,7 @@ class ResendWAQueue extends Controller
 
         // Only text messages can be safely resent from stored "content"
         $sql = "
-            SELECT id, external_id, phone, type, content, sender_code, sender_id, quoted_message_id, created_at
+            SELECT id, external_id, phone, id_pelanggan, type, content, sender_code, sender_id, quoted_message_id, created_at
             FROM wa_messages_out
             WHERE status = 'queue'
               AND external_id IS NOT NULL
@@ -70,6 +70,11 @@ class ResendWAQueue extends Controller
         }
 
         $dbNotif = $this->db(1);
+        $dbLaundry = $this->db(1);
+
+        if (!class_exists('\\App\\Helpers\\CRM\\NotifRecipient')) {
+            require_once dirname(__DIR__, 2) . '/Helpers/CRM/NotifRecipient.php';
+        }
 
         $waService = new \App\Helpers\CRM\WhatsAppService();
         $processed = 0;
@@ -81,7 +86,7 @@ class ResendWAQueue extends Controller
         foreach ($rows as $r) {
             $id = (int)($r['id'] ?? 0);
             $externalId = $r['external_id'] ?? null;
-            $phone = $r['phone'] ?? null;
+            $idPelanggan = (int) ($r['id_pelanggan'] ?? 0);
             $type = $r['type'] ?? 'text';
             $content = $r['content'] ?? '';
             $senderCode = $r['sender_code'] ?? null;
@@ -89,69 +94,93 @@ class ResendWAQueue extends Controller
             $quotedMessageId = $r['quoted_message_id'] ?? null;
             $queueCreatedAt = $r['created_at'] ?? null;
 
-            if (!$id || empty($externalId) || empty($phone) || $type !== 'text') {
+            if (!$id || empty($externalId) || $type !== 'text') {
                 $skipped++;
-                $output .= "SKIP id={$id} phone=" . ($phone ?? '') . " reason=invalid_data_or_not_text\n";
+                $output .= "SKIP id={$id} reason=invalid_data_or_not_text\n";
                 continue;
             }
 
-            // Laundry punya baris notif (teks + nomor nasional 852… sama, state apa pun) → jangan kirim WA antrian; hapus baris
-            if ($this->hasNotifMatchingQueueRow($dbNotif, $content, $phone)) {
+            if ($idPelanggan <= 0) {
+                $skipped++;
+                $output .= "SKIP id={$id} reason=id_pelanggan_missing\n";
+                continue;
+            }
+
+            $phone = \App\Helpers\CRM\NotifRecipient::phoneById($dbLaundry, $idPelanggan);
+            if ($phone === null || $phone === '') {
+                $skipped++;
+                $output .= "SKIP id={$id} id_pelanggan={$idPelanggan} reason=phone_not_found\n";
+                continue;
+            }
+
+            if ($this->hasNotifMatchingQueueRow($dbNotif, $content, $idPelanggan)) {
                 $db->delete('wa_messages_out', ['id' => $id]);
                 $removedNotifMatch++;
-                $output .= "DELETE id={$id} phone={$phone} reason=notif_same_text_phone9\n";
+                $output .= "DELETE id={$id} id_pelanggan={$idPelanggan} reason=notif_same_text_recipient\n";
                 continue;
             }
 
-            // Safety check:
-            // If there is any newer outbound message for the same phone with status
-            // NOT in ('queue','failed'), then this queue record is superseded — delete (no resend).
             if (!empty($queueCreatedAt)) {
+                $phoneValues = \App\Helpers\CRM\NotifRecipient::waOutPhoneMatchValues($dbLaundry, $idPelanggan, $phone);
+                $conds = ['id_pelanggan = ?'];
+                $params = [$idPelanggan];
+                if ($phoneValues !== []) {
+                    $ph = implode(',', array_fill(0, count($phoneValues), '?'));
+                    $conds[] = "phone IN ({$ph})";
+                    $params = array_merge($params, $phoneValues);
+                }
                 $checkSql = "
                     SELECT id
                     FROM wa_messages_out
-                    WHERE phone = ?
+                    WHERE (" . implode(' OR ', $conds) . ")
                       AND created_at > ?
                       AND status NOT IN ('queue', 'failed')
                     ORDER BY created_at DESC
                     LIMIT 1
                 ";
-                $newer = $db->query($checkSql, [$phone, $queueCreatedAt])->row();
+                $params[] = $queueCreatedAt;
+                $newer = $db->query($checkSql, $params)->row();
                 if ($newer) {
                     $db->delete('wa_messages_out', ['id' => $id]);
                     $removedSuperseded++;
-                    $output .= "DELETE id={$id} phone={$phone} reason=superseded_by_newer_outbound\n";
+                    $output .= "DELETE id={$id} id_pelanggan={$idPelanggan} reason=superseded_by_newer_outbound\n";
                     continue;
                 }
             }
 
-            // yCloud free text hanya dalam CSW — sama dengan Laundry/WhatsApp/send & isWithinCsw()
-            // CSW tutup (DB): jangan hapus baris; tetap status queue agar cron mencoba lagi (bukan failed / delete).
             $lastInAt = $this->getWaConversationLastInAt($db, $phone);
             if (!$waService->isWithinCsw($lastInAt)) {
                 $deferredCsw++;
                 $skipped++;
                 $ageTag = $this->isQueueCreatedWithinLast24Hours($queueCreatedAt) ? 'queue_age_within_24h' : 'queue_age_over_24h';
-                $output .= "SKIP id={$id} phone={$phone} reason=csw_closed_keep_queue ({$ageTag})\n";
+                $output .= "SKIP id={$id} id_pelanggan={$idPelanggan} phone={$phone} reason=csw_closed_keep_queue ({$ageTag})\n";
                 continue;
             }
 
-            // Lock row to prevent parallel cron from resending the same record
             $locked = $db->update(
                 'wa_messages_out',
                 ['status' => 'processing'],
                 ['id' => $id, 'status' => 'queue']
             );
             if (!$locked || $db->affected_rows() <= 0) {
-                $output .= "SKIP id={$id} phone={$phone} reason=lock_failed\n";
+                $output .= "SKIP id={$id} id_pelanggan={$idPelanggan} reason=lock_failed\n";
                 continue;
             }
 
             try {
-                $result = $waService->sendFreeText($phone, $content, $quotedMessageId, $senderCode, $externalId, null, $senderId > 0 ? $senderId : null);
+                $result = $waService->sendFreeText(
+                    $phone,
+                    $content,
+                    $quotedMessageId,
+                    $senderCode,
+                    $externalId,
+                    null,
+                    $senderId > 0 ? $senderId : null,
+                    (string) $idPelanggan
+                );
                 if (!empty($result['success'])) {
                     $processed++;
-                    $output .= "OK id={$id} phone={$phone} external_id={$externalId}\n";
+                    $output .= "OK id={$id} id_pelanggan={$idPelanggan} phone={$phone} external_id={$externalId}\n";
                 } else {
                     $err = $result['error'] ?? 'sendFreeText failed';
                     if (!is_string($err)) {
@@ -162,7 +191,7 @@ class ResendWAQueue extends Controller
                         'error_message' => $err,
                     ], ['id' => $id]);
                     $skipped++;
-                    $output .= "REQUEUE id={$id} phone={$phone} reason=send_not_success\n";
+                    $output .= "REQUEUE id={$id} id_pelanggan={$idPelanggan} reason=send_not_success\n";
                 }
             } catch (\Throwable $e) {
                 $db->update('wa_messages_out', [
@@ -170,7 +199,7 @@ class ResendWAQueue extends Controller
                     'error_message' => $e->getMessage(),
                 ], ['id' => $id]);
                 $skipped++;
-                $output .= "REQUEUE id={$id} phone={$phone} reason=exception\n";
+                $output .= "REQUEUE id={$id} id_pelanggan={$idPelanggan} reason=exception\n";
             }
         }
 
@@ -190,29 +219,23 @@ class ResendWAQueue extends Controller
     }
 
     /**
-     * Ada baris di notif dengan text sama (trim) dan nomor cocok (nasional 852…), state apa pun.
-     * Tabel notif ada di db(1) (laundry); wa_messages_out tetap di db(0).
+     * Ada baris di notif dengan text sama dan penerima cocok (id_pelanggan atau nomor), state apa pun.
      */
-    private function hasNotifMatchingQueueRow($db, string $content, string $phone): bool
+    private function hasNotifMatchingQueueRow($db, string $content, int $idPelanggan): bool
     {
-        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
-            require_once dirname(__DIR__, 2) . '/Helpers/CRM/WaSenderContext.php';
-        }
-        $nomor = \App\Helpers\CRM\WaSenderContext::toNomorNasional($phone);
-        if ($nomor === null) {
+        if ($idPelanggan <= 0) {
             return false;
         }
         $text = trim($content);
+        if ($text === '') {
+            return false;
+        }
+
         try {
-            $digits = $this->sqlPhoneDigitsOnly('phone');
-            $sql = "
-                SELECT 1 AS ok
-                FROM notif
-                WHERE TRIM(text) = ?
-                  AND {$digits} LIKE ?
-                LIMIT 1
-            ";
-            $q = $db->query($sql, [$text, '%' . $nomor]);
+            $q = $db->query(
+                'SELECT 1 AS ok FROM notif WHERE TRIM(text) = ? AND id_pelanggan = ? LIMIT 1',
+                [$text, $idPelanggan]
+            );
             if ($q && $q->num_rows() > 0) {
                 return true;
             }

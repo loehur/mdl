@@ -74,6 +74,8 @@ class WhatsApp extends Controller
         $this->validate($body, ['phone', 'message_mode']);
         
         $phone = (string) $body['phone'];
+        $idPelanggan = (int) ($body['id_pelanggan'] ?? 0);
+        $queuePhoneRef = $idPelanggan > 0 ? (string) $idPelanggan : null;
 
         // Fail fast: reject too-short phone numbers
         $phoneDigits = preg_replace('/[^0-9]/', '', $phone);
@@ -106,6 +108,25 @@ class WhatsApp extends Controller
         $phone2 = '+' . $ph; // +628...
         
         $db = $this->db(0);
+        
+        // ===== Pemilihan nomor tujuan berdasarkan status CSW =====
+        // Terima nomor alternatif (nomor_pelanggan_2). Pilih nomor yang CSW-nya
+        // terbuka (bisa kirim free text). Prefer nomor utama bila keduanya terbuka.
+        $phone_alt = (string) ($body['phone_2'] ?? '');
+        if ($phone_alt !== '') {
+            $selected = self::pickCswOpenPhone($db, $phone, $phone_alt);
+            if ($selected !== null) {
+                $phone = $selected;
+                $ph = preg_replace('/[^0-9]/', '', $phone);
+                if (substr($ph, 0, 2) === '08') {
+                    $ph = '628' . substr($ph, 2);
+                } elseif (substr($ph, 0, 1) === '8') {
+                    $ph = '62' . $ph;
+                }
+                $phone1 = $ph;
+                $phone2 = '+' . $ph;
+            }
+        }
         
         // WAJIB: Cek CSW dari database untuk setiap request
         try {
@@ -141,7 +162,9 @@ class WhatsApp extends Controller
                 $messageText = $decodedMsg['text'];
             }
 
-            $res = FreeTextOutboundDispatcher::dispatch($db, $this->whatsappService, $phone, $messageText, $senderCode);
+            $res = FreeTextOutboundDispatcher::dispatch($db, $this->whatsappService, $phone, $messageText, $senderCode, [
+                'queue_phone_ref' => $queuePhoneRef,
+            ]);
             if (!empty($res['ok'])) {
                 $this->success($res['http_data'], $res['http_message']);
             }
@@ -179,7 +202,7 @@ class WhatsApp extends Controller
                     $phone,
                     $freeTextMsg,
                     $senderCode,
-                    ['template_cancelled' => true]
+                    ['template_cancelled' => true, 'queue_phone_ref' => $queuePhoneRef]
                 );
                 if (!empty($resTpl['ok'])) {
                     $this->success($resTpl['http_data'], $resTpl['http_message']);
@@ -214,7 +237,9 @@ class WhatsApp extends Controller
                 $templateName,
                 $templateLanguage,
                 $templateParams,
-                $messageText
+                $messageText,
+                null,
+                $queuePhoneRef
             );
             
             
@@ -240,5 +265,85 @@ class WhatsApp extends Controller
         }
         
         $this->error('Invalid message_mode. Use "free" or "template"', 400);
+    }
+
+    /**
+     * Pilih nomor tujuan berdasarkan status CSW.
+     * Prefer `$phone` (utama) bila CSW-nya terbuka; else `$phoneAlt` bila terbuka;
+     * else null (pakai utilitas yang ada). Hasil dikembalikan dalam format 628X….
+     */
+    private static function pickCswOpenPhone($db, string $phone, string $phoneAlt): ?string
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+
+        $primary = self::normalizeTo62($phone);
+        if ($primary === '') {
+            return self::normalizeTo62($phoneAlt) !== '' ? self::normalizeTo62($phoneAlt) : null;
+        }
+
+        // CSW utama terbuka di line mana pun → pilih utama.
+        if (self::cswOpenAny($db, $primary)) {
+            return $primary;
+        }
+
+        $alt = self::normalizeTo62($phoneAlt);
+        if ($alt !== '' && self::cswOpenAny($db, $alt)) {
+            return $alt;
+        }
+
+        // Keduanya tertutup / tanpa alternatif → biarkan alur existing memutuskan.
+        return $primary;
+    }
+
+    /** CSW terbuka jika getCswStatus.can_reply ATAU last_in_at di wa_conversations masih dalam jendela. */
+    private static function cswOpenAny($db, string $nomor62): bool
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\CrmChatMergeHelper')) {
+            require_once __DIR__ . '/../../Helpers/CRM/CrmChatMergeHelper.php';
+        }
+
+        $csw = \App\Helpers\CRM\CrmChatMergeHelper::getCswStatus($db, $nomor62);
+        if (!empty($csw['can_reply'])) {
+            return true;
+        }
+
+        // Fallback: legacy source of truth wa_conversations.
+        try {
+            $p1 = $nomor62;
+            $p2 = '+' . $nomor62;
+            $q = $db->query("SELECT last_in_at FROM wa_conversations WHERE wa_number IN ('$p1', '$p2') LIMIT 1");
+            $lastIn = ($q && $q->num_rows() > 0) ? $q->row()->last_in_at : null;
+            if ($lastIn !== null && $lastIn !== '') {
+                if (!class_exists('\\App\\Helpers\\CRM\\WhatsAppService')) {
+                    require_once __DIR__ . '/../../Helpers/CRM/WhatsAppService.php';
+                }
+                $wa = new \App\Helpers\CRM\WhatsAppService();
+                return (bool) $wa->isWithinCsw((string) $lastIn);
+            }
+        } catch (\Throwable $e) {
+            // ignore, fall back ke false
+        }
+
+        return false;
+    }
+
+    /** 08…/8…/+62…/62… → 628X… (format yang dipakai seluruh flow kirim). */
+    private static function normalizeTo62(string $phone): string
+    {
+        $ph = preg_replace('/[^0-9]/', '', $phone);
+        if ($ph === null || $ph === '') {
+            return '';
+        }
+        if (substr($ph, 0, 2) === '0' && strlen($ph) >= 10) {
+            $ph = '62' . substr($ph, 1);
+        } elseif (substr($ph, 0, 2) === '62') {
+            $ph = '62' . substr($ph, 2);
+        } elseif (substr($ph, 0, 1) === '8' && strlen($ph) >= 9) {
+            $ph = '62' . $ph;
+        }
+
+        return $ph;
     }
 }

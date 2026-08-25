@@ -54,7 +54,16 @@ class FreeTextOutboundDispatcher
         $lastIn = $lineRow['last_in_at'] ?? null;
         $hoursElapsed = $lastIn ? $wa->diffHours(date('Y-m-d H:i:s'), $lastIn) : 99999;
 
-        $result = $wa->sendFreeText($phone, $messageText, null, $senderCode, null, $lineKey);
+        $result = $wa->sendFreeText(
+            $phone,
+            $messageText,
+            null,
+            $senderCode,
+            null,
+            $lineKey,
+            null,
+            is_array($options) ? ($options['queue_phone_ref'] ?? null) : null
+        );
         if ($result['success']) {
             return self::finalizeDispatchResult(
                 [
@@ -87,7 +96,16 @@ class FreeTextOutboundDispatcher
                 if (empty($csw['line_csw'][$altKey]['open'])) {
                     continue;
                 }
-                $retry = $wa->sendFreeText($phone, $messageText, null, $senderCode, null, $altKey);
+                $retry = $wa->sendFreeText(
+                    $phone,
+                    $messageText,
+                    null,
+                    $senderCode,
+                    null,
+                    $altKey,
+                    null,
+                    is_array($options) ? ($options['queue_phone_ref'] ?? null) : null
+                );
                 if ($retry['success']) {
                     return self::finalizeDispatchResult(
                         [

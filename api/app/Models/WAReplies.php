@@ -3725,6 +3725,13 @@ class WAReplies
      */
     private function sendNotaNotifsForMissingRefs($db1, $waService, $waNumber, $phone0, array $sales, array $noRefs, array $missingRefs, bool $wsDelayOneSecond): void
     {
+        $refToPel = [];
+        foreach ($sales as $saleRow) {
+            if (!empty($saleRow['no_ref'])) {
+                $refToPel[(string) $saleRow['no_ref']] = (int) ($saleRow['id_pelanggan'] ?? 0);
+            }
+        }
+
         foreach ($missingRefs as $ref) {
             $opts = [
                 "http" => [
@@ -3747,7 +3754,7 @@ class WAReplies
                         'tipe' => 1,
                         'no_ref' => $ref,
                         'text' => $responseData['text'],
-                        'phone' => $phone0,
+                        'id_pelanggan' => (int) ($refToPel[(string) $ref] ?? 0),
                         'state' => 'pending',
                     ];
 
@@ -3798,10 +3805,18 @@ class WAReplies
         $phone0 = '0' . substr($cleanPhone, 2);
         $limitTime = date('Y-m-d H:i:s', strtotime('-48 hours'));
 
+        $pelangganRows = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $id_pelanggans = array_values(array_filter(array_map('intval', array_column($pelangganRows, 'id_pelanggan'))));
+        if ($id_pelanggans === []) {
+            $this->logAutoreplyTrace($waNumber, 'NOTA', 'no_pelanggan_for_pending');
+            return;
+        }
+        $ids_in = implode(',', $id_pelanggans);
+
         $sql = "SELECT * FROM notif 
                 WHERE tipe = 1 AND state = 'pending' 
                 AND insertTime >= '$limitTime' 
-                AND phone IN ($phoneIn)
+                AND id_pelanggan IN ($ids_in)
                 ORDER BY insertTime ASC";
 
         $pendingNotifs = $db1->query($sql)->result_array();
@@ -4806,10 +4821,17 @@ class WAReplies
 
         $limitTime = date('Y-m-d H:i:s', strtotime('-72 hours'));
 
+        $pelangganRows = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $id_pelanggans = array_values(array_filter(array_map('intval', array_column($pelangganRows, 'id_pelanggan'))));
+        if ($id_pelanggans === []) {
+            return;
+        }
+        $ids_in = implode(',', $id_pelanggans);
+
         $sql = "SELECT * FROM notif 
                 WHERE tipe = 2 AND state = 'pending' 
                 AND insertTime >= '$limitTime' 
-                AND phone IN ($phoneIn)
+                AND id_pelanggan IN ($ids_in)
                 ORDER BY insertTime ASC";
 
         $pendingNotifs = $db1->query($sql)->result_array();

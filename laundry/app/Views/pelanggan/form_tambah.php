@@ -183,6 +183,9 @@ $plgAddFormClass = $plgAddMode === 'order' ? 'ord-plg-modal__body' : 'ord-plg-fo
   <label class="ord-plg-label" for="ordPlgNama">Nama/Panggilan</label>
   <input type="text" id="ordPlgNama" name="f1" class="ord-plg-input" placeholder="Nama/Panggilan">
 
+  <label class="ord-plg-label" for="ordPlgHp2">Nomor HP Alternatif <small>(opsional)</small></label>
+  <input type="text" id="ordPlgHp2" name="f3" class="ord-plg-input" placeholder="08…" inputmode="tel">
+
   <p class="ord-plg-msg is-hidden" id="ordPlgMsg"></p>
   <div class="ord-plg-result is-hidden" id="ordPlgResult"></div>
 </form>
@@ -282,6 +285,7 @@ $plgAddFormClass = $plgAddMode === 'order' ? 'ord-plg-modal__body' : 'ord-plg-fo
       data: {
         f1: $("#ordPlgNama").val(),
         f2: $("#ordPlgHp").val(),
+        f3: $("#ordPlgHp2").val(),
         cek_mirip: cekMirip ? 1 : 0
       },
       success: function (res) {

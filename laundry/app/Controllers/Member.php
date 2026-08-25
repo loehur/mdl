@@ -357,7 +357,7 @@ class Member extends Controller
          'insertTime' => $time,
          'id_cabang' => $this->id_cabang,
          'no_ref' => $noref,
-         'phone' => $hp,
+         'id_pelanggan' => (int) ($d['id_pelanggan'] ?? 0),
          'text' => $text,
          'tipe' => 3,
          'id_api' => '',
@@ -372,7 +372,7 @@ class Member extends Controller
       }
 
       // NOW send WA (protected by the record we just inserted)
-      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
+      $res = $this->helper('Notif')->send_wa((int) ($d['id_pelanggan'] ?? 0), $text, 'free');
 
       // Extract API message ID
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];

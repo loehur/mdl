@@ -215,9 +215,9 @@ class Filter extends Controller
       $setOne = "no_ref = '" . $idPenjualan . "' AND tipe = 2";
       $where = $this->wCabang . " AND " . $setOne;
       $dm = $this->db(0)->get_where_row('notif', $where);
-      $hp = $dm['phone'];
+      $id_pelanggan = (int) ($dm['id_pelanggan'] ?? 0);
       $text = $dm['text'];
-      $res = $this->helper('Notif')->send_wa($hp, $text, false);
+      $res = $this->helper('Notif')->send_wa($id_pelanggan, $text, 'free');
 
       foreach ($res["id"] as $k => $v) {
          $status = $res['data']['status'];

@@ -419,6 +419,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $f1 = $a['nama_pelanggan'];
               $f2 = $a['nomor_pelanggan'];
               $f5 = $a['disc'];
+              $f6 = $a['nomor_pelanggan_2'] ?? '';
 
               if ($f1 === '' || $f1 === null) {
                 $f1 = '[ ]';
@@ -433,7 +434,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $f2Attr = htmlspecialchars($f2, ENT_QUOTES, 'UTF-8');
               $f2Html = htmlspecialchars($f2, ENT_QUOTES, 'UTF-8');
               $f5Attr = htmlspecialchars((string) $f5, ENT_QUOTES, 'UTF-8');
-              $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f5);
+              $f6Attr = htmlspecialchars($f6, ENT_QUOTES, 'UTF-8');
+              $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f6 . ' ' . $f5);
               $isPartner = ((float) $f5 > 0);
               $cardClass = $isPartner ? 'plg-card plg-row is-partner' : 'plg-card plg-row';
               $chipClass = $isPartner ? 'plg-chip plg-chip--yellow' : 'plg-chip';
@@ -461,6 +463,13 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                         data-value="<?= $f2Attr ?>"
                         title="Double-click untuk edit"
                       ><?= $f2Html ?></span>
+                      <span
+                        class="plg-edit plg-chip"
+                        data-mode="6"
+                        data-id_value="<?= $id ?>"
+                        data-value="<?= $f6Attr ?>"
+                        title="Nomor alternatif — double-click untuk edit"
+                      ><?= htmlspecialchars($f6Attr !== '' ? $f6Attr : 'Alt', ENT_QUOTES, 'UTF-8') ?></span>
                     </span>
                   </div>
                   <span class="<?= $chipClass ?>">

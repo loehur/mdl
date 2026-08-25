@@ -92,7 +92,7 @@ class WhatsAppService
         }
     }
 
-    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null, $lineKey = null, $senderId = null)
+    public function sendFreeText($to, $message, $replyToMessageId = null, $senderCode = null, $externalId = null, $lineKey = null, $senderId = null, $queuePhoneRef = null)
     {
         $externalIdToUse = !empty($externalId) ? (string)$externalId : $this->generateExternalId();
         $payload = [
@@ -105,6 +105,9 @@ class WhatsAppService
                 'body' => $message
             ]
         ];
+        if ($queuePhoneRef !== null && trim((string) $queuePhoneRef) !== '') {
+            $payload['_queue_phone_ref'] = (string) $queuePhoneRef;
+        }
         
         // Add context for quoted reply
         if ($replyToMessageId) {
@@ -116,7 +119,7 @@ class WhatsAppService
         return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode, $lineKey, $senderId);
     }
     
-    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null, $lineKey = null)
+    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null, $lineKey = null, $queuePhoneRef = null)
     {        
         $components = [];
         
@@ -155,6 +158,9 @@ class WhatsAppService
                 'components' => $components
             ]
         ];
+        if ($queuePhoneRef !== null && trim((string) $queuePhoneRef) !== '') {
+            $payload['_queue_phone_ref'] = (string) $queuePhoneRef;
+        }
         
         
         // Pass messageText as metadata (not sent to API, but used for DB storage)
@@ -581,6 +587,10 @@ class WhatsAppService
     {
         $url = $this->baseUrl . $endpoint;
         $maxAttempts = 3;
+        $queuePhoneRef = $payload['_queue_phone_ref'] ?? null;
+        if (isset($payload['_queue_phone_ref'])) {
+            unset($payload['_queue_phone_ref']);
+        }
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             $ch = curl_init($url);
@@ -615,7 +625,7 @@ class WhatsAppService
             if ($success && isset($responseData['id'])) {
                 $localId = null;
                 try {
-                    $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId, $lineKey, $senderId);
+                    $localId = $this->saveOutboundMessage($payload, $responseData, $messageText, $senderCode, $replyToMessageId, $lineKey, $senderId, $queuePhoneRef);
                 } catch (\Throwable $e) {
                     if (class_exists('\Log')) {
                         \Log::write("!! EXCEPTION saving outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -646,7 +656,7 @@ class WhatsAppService
                 if ($shouldQueue) {
                     try {
                         $queueError = $error ?: ('HTTP ' . (string)$httpCode);
-                        $this->saveOutboundQueueMessage($payload, $messageText, $senderCode, $replyToMessageId, $queueError, $senderId);
+                        $this->saveOutboundQueueMessage($payload, $messageText, $senderCode, $replyToMessageId, $queueError, $senderId, $queuePhoneRef);
                     } catch (\Throwable $e) {
                         if (class_exists('\Log')) {
                             \Log::write("!! EXCEPTION queue insert outbound: " . $e->getMessage(), 'wa_error', 'SaveOutbound');
@@ -718,13 +728,14 @@ class WhatsAppService
      * Insert/update outbound record in wa_messages_out with status=queue.
      * Used when yCloud times out/network errors so cron can resend later.
      */
-    private function saveOutboundQueueMessage($payload, $messageText = null, $senderCode = null, $quotedMessageId = null, $errorMessage = null, $senderId = null)
+    private function saveOutboundQueueMessage($payload, $messageText = null, $senderCode = null, $quotedMessageId = null, $errorMessage = null, $senderId = null, $queuePhoneRef = null)
     {
         // Wrap everything in try-catch to prevent breaking main flow
         try {
             $waNumber = $payload['to'] ?? null;
             $messageType = $payload['type'] ?? 'text';
             $externalId = $payload['externalId'] ?? null;
+            $idPelanggan = ($queuePhoneRef !== null && (int) $queuePhoneRef > 0) ? (int) $queuePhoneRef : null;
 
             if (!$waNumber || !$externalId) {
                 // externalId is required for upsert / webhook reconciliation
@@ -770,6 +781,7 @@ class WhatsAppService
             // Create outbound message record
             $messageData = [
                 'phone' => $waNumber,
+                'id_pelanggan' => $idPelanggan,
                 'wamid' => null,
                 'message_id' => null,
                 'type' => $messageType,
@@ -829,7 +841,7 @@ class WhatsAppService
      * @param string|null $senderCode Sender code
      * @param string|null $quotedMessageId Quoted/reply-to message ID
      */
-    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null, $quotedMessageId = null, $lineKey = null, $senderId = null)
+    private function saveOutboundMessage($payload, $response, $messageText = null, $senderCode = null, $quotedMessageId = null, $lineKey = null, $senderId = null, $queuePhoneRef = null)
     {       
         // Wrap everything in try-catch to prevent breaking the main flow
         try {
@@ -1034,9 +1046,12 @@ class WhatsAppService
                 $businessPhone = \App\Config\WaLines::defaultLine()['phone'];
             }
 
+            $idPelanggan = ($queuePhoneRef !== null && (int) $queuePhoneRef > 0) ? (int) $queuePhoneRef : null;
+
             $messageData = [
                 // 'conversation_id' => $conversationId, // Removed as column deleted
                 'phone' => $waNumber,
+                'id_pelanggan' => $idPelanggan,
                 'business_phone' => $businessPhone,
                 'wamid' => $wamid,
                 'message_id' => $messageId,
@@ -1067,6 +1082,9 @@ class WhatsAppService
                 $existingRow = $db->get_where('wa_messages_out', ['external_id' => $externalId])->row();
                 if ($existingRow) {
                     $msgId = (int)($existingRow->id ?? 0);
+                    if ($idPelanggan === null && !empty($existingRow->id_pelanggan)) {
+                        $messageData['id_pelanggan'] = (int) $existingRow->id_pelanggan;
+                    }
                     $db->update('wa_messages_out', $messageData, ['external_id' => $externalId]);
                     $isNewOutboundInsert = false;
                 }

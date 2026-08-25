@@ -185,14 +185,21 @@ class Operan extends Controller
          exit();
       }
 
-      if ($idCabang == 0 || strlen($hp) == 0) {
-         $this->writeLog('operasiOperan', 'ERROR', 'ID Cabang atau No HP Pelanggan tidak valid', [
+      $saleRow = $this->db(0)->get_where_row('sale', "id_penjualan = '" . $this->db(0)->escape($penjualan) . "'");
+      $id_pelanggan_operan = (int) ($saleRow['id_pelanggan'] ?? 0);
+      if ($id_pelanggan_operan <= 0) {
+         $this->helper('PelangganByPhone');
+         $id_pelanggan_operan = (int) (new PelangganByPhone())->id($hp);
+      }
+
+      if ($idCabang == 0 || $id_pelanggan_operan <= 0) {
+         $this->writeLog('operasiOperan', 'ERROR', 'ID Cabang atau id_pelanggan tidak valid', [
             'idCabang' => $idCabang,
             'hp' => $hp,
-            'hp_length' => strlen($hp),
+            'id_pelanggan' => $id_pelanggan_operan,
             'penjualan' => $penjualan
          ]);
-         echo "ID Cabang atau No HP Pelanggan Error";
+         echo "ID Cabang atau Pelanggan Error";
          exit();
       };
 
@@ -270,7 +277,7 @@ class Operan extends Controller
                'insertTime' => $time,
                'id_cabang' => $idCabang,
                'no_ref' => $penjualan,
-               'phone' => $hp,
+               'id_pelanggan' => $id_pelanggan_operan,
                'text' => $text,
                'state' => 'queue',
                'tipe' => 2
@@ -283,7 +290,7 @@ class Operan extends Controller
             $this->writeLog('operasiOperan', 'INFO', 'Insert Notif Success', [
                'id_notif' => $dataNotif['id_notif'],
                'penjualan' => $penjualan,
-               'phone' => $hp
+               'id_pelanggan' => $id_pelanggan_operan
             ]);
          } else {
             $this->writeLog('operasiOperan', 'INFO', 'Notif already exists - skipped insert', [

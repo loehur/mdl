@@ -285,11 +285,17 @@ class I extends Controller
       }
 
       $userExists = $db->count_where('user', 'no_user IN (' . implode(', ', $hpVariations) . ')');
+      $id_pelanggan = (int) $id_pelanggan;
       $this->helper('PelangganByPhone');
+      $this->helper('NotifRecipient');
       $matchDigitsWa = PelangganByPhone::key($hpClean);
+      $waOutClauses = ['id_pelanggan = ' . (int) $id_pelanggan];
+      if ($matchDigitsWa !== '') {
+         $waOutClauses[] = PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone');
+      }
       $waOutCount = $this->db(100)->count_where(
          'wa_messages_out',
-         PelangganByPhone::likeSql($this->db(100)->escape($matchDigitsWa), 'phone')
+         '(' . implode(' OR ', $waOutClauses) . ')'
       );
       $waOutExists = is_numeric($waOutCount) ? (int) $waOutCount : 0;
 
@@ -306,7 +312,7 @@ class I extends Controller
          'insertTime' => $time,
          'id_cabang' => $this->id_cabang,
          'no_ref' => $noref,
-         'phone' => $hp,
+         'id_pelanggan' => (int) $id_pelanggan,
          'text' => $text,
          'tipe' => $tipe,
          'id_api' => '',
@@ -324,7 +330,7 @@ class I extends Controller
       } else {
          $template_name = URL::TEMPLATE_NOTA;
       }
-      $res = $this->helper('Notif')->send_wa($hp, $jsonText, $template_name);
+      $res = $this->helper('Notif')->send_wa((int) $id_pelanggan, $jsonText, $template_name);
 
       if (!$res['status'] && $template_name === 'free') {
          $apiPayload = $res['data'] ?? [];
@@ -333,7 +339,7 @@ class I extends Controller
             || (isset($apiPayload['message']) && stripos((string) $apiPayload['message'], 'Customer Service Window') !== false)
             || (isset($res['error']) && stripos((string) $res['error'], '24 jam') !== false);
          if ($cswExpired && $waOutExists === 0) {
-            $res = $this->helper('Notif')->send_wa($hp, $jsonText, URL::TEMPLATE_NOTA);
+            $res = $this->helper('Notif')->send_wa((int) $id_pelanggan, $jsonText, URL::TEMPLATE_NOTA);
          }
       }
 
@@ -342,7 +348,7 @@ class I extends Controller
 
       if ($res['status']) {
          $db->update('notif', ['id_api' => $idApi, 'state' => 'sent'], $where);
-         $this->helper('Notif')->deleteMatchingWaOutQueue($hp, $text);
+         $this->helper('Notif')->deleteMatchingWaOutQueue((int) $id_pelanggan, $text);
          echo 0;
       } else {
          $db->update('notif', ['state' => 'pending'], $where);

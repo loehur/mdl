@@ -31,6 +31,7 @@ class PelangganDaftar extends Controller
     {
         $nama = trim((string) ($_POST['f1'] ?? ''));
         $hp = preg_replace('/\D/', '', (string) ($_POST['f2'] ?? ''));
+        $hp2 = preg_replace('/\D/', '', (string) ($_POST['f3'] ?? ''));
         $cekMirip = (string) ($_POST['cek_mirip'] ?? '') === '1';
 
         if ($nama === '' || $hp === '') {
@@ -66,6 +67,7 @@ class PelangganDaftar extends Controller
             'id_cabang' => $this->id_cabang,
             'nama_pelanggan' => $nama,
             'nomor_pelanggan' => $hp,
+            'nomor_pelanggan_2' => $hp2 !== '' ? $hp2 : null,
         ]);
         if (($do['errno'] ?? 1) != 0) {
             $this->model('Log')->write('[PelangganDaftar::tambah] ' . ($do['error'] ?? ''));

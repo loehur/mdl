@@ -255,7 +255,6 @@ class SaldoTunai extends Controller
 
    public function sendNotifDeposit()
    {
-      $hp = $_POST['hp'] ?? '';
       $noref = $_POST['ref'] ?? '';
       $time = $_POST['time'] ?? '';
       $text = $_POST['text'] ?? '';
@@ -264,7 +263,19 @@ class SaldoTunai extends Controller
          session_write_close();
       }
 
-      // Sama pola dengan Member::sendNotifDeposit / Antrian::sendNotif (notif pakai kolom `state`, bukan boolean mentah ke DB)
+      $kasRow = $this->db(0)->get_where_row('kas', 'id_kas = ' . (int) $noref);
+      $id_pelanggan_kas = (int) ($kasRow['id_client'] ?? 0);
+      if ($id_pelanggan_kas <= 0) {
+         $this->helper('PelangganByPhone');
+         $hpFallback = $_POST['hp'] ?? '';
+         $id_pelanggan_kas = (int) (new PelangganByPhone())->id($hpFallback);
+      }
+      if ($id_pelanggan_kas <= 0) {
+         echo 0;
+         return;
+      }
+
+      // Sama pola dengan Member::sendNotifDeposit / Antrian::sendNotif
       $setOne = "no_ref = '" . $noref . "' AND tipe = 4";
       $where = $this->wCabang . " AND " . $setOne;
       $existingNotif = $this->db(0)->count_where('notif', $where);
@@ -280,7 +291,7 @@ class SaldoTunai extends Controller
          'insertTime' => $time,
          'id_cabang' => $this->id_cabang,
          'no_ref' => $noref,
-         'phone' => $hp,
+         'id_pelanggan' => $id_pelanggan_kas,
          'text' => $text,
          'tipe' => 4,
          'id_api' => '',
@@ -294,7 +305,7 @@ class SaldoTunai extends Controller
       }
 
       // `false` sebagai template_name salah: ikuti Member (teks bebas = 'free')
-      $res = $this->helper('Notif')->send_wa($hp, $text, 'free');
+      $res = $this->helper('Notif')->send_wa($id_pelanggan_kas, $text, 'free');
 
       $apiData = $res['data']['data'] ?? $res['data'] ?? [];
       $idApi = $apiData['id'] ?? ($apiData['message_id'] ?? '');
@@ -308,7 +319,7 @@ class SaldoTunai extends Controller
          ], $whereNotif);
       } else {
          $this->model('Log')->write(
-            __CLASS__ . '::sendNotifDeposit | WA gagal | HP: ' . $hp . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res)
+            __CLASS__ . '::sendNotifDeposit | WA gagal | id_pelanggan: ' . $id_pelanggan_kas . ' | ' . ($res['error'] ?? '') . ' | ' . json_encode($res)
          );
       }
 

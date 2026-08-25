@@ -7,8 +7,8 @@ class WA_YCloud extends DB
     // Sesuaikan domain jika di hosting (misal https://api.nalju.com/Laundry/WhatsApp/send)
     private $local_api_url = 'https://api.nalju.com/Laundry/WhatsApp/send';
 
-    // Modifikasi: param ke-3 jadi message_mode untuk support template
-    public function send($phone, $message, $template_name = 'free')
+    // Modifikasi: param ke-3 jadi message_mode untuk support template; ke-4 id_pelanggan untuk antrian wa_messages_out; ke-5 phone_2 (nomor alternatif).
+    public function send($phone, $message, $template_name = 'free', $id_pelanggan = 0, $phone_2 = null)
     {
         // 1. Normalisasi Nomor (Standard)
         $phone = preg_replace('/[^0-9]/', '', $phone);
@@ -22,6 +22,19 @@ class WA_YCloud extends DB
         $data = [
             'phone' => $phone,
         ];
+        if ((int) $id_pelanggan > 0) {
+            $data['id_pelanggan'] = (int) $id_pelanggan;
+        }
+        // Nomor alternatif — API yang memilih tujuan dari status CSW.
+        if ($phone_2 !== null && $phone_2 !== '') {
+            $phone_2 = preg_replace('/[^0-9]/', '', $phone_2);
+            if (substr($phone_2, 0, 2) == '08') {
+                $phone_2 = '628' . substr($phone_2, 2);
+            } else if (substr($phone_2, 0, 1) == '8') {
+                $phone_2 = '62' . $phone_2;
+            }
+            $data['phone_2'] = $phone_2;
+        }
         
         // 3. Handle template mode - extract params from JSON
         if ($template_name !== 'free') {
