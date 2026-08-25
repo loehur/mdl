@@ -2789,6 +2789,23 @@ if ($privUi === 100) {
                         menuUtama.addEventListener('click', toggleSidebarMenu);
                     }
 
+                    // Klik menu item (punya href navigasi) di HP/layar kecil → tutup sidebar.
+                    // Desktop: biarkan sidebar tetap terbuka.
+                    document.addEventListener('click', function(event) {
+                        if (!isMobileSidebar()) {
+                            return;
+                        }
+                        var link = event.target.closest('.main-sidebar a.nav-link[href]');
+                        if (!link) {
+                            return;
+                        }
+                        var href = link.getAttribute('href') || '';
+                        if (href === '#' || href === '') {
+                            return; // parent dropdown — biarkan accordion bekerja
+                        }
+                        closeSidebarMenu();
+                    });
+
                     document.addEventListener('touchstart', function(event) {
                         if (!event.touches || !event.touches.length) {
                             return;
