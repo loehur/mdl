@@ -454,7 +454,33 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     font-weight: 750;
     line-height: 1.35;
   }
+  #plg-root .plg-alert--warn {
+    border-color: #fcd34d;
+    background: linear-gradient(180deg, #fffbeb, #fff);
+    color: #92400e;
+  }
+  #plg-root .plg-alert--ok {
+    border-color: #86efac;
+    background: linear-gradient(180deg, #f0fdf4, #fff);
+    color: #15803d;
+  }
   #plg-root .plg-alert.is-hidden { display: none; }
+  #plg-root .plg-alert-item { margin-bottom: 6px; }
+  #plg-root .plg-alert-item:last-child { margin-bottom: 0; }
+  #plg-root .plg-alert-item b { display: block; margin-bottom: 2px; }
+  #plg-root .plg-alert-item ul {
+    margin: 0;
+    padding-left: 16px;
+  }
+  #plg-root .plg-alert-hp {
+    color: #1d4ed8;
+    font-weight: 800;
+  }
+  #plg-root .plg-alert-note {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #fcd34d;
+  }
   #plg-root .plg-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -509,6 +535,14 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   }
   #plg-root .plg-modal .plg-btn--primary:hover:not(:disabled) {
     background: linear-gradient(180deg, #22c55e, #16a34a);
+  }
+  #plg-root .plg-modal .plg-btn--blue {
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #fff;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  #plg-root .plg-modal .plg-btn--blue:hover:not(:disabled) {
+    background: linear-gradient(180deg, #3b82f6, #2563eb);
   }
 
   #plg-root .plg-value--nama {
@@ -683,7 +717,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
           </div>
           <div class="plg-modal__foot">
             <button type="button" class="plg-btn plg-btn--ghost" data-plg-close>Batal</button>
-            <button type="submit" class="plg-btn plg-btn--primary" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
+            <button type="button" class="plg-btn plg-btn--blue" id="plg-edit-cek"><i class="fas fa-search"></i> Cek Dulu</button>
+            <button type="submit" class="plg-btn plg-btn--primary" id="plg-edit-save" disabled><i class="fas fa-save"></i> Simpan</button>
           </div>
         </form>
       </div>
@@ -740,6 +775,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 
   function openEditModal() {
     $modal.removeClass('is-hidden');
+    hideEditAlert();
+    setSaveEnabled(false);
     $('#plg-edit-nama').trigger('focus');
   }
 
@@ -770,14 +807,112 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   });
 
   var $alert = $('#plg-edit-alert');
+  var $saveBtn = $('#plg-edit-save');
+  var $cekBtn = $('#plg-edit-cek');
 
-  function showEditAlert(msg) {
+  function setEditAlert(html, type) {
     if (!$alert.length) return;
-    $alert.text(msg || '').removeClass('is-hidden');
+    $alert
+      .removeClass('plg-alert--warn plg-alert--ok')
+      .attr('class', 'plg-alert' + (type ? ' plg-alert--' + type : ''))
+      .html(html || '')
+      .removeClass('is-hidden');
   }
   function hideEditAlert() {
-    if ($alert.length) $alert.addClass('is-hidden').text('');
+    if ($alert.length) $alert.addClass('is-hidden').html('');
   }
+
+  function setSaveEnabled(on) {
+    $saveBtn.prop('disabled', !on);
+  }
+
+  function cekEditNomor() {
+    hideEditAlert();
+    var nomor = String($('#plg-edit-nomor').val() || '').replace(/\D/g, '');
+    var nomor2 = String($('#plg-edit-nomor2').val() || '').replace(/\D/g, '');
+    if (!nomor || nomor.length < 8) {
+      setEditAlert('Isi Nomor HP utama dengan lengkap (min. 8 digit) dulu.', 'warn');
+      $('#plg-edit-nomor').trigger('focus');
+      return;
+    }
+    if (nomor2 && nomor === nomor2) {
+      setEditAlert('Nomor HP Alternatif sama dengan Nomor HP utama — gunakan nomor berbeda.', 'warn');
+      $('#plg-edit-nomor2').trigger('focus');
+      return;
+    }
+
+    $cekBtn.prop('disabled', true);
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Pelanggan/cekEdit',
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        id: $('#plg-edit-id').val(),
+        nomor_pelanggan: nomor,
+        nomor_pelanggan_2: nomor2
+      },
+      success: function (res) {
+        $cekBtn.prop('disabled', false);
+        if (!res || !res.ok) {
+          setEditAlert((res && res.msg) || 'Gagal cek nomor', 'warn');
+          return;
+        }
+        renderCekEdit(res);
+      },
+      error: function () {
+        $cekBtn.prop('disabled', false);
+        setEditAlert('Gagal cek nomor — coba lagi.', 'warn');
+      }
+    });
+  }
+
+  function renderCekEdit(res) {
+    // Nama harus unik di cabang — jika duplikat, tolak dan jangan nyalakan Simpan.
+    if (res && res.nama_dup) {
+      var d = res.nama_dup;
+      var msg = 'Nama <b>' + $('<div>').text(d.nama || '').html() + '</b> sudah digunakan pelanggan lain di cabang ini '
+        + '(#' + d.id + ' — ' + $('<div>').text(d.nomor || '').html() + '). Ganti dengan nama lain.';
+      setEditAlert(msg, 'warn');
+      setSaveEnabled(false);
+      return;
+    }
+
+    var hasil = (res && res.hasil) || [];
+    if (!hasil.length) {
+      setEditAlert('Edit OK — nama unik dan nomor tidak dipakai pelanggan lain di cabang ini.', 'ok');
+      setSaveEnabled(true);
+      return;
+    }
+
+    var html = '';
+    var adaBentrok = false;
+    hasil.forEach(function (h) {
+      if (!h || !h.bentrok) return;
+      adaBentrok = true;
+      var label = h.label || 'Nomor';
+      html += '<div class="plg-alert-item"><b>' + label + ' ' + $('<div>').text(h.nomor || '').html() + ' sudah dipakai pelanggan lain di cabang ini:</b><ul>';
+      (h.items || []).forEach(function (it) {
+        html += '<li>#' + it.id + ' — ' + $('<div>').text(it.nama || '').html()
+          + ' <span class="plg-alert-hp">' + $('<div>').text(it.nomor || '').html() + '</span>'
+          + (it.nomor2 ? ' <span class="plg-alert-hp">' + $('<div>').text(it.nomor2 || '').html() + '</span>' : '')
+          + '</li>';
+      });
+      html += '</ul></div>';
+    });
+
+    if (adaBentrok) {
+      html += '<div class="plg-alert-note">Kamu tetap bisa simpan dengan nomor yang sama. Pastikan ini memang disengaja.</div>';
+      setEditAlert(html, 'warn');
+    } else {
+      setEditAlert('Edit OK — nomor tidak dipakai pelanggan lain di cabang ini.', 'ok');
+    }
+    setSaveEnabled(true);
+  }
+
+  $cekBtn.on('click', function (e) {
+    e.preventDefault();
+    cekEditNomor();
+  });
 
   $('#plg-edit-form').on('submit', function (e) {
     e.preventDefault();
@@ -786,13 +921,12 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     var nomor = String($('#plg-edit-nomor').val() || '').replace(/\D/g, '');
     var nomor2 = String($('#plg-edit-nomor2').val() || '').replace(/\D/g, '');
     if (nomor2 && nomor === nomor2) {
-      showEditAlert('Nomor HP Alternatif sama dengan Nomor HP utama — gunakan nomor berbeda.');
+      setEditAlert('Nomor HP Alternatif sama dengan Nomor HP utama — gunakan nomor berbeda.', 'warn');
       $('#plg-edit-nomor2').trigger('focus');
       return;
     }
 
-    var $btn = $('#plg-edit-save');
-    $btn.prop('disabled', true);
+    $saveBtn.prop('disabled', true);
     $.ajax({
       url: '<?= URL::BASE_URL ?>Pelanggan/update',
       type: 'POST',
@@ -801,11 +935,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       success: function (res) {
         var raw = String(res || '').trim();
         if (raw !== '' && raw !== '0') {
-          $btn.prop('disabled', false);
-          if (raw.indexOf('sudah digunakan') !== -1 || raw.indexOf('sama dengan') !== -1) {
-            showEditAlert(raw);
+          if (raw.indexOf('nama') !== -1 && raw.indexOf('sudah digunakan') !== -1) {
+            // Nama duplikat — tetap tolak, Simpan jangan dinyalakan.
+            setEditAlert(raw, 'warn');
+            setSaveEnabled(false);
           } else {
-            toast(raw, 'error');
+            $saveBtn.prop('disabled', false);
+            if (raw.indexOf('sama dengan') !== -1) {
+              setEditAlert(raw, 'warn');
+            } else {
+              toast(raw, 'error');
+            }
           }
           return;
         }
@@ -815,7 +955,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       },
       error: function () {
         toast('Gagal menyimpan', 'error');
-        $btn.prop('disabled', false);
+        $saveBtn.prop('disabled', false);
       }
     });
   });

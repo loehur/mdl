@@ -117,38 +117,6 @@ class Pelanggan extends Controller
             return;
         }
 
-        // Tolak jika nomor utama/alternatif sudah dipakai pelanggan lain di cabang sama.
-        $this->helper('PelangganByPhone');
-        $nomorCek = [['nomor' => $nomor, 'label' => 'Nomor HP']];
-        if ($nomor2 !== '') {
-            $nomorCek[] = ['nomor' => $nomor2, 'label' => 'Nomor HP Alternatif'];
-        }
-        $seen = [];
-        foreach ($nomorCek as $nc) {
-            $n = PelangganByPhone::toNomorNasional($nc['nomor']);
-            if ($n === null || strlen($n) < 8) {
-                continue;
-            }
-            $kunci = $n;
-            if (isset($seen[$kunci])) {
-                echo $nc['label'] . ' sama dengan ' . $seen[$kunci] . ' — gunakan nomor berbeda';
-                return;
-            }
-            $seen[$kunci] = $nc['label'];
-
-            $esc = $db->escape($n);
-            $ada = $db->count_where(
-                'pelanggan',
-                $this->wCabang . ' AND id_pelanggan <> ' . $id
-                    . ' AND (' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan')
-                    . ' OR ' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan_2') . ')'
-            );
-            if ($ada > 0) {
-                echo $nc['label'] . ' ' . $n . ' sudah digunakan pelanggan lain di cabang ini';
-                return;
-            }
-        }
-
         $where = $this->wCabang . ' AND id_pelanggan = ' . $id;
         $set = [
             'nama_pelanggan' => $nama,
@@ -167,6 +135,109 @@ class Pelanggan extends Controller
 
         $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
         echo 0;
+    }
+
+    /**
+     * Cek sebelum simpan edit.
+     * Nama harus UNIK di cabang (blokir); nomor boleh sama (hanya info).
+     * @return void
+     */
+    public function cekEdit()
+    {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id < 1) {
+            $this->jsonOut(['ok' => 0, 'msg' => 'Pelanggan tidak valid']);
+            return;
+        }
+        $nama = strtoupper(trim((string) ($_POST['nama_pelanggan'] ?? '')));
+        $nomor = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan'] ?? ''));
+        $nomor2 = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan_2'] ?? ''));
+
+        $this->helper('PelangganByPhone');
+        $db = $this->db(0);
+
+        // Nama harus unik di cabang sama — langsung tolak.
+        $namaDup = null;
+        if ($nama !== '') {
+            $namaEsc = $db->escape($nama);
+            $rows = $db->query_array(
+                'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
+                 FROM pelanggan
+                 WHERE ' . $this->wCabang . " AND nama_pelanggan = '" . $namaEsc . "' AND id_pelanggan <> " . $id
+                    . ' ORDER BY id_pelanggan DESC'
+            );
+            if (!empty($rows[0])) {
+                $namaDup = [
+                    'id' => (int) ($rows[0]['id_pelanggan'] ?? 0),
+                    'nama' => strtoupper((string) ($rows[0]['nama_pelanggan'] ?? '')),
+                    'nomor' => (string) ($rows[0]['nomor_pelanggan'] ?? ''),
+                ];
+            }
+        }
+
+        $hasil = [];
+        $nomorCek = [['nomor' => $nomor, 'label' => 'Nomor HP']];
+        if ($nomor2 !== '') {
+            $nomorCek[] = ['nomor' => $nomor2, 'label' => 'Nomor HP Alternatif'];
+        }
+        $seen = [];
+        foreach ($nomorCek as $nc) {
+            $n = PelangganByPhone::toNomorNasional($nc['nomor']);
+            if ($n === null || strlen($n) < 8) {
+                continue;
+            }
+            $kunci = $n;
+            if (isset($seen[$kunci])) {
+                $hasil[] = [
+                    'label' => $nc['label'],
+                    'nomor' => $n,
+                    'bentrok' => true,
+                    'msg' => $nc['label'] . ' sama dengan ' . $seen[$kunci] . ' — gunakan nomor berbeda',
+                ];
+                continue;
+            }
+            $seen[$kunci] = $nc['label'];
+
+            $esc = $db->escape($n);
+            $rows = $db->query_array(
+                'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan, nomor_pelanggan_2
+                 FROM pelanggan
+                 WHERE ' . $this->wCabang . ' AND id_pelanggan <> ' . $id
+                    . ' AND (' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan')
+                    . ' OR ' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan_2') . ')'
+                    . ' ORDER BY id_pelanggan DESC'
+            );
+            $items = [];
+            foreach ((array) $rows as $r) {
+                $items[] = [
+                    'id' => (int) ($r['id_pelanggan'] ?? 0),
+                    'nama' => strtoupper((string) ($r['nama_pelanggan'] ?? '')),
+                    'nomor' => (string) ($r['nomor_pelanggan'] ?? ''),
+                    'nomor2' => (string) ($r['nomor_pelanggan_2'] ?? ''),
+                ];
+            }
+            $hasil[] = [
+                'label' => $nc['label'],
+                'nomor' => $n,
+                'bentrok' => $items !== [],
+                'items' => $items,
+            ];
+        }
+
+        $adaKonflik = false;
+        foreach ($hasil as $h) {
+            if (!empty($h['bentrok'])) {
+                $adaKonflik = true;
+                break;
+            }
+        }
+
+        $this->jsonOut([
+            'ok' => 1,
+            'nama_dup' => $namaDup,
+            'ada_konflik' => $adaKonflik,
+            'hasil' => $hasil,
+        ]);
     }
 
     /** @return PelangganDaftar */
