@@ -13,7 +13,7 @@ foreach ($this->dSatuan as $a) {
 <div class="content">
   <div class="container-fluid">
     <div class="row">
-      <div class="col-auto">
+      <div class="col-12">
         <div class="card">
           <div class="card-header">
             <h4 class="card-title text-success">Harga <?= $data['z']['set'] ?></h4>
