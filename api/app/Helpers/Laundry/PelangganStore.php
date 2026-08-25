@@ -404,7 +404,7 @@ class PelangganStore
 
         $db = self::db();
         $row = $db->query(
-            'SELECT id_cabang, nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+            'SELECT id_pelanggan, id_cabang, nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
             [$id]
         )->row_array();
         if (!is_array($row) || empty($row['id_pelanggan'])) {
