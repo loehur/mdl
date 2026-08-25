@@ -2458,9 +2458,12 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (idUser <= 0 && forceComplete && prefillId > 0) {
       idUser = prefillId;
     }
+    var wrap = root.querySelector('#kurirPengisiSurcasWrap');
     var sel = root.querySelector('#kurirPengisiSurcas');
     var hint = document.getElementById('kurirPengisiSurcasHint');
     if (idUser <= 0) {
+      // Belum ada pengisi — tampilkan input.
+      if (wrap) wrap.style.display = '';
       if (kurirPengisiSelectize && typeof kurirPengisiSelectize.unlock === 'function') {
         kurirPengisiSelectize.unlock();
       }
@@ -2471,11 +2474,13 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       }
       return;
     }
+    // Pengisi surcas sudah ada — jangan tampilkan input lagi, cukup info.
     var optText = String(idUser);
     if (sel) {
       var opt = sel.querySelector('option[value="' + idUser + '"]');
       if (opt && opt.textContent) optText = opt.textContent.trim();
     }
+    if (wrap) wrap.style.display = 'none';
     if (kurirPengisiSelectize) {
       if (!kurirPengisiSelectize.options[String(idUser)]) {
         kurirPengisiSelectize.addOption({ value: String(idUser), text: optText });
@@ -2491,14 +2496,16 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     if (hint) {
       hint.style.display = 'block';
       hint.textContent = forceComplete
-        ? 'Pengisi surcas sudah tercatat — otomatis terisi, tidak bisa diubah'
-        : 'Sudah ada di nota, tidak bisa diubah';
+        ? 'Pengisi surcas sudah tercatat — ' + optText
+        : 'Sudah ada di nota — ' + optText;
     }
   }
 
   function unlockPengisi() {
+    var wrap = root.querySelector('#kurirPengisiSurcasWrap');
     var sel = root.querySelector('#kurirPengisiSurcas');
     var hint = document.getElementById('kurirPengisiSurcasHint');
+    if (wrap) wrap.style.display = '';
     if (kurirPengisiSelectize) {
       if (typeof kurirPengisiSelectize.unlock === 'function') {
         kurirPengisiSelectize.unlock();
