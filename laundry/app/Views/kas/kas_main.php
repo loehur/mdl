@@ -16,7 +16,7 @@
                 </button>
                 <div class="dropdown-menu">
                   <a class="dropdown-item" href="#" data-op-target="#exampleModal">Pengeluaran</a>
-                  <a class="dropdown-item" href="#" data-op-target="#exampleModal3">Penarikan</a>
+                  <a class="dropdown-item" href="#" data-op-target="#exampleModal3">Setoran</a>
                   <a class="dropdown-item" href="#" data-op-target="#exampleModal2">Kasbon</a>
                 </div>
               </div>
@@ -186,7 +186,7 @@
 
                       echo "<tr class='" . $trKasbon . "'>";
                       echo "<td class='text-right'><small>#" . $id . "<br>" . substr($a['insertTime'], 5, 11) . "</small></td>";
-                      echo "<td><span><small>Penarik: " . $karyawan_tarik . "<br></small><b>" . $f2b . "</b> <small>" . " " . $karyawan . " " . $f2 . "</></small></span></td>";
+                      echo "<td><span><small>Penyetor: " . $karyawan_tarik . "<br></small><b>" . $f2b . "</b> <small>" . " " . $karyawan . " " . $f2 . "</></small></span></td>";
                       echo "<td class='text-right'><small>" . $metode . "</small> <span>" . number_format($a['jumlah']) . "</span><br>" . $statusNya . " " . $statusKasbon . "</td>";
                       echo "</tr>";
                     }
@@ -278,14 +278,14 @@
   </div>
 </div>
 
-<!-- Modal Penarikan -->
+<!-- Modal Setoran -->
 <div class="op-modal" id="exampleModal3" aria-hidden="true">
   <div class="op-modal__backdrop" data-op-close></div>
   <div class="op-modal__panel op-modal__panel--kas op-modal__panel--form" role="dialog" aria-modal="true" aria-labelledby="kasTarikTitle">
     <div class="op-modal__head op-modal__head--blue">
       <div>
-        <h5 id="kasTarikTitle"><i class="fas fa-hand-holding-usd"></i> Penarikan Kas</h5>
-        <small>Tarik kas untuk disetor ke admin</small>
+        <h5 id="kasTarikTitle"><i class="fas fa-hand-holding-usd"></i> Setoran Kas</h5>
+        <small>Setor kas ke admin</small>
       </div>
       <button type="button" class="op-modal__close" data-op-close aria-label="Tutup"><i class="fas fa-times"></i></button>
     </div>
@@ -293,7 +293,7 @@
       <div class="op-modal__body">
         <div class="kas-pg-modal-grid">
           <div class="op-field">
-            <label class="op-label">Metode Penarikan</label>
+            <label class="op-label">Metode Setoran</label>
             <select name="metode_penarikan" class="op-input metodePenarikan" required>
               <option value="1" selected>Tunai</option>
               <option value="2">Non Tunai</option>
@@ -354,7 +354,7 @@
             <input type="text" name="f1" class="op-input keteranganPenarikan" required>
           </div>
           <div class="op-field kas-pg-span-2">
-            <label class="op-label">Penarik Kas</label>
+            <label class="op-label">Penyetor Kas</label>
             <select name="f3" class="tize tarik" style="width: 100%;" required>
               <option value="" selected disabled></option>
               <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
@@ -374,9 +374,9 @@
         </div>
       </div>
       <div class="op-modal__foot">
-        <p class="kas-hint-warn penarikanHintTunai">Penarikan Kas Laundry harus disetor kepada Admin sebagai Kas Utama</p>
+        <p class="kas-hint-warn penarikanHintTunai">Setoran Kas Laundry harus diterima Admin sebagai Kas Utama</p>
         <p class="kas-hint-warn penarikanHintNonTunai" style="display:none;">Cek QRIS dan Rekening: Ketik <b>REK</b> kirim ke Whatsapp Madinah Laundry</p>
-        <button type="submit" class="op-btn op-btn--blue op-btn--block">Tarik Kas</button>
+        <button type="submit" class="op-btn op-btn--blue op-btn--block">Setor Kas</button>
       </div>
     </form>
   </div>
@@ -507,14 +507,14 @@
       }
       var potong = parseInt($form.find('.jumlahPenarikan').val(), 10) || 0;
       if (potong < PENARIKAN_MIN) {
-        var msgMin = 'Minimal penarikan Rp 1.000';
+        var msgMin = 'Minimal setoran Rp 1.000';
         if (window.MdlToast) window.MdlToast.error(msgMin);
         else alert(msgMin);
         return;
       }
       var note = ($form.find('.penarikanNoteRadio:checked').val() || '').toUpperCase();
       if (isNonTunai && note === 'QRIS' && potong > PENARIKAN_QRIS_MAX) {
-        var msgQrisMax = 'Maksimal penarikan QRIS Rp 500.000';
+        var msgQrisMax = 'Maksimal setoran QRIS Rp 500.000';
         if (window.MdlToast) window.MdlToast.error(msgQrisMax);
         else alert(msgQrisMax);
         return;

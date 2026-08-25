@@ -183,7 +183,7 @@ class Kas extends Controller
 
       if ($jumlah < 1000) {
          header('HTTP/1.1 422 Unprocessable Entity');
-         echo json_encode(['error' => 'Minimal penarikan Rp 1.000']);
+         echo json_encode(['error' => 'Minimal setoran Rp 1.000']);
          return;
       }
 
@@ -234,7 +234,7 @@ class Kas extends Controller
 
             'id_client' => 0,
 
-            'note_primary' => 'Penarikan'
+            'note_primary' => 'Setoran'
 
          ];
 
@@ -296,13 +296,13 @@ class Kas extends Controller
 
       if ($jumlah < 1000) {
          header('HTTP/1.1 422 Unprocessable Entity');
-         echo json_encode(['error' => 'Minimal penarikan Rp 1.000']);
+         echo json_encode(['error' => 'Minimal setoran Rp 1.000']);
          return;
       }
 
       if ($note === 'QRIS' && $jumlah > 500000) {
          header('HTTP/1.1 422 Unprocessable Entity');
-         echo json_encode(['error' => 'Maksimal penarikan QRIS Rp 500.000']);
+         echo json_encode(['error' => 'Maksimal setoran QRIS Rp 500.000']);
          return;
       }
 
@@ -359,7 +359,7 @@ class Kas extends Controller
 
          'note' => $note,
 
-         'note_primary' => 'Penarikan',
+         'note_primary' => 'Setoran',
 
          'status_mutasi' => 2,
 
@@ -387,7 +387,7 @@ class Kas extends Controller
 
          header('HTTP/1.1 500 Internal Server Error');
 
-         echo json_encode(['error' => 'Gagal menyimpan penarikan non tunai.']);
+         echo json_encode(['error' => 'Gagal menyimpan setoran non tunai.']);
 
       }
 
