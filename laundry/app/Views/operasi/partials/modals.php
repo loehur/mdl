@@ -2170,6 +2170,13 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     return 0;
   }
 
+  /** Surcas (jemput/antar) untuk item terpilih/prefill sudah ada di nota? */
+  function surcasSudahAda() {
+    var existJ = existingSurcasFromGroups('jemput');
+    var existA = existingSurcasFromGroups('antar');
+    return existJ.jumlah !== null || existA.jumlah !== null;
+  }
+
   function toast(msg, type) {
     type = type || 'info';
     if (window.MdlToast) {
@@ -2873,7 +2880,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
     var idKaryawan = currentPenyelesai();
     var idPengisiSurcas = currentPengisiSurcas();
-    if (idPengisiSurcas <= 0) {
+    var surcasAda = surcasSudahAda();
+    // Surcas sudah ada di nota -> pengisi tidak bisa diisi/diubah lagi (dari kasir atau portal J).
+    if (idPengisiSurcas <= 0 && !surcasAda) {
       toast('Wajib pilih pengisi surcas', 'warn');
       return;
     }
@@ -2938,7 +2947,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     fd.append('id_pelanggan', String(currentPelanggan()));
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
-    fd.append('id_pengisi_surcas', String(idPengisiSurcas));
+    // Surcas sudah ada -> jangan kirim pengisi (tidak boleh diubah).
+    if (!surcasAda) {
+      fd.append('id_pengisi_surcas', String(idPengisiSurcas));
+    }
     if (forceComplete) {
       fd.append('selesai_only', '1');
       if (prefillSurcasId > 0) {
