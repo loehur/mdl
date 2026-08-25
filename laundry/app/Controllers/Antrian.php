@@ -130,9 +130,12 @@ class Antrian extends Controller
       // OPTIMIZED: Use implode instead of loop
       if (!empty($refs)) {
          $ref_list = implode(',', $refs);
-         $kas = $this->db(0)->get_where('kas', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ($ref_list)");
+         // FORCE INDEX: composite index antrian (id_cabang, jenis_transaksi, ref_transaksi) —
+         // tanpa ini MySQL scan 12k+ baris (kas 280k baris) karena pilih index id_cabang+jenis_transaksi.
+         $kas = $this->db(0)->get_where('kas FORCE INDEX (idx_kas_antrian)', $this->wCabang . " AND jenis_transaksi = 1 AND ref_transaksi IN ($ref_list)");
          $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref IN ($ref_list)");
-         $notif = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 1 AND no_ref IN ($ref_list)");
+         // FORCE INDEX: composite index antrian (id_cabang, tipe, no_ref) agar no_ref IN memakai index.
+         $notif = $this->db(0)->get_where('notif FORCE INDEX (idx_notif_antrian)', $this->wCabang . " AND tipe = 1 AND no_ref IN ($ref_list)");
       }
 
       if (!empty($numbers)) {
