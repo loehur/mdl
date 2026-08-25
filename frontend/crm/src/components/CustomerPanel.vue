@@ -1336,7 +1336,7 @@ onUnmounted(() => {
           <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
-              class="py-2.5 rounded-xl text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1"
+              class="py-3 rounded-xl text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               :class="hasOpenPermintaan
                 ? 'bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border-red-400/50'
                 : 'bg-red-500 text-white border-transparent'"
@@ -1344,22 +1344,20 @@ onUnmounted(() => {
               @click="handlePermintaanAction"
               title="Permintaan"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
-              <span class="text-[10px] font-bold">{{ hasOpenPermintaan ? "Permintaan" : "Buat" }}</span>
             </button>
             <button
               type="button"
-              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1"
+              class="py-3 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               :disabled="!custId"
               @click="openDeliveryRequest"
               title="Kurir"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
               </svg>
-              <span class="text-[10px] font-bold">Kurir</span>
             </button>
             <div
               class="py-2.5 rounded-xl border bg-[var(--wa-bg-secondary)] border-[var(--wa-border)] flex flex-col items-center justify-center gap-1"
