@@ -306,6 +306,36 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
     border-color: #86efac;
     color: #15803d;
   }
+  /* Surcas kurir terikat — item tidak eligible di panel Kurir */
+  #load.operasi-load .mdl-kurir-bind-badge {
+    display: inline-block;
+    margin-left: 3px;
+    padding: 0 4px;
+    border: 1px dashed #c4b5fd;
+    border-radius: 0;
+    background: #f5f3ff;
+    color: #6d28d9;
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    vertical-align: middle;
+    line-height: 1.35;
+  }
+  #load.operasi-load .mdl-kurir-bind-badge--j {
+    border-color: #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+  }
+  #load.operasi-load .mdl-kurir-bind-badge--a {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1e40af;
+  }
+  #load.operasi-load .mdl-kurir-bind-badge--ja {
+    border-color: #86efac;
+    background: #ecfdf5;
+    color: #047857;
+  }
   .operasi-filter {
     width: 100%;
     max-width: 100%;

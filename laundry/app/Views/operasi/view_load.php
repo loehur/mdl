@@ -491,9 +491,20 @@ $labeled = false;
                 <small><?= $id ?><?php
                   $dlvBadge = $data['delivery_badge'][$id] ?? ($data['delivery_badge'][(string) $id] ?? '');
                   if ($dlvBadge !== '') {
-                    $dlvTitle = $dlvBadge === 'JA' ? 'Jemput & Antar' : ($dlvBadge === 'J' ? 'Jemput' : 'Antar');
+                    $dlvTitle = $dlvBadge === 'JA' ? 'Sudah dijemput & diantar (riwayat)' : ($dlvBadge === 'J' ? 'Sudah dijemput (riwayat)' : 'Sudah diantar (riwayat)');
                     $dlvClass = $dlvBadge === 'JA' ? 'mdl-dlv-badge--ja' : ($dlvBadge === 'J' ? 'mdl-dlv-badge--j' : 'mdl-dlv-badge--a');
                     echo " <span class='mdl-dlv-badge " . $dlvClass . "' title='" . htmlspecialchars($dlvTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($dlvBadge, ENT_QUOTES, 'UTF-8') . "</span>";
+                  }
+                  $bindBadge = $data['kurir_bind_badge'][$id] ?? ($data['kurir_bind_badge'][(string) $id] ?? '');
+                  if ($bindBadge !== '') {
+                    $bindLabel = '$' . $bindBadge;
+                    $bindTitle = $bindBadge === 'JA'
+                      ? 'Surcas jemput & antar sudah terikat — item tidak eligible di Kurir'
+                      : ($bindBadge === 'J'
+                        ? 'Surcas jemput sudah terikat — item tidak eligible di Kurir (Jemput)'
+                        : 'Surcas antar sudah terikat — item tidak eligible di Kurir (Antar)');
+                    $bindClass = $bindBadge === 'JA' ? 'mdl-kurir-bind-badge--ja' : ($bindBadge === 'J' ? 'mdl-kurir-bind-badge--j' : 'mdl-kurir-bind-badge--a');
+                    echo " <span class='mdl-kurir-bind-badge " . $bindClass . "' title='" . htmlspecialchars($bindTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($bindLabel, ENT_QUOTES, 'UTF-8') . "</span>";
                   }
                 ?></small><br><b><?= $kategoriHtml ?></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <?php if ($canEditQty) { ?>

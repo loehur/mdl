@@ -84,6 +84,7 @@ class Operasi extends Controller
       // Batch queries for sale-related data
       $operasi = $notifSelesai = $kas = $notifBon = $surcas = [];
       $delivery_badge = [];
+      $kurir_bind_badge = [];
       $delivery_done = [];
       $deliveryRows = [];
       if (!empty($sale_ids)) {
@@ -118,6 +119,35 @@ class Operasi extends Controller
                $delivery_badge[$sid] = 'J';
             } elseif ($hasA) {
                $delivery_badge[$sid] = 'A';
+            }
+         }
+
+         // Badge surcas kurir terikat (penyebab item tidak eligible di panel Kurir)
+         $this->helper('AntarTarif');
+         $this->helper('SurcasKurir');
+         $saleIdsInt = array_map('intval', $sale_ids);
+         $boundJemput = SurcasKurir::boundSaleIds(
+            $this->db(0),
+            $saleIdsInt,
+            (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+         );
+         $boundAntar = SurcasKurir::boundSaleIds(
+            $this->db(0),
+            $saleIdsInt,
+            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+         );
+         foreach ($saleIdsInt as $sid) {
+            if ($sid <= 0) {
+               continue;
+            }
+            $hasBindJ = isset($boundJemput[$sid]);
+            $hasBindA = isset($boundAntar[$sid]);
+            if ($hasBindJ && $hasBindA) {
+               $kurir_bind_badge[(string) $sid] = 'JA';
+            } elseif ($hasBindJ) {
+               $kurir_bind_badge[(string) $sid] = 'J';
+            } elseif ($hasBindA) {
+               $kurir_bind_badge[(string) $sid] = 'A';
             }
          }
       }
@@ -238,6 +268,7 @@ class Operasi extends Controller
          'data_member' => $data_member, 'kas_member' => $kas_member, 'saldoTunai' => $topup - $topup_out - $usage,
          'users' => $this->db(0)->get('user', 'id_user'), 'finance_history' => $finance_history,
          'delivery_badge' => $delivery_badge,
+         'kurir_bind_badge' => $kurir_bind_badge,
          'delivery_done' => $delivery_done,
          'customer_delivery_requests' => $customerDeliveryRequests,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
