@@ -58,9 +58,13 @@ class Rekap extends Controller
       }
 
       // OPTIMIZED: Single query for sale data with date range
-      $dateCondition = $isDaily 
-         ? "DATE(insertTime) = '$today'" 
-         : "DATE_FORMAT(insertTime, '%Y-%m') = '$today'";
+      // Sargable range (pakai index insertTime) — DATE()/DATE_FORMAT() non-sargable bikin full scan.
+      if ($isDaily) {
+         $dateCondition = "insertTime >= '" . $today . " 00:00:00' AND insertTime < '" . $today . " 23:59:59'";
+      } else {
+         $nextMonth = date('Y-m', strtotime($today . '-01 +1 month'));
+         $dateCondition = "insertTime >= '" . $today . "-01 00:00:00' AND insertTime < '" . $nextMonth . "-01 00:00:00'";
+      }
       
       $where = $whereCabang . "bin = 0 AND $dateCondition";
       $data_main = $this->db(0)->get_where('sale', $where);
@@ -120,10 +124,13 @@ class Rekap extends Controller
          }
       }
 
-      // OPTIMIZED: Combined KAS query - single query for all jenis_transaksi
-      $kasDateCondition = $isDaily 
-         ? "DATE(insertTime) = '$today'" 
-         : "DATE_FORMAT(insertTime, '%Y-%m') = '$today'";
+      // OPTIMIZED: Combined KAS query - single query for all jenis_transaksi (sargable range)
+      if ($isDaily) {
+         $kasDateCondition = "insertTime >= '" . $today . " 00:00:00' AND insertTime < '" . $today . " 23:59:59'";
+      } else {
+         $nextMonth = date('Y-m', strtotime($today . '-01 +1 month'));
+         $kasDateCondition = "insertTime >= '" . $today . "-01 00:00:00' AND insertTime < '" . $nextMonth . "-01 00:00:00'";
+      }
       
       $kasSql = "SELECT jenis_transaksi, ref_transaksi, note_primary, SUM(jumlah) as total 
                  FROM kas 
