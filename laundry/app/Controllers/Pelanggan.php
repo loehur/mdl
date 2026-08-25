@@ -58,8 +58,6 @@ class Pelanggan extends Controller
         } elseif ($mode === '6') {
             $col = 'nomor_pelanggan_2';
             $value = preg_replace('/\D/', '', (string) $value);
-        } elseif ($mode === '4') {
-            $col = 'alamat';
         } elseif ($mode === '5') {
             $this->session_cek(1);
             $col = 'disc';
@@ -93,7 +91,6 @@ class Pelanggan extends Controller
         $nama = strtoupper(trim((string) ($_POST['nama_pelanggan'] ?? '')));
         $nomor = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan'] ?? ''));
         $nomor2 = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan_2'] ?? ''));
-        $alamat = trim((string) ($_POST['alamat'] ?? ''));
         $disc = (float) ($_POST['disc'] ?? 0);
         if ($disc > 100) {
             $disc = 100;
@@ -157,7 +154,6 @@ class Pelanggan extends Controller
             'nama_pelanggan' => $nama,
             'nomor_pelanggan' => $nomor,
             'nomor_pelanggan_2' => $nomor2 !== '' ? $nomor2 : null,
-            'alamat' => $alamat,
         ];
         // disc hanya boleh diubah oleh privilege tertinggi (seperti updateCell mode 5).
         if ((int) ($this->id_privilege ?? 0) === 100) {

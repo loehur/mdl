@@ -589,8 +589,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $f2Html = htmlspecialchars($f2, ENT_QUOTES, 'UTF-8');
               $f5Attr = htmlspecialchars((string) $f5, ENT_QUOTES, 'UTF-8');
               $f6Attr = htmlspecialchars($f6, ENT_QUOTES, 'UTF-8');
-              $fAlamat = (string) ($a['alamat'] ?? '');
-              $fAlamatAttr = htmlspecialchars($fAlamat, ENT_QUOTES, 'UTF-8');
               $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f6 . ' ' . $f5);
               $isPartner = ((float) $f5 > 0);
               $cardClass = $isPartner ? 'plg-card plg-row is-partner' : 'plg-card plg-row';
@@ -623,7 +621,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 <div class="plg-card-actions">
                   <button type="button" class="plg-btn plg-edit-btn" data-id="<?= $id ?>"
                     data-nama="<?= $f1Attr ?>" data-nomor="<?= $f2Attr ?>"
-                    data-nomor2="<?= $f6Attr ?>" data-alamat="<?= $fAlamatAttr ?>"
+                    data-nomor2="<?= $f6Attr ?>"
                     data-disc="<?= $f5Attr ?>"
                     title="Edit data pelanggan">
                     <i class="fas fa-pen"></i> Edit
@@ -675,10 +673,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 <label class="plg-label" for="plg-edit-nomor2">HP Alternatif</label>
                 <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="plg-input" inputmode="tel">
               </div>
-            </div>
-            <div class="plg-field">
-              <label class="plg-label" for="plg-edit-alamat">Alamat</label>
-              <input type="text" id="plg-edit-alamat" name="alamat" class="plg-input">
             </div>
             <?php if ($canEditPartner) { ?>
               <div class="plg-field">
@@ -759,7 +753,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#plg-edit-nama').val($btn.attr('data-nama'));
     $('#plg-edit-nomor').val($btn.attr('data-nomor'));
     $('#plg-edit-nomor2').val($btn.attr('data-nomor2') || '');
-    $('#plg-edit-alamat').val($btn.attr('data-alamat') || '');
     var $disc = $('#plg-edit-disc');
     if ($disc.length) $disc.val($btn.attr('data-disc') || '0');
     openEditModal();
