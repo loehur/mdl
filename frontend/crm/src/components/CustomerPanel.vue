@@ -14,7 +14,7 @@ const props = defineProps({
 
 const isAdmin = computed(() => props.currentUserRole === "admin");
 
-const copiedPhone = ref(false);
+const copiedPhoneKey = ref("");
 const isUpdatingAutoReply = ref(false);
 
 const lokasiItems = ref([]);
@@ -214,22 +214,22 @@ const panelClass = computed(() => {
   return ["customer-panel-desktop", isOpen.value ? "is-open" : ""];
 });
 
-const copyPhoneNumber = async () => {
-  if (!props.conversation?.wa_number) return;
-  const phone = formatPhoneTo08(props.conversation.wa_number);
+const copyPhoneNumber = async (phone, key) => {
+  if (!phone) return;
+  const formatted = formatPhoneTo08(phone);
   try {
-    await navigator.clipboard.writeText(phone);
+    await navigator.clipboard.writeText(formatted);
   } catch (_) {
     const textArea = document.createElement("textarea");
-    textArea.value = phone;
+    textArea.value = formatted;
     document.body.appendChild(textArea);
     textArea.select();
     document.execCommand("copy");
     document.body.removeChild(textArea);
   }
-  copiedPhone.value = true;
+  copiedPhoneKey.value = key || "x";
   setTimeout(() => {
-    copiedPhone.value = false;
+    copiedPhoneKey.value = "";
   }, 2000);
 };
 
@@ -1137,7 +1137,7 @@ const onKeydown = (e) => {
 watch(
   () => props.conversation?.id,
   () => {
-    copiedPhone.value = false;
+    copiedPhoneKey.value = "";
     closeAddLokasi();
     closeDeleteLokasi();
     closeDeliveryRequest();
@@ -1265,20 +1265,7 @@ onUnmounted(() => {
       </header>
 
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
-        <section class="grid grid-cols-2 gap-3">
-          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] min-w-0 flex items-center justify-between gap-2">
-            <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
-              {{ formatPhoneTo08(conversation?.wa_number) }}
-            </p>
-            <button
-              type="button"
-              class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
-              @click="copyPhoneNumber"
-            >
-              {{ copiedPhone ? "Copied!" : "Copy" }}
-            </button>
-          </div>
-
+        <section>
           <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] flex items-center justify-between gap-2">
             <span class="text-sm font-medium text-[var(--wa-text-primary)]">Auto Reply</span>
             <label
@@ -1361,15 +1348,31 @@ onUnmounted(() => {
             <template v-else>
               <div class="flex items-center gap-2">
                 <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-green)] text-white">P</span>
-                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
+                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
                   {{ phonePrimary ? formatPhoneTo08(phonePrimary) : "—" }}
                 </p>
+                <button
+                  v-if="phonePrimary"
+                  type="button"
+                  class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
+                  @click="copyPhoneNumber(phonePrimary, 'P')"
+                >
+                  {{ copiedPhoneKey === "P" ? "Copied!" : "Copy" }}
+                </button>
               </div>
               <div class="flex items-center gap-2">
                 <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">S</span>
-                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
+                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
                   {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
                 </p>
+                <button
+                  v-if="phoneAlt"
+                  type="button"
+                  class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
+                  @click="copyPhoneNumber(phoneAlt, 'S')"
+                >
+                  {{ copiedPhoneKey === "S" ? "Copied!" : "Copy" }}
+                </button>
               </div>
             </template>
           </div>
