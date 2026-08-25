@@ -96,7 +96,7 @@ class FonnteGatewayApi
     {
         if (class_exists('URL') && defined('URL::API_CRON_SECRET')) {
             $s = trim((string) URL::API_CRON_SECRET);
-            if ($s !== '' && $s !== 'change-me-cron-secret') {
+            if ($s !== '') {
                 return $s;
             }
         }
