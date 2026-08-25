@@ -20,9 +20,9 @@ class Pelanggan extends Controller
     public function get()
     {
         $this->jsonHeader();
-        $id = $this->idPelangganFromRequest();
+        $id = $this->resolveIdPelanggan();
         if ($id <= 0) {
-            $this->fail('id_pelanggan / cust_id wajib', 400);
+            $this->fail('id_pelanggan / cust_id / wa_number wajib', 400);
             return;
         }
 
@@ -66,9 +66,9 @@ class Pelanggan extends Controller
             return;
         }
 
-        $id = $this->idPelangganFromRequest($body);
+        $id = $this->resolveIdPelanggan($body);
         if ($id <= 0) {
-            $this->fail('id_pelanggan / cust_id wajib', 400);
+            $this->fail('id_pelanggan / cust_id / wa_number wajib', 400);
             return;
         }
 
@@ -160,6 +160,50 @@ class Pelanggan extends Controller
             'status' => false,
             'message' => $message,
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Resolve id_pelanggan dari request: prioritas id_pelanggan/cust_id, fallback wa_number
+     * (cocokkan via WaSenderContext → pelanggan di mdl_laundry).
+     *
+     * @param array<string,mixed>|null $body
+     */
+    private function resolveIdPelanggan(?array $body = null): int
+    {
+        $src = $body ?? $this->mergedInput();
+        $id = (int) (
+            $src['id_pelanggan']
+            ?? $src['cust_id']
+            ?? $this->query('id_pelanggan')
+            ?? $this->query('cust_id')
+            ?? 0
+        );
+        if ($id > 0) {
+            return $id;
+        }
+
+        $waNumber = (string) ($src['wa_number'] ?? $this->query('wa_number') ?? '');
+        if ($waNumber === '') {
+            return 0;
+        }
+
+        try {
+            $ctx = WaSenderContext::resolve($waNumber);
+            if (!empty($ctx['is_pelanggan'])) {
+                $pid = (int) ($ctx['id_pelanggan'] ?? 0);
+                if ($pid > 0) {
+                    return $pid;
+                }
+                $ids = $ctx['ids_pelanggan'] ?? [];
+                if (!empty($ids)) {
+                    return (int) $ids[0];
+                }
+            }
+        } catch (\Throwable $e) {
+            // fallback 0
+        }
+
+        return 0;
     }
 
     /**

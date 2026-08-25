@@ -635,20 +635,30 @@ const confirmSendQris = async () => {
 };
 
 const loadAltPhone = async () => {
-  if (!isAdmin.value || !custId.value) {
+  if (!isAdmin.value) {
+    altPhone.value = "";
+    return;
+  }
+  if (!custId.value && !props.conversation?.wa_number) {
     altPhone.value = "";
     return;
   }
   altPhoneLoading.value = true;
   altPhoneMsg.value = "";
   try {
-    const res = await fetch(`${props.apiBase}/Laundry/Pelanggan/get?cust_id=${custId.value}`).then((r) => r.json());
+    const params = new URLSearchParams();
+    if (custId.value) params.set("cust_id", String(custId.value));
+    if (props.conversation?.wa_number) params.set("wa_number", props.conversation.wa_number);
+    const res = await fetch(`${props.apiBase}/Laundry/Pelanggan/get?${params.toString()}`).then((r) => r.json());
     if (!res?.ok && !res?.status) {
       altPhoneMsg.value = res?.message || "Gagal memuat nomor alternatif";
       return;
     }
     altPhone.value = String(res?.item?.nomor_pelanggan_2 || "").trim();
     altPhoneForm.value = altPhone.value;
+    if (res?.item?.id_pelanggan) {
+      props.conversation.cust_id = res.item.id_pelanggan;
+    }
   } catch (_) {
     altPhoneMsg.value = "Gagal memuat nomor alternatif";
   } finally {
@@ -663,19 +673,23 @@ const canSaveAltPhone = computed(() => {
 });
 
 const saveAltPhone = async () => {
-  if (!isAdmin.value || !custId.value || !canSaveAltPhone.value) return;
+  if (!isAdmin.value || !canSaveAltPhone.value) return;
+  if (!custId.value && !props.conversation?.wa_number) return;
   altPhoneSaving.value = true;
   altPhoneMsg.value = "";
   altPhoneOk.value = false;
   try {
+    const payload = {
+      nomor_alternatif: altPhoneForm.value.replace(/\D/g, ""),
+      user_id: props.authId,
+    };
+    if (custId.value) payload.cust_id = custId.value;
+    if (props.conversation?.wa_number) payload.wa_number = props.conversation.wa_number;
+
     const res = await fetch(`${props.apiBase}/Laundry/Pelanggan/setNomorAlternatif`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cust_id: custId.value,
-        nomor_alternatif: altPhoneForm.value.replace(/\D/g, ""),
-        user_id: props.authId,
-      }),
+      body: JSON.stringify(payload),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {
       altPhoneMsg.value = res?.message || "Gagal menyimpan nomor alternatif";
