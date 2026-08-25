@@ -1676,13 +1676,13 @@
     $('#unbindKurirModalDesc').html(
       kind === 'surcas'
         ? ('Binding <strong>surcas ' + jenisLabel + '</strong> pada item <strong>#' + id + '</strong> (nota <strong>#' + ref + '</strong>) akan dilepas.'
-          + ' Item bisa muncul lagi di panel Kurir.')
+          + ' Item bisa muncul lagi di panel Kurir; nominal surcas di nota tidak dihapus.')
         : ('Riwayat <strong>' + jenisLabel + '</strong> item <strong>#' + id + '</strong> (nota <strong>#' + ref + '</strong>) akan dihapus.'
           + ' Status fisik jemput/antar dicabut dari item ini.')
     );
     $('#unbindKurirModalHint').text(
       kind === 'surcas'
-        ? 'Jika surcas terikat per nota (legacy), baris surcas di nota ikut dihapus. Total nota tidak boleh lebih kecil dari pembayaran Cek/Berhasil.'
+        ? 'Hanya melepas binding item ini. Baris surcas di nota tetap ada. Jika item tunggal, gunakan Hapus surcas di baris nota.'
         : 'Tindakan ini dicatat di log sistem.'
     );
     $('#unbindKurirNote').val('').css('border-color', '');

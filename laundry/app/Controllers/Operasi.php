@@ -85,6 +85,7 @@ class Operasi extends Controller
       $operasi = $notifSelesai = $kas = $notifBon = $surcas = [];
       $delivery_badge = [];
       $kurir_bind_badge = [];
+      $kurir_surcas_unbindable = [];
       $delivery_done = [];
       $deliveryRows = [];
       if (!empty($sale_ids)) {
@@ -148,6 +149,29 @@ class Operasi extends Controller
                $kurir_bind_badge[(string) $sid] = 'J';
             } elseif ($hasBindA) {
                $kurir_bind_badge[(string) $sid] = 'A';
+            }
+         }
+
+         $kurir_surcas_unbindable = [];
+         foreach ($saleIdsInt as $sid) {
+            if ($sid <= 0) {
+               continue;
+            }
+            $flags = [];
+            if (isset($boundJemput[$sid])) {
+               $flags['jemput'] = $this->surcasUnbindableForSale(
+                  $sid,
+                  (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+               );
+            }
+            if (isset($boundAntar[$sid])) {
+               $flags['antar'] = $this->surcasUnbindableForSale(
+                  $sid,
+                  (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+               );
+            }
+            if ($flags !== []) {
+               $kurir_surcas_unbindable[(string) $sid] = $flags;
             }
          }
       }
@@ -269,6 +293,7 @@ class Operasi extends Controller
          'users' => $this->db(0)->get('user', 'id_user'), 'finance_history' => $finance_history,
          'delivery_badge' => $delivery_badge,
          'kurir_bind_badge' => $kurir_bind_badge,
+         'kurir_surcas_unbindable' => $kurir_surcas_unbindable,
          'delivery_done' => $delivery_done,
          'customer_delivery_requests' => $customerDeliveryRequests,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
@@ -1896,14 +1921,12 @@ class Operasi extends Controller
          throw new \Exception('ID item tidak valid');
       }
 
-      $ref = trim((string) ($sale['no_ref'] ?? ''));
-      if ($ref === '') {
-         throw new \Exception('Nota item tidak valid');
+      if (!$this->surcasUnbindableForSale($idInt, $jenisSurcas)) {
+         throw new \Exception(
+            'Item satu-satunya terikat surcas ' . $jenis
+               . ' — gunakan Hapus surcas di baris nota, bukan unbind badge'
+         );
       }
-      $refEsc = $this->db(0)->escape($ref);
-
-      $idSurcas = 0;
-      $legacyNota = false;
 
       $this->helper('SurcasKurir');
       $boundMap = SurcasKurir::boundSaleIds($this->db(0), [$idInt], $jenisSurcas);
@@ -1911,6 +1934,7 @@ class Operasi extends Controller
          throw new \Exception('Binding surcas ' . $jenis . ' tidak ditemukan untuk item ini');
       }
 
+      $idSurcas = 0;
       try {
          $bindRows = $this->db(0)->query_array(
             'SELECT id_surcas FROM surcas_item
@@ -1922,23 +1946,13 @@ class Operasi extends Controller
             $idSurcas = (int) $bindRows[0]['id_surcas'];
          }
       } catch (\Throwable $e) {
-         // surcas_item opsional
+         throw new \Exception('Binding surcas item tidak ditemukan');
       }
 
       if ($idSurcas <= 0) {
-         $sc = $this->db(0)->get_where_row(
-            'surcas',
-            $this->wCabang
-               . " AND no_ref = '$refEsc'"
-               . ' AND id_jenis_surcas = ' . $jenisSurcas
-               . ' AND dari_delivery = 1'
-               . ' ORDER BY id_surcas DESC'
+         throw new \Exception(
+            'Surcas terikat per nota — gunakan Hapus surcas di baris nota, bukan unbind badge'
          );
-         if (!is_array($sc) || empty($sc['id_surcas'])) {
-            throw new \Exception('Binding surcas ' . $jenis . ' tidak ditemukan untuk item ini');
-         }
-         $idSurcas = (int) $sc['id_surcas'];
-         $legacyNota = true;
       }
 
       $scRow = $this->db(0)->get_where_row('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
@@ -1947,44 +1961,6 @@ class Operasi extends Controller
       }
       if ((int) ($scRow['id_delivery_request'] ?? 0) > 0) {
          throw new \Exception('Surcas terikat delivery request — tidak dapat dilepas dari sini');
-      }
-
-      $dibayar = $this->getRefDibayar($ref);
-      $currentSubTotal = $this->getRefSubTotal($ref);
-      if ($dibayar > $currentSubTotal) {
-         throw new \Exception('Binding surcas tidak dapat dilepas karena order overpay');
-      }
-
-      if ($legacyNota) {
-         $salesOnRef = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
-         $itemCount = is_array($salesOnRef) ? count($salesOnRef) : 0;
-
-         $newSubTotal = $this->getRefSubTotal($ref, [], [$idSurcas]);
-         $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
-         if ($payErr !== null) {
-            throw new \Exception($payErr);
-         }
-
-         try {
-            $this->db(0)->delete('surcas_item', 'id_surcas = ' . $idSurcas);
-         } catch (\Throwable $e) {
-            // ignore
-         }
-         $del = $this->db(0)->delete('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
-         if (($del['errno'] ?? 1) != 0) {
-            throw new \Exception('Gagal melepas surcas dari nota');
-         }
-
-         $this->resetBonNotif($ref);
-         $this->model('Log')->write(
-            "[Operasi::unbindKurirBadge] Surcas legacy $jenis id=$idSurcas nota $ref (item #$idPenjualan) dihapus. Alasan: $note"
-         );
-
-         $suffix = $itemCount > 1
-            ? ' (surcas nota dihapus — semua item di nota ini terlepas dari surcas ' . $jenis . ')'
-            : '';
-
-         return 'Binding surcas ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas' . $suffix;
       }
 
       try {
@@ -1996,34 +1972,54 @@ class Operasi extends Controller
          throw new \Exception('Gagal melepas binding surcas item');
       }
 
-      $remaining = 0;
-      try {
-         $remaining = (int) ($this->db(0)->count_where(
-            'surcas_item',
-            'id_surcas = ' . $idSurcas . ' AND id_jenis_surcas = ' . $jenisSurcas
-         ) ?? 0);
-      } catch (\Throwable $e) {
-         $remaining = 0;
-      }
-
-      if ($remaining <= 0) {
-         $newSubTotal = $this->getRefSubTotal($ref, [], [$idSurcas]);
-         $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
-         if ($payErr !== null) {
-            throw new \Exception($payErr);
-         }
-         $del = $this->db(0)->delete('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
-         if (($del['errno'] ?? 1) != 0) {
-            throw new \Exception('Gagal menghapus baris surcas kosong');
-         }
-      }
-
+      $ref = trim((string) ($sale['no_ref'] ?? ''));
       $this->resetBonNotif($ref);
       $this->model('Log')->write(
          "[Operasi::unbindKurirBadge] Binding surcas $jenis item id=$idPenjualan (surcas #$idSurcas) dilepas. Alasan: $note"
       );
 
-      return 'Binding surcas ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas';
+      return 'Binding surcas ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas (surcas nota tetap ada)';
+   }
+
+   /**
+    * Unbind surcas via badge hanya jika item masih punya rekan di baris surcas yang sama.
+    * Surcas legacy (per nota) atau item tunggal → harus lewat hapusSurcasKurir.
+    */
+   private function surcasUnbindableForSale(int $idPenjualan, int $jenisSurcas): bool
+   {
+      if ($idPenjualan <= 0 || $jenisSurcas <= 0) {
+         return false;
+      }
+
+      $idSurcas = 0;
+      try {
+         $bindRows = $this->db(0)->query_array(
+            'SELECT id_surcas FROM surcas_item
+             WHERE id_penjualan = ' . $idPenjualan . '
+               AND id_jenis_surcas = ' . $jenisSurcas . '
+             LIMIT 1'
+         );
+         if (is_array($bindRows) && !empty($bindRows[0]['id_surcas'])) {
+            $idSurcas = (int) $bindRows[0]['id_surcas'];
+         }
+      } catch (\Throwable $e) {
+         return false;
+      }
+
+      if ($idSurcas <= 0) {
+         return false;
+      }
+
+      try {
+         $count = (int) ($this->db(0)->count_where(
+            'surcas_item',
+            'id_surcas = ' . $idSurcas . ' AND id_jenis_surcas = ' . $jenisSurcas
+         ) ?? 0);
+      } catch (\Throwable $e) {
+         return false;
+      }
+
+      return $count > 1;
    }
 
    private function validateOrderModifiable($sale)

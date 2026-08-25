@@ -71,7 +71,7 @@ class SurcasKurir
             return $out;
         }
 
-        // Surcas kurir di no_ref (legacy / tanpa surcas_item): item nota dianggap sudah terikat
+        // Legacy: hanya jika baris surcas belum memakai surcas_item (binding per nota penuh)
         try {
             $rows = $db->query_array(
                 "SELECT DISTINCT s.id_penjualan
@@ -80,7 +80,12 @@ class SurcasKurir
                    AND sc.id_jenis_surcas = " . (int) $jenisSurcas . "
                    AND sc.dari_delivery = 1
                  WHERE s.bin = 0
-                   AND s.id_penjualan IN ($in)"
+                   AND s.id_penjualan IN ($in)
+                   AND NOT EXISTS (
+                     SELECT 1 FROM surcas_item si
+                     WHERE si.id_surcas = sc.id_surcas
+                       AND si.id_jenis_surcas = " . (int) $jenisSurcas . "
+                   )"
             );
             if (is_array($rows)) {
                 foreach ($rows as $r) {

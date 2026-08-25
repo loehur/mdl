@@ -12,7 +12,7 @@ if (strlen($nama_pelanggan) > 20) {
 $labeled = false;
 $canUnbindKurir = ((int) ($modeView ?? 0) === 1);
 
-$renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick) {
+$renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, $surcasUnbindable = []) {
   if ($code === '') {
     return '';
   }
@@ -30,6 +30,7 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick) 
   $out = '';
   foreach ($parts as $part) {
     $jenis = $part === 'J' ? 'jemput' : 'antar';
+    $clickable = $canClick;
     if ($kind === 'riwayat') {
       $title = $part === 'J'
         ? 'Sudah dijemput (riwayat) — klik untuk lepas'
@@ -37,18 +38,24 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick) 
       $class = 'mdl-dlv-badge mdl-dlv-badge--' . strtolower($part);
       $label = $part;
     } else {
-      $title = $part === 'J'
-        ? 'Surcas jemput terikat — klik untuk lepas binding'
-        : 'Surcas antar terikat — klik untuk lepas binding';
+      $canUnbindSurcas = !empty($surcasUnbindable[$jenis]);
+      $clickable = $canClick && $canUnbindSurcas;
+      $title = $canUnbindSurcas
+        ? ($part === 'J'
+          ? 'Surcas jemput terikat — klik untuk lepas binding item ini saja'
+          : 'Surcas antar terikat — klik untuk lepas binding item ini saja')
+        : ($part === 'J'
+          ? 'Surcas jemput terikat — item tunggal, gunakan Hapus surcas di baris nota'
+          : 'Surcas antar terikat — item tunggal, gunakan Hapus surcas di baris nota');
       $class = 'mdl-kurir-bind-badge mdl-kurir-bind-badge--' . strtolower($part);
       $label = '$' . $part;
     }
-    if ($canClick) {
+    if ($clickable) {
       $class .= ' mdl-kurir-unbind-badge';
     }
     $out .= " <span class='" . $class . "'"
       . " title='" . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . "'"
-      . ($canClick
+      . ($clickable
         ? (" data-kind='" . htmlspecialchars($kind, ENT_QUOTES, 'UTF-8') . "'"
           . " data-jenis='" . htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') . "'"
           . " data-id='" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "'"
@@ -539,10 +546,12 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick) 
 
               <td class='pb-0'>
                 <small><?= $id ?><?php
+                  $surcasUnbindMap = $data['kurir_surcas_unbindable'][$id]
+                    ?? ($data['kurir_surcas_unbindable'][(string) $id] ?? []);
                   $dlvBadge = $data['delivery_badge'][$id] ?? ($data['delivery_badge'][(string) $id] ?? '');
-                  echo $renderKurirUnbindBadges($id, $ref, $dlvBadge, 'riwayat', $canUnbindKurir);
+                  echo $renderKurirUnbindBadges($id, $ref, $dlvBadge, 'riwayat', $canUnbindKurir, $surcasUnbindMap);
                   $bindBadge = $data['kurir_bind_badge'][$id] ?? ($data['kurir_bind_badge'][(string) $id] ?? '');
-                  echo $renderKurirUnbindBadges($id, $ref, $bindBadge, 'surcas', $canUnbindKurir);
+                  echo $renderKurirUnbindBadges($id, $ref, $bindBadge, 'surcas', $canUnbindKurir, $surcasUnbindMap);
                 ?></small><br><b><?= $kategoriHtml ?></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <?php if ($canEditQty) { ?>
                   <b><span class="editQty" style="cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-style:dotted;"
