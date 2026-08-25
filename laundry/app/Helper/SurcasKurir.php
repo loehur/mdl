@@ -364,7 +364,6 @@ class SurcasKurir
         int $idCabang,
         array $ids,
         int $jumlah,
-        int $idUser,
         int $jenisSurcas,
         int $idDeliveryRequest,
         string $label,
@@ -449,7 +448,6 @@ class SurcasKurir
 
         $set = [
             'jumlah' => $jumlah,
-            'id_user' => (int) $idUser,
             'dari_delivery' => 1,
         ];
         if ($idDeliveryRequest > 0) {

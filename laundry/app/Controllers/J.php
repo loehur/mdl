@@ -3168,7 +3168,6 @@ class J extends Controller
             $idCabang,
             $ids,
             $jumlah,
-            0,
             (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
             $idDeliveryRequest,
             'Pengantaran'

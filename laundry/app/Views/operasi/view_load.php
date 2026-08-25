@@ -719,16 +719,11 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
                     . " data-jenis='" . htmlspecialchars($jenisDlvCas, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
                     . " data-jumlah='" . htmlspecialchars((string) $jumlahCas, ENT_QUOTES, 'UTF-8') . "'"
-                    . " data-pengisi='" . htmlspecialchars((string) ((int) ($sca['id_user'] ?? 0)), ENT_QUOTES, 'UTF-8') . "'"
                     . " data-id-surcas='" . htmlspecialchars((string) $id_surcas, ENT_QUOTES, 'UTF-8') . "'"
                     . "><i class='far fa-circle'></i> " . $labelDlvCas . "</a><br>";
                 }
               } else {
-                $userCas = "?";
-                if (isset($this->userAll[$sca['id_user']]['nama_user'])) {
-                  $userCas = $this->userAll[$sca['id_user']]['nama_user'];
-                }
-                $tglCas = "<b><i class='fas fa-check-circle text-success'></i> " . $userCas . "</b> Input <span style='white-space: pre;'>" . date('d/m H:i', strtotime($sca['insertTime'])) . "</span><br>";
+                $tglCas = "<b><i class='fas fa-check-circle text-success'></i> Input <span style='white-space: pre;'>" . date('d/m H:i', strtotime($sca['insertTime'])) . "</span></b><br>";
               }
 
               $boundDeliveryReq = (int) ($sca['id_delivery_request'] ?? 0) > 0;
@@ -1516,7 +1511,7 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
               $(this).attr('data-jenis') || '',
               $(this).attr('data-ref') || '',
               $(this).attr('data-jumlah'),
-              $(this).attr('data-pengisi'),
+              0,
               $(this).attr('data-id-surcas')
           );
       });

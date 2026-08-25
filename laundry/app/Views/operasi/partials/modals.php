@@ -2089,25 +2089,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       </select>
       <small id="kurirPenyelesaiHint" class="kurir-hint" style="margin:4px 0 0;display:none"></small>
     </div>
-    <div class="kurir-field" id="kurirPengisiSurcasWrap">
-      <label class="kurir-label" for="kurirPengisiSurcas">Pengisi Surcas (wajib)</label>
-      <select id="kurirPengisiSurcas" class="tize" style="width:100%" required>
-        <option value="">— Pilih pengisi surcas —</option>
-        <optgroup label="<?= htmlspecialchars(($this->dCabang['nama'] ?? '') . ' [' . ($this->dCabang['kode_cabang'] ?? '') . ']', ENT_QUOTES, 'UTF-8') ?>">
-          <?php foreach ($this->user as $a) { ?>
-            <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
-          <?php } ?>
-        </optgroup>
-        <?php if (!empty($this->userCabang)) { ?>
-          <optgroup label="---- Cabang Lain ----">
-            <?php foreach ($this->userCabang as $a) { ?>
-              <option value="<?= (int) $a['id_user'] ?>"><?= (int) $a['id_user'] . '-' . strtoupper($a['nama_user']) ?></option>
-            <?php } ?>
-          </optgroup>
-        <?php } ?>
-      </select>
-      <small id="kurirPengisiSurcasHint" class="kurir-hint" style="margin:4px 0 0;display:none"></small>
-    </div>
     <div class="kurir-actions">
       <button type="button" class="kurir-btn kurir-btn--ghost" data-bs-dismiss="offcanvas">Batal</button>
       <button type="button" class="kurir-btn kurir-btn--go" id="kurirSubmit">
@@ -2126,11 +2107,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   var tarifUrl = String(root.getAttribute('data-tarif-url') || '');
   var submitUrl = String(root.getAttribute('data-submit-url') || '');
   var kurirSelectize = null;
-  var kurirPengisiSelectize = null;
   var tarifLoading = false;
   var prefillNoRef = '';
   var prefillJumlah = '';
-  var prefillPengisi = 0;
   var prefillSurcasId = 0;
   var forceComplete = false;
 
@@ -2149,20 +2128,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     }
     if (kurirSelectize) {
       return parseInt(kurirSelectize.getValue() || '0', 10) || 0;
-    }
-    if (sel) {
-      return parseInt(sel.value || '0', 10) || 0;
-    }
-    return 0;
-  }
-
-  function currentPengisiSurcas() {
-    var sel = root.querySelector('#kurirPengisiSurcas');
-    if (sel && sel.selectize) {
-      return parseInt(sel.selectize.getValue() || '0', 10) || 0;
-    }
-    if (kurirPengisiSelectize) {
-      return parseInt(kurirPengisiSelectize.getValue() || '0', 10) || 0;
     }
     if (sel) {
       return parseInt(sel.value || '0', 10) || 0;
@@ -2260,10 +2225,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
     var salesWrap = document.getElementById('kurirSalesWrap');
     var karyWrap = document.getElementById('kurirKaryawanWrap');
-    var pengisiWrap = document.getElementById('kurirPengisiSurcasWrap');
     if (salesWrap) salesWrap.hidden = false;
     if (karyWrap) karyWrap.hidden = false;
-    if (pengisiWrap) pengisiWrap.hidden = false;
 
     var salesLabel = document.getElementById('kurirSalesLabel');
     var karyLabel = document.getElementById('kurirKaryawanLabel');
@@ -2469,80 +2432,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     return out;
   }
 
-  function setPengisiLocked(idUser, surcasExists) {
-    idUser = parseInt(idUser, 10) || 0;
-    surcasExists = !!surcasExists;
-    var prefillId = parseInt(prefillPengisi, 10) || 0;
-    if (idUser <= 0 && forceComplete && prefillId > 0) {
-      idUser = prefillId;
-    }
-    var wrap = root.querySelector('#kurirPengisiSurcasWrap');
-    var sel = root.querySelector('#kurirPengisiSurcas');
-    var hint = document.getElementById('kurirPengisiSurcasHint');
-    if (idUser <= 0 && !surcasExists) {
-      // Belum ada pengisi & belum ada surcas — tampilkan input.
-      if (wrap) wrap.style.display = '';
-      if (kurirPengisiSelectize && typeof kurirPengisiSelectize.unlock === 'function') {
-        kurirPengisiSelectize.unlock();
-      }
-      if (sel) sel.disabled = false;
-      if (hint) {
-        hint.style.display = 'none';
-        hint.textContent = '';
-      }
-      return;
-    }
-    // Surcas sudah ada — pengisi tidak bisa diisi/diubah lagi.
-    // Sembunyikan input, tampilkan info siapa pengisinya.
-    var optText = idUser > 0 ? String(idUser) : '';
-    if (sel && idUser > 0) {
-      var opt = sel.querySelector('option[value="' + idUser + '"]');
-      if (opt && opt.textContent) optText = opt.textContent.trim();
-    }
-    var labelPengisi = idUser > 0
-      ? (forceComplete ? 'Pengisi surcas sudah tercatat — ' : 'Sudah ada di nota — ') + optText
-      : 'Surcas dari customer (portal J) — pengisi tidak bisa diubah';
-    if (wrap) wrap.style.display = 'none';
-    if (kurirPengisiSelectize) {
-      if (idUser > 0) {
-        if (!kurirPengisiSelectize.options[String(idUser)]) {
-          kurirPengisiSelectize.addOption({ value: String(idUser), text: optText });
-        }
-        kurirPengisiSelectize.setValue(String(idUser), true);
-      }
-      if (typeof kurirPengisiSelectize.lock === 'function') {
-        kurirPengisiSelectize.lock();
-      }
-    } else if (sel) {
-      sel.value = idUser > 0 ? String(idUser) : '';
-      sel.disabled = true;
-    }
-    if (hint) {
-      hint.style.display = 'block';
-      hint.textContent = labelPengisi;
-    }
-  }
-
-  function unlockPengisi() {
-    var wrap = root.querySelector('#kurirPengisiSurcasWrap');
-    var sel = root.querySelector('#kurirPengisiSurcas');
-    var hint = document.getElementById('kurirPengisiSurcasHint');
-    if (wrap) wrap.style.display = '';
-    if (kurirPengisiSelectize) {
-      if (typeof kurirPengisiSelectize.unlock === 'function') {
-        kurirPengisiSelectize.unlock();
-      }
-      kurirPengisiSelectize.setValue('', true);
-    } else if (sel) {
-      sel.disabled = false;
-      sel.value = '';
-    }
-    if (hint) {
-      hint.style.display = 'none';
-      hint.textContent = '';
-    }
-  }
-
   function syncSurcasLock() {
     var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
     var isJemput = jenis === 'jemput';
@@ -2595,32 +2484,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       hintA,
       (isAntar || isCombo) ? antarUnlocked : ''
     );
-
-    var pengisiId = parseInt(prefillPengisi, 10) || 0;
-    var existUser = 0;
-    var surcasExists = false;
-    if (isJemput) {
-      existUser = existJ.user || 0;
-      surcasExists = existJ.jumlah !== null;
-    } else if (isAntar) {
-      existUser = existA.user || 0;
-      surcasExists = existA.jumlah !== null;
-    } else if (isCombo) {
-      existUser = existJ.user || existA.user || 0;
-      surcasExists = existJ.jumlah !== null || existA.jumlah !== null;
-    }
-    if (pengisiId <= 0) {
-      pengisiId = existUser;
-    }
-    // Aturan: begitu surcas dibuat, pengisi tidak bisa diisi/diubah lagi.
-    // Surcas sudah ada (dari kasir / portal J) -> sembunyikan input pengisi,
-    // tampilkan info pengisi (nama karyawan, atau Customer jika id_user=0).
-    var lockPengisi = surcasExists && (forceComplete || !forceComplete);
-    if (lockPengisi) {
-      setPengisiLocked(pengisiId, surcasExists);
-    } else {
-      setPengisiLocked(0, false);
-    }
   }
 
   function renderSales(orders) {
@@ -2827,15 +2690,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       }
       if (kurirSelectize) kurirSelectize.on('change', onKaryawanChange);
     }
-    var elPengisi = root.querySelector('#kurirPengisiSurcas');
-    if (elPengisi) {
-      var $pengisi = jQuery(elPengisi);
-      if (elPengisi.selectize) kurirPengisiSelectize = elPengisi.selectize;
-      else kurirPengisiSelectize = $pengisi.selectize({ allowEmptyOption: true })[0].selectize;
-      if (forceComplete && (parseInt(prefillPengisi, 10) || 0) > 0) {
-        setPengisiLocked(parseInt(prefillPengisi, 10));
-      }
-    }
   }
 
   root.addEventListener('shown.bs.offcanvas', function () {
@@ -2846,12 +2700,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
   root.addEventListener('hidden.bs.offcanvas', function () {
     prefillNoRef = '';
     prefillJumlah = '';
-    prefillPengisi = 0;
     prefillSurcasId = 0;
     forceComplete = false;
     var sel = document.getElementById('kurirJenis');
     if (sel) sel.disabled = false;
-    unlockPengisi();
     if (kurirSelectize && typeof kurirSelectize.unlock === 'function') {
       kurirSelectize.unlock();
     } else {
@@ -2889,15 +2741,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       return;
     }
     var idKaryawan = currentPenyelesai();
-    var idPengisiSurcas = currentPengisiSurcas();
-    var surcasAda = surcasSudahAda();
-    // Saat membuat request baru (bukan force/penyelesaian): pengisi surcas wajib.
-    // Saat force (selesai antar/jemput): kalau surcas sudah ada (dari kasir/portal J),
-    // pengisi tidak bisa diisi — lewati; backend tidak menimpa id_user existing.
-    if (idPengisiSurcas <= 0 && !forceComplete) {
-      toast('Wajib pilih pengisi surcas', 'warn');
-      return;
-    }
     if (forceComplete && idKaryawan <= 0) {
       toast('Wajib pilih petugas', 'warn');
       return;
@@ -2959,10 +2802,6 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     fd.append('id_pelanggan', String(currentPelanggan()));
     fd.append('jenis', jenis);
     fd.append('id_karyawan', String(idKaryawan));
-    // Surcas sudah ada -> jangan kirim pengisi (tidak boleh diubah).
-    if (!surcasAda) {
-      fd.append('id_pengisi_surcas', String(idPengisiSurcas));
-    }
     if (forceComplete) {
       fd.append('selesai_only', '1');
       if (prefillSurcasId > 0) {
@@ -3010,15 +2849,11 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     forceComplete = true;
     prefillNoRef = String(noRef || '');
     prefillJumlah = (jumlah === 0 || jumlah) ? String(jumlah) : '';
-    prefillPengisi = parseInt(pengisi, 10) || 0;
     prefillSurcasId = parseInt(idSurcas, 10) || 0;
     var sel = document.getElementById('kurirJenis');
     if (sel) {
       sel.value = jenis;
       sel.disabled = true;
-    }
-    if (prefillPengisi > 0) {
-      setPengisiLocked(prefillPengisi);
     }
     syncJenisUi();
     if (window.bootstrap && bootstrap.Offcanvas) {

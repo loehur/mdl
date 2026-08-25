@@ -592,7 +592,6 @@ class Operasi extends Controller
             'nama' => $mapSurcas[(int) ($sca['id_jenis_surcas'] ?? 0)] ?? 'Surcas',
             'jumlah' => $jumlah,
             'time' => $fmt($sca['insertTime'] ?? ''),
-            'user' => $userName($sca['id_user'] ?? ''),
          ];
       }
 

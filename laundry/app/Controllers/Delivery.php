@@ -438,8 +438,8 @@ class Delivery extends Controller
 
    /**
     * Dari Operasi FAB Kurir.
-    * Surcas selalu ditulis ke nota (wajib pilih item + pengisi surcas). Request lama di board diikat (reuse).
-    * Penyelesai (id_karyawan) masuk riwayat delivery; pengisi surcas (id_pengisi_surcas) masuk baris surcas.
+    * Surcas selalu ditulis ke nota (wajib pilih item). Request lama di board diikat (reuse).
+    * Penyelesai (id_karyawan) masuk riwayat delivery.
     * - jemput: selesai + surcas jemput (+ tutup request jemput jika ada)
     * - antar tanpa penyelesai: request antar + surcas antar ke nota
     * - antar + penyelesai: selesai + surcas antar (+ tutup request antar jika ada)
@@ -458,7 +458,6 @@ class Delivery extends Controller
          $idPelanggan = (int) ($_POST['id_pelanggan'] ?? 0);
          $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
          $idKaryawan = (int) ($_POST['id_karyawan'] ?? 0);
-         $idPengisiSurcas = (int) ($_POST['id_pengisi_surcas'] ?? 0);
          $preferSurcasId = (int) ($_POST['id_surcas'] ?? 0);
          $wantPendingAntar = in_array((string) ($_POST['pending'] ?? '0'), ['1', 'true', 'on', 'yes'], true);
 
@@ -484,24 +483,6 @@ class Delivery extends Controller
          if (!in_array($jenis, ['jemput', 'antar', 'jemput_antar'], true)) {
             throw new Exception('Pilih jenis jemput / antar / jemput & antar');
          }
-         if ($idPengisiSurcas <= 0) {
-            throw new Exception('Wajib pilih pengisi surcas');
-         }
-         if ($preferSurcasId > 0) {
-            $scPengisi = $this->db(0)->get_where_row('surcas', 'id_surcas = ' . $preferSurcasId);
-            $existingPengisi = (int) ($scPengisi['id_user'] ?? 0);
-            if ($existingPengisi > 0) {
-               if ($idPengisiSurcas !== $existingPengisi) {
-                  throw new Exception('Pengisi surcas sudah tercatat di nota, tidak bisa diubah');
-               }
-               $idPengisiSurcas = $existingPengisi;
-            }
-         }
-         $pengisi = $this->db(0)->get_where_row('user', 'id_user = ' . $idPengisiSurcas . ' AND en = 1');
-         if (!$pengisi) {
-            throw new Exception('Pengisi surcas tidak ditemukan');
-         }
-
          $pel = $this->db(0)->get_where_row(
             'pelanggan',
             'id_pelanggan = ' . $idPelanggan . ' AND id_cabang = ' . $idCabang
@@ -579,7 +560,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahSurcas,
-               $idPengisiSurcas,
                $idReqJemput,
                $preferSurcasId
             );
@@ -627,7 +607,6 @@ class Delivery extends Controller
                   $idCabang,
                   $ids,
                   $jumlahAntar,
-                  $idPengisiSurcas,
                   $idAntar
                );
                $msg .= $antarBound
@@ -729,7 +708,6 @@ class Delivery extends Controller
                      $idCabang,
                      $ids,
                      $tarifSurcas,
-                     $idPengisiSurcas,
                      $idReqAntar,
                      $preferSurcasId
                   );
@@ -782,7 +760,6 @@ class Delivery extends Controller
                   $idCabang,
                   $ids,
                   $tarifSurcas,
-                  $idPengisiSurcas,
                   $idReqAntar
                );
                if (!empty($surcasAntar['skipped'])) {
@@ -865,7 +842,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $tarifSurcas,
-               $idPengisiSurcas,
                $idRequest
             );
 
@@ -1129,7 +1105,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahSurcas,
-               $idKaryawan,
                0
             );
          }
@@ -1140,7 +1115,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahAntarOnly,
-               $idKaryawan,
                0
             );
          }
@@ -1301,7 +1275,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahSurcas,
-               $idKaryawan,
                $idRequest,
                $preferSurcasId
             );
@@ -1316,7 +1289,6 @@ class Delivery extends Controller
                $idCabang,
                $ids,
                $jumlahAntar,
-               $idKaryawan,
                $idRequest,
                $preferSurcasId
             );
@@ -3373,7 +3345,6 @@ class Delivery extends Controller
       int $idCabang,
       array $ids,
       int $jumlah,
-      int $idUser,
       int $idDeliveryRequest = 0,
       int $preferSurcasId = 0
    ): array {
@@ -3385,7 +3356,6 @@ class Delivery extends Controller
          $idCabang,
          $ids,
          $jumlah,
-         $idUser,
          (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
          $idDeliveryRequest,
          'Penjemputan',
@@ -3405,7 +3375,6 @@ class Delivery extends Controller
       int $idCabang,
       array $ids,
       int $jumlah,
-      int $idUser,
       int $idDeliveryRequest = 0,
       int $preferSurcasId = 0
    ): array {
@@ -3417,7 +3386,6 @@ class Delivery extends Controller
          $idCabang,
          $ids,
          $jumlah,
-         $idUser,
          (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
          $idDeliveryRequest,
          'Pengantaran',
