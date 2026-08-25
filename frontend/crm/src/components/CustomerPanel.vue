@@ -1278,10 +1278,7 @@ onUnmounted(() => {
               {{ phoneAlt ? "Edit" : "+ Tambah" }}
             </button>
           </div>
-          <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)]">
-            Customer belum terhubung ke data laundry, nomor tidak bisa diubah.
-          </p>
-          <div v-else class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] space-y-2">
+          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] space-y-2">
             <p v-if="phoneLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat…</p>
             <template v-else>
               <div class="flex items-center gap-2">
@@ -1298,35 +1295,40 @@ onUnmounted(() => {
                   {{ copiedPhoneKey === "C" ? "Copied!" : "Copy" }}
                 </button>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-green)] text-white">P</span>
-                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
-                  {{ phonePrimary ? formatPhoneTo08(phonePrimary) : "—" }}
-                </p>
-                <button
-                  v-if="phonePrimary"
-                  type="button"
-                  class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
-                  @click="copyPhoneNumber(phonePrimary, 'P')"
-                >
-                  {{ copiedPhoneKey === "P" ? "Copied!" : "Copy" }}
-                </button>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">S</span>
-                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
-                  {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
-                </p>
-                <button
-                  v-if="phoneAlt"
-                  type="button"
-                  class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
-                  @click="copyPhoneNumber(phoneAlt, 'S')"
-                >
-                  {{ copiedPhoneKey === "S" ? "Copied!" : "Copy" }}
-                </button>
-              </div>
+              <template v-if="custId">
+                <div class="flex items-center gap-2">
+                  <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-green)] text-white">P</span>
+                  <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
+                    {{ phonePrimary ? formatPhoneTo08(phonePrimary) : "—" }}
+                  </p>
+                  <button
+                    v-if="phonePrimary"
+                    type="button"
+                    class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
+                    @click="copyPhoneNumber(phonePrimary, 'P')"
+                  >
+                    {{ copiedPhoneKey === "P" ? "Copied!" : "Copy" }}
+                  </button>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">S</span>
+                  <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate flex-1">
+                    {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
+                  </p>
+                  <button
+                    v-if="phoneAlt"
+                    type="button"
+                    class="text-[var(--wa-accent-green)] text-xs font-bold flex-shrink-0"
+                    @click="copyPhoneNumber(phoneAlt, 'S')"
+                  >
+                    {{ copiedPhoneKey === "S" ? "Copied!" : "Copy" }}
+                  </button>
+                </div>
+              </template>
             </template>
+            <p v-if="!custId" class="text-[11px] text-[var(--wa-text-tertiary)]">
+              Customer belum terhubung ke data laundry — P/S hanya tampil setelah terhubung.
+            </p>
           </div>
         </section>
 
