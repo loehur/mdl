@@ -38,15 +38,16 @@ class PelangganStore
         }
 
         $db = self::db();
-        $esc = $db->escape($n);
-        $rows = $db->query_array(
+        $like = '%' . $n;
+        $rows = $db->query(
             'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
              FROM pelanggan
-             WHERE id_cabang = ' . (int) $idCabang . ' AND ('
-                . WaSenderContext::likeSql($esc, 'nomor_pelanggan')
-                . ' OR ' . WaSenderContext::likeSql($esc, 'nomor_pelanggan_2') . ')
-             ORDER BY id_pelanggan DESC'
-        );
+             WHERE id_cabang = ? AND ('
+                . WaSenderContext::sqlDigitsExpr('nomor_pelanggan') . ' LIKE ?'
+                . ' OR ' . WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2') . ' LIKE ?)
+             ORDER BY id_pelanggan DESC',
+            [(int) $idCabang, $like, $like]
+        )->result_array();
 
         $items = [];
         $seen = [];
@@ -83,9 +84,11 @@ class PelangganStore
         }
 
         $db = self::db();
-        $namaEsc = $db->escape($nama);
-        $where = 'id_cabang = ' . (int) $idCabang . " AND nama_pelanggan = '" . $namaEsc . "'";
-        if ($db->count_where('pelanggan', $where) > 0) {
+        $dup = $db->query(
+            'SELECT COUNT(*) AS c FROM pelanggan WHERE id_cabang = ? AND nama_pelanggan = ?',
+            [(int) $idCabang, $nama]
+        )->row_array();
+        if (!empty($dup['c'])) {
             return ['ok' => 0, 'msg' => 'Gagal! nama ' . $nama . ' sudah digunakan'];
         }
 
@@ -107,23 +110,27 @@ class PelangganStore
             }
         }
 
-        $do = $db->insert('pelanggan', [
+        $insertData = [
             'id_cabang' => (int) $idCabang,
             'nama_pelanggan' => $nama,
             'nomor_pelanggan' => $hp,
-            'nomor_pelanggan_2' => $hp2 !== '' ? $hp2 : null,
-        ]);
-        if (($do['errno'] ?? 1) != 0) {
-            self::log('[PelangganStore::tambah] ' . ($do['error'] ?? ''));
+        ];
+        if ($hp2 !== '') {
+            $insertData['nomor_pelanggan_2'] = $hp2;
+        }
+        $do = $db->insert('pelanggan', $insertData);
+        if ($do === false) {
+            self::log('[PelangganStore::tambah] insert failed');
             return ['ok' => 0, 'msg' => 'Gagal menyimpan pelanggan'];
         }
 
-        $row = $db->get_where_order(
-            'pelanggan',
-            'id_cabang = ' . (int) $idCabang . " AND nama_pelanggan = '" . $namaEsc . "'",
-            'id_pelanggan DESC'
-        );
-        $new = is_array($row) && isset($row[0]) ? $row[0] : null;
+        $rows = $db->query(
+            'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
+             FROM pelanggan WHERE id_cabang = ? AND nama_pelanggan = ?
+             ORDER BY id_pelanggan DESC LIMIT 1',
+            [(int) $idCabang, $nama]
+        )->result_array();
+        $new = isset($rows[0]) ? $rows[0] : null;
         if (!$new) {
             return ['ok' => 0, 'msg' => 'Tersimpan, tetapi ID tidak ditemukan. Refresh halaman.'];
         }
@@ -144,10 +151,11 @@ class PelangganStore
         }
 
         $db = self::db();
-        $row = $db->get_where_row(
-            'pelanggan',
-            'id_cabang = ' . (int) $idCabang . ' AND id_pelanggan = ' . $id
-        );
+        $row = $db->query(
+            'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
+             FROM pelanggan WHERE id_cabang = ? AND id_pelanggan = ? LIMIT 1',
+            [(int) $idCabang, $id]
+        )->row_array();
         if (!is_array($row) || empty($row['id_pelanggan'])) {
             return ['ok' => 0, 'msg' => 'Pelanggan tidak ditemukan'];
         }
@@ -155,21 +163,21 @@ class PelangganStore
         $namaLama = trim((string) ($row['nama_pelanggan'] ?? ''));
         $nama = strtoupper(trim($nama));
         if ($nama !== '' && strcasecmp($nama, $namaLama) !== 0) {
-            $namaEsc = $db->escape($nama);
-            $dup = $db->count_where(
-                'pelanggan',
-                'id_cabang = ' . (int) $idCabang . " AND nama_pelanggan = '" . $namaEsc . "' AND id_pelanggan <> " . $id
-            );
-            if ($dup > 0) {
+            $dup = $db->query(
+                'SELECT COUNT(*) AS c FROM pelanggan
+                 WHERE id_cabang = ? AND nama_pelanggan = ? AND id_pelanggan <> ?',
+                [(int) $idCabang, $nama, $id]
+            )->row_array();
+            if (!empty($dup['c'])) {
                 return ['ok' => 0, 'msg' => 'Gagal! nama ' . $nama . ' sudah digunakan'];
             }
             $up = $db->update(
                 'pelanggan',
                 ['nama_pelanggan' => $nama],
-                'id_cabang = ' . (int) $idCabang . ' AND id_pelanggan = ' . $id
+                ['id_cabang' => (int) $idCabang, 'id_pelanggan' => $id]
             );
-            if (!empty($up['errno'])) {
-                return ['ok' => 0, 'msg' => $up['error'] ?? 'Gagal mengubah nama'];
+            if ($up === false) {
+                return ['ok' => 0, 'msg' => 'Gagal mengubah nama'];
             }
             $namaLama = $nama;
         }
@@ -206,30 +214,39 @@ class PelangganStore
         }
 
         $db = self::db();
-        $namaEsc = $db->escape($nama);
-        $dup = $db->count_where(
-            'pelanggan',
-            'id_cabang = ' . (int) $idCabang . " AND nama_pelanggan = '" . $namaEsc . "' AND id_pelanggan <> " . $id
-        );
-        if ($dup > 0) {
+        $dup = $db->query(
+            'SELECT COUNT(*) AS c FROM pelanggan
+             WHERE id_cabang = ? AND nama_pelanggan = ? AND id_pelanggan <> ?',
+            [(int) $idCabang, $nama, $id]
+        )->row_array();
+        if (!empty($dup['c'])) {
             return ['ok' => 0, 'msg' => 'Gagal! nama ' . $nama . ' sudah digunakan'];
         }
 
         $set = [
             'nama_pelanggan' => $nama,
             'nomor_pelanggan' => $nomor,
-            'nomor_pelanggan_2' => $nomor2 !== '' ? $nomor2 : null,
         ];
+        if ($nomor2 !== '') {
+            $set['nomor_pelanggan_2'] = $nomor2;
+        }
         if ($canEditDisc) {
             $set['disc'] = $disc;
         }
         $up = $db->update(
             'pelanggan',
             $set,
-            'id_cabang = ' . (int) $idCabang . ' AND id_pelanggan = ' . $id
+            ['id_cabang' => (int) $idCabang, 'id_pelanggan' => $id]
         );
-        if (($up['errno'] ?? 1) != 0) {
-            return ['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update'];
+        if ($up === false) {
+            return ['ok' => 0, 'msg' => 'Gagal update'];
+        }
+        if ($nomor2 === '') {
+            $db->query(
+                'UPDATE pelanggan SET nomor_pelanggan_2 = NULL
+                 WHERE id_cabang = ? AND id_pelanggan = ?',
+                [(int) $idCabang, $id]
+            );
         }
 
         return ['ok' => 1];
@@ -270,10 +287,10 @@ class PelangganStore
         $up = $db->update(
             'pelanggan',
             [$col => $value],
-            'id_cabang = ' . (int) $idCabang . ' AND id_pelanggan = ' . $id
+            ['id_cabang' => (int) $idCabang, 'id_pelanggan' => $id]
         );
-        if (($up['errno'] ?? 1) != 0) {
-            return ['ok' => 0, 'msg' => $up['error'] ?? 'Gagal update'];
+        if ($up === false) {
+            return ['ok' => 0, 'msg' => 'Gagal update'];
         }
 
         return ['ok' => 1];
@@ -295,13 +312,13 @@ class PelangganStore
         // Nama harus unik di cabang sama — langsung tolak.
         $namaDup = null;
         if ($nama !== '') {
-            $namaEsc = $db->escape($nama);
-            $rows = $db->query_array(
+            $rows = $db->query(
                 'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan
                  FROM pelanggan
-                 WHERE id_cabang = ' . (int) $idCabang . " AND nama_pelanggan = '" . $namaEsc . "' AND id_pelanggan <> " . $id
-                    . ' ORDER BY id_pelanggan DESC'
-            );
+                 WHERE id_cabang = ? AND nama_pelanggan = ? AND id_pelanggan <> ?
+                 ORDER BY id_pelanggan DESC',
+                [(int) $idCabang, $nama, $id]
+            )->result_array();
             if (!empty($rows[0])) {
                 $namaDup = [
                     'id' => (int) ($rows[0]['id_pelanggan'] ?? 0),
@@ -334,15 +351,16 @@ class PelangganStore
             }
             $seen[$kunci] = $nc['label'];
 
-            $esc = $db->escape($n);
-            $rows = $db->query_array(
+            $like = '%' . $n;
+            $rows = $db->query(
                 'SELECT id_pelanggan, nama_pelanggan, nomor_pelanggan, nomor_pelanggan_2
                  FROM pelanggan
-                 WHERE id_cabang = ' . (int) $idCabang . ' AND id_pelanggan <> ' . $id
-                    . ' AND (' . WaSenderContext::likeSql($esc, 'nomor_pelanggan')
-                    . ' OR ' . WaSenderContext::likeSql($esc, 'nomor_pelanggan_2') . ')'
-                    . ' ORDER BY id_pelanggan DESC'
-            );
+                 WHERE id_cabang = ? AND id_pelanggan <> ? AND ('
+                    . WaSenderContext::sqlDigitsExpr('nomor_pelanggan') . ' LIKE ?'
+                    . ' OR ' . WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2') . ' LIKE ?)
+                 ORDER BY id_pelanggan DESC',
+                [(int) $idCabang, $id, $like, $like]
+            )->result_array();
             $items = [];
             foreach ((array) $rows as $r) {
                 $items[] = [
@@ -408,14 +426,14 @@ class PelangganStore
             }
             $n = WaSenderContext::toNomorNasional($nomor2);
             if ($n !== null && strlen($n) >= 8) {
-                $esc = $db->escape($n);
+                $like = '%' . $n;
                 $dup = $db->query(
                     'SELECT id_pelanggan FROM pelanggan
-                     WHERE id_cabang = ' . (int) $idCabang
-                        . ' AND id_pelanggan <> ' . $id
-                        . ' AND (' . WaSenderContext::likeSql($esc, 'nomor_pelanggan')
-                        . ' OR ' . WaSenderContext::likeSql($esc, 'nomor_pelanggan_2') . ')
-                     LIMIT 1'
+                     WHERE id_cabang = ? AND id_pelanggan <> ? AND ('
+                        . WaSenderContext::sqlDigitsExpr('nomor_pelanggan') . ' LIKE ?'
+                        . ' OR ' . WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2') . ' LIKE ?)
+                     LIMIT 1',
+                    [(int) $idCabang, $id, $like, $like]
                 )->row_array();
                 if (!empty($dup['id_pelanggan'])) {
                     return ['ok' => 0, 'msg' => 'Nomor alternatif sudah digunakan pelanggan lain di cabang yang sama'];
@@ -425,11 +443,17 @@ class PelangganStore
 
         $up = $db->update(
             'pelanggan',
-            ['nomor_pelanggan_2' => $nomor2 !== '' ? $nomor2 : null],
-            'id_pelanggan = ' . $id
+            ['nomor_pelanggan_2' => $nomor2],
+            ['id_pelanggan' => $id]
         );
-        if (!empty($up['errno'])) {
-            return ['ok' => 0, 'msg' => 'Gagal menyimpan nomor alternatif: ' . ($up['error'] ?? 'error')];
+        if ($up === false) {
+            return ['ok' => 0, 'msg' => 'Gagal menyimpan nomor alternatif'];
+        }
+        if ($nomor2 === '') {
+            $db->query(
+                'UPDATE pelanggan SET nomor_pelanggan_2 = NULL WHERE id_pelanggan = ?',
+                [$id]
+            );
         }
 
         return ['ok' => 1];
