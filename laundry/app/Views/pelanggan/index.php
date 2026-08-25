@@ -639,7 +639,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       </div>
     </div>
 
-    <div id="plg-edit-modal" class="plg-modal" aria-hidden="true">
+    <div id="plg-edit-modal" class="plg-modal is-hidden" aria-hidden="true">
       <div class="plg-modal__backdrop" data-plg-close></div>
       <div class="plg-modal__box" role="dialog" aria-modal="true" aria-labelledby="plg-edit-title">
         <div class="plg-modal__head">
