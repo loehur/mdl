@@ -344,71 +344,160 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   #plg-root .plg-modal {
     position: fixed;
     inset: 0;
-    z-index: 1060;
+    z-index: 5200;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
+    font-family: 'fontku', 'Segoe UI', sans-serif;
   }
   #plg-root .plg-modal.is-hidden { display: none; }
   #plg-root .plg-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(3px);
+    cursor: pointer;
   }
   #plg-root .plg-modal__box {
     position: relative;
-    width: 100%;
-    max-width: 420px;
-    max-height: 90vh;
-    overflow-y: auto;
+    z-index: 1;
+    width: min(440px, 100%);
+    max-height: min(92vh, 900px);
+    display: flex;
+    flex-direction: column;
     background: #fff;
     border: 1px solid #93c5fd;
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
-    padding: 18px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.3);
+    animation: plgModalIn .18s ease-out;
+    overflow: visible;
+  }
+  @keyframes plgModalIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: none; }
   }
   #plg-root .plg-modal__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    margin: -18px -18px 16px;
-    padding: 14px 18px;
+    gap: 12px;
+    padding: 14px 16px;
     background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
     color: #fff;
+    flex-shrink: 0;
   }
   #plg-root .plg-modal__head h3 {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
     font-size: 0.95rem;
     font-weight: 900;
     letter-spacing: -0.02em;
+    font-family: inherit;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
   }
   #plg-root .plg-modal__close {
+    width: 34px;
+    height: 34px;
     border: 0;
-    background: rgba(255, 255, 255, 0.18);
-    color: #fff;
+    background: rgba(255,255,255,.2);
+    color: inherit;
     font-size: 1.15rem;
     line-height: 1;
-    width: 26px;
-    height: 26px;
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    flex-shrink: 0;
   }
-  #plg-root .plg-modal__actions {
+  #plg-root .plg-modal__close:hover { background: rgba(255,255,255,.32); }
+  #plg-root .plg-modal__body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    background:
+      radial-gradient(90% 60% at 0% 0%, rgba(37,99,235,.10), transparent 50%),
+      radial-gradient(80% 50% at 100% 0%, rgba(245,158,11,.10), transparent 45%),
+      linear-gradient(180deg, #eef4ff 0%, #f4fff8 50%, #fff8eb 100%);
+    color: var(--plg-ink);
+    font-weight: 750;
+    font-size: 0.88rem;
+  }
+  #plg-root .plg-modal__foot {
     display: flex;
-    gap: 8px;
     justify-content: flex-end;
-    margin-top: 14px;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    flex-shrink: 0;
   }
-  #plg-root .plg-btn--ghost {
-    background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
-    border-color: #94a3b8;
-    color: #0f172a;
-    text-shadow: none;
+  #plg-root .plg-label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--plg-muted);
   }
-  #plg-root .plg-btn--ghost:hover:not(:disabled) {
-    background: linear-gradient(180deg, #e2e8f0, #cbd5e1);
+  #plg-root .plg-field { margin-bottom: 12px; }
+  #plg-root .plg-field:last-child { margin-bottom: 0; }
+  #plg-root .plg-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 420px) {
+    #plg-root .plg-row { grid-template-columns: 1fr; }
+  }
+  #plg-root .plg-modal .plg-input {
+    width: 100%;
+    margin: 0;
+    border: 1px solid #94a3b8;
+    background: #fff;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--plg-ink);
+    outline: none;
+  }
+  #plg-root .plg-modal .plg-input:focus {
+    border-color: var(--plg-blue);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+  }
+  #plg-root .plg-modal .plg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border: 1px solid transparent;
+    font-size: 0.9rem;
+    font-weight: 900;
+    font-family: inherit;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+  #plg-root .plg-modal .plg-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  #plg-root .plg-modal .plg-btn--ghost {
+    background: #e2e8f0;
+    color: var(--plg-ink);
+    border-color: #cbd5e1;
+  }
+  #plg-root .plg-modal .plg-btn--ghost:hover:not(:disabled) {
+    background: #cbd5e1;
+  }
+  #plg-root .plg-modal .plg-btn--primary {
+    background: linear-gradient(180deg, #16a34a, #15803d);
+    color: #fff;
+    text-shadow: 0 1px 0 rgba(0,0,0,.18);
+  }
+  #plg-root .plg-modal .plg-btn--primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #22c55e, #16a34a);
   }
 
   #plg-root .plg-value--nama {
@@ -552,30 +641,44 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   </div>
 </div>
 
-<div id="plg-edit-modal" class="plg-modal is-hidden">
-  <div class="plg-modal__backdrop"></div>
-  <div class="plg-modal__box">
+<div id="plg-edit-modal" class="plg-modal" aria-hidden="true">
+  <div class="plg-modal__backdrop" data-plg-close></div>
+  <div class="plg-modal__box" role="dialog" aria-modal="true" aria-labelledby="plg-edit-title">
     <div class="plg-modal__head">
-      <h3>Edit Pelanggan</h3>
-      <button type="button" class="plg-modal__close" data-plg-close>&times;</button>
+      <h3 id="plg-edit-title"><i class="fas fa-pen"></i> Edit Pelanggan</h3>
+      <button type="button" class="plg-modal__close" data-plg-close aria-label="Tutup">&times;</button>
     </div>
     <form id="plg-edit-form" autocomplete="off">
       <input type="hidden" name="id" id="plg-edit-id">
-      <label class="ord-plg-label" for="plg-edit-nama">Nama/Panggilan</label>
-      <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="ord-plg-input" required>
-      <label class="ord-plg-label" for="plg-edit-nomor">Nomor HP</label>
-      <input type="text" id="plg-edit-nomor" name="nomor_pelanggan" class="ord-plg-input" required inputmode="tel">
-      <label class="ord-plg-label" for="plg-edit-nomor2">Nomor HP Alternatif</label>
-      <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="ord-plg-input" inputmode="tel">
-      <label class="ord-plg-label" for="plg-edit-alamat">Alamat</label>
-      <input type="text" id="plg-edit-alamat" name="alamat" class="ord-plg-input">
-      <?php if ($canEditPartner) { ?>
-        <label class="ord-plg-label" for="plg-edit-disc">Diskon Partner (%)</label>
-        <input type="number" id="plg-edit-disc" name="disc" class="ord-plg-input" min="0" max="100" step="1">
-      <?php } ?>
-      <div class="plg-modal__actions">
+      <div class="plg-modal__body">
+        <div class="plg-field">
+          <label class="plg-label" for="plg-edit-nama">Nama/Panggilan</label>
+          <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="plg-input" required>
+        </div>
+        <div class="plg-row">
+          <div class="plg-field">
+            <label class="plg-label" for="plg-edit-nomor">Nomor HP</label>
+            <input type="text" id="plg-edit-nomor" name="nomor_pelanggan" class="plg-input" required inputmode="tel">
+          </div>
+          <div class="plg-field">
+            <label class="plg-label" for="plg-edit-nomor2">HP Alternatif</label>
+            <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="plg-input" inputmode="tel">
+          </div>
+        </div>
+        <div class="plg-field">
+          <label class="plg-label" for="plg-edit-alamat">Alamat</label>
+          <input type="text" id="plg-edit-alamat" name="alamat" class="plg-input">
+        </div>
+        <?php if ($canEditPartner) { ?>
+          <div class="plg-field">
+            <label class="plg-label" for="plg-edit-disc">Diskon Partner (%)</label>
+            <input type="number" id="plg-edit-disc" name="disc" class="plg-input" min="0" max="100" step="1">
+          </div>
+        <?php } ?>
+      </div>
+      <div class="plg-modal__foot">
         <button type="button" class="plg-btn plg-btn--ghost" data-plg-close>Batal</button>
-        <button type="submit" class="plg-btn" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
+        <button type="submit" class="plg-btn plg-btn--primary" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
       </div>
     </form>
   </div>
@@ -644,7 +747,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     $('#plg-edit-nomor').val($btn.attr('data-nomor'));
     $('#plg-edit-nomor2').val($btn.attr('data-nomor2') || '');
     $('#plg-edit-alamat').val($btn.attr('data-alamat') || '');
-    $('#plg-edit-disc').val($btn.attr('data-disc') || '0');
+    var $disc = $('#plg-edit-disc');
+    if ($disc.length) $disc.val($btn.attr('data-disc') || '0');
     openEditModal();
   });
 
