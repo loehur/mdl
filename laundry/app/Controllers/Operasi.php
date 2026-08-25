@@ -791,6 +791,55 @@ class Operasi extends Controller
       echo json_encode(['status' => 'success', 'message' => 'Surcas berhasil dihapus.']);
    }
 
+   /**
+    * Lepas binding badge kurir dari item Operasi (riwayat delivery / surcas).
+    * POST: kind=riwayat|surcas, jenis=jemput|antar, id_penjualan, note
+    */
+   public function unbindKurirBadge()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+
+      $kind = strtolower(trim((string) ($_POST['kind'] ?? '')));
+      $jenis = strtolower(trim((string) ($_POST['jenis'] ?? '')));
+      $idPenjualan = $this->normalizeSaleId($_POST['id_penjualan'] ?? $_POST['id'] ?? '');
+      $note = trim((string) ($_POST['note'] ?? ''));
+
+      if (!in_array($kind, ['riwayat', 'surcas'], true)) {
+         echo json_encode(['status' => 'error', 'message' => 'Jenis unbind tidak valid.']);
+         return;
+      }
+      if (!in_array($jenis, ['jemput', 'antar'], true)) {
+         echo json_encode(['status' => 'error', 'message' => 'Pilih jenis jemput atau antar.']);
+         return;
+      }
+      if ($idPenjualan === '') {
+         echo json_encode(['status' => 'error', 'message' => 'ID item tidak valid.']);
+         return;
+      }
+      if ($note === '') {
+         echo json_encode(['status' => 'error', 'message' => 'Alasan unbind wajib diisi.']);
+         return;
+      }
+
+      $sale = $this->db(0)->get_where_row('sale', $this->whereSaleById($idPenjualan) . ' AND bin = 0');
+      $err = $this->validateOrderModifiable($sale);
+      if ($err !== null) {
+         echo json_encode(['status' => 'error', 'message' => $err]);
+         return;
+      }
+
+      try {
+         if ($kind === 'riwayat') {
+            $msg = $this->unbindDeliveryRiwayatForSale($idPenjualan, $jenis, $note, $sale);
+         } else {
+            $msg = $this->unbindSurcasBindingForSale($idPenjualan, $jenis, $note, $sale);
+         }
+         echo json_encode(['status' => 'success', 'message' => $msg]);
+      } catch (\Throwable $e) {
+         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+      }
+   }
+
    public function bayarMulti($karyawan, $idPelanggan, $metode = 2, $note = "")
    {
       $rekap = isset($_POST['rekap']) ? $_POST['rekap'][0] : [];
@@ -1802,6 +1851,179 @@ class Operasi extends Controller
       }
 
       return $dibayar;
+   }
+
+   private function unbindDeliveryRiwayatForSale(string $idPenjualan, string $jenis, string $note, array $sale): string
+   {
+      $idInt = (int) $idPenjualan;
+      if ($idInt <= 0) {
+         throw new \Exception('ID item tidak valid');
+      }
+      $jenisEsc = $this->db(0)->escape($jenis);
+      $rows = $this->db(0)->get_where(
+         'delivery_riwayat',
+         $this->wCabang . " AND id_penjualan = $idInt AND jenis = '$jenisEsc'"
+      );
+      if (!is_array($rows) || $rows === []) {
+         throw new \Exception('Riwayat ' . $jenis . ' tidak ditemukan untuk item ini');
+      }
+
+      $del = $this->db(0)->delete(
+         'delivery_riwayat',
+         $this->wCabang . " AND id_penjualan = $idInt AND jenis = '$jenisEsc'"
+      );
+      if (($del['errno'] ?? 1) != 0) {
+         $this->model('Log')->write("[Operasi::unbindKurirBadge] Gagal hapus riwayat $jenis id=$idPenjualan: " . ($del['error'] ?? ''));
+         throw new \Exception('Gagal melepas riwayat delivery. Silakan coba lagi.');
+      }
+
+      $ref = trim((string) ($sale['no_ref'] ?? ''));
+      $this->model('Log')->write(
+         "[Operasi::unbindKurirBadge] Riwayat $jenis item id=$idPenjualan nota $ref dihapus. Alasan: $note"
+      );
+
+      return 'Riwayat ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas';
+   }
+
+   private function unbindSurcasBindingForSale(string $idPenjualan, string $jenis, string $note, array $sale): string
+   {
+      $this->helper('AntarTarif');
+      $jenisSurcas = $jenis === 'antar'
+         ? (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
+         : (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN;
+      $idInt = (int) $idPenjualan;
+      if ($idInt <= 0) {
+         throw new \Exception('ID item tidak valid');
+      }
+
+      $ref = trim((string) ($sale['no_ref'] ?? ''));
+      if ($ref === '') {
+         throw new \Exception('Nota item tidak valid');
+      }
+      $refEsc = $this->db(0)->escape($ref);
+
+      $idSurcas = 0;
+      $legacyNota = false;
+
+      $this->helper('SurcasKurir');
+      $boundMap = SurcasKurir::boundSaleIds($this->db(0), [$idInt], $jenisSurcas);
+      if (!isset($boundMap[$idInt])) {
+         throw new \Exception('Binding surcas ' . $jenis . ' tidak ditemukan untuk item ini');
+      }
+
+      try {
+         $bindRows = $this->db(0)->query_array(
+            'SELECT id_surcas FROM surcas_item
+             WHERE id_penjualan = ' . $idInt . '
+               AND id_jenis_surcas = ' . $jenisSurcas . '
+             LIMIT 1'
+         );
+         if (is_array($bindRows) && !empty($bindRows[0]['id_surcas'])) {
+            $idSurcas = (int) $bindRows[0]['id_surcas'];
+         }
+      } catch (\Throwable $e) {
+         // surcas_item opsional
+      }
+
+      if ($idSurcas <= 0) {
+         $sc = $this->db(0)->get_where_row(
+            'surcas',
+            $this->wCabang
+               . " AND no_ref = '$refEsc'"
+               . ' AND id_jenis_surcas = ' . $jenisSurcas
+               . ' AND dari_delivery = 1'
+               . ' ORDER BY id_surcas DESC'
+         );
+         if (!is_array($sc) || empty($sc['id_surcas'])) {
+            throw new \Exception('Binding surcas ' . $jenis . ' tidak ditemukan untuk item ini');
+         }
+         $idSurcas = (int) $sc['id_surcas'];
+         $legacyNota = true;
+      }
+
+      $scRow = $this->db(0)->get_where_row('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+      if (!is_array($scRow) || empty($scRow['id_surcas'])) {
+         throw new \Exception('Surcas tidak ditemukan');
+      }
+      if ((int) ($scRow['id_delivery_request'] ?? 0) > 0) {
+         throw new \Exception('Surcas terikat delivery request — tidak dapat dilepas dari sini');
+      }
+
+      $dibayar = $this->getRefDibayar($ref);
+      $currentSubTotal = $this->getRefSubTotal($ref);
+      if ($dibayar > $currentSubTotal) {
+         throw new \Exception('Binding surcas tidak dapat dilepas karena order overpay');
+      }
+
+      if ($legacyNota) {
+         $salesOnRef = $this->db(0)->get_where('sale', $this->wCabang . " AND no_ref = '$refEsc' AND bin = 0");
+         $itemCount = is_array($salesOnRef) ? count($salesOnRef) : 0;
+
+         $newSubTotal = $this->getRefSubTotal($ref, [], [$idSurcas]);
+         $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+         if ($payErr !== null) {
+            throw new \Exception($payErr);
+         }
+
+         try {
+            $this->db(0)->delete('surcas_item', 'id_surcas = ' . $idSurcas);
+         } catch (\Throwable $e) {
+            // ignore
+         }
+         $del = $this->db(0)->delete('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+         if (($del['errno'] ?? 1) != 0) {
+            throw new \Exception('Gagal melepas surcas dari nota');
+         }
+
+         $this->resetBonNotif($ref);
+         $this->model('Log')->write(
+            "[Operasi::unbindKurirBadge] Surcas legacy $jenis id=$idSurcas nota $ref (item #$idPenjualan) dihapus. Alasan: $note"
+         );
+
+         $suffix = $itemCount > 1
+            ? ' (surcas nota dihapus — semua item di nota ini terlepas dari surcas ' . $jenis . ')'
+            : '';
+
+         return 'Binding surcas ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas' . $suffix;
+      }
+
+      try {
+         $this->db(0)->delete(
+            'surcas_item',
+            'id_penjualan = ' . $idInt . ' AND id_jenis_surcas = ' . $jenisSurcas . ' AND id_surcas = ' . $idSurcas
+         );
+      } catch (\Throwable $e) {
+         throw new \Exception('Gagal melepas binding surcas item');
+      }
+
+      $remaining = 0;
+      try {
+         $remaining = (int) ($this->db(0)->count_where(
+            'surcas_item',
+            'id_surcas = ' . $idSurcas . ' AND id_jenis_surcas = ' . $jenisSurcas
+         ) ?? 0);
+      } catch (\Throwable $e) {
+         $remaining = 0;
+      }
+
+      if ($remaining <= 0) {
+         $newSubTotal = $this->getRefSubTotal($ref, [], [$idSurcas]);
+         $payErr = $this->validatePaymentAfterChange($ref, $newSubTotal);
+         if ($payErr !== null) {
+            throw new \Exception($payErr);
+         }
+         $del = $this->db(0)->delete('surcas', $this->wCabang . ' AND id_surcas = ' . $idSurcas);
+         if (($del['errno'] ?? 1) != 0) {
+            throw new \Exception('Gagal menghapus baris surcas kosong');
+         }
+      }
+
+      $this->resetBonNotif($ref);
+      $this->model('Log')->write(
+         "[Operasi::unbindKurirBadge] Binding surcas $jenis item id=$idPenjualan (surcas #$idSurcas) dilepas. Alasan: $note"
+      );
+
+      return 'Binding surcas ' . $jenis . ' item #' . $idPenjualan . ' berhasil dilepas';
    }
 
    private function validateOrderModifiable($sale)

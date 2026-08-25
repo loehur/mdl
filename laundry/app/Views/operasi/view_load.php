@@ -10,6 +10,56 @@ if (strlen($nama_pelanggan) > 20) {
   $pelanggan_show = substr($nama_pelanggan, 0, 20) . "...";
 }
 $labeled = false;
+$canUnbindKurir = ((int) ($modeView ?? 0) === 1);
+
+$renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick) {
+  if ($code === '') {
+    return '';
+  }
+  $parts = [];
+  if ($code === 'JA' || $code === 'J') {
+    $parts[] = 'J';
+  }
+  if ($code === 'JA' || $code === 'A') {
+    $parts[] = 'A';
+  }
+  if ($parts === []) {
+    return '';
+  }
+
+  $out = '';
+  foreach ($parts as $part) {
+    $jenis = $part === 'J' ? 'jemput' : 'antar';
+    if ($kind === 'riwayat') {
+      $title = $part === 'J'
+        ? 'Sudah dijemput (riwayat) — klik untuk lepas'
+        : 'Sudah diantar (riwayat) — klik untuk lepas';
+      $class = 'mdl-dlv-badge mdl-dlv-badge--' . strtolower($part);
+      $label = $part;
+    } else {
+      $title = $part === 'J'
+        ? 'Surcas jemput terikat — klik untuk lepas binding'
+        : 'Surcas antar terikat — klik untuk lepas binding';
+      $class = 'mdl-kurir-bind-badge mdl-kurir-bind-badge--' . strtolower($part);
+      $label = '$' . $part;
+    }
+    if ($canClick) {
+      $class .= ' mdl-kurir-unbind-badge';
+    }
+    $out .= " <span class='" . $class . "'"
+      . " title='" . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . "'"
+      . ($canClick
+        ? (" data-kind='" . htmlspecialchars($kind, ENT_QUOTES, 'UTF-8') . "'"
+          . " data-jenis='" . htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') . "'"
+          . " data-id='" . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . "'"
+          . " data-ref='" . htmlspecialchars((string) $ref, ENT_QUOTES, 'UTF-8') . "'"
+          . " role='button' tabindex='0'")
+        : '')
+      . '>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>';
+  }
+
+  return $out;
+};
 ?>
 
 <div class="mdl-nota-grid">
@@ -490,22 +540,9 @@ $labeled = false;
               <td class='pb-0'>
                 <small><?= $id ?><?php
                   $dlvBadge = $data['delivery_badge'][$id] ?? ($data['delivery_badge'][(string) $id] ?? '');
-                  if ($dlvBadge !== '') {
-                    $dlvTitle = $dlvBadge === 'JA' ? 'Sudah dijemput & diantar (riwayat)' : ($dlvBadge === 'J' ? 'Sudah dijemput (riwayat)' : 'Sudah diantar (riwayat)');
-                    $dlvClass = $dlvBadge === 'JA' ? 'mdl-dlv-badge--ja' : ($dlvBadge === 'J' ? 'mdl-dlv-badge--j' : 'mdl-dlv-badge--a');
-                    echo " <span class='mdl-dlv-badge " . $dlvClass . "' title='" . htmlspecialchars($dlvTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($dlvBadge, ENT_QUOTES, 'UTF-8') . "</span>";
-                  }
+                  echo $renderKurirUnbindBadges($id, $ref, $dlvBadge, 'riwayat', $canUnbindKurir);
                   $bindBadge = $data['kurir_bind_badge'][$id] ?? ($data['kurir_bind_badge'][(string) $id] ?? '');
-                  if ($bindBadge !== '') {
-                    $bindLabel = '$' . $bindBadge;
-                    $bindTitle = $bindBadge === 'JA'
-                      ? 'Surcas jemput & antar sudah terikat — item tidak eligible di Kurir'
-                      : ($bindBadge === 'J'
-                        ? 'Surcas jemput sudah terikat — item tidak eligible di Kurir (Jemput)'
-                        : 'Surcas antar sudah terikat — item tidak eligible di Kurir (Antar)');
-                    $bindClass = $bindBadge === 'JA' ? 'mdl-kurir-bind-badge--ja' : ($bindBadge === 'J' ? 'mdl-kurir-bind-badge--j' : 'mdl-kurir-bind-badge--a');
-                    echo " <span class='mdl-kurir-bind-badge " . $bindClass . "' title='" . htmlspecialchars($bindTitle, ENT_QUOTES, 'UTF-8') . "'>" . htmlspecialchars($bindLabel, ENT_QUOTES, 'UTF-8') . "</span>";
-                  }
+                  echo $renderKurirUnbindBadges($id, $ref, $bindBadge, 'surcas', $canUnbindKurir);
                 ?></small><br><b><?= $kategoriHtml ?></b><span class='badge badge-light'></span><br><?= $durasiHtml ?><br>
                 <?php if ($canEditQty) { ?>
                   <b><span class="editQty" style="cursor:pointer;color:#1d4ed8;text-decoration:underline;text-decoration-style:dotted;"
@@ -1307,6 +1344,38 @@ $labeled = false;
     <div class="op-modal__foot">
       <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-hapus-item>Batal</button>
       <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiHapusItem"><i class="fas fa-trash-alt"></i> Hapus item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal konfirmasi unbind badge kurir (riwayat / surcas) -->
+<div class="op-modal" id="modalUnbindKurir" aria-hidden="true" data-op-static="1">
+  <div class="op-modal__backdrop" data-op-close data-close-unbind-kurir></div>
+  <div class="op-modal__panel" role="dialog" aria-modal="true" aria-labelledby="unbindKurirModalTitle">
+    <div class="op-modal__head op-modal__head--red">
+      <div>
+        <h3 id="unbindKurirModalTitle">Lepas binding kurir?</h3>
+        <small id="unbindKurirModalSub">Order harus belum tuntas</small>
+      </div>
+      <button type="button" class="op-modal__close" data-op-close data-close-unbind-kurir aria-label="Tutup"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="op-modal__body">
+      <p id="unbindKurirModalDesc" style="margin:0 0 12px;"></p>
+      <div class="op-alert" style="margin-top:0;margin-bottom:12px;">
+        <i class="fas fa-shield-alt"></i>
+        <span id="unbindKurirModalHint">Tindakan ini dicatat di log sistem.</span>
+      </div>
+      <div class="op-field">
+        <label class="op-label" for="unbindKurirNote">Alasan unbind <span style="color:#dc2626;">*</span></label>
+        <input type="text" id="unbindKurirNote" class="op-input" autocomplete="off" maxlength="255" placeholder="Contoh: salah input jemput">
+      </div>
+      <div id="unbindKurirFeedback" class="d-none" style="margin:10px 0 0;padding:10px 12px;border:1px solid #fca5a5;background:#fef2f2;color:#7f1d1d;font-size:0.86rem;line-height:1.45;border-radius:8px;">
+        <div id="unbindKurirFeedbackMessage"></div>
+      </div>
+    </div>
+    <div class="op-modal__foot">
+      <button type="button" class="op-btn op-btn--ghost" data-op-close data-close-unbind-kurir>Batal</button>
+      <button type="button" class="op-btn op-btn--danger" id="btnKonfirmasiUnbindKurir"><i class="fas fa-unlink"></i> Lepas binding</button>
     </div>
   </div>
 </div>

@@ -336,6 +336,13 @@ if ($id_pelanggan > 0 && isset($this->pelanggan[$id_pelanggan]) && is_array($thi
     background: #ecfdf5;
     color: #047857;
   }
+  #load.operasi-load .mdl-kurir-unbind-badge {
+    cursor: pointer;
+  }
+  #load.operasi-load .mdl-kurir-unbind-badge:hover {
+    filter: brightness(0.96);
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+  }
   .operasi-filter {
     width: 100%;
     max-width: 100%;

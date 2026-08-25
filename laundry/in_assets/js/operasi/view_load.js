@@ -1636,6 +1636,157 @@
   });
   // --- Akhir hapus surcas Antar/Jemput ---
 
+  function opToast(msg, type) {
+    type = type || 'info';
+    if (window.MdlToast) {
+      if (type === 'error' || type === 'danger') return MdlToast.error(msg);
+      if (type === 'warn' || type === 'warning') return MdlToast.warn(msg);
+      if (type === 'ok' || type === 'success') return MdlToast.ok(msg);
+      return MdlToast.info(msg);
+    }
+    console.log('[toast:' + type + ']', msg);
+  }
+
+  function tutupModalUnbindKurir() {
+    if (window.OpModal) window.OpModal.close('modalUnbindKurir');
+    else $('#modalUnbindKurir').removeClass('is-open').attr('aria-hidden', 'true');
+    $('#unbindKurirFeedback').addClass('d-none');
+    $('#unbindKurirFeedbackMessage').text('');
+  }
+
+  function showUnbindKurirFeedback(msg) {
+    $('#unbindKurirFeedbackMessage').text(msg || 'Gagal melepas binding.');
+    $('#unbindKurirFeedback').removeClass('d-none');
+  }
+
+  function bukaModalUnbindKurir(kind, jenis, id, ref) {
+    var $modal = $('#modalUnbindKurir');
+    if ($modal.length === 0) {
+      opToast('Modal unbind tidak ditemukan. Muat ulang halaman.', 'error');
+      return;
+    }
+    var kindLabel = kind === 'surcas' ? 'Surcas' : 'Riwayat delivery';
+    var jenisLabel = jenis === 'jemput' ? 'jemput' : 'antar';
+    var badgeLabel = kind === 'surcas'
+      ? ('$' + (jenis === 'jemput' ? 'J' : 'A'))
+      : (jenis === 'jemput' ? 'J' : 'A');
+
+    $('#unbindKurirModalTitle').text('Lepas binding ' + badgeLabel + '?');
+    $('#unbindKurirModalSub').text(kindLabel + ' · ' + jenisLabel);
+    $('#unbindKurirModalDesc').html(
+      kind === 'surcas'
+        ? ('Binding <strong>surcas ' + jenisLabel + '</strong> pada item <strong>#' + id + '</strong> (nota <strong>#' + ref + '</strong>) akan dilepas.'
+          + ' Item bisa muncul lagi di panel Kurir.')
+        : ('Riwayat <strong>' + jenisLabel + '</strong> item <strong>#' + id + '</strong> (nota <strong>#' + ref + '</strong>) akan dihapus.'
+          + ' Status fisik jemput/antar dicabut dari item ini.')
+    );
+    $('#unbindKurirModalHint').text(
+      kind === 'surcas'
+        ? 'Jika surcas terikat per nota (legacy), baris surcas di nota ikut dihapus. Total nota tidak boleh lebih kecil dari pembayaran Cek/Berhasil.'
+        : 'Tindakan ini dicatat di log sistem.'
+    );
+    $('#unbindKurirNote').val('').css('border-color', '');
+    $('#unbindKurirFeedback').addClass('d-none');
+    $('#btnKonfirmasiUnbindKurir')
+      .attr('data-kind', kind)
+      .attr('data-jenis', jenis)
+      .attr('data-id', id)
+      .attr('data-ref', ref);
+
+    if (window.OpModal) window.OpModal.open('modalUnbindKurir', { static: true });
+    else $modal.addClass('is-open').attr('aria-hidden', 'false');
+    setTimeout(function () { $('#unbindKurirNote').focus(); }, 100);
+  }
+
+  $(document).on('click', '.mdl-kurir-unbind-badge', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var $badge = $(this);
+    bukaModalUnbindKurir(
+      $badge.attr('data-kind') || '',
+      $badge.attr('data-jenis') || '',
+      $badge.attr('data-id') || '',
+      $badge.attr('data-ref') || ''
+    );
+  });
+
+  $(document).on('keydown', '.mdl-kurir-unbind-badge', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      $(this).trigger('click');
+    }
+  });
+
+  $(document).on('click', '[data-close-unbind-kurir]', function (e) {
+    e.preventDefault();
+    tutupModalUnbindKurir();
+  });
+
+  $(document).on('input', '#unbindKurirNote', function () {
+    $(this).css('border-color', '');
+    $('#unbindKurirFeedback').addClass('d-none');
+  });
+
+  $(document).on('click', '#btnKonfirmasiUnbindKurir', function () {
+    var $button = $(this);
+    var kind = $button.attr('data-kind') || '';
+    var jenis = $button.attr('data-jenis') || '';
+    var id = $button.attr('data-id') || '';
+    var note = $('#unbindKurirNote').val().trim();
+
+    if (!kind || !jenis || !id) {
+      opToast('Data item tidak valid. Muat ulang halaman.', 'error');
+      return;
+    }
+    if (!note) {
+      $('#unbindKurirNote').css('border-color', '#dc2626').focus();
+      showUnbindKurirFeedback('Alasan unbind wajib diisi.');
+      return;
+    }
+
+    var original = $button.html();
+    $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+    $('#unbindKurirFeedback').addClass('d-none');
+
+    $.ajax({
+      url: BASE_URL + 'Operasi/unbindKurirBadge',
+      method: 'POST',
+      dataType: 'json',
+      data: {
+        kind: kind,
+        jenis: jenis,
+        id_penjualan: id,
+        note: note
+      },
+      success: function (response) {
+        if (response && response.status === 'success') {
+          tutupModalUnbindKurir();
+          opToast(response.message || 'Binding berhasil dilepas.', 'ok');
+          loadDiv();
+          return;
+        }
+        var msg = (response && response.message) || 'Binding tidak dapat dilepas.';
+        showUnbindKurirFeedback(msg);
+        opToast(msg, 'error');
+      },
+      error: function (xhr) {
+        var msg = 'Gagal melepas binding. Periksa koneksi lalu coba lagi.';
+        try {
+          var parsed = JSON.parse(xhr.responseText);
+          if (parsed && parsed.message) {
+            msg = parsed.message;
+          }
+        } catch (err) { }
+        showUnbindKurirFeedback(msg);
+        opToast(msg, 'error');
+      },
+      complete: function () {
+        $button.prop('disabled', false).html(original);
+      }
+    });
+  });
+  // --- Akhir unbind badge kurir ---
+
   $("a.ambil").on("click", function (e) {
     e.preventDefault();
     window.idNya = $(this).attr("data-id");
