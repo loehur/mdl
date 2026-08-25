@@ -59,7 +59,9 @@ function setLidPhone(lidJid, phoneJid) {
   if (map.get(lid) === phone) return;
   map.set(lid, phone);
   saveLidMap();
-  console.log('[lid-map]', lid, '→', phone);
+  if (process.env.DEBUG_FONNTE === '1') {
+    console.log('[lid-map]', lid, '→', phone);
+  }
 }
 
 function getPhoneJidForLid(lidJid) {

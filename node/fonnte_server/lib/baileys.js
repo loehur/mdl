@@ -22,6 +22,13 @@ const { setLidPhone, getPhoneJidForLid } = require('./lid-map');
 const AUTH_DIR = path.join(__dirname, '..', 'auth');
 const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
 
+/** Log info hanya muncul saat DEBUG_FONNTE=1 — biar log tidak ramai (cukup error/warn). */
+function debugLog(...args) {
+  if (process.env.DEBUG_FONNTE === '1') {
+    console.log(...args);
+  }
+}
+
 /** @type {import('@whiskeysockets/baileys').WASocket | null} */
 let sock = null;
 let connectionState = 'close';
@@ -111,16 +118,16 @@ async function processDeviceOutbound(msg, type) {
   loadSeenInboundKeys();
   const dedupKey = inboundDedupKey(msg);
   if (dedupKey && seenInboundKeys.has(dedupKey)) {
-    console.log('[outbound-device] skip duplicate wamid=', msg.key?.id);
+    debugLog('[outbound-device] skip duplicate wamid=', msg.key?.id);
     return;
   }
   if (isTrackedOutgoing(msg.key?.id)) {
-    console.log('[outbound-device] skip tracked-api wamid=', msg.key?.id);
+    debugLog('[outbound-device] skip tracked-api wamid=', msg.key?.id);
     return;
   }
   const outPayload = await buildInboundPayload(msg, { fromMe: true });
   if (!outPayload) {
-    console.log(
+    debugLog(
       '[outbound-device] skip null payload type=',
       type,
       'wamid=',
@@ -132,7 +139,7 @@ async function processDeviceOutbound(msg, type) {
     );
     return;
   }
-  console.log(
+  debugLog(
     '[outbound-device]',
     outPayload.sender,
     outPayload.sender_pn || '(no pn)',
@@ -458,16 +465,16 @@ async function handleIncomingMessages({ messages, type }) {
       if (type !== 'notify') continue;
       const remoteJid = msg.key?.remoteJid || '';
       if (isGroupJid(remoteJid)) {
-        console.log('[inbound] skip group wamid=', msg.key?.id);
+        debugLog('[inbound] skip group wamid=', msg.key?.id);
         continue;
       }
       const payload = await buildInboundPayload(msg);
       if (!payload) continue;
       if (markInboundSeen(msg)) {
-        console.log('[inbound] skip duplicate wamid=', msg.key?.id);
+        debugLog('[inbound] skip duplicate wamid=', msg.key?.id);
         continue;
       }
-      console.log(
+      debugLog(
         '[inbound]',
         payload.sender,
         payload.type,
@@ -647,7 +654,7 @@ async function startBaileys() {
         lastQr = qr;
         connectionState = 'connecting';
         clearRestartTimer();
-        console.log('[fonnte_server] QR ready — scan via Tools → WhatsApp');
+        debugLog('[fonnte_server] QR ready — scan via Tools → WhatsApp');
         qrcode.generate(qr, { small: true });
       }
       if (connection === 'connecting') {
@@ -658,7 +665,7 @@ async function startBaileys() {
         lastQr = null;
         clearRestartTimer();
         const num = getDeviceNumber();
-        console.log('[fonnte_server] WhatsApp connected', num || socket?.user?.id || '');
+        debugLog('[fonnte_server] WhatsApp connected', num || socket?.user?.id || '');
         await sendStatusWebhook({ status: 'connect' });
       }
       if (connection === 'close') {
