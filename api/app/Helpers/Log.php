@@ -11,7 +11,9 @@ class Log
     public static function write($text = "", $app = 'undefined', $controller = "undefined")
     {
         try {
-            $assets_dir = "logs/". date('Y-m-d') . "/";
+            // Path absolut (api/logs/...) — tidak bergantung CWD agar selalu tertulis.
+            $logs_base = dirname(__DIR__, 2) . '/logs/';
+            $assets_dir = $logs_base . date('Y-m-d') . '/';
             $data_to_write = date('H:i:s') . " " . $text . "\n";
             $file_path = $assets_dir . strtolower($app) . "_" . strtolower($controller) . ".log";
 
@@ -25,7 +27,7 @@ class Log
 
             // Hapus log yang sudah lebih dari 7 hari
             $limit_date = date('Y-m-d', strtotime('-7 days'));
-            $oldDirs = glob('logs/*', GLOB_ONLYDIR);
+            $oldDirs = glob($logs_base . '*', GLOB_ONLYDIR);
             if (is_array($oldDirs)) {
                 foreach ($oldDirs as $old_dir) {
                     if (basename($old_dir) < $limit_date) {

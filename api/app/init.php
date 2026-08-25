@@ -54,6 +54,11 @@ function setCorsHeadersForError() {
 
 // Error handler to output errors as JSON (for debugging)
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    // Hormati operator @ (error_reporting 0) — jangan ubah warning suppressed jadi 500
+    if (error_reporting() === 0) {
+        return false;
+    }
+
     // Clear any previous output
     if (ob_get_level()) {
         ob_clean();
