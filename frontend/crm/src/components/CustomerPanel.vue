@@ -62,12 +62,14 @@ const cancelDeliveryTarget = ref(null);
 const cancelDeliveryMsg = ref("");
 const cancellingDelivery = ref(false);
 
-const altPhone = ref("");
-const altPhoneForm = ref("");
-const altPhoneLoading = ref(false);
-const altPhoneSaving = ref(false);
-const altPhoneMsg = ref("");
-const altPhoneOk = ref(false);
+const phonePrimary = ref("");
+const phoneAlt = ref("");
+const phoneLoading = ref(false);
+const phoneModalOpen = ref(false);
+const phoneModalSaving = ref(false);
+const phoneModalForm = ref("");
+const phoneModalMsg = ref("");
+const phoneModalOk = ref(false);
 
 const canSavePermintaan = computed(() => {
   if (savingPermintaan.value) return false;
@@ -634,53 +636,70 @@ const confirmSendQris = async () => {
   await sendQris();
 };
 
-const loadAltPhone = async () => {
+const loadPhones = async () => {
   if (!isAdmin.value) {
-    altPhone.value = "";
+    phonePrimary.value = "";
+    phoneAlt.value = "";
     return;
   }
   if (!custId.value && !props.conversation?.wa_number) {
-    altPhone.value = "";
+    phonePrimary.value = "";
+    phoneAlt.value = "";
     return;
   }
-  altPhoneLoading.value = true;
-  altPhoneMsg.value = "";
+  phoneLoading.value = true;
+  phoneModalMsg.value = "";
   try {
     const params = new URLSearchParams();
     if (custId.value) params.set("cust_id", String(custId.value));
     if (props.conversation?.wa_number) params.set("wa_number", props.conversation.wa_number);
     const res = await fetch(`${props.apiBase}/Laundry/Pelanggan/get?${params.toString()}`).then((r) => r.json());
     if (!res?.ok && !res?.status) {
-      altPhoneMsg.value = res?.message || "Gagal memuat nomor alternatif";
+      phoneModalMsg.value = res?.message || "Gagal memuat nomor";
       return;
     }
-    altPhone.value = String(res?.item?.nomor_pelanggan_2 || "").trim();
-    altPhoneForm.value = altPhone.value;
+    phonePrimary.value = String(res?.item?.nomor_pelanggan || "").trim();
+    phoneAlt.value = String(res?.item?.nomor_pelanggan_2 || "").trim();
     if (res?.item?.id_pelanggan) {
       props.conversation.cust_id = res.item.id_pelanggan;
     }
   } catch (_) {
-    altPhoneMsg.value = "Gagal memuat nomor alternatif";
+    phoneModalMsg.value = "Gagal memuat nomor";
   } finally {
-    altPhoneLoading.value = false;
+    phoneLoading.value = false;
   }
 };
 
-const canSaveAltPhone = computed(() => {
-  if (altPhoneSaving.value) return false;
-  const cur = altPhoneForm.value.replace(/\D/g, "");
+const openPhoneModal = () => {
+  if (!isAdmin.value || !custId.value) return;
+  phoneModalForm.value = phoneAlt.value;
+  phoneModalMsg.value = "";
+  phoneModalOk.value = false;
+  phoneModalOpen.value = true;
+};
+
+const closePhoneModal = () => {
+  phoneModalOpen.value = false;
+  phoneModalForm.value = "";
+  phoneModalMsg.value = "";
+  phoneModalOk.value = false;
+};
+
+const canSavePhoneModal = computed(() => {
+  if (phoneModalSaving.value) return false;
+  const cur = phoneModalForm.value.replace(/\D/g, "");
   return cur.length === 0 || cur.length >= 8;
 });
 
-const saveAltPhone = async () => {
-  if (!isAdmin.value || !canSaveAltPhone.value) return;
+const savePhoneModal = async () => {
+  if (!isAdmin.value || !canSavePhoneModal.value) return;
   if (!custId.value && !props.conversation?.wa_number) return;
-  altPhoneSaving.value = true;
-  altPhoneMsg.value = "";
-  altPhoneOk.value = false;
+  phoneModalSaving.value = true;
+  phoneModalMsg.value = "";
+  phoneModalOk.value = false;
   try {
     const payload = {
-      nomor_alternatif: altPhoneForm.value.replace(/\D/g, ""),
+      nomor_alternatif: phoneModalForm.value.replace(/\D/g, ""),
       user_id: props.authId,
     };
     if (custId.value) payload.cust_id = custId.value;
@@ -692,17 +711,16 @@ const saveAltPhone = async () => {
       body: JSON.stringify(payload),
     }).then((r) => r.json());
     if (!res?.ok && !res?.status) {
-      altPhoneMsg.value = res?.message || "Gagal menyimpan nomor alternatif";
+      phoneModalMsg.value = res?.message || "Gagal menyimpan nomor";
       return;
     }
-    altPhone.value = String(res?.item?.nomor_pelanggan_2 || "").trim();
-    altPhoneForm.value = altPhone.value;
-    altPhoneOk.value = true;
-    altPhoneMsg.value = res?.message || "Nomor alternatif disimpan";
+    phoneAlt.value = String(res?.item?.nomor_pelanggan_2 || "").trim();
+    phoneModalOk.value = true;
+    phoneModalMsg.value = res?.message || "Nomor disimpan";
   } catch (_) {
-    altPhoneMsg.value = "Gagal menyimpan nomor alternatif";
+    phoneModalMsg.value = "Gagal menyimpan nomor";
   } finally {
-    altPhoneSaving.value = false;
+    phoneModalSaving.value = false;
   }
 };
 
@@ -1106,6 +1124,11 @@ const onKeydown = (e) => {
     e.stopImmediatePropagation();
     return;
   }
+  if (phoneModalOpen.value) {
+    closePhoneModal();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showCustomerPanel.value) {
     closePanel();
   }
@@ -1187,13 +1210,13 @@ watch(
     if (id) {
       loadLokasi();
       loadDeliveryAktif();
-      loadAltPhone();
+      loadPhones();
     } else {
       lokasiItems.value = [];
       lokasiError.value = "";
       deliveryAktifItems.value = [];
-      altPhone.value = "";
-      altPhoneForm.value = "";
+      phonePrimary.value = "";
+      phoneAlt.value = "";
     }
   }
 );
@@ -1318,44 +1341,36 @@ onUnmounted(() => {
         </section>
 
         <section v-if="isAdmin">
-          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
-            Nomor Alternatif
-          </h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Nomor</h3>
+            <button
+              v-if="custId"
+              type="button"
+              class="text-xs font-bold text-[var(--wa-accent-green)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="phoneModalSaving"
+              @click="openPhoneModal"
+            >
+              {{ phoneAlt ? "Edit" : "+ Tambah" }}
+            </button>
+          </div>
           <p v-if="!custId" class="text-xs text-[var(--wa-text-tertiary)]">
-            Customer belum terhubung ke data laundry, nomor alternatif tidak bisa diubah.
+            Customer belum terhubung ke data laundry, nomor tidak bisa diubah.
           </p>
-          <div v-else class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)]">
-            <p v-if="altPhoneLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat…</p>
+          <div v-else class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] space-y-2">
+            <p v-if="phoneLoading" class="text-xs text-[var(--wa-text-tertiary)]">Memuat…</p>
             <template v-else>
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-green)] text-white">P</span>
                 <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
-                  {{ altPhone ? formatPhoneTo08(altPhone) : "Belum ada" }}
+                  {{ phonePrimary ? formatPhoneTo08(phonePrimary) : "—" }}
                 </p>
               </div>
-              <div class="mt-2">
-                <input
-                  v-model="altPhoneForm"
-                  type="tel"
-                  inputmode="tel"
-                  maxlength="20"
-                  placeholder="08… / 62… (opsional)"
-                  class="w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-panel)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
-                />
-                <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
-                  Nomor WA alternatif pelanggan. Kosongkan untuk menghapus.
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 flex-shrink-0 inline-flex items-center justify-center rounded text-[10px] font-black bg-[var(--wa-accent-blue)] text-white">S</span>
+                <p class="text-sm font-mono text-[var(--wa-text-primary)] truncate">
+                  {{ phoneAlt ? formatPhoneTo08(phoneAlt) : "Belum ada" }}
                 </p>
               </div>
-              <p v-if="altPhoneMsg" class="text-xs mt-2" :class="altPhoneOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">
-                {{ altPhoneMsg }}
-              </p>
-              <button
-                type="button"
-                class="mt-2 w-full py-2 rounded-lg text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!canSaveAltPhone"
-                @click="saveAltPhone"
-              >
-                {{ altPhoneSaving ? "Menyimpan…" : "Simpan Nomor Alternatif" }}
-              </button>
             </template>
           </div>
         </section>
@@ -2062,6 +2077,71 @@ onUnmounted(() => {
             @click="submitDeliveryRequest"
           >
             {{ submittingDelivery ? "Mengirim…" : "Kirim" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isAdmin && phoneModalOpen"
+      class="fixed inset-0 z-[708] flex items-center justify-center p-4"
+      @click="closePhoneModal"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">
+            {{ phoneAlt ? "Edit Nomor Alternatif" : "Tambah Nomor Alternatif" }}
+          </h3>
+          <button
+            type="button"
+            class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
+            @click="closePhoneModal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Nomor Alternatif (S)</label>
+          <input
+            v-model="phoneModalForm"
+            type="tel"
+            inputmode="tel"
+            maxlength="20"
+            placeholder="08… / 62…"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] text-sm text-[var(--wa-text-primary)] placeholder-[var(--wa-text-tertiary)] focus:outline-none focus:border-[var(--wa-accent-green)]"
+          />
+          <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
+            Nomor WA cadangan pelanggan. Kosongkan untuk menghapus.
+          </p>
+        </div>
+
+        <p v-if="phoneModalMsg" class="text-xs mt-3" :class="phoneModalOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'">
+          {{ phoneModalMsg }}
+        </p>
+        <div class="flex gap-2 pt-4">
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)]"
+            @click="closePhoneModal"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-50"
+            :disabled="!canSavePhoneModal"
+            @click="savePhoneModal"
+          >
+            {{ phoneModalSaving ? "Menyimpan…" : "Simpan" }}
           </button>
         </div>
       </div>
