@@ -127,6 +127,12 @@ class Operasi extends Controller
          $this->helper('AntarTarif');
          $this->helper('SurcasKurir');
          $saleIdsInt = array_map('intval', $sale_ids);
+         $purgedSurcasItem = SurcasKurir::purgeInvalidSurcasItems($this->db(0), $saleIdsInt);
+         if ($purgedSurcasItem > 0) {
+            $this->model('Log')->write(
+               '[Operasi::loadData] purgeInvalidSurcasItems: ' . $purgedSurcasItem . ' baris dihapus (pelanggan #' . $id_pelanggan . ')'
+            );
+         }
          $boundJemput = SurcasKurir::boundSaleIds(
             $this->db(0),
             $saleIdsInt,
@@ -1943,7 +1949,10 @@ class Operasi extends Controller
              LIMIT 1'
          );
          if (is_array($bindRows) && !empty($bindRows[0]['id_surcas'])) {
-            $idSurcas = (int) $bindRows[0]['id_surcas'];
+            $candidate = (int) $bindRows[0]['id_surcas'];
+            if (SurcasKurir::isValidSurcasItemBinding($this->db(0), $idInt, $candidate, $jenisSurcas)) {
+               $idSurcas = $candidate;
+            }
          }
       } catch (\Throwable $e) {
          throw new \Exception('Binding surcas item tidak ditemukan');
@@ -2000,7 +2009,11 @@ class Operasi extends Controller
              LIMIT 1'
          );
          if (is_array($bindRows) && !empty($bindRows[0]['id_surcas'])) {
-            $idSurcas = (int) $bindRows[0]['id_surcas'];
+            $candidate = (int) $bindRows[0]['id_surcas'];
+            $this->helper('SurcasKurir');
+            if (SurcasKurir::isValidSurcasItemBinding($this->db(0), $idPenjualan, $candidate, $jenisSurcas)) {
+               $idSurcas = $candidate;
+            }
          }
       } catch (\Throwable $e) {
          return false;

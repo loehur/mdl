@@ -20,14 +20,23 @@ class SurcasKurir
             return [];
         }
         $in = implode(',', $safe);
+        $jenis = (int) $jenisSurcas;
         $out = [];
+        $refMatch = self::sqlRefEquals('s.no_ref', 'sc.no_ref');
+        $cabangMatch = self::sqlCabangEquals('s.id_cabang', 'sc.id_cabang');
 
         try {
             $rows = $db->query_array(
-                "SELECT DISTINCT id_penjualan
-                 FROM surcas_item
-                 WHERE id_jenis_surcas = " . (int) $jenisSurcas . "
-                   AND id_penjualan IN ($in)"
+                "SELECT DISTINCT si.id_penjualan
+                 FROM surcas_item si
+                 INNER JOIN surcas sc ON sc.id_surcas = si.id_surcas
+                   AND sc.id_jenis_surcas = si.id_jenis_surcas
+                 INNER JOIN sale s ON s.id_penjualan = si.id_penjualan
+                   AND s.bin = 0
+                   AND $refMatch
+                   AND $cabangMatch
+                 WHERE si.id_jenis_surcas = $jenis
+                   AND si.id_penjualan IN ($in)"
             );
             if (is_array($rows)) {
                 foreach ($rows as $r) {
@@ -50,10 +59,14 @@ class SurcasKurir
                 "SELECT DISTINCT dri.id_penjualan
                  FROM delivery_request_item dri
                  INNER JOIN surcas sc ON sc.id_delivery_request = dri.id_request
-                 WHERE sc.id_jenis_surcas = " . (int) $jenisSurcas . "
+                   AND sc.id_jenis_surcas = $jenis
                    AND sc.id_delivery_request IS NOT NULL
                    AND sc.id_delivery_request > 0
-                   AND dri.id_penjualan IN ($in)"
+                 INNER JOIN sale s ON s.id_penjualan = dri.id_penjualan
+                   AND s.bin = 0
+                   AND $refMatch
+                   AND $cabangMatch
+                 WHERE dri.id_penjualan IN ($in)"
             );
             if (is_array($rows)) {
                 foreach ($rows as $r) {
@@ -76,15 +89,16 @@ class SurcasKurir
             $rows = $db->query_array(
                 "SELECT DISTINCT s.id_penjualan
                  FROM sale s
-                 INNER JOIN surcas sc ON sc.no_ref = s.no_ref
-                   AND sc.id_jenis_surcas = " . (int) $jenisSurcas . "
+                 INNER JOIN surcas sc ON $refMatch
+                   AND sc.id_jenis_surcas = $jenis
                    AND sc.dari_delivery = 1
+                   AND $cabangMatch
                  WHERE s.bin = 0
                    AND s.id_penjualan IN ($in)
                    AND NOT EXISTS (
                      SELECT 1 FROM surcas_item si
                      WHERE si.id_surcas = sc.id_surcas
-                       AND si.id_jenis_surcas = " . (int) $jenisSurcas . "
+                       AND si.id_jenis_surcas = $jenis
                    )"
             );
             if (is_array($rows)) {
@@ -100,6 +114,107 @@ class SurcasKurir
         }
 
         return $out;
+    }
+
+    /**
+     * Hapus surcas_item invalid (orphan / no_ref atau cabang tidak cocok).
+     *
+     * @param object $db
+     * @param int[] $ids id_penjualan scope
+     * @return int jumlah baris dihapus
+     */
+    public static function purgeInvalidSurcasItems($db, array $ids): int
+    {
+        $safe = self::safeIds($ids);
+        if ($safe === []) {
+            return 0;
+        }
+        $in = implode(',', $safe);
+        $purged = 0;
+
+        try {
+            $rows = $db->query_array(
+                "SELECT si.id_penjualan, si.id_surcas, si.id_jenis_surcas
+                 FROM surcas_item si
+                 WHERE si.id_penjualan IN ($in)"
+            );
+        } catch (\Throwable $e) {
+            return 0;
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return 0;
+        }
+
+        foreach ($rows as $r) {
+            $idSale = (int) ($r['id_penjualan'] ?? 0);
+            $idSurcas = (int) ($r['id_surcas'] ?? 0);
+            $jenis = (int) ($r['id_jenis_surcas'] ?? 0);
+            if ($idSale <= 0 || $idSurcas <= 0 || $jenis <= 0) {
+                continue;
+            }
+            if (self::isValidSurcasItemBinding($db, $idSale, $idSurcas, $jenis)) {
+                continue;
+            }
+            try {
+                $db->delete(
+                    'surcas_item',
+                    'id_penjualan = ' . $idSale
+                        . ' AND id_surcas = ' . $idSurcas
+                        . ' AND id_jenis_surcas = ' . $jenis
+                );
+                $purged++;
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        return $purged;
+    }
+
+    /**
+     * @param object $db
+     */
+    public static function isValidSurcasItemBinding($db, int $idPenjualan, int $idSurcas, int $jenisSurcas): bool
+    {
+        if ($idPenjualan <= 0 || $idSurcas <= 0 || $jenisSurcas <= 0) {
+            return false;
+        }
+
+        $sale = $db->get_where_row('sale', 'id_penjualan = ' . $idPenjualan . ' AND bin = 0');
+        $sc = $db->get_where_row('surcas', 'id_surcas = ' . $idSurcas);
+        if (!is_array($sale) || !is_array($sc)) {
+            return false;
+        }
+        if ((int) ($sc['id_jenis_surcas'] ?? 0) !== $jenisSurcas) {
+            return false;
+        }
+        if (self::normalizeRef($sale['no_ref'] ?? '') !== self::normalizeRef($sc['no_ref'] ?? '')) {
+            return false;
+        }
+
+        $saleCabang = (int) ($sale['id_cabang'] ?? 0);
+        $scCabang = (int) ($sc['id_cabang'] ?? 0);
+        if ($saleCabang > 0 && $scCabang > 0 && $saleCabang !== $scCabang) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function normalizeRef($ref): string
+    {
+        return trim((string) $ref);
+    }
+
+    private static function sqlRefEquals(string $left, string $right): string
+    {
+        return 'TRIM(CAST(' . $left . ' AS CHAR)) = TRIM(CAST(' . $right . ' AS CHAR))';
+    }
+
+    private static function sqlCabangEquals(string $left, string $right): string
+    {
+        return '(' . $left . ' = ' . $right . ' OR ' . $left . ' = 0 OR ' . $right . ' = 0)';
     }
 
     /**
@@ -122,9 +237,16 @@ class SurcasKurir
 
         try {
             $rows = $db->query_array(
-                'SELECT DISTINCT id_penjualan FROM surcas_item
-                 WHERE id_surcas = ' . $idSurcas
-                    . ' AND id_jenis_surcas = ' . $jenisSurcas
+                'SELECT DISTINCT si.id_penjualan
+                 FROM surcas_item si
+                 INNER JOIN surcas sc ON sc.id_surcas = si.id_surcas
+                   AND sc.id_jenis_surcas = si.id_jenis_surcas
+                 INNER JOIN sale s ON s.id_penjualan = si.id_penjualan
+                   AND s.bin = 0
+                   AND ' . self::sqlRefEquals('s.no_ref', 'sc.no_ref') . '
+                   AND ' . self::sqlCabangEquals('s.id_cabang', 'sc.id_cabang') . '
+                 WHERE si.id_surcas = ' . $idSurcas
+                    . ' AND si.id_jenis_surcas = ' . $jenisSurcas
                     . $inClause
             );
             if (is_array($rows)) {
