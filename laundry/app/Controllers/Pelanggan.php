@@ -81,6 +81,55 @@ class Pelanggan extends Controller
         }
     }
 
+    /** Simpan seluruh field via modal edit. */
+    public function update()
+    {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id < 1) {
+            echo 'Pelanggan tidak valid';
+            return;
+        }
+
+        $nama = trim((string) ($_POST['nama_pelanggan'] ?? ''));
+        $nomor = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan'] ?? ''));
+        $nomor2 = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan_2'] ?? ''));
+        $alamat = trim((string) ($_POST['alamat'] ?? ''));
+        $disc = (float) ($_POST['disc'] ?? 0);
+        if ($disc > 100) {
+            $disc = 100;
+        }
+        if ($disc < 0) {
+            $disc = 0;
+        }
+
+        if ($nama === '' || $nomor === '') {
+            echo 'Nama dan nomor HP tidak boleh kosong';
+            return;
+        }
+
+        $this->session_cek(); // akses halaman pelanggan sudah cukup; disc dikunci untuk privilege tertinggi
+
+        $where = $this->wCabang . ' AND id_pelanggan = ' . $id;
+        $set = [
+            'nama_pelanggan' => $nama,
+            'nomor_pelanggan' => $nomor,
+            'nomor_pelanggan_2' => $nomor2 !== '' ? $nomor2 : null,
+            'alamat' => $alamat,
+        ];
+        // disc hanya boleh diubah oleh privilege tertinggi (seperti updateCell mode 5).
+        if ((int) ($this->id_privilege ?? 0) === 100) {
+            $set['disc'] = $disc;
+        }
+        $up = $this->db(0)->update('pelanggan', $set, $where);
+        if (($up['errno'] ?? 1) != 0) {
+            echo $up['error'] ?? 'Gagal update';
+            return;
+        }
+
+        $this->dataSynchrone($_SESSION[URL::SESSID]['user']['id_user']);
+        echo 0;
+    }
+
     /** @return PelangganDaftar */
     private function daftar()
     {

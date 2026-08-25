@@ -221,8 +221,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     align-items: flex-start;
     gap: 8px;
   }
-  #plg-root .plg-card-head strong,
-  #plg-root .plg-edit--nama {
+  #plg-root .plg-card-head strong {
     display: inline-block;
     max-width: 100%;
     font-size: 0.95rem;
@@ -314,31 +313,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     filter: grayscale(0.2);
   }
 
-  #plg-root .plg-edit {
-    cursor: text;
-    padding: 0 1px;
-  }
-  #plg-root .plg-edit:hover {
-    background: rgba(37, 99, 235, 0.12);
-  }
-  #plg-root .plg-inline {
-    width: auto;
-    min-width: 7rem;
-    max-width: 100%;
-    padding: 3px 7px;
-    border: 1px solid var(--plg-blue);
-    font-family: inherit;
-    font-size: 0.92rem;
-    font-weight: 800;
-    color: var(--plg-ink);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
-  }
-  #plg-root .plg-inline--sm {
-    min-width: 3rem;
-    width: 3rem;
-  }
-
   #plg-root .plg-empty {
     grid-column: 1 / -1;
     text-align: center;
@@ -365,6 +339,86 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   #plg-root .ord-plg-input:focus {
     border-color: var(--plg-blue);
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+  }
+
+  #plg-root .plg-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #plg-root .plg-modal.is-hidden { display: none; }
+  #plg-root .plg-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+  }
+  #plg-root .plg-modal__box {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #93c5fd;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    padding: 18px;
+  }
+  #plg-root .plg-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: -18px -18px 16px;
+    padding: 14px 18px;
+    background: linear-gradient(105deg, #1d4ed8 0%, #2563eb 100%);
+    color: #fff;
+  }
+  #plg-root .plg-modal__head h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+  #plg-root .plg-modal__close {
+    border: 0;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 1.15rem;
+    line-height: 1;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  #plg-root .plg-modal__actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+  #plg-root .plg-btn--ghost {
+    background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+    border-color: #94a3b8;
+    color: #0f172a;
+    text-shadow: none;
+  }
+  #plg-root .plg-btn--ghost:hover:not(:disabled) {
+    background: linear-gradient(180deg, #e2e8f0, #cbd5e1);
+  }
+
+  #plg-root .plg-value--nama {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 0.95rem;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    color: var(--plg-ink);
   }
 </style>
 
@@ -446,48 +500,32 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 <div class="plg-card-head">
                   <div style="min-width:0">
                     <strong>
-                      <span
-                        class="plg-edit plg-edit--nama"
-                        data-mode="1"
-                        data-id_value="<?= $id ?>"
-                        data-value="<?= $f1Attr ?>"
-                        title="Double-click untuk edit"
-                      ><?= $f1Html ?></span>
+                      <span class="plg-value plg-value--nama"><?= $f1Html ?></span>
                     </strong>
                     <span class="plg-card-meta">
                       <span class="plg-badge">#<?= $id ?></span>
-                      <span
-                        class="plg-edit plg-chip plg-chip--blue"
-                        data-mode="2"
-                        data-id_value="<?= $id ?>"
-                        data-value="<?= $f2Attr ?>"
-                        title="Double-click untuk edit"
-                      ><?= $f2Html ?></span>
-                      <span
-                        class="plg-edit plg-chip"
-                        data-mode="6"
-                        data-id_value="<?= $id ?>"
-                        data-value="<?= $f6Attr ?>"
-                        title="Nomor alternatif — double-click untuk edit"
-                      ><?= htmlspecialchars($f6Attr !== '' ? $f6Attr : 'Alt', ENT_QUOTES, 'UTF-8') ?></span>
+                      <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
+                      <?php if ($f6 !== '') { ?>
+                        <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
+                      <?php } ?>
                     </span>
                   </div>
                   <span class="<?= $chipClass ?>">
-                    Partner
                     <?php if ($canEditPartner) { ?>
-                      <span
-                        class="plg-edit"
-                        data-mode="5"
-                        data-id_value="<?= $id ?>"
-                        data-value="<?= $f5Attr ?>"
-                        title="Double-click untuk edit"
-                      ><?= $f5Attr ?></span>%
+                      Partner <?= $f5Attr ?>%
                     <?php } else { ?>
                       <?= $f5Attr ?>%
                     <?php } ?>
                   </span>
                 </div>
                 <div class="plg-card-actions">
+                  <button type="button" class="plg-btn plg-edit-btn" data-id="<?= $id ?>"
+                    data-nama="<?= $f1Attr ?>" data-nomor="<?= $f2Attr ?>"
+                    data-nomor2="<?= $f6Attr ?>" data-alamat="<?= htmlspecialchars((string) $a['alamat'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-disc="<?= $f5Attr ?>"
+                    title="Edit data pelanggan">
+                    <i class="fas fa-pen"></i> Edit
+                  </button>
                   <button type="button"
                     class="plg-btn plg-chat-btn"
                     data-hp="<?= $f2Attr ?>"
@@ -512,6 +550,35 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   </div>
 </div>
 
+<div id="plg-edit-modal" class="plg-modal is-hidden">
+  <div class="plg-modal__backdrop"></div>
+  <div class="plg-modal__box">
+    <div class="plg-modal__head">
+      <h3>Edit Pelanggan</h3>
+      <button type="button" class="plg-modal__close" data-plg-close>&times;</button>
+    </div>
+    <form id="plg-edit-form" autocomplete="off">
+      <input type="hidden" name="id" id="plg-edit-id">
+      <label class="ord-plg-label" for="plg-edit-nama">Nama/Panggilan</label>
+      <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="ord-plg-input" required>
+      <label class="ord-plg-label" for="plg-edit-nomor">Nomor HP</label>
+      <input type="text" id="plg-edit-nomor" name="nomor_pelanggan" class="ord-plg-input" required inputmode="tel">
+      <label class="ord-plg-label" for="plg-edit-nomor2">Nomor HP Alternatif</label>
+      <input type="text" id="plg-edit-nomor2" name="nomor_pelanggan_2" class="ord-plg-input" inputmode="tel">
+      <label class="ord-plg-label" for="plg-edit-alamat">Alamat</label>
+      <input type="text" id="plg-edit-alamat" name="alamat" class="ord-plg-input">
+      <?php if ($canEditPartner) { ?>
+        <label class="ord-plg-label" for="plg-edit-disc">Diskon Partner (%)</label>
+        <input type="number" id="plg-edit-disc" name="disc" class="ord-plg-input" min="0" max="100" step="1">
+      <?php } ?>
+      <div class="plg-modal__actions">
+        <button type="button" class="plg-btn plg-btn--ghost" data-plg-close>Batal</button>
+        <button type="submit" class="plg-btn" id="plg-edit-save"><i class="fas fa-save"></i> Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 (function ($) {
   var $root = $('#plg-root');
@@ -530,16 +597,6 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     toast('Pelanggan disimpan', 'ok');
     location.reload(true);
   };
-
-  var editing = false;
-
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
 
   function applyFilter() {
     var q = ($('#plg-filter').val() || '').toLowerCase().trim();
@@ -567,92 +624,63 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     }
   }
 
-  $root.on('dblclick', '.plg-edit', function () {
-    if (editing) return;
-    editing = true;
+  var $modal = $('#plg-edit-modal');
 
-    var $span = $(this);
-    var id_value = $span.attr('data-id_value');
-    var value = $span.attr('data-value');
-    var mode = $span.attr('data-mode');
-    var value_before = value;
+  function openEditModal() {
+    $modal.removeClass('is-hidden');
+    $('#plg-edit-nama').trigger('focus');
+  }
 
-    var inputClass = mode === '5' ? 'plg-inline plg-inline--sm' : 'plg-inline';
-    var inputType = mode === '5' ? 'number' : 'text';
-    $span.html(
-      "<input type='" + inputType + "' id='plg-value' class='" + inputClass + "' value='" + escapeHtml(value) + "'>"
-    );
+  function closeEditModal() {
+    $modal.addClass('is-hidden');
+  }
 
-    var $input = $('#plg-value');
-    $input.focus().select();
+  $root.on('click', '.plg-edit-btn', function () {
+    var $btn = $(this);
+    $('#plg-edit-id').val($btn.attr('data-id'));
+    $('#plg-edit-nama').val($btn.attr('data-nama'));
+    $('#plg-edit-nomor').val($btn.attr('data-nomor'));
+    $('#plg-edit-nomor2').val($btn.attr('data-nomor2') || '');
+    $('#plg-edit-alamat').val($btn.attr('data-alamat') || '');
+    $('#plg-edit-disc').val($btn.attr('data-disc') || '0');
+    openEditModal();
+  });
 
-    function finish(restore) {
-      if (restore) {
-        if (mode === '1') {
-          $span.html(escapeHtml(String(value_before).toUpperCase()));
-        } else {
-          $span.html(escapeHtml(value_before));
+  $modal.on('click', '[data-plg-close]', function (e) {
+    e.preventDefault();
+    closeEditModal();
+  });
+  $modal.on('click', '.plg-modal__backdrop', function () {
+    closeEditModal();
+  });
+  $(document).on('keydown.plgEditModal', function (e) {
+    if (e.key === 'Escape' && !$modal.hasClass('is-hidden')) closeEditModal();
+  });
+
+  $('#plg-edit-form').on('submit', function (e) {
+    e.preventDefault();
+    var $btn = $('#plg-edit-save');
+    $btn.prop('disabled', true);
+    $.ajax({
+      url: '<?= URL::BASE_URL ?>Pelanggan/update',
+      type: 'POST',
+      dataType: 'html',
+      data: $(this).serialize(),
+      success: function (res) {
+        var raw = String(res || '').trim();
+        if (raw !== '' && raw !== '0') {
+          toast(raw, 'error');
+          $btn.prop('disabled', false);
+          return;
         }
+        closeEditModal();
+        toast('Tersimpan', 'ok');
+        location.reload(true);
+      },
+      error: function () {
+        toast('Gagal menyimpan', 'error');
+        $btn.prop('disabled', false);
       }
-      editing = false;
-    }
-
-    $input.on('keydown', function (ev) {
-      if (ev.key === 'Escape') finish(true);
-      if (ev.key === 'Enter') $(this).blur();
-    });
-
-    $input.on('focusout', function () {
-      var value_after = $(this).val();
-      if (value_after === value_before || value_after.length === 0) {
-        finish(true);
-        return;
-      }
-
-      $.ajax({
-        url: '<?= URL::BASE_URL ?>Pelanggan/updateCell',
-        data: {
-          id: id_value,
-          value: value_after,
-          mode: mode
-        },
-        type: 'POST',
-        dataType: 'html',
-        success: function (res) {
-          var raw = String(res || '').trim();
-          if (raw !== '' && raw !== '0') {
-            finish(true);
-            toast(raw, 'error');
-            return;
-          }
-          $span.attr('data-value', value_after);
-          if (mode === '1') {
-            $span.html(escapeHtml(String(value_after).toUpperCase()));
-          } else {
-            $span.html(escapeHtml(value_after));
-          }
-          var $row = $span.closest('.plg-row');
-          var blob = ($row.find('.plg-edit').map(function () {
-            return $(this).attr('data-value');
-          }).get().join(' ') + ' ' + id_value).toLowerCase();
-          $row.attr('data-search', blob);
-          $row.toggleClass('is-partner', mode === '5' ? parseFloat(value_after) > 0 : $row.hasClass('is-partner'));
-          var $chat = $row.find('.plg-chat-btn');
-          if ($chat.length) {
-            if (mode === '1') $chat.attr('data-nama', value_after);
-            if (mode === '2') {
-              $chat.attr('data-hp', value_after);
-              $chat.prop('disabled', String(value_after).replace(/\D/g, '').length < 8);
-            }
-          }
-          editing = false;
-          toast('Tersimpan', 'ok');
-        },
-        error: function () {
-          finish(true);
-          toast('Gagal menyimpan', 'error');
-        }
-      });
     });
   });
 
