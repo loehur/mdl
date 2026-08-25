@@ -9,15 +9,22 @@ class ApiLoopback
 {
     /**
      * Base URL API terpusat.
-     * Override via env API_BASE_URL — untuk satu VPS bisa di-set http://127.0.0.1
-     * agar panggilan Laundry → API tidak lewat DNS/TLS (lebih cepat).
-     * Tanpa env → default https://api.nalju.com.
+     * Urutan: env API_BASE_URL → konstanta URL::API_BASE_URL (jika didefinisikan di
+     * URL.php lokal, file ini di-gitignore) → default https://api.nalju.com.
+     * Untuk satu VPS set API_BASE_URL=http://127.0.0.1 agar panggilan Laundry → API
+     * tidak lewat DNS/TLS (lebih cepat).
      */
     public static function baseUrl(): string
     {
         $env = trim((string) (getenv('API_BASE_URL') ?: ''));
         if ($env !== '') {
             return rtrim($env, '/');
+        }
+        if (defined('URL::API_BASE_URL')) {
+            $const = trim((string) URL::API_BASE_URL);
+            if ($const !== '') {
+                return rtrim($const, '/');
+            }
         }
         return 'https://api.nalju.com';
     }
