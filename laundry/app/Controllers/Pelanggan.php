@@ -90,7 +90,7 @@ class Pelanggan extends Controller
             return;
         }
 
-        $nama = trim((string) ($_POST['nama_pelanggan'] ?? ''));
+        $nama = strtoupper(trim((string) ($_POST['nama_pelanggan'] ?? '')));
         $nomor = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan'] ?? ''));
         $nomor2 = preg_replace('/\D/', '', (string) ($_POST['nomor_pelanggan_2'] ?? ''));
         $alamat = trim((string) ($_POST['alamat'] ?? ''));
@@ -118,6 +118,38 @@ class Pelanggan extends Controller
         if ($dup > 0) {
             echo 'Gagal! nama ' . strtoupper($nama) . ' sudah digunakan';
             return;
+        }
+
+        // Tolak jika nomor utama/alternatif sudah dipakai pelanggan lain di cabang sama.
+        $this->helper('PelangganByPhone');
+        $nomorCek = [['nomor' => $nomor, 'label' => 'Nomor HP']];
+        if ($nomor2 !== '') {
+            $nomorCek[] = ['nomor' => $nomor2, 'label' => 'Nomor HP Alternatif'];
+        }
+        $seen = [];
+        foreach ($nomorCek as $nc) {
+            $n = PelangganByPhone::toNomorNasional($nc['nomor']);
+            if ($n === null || strlen($n) < 8) {
+                continue;
+            }
+            $kunci = $n;
+            if (isset($seen[$kunci])) {
+                echo $nc['label'] . ' sama dengan ' . $seen[$kunci] . ' — gunakan nomor berbeda';
+                return;
+            }
+            $seen[$kunci] = $nc['label'];
+
+            $esc = $db->escape($n);
+            $ada = $db->count_where(
+                'pelanggan',
+                $this->wCabang . ' AND id_pelanggan <> ' . $id
+                    . ' AND (' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan')
+                    . ' OR ' . PelangganByPhone::likeSql($esc, 'nomor_pelanggan_2') . ')'
+            );
+            if ($ada > 0) {
+                echo $nc['label'] . ' ' . $n . ' sudah digunakan pelanggan lain di cabang ini';
+                return;
+            }
         }
 
         $where = $this->wCabang . ' AND id_pelanggan = ' . $id;

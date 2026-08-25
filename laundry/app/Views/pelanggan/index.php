@@ -444,6 +444,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   }
   #plg-root .plg-field { margin-bottom: 12px; }
   #plg-root .plg-field:last-child { margin-bottom: 0; }
+  #plg-root .plg-alert {
+    margin: 0 0 12px;
+    padding: 8px 10px;
+    border: 1px solid #fca5a5;
+    background: linear-gradient(180deg, #fef2f2, #fff);
+    color: #b91c1c;
+    font-size: 0.8rem;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+  #plg-root .plg-alert.is-hidden { display: none; }
   #plg-root .plg-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -649,9 +660,11 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         <form id="plg-edit-form" autocomplete="off">
           <input type="hidden" name="id" id="plg-edit-id">
           <div class="plg-modal__body">
+            <div class="plg-alert is-hidden" id="plg-edit-alert" role="alert"></div>
             <div class="plg-field">
               <label class="plg-label" for="plg-edit-nama">Nama/Panggilan</label>
-              <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="plg-input" required>
+              <input type="text" id="plg-edit-nama" name="nama_pelanggan" class="plg-input" required
+            style="text-transform: uppercase;">
             </div>
             <div class="plg-row">
               <div class="plg-field">
@@ -763,8 +776,28 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     if (e.key === 'Escape' && !$modal.hasClass('is-hidden')) closeEditModal();
   });
 
+  var $alert = $('#plg-edit-alert');
+
+  function showEditAlert(msg) {
+    if (!$alert.length) return;
+    $alert.text(msg || '').removeClass('is-hidden');
+  }
+  function hideEditAlert() {
+    if ($alert.length) $alert.addClass('is-hidden').text('');
+  }
+
   $('#plg-edit-form').on('submit', function (e) {
     e.preventDefault();
+    hideEditAlert();
+
+    var nomor = String($('#plg-edit-nomor').val() || '').replace(/\D/g, '');
+    var nomor2 = String($('#plg-edit-nomor2').val() || '').replace(/\D/g, '');
+    if (nomor2 && nomor === nomor2) {
+      showEditAlert('Nomor HP Alternatif sama dengan Nomor HP utama — gunakan nomor berbeda.');
+      $('#plg-edit-nomor2').trigger('focus');
+      return;
+    }
+
     var $btn = $('#plg-edit-save');
     $btn.prop('disabled', true);
     $.ajax({
@@ -775,8 +808,12 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       success: function (res) {
         var raw = String(res || '').trim();
         if (raw !== '' && raw !== '0') {
-          toast(raw, 'error');
           $btn.prop('disabled', false);
+          if (raw.indexOf('sudah digunakan') !== -1 || raw.indexOf('sama dengan') !== -1) {
+            showEditAlert(raw);
+          } else {
+            toast(raw, 'error');
+          }
           return;
         }
         closeEditModal();
