@@ -17,10 +17,13 @@ spl_autoload_register(function ($class) {
      $basePath = __DIR__ . '/';
      $corePath = $basePath . 'Core/' . $class . '.php';
      $modelPath = $basePath . 'Models/' . $class . '.php';
+     $helperPath = $basePath . 'Helper/' . $class . '.php';
      
      if (file_exists($corePath)) {
           require_once $corePath;
      } elseif (file_exists($modelPath)) {
           require_once $modelPath;
+     } elseif (file_exists($helperPath)) {
+          require_once $helperPath;
      }
 });
