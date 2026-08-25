@@ -109,6 +109,17 @@ class Pelanggan extends Controller
 
         $this->session_cek(); // akses halaman pelanggan sudah cukup; disc dikunci untuk privilege tertinggi
 
+        $db = $this->db(0);
+        $namaEsc = $db->escape($nama);
+        $dup = $db->count_where(
+            'pelanggan',
+            $this->wCabang . " AND nama_pelanggan = '" . $namaEsc . "' AND id_pelanggan <> " . $id
+        );
+        if ($dup > 0) {
+            echo 'Gagal! nama ' . strtoupper($nama) . ' sudah digunakan';
+            return;
+        }
+
         $where = $this->wCabang . ' AND id_pelanggan = ' . $id;
         $set = [
             'nama_pelanggan' => $nama,
@@ -120,7 +131,7 @@ class Pelanggan extends Controller
         if ((int) ($this->id_privilege ?? 0) === 100) {
             $set['disc'] = $disc;
         }
-        $up = $this->db(0)->update('pelanggan', $set, $where);
+        $up = $db->update('pelanggan', $set, $where);
         if (($up['errno'] ?? 1) != 0) {
             echo $up['error'] ?? 'Gagal update';
             return;

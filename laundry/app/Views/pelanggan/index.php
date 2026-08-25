@@ -489,6 +489,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $f2Html = htmlspecialchars($f2, ENT_QUOTES, 'UTF-8');
               $f5Attr = htmlspecialchars((string) $f5, ENT_QUOTES, 'UTF-8');
               $f6Attr = htmlspecialchars($f6, ENT_QUOTES, 'UTF-8');
+              $fAlamat = (string) ($a['alamat'] ?? '');
+              $fAlamatAttr = htmlspecialchars($fAlamat, ENT_QUOTES, 'UTF-8');
               $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f6 . ' ' . $f5);
               $isPartner = ((float) $f5 > 0);
               $cardClass = $isPartner ? 'plg-card plg-row is-partner' : 'plg-card plg-row';
@@ -521,7 +523,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 <div class="plg-card-actions">
                   <button type="button" class="plg-btn plg-edit-btn" data-id="<?= $id ?>"
                     data-nama="<?= $f1Attr ?>" data-nomor="<?= $f2Attr ?>"
-                    data-nomor2="<?= $f6Attr ?>" data-alamat="<?= htmlspecialchars((string) $a['alamat'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-nomor2="<?= $f6Attr ?>" data-alamat="<?= $fAlamatAttr ?>"
                     data-disc="<?= $f5Attr ?>"
                     title="Edit data pelanggan">
                     <i class="fas fa-pen"></i> Edit
