@@ -1265,68 +1265,6 @@ onUnmounted(() => {
       </header>
 
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
-        <section>
-          <div class="bg-[var(--wa-bg-secondary)] rounded-xl p-3 border border-[var(--wa-border)] flex items-center justify-between gap-2">
-            <span class="text-sm font-medium text-[var(--wa-text-primary)]">Auto Reply</span>
-            <label
-              v-if="isAdmin"
-              class="relative inline-flex cursor-pointer items-center flex-shrink-0"
-              :class="{ 'pointer-events-none opacity-50': isUpdatingAutoReply }"
-            >
-              <input
-                type="checkbox"
-                class="peer sr-only"
-                :checked="isAutoReplyActive"
-                :disabled="isUpdatingAutoReply"
-                @change="onAutoReplyToggle"
-              />
-              <div class="relative peer h-6 w-11 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
-            </label>
-            <span v-else class="text-sm text-[var(--wa-text-secondary)]">
-              {{ isAutoReplyActive ? "Ya" : "Tidak" }}
-            </span>
-          </div>
-        </section>
-
-        <section v-if="isAdmin && (canSendTagihan || canSendStatus || canSendQris)">
-          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
-            Kirim ke pelanggan
-          </h3>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!canSendTagihan || sendingTagihan || sendingStatus || sendingQris"
-              @click="openSendTagihan"
-            >
-              Bill
-            </button>
-            <button
-              type="button"
-              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!canSendStatus || sendingTagihan || sendingStatus || sendingQris"
-              @click="openSendStatus"
-            >
-              Status
-            </button>
-            <button
-              type="button"
-              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!canSendQris || sendingTagihan || sendingStatus || sendingQris"
-              @click="openSendQris"
-            >
-              QRIS
-            </button>
-          </div>
-          <p
-            v-if="outboundResultMsg"
-            class="text-xs mt-2"
-            :class="outboundResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
-          >
-            {{ outboundResultMsg }}
-          </p>
-        </section>
-
         <section v-if="isAdmin">
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)]">Nomor</h3>
@@ -1379,26 +1317,53 @@ onUnmounted(() => {
         </section>
 
         <section v-if="isAdmin">
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
-              class="py-2.5 rounded-xl text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed"
+              class="py-2.5 rounded-xl text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1"
               :class="hasOpenPermintaan
                 ? 'bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border-red-400/50'
                 : 'bg-red-500 text-white border-transparent'"
               :disabled="!canUsePermintaanAction"
               @click="handlePermintaanAction"
+              title="Permintaan"
             >
-              Permintaan
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              <span class="text-[10px] font-bold">{{ hasOpenPermintaan ? "Permintaan" : "Buat" }}</span>
             </button>
             <button
               type="button"
-              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-accent-green)] text-white disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1"
               :disabled="!custId"
               @click="openDeliveryRequest"
+              title="Kurir"
             >
-              Kurir
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m-6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+              </svg>
+              <span class="text-[10px] font-bold">Kurir</span>
             </button>
+            <div
+              class="py-2.5 rounded-xl border bg-[var(--wa-bg-secondary)] border-[var(--wa-border)] flex flex-col items-center justify-center gap-1"
+              :class="{ 'pointer-events-none opacity-50': isUpdatingAutoReply }"
+            >
+              <span class="text-[10px] font-bold text-[var(--wa-text-primary)]">AR</span>
+              <label v-if="isAdmin" class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                <input
+                  type="checkbox"
+                  class="peer sr-only"
+                  :checked="isAutoReplyActive"
+                  :disabled="isUpdatingAutoReply"
+                  @change="onAutoReplyToggle"
+                />
+                <div class="relative peer h-5 w-9 shrink-0 rounded-full bg-[var(--wa-bg-tertiary)] after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-[var(--wa-border)] after:bg-white after:transition-all peer-checked:bg-[var(--wa-accent-green)] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[var(--wa-accent-green)] peer-focus:ring-offset-2 peer-focus:ring-offset-[var(--wa-bg-panel)]"></div>
+              </label>
+              <span v-else class="text-xs font-bold" :class="isAutoReplyActive ? 'text-[var(--wa-accent-green)]' : 'text-[var(--wa-text-tertiary)]'">
+                {{ isAutoReplyActive ? "On" : "Off" }}
+              </span>
+            </div>
           </div>
           <p v-if="!canUsePermintaanAction && !custId" class="text-xs text-[var(--wa-text-tertiary)] mt-2">
             Customer belum terhubung ke data laundry.
@@ -1416,6 +1381,45 @@ onUnmounted(() => {
             :class="deliveryResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
           >
             {{ deliveryResultMsg }}
+          </p>
+        </section>
+
+        <section v-if="isAdmin && (canSendTagihan || canSendStatus || canSendQris)">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-tertiary)] mb-2">
+            Kirim ke pelanggan
+          </h3>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendTagihan || sendingTagihan || sendingStatus || sendingQris"
+              @click="openSendTagihan"
+            >
+              Bill
+            </button>
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendStatus || sendingTagihan || sendingStatus || sendingQris"
+              @click="openSendStatus"
+            >
+              Status
+            </button>
+            <button
+              type="button"
+              class="py-2.5 rounded-xl text-sm font-bold bg-[var(--wa-bg-secondary)] text-[var(--wa-text-primary)] border border-[var(--wa-border)] disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!canSendQris || sendingTagihan || sendingStatus || sendingQris"
+              @click="openSendQris"
+            >
+              QRIS
+            </button>
+          </div>
+          <p
+            v-if="outboundResultMsg"
+            class="text-xs mt-2"
+            :class="outboundResultOk ? 'text-[var(--wa-accent-green)]' : 'text-red-400'"
+          >
+            {{ outboundResultMsg }}
           </p>
         </section>
 
