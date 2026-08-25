@@ -224,9 +224,10 @@ class WaSenderContext
     {
         try {
             $expr = self::sqlDigitsExpr('nomor_pelanggan');
+            $expr2 = self::sqlDigitsExpr('nomor_pelanggan_2');
             $rows = $db1->query(
-                "SELECT id_pelanggan, nama_pelanggan, id_cabang FROM pelanggan WHERE {$expr} LIKE ? ORDER BY id_pelanggan ASC",
-                ['%' . $nomor]
+                "SELECT id_pelanggan, nama_pelanggan, id_cabang FROM pelanggan WHERE {$expr} LIKE ? OR {$expr2} LIKE ? ORDER BY id_pelanggan ASC",
+                ['%' . $nomor, '%' . $nomor]
             )->result_array();
         } catch (\Throwable $e) {
             return;
@@ -239,7 +240,7 @@ class WaSenderContext
         $byId = [];
         foreach ($rows as $p) {
             $id = (int) ($p['id_pelanggan'] ?? 0);
-            if ($id <= 0) {
+            if ($id <= 0 || isset($byId[$id])) {
                 continue;
             }
             $ids[] = $id;

@@ -421,7 +421,7 @@ class DeliveryRequestStore
 
     private static function phoneTail(array $pel, string $waNumber): string
     {
-        $fromPel = WaSenderContext::key((string) ($pel['nomor_pelanggan'] ?? ''));
+        $fromPel = WaSenderContext::key(PelangganLokasiStore::primaryPhone($pel));
         if (strlen($fromPel) >= 8) {
             return $fromPel;
         }

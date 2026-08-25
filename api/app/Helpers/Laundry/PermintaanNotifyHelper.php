@@ -113,12 +113,13 @@ class PermintaanNotifyHelper
                 $phoneKey = preg_replace('/[^0-9]/', '', $phoneStorage) ?: '';
                 if ($phoneKey !== '') {
                     $expr = "REPLACE(REPLACE(REPLACE(REPLACE(nomor_pelanggan,'+',''),'-',''),' ',''),'.','')";
+                    $expr2 = "REPLACE(REPLACE(REPLACE(REPLACE(nomor_pelanggan_2,'+',''),'-',''),' ',''),'.','')";
                     $row = DB::getInstance(1)->query(
                         "SELECT nama_pelanggan FROM pelanggan
-                         WHERE {$expr} LIKE ?
+                         WHERE {$expr} LIKE ? OR {$expr2} LIKE ?
                          ORDER BY id_pelanggan DESC
                          LIMIT 1",
-                        ['%' . $phoneKey]
+                        ['%' . $phoneKey, '%' . $phoneKey]
                     )->row_array();
                     $nama = trim((string) ($row['nama_pelanggan'] ?? ''));
                 }

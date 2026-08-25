@@ -214,11 +214,14 @@ class KasNonTunaiConfirm
 
         try {
             $pelanggan = $laundryDb->query(
-                'SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                'SELECT nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idClient]
             )->row_array();
 
             $phone = trim((string) ($pelanggan['nomor_pelanggan'] ?? ''));
+            if ($phone === '' || $phone === '0') {
+                $phone = trim((string) ($pelanggan['nomor_pelanggan_2'] ?? ''));
+            }
             if ($phone === '') {
                 return;
             }
@@ -262,11 +265,14 @@ class KasNonTunaiConfirm
             }
             $laundryDb = \App\Core\DB::getInstance(1);
             $pelanggan = $laundryDb->query(
-                'SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                'SELECT nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idClient]
             )->row_array();
 
             $phone = trim((string) ($pelanggan['nomor_pelanggan'] ?? ''));
+            if ($phone === '' || $phone === '0') {
+                $phone = trim((string) ($pelanggan['nomor_pelanggan_2'] ?? ''));
+            }
             $digits = preg_replace('/[^0-9]/', '', $phone);
             if (!is_string($digits) || strlen($digits) < 8) {
                 return;

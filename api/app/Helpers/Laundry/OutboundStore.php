@@ -25,7 +25,7 @@ class OutboundStore
             if ($pel === null) {
                 return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
             }
-            $waNumber = trim((string) ($pel['nomor_pelanggan'] ?? ''));
+            $waNumber = PelangganLokasiStore::primaryPhone($pel);
             if ($waNumber === '') {
                 return ['ok' => false, 'message' => 'Nomor pelanggan belum lengkap'];
             }
@@ -57,7 +57,7 @@ class OutboundStore
             if ($pel === null) {
                 return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
             }
-            $waNumber = trim((string) ($pel['nomor_pelanggan'] ?? ''));
+            $waNumber = PelangganLokasiStore::primaryPhone($pel);
             if ($waNumber === '') {
                 return ['ok' => false, 'message' => 'Nomor pelanggan belum lengkap'];
             }
@@ -89,7 +89,7 @@ class OutboundStore
             if ($pel === null) {
                 return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
             }
-            $waNumber = trim((string) ($pel['nomor_pelanggan'] ?? ''));
+            $waNumber = PelangganLokasiStore::primaryPhone($pel);
             if ($waNumber === '') {
                 return ['ok' => false, 'message' => 'Nomor pelanggan belum lengkap'];
             }

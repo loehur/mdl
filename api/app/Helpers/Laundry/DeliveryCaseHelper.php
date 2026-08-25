@@ -174,7 +174,7 @@ class DeliveryCaseHelper
         if ($idPelanggan > 0) {
             $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
             if ($pel !== null) {
-                $fromPel = WaSenderContext::key((string) ($pel['nomor_pelanggan'] ?? ''));
+                $fromPel = WaSenderContext::key(PelangganLokasiStore::primaryPhone($pel));
                 if (strlen($fromPel) >= 8) {
                     return $fromPel;
                 }

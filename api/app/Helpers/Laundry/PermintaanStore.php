@@ -22,7 +22,7 @@ class PermintaanStore
         if ($idPelanggan > 0) {
             $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
             if ($pel !== null) {
-                $fromPel = self::normalizePhoneKey((string) ($pel['nomor_pelanggan'] ?? ''));
+                $fromPel = self::normalizePhoneKey(PelangganLokasiStore::primaryPhone($pel));
                 if ($fromPel !== '') {
                     $phoneKey = $phoneKey !== '' ? $phoneKey : $fromPel;
                 }
@@ -296,7 +296,7 @@ class PermintaanStore
         if ($idPelanggan > 0) {
             $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
             if ($pel !== null) {
-                $fromPel = self::normalizePhoneKey((string) ($pel['nomor_pelanggan'] ?? ''));
+                $fromPel = self::normalizePhoneKey(PelangganLokasiStore::primaryPhone($pel));
                 if ($fromPel !== '') {
                     $phoneKey = $phoneKey !== '' ? $phoneKey : $fromPel;
                 }
@@ -365,7 +365,7 @@ class PermintaanStore
         if ($idPelanggan > 0) {
             $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
             if ($pel !== null) {
-                return self::normalizePhoneStorage((string) ($pel['nomor_pelanggan'] ?? ''));
+                return self::normalizePhoneStorage(PelangganLokasiStore::primaryPhone($pel));
             }
         }
 
@@ -556,7 +556,7 @@ class PermintaanStore
         if ($idPelanggan > 0) {
             $pel = PelangganLokasiStore::findPelanggan($idPelanggan);
             if ($pel !== null) {
-                $fromPel = self::normalizePhoneKey((string) ($pel['nomor_pelanggan'] ?? ''));
+                $fromPel = self::normalizePhoneKey(PelangganLokasiStore::primaryPhone($pel));
                 if ($fromPel !== '') {
                     $phoneKey = $phoneKey !== '' ? $phoneKey : $fromPel;
                 }

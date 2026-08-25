@@ -4513,10 +4513,14 @@ trait WARepliesKurirTrait
         }
         try {
             $row = DB::getInstance(1)->query(
-                'SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                'SELECT nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idPelanggan]
             )->row();
-            $fromPel = \App\Helpers\CRM\WaSenderContext::key((string) ($row->nomor_pelanggan ?? ''));
+            $phone = trim((string) ($row->nomor_pelanggan ?? ''));
+            if ($phone === '' || $phone === '0') {
+                $phone = trim((string) ($row->nomor_pelanggan_2 ?? ''));
+            }
+            $fromPel = \App\Helpers\CRM\WaSenderContext::key($phone);
             if (strlen($fromPel) >= 8) {
                 return $fromPel;
             }

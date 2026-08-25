@@ -4817,7 +4817,15 @@ class WAReplies
         $waService = $this->getWaService();
 
         $db1 = DB::getInstance(1);
-        $this->trySendMissingNotaNotifsForStatus($phoneIn, $waNumber, $waService, $db1);
+        // Jalur pelengkap: kirim nota (notif tipe=1) yang belum ada. Diisolasi try/catch —
+        // jangan sampai lock wait timeout / API wa_nota lambat menggagalkan balasan STATUS utama.
+        try {
+            $this->trySendMissingNotaNotifsForStatus($phoneIn, $waNumber, $waService, $db1);
+        } catch (\Throwable $e) {
+            if (class_exists('\Log', false)) {
+                \Log::write('[STATUS] trySendMissingNotaNotifsForStatus skipped: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
 
         $limitTime = date('Y-m-d H:i:s', strtotime('-72 hours'));
 
@@ -8214,9 +8222,10 @@ class WAReplies
             return [];
         }
         $digits = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('nomor_pelanggan');
-        $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE ' . $digits . ' LIKE ? ORDER BY id_pelanggan ASC';
+        $digits2 = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2');
+        $sql = 'SELECT ' . $selectColumns . ' FROM pelanggan WHERE ' . $digits . ' LIKE ? OR ' . $digits2 . ' LIKE ? ORDER BY id_pelanggan ASC';
 
-        return $db->query($sql, ['%' . $nomor])->result_array() ?: [];
+        return $db->query($sql, ['%' . $nomor, '%' . $nomor])->result_array() ?: [];
     }
 
     /**

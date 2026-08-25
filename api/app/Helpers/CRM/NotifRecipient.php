@@ -17,7 +17,7 @@ class NotifRecipient
         }
         try {
             $q = $dbLaundry->query(
-                'SELECT nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                'SELECT nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idPelanggan]
             );
             if (!$q || $q->num_rows() <= 0) {
@@ -25,6 +25,9 @@ class NotifRecipient
             }
             $row = $q->row_array();
             $nomor = trim((string) ($row['nomor_pelanggan'] ?? ''));
+            if ($nomor === '' || $nomor === '0') {
+                $nomor = trim((string) ($row['nomor_pelanggan_2'] ?? ''));
+            }
             if ($nomor === '' || $nomor === '0') {
                 return null;
             }

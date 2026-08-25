@@ -470,9 +470,12 @@ class InstantKurir
         $cabLat = (float) ($cabang['latt'] ?? 0);
         $cabLon = (float) ($cabang['long'] ?? 0);
 
-        // Customer: nama_pelanggan + nomor_pelanggan lengkap → "ANGGI, 086522115544"
+        // Customer: nama_pelanggan + nomor (utama, fallback alternatif) lengkap → "ANGGI, 086522115544"
         $pelName = trim((string) ($pelanggan['nama_pelanggan'] ?? 'Customer'));
         $pelPhoneRaw = trim((string) ($pelanggan['nomor_pelanggan'] ?? ''));
+        if ($pelPhoneRaw === '' || $pelPhoneRaw === '0') {
+            $pelPhoneRaw = trim((string) ($pelanggan['nomor_pelanggan_2'] ?? ''));
+        }
         $pelPhone = self::normalizePhone($pelPhoneRaw);
         if ($pelPhone === '') {
             $pelPhone = $cabPhone;

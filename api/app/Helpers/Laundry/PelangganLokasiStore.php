@@ -25,7 +25,7 @@ class PelangganLokasiStore
         }
         $row = self::laundryDb()
             ->query(
-                'SELECT id_pelanggan, id_cabang, nama_pelanggan, nomor_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
+                'SELECT id_pelanggan, id_cabang, nama_pelanggan, nomor_pelanggan, nomor_pelanggan_2 FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                 [$idPelanggan]
             )
             ->row_array();
@@ -33,6 +33,29 @@ class PelangganLokasiStore
             return null;
         }
         return $row;
+    }
+
+    /** Nomor tujuan utama: prefer nomor_pelanggan, fallback nomor_pelanggan_2. */
+    public static function primaryPhone(array $pel): string
+    {
+        $utama = trim((string) ($pel['nomor_pelanggan'] ?? ''));
+        if ($utama !== '' && $utama !== '0') {
+            return $utama;
+        }
+        return trim((string) ($pel['nomor_pelanggan_2'] ?? ''));
+    }
+
+    /** Semua nomor pelanggan (utama + alternatif), unik, tidak kosong. */
+    public static function phones(array $pel): array
+    {
+        $out = [];
+        foreach (['nomor_pelanggan', 'nomor_pelanggan_2'] as $k) {
+            $v = trim((string) ($pel[$k] ?? ''));
+            if ($v !== '' && $v !== '0') {
+                $out[] = $v;
+            }
+        }
+        return array_values(array_unique($out));
     }
 
     public static function formatItem(array $r): array
