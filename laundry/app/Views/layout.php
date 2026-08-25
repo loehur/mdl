@@ -24,6 +24,27 @@ if (isset($data['data_operasi'])) {
     <link rel="stylesheet" href="<?= URL::EX_ASSETS ?>css/jquery-ui.css" rel="stylesheet" />
 
     <style>
+        /* Fullscreen loading overlay + spinner — dipakai saat klik menu navigasi */
+        .loaderDiv {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(2px);
+        }
+        .loaderDiv.is-show { display: flex; }
+        .loaderDiv .loader {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255,255,255,.35);
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: mdlSpin .8s linear infinite;
+        }
+        @keyframes mdlSpin { to { transform: rotate(360deg); } }
         @font-face {
             font-family: "fontku";
             src: url("<?= URL::EX_ASSETS ?>font/Titillium-Regular.otf");
@@ -2182,7 +2203,7 @@ if ($privUi === 100) {
 }
 ?>
 <body class="hold-transition<?= $isTrainingUi ? ' mode-training' : '' ?><?= $bodyPrivClass ?>">
-    <div class="loaderDiv" style="display: none;">
+    <div class="loaderDiv">
         <div class="loader"></div>
     </div>
     <div class="wrapper">
@@ -2789,12 +2810,34 @@ if ($privUi === 100) {
                         menuUtama.addEventListener('click', toggleSidebarMenu);
                     }
 
-                    // Klik menu item (punya href navigasi) di HP/layar kecil → tutup sidebar.
-                    // Desktop: biarkan sidebar tetap terbuka.
-                    document.addEventListener('click', function(event) {
-                        if (!isMobileSidebar()) {
-                            return;
+                    // Klik menu item (punya href navigasi) → fullscreen loader + tutup sidebar di HP.
+                    // Desktop: sidebar tetap, tapi loader overlay tetap muncul.
+                    var loaderEl = document.querySelector('.loaderDiv');
+                    var loaderTimer = null;
+
+                    function showNavLoader() {
+                        if (!loaderEl) return;
+                        loaderEl.style.display = ''; // bersihkan inline dari fadeOut AJAX lain
+                        loaderEl.classList.add('is-show');
+                        // Fallback: kalau halaman baru gagal trigger load, sembunyikan setelah 8 detik.
+                        loaderTimer = window.setTimeout(function() {
+                            hideNavLoader();
+                        }, 8000);
+                    }
+
+                    function hideNavLoader() {
+                        if (loaderTimer) {
+                            window.clearTimeout(loaderTimer);
+                            loaderTimer = null;
                         }
+                        if (loaderEl) loaderEl.classList.remove('is-show');
+                        loaderEl.style.display = '';
+                    }
+
+                    // Halaman baru selesai load → sembunyikan loader.
+                    window.addEventListener('load', hideNavLoader);
+
+                    document.addEventListener('click', function(event) {
                         var link = event.target.closest('.main-sidebar a.nav-link[href]');
                         if (!link) {
                             return;
@@ -2803,7 +2846,10 @@ if ($privUi === 100) {
                         if (href === '#' || href === '') {
                             return; // parent dropdown — biarkan accordion bekerja
                         }
-                        closeSidebarMenu();
+                        if (isMobileSidebar()) {
+                            closeSidebarMenu();
+                        }
+                        showNavLoader();
                     });
 
                     document.addEventListener('touchstart', function(event) {
