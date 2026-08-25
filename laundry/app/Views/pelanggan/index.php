@@ -809,6 +809,17 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   var $alert = $('#plg-edit-alert');
   var $saveBtn = $('#plg-edit-save');
   var $cekBtn = $('#plg-edit-cek');
+  var cekBtnHtml = '';
+
+  function setCekLoading(on) {
+    if (!on) {
+      $cekBtn.prop('disabled', false).html(cekBtnHtml);
+      return;
+    }
+    cekBtnHtml = $cekBtn.html();
+    $cekBtn.prop('disabled', true)
+      .html('<i class="fas fa-spinner fa-spin"></i> Mengecek…');
+  }
 
   function setEditAlert(html, type) {
     if (!$alert.length) return;
@@ -841,7 +852,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
       return;
     }
 
-    $cekBtn.prop('disabled', true);
+    setCekLoading(true);
     $.ajax({
       url: '<?= URL::BASE_URL ?>Pelanggan/cekEdit',
       type: 'POST',
@@ -852,7 +863,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         nomor_pelanggan_2: nomor2
       },
       success: function (res) {
-        $cekBtn.prop('disabled', false);
+        setCekLoading(false);
         if (!res || !res.ok) {
           setEditAlert((res && res.msg) || 'Gagal cek nomor', 'warn');
           return;
@@ -860,7 +871,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
         renderCekEdit(res);
       },
       error: function () {
-        $cekBtn.prop('disabled', false);
+        setCekLoading(false);
         setEditAlert('Gagal cek nomor — coba lagi.', 'warn');
       }
     });
