@@ -1475,15 +1475,7 @@ onUnmounted(() => {
               <p v-if="item.updated_at" class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
                 {{ formatRequestTime(item.updated_at) }}
               </p>
-              <div v-if="isAdmin" class="mt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  class="text-[11px] font-bold text-[var(--wa-accent-green)] disabled:opacity-40"
-                  :disabled="!!completingPermintaanPhone"
-                  @click="completePermintaan(item)"
-                >
-                  {{ completingPermintaanPhone === (item.phone || "__pending__") ? "Menyimpan…" : "Selesai" }}
-                </button>
+              <div v-if="isAdmin" class="mt-2 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   class="text-[11px] font-bold text-[var(--wa-text-secondary)] disabled:opacity-40"
@@ -1491,6 +1483,14 @@ onUnmounted(() => {
                   @click="openEditPermintaan(item)"
                 >
                   Edit
+                </button>
+                <button
+                  type="button"
+                  class="text-[11px] font-bold text-[var(--wa-accent-green)] disabled:opacity-40"
+                  :disabled="!!completingPermintaanPhone"
+                  @click="completePermintaan(item)"
+                >
+                  {{ completingPermintaanPhone === (item.phone || "__pending__") ? "Menyimpan…" : "Selesai" }}
                 </button>
               </div>
             </div>
