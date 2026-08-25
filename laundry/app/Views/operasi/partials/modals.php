@@ -2452,8 +2452,9 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     return out;
   }
 
-  function setPengisiLocked(idUser) {
+  function setPengisiLocked(idUser, surcasExists) {
     idUser = parseInt(idUser, 10) || 0;
+    surcasExists = !!surcasExists;
     var prefillId = parseInt(prefillPengisi, 10) || 0;
     if (idUser <= 0 && forceComplete && prefillId > 0) {
       idUser = prefillId;
@@ -2461,8 +2462,8 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var wrap = root.querySelector('#kurirPengisiSurcasWrap');
     var sel = root.querySelector('#kurirPengisiSurcas');
     var hint = document.getElementById('kurirPengisiSurcasHint');
-    if (idUser <= 0) {
-      // Belum ada pengisi — tampilkan input.
+    if (idUser <= 0 && !surcasExists) {
+      // Belum ada pengisi & belum ada surcas — tampilkan input.
       if (wrap) wrap.style.display = '';
       if (kurirPengisiSelectize && typeof kurirPengisiSelectize.unlock === 'function') {
         kurirPengisiSelectize.unlock();
@@ -2474,30 +2475,34 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
       }
       return;
     }
-    // Pengisi surcas sudah ada — jangan tampilkan input lagi, cukup info.
-    var optText = String(idUser);
-    if (sel) {
+    // Surcas sudah ada — pengisi tidak bisa diisi/diubah lagi.
+    // Sembunyikan input, tampilkan info siapa pengisinya.
+    var optText = idUser > 0 ? String(idUser) : '';
+    if (sel && idUser > 0) {
       var opt = sel.querySelector('option[value="' + idUser + '"]');
       if (opt && opt.textContent) optText = opt.textContent.trim();
     }
+    var labelPengisi = idUser > 0
+      ? (forceComplete ? 'Pengisi surcas sudah tercatat — ' : 'Sudah ada di nota — ') + optText
+      : 'Surcas dari customer (portal J) — pengisi tidak bisa diubah';
     if (wrap) wrap.style.display = 'none';
     if (kurirPengisiSelectize) {
-      if (!kurirPengisiSelectize.options[String(idUser)]) {
-        kurirPengisiSelectize.addOption({ value: String(idUser), text: optText });
+      if (idUser > 0) {
+        if (!kurirPengisiSelectize.options[String(idUser)]) {
+          kurirPengisiSelectize.addOption({ value: String(idUser), text: optText });
+        }
+        kurirPengisiSelectize.setValue(String(idUser), true);
       }
-      kurirPengisiSelectize.setValue(String(idUser), true);
       if (typeof kurirPengisiSelectize.lock === 'function') {
         kurirPengisiSelectize.lock();
       }
     } else if (sel) {
-      sel.value = String(idUser);
+      sel.value = idUser > 0 ? String(idUser) : '';
       sel.disabled = true;
     }
     if (hint) {
       hint.style.display = 'block';
-      hint.textContent = forceComplete
-        ? 'Pengisi surcas sudah tercatat — ' + optText
-        : 'Sudah ada di nota — ' + optText;
+      hint.textContent = labelPengisi;
     }
   }
 
@@ -2576,24 +2581,28 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
 
     var pengisiId = parseInt(prefillPengisi, 10) || 0;
     var existUser = 0;
+    var surcasExists = false;
     if (isJemput) {
       existUser = existJ.user || 0;
+      surcasExists = existJ.jumlah !== null;
     } else if (isAntar) {
       existUser = existA.user || 0;
+      surcasExists = existA.jumlah !== null;
     } else if (isCombo) {
       existUser = existJ.user || existA.user || 0;
+      surcasExists = existJ.jumlah !== null || existA.jumlah !== null;
     }
     if (pengisiId <= 0) {
       pengisiId = existUser;
     }
-    var lockPengisi = pengisiId > 0 && (
-      (forceComplete && (parseInt(prefillPengisi, 10) > 0 || existUser > 0))
-      || (!forceComplete && (existJ.user > 0 || existA.user > 0))
-    );
+    // Aturan: begitu surcas dibuat, pengisi tidak bisa diisi/diubah lagi.
+    // Surcas sudah ada (dari kasir / portal J) -> sembunyikan input pengisi,
+    // tampilkan info pengisi (nama karyawan, atau Customer jika id_user=0).
+    var lockPengisi = surcasExists && (forceComplete || !forceComplete);
     if (lockPengisi) {
-      setPengisiLocked(pengisiId);
+      setPengisiLocked(pengisiId, surcasExists);
     } else {
-      setPengisiLocked(0);
+      setPengisiLocked(0, false);
     }
   }
 
