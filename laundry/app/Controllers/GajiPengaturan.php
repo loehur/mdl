@@ -37,7 +37,7 @@ class GajiPengaturan extends Controller
          }
       }
 
-      $this->view('layout', ['data_operasi' => ['title' => 'Pengaturan Gaji']]);
+      $this->view('layout', ['data_operasi' => ['title' => 'Pengaturan Gaji Global']]);
       $this->view('gaji/pengaturan', [
          'rows' => $rows,
          'pengali_ref' => $pengaliRef,
@@ -48,7 +48,7 @@ class GajiPengaturan extends Controller
    /** Halaman khusus CRUD fee pengali per karyawan cabang. */
    public function karyawan()
    {
-      $this->view('layout', ['data_operasi' => ['title' => 'Pengaturan Karyawan']]);
+      $this->view('layout', ['data_operasi' => ['title' => 'Pengaturan Fee Karyawan']]);
       $this->view('gaji/pengaturan_karyawan', [
          'karyawan' => $this->loadFeePengaliKaryawanCabang(),
       ]);
