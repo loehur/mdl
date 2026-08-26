@@ -5590,18 +5590,6 @@ class WAReplies
                 $feeKaryawan[(int) ($row['id_pengali'] ?? 0)] = (int) ($row['gaji_pengali'] ?? 0);
             }
 
-            $minimumGlobal = ['malam' => 14000, 'cuci' => 65000];
-            try {
-                foreach ($db->query("SELECT kode, clamp_min FROM gaji_fee_formula WHERE kode IN ('malam', 'cuci')")->result_array() as $row) {
-                    $kode = (string) ($row['kode'] ?? '');
-                    if (isset($minimumGlobal[$kode])) {
-                        $minimumGlobal[$kode] = max(0, (int) ($row['clamp_min'] ?? $minimumGlobal[$kode]));
-                    }
-                }
-            } catch (\Throwable $e) {
-                // Tabel rumus belum ada: gunakan minimum bawaan yang sama dengan modul Gaji.
-            }
-
             $rupiah = static function ($amount): string {
                 return 'Rp' . number_format((int) $amount, 0, ',', '.');
             };
@@ -5633,20 +5621,20 @@ class WAReplies
                 }
             }
 
-            $minimumCuci = max($minimumGlobal['cuci'], $feeKaryawan[6]);
-            $minimumMalam = max($minimumGlobal['malam'], $feeKaryawan[5]);
             $lines = array_merge($lines, [
                 '', '*FEE LAUNDRY*',
                 'Terima: ' . $rupiah($globalRef[1]) . '/nota',
                 'Kembali: ' . $rupiah($globalRef[2]) . '/nota',
-                '', '*FEE ABSENSI*',
-                'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari',
-                'Cuci: Minimum ' . $rupiah($minimumCuci) . '/hari',
-                'Jaga malam: Minimum ' . $rupiah($minimumMalam) . '/malam',
                 '', '*TUNJANGAN BULANAN*',
                 $rupiah($feeKaryawan[4]) . '/bulan',
                 '', '*POTONGAN*',
                 'Kasbon akan dikurangi dari gaji periode terkait.',
+                '', '*FEE ABSENSI*',
+                'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari',
+                '', '*Cuci*',
+                'Ketik: _Fee Cuci {KODE_CABANG}_',
+                '', '*Jaga Malam*',
+                'Ketik: _Fee Malam {KODE_CABANG}_',
             ]);
 
             $this->sendQuotedFreeText($waNumber, implode("\n", $lines));
