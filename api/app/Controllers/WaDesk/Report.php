@@ -106,21 +106,28 @@ class Report extends WaDeskController
 
     private function resolveReportTeamId(array $user, int $tenantId): int
     {
+        $queryTeamId = (int) $this->query('team_id', 0);
+
         if (($user['role'] ?? '') === 'admin') {
             $this->requireAdmin();
-            $teamId = (int) $this->query('team_id', 0);
-            if ($teamId <= 0) {
-                $this->error('team_id wajib', 400);
-            }
-            $team = $this->db($this->db_index)->query(
-                "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$teamId, $tenantId]
-            )->row_array();
-            if (!$team) {
-                $this->error('Team tidak ditemukan', 404);
+
+            if ($queryTeamId > 0) {
+                $team = $this->db($this->db_index)->query(
+                    "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                    [$queryTeamId, $tenantId]
+                )->row_array();
+                if (!$team) {
+                    $this->error('Team tidak ditemukan', 404);
+                }
+
+                return $queryTeamId;
             }
 
-            return $teamId;
+            if ($this->hasOperationalTeam($user)) {
+                return (int) $user['team_id'];
+            }
+
+            $this->error('team_id wajib', 400);
         }
 
         if (!$this->hasOperationalTeam($user)) {

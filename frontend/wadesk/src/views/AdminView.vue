@@ -849,7 +849,7 @@
         >
           <div>
             <p class="text-sm font-medium text-slate-200">Team operasional</p>
-            <p class="text-xs text-slate-500 mt-1">Untuk chat &amp; blast WA. Admin panel tetap bisa diakses tanpa team.</p>
+            <p class="text-xs text-slate-500 mt-1">Wajib masuk team untuk kirim chat dan blast WA.</p>
           </div>
 
           <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
