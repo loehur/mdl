@@ -362,22 +362,26 @@
         </div>
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-4" @submit.prevent="assignChannel">
-          <p class="text-sm font-medium text-slate-200">Assign nomor baru</p>
+          <p class="text-sm font-medium text-slate-200">Assign nomor ke team</p>
 
           <div>
             <label class="label">Device / nomor</label>
-            <select v-model="channelForm.device_id" required class="field">
+            <select v-model="channelForm.device_id" required class="field" @change="onAssignDeviceChange">
               <option disabled value="">Pilih device (sync dulu jika kosong)</option>
               <option
                 v-for="d in availableDevices"
                 :key="d.device_id"
                 :value="d.device_id"
-                :disabled="!!d.assigned"
               >
                 {{ d.label || d.device_id }} · {{ d.phone_number || "—" }}
-                {{ d.assigned ? "(sudah di-assign)" : "" }}
+                <template v-if="d.assigned">
+                  · Team: {{ d.assigned.team_names || "—" }}
+                </template>
               </option>
             </select>
+            <p v-if="selectedAssignDevice?.assigned" class="text-[11px] text-slate-500 mt-1">
+              Nomor sudah terdaftar — centang team tambahan yang juga ingin memakai nomor ini.
+            </p>
           </div>
 
           <div>
@@ -961,6 +965,10 @@ const teamsWithoutLeader = computed(() =>
   teams.value.filter((t) => !t.team_leader_user_id)
 );
 
+const selectedAssignDevice = computed(() =>
+  availableDevices.value.find((d) => d.device_id === channelForm.device_id) || null
+);
+
 const canSubmitUser = computed(() => {
   if (userForm.role === "team_leader") {
     return !!userForm.team_id && teamsWithoutLeader.value.length > 0;
@@ -1472,7 +1480,7 @@ async function assignChannel() {
       flash(false, "Pilih minimal satu team");
       return;
     }
-    await api("/WaDesk/Channels/assign", {
+    const res = await api("/WaDesk/Channels/assign", {
       method: "POST",
       body: {
         device_id: channelForm.device_id,
@@ -1481,11 +1489,25 @@ async function assignChannel() {
       },
     });
     Object.assign(channelForm, { device_id: "", label: "", team_ids: [] });
-    flash(true, "Channel di-assign");
+    flash(true, res.message || (res.data?.merged ? "Team ditambahkan ke nomor" : "Channel di-assign"));
     await refresh();
   } catch (e) {
     flash(false, e.message);
   }
+}
+
+function onAssignDeviceChange() {
+  const dev = selectedAssignDevice.value;
+  if (!dev) {
+    channelForm.label = "";
+    channelForm.team_ids = [];
+    return;
+  }
+  channelForm.label = dev.assigned?.label || dev.label || "";
+  const existing = Array.isArray(dev.assigned?.team_ids)
+    ? dev.assigned.team_ids.map((id) => Number(id)).filter((id) => id > 0)
+    : [];
+  channelForm.team_ids = [...existing];
 }
 
 function startEditKey(k) {

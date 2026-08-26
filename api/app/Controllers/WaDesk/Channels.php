@@ -154,12 +154,32 @@ class Channels extends WaDeskController
         $deviceId = trim((string) $body['device_id']);
         $tbl = $this->channelsTable();
 
-        $deviceTaken = $this->db($this->db_index)->query(
-            "SELECT id FROM {$tbl} WHERE device_id = ? LIMIT 1",
-            [$deviceId]
+        $existing = $this->db($this->db_index)->query(
+            "SELECT * FROM {$tbl} WHERE device_id = ? AND tenant_id = ? LIMIT 1",
+            [$deviceId, $tenantId]
         )->row_array();
-        if ($deviceTaken) {
-            $this->error('Device sudah di-assign ke team lain', 409);
+        if ($existing) {
+            $channelId = (int) $existing['id'];
+            $currentIds = array_map(
+                static fn ($r) => (int) ($r['id'] ?? 0),
+                $this->channelTeamRows($channelId, $tenantId)
+            );
+            $merged = array_values(array_unique(array_merge($currentIds, $teamIds)));
+            if ($merged === $currentIds) {
+                $this->error('Semua team terpilih sudah di-assign ke nomor ini', 409);
+            }
+            $this->syncChannelTeams($channelId, $merged);
+            $label = trim((string) ($body['label'] ?? ''));
+            if ($label !== '' && $label !== (string) ($existing['label'] ?? '')) {
+                $this->db($this->db_index)->update($tbl, ['label' => $label], ['id' => $channelId]);
+            }
+            $this->success([
+                'id' => $channelId,
+                'channel_id' => $channelId,
+                'merged' => true,
+            ], 'Team ditambahkan ke nomor');
+
+            return;
         }
 
         $meta = $this->resolveDeviceMeta($deviceId, $tenantId);
