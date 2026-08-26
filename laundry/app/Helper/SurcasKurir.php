@@ -144,14 +144,6 @@ class SurcasKurir
             $rows = $db->query_array(
                 "SELECT si.id_penjualan, si.id_jenis_surcas
                  FROM surcas_item si
-                 INNER JOIN (
-                    SELECT id_surcas, id_jenis_surcas, COUNT(*) AS total_item
-                    FROM surcas_item
-                    WHERE id_jenis_surcas IN ($jenisIn)
-                    GROUP BY id_surcas, id_jenis_surcas
-                    HAVING COUNT(*) > 1
-                 ) sibling ON sibling.id_surcas = si.id_surcas
-                    AND sibling.id_jenis_surcas = si.id_jenis_surcas
                  INNER JOIN surcas sc ON sc.id_surcas = si.id_surcas
                     AND sc.id_jenis_surcas = si.id_jenis_surcas
                  INNER JOIN sale s ON s.id_penjualan = si.id_penjualan
@@ -160,6 +152,13 @@ class SurcasKurir
                     AND $cabangMatch
                  WHERE si.id_penjualan IN ($in)
                    AND si.id_jenis_surcas IN ($jenisIn)"
+                   . " AND EXISTS (
+                     SELECT 1
+                     FROM surcas_item sibling
+                     WHERE sibling.id_surcas = si.id_surcas
+                       AND sibling.id_jenis_surcas = si.id_jenis_surcas
+                       AND sibling.id_penjualan <> si.id_penjualan
+                   )"
             );
             foreach ((array) $rows as $row) {
                 $idSale = (int) ($row['id_penjualan'] ?? 0);
