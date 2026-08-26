@@ -3,7 +3,6 @@ $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
 $pengaliRef = is_array($data['pengali_ref'] ?? null) ? $data['pengali_ref'] : [1 => 0, 2 => 0];
 $feeTerimaRef = (int) ($pengaliRef[1] ?? 0);
 $feeKembaliRef = (int) ($pengaliRef[2] ?? 0);
-$harianKaryawan = is_array($data['harian_karyawan'] ?? null) ? $data['harian_karyawan'] : [];
 
 $feeFormula = is_array($data['fee_formula'] ?? null) ? $data['fee_formula'] : [
   'malam' => ['pengali' => 1, 'clamp_min' => 14000, 'clamp_max' => 32000],
@@ -264,49 +263,6 @@ foreach ($this->dLayanan as $l) {
         </tbody>
       </table>
       <small class="text-muted">Double-click nilai untuk edit. Pengali boleh desimal (contoh 4.1). Tombol Fee Cabang menampilkan fee bulan ini per outlet.</small>
-    </div>
-  </div>
-
-  <div class="card border-0 mb-3">
-    <div class="card-body p-3">
-      <h6 class="mb-1">Gaji Harian Karyawan Cabang</h6>
-      <p class="small text-muted mb-3">Atur fee Harian untuk karyawan aktif di cabang ini. Nilai belum diatur dapat dibuat langsung dari tabel.</p>
-      <div class="table-responsive">
-        <table class="table table-sm mb-0" style="max-width: 620px;">
-          <thead class="table-light">
-            <tr>
-              <th>Karyawan</th>
-              <th class="text-end">Fee Harian (Rp)</th>
-              <th style="width: 150px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if ($harianKaryawan === []) { ?>
-              <tr><td colspan="3" class="text-muted p-3">Tidak ada karyawan aktif di cabang ini.</td></tr>
-            <?php } else { foreach ($harianKaryawan as $k) {
-              $idUser = (int) ($k['id_user'] ?? 0);
-              $feeHarian = $k['gaji_pengali'] === null ? '' : (int) $k['gaji_pengali'];
-              $hasFeeHarian = !empty($k['id_gaji_pengali']);
-            ?>
-              <tr data-id-user="<?= $idUser ?>">
-                <td>
-                  <b><?= htmlspecialchars(strtoupper((string) ($k['nama_user'] ?? ''))) ?></b>
-                  <small class="text-muted">#<?= $idUser ?></small>
-                </td>
-                <td class="text-end">
-                  <input type="number" class="form-control form-control-sm text-end input-harian-karyawan d-inline-block"
-                    min="0" step="1" value="<?= htmlspecialchars((string) $feeHarian) ?>"
-                    placeholder="Belum diatur" style="width: 130px;">
-                </td>
-                <td class="text-end">
-                  <button type="button" class="btn btn-sm btn-primary btn-simpan-harian-karyawan">Simpan</button>
-                  <button type="button" class="btn btn-sm btn-outline-danger btn-hapus-harian-karyawan <?= $hasFeeHarian ? '' : 'd-none' ?>">Hapus</button>
-                </td>
-              </tr>
-            <?php } } ?>
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -789,64 +745,5 @@ foreach ($this->dLayanan as $l) {
     });
   });
 
-  $(root).on('click', '.btn-simpan-harian-karyawan', function () {
-    var $row = $(this).closest('tr');
-    var $btn = $(this);
-    var idUser = parseInt($row.data('id-user'), 10);
-    var raw = $row.find('.input-harian-karyawan').val();
-    var fee = parseInt(raw, 10);
-    if (!idUser || isNaN(fee) || fee < 0) {
-      notify('Fee harian harus bernilai 0 atau lebih.', 'warn');
-      return;
-    }
-    $btn.prop('disabled', true);
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>GajiPengaturan/saveHarianKaryawan',
-      type: 'POST',
-      data: { id_user: idUser, gaji_pengali: fee },
-      success: function (res) {
-        if (String(res).trim() === '1') {
-          $row.find('.btn-hapus-harian-karyawan').removeClass('d-none');
-          notify('Fee harian tersimpan.', 'ok');
-        } else {
-          notify(res || 'Gagal menyimpan fee harian.', 'error');
-        }
-      },
-      error: function () {
-        notify('Gagal menyimpan fee harian.', 'error');
-      },
-      complete: function () {
-        $btn.prop('disabled', false);
-      }
-    });
-  });
-
-  $(root).on('click', '.btn-hapus-harian-karyawan', function () {
-    var $row = $(this).closest('tr');
-    var $btn = $(this);
-    var idUser = parseInt($row.data('id-user'), 10);
-    if (!idUser || !confirm('Hapus fee harian karyawan ini?')) return;
-    $btn.prop('disabled', true);
-    $.ajax({
-      url: '<?= URL::BASE_URL ?>GajiPengaturan/deleteHarianKaryawan',
-      type: 'POST',
-      data: { id_user: idUser },
-      success: function (res) {
-        if (String(res).trim() === '1') {
-          $row.find('.input-harian-karyawan').val('');
-          $btn.addClass('d-none');
-          notify('Fee harian dihapus.', 'ok');
-        } else {
-          notify(res || 'Gagal menghapus fee harian.', 'error');
-        }
-      },
-      error: function () {
-        notify('Gagal menghapus fee harian.', 'error');
-      },
-      complete: function () {
-        $btn.prop('disabled', false);
-      }
-    });
-  });
 })();
 </script>

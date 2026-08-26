@@ -196,8 +196,13 @@ if ($this->id_cabang > 0) {
             ],
             [
                 'c' => '@GajiPengaturan',
-                'title' => 'Pengaturan Gaji',
-                'txt' => 'Pengaturan'
+                'title' => 'Pengaturan Gaji Global',
+                'txt' => 'Pengaturan Global'
+            ],
+            [
+                'c' => '@GajiPengaturan/karyawan',
+                'title' => 'Pengaturan Fee Karyawan',
+                'txt' => 'Pengaturan Karyawan'
             ],
             [
                 'c' => '@Payroll',
