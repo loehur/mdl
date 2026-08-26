@@ -145,18 +145,17 @@ class Operasi extends Controller
          $this->helper('AntarTarif');
          $this->helper('SurcasKurir');
          $saleIdsInt = array_map('intval', $sale_ids);
-         $boundJemput = SurcasKurir::boundSaleIds(
+         $boundByJenis = SurcasKurir::boundSaleIdsByJenis(
             $this->db(0),
             $saleIdsInt,
-            (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
+            [
+               (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
+               (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
+            ]
          );
-         $mark('surcas_jemput');
-         $boundAntar = SurcasKurir::boundSaleIds(
-            $this->db(0),
-            $saleIdsInt,
-            (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
-         );
-         $mark('surcas_antar');
+         $boundJemput = $boundByJenis[(int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN] ?? [];
+         $boundAntar = $boundByJenis[(int) AntarTarif::SURCAS_JENIS_PENGANTARAN] ?? [];
+         $mark('surcas_bind');
          foreach ($saleIdsInt as $sid) {
             if ($sid <= 0) {
                continue;

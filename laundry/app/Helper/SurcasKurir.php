@@ -121,6 +121,97 @@ class SurcasKurir
     }
 
     /**
+     * Versi batch untuk beberapa jenis surcas. Dipakai halaman Operasi agar
+     * badge Antar dan Jemput tidak menjalankan tiga fallback yang sama dua kali.
+     *
+     * @param object $db
+     * @param int[] $ids
+     * @param int[] $jenisSurcas
+     * @return array<int,array<int,true>> [id_jenis_surcas => [id_penjualan => true]]
+     */
+    public static function boundSaleIdsByJenis($db, array $ids, array $jenisSurcas): array
+    {
+        $safe = self::safeIds($ids);
+        $jenisList = self::safeIds($jenisSurcas);
+        if ($safe === [] || $jenisList === []) {
+            return [];
+        }
+
+        $in = implode(',', $safe);
+        $jenisIn = implode(',', $jenisList);
+        $out = [];
+        $refMatch = self::sqlRefEquals('s.no_ref', 'sc.no_ref');
+        $cabangMatch = self::sqlCabangEquals('s.id_cabang', 'sc.id_cabang');
+        $collect = static function ($rows) use (&$out): void {
+            foreach ((array) $rows as $row) {
+                $idSale = (int) ($row['id_penjualan'] ?? 0);
+                $idJenis = (int) ($row['id_jenis_surcas'] ?? 0);
+                if ($idSale > 0 && $idJenis > 0) {
+                    $out[$idJenis][$idSale] = true;
+                }
+            }
+        };
+
+        try {
+            $collect($db->query_array(
+                "SELECT DISTINCT si.id_penjualan, si.id_jenis_surcas
+                 FROM surcas_item si
+                 INNER JOIN surcas sc ON sc.id_surcas = si.id_surcas
+                   AND sc.id_jenis_surcas = si.id_jenis_surcas
+                 INNER JOIN sale s ON s.id_penjualan = si.id_penjualan
+                   AND s.bin = 0
+                   AND $refMatch
+                   AND $cabangMatch
+                 WHERE si.id_jenis_surcas IN ($jenisIn)
+                   AND si.id_penjualan IN ($in)"
+            ));
+        } catch (\Throwable $e) {
+            // Tabel belum tersedia — fallback di bawah masih dapat menemukan binding lama.
+        }
+
+        try {
+            $collect($db->query_array(
+                "SELECT DISTINCT dri.id_penjualan, sc.id_jenis_surcas
+                 FROM delivery_request_item dri
+                 INNER JOIN surcas sc ON sc.id_delivery_request = dri.id_request
+                   AND sc.id_jenis_surcas IN ($jenisIn)
+                   AND sc.id_delivery_request IS NOT NULL
+                   AND sc.id_delivery_request > 0
+                 INNER JOIN sale s ON s.id_penjualan = dri.id_penjualan
+                   AND s.bin = 0
+                   AND $refMatch
+                   AND $cabangMatch
+                 WHERE dri.id_penjualan IN ($in)"
+            ));
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // Legacy: hanya jika baris surcas belum memakai surcas_item (binding per nota penuh).
+        try {
+            $collect($db->query_array(
+                "SELECT DISTINCT s.id_penjualan, sc.id_jenis_surcas
+                 FROM sale s
+                 INNER JOIN surcas sc ON $refMatch
+                   AND sc.id_jenis_surcas IN ($jenisIn)
+                   AND sc.dari_delivery = 1
+                   AND $cabangMatch
+                 WHERE s.bin = 0
+                   AND s.id_penjualan IN ($in)
+                   AND NOT EXISTS (
+                     SELECT 1 FROM surcas_item si
+                     WHERE si.id_surcas = sc.id_surcas
+                       AND si.id_jenis_surcas = sc.id_jenis_surcas
+                   )"
+            ));
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return $out;
+    }
+
+    /**
      * Binding surcas item yang dapat dilepas dari badge karena masih memiliki
      * item lain pada baris surcas yang sama. Dihitung sekaligus agar halaman
      * Operasi tidak melakukan query per nota.
