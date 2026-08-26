@@ -12,22 +12,51 @@ class PermintaanSummaryHelper
     {
         return "Kamu merangkum chat pelanggan laundry menjadi SATU baris ringkasan formal Bahasa Indonesia.\n"
             . "WAJIB gabungkan SEMUA bubble chat bernomor (bukan hanya yang terakhir).\n\n"
-            . "ATURAN FORMAT (WAJIB):\n"
-            . "- Pisahkan tiap poin dengan titik koma (;) — bukan slash (/), bukan koma daftar.\n"
-            . "- Pertanyaan (info/kapan/jam/estimasi/bisa-tidak) → klause diawali \"Menanyakan …\"\n"
-            . "- Permintaan (aksi/perlakuan khusus) → klause diawali \"Meminta …\"\n"
-            . "- Jika ada keduanya: \"Menanyakan …\" dulu, lalu \"Meminta …\".\n"
-            . "- Huruf kapital di awal setiap klause; akhiri seluruh ringkasan dengan titik (.).\n"
-            . "- Tanpa sapaan (kak/bu/pak), emoji, tanda kutip, nomor urut, prefix i-/o-.\n"
-            . "- Maksimal ~{$maxChars} karakter.\n\n"
-            . "CONTOH:\n"
-            . "Chat: kapan siap + dulukan baju sekolah\n"
-            . "→ Menanyakan kapan cucian siap; meminta dulukan baju sekolah.\n\n"
-            . "Chat: jam berapa bisa diambil + besok pagi bisa?\n"
-            . "→ Menanyakan jam berapa bisa diambil; menanyakan apakah besok pagi memungkinkan.\n\n"
-            . "Chat: plastik terpisah + pramuka duluan\n"
-            . "→ Meminta plastik terpisah; meminta dulukan baju pramuka.\n\n"
+            . "Ambil HANYA pertanyaan kesiapan/waktu, permintaan layanan khusus laundry, atau permintaan pengecekan barang/cucian.\n"
+            . "Jangan masukkan keluhan telepon, rekening, metode pembayaran, atau hal di luar layanan laundry.\n"
+            . "Setiap klause wajib diawali \"Menanyakan \" atau \"Meminta \". Pertahankan waktu, layanan, atau objek penting dengan singkat.\n"
+            . "Pisahkan klause dengan titik koma dan akhiri titik. Maksimal ~{$maxChars} karakter.\n\n"
+            . "CONTOH GAYA:\n"
+            . "- Menanyakan apakah bisa siap jam 3.\n"
+            . "- Meminta siap jam 5 sore.\n"
+            . "- Meminta diubah ke ekspres.\n"
+            . "- Meminta cek ada dompet di kantong.\n\n"
             . "Jawaban HANYA teks ringkasan.";
+    }
+
+    /**
+     * Ringkasan kanonik untuk notifikasi grup. Detail chat sengaja tidak disalin
+     * agar follow-up dengan maksud yang sama tidak memicu update berulang.
+     */
+    public static function compactForGroupSummary(string $chat): string
+    {
+        $chat = mb_strtolower(self::stripPreviewPrefix($chat), 'UTF-8');
+        if ($chat === '') {
+            return '';
+        }
+
+        // Bukan urusan operasional laundry; jangan menjadikannya PERMINTAAN.
+        $excluded = '/\b(telepon|telp|diangkat|dihubungi|rekening|rek(?:ening)?|transfer|pembayaran|bayar|qris|gopay|ovo|dana|bank)\b/iu';
+        $chat = preg_replace($excluded, ' ', $chat) ?? $chat;
+
+        $items = [];
+        $hasSpecificTime = (bool) preg_match('/\b(jam\s*\d{1,2}|pukul\s*\d{1,2}|siang ini|sore ini|malam ini|besok (?:pagi|siang|sore|malam))\b/iu', $chat);
+        $hasReadyQuestion = (bool) preg_match('/\b(kapan|selesai|jadi|kelar|estimasi)\b/iu', $chat)
+            || (!$hasSpecificTime && (bool) preg_match('/\bsiap\b/iu', $chat));
+        if ($hasReadyQuestion) {
+            $items[] = 'Menanyakan kapan siap';
+        }
+        if ($hasSpecificTime && preg_match('/\b(bisa|siap|selesai|jadi|ambil|jemput|antar)\b/iu', $chat)) {
+            $items[] = 'Meminta siap di waktu tertentu';
+        }
+        if (preg_match('/\b(gosend|go\s*send|jemput|ambil|antar|kurir|prioritas|duluan|express|plastik|pisah|pewangi|wangi|lipat)\b/iu', $chat)) {
+            $items[] = 'Meminta layanan khusus laundry';
+        }
+        if (preg_match('/\b(cek|status|setrika|cucian|laundry|sudah selesai|sudah jadi)\b/iu', $chat)) {
+            $items[] = 'Meminta cek hal terkait laundry';
+        }
+
+        return self::finalize(implode('; ', array_values(array_unique($items))), 220);
     }
 
     public static function stripPreviewPrefix(string $text): string

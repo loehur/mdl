@@ -430,10 +430,10 @@ class Estimasi extends Controller
         return (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
     }
 
-    /** Kartu notif PERMINTAAN: status open + notify_expires_at 24 jam (bukan expires_at 1 jam). */
+    /** Kartu notif PERMINTAAN mengikuti state sampai petugas menanganinya. */
     private function permintaanNotifyOpenWhereSql(): string
     {
-        return "status = 'open' AND notify_expires_at > NOW()";
+        return "status = 'open'";
     }
 
     /** @return array{nama:string} */
@@ -481,7 +481,7 @@ class Estimasi extends Controller
 
     /**
      * Kartu notif PERMINTAAN: hanya wa_permintaan_session (bukan conversation case 3).
-     * Kartu hilang sendiri setelah notify_expires_at.
+     * Kartu tetap terlihat selama status permintaan masih open.
      * @return list<array<string,mixed>>
      */
     private function getOpenPermintaanTasks(): array

@@ -249,11 +249,19 @@ trait WARepliesPermintaanTrait
                 return mb_substr($t, 0, 500);
             }, $inbound));
 
-        $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $newRaw);
-        if ($summary === '') {
-            $summary = PermintaanSummaryHelper::fallbackFromRawLog($newRaw, $prevSummary, $msg);
+        // Kategori dipakai sebagai pagar konteks; AI tetap menyimpan detail penting yang ringkas.
+        $relevantIntent = PermintaanSummaryHelper::compactForGroupSummary($newRaw);
+        if ($relevantIntent === '') {
+            $summary = $prevSummary;
+        } else {
+            $summary = $this->permintaanAiSummarize($waNumber, $prevSummary, $newRaw);
+            if ($summary === '') {
+                $summary = PermintaanSummaryHelper::shortFallbackFromLines(
+                    preg_split('/\n---\n/', $newRaw) ?: []
+                );
+            }
+            $summary = PermintaanSummaryHelper::finalize($summary, 220);
         }
-        $summary = PermintaanSummaryHelper::finalize($summary, 500);
 
         $this->savePermintaanSession($waNumber, [
             'id_pelanggan' => $idPelanggan,
@@ -267,7 +275,7 @@ trait WARepliesPermintaanTrait
         $summaryChanged = !$isNewSession
             && $summary !== ''
             && mb_strtolower(trim($prevSummary)) !== mb_strtolower(trim($summary));
-        if ($isNewSession || $summaryChanged) {
+        if ($summary !== '' && ($isNewSession || $summaryChanged)) {
             $this->permintaanForwardToCabangGroup(
                 $waNumber,
                 !empty($idCabang) ? (int) $idCabang : null,
