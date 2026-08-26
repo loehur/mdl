@@ -647,12 +647,18 @@
 
       <!-- Templates -->
       <section v-if="tab === 'templates'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Templates</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 class="font-display font-semibold text-lg">Templates</h2>
+          <p v-if="templateBrowseTotal" class="text-xs text-slate-500">
+            {{ templateBrowseRows.length }} / {{ templateBrowseTotal }} template
+          </p>
+        </div>
 
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
             Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id per nomor WA (device).
             Template dibagikan ke <span class="text-slate-200">semua team</span> dalam tenant.
+            Daftar dikelompokkan per <span class="text-slate-200">WABA ID</span>.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
             <button
@@ -681,108 +687,167 @@
           </div>
         </div>
 
-        <ul class="divide-y divide-white/5">
-          <li v-for="t in templates" :key="t.id" class="py-3">
-            <!-- Header row -->
-            <div class="flex items-start gap-3">
-              <div class="flex-1 min-w-0">
-                <p class="font-medium">
-                  {{ t.template_name }}
-                  <span class="text-xs text-slate-500 ml-1">{{ t.language }}</span>
-                  <span v-if="(t.channels || []).length" class="text-xs text-slate-500 ml-1">
-                    · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
-                  </span>
+        <div class="relative">
+          <input
+            v-model="templateBrowseQuery"
+            type="search"
+            class="field pl-9"
+            placeholder="Cari template, WABA, nomor..."
+            autocomplete="off"
+          />
+          <svg
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+        </div>
+
+        <div class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[min(65vh,36rem)] overflow-y-auto">
+            <div
+              v-if="loadingTemplateBrowse && !templateBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              Memuat template...
+            </div>
+            <p
+              v-else-if="!templateBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              {{ templateBrowseQuery.trim() ? "Template tidak ditemukan." : "Belum ada template. Klik Sync dari Kirimin." }}
+            </p>
+
+            <div v-for="group in templateGroups" :key="group.waba_id || '__none__'" class="border-b border-white/5 last:border-0">
+              <div class="sticky top-0 z-10 px-4 py-2.5 bg-ink-900/95 backdrop-blur border-b border-white/10">
+                <p class="font-mono text-sm text-accent truncate">
+                  {{ group.waba_id || "Belum terhubung WABA" }}
                 </p>
-                <p class="text-xs text-slate-500 mt-0.5">
-                  {{ (t.params || []).length }} param ·
-                  <span
-                    v-for="comp in ['header','body','button']"
-                    :key="comp"
-                    class="mr-2"
-                  >
-                    <span v-if="(t.params||[]).some(p=>p.component===comp)">
-                      <span class="font-medium capitalize">{{ comp }}</span>:
-                      {{ (t.params||[]).filter(p=>p.component===comp).map(p=>p.param_name||('#'+p.param_index)).join(', ') }}
-                    </span>
-                  </span>
-                </p>
-                <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-2">
-                  {{ t.body_preview }}
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  <span v-if="group.waba_label && group.waba_id">{{ group.waba_label }} · </span>
+                  {{ group.templates.length }} template
                 </p>
               </div>
-              <div class="flex gap-1 shrink-0">
-                <button
-                  type="button"
-                  class="btn-sm text-xs"
-                  @click="expandedTemplate = expandedTemplate === t.id ? null : t.id"
-                >
-                  {{ expandedTemplate === t.id ? 'Tutup' : 'Detail' }}
-                </button>
-              </div>
+
+              <ul class="divide-y divide-white/5">
+                <li v-for="t in group.templates" :key="t.id" class="px-4 py-3">
+                  <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium">
+                        {{ t.template_name }}
+                        <span class="text-xs text-slate-500 ml-1">{{ t.language }}</span>
+                        <span v-if="(t.channels || []).length" class="text-xs text-slate-500 ml-1">
+                          · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
+                        </span>
+                      </p>
+                      <p class="text-xs text-slate-500 mt-0.5">
+                        {{ (t.params || []).length }} param ·
+                        <span
+                          v-for="comp in ['header','body','button']"
+                          :key="comp"
+                          class="mr-2"
+                        >
+                          <span v-if="(t.params||[]).some(p=>p.component===comp)">
+                            <span class="font-medium capitalize">{{ comp }}</span>:
+                            {{ (t.params||[]).filter(p=>p.component===comp).map(p=>p.param_name||('#'+p.param_index)).join(', ') }}
+                          </span>
+                        </span>
+                      </p>
+                      <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-2">
+                        {{ t.body_preview }}
+                      </p>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        class="btn-sm text-xs"
+                        @click="expandedTemplate = expandedTemplate === t.id ? null : t.id"
+                      >
+                        {{ expandedTemplate === t.id ? 'Tutup' : 'Detail' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div v-if="expandedTemplate === t.id" class="mt-3 rounded-lg overflow-hidden border border-white/10 text-xs">
+                    <table class="w-full">
+                      <thead>
+                        <tr class="bg-white/5 text-left text-slate-400">
+                          <th class="px-3 py-2">Component</th>
+                          <th class="px-3 py-2">Index</th>
+                          <th class="px-3 py-2">Param Name</th>
+                          <th class="px-3 py-2">Label</th>
+                          <th class="px-3 py-2">Example</th>
+                          <th class="px-3 py-2">Maxlength</th>
+                          <th class="px-3 py-2">Button SubType</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-white/5">
+                        <tr v-if="!(t.params||[]).length">
+                          <td colspan="7" class="px-3 py-3 text-center text-slate-500">Tidak ada params</td>
+                        </tr>
+                        <tr v-for="p in (t.params||[])" :key="p.component+'-'+p.param_index" class="hover:bg-white/5">
+                          <td class="px-3 py-2">
+                            <span
+                              class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                              :class="{
+                                'bg-blue-500/20 text-blue-400': p.component==='header',
+                                'bg-green-500/20 text-green-400': p.component==='body',
+                                'bg-purple-500/20 text-purple-400': p.component==='button',
+                              }"
+                            >{{ p.component }}</span>
+                          </td>
+                          <td class="px-3 py-2 text-slate-400">{{ p.param_index }}</td>
+                          <td class="px-3 py-2 font-mono text-accent">{{ p.param_name || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-300">{{ p.label }}</td>
+                          <td class="px-3 py-2 text-slate-500 italic">{{ p.example_value || '-' }}</td>
+                          <td class="px-3 py-2">
+                            <input
+                              v-model.number="maxlengthDraft[maxlengthKey(t.id, p.id)]"
+                              type="number"
+                              min="1"
+                              max="1024"
+                              class="field py-1 px-2 text-xs w-20"
+                            />
+                          </td>
+                          <td class="px-3 py-2 text-slate-500">{{ p.button_sub_type || '-' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div v-if="(t.params||[]).length" class="mt-2 flex justify-end px-3 pb-3">
+                      <button
+                        type="button"
+                        class="btn-sm text-xs"
+                        :disabled="savingMaxlengthId === t.id"
+                        @click="saveMaxlength(t)"
+                      >
+                        {{ savingMaxlengthId === t.id ? 'Menyimpan...' : 'Simpan maxlength' }}
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              </ul>
             </div>
 
-            <!-- Detail params -->
-            <div v-if="expandedTemplate === t.id" class="mt-3 rounded-lg overflow-hidden border border-white/10 text-xs">
-              <table class="w-full">
-                <thead>
-                  <tr class="bg-white/5 text-left text-slate-400">
-                    <th class="px-3 py-2">Component</th>
-                    <th class="px-3 py-2">Index</th>
-                    <th class="px-3 py-2">Param Name</th>
-                    <th class="px-3 py-2">Label</th>
-                    <th class="px-3 py-2">Example</th>
-                    <th class="px-3 py-2">Maxlength</th>
-                    <th class="px-3 py-2">Button SubType</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-white/5">
-                  <tr v-if="!(t.params||[]).length">
-                    <td colspan="7" class="px-3 py-3 text-center text-slate-500">Tidak ada params</td>
-                  </tr>
-                  <tr v-for="p in (t.params||[])" :key="p.component+'-'+p.param_index" class="hover:bg-white/5">
-                    <td class="px-3 py-2">
-                      <span
-                        class="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        :class="{
-                          'bg-blue-500/20 text-blue-400': p.component==='header',
-                          'bg-green-500/20 text-green-400': p.component==='body',
-                          'bg-purple-500/20 text-purple-400': p.component==='button',
-                        }"
-                      >{{ p.component }}</span>
-                    </td>
-                    <td class="px-3 py-2 text-slate-400">{{ p.param_index }}</td>
-                    <td class="px-3 py-2 font-mono text-accent">{{ p.param_name || '-' }}</td>
-                    <td class="px-3 py-2 text-slate-300">{{ p.label }}</td>
-                    <td class="px-3 py-2 text-slate-500 italic">{{ p.example_value || '-' }}</td>
-                    <td class="px-3 py-2">
-                      <input
-                        v-model.number="maxlengthDraft[maxlengthKey(t.id, p.id)]"
-                        type="number"
-                        min="1"
-                        max="1024"
-                        class="field py-1 px-2 text-xs w-20"
-                      />
-                    </td>
-                    <td class="px-3 py-2 text-slate-500">{{ p.button_sub_type || '-' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-if="(t.params||[]).length" class="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  class="btn-sm text-xs"
-                  :disabled="savingMaxlengthId === t.id"
-                  @click="saveMaxlength(t)"
-                >
-                  {{ savingMaxlengthId === t.id ? 'Menyimpan...' : 'Simpan maxlength' }}
-                </button>
-              </div>
+            <div ref="templateBrowseSentinel" class="h-1" aria-hidden="true" />
+
+            <div
+              v-if="loadingTemplateBrowse && templateBrowseRows.length"
+              class="py-3 text-center text-xs text-slate-500"
+            >
+              Memuat lagi...
             </div>
-          </li>
-        </ul>
-        <p v-if="!templates.length" class="text-sm text-slate-500 text-center py-2">
-          Belum ada template. Klik Sync dari Kirimin.
-        </p>
+            <p
+              v-else-if="templateBrowseRows.length && !templateBrowseHasMore"
+              class="py-3 text-center text-xs text-slate-600"
+            >
+              Semua template sudah dimuat
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- Config -->
@@ -1205,7 +1270,16 @@ const savingOpenAiKey = ref(false);
 const deletingOpenAiKey = ref(false);
 const syncingDevices = ref(false);
 const editingKeyId = ref(null);
-const templates = ref([]);
+const TEMPLATE_BROWSE_LIMIT = 20;
+const templateBrowseRows = ref([]);
+const templateBrowseTotal = ref(0);
+const templateBrowsePage = ref(1);
+const templateBrowseQuery = ref("");
+const loadingTemplateBrowse = ref(false);
+const templateBrowseHasMore = ref(true);
+const templateBrowseSentinel = ref(null);
+let templateBrowseObserver = null;
+let templateSearchTimer = null;
 const msg = ref("");
 const err = ref("");
 
@@ -1287,6 +1361,27 @@ const teamsWithoutLeader = computed(() =>
 const selectedQuotaTeam = computed(() =>
   quotaBrowseRows.value.find((q) => Number(q.team_id) === Number(quotaForm.team_id)) || null
 );
+
+const templateGroups = computed(() => {
+  const map = new Map();
+  for (const t of templateBrowseRows.value) {
+    const wabaId = String(t.waba_id || "").trim();
+    const key = wabaId || "__none__";
+    if (!map.has(key)) {
+      map.set(key, {
+        waba_id: wabaId,
+        waba_label: t.waba_label || "",
+        templates: [],
+      });
+    }
+    map.get(key).templates.push(t);
+  }
+  return [...map.values()].sort((a, b) => {
+    if (!a.waba_id && b.waba_id) return 1;
+    if (a.waba_id && !b.waba_id) return -1;
+    return String(a.waba_id).localeCompare(String(b.waba_id));
+  });
+});
 
 const selectedAssignDevice = computed(() =>
   availableDevices.value.find((d) => d.device_id === channelForm.device_id) || null
@@ -1534,6 +1629,63 @@ async function loadUsersTab() {
   await Promise.all([loadUserBrowse(true), loadUserLeaders(), loadTeamOptions()]);
 }
 
+async function loadTemplateBrowse(reset = false) {
+  if (loadingTemplateBrowse.value) return;
+  if (!reset && !templateBrowseHasMore.value) return;
+
+  loadingTemplateBrowse.value = true;
+  try {
+    if (reset) {
+      templateBrowsePage.value = 1;
+      templateBrowseHasMore.value = true;
+    }
+    const page = reset ? 1 : templateBrowsePage.value;
+    const q = templateBrowseQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Templates/list?page=${page}&limit=${TEMPLATE_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.templates || [];
+    templateBrowseTotal.value = Number(res.data?.total ?? rows.length);
+    if (reset) {
+      templateBrowseRows.value = rows;
+    } else {
+      const seen = new Set(templateBrowseRows.value.map((t) => t.id));
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          templateBrowseRows.value.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+    initMaxlengthDrafts(rows);
+    templateBrowseHasMore.value = templateBrowseRows.value.length < templateBrowseTotal.value;
+    templateBrowsePage.value = page + 1;
+  } catch (e) {
+    if (reset) {
+      templateBrowseRows.value = [];
+      templateBrowseTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat template");
+  } finally {
+    loadingTemplateBrowse.value = false;
+    await nextTick();
+    setupTemplateBrowseObserver();
+  }
+}
+
+function setupTemplateBrowseObserver() {
+  templateBrowseObserver?.disconnect();
+  if (tab.value !== "templates" || !templateBrowseSentinel.value || !templateBrowseHasMore.value) return;
+  templateBrowseObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadTemplateBrowse(false);
+    },
+    { rootMargin: "160px" }
+  );
+  templateBrowseObserver.observe(templateBrowseSentinel.value);
+}
+
 async function loadQuotaBrowse(reset = false) {
   if (loadingQuotaBrowse.value) return;
   if (!reset && !quotaBrowseHasMore.value) return;
@@ -1675,8 +1827,7 @@ async function reloadTeamsTab() {
 }
 
 async function refresh() {
-  const [tp, kir, oai, daily] = await Promise.all([
-    api("/WaDesk/Templates/list"),
+  const [kir, oai, daily] = await Promise.all([
     api("/WaDesk/Settings/kirimin"),
     api("/WaDesk/Settings/openai"),
     api("/WaDesk/Settings/dailyLimit"),
@@ -1694,8 +1845,9 @@ async function refresh() {
   if (tab.value === "quota") {
     await loadQuotaBrowse(true);
   }
-  templates.value = tp.data.templates || [];
-  initMaxlengthDrafts(templates.value);
+  if (tab.value === "templates") {
+    await loadTemplateBrowse(true);
+  }
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
   dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit ?? kir.data?.daily_unique_limit) || 250;
@@ -1770,6 +1922,9 @@ watch(tab, (id) => {
   if (id === "quota") {
     loadQuotaBrowse(true);
   }
+  if (id === "templates") {
+    loadTemplateBrowse(true);
+  }
 });
 
 watch(userBrowseQuery, () => {
@@ -1786,12 +1941,23 @@ watch(quotaBrowseQuery, () => {
   }, 300);
 });
 
+watch(templateBrowseQuery, () => {
+  clearTimeout(templateSearchTimer);
+  templateSearchTimer = setTimeout(() => {
+    if (tab.value === "templates") loadTemplateBrowse(true);
+  }, 300);
+});
+
 watch(userBrowseSentinel, () => {
   nextTick(setupUserBrowseObserver);
 });
 
 watch(quotaBrowseSentinel, () => {
   nextTick(setupQuotaBrowseObserver);
+});
+
+watch(templateBrowseSentinel, () => {
+  nextTick(setupTemplateBrowseObserver);
 });
 
 watch(channelBrowseQuery, () => {
@@ -2334,7 +2500,7 @@ async function saveMaxlength(t) {
       body: { template_id: t.id, params },
     });
     flash(true, "Maxlength param disimpan");
-    await refresh();
+    await loadTemplateBrowse(true);
     expandedTemplate.value = t.id;
   } catch (e) {
     flash(false, e.message);
@@ -2353,7 +2519,7 @@ async function syncTemplatesFromKirimin() {
     const deleted = res.data?.deleted ?? 0;
     const fetched = res.data?.fetched ?? 0;
     flash(true, `Sync OK: ${fetched} dari Kirimin → ${created} baru, ${updated} diupdate, ${deleted} dihapus`);
-    await refresh();
+    await loadTemplateBrowse(true);
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -2391,11 +2557,13 @@ onUnmounted(() => {
   assignTeamObserver?.disconnect();
   userBrowseObserver?.disconnect();
   quotaBrowseObserver?.disconnect();
+  templateBrowseObserver?.disconnect();
   clearTimeout(teamSearchTimer);
   clearTimeout(channelSearchTimer);
   clearTimeout(assignTeamSearchTimer);
   clearTimeout(userSearchTimer);
   clearTimeout(quotaSearchTimer);
+  clearTimeout(templateSearchTimer);
 });
 </script>
 

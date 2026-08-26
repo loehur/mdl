@@ -52,6 +52,24 @@ class Templates extends WaDeskController
                 [$deviceId, $tenantId]
             )->result_array();
         } else {
+            $pageRaw = $this->query('page');
+            if ($pageRaw !== null && $pageRaw !== '' && ($user['role'] ?? '') === 'admin') {
+                $page = max(1, (int) $pageRaw);
+                $limit = min(50, max(1, (int) $this->query('limit', 20)));
+                $q = trim((string) $this->query('q', ''));
+                $total = 0;
+                $rows = $this->listAdminTemplatesPaginated($tenantId, $page, $limit, $q, $total);
+                $rows = $this->enrichTemplateListRows($rows, $tenantId, true);
+                $this->success([
+                    'templates' => $rows,
+                    'total' => $total,
+                    'page' => $page,
+                    'limit' => $limit,
+                ]);
+
+                return;
+            }
+
             $rows = $this->db($this->db_index)->query(
                 "SELECT t.* FROM wa_templates t
                  WHERE t.tenant_id = ?
@@ -60,6 +78,96 @@ class Templates extends WaDeskController
             )->result_array();
         }
         $rows = $this->dedupeTemplateListRows($rows, $tenantId);
+        $rows = $this->enrichTemplateListRows($rows, $tenantId, $channelId <= 0);
+
+        $this->success(['templates' => $rows]);
+    }
+
+    /** @return list<array> */
+    private function listAdminTemplatesPaginated(int $tenantId, int $page, int $limit, string $q, int &$total): array
+    {
+        $tbl = $this->channelsTable();
+        $hasLinks = $this->templateDevicesTableExists();
+        $offset = ($page - 1) * $limit;
+
+        if ($hasLinks) {
+            $wabaExpr = "COALESCE(NULLIF(TRIM(sub.waba_id), ''), '')";
+            $from = "FROM (
+                SELECT t.id,
+                       MIN(NULLIF(TRIM(c.waba_id), '')) AS waba_id
+                FROM wa_templates t
+                LEFT JOIN wa_template_devices td ON td.template_id = t.id
+                LEFT JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = t.tenant_id
+                WHERE t.tenant_id = ?
+                GROUP BY t.id
+            ) sub
+            INNER JOIN wa_templates t ON t.id = sub.id";
+
+            $where = '1=1';
+            $binds = [$tenantId];
+            if ($q !== '') {
+                $where .= " AND (t.template_name LIKE ? OR t.language LIKE ? OR t.body_preview LIKE ?
+                            OR {$wabaExpr} LIKE ?
+                            OR EXISTS (
+                                SELECT 1 FROM wa_template_devices td2
+                                INNER JOIN {$tbl} c2 ON c2.device_id = td2.device_id AND c2.tenant_id = ?
+                                WHERE td2.template_id = t.id
+                                  AND (c2.label LIKE ? OR c2.phone_number LIKE ?)
+                            ))";
+                $like = '%' . $q . '%';
+                $binds = array_merge($binds, [$like, $like, $like, $like, $tenantId, $like, $like]);
+            }
+
+            $totalRow = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS c {$from} WHERE {$where}",
+                $binds
+            )->row_array();
+            $total = (int) ($totalRow['c'] ?? 0);
+
+            $rows = $this->db($this->db_index)->query(
+                "SELECT t.*, {$wabaExpr} AS waba_id
+                 {$from}
+                 WHERE {$where}
+                 ORDER BY ({$wabaExpr} = '') ASC, {$wabaExpr} ASC, t.template_name ASC, t.id ASC
+                 LIMIT {$limit} OFFSET {$offset}",
+                $binds
+            )->result_array();
+
+            return $rows;
+        }
+
+        $where = 't.tenant_id = ?';
+        $binds = [$tenantId];
+        if ($q !== '') {
+            $where .= ' AND (t.template_name LIKE ? OR t.language LIKE ? OR t.body_preview LIKE ?)';
+            $like = '%' . $q . '%';
+            $binds = array_merge($binds, [$like, $like, $like]);
+        }
+
+        $totalRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS c FROM wa_templates t WHERE {$where}",
+            $binds
+        )->row_array();
+        $total = (int) ($totalRow['c'] ?? 0);
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT t.*, '' AS waba_id
+             FROM wa_templates t
+             WHERE {$where}
+             ORDER BY t.template_name ASC, t.id ASC
+             LIMIT {$limit} OFFSET {$offset}",
+            $binds
+        )->result_array();
+
+        return $rows;
+    }
+
+    /** @param list<array> $rows @return list<array> */
+    private function enrichTemplateListRows(array $rows, int $tenantId, bool $includeChannels): array
+    {
+        if ($rows === []) {
+            return [];
+        }
 
         $hasButtonMeta = $this->columnExists('wa_template_params', 'button_sub_type');
         $hasMaxlength = $this->columnExists('wa_template_params', 'maxlength');
@@ -70,6 +178,10 @@ class Templates extends WaDeskController
             $paramCols .= ', maxlength';
         }
 
+        $wabaLabels = $includeChannels && $this->templateDevicesTableExists()
+            ? $this->loadTemplateWabaLabelsMap(array_map(static fn ($r) => (int) ($r['id'] ?? 0), $rows), $tenantId)
+            : [];
+
         foreach ($rows as &$row) {
             $row['params'] = $this->db($this->db_index)->query(
                 "SELECT $paramCols
@@ -77,12 +189,51 @@ class Templates extends WaDeskController
                  ORDER BY FIELD(component,'header','body','button'), param_index ASC",
                 [(int) $row['id']]
             )->result_array();
-            if ($channelId <= 0 && $this->templateDevicesTableExists()) {
-                $row['channels'] = $this->loadTemplateChannelLabels((int) $row['id'], $tenantId);
+            if ($includeChannels && $this->templateDevicesTableExists()) {
+                $wabaId = trim((string) ($row['waba_id'] ?? ''));
+                $row['channels'] = $this->loadTemplateChannelLabels((int) $row['id'], $tenantId, $wabaId !== '' ? $wabaId : null);
+                $row['waba_label'] = $wabaLabels[(int) $row['id']][$wabaId] ?? ($wabaId !== '' ? $wabaId : '');
             }
         }
+        unset($row);
 
-        $this->success(['templates' => $rows]);
+        return $rows;
+    }
+
+    /** @param list<int> $templateIds @return array<int, array<string, string>> template_id => [ waba_id => label ] */
+    private function loadTemplateWabaLabelsMap(array $templateIds, int $tenantId): array
+    {
+        $templateIds = array_values(array_filter(array_map('intval', $templateIds)));
+        if ($templateIds === [] || !$this->templateDevicesTableExists()) {
+            return [];
+        }
+
+        $tbl = $this->channelsTable();
+        $in = implode(',', array_fill(0, count($templateIds), '?'));
+        $rows = $this->db($this->db_index)->query(
+            "SELECT td.template_id, NULLIF(TRIM(c.waba_id), '') AS waba_id,
+                    MIN(COALESCE(NULLIF(TRIM(c.label), ''), NULLIF(TRIM(c.phone_number), ''), TRIM(c.waba_id))) AS waba_label
+             FROM wa_template_devices td
+             INNER JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = ?
+             WHERE td.template_id IN ({$in}) AND NULLIF(TRIM(c.waba_id), '') IS NOT NULL
+             GROUP BY td.template_id, NULLIF(TRIM(c.waba_id), '')",
+            array_merge([$tenantId], $templateIds)
+        )->result_array();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $tplId = (int) ($row['template_id'] ?? 0);
+            $wabaId = trim((string) ($row['waba_id'] ?? ''));
+            if ($tplId <= 0 || $wabaId === '') {
+                continue;
+            }
+            if (!isset($map[$tplId])) {
+                $map[$tplId] = [];
+            }
+            $map[$tplId][$wabaId] = trim((string) ($row['waba_label'] ?? '')) ?: $wabaId;
+        }
+
+        return $map;
     }
 
     /**
@@ -884,20 +1035,24 @@ class Templates extends WaDeskController
     }
 
     /** @return list<array{id:int,label:string,phone_number:string}> */
-    private function loadTemplateChannelLabels(int $templateId, int $tenantId): array
+    private function loadTemplateChannelLabels(int $templateId, int $tenantId, ?string $wabaId = null): array
     {
         if (!$this->templateDevicesTableExists()) {
             return [];
         }
 
         $tbl = $this->channelsTable();
-        return $this->db($this->db_index)->query(
-            "SELECT DISTINCT c.id, c.label, c.phone_number
+        $sql = "SELECT DISTINCT c.id, c.label, c.phone_number
              FROM wa_template_devices td
              INNER JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = ?
-             WHERE td.template_id = ?
-             ORDER BY c.label ASC, c.phone_number ASC",
-            [$tenantId, $templateId]
-        )->result_array();
+             WHERE td.template_id = ?";
+        $binds = [$tenantId, $templateId];
+        if ($wabaId !== null && $wabaId !== '') {
+            $sql .= ' AND NULLIF(TRIM(c.waba_id), \'\') = ?';
+            $binds[] = $wabaId;
+        }
+        $sql .= ' ORDER BY c.label ASC, c.phone_number ASC';
+
+        return $this->db($this->db_index)->query($sql, $binds)->result_array();
     }
 }
