@@ -18,7 +18,7 @@ use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
  */
 class Blast extends WaDeskController
 {
-    private const MAX_ROWS = 250;
+    private const MAX_ROWS = 20;
 
     // -------------------------------------------------------------------------
     // GET /WaDesk/Blast/csvHeaders?template_id=

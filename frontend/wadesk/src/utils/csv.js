@@ -1,3 +1,5 @@
+export const MAX_BLAST_ROWS = 20;
+
 /**
  * CSV utilities for WaDesk Blast feature.
  *
@@ -100,6 +102,11 @@ export function parseCsv(text) {
  */
 export function validateBlastRows(rows, headers, params) {
   const errors = [];
+
+  if (rows.length > MAX_BLAST_ROWS) {
+    errors.push(`Maksimal ${MAX_BLAST_ROWS} baris per blast. File ini berisi ${rows.length} baris.`);
+    return errors;
+  }
 
   // Check required headers
   if (!headers.includes('phone')) {

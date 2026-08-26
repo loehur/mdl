@@ -121,7 +121,7 @@
       <section class="card space-y-4" v-if="csvParams.length > 0">
         <div class="flex items-center justify-between">
           <h2 class="font-display font-semibold text-base">2. Upload CSV</h2>
-          <span class="text-xs text-slate-500">Maks. 250 baris per blast</span>
+          <span class="text-xs text-slate-500">Maks. {{ MAX_BLAST_ROWS }} baris per blast</span>
         </div>
 
         <div
@@ -179,10 +179,10 @@
           <button
             type="button"
             class="btn w-full py-3"
-            :disabled="submitting || checkingAi || !auth.canSendWa || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
+            :disabled="submitting || checkingAi || !auth.canSendWa || parsedRows.length > MAX_BLAST_ROWS || (keyQuota !== null && parsedRows.length > keyQuota.balance)"
             @click="submitBlast"
           >
-            {{ checkingAi ? 'Memeriksa AI...' : submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. 250)` }}
+            {{ checkingAi ? 'Memeriksa AI...' : submitting ? 'Membuat blast...' : `Mulai Blast (${parsedRows.length} penerima — maks. ${MAX_BLAST_ROWS})` }}
           </button>
           <p v-if="submitError" class="text-sm text-rose-400 mt-2">{{ submitError }}</p>
         </div>
@@ -357,6 +357,7 @@ import {
   parseCsv,
   validateBlastRows,
   rowsToBlastPayload,
+  MAX_BLAST_ROWS,
 } from '../utils/csv.js';
 import { buildFilledPreview } from '../utils/templatePreview.js';
 
@@ -632,8 +633,8 @@ async function submitBlast() {
     submitError.value = 'Masuk team di Admin dulu untuk blast WA.';
     return;
   }
-  if (parsedRows.value.length > 250) {
-    submitError.value = `Maksimal 250 baris per blast. File ini berisi ${parsedRows.value.length} baris.`;
+  if (parsedRows.value.length > MAX_BLAST_ROWS) {
+    submitError.value = `Maksimal ${MAX_BLAST_ROWS} baris per blast. File ini berisi ${parsedRows.value.length} baris.`;
     return;
   }
   if (keyQuota.value !== null && parsedRows.value.length > keyQuota.value.balance) {
