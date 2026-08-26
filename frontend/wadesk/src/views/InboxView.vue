@@ -1,29 +1,27 @@
 <template>
-  <div class="h-full flex flex-col bg-ink-950">
-    <AppHeader active="inbox" @logout="onLogout">
-      <template #extra>
+  <AppHeader active="inbox" @logout="onLogout">
+    <template #extra>
+      <span
+        v-if="templateQuotaBalance !== null"
+        class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
+        title="Team template quota remaining"
+      >
+        Quota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
+      </span>
+      <span
+        v-if="dailyLimitRemaining !== null"
+        class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
+        :title="dailyLimitTitle"
+      >
+        Daily Left:
         <span
-          v-if="templateQuotaBalance !== null"
-          class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
-          title="Team template quota remaining"
+          class="font-semibold"
+          :class="dailyLimitRemaining <= 0 ? 'text-rose-400' : dailyLimitRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'"
         >
-          Quota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
+          {{ dailyLimitRemaining }}
         </span>
-        <span
-          v-if="dailyLimitRemaining !== null"
-          class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
-          :title="dailyLimitTitle"
-        >
-          Daily Left:
-          <span
-            class="font-semibold"
-            :class="dailyLimitRemaining <= 0 ? 'text-rose-400' : dailyLimitRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'"
-          >
-            {{ dailyLimitRemaining }}
-          </span>
-        </span>
-      </template>
-    </AppHeader>
+      </span>
+    </template>
 
     <div
       v-if="auth.isAdmin && !auth.canSendWa"
@@ -327,7 +325,7 @@
       @confirm="freeReject.open = false"
       @close="freeReject.open = false"
     />
-  </div>
+  </AppHeader>
 </template>
 
 <script setup>

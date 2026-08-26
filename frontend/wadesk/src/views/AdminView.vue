@@ -1,7 +1,6 @@
 <template>
-  <div class="min-h-full bg-ink-950">
-    <AppHeader page-title="Admin" active="admin" @logout="onLogout" />
-
+  <AppHeader page-title="Admin" active="admin" @logout="onLogout">
+    <div class="flex-1 overflow-y-auto">
     <div class="max-w-5xl mx-auto p-4 space-y-6">
       <nav class="flex flex-wrap gap-2">
         <button
@@ -1159,6 +1158,7 @@
       <p v-if="msg" class="text-sm text-emerald-400">{{ msg }}</p>
       <p v-if="err" class="text-sm text-rose-400">{{ err }}</p>
     </div>
+    </div>
 
     <ConfirmModal
       v-if="dialog.open"
@@ -1170,7 +1170,7 @@
       @confirm="onDialogConfirm"
       @close="closeDialog"
     />
-  </div>
+  </AppHeader>
 </template>
 
 <script setup>

@@ -1,15 +1,14 @@
 <template>
-  <div class="min-h-screen bg-ink-950 text-slate-100 font-body">
-    <AppHeader page-title="Blast" active="blast" @logout="onLogout" />
-
+  <AppHeader page-title="Blast" active="blast" @logout="onLogout">
     <div
       v-if="auth.isAdmin && !auth.canSendWa"
-      class="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+      class="shrink-0 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
     >
       <span>Anda belum masuk team — tidak bisa membuat blast.</span>
       <router-link to="/admin" class="text-accent-soft hover:underline shrink-0">Masuk team di Admin →</router-link>
     </div>
 
+    <div class="flex-1 overflow-y-auto">
     <div class="max-w-4xl mx-auto p-4 space-y-6">
 
       <!-- ================================================================
@@ -330,6 +329,7 @@
         </div>
       </div>
     </div>
+    </div>
 
     <ConfirmModal
       v-if="dialog.open"
@@ -341,7 +341,7 @@
       @confirm="onDialogConfirm"
       @close="closeDialog"
     />
-  </div>
+  </AppHeader>
 </template>
 
 <script setup>
