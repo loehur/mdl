@@ -5659,6 +5659,101 @@ class WAReplies
     }
 
     /**
+     * Handle FEE CUCI|MALAM {KODE_CABANG}; admin dapat menambahkan ID karyawan setelah FEE.
+     * Contoh admin: FEE 123 CUCI KNO.
+     */
+    function handleFee($phoneIn, $waNumber, $textBody = '')
+    {
+        $ctx = $this->ensureSenderContext($waNumber);
+        $isAdmin = !empty($ctx['is_admin']);
+        $ownUserId = (int) ($ctx['id_karyawan'] ?? 0);
+        $textBody = trim((string) $textBody);
+        $help = $isAdmin
+            ? "Format: *Fee {ID_KARYAWAN} Cuci {KODE_CABANG}*\nContoh: *Fee 123 Cuci KNO*"
+            : "Format: *Fee Cuci {KODE_CABANG}*\nContoh: *Fee Cuci KNO*";
+
+        if (!$this->intentLabMode && !$isAdmin && (empty($ctx['is_karyawan']) || $ownUserId < 1)) {
+            $this->logAutoreplyTrace($waNumber, 'FEE', 'require_karyawan_or_admin');
+            return;
+        }
+        if (!preg_match('/^\s*fee\s+(?:(\d+)\s+)?(cuci|malam)\s+([a-z0-9_-]+)\s*$/iu', $textBody, $m)) {
+            $this->sendQuotedFreeText($waNumber, $help);
+            return;
+        }
+
+        $targetId = !empty($m[1]) ? (int) $m[1] : $ownUserId;
+        if (!$isAdmin && !empty($m[1])) {
+            $this->sendQuotedFreeText($waNumber, $help);
+            return;
+        }
+        if ($targetId < 1) {
+            $this->sendQuotedFreeText($waNumber, $help);
+            return;
+        }
+
+        $jenis = mb_strtolower((string) $m[2], 'UTF-8');
+        $kodeCabang = mb_strtoupper(trim((string) $m[3]), 'UTF-8');
+        $idPengali = $jenis === 'cuci' ? 6 : 5;
+        $kodeFormula = $jenis === 'cuci' ? 'cuci' : 'malam';
+        $label = $jenis === 'cuci' ? 'CUCI' : 'JAGA MALAM';
+        $satuan = $jenis === 'cuci' ? 'hari' : 'malam';
+        $defaults = $jenis === 'cuci'
+            ? ['pengali' => 4.0, 'min' => 65000, 'max' => 85000]
+            : ['pengali' => 1.0, 'min' => 14000, 'max' => 32000];
+
+        try {
+            $db = DB::getInstance(1);
+            $user = $db->query('SELECT id_user, nama_user FROM user WHERE id_user = ? AND en = 1 LIMIT 1', [$targetId])->row_array();
+            $cabang = $db->query('SELECT id_cabang, kode_cabang FROM cabang WHERE UPPER(kode_cabang) = ? LIMIT 1', [$kodeCabang])->row_array();
+            if (empty($user['id_user']) || empty($cabang['id_cabang'])) {
+                $this->sendQuotedFreeText($waNumber, empty($user['id_user']) ? 'Karyawan tidak ditemukan.' : 'Kode cabang tidak ditemukan.');
+                return;
+            }
+
+            $formula = $db->query('SELECT pengali, clamp_min, clamp_max FROM gaji_fee_formula WHERE kode = ? LIMIT 1', [$kodeFormula])->row_array();
+            $pengali = isset($formula['pengali']) && (float) $formula['pengali'] > 0 ? (float) $formula['pengali'] : $defaults['pengali'];
+            $min = isset($formula['clamp_min']) ? (int) $formula['clamp_min'] : $defaults['min'];
+            $max = isset($formula['clamp_max']) ? (int) $formula['clamp_max'] : $defaults['max'];
+            if ($min > $max) { $min = $defaults['min']; $max = $defaults['max']; }
+
+            $period = date('Y-m', strtotime('first day of last month'));
+            $snapshot = $db->query(
+                'SELECT total_pendapatan FROM rekap_snapshot WHERE periode = ? AND mode = 2 AND id_cabang = ? LIMIT 1',
+                [$period, (int) $cabang['id_cabang']]
+            )->row_array();
+            $pendapatan = isset($snapshot['total_pendapatan']) ? (int) $snapshot['total_pendapatan'] : null;
+            $feeCabang = $pendapatan === null ? $min : (int) round(($pendapatan / 1000) * $pengali);
+            $feeCabang = max($min, min($max, $feeCabang));
+            $personal = $db->query(
+                'SELECT gaji_pengali FROM gaji_pengali WHERE id_karyawan = ? AND id_pengali = ? LIMIT 1',
+                [$targetId, $idPengali]
+            )->row_array();
+            $minimumPribadi = max($min, (int) ($personal['gaji_pengali'] ?? 0));
+            $feeBerlaku = max($feeCabang, $minimumPribadi);
+            $rp = static function ($v): string { return 'Rp' . number_format((int) $v, 0, ',', '.'); };
+
+            $lines = [
+                '*FEE ' . $label . '*',
+                'NAMA: *' . mb_strtoupper(trim((string) $user['nama_user']), 'UTF-8') . '* #' . (int) $user['id_user'],
+                'CABANG: *' . mb_strtoupper((string) $cabang['kode_cabang'], 'UTF-8') . '*',
+                '',
+                'Fee cabang: ' . $rp($feeCabang) . '/' . $satuan,
+                'Minimum pribadi: ' . $rp($minimumPribadi) . '/' . $satuan,
+                '',
+                '*FEE BERLAKU: ' . $rp($feeBerlaku) . '/' . $satuan . '*',
+                '',
+                '_Crew dapat mengajukan kenaikan fee di cabang tertentu untuk keperluan transportasi._',
+            ];
+            $this->sendQuotedFreeText($waNumber, implode("\n", $lines));
+        } catch (\Throwable $e) {
+            $this->logAutoreplyTrace($waNumber, 'FEE', 'error=' . mb_substr($e->getMessage(), 0, 120));
+            if (class_exists('\Log')) {
+                \Log::write('handleFee ERROR: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
+    /**
      * Format data karyawan untuk balasan WA (no_user, nama_user, bank_code, bank_account_number, bank_account_name)
      */
     private function formatKaryawanReply($row, $db0)
