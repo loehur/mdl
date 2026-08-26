@@ -661,27 +661,127 @@ abstract class WaDeskController extends BaseController
         return $this->tableExists('wa_template_devices');
     }
 
+    protected function templateTeamsTableExists(): bool
+    {
+        return $this->tableExists('wa_template_teams');
+    }
+
     protected function templateFailLogsTableExists(): bool
     {
         return $this->tableExists('wa_template_fail_logs');
     }
 
-    /** @param array<string,mixed> $ctx */
-    protected function logTemplateSendFailure(array $ctx): void
+    /** @return list<array{id:int,name:string}> */
+    protected function teamsOnWaba(int $tenantId, string $wabaId): array
     {
-        try {
-            $logger = new \App\Helpers\WaDesk\TemplateFailLogger($this->db($this->db_index));
-            $logger->log($ctx);
-        } catch (\Throwable $e) {
-            try {
-                \Log::write(
-                    'template_fail_log error: ' . $e->getMessage(),
-                    'wadesk',
-                    'template_fail_log'
-                );
-            } catch (\Throwable $ignored) {
+        $wabaId = trim($wabaId);
+        if ($tenantId <= 0 || $wabaId === '') {
+            return [];
+        }
+
+        $tbl = $this->channelsTable();
+        return $this->db($this->db_index)->query(
+            "SELECT DISTINCT t.id, t.name
+             FROM teams t
+             WHERE t.tenant_id = ?
+               AND t.id IN (
+                 SELECT k.team_id FROM {$tbl} k
+                 WHERE k.tenant_id = ? AND TRIM(k.waba_id) = ? AND k.team_id IS NOT NULL
+                 UNION
+                 SELECT ct.team_id FROM wa_channel_teams ct
+                 INNER JOIN {$tbl} k ON k.id = ct.channel_id
+                 WHERE k.tenant_id = ? AND TRIM(k.waba_id) = ?
+               )
+             ORDER BY t.name ASC",
+            [$tenantId, $tenantId, $wabaId, $tenantId, $wabaId]
+        )->result_array();
+    }
+
+    protected function countTeamsOnWaba(int $tenantId, string $wabaId): int
+    {
+        return count($this->teamsOnWaba($tenantId, $wabaId));
+    }
+
+    protected function wabaRequiresTemplateTeamAssignment(int $tenantId, string $wabaId): bool
+    {
+        return $this->countTeamsOnWaba($tenantId, $wabaId) > 1;
+    }
+
+    /** @return list<string> */
+    protected function templateWabaIds(int $templateId, int $tenantId): array
+    {
+        if ($templateId <= 0 || !$this->templateDevicesTableExists()) {
+            return [];
+        }
+
+        $tbl = $this->channelsTable();
+        $rows = $this->db($this->db_index)->query(
+            "SELECT DISTINCT NULLIF(TRIM(c.waba_id), '') AS waba_id
+             FROM wa_template_devices td
+             INNER JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = ?
+             WHERE td.template_id = ? AND NULLIF(TRIM(c.waba_id), '') IS NOT NULL",
+            [$tenantId, $templateId]
+        )->result_array();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $wabaId = trim((string) ($row['waba_id'] ?? ''));
+            if ($wabaId !== '') {
+                $out[$wabaId] = true;
             }
         }
+
+        return array_keys($out);
+    }
+
+    protected function isTemplateAssignedToTeam(int $templateId, int $teamId): bool
+    {
+        if ($templateId <= 0 || $teamId <= 0 || !$this->templateTeamsTableExists()) {
+            return false;
+        }
+
+        $row = $this->db($this->db_index)->query(
+            "SELECT 1 AS ok FROM wa_template_teams
+             WHERE template_id = ? AND team_id = ?
+             LIMIT 1",
+            [$templateId, $teamId]
+        )->row_array();
+
+        return !empty($row);
+    }
+
+    protected function assertTemplateTeamAssignment(
+        int $templateId,
+        array $channel,
+        int $tenantId,
+        int $teamId,
+        ?array $templateRow = null
+    ): void {
+        if (!$this->templateTeamsTableExists() || $teamId <= 0) {
+            return;
+        }
+
+        $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+        if ($wabaId === '') {
+            return;
+        }
+
+        if (!$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)) {
+            return;
+        }
+
+        if ($this->isTemplateAssignedToTeam($templateId, $teamId)) {
+            return;
+        }
+
+        $templateRow = $templateRow ?? $this->findTemplateForTenant($templateId, $tenantId);
+        $name = trim((string) ($templateRow['template_name'] ?? 'template'));
+        $this->error(
+            'Template "' . $name . '" belum di-assign ke team Anda. '
+            . 'WABA ini dipakai lebih dari 1 team — assign template di Admin → Templates.',
+            422,
+            ['code' => 'template_not_assigned', 'waba_id' => $wabaId]
+        );
     }
 
     protected function isTemplateAvailableOnDevice(int $templateId, string $deviceId): bool
@@ -700,7 +800,7 @@ abstract class WaDeskController extends BaseController
         return !empty($row);
     }
 
-    protected function assertTemplateOnChannel(int $templateId, array $channel, int $tenantId): void
+    protected function assertTemplateOnChannel(int $templateId, array $channel, int $tenantId, ?int $teamId = null): void
     {
         $tpl = $this->findTemplateForTenant($templateId, $tenantId);
         if (!$tpl) {
@@ -717,6 +817,28 @@ abstract class WaDeskController extends BaseController
                 . $label . '. Pilih template lain atau sync ulang di Admin.',
                 422
             );
+        }
+
+        if ($teamId !== null && $teamId > 0) {
+            $this->assertTemplateTeamAssignment($templateId, $channel, $tenantId, $teamId, $tpl);
+        }
+    }
+
+    /** @param array<string,mixed> $ctx */
+    protected function logTemplateSendFailure(array $ctx): void
+    {
+        try {
+            $logger = new \App\Helpers\WaDesk\TemplateFailLogger($this->db($this->db_index));
+            $logger->log($ctx);
+        } catch (\Throwable $e) {
+            try {
+                \Log::write(
+                    'template_fail_log error: ' . $e->getMessage(),
+                    'wadesk',
+                    'template_fail_log'
+                );
+            } catch (\Throwable $ignored) {
+            }
         }
     }
 

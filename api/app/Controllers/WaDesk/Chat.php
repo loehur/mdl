@@ -251,7 +251,7 @@ class Chat extends WaDeskController
                 $templateName = $tpl['template_name'];
                 $language = $tpl['language'] ?: $language;
                 $tplParamDefs = $this->loadTemplateParamDefs($templateId);
-                $this->assertTemplateOnChannel($templateId, $channel, (int) $user['tenant_id']);
+                $this->assertTemplateOnChannel($templateId, $channel, (int) $user['tenant_id'], (int) ($user['team_id'] ?? 0));
             }
             if ($templateName === '') {
                 $this->error('template_name atau template_id wajib', 400);

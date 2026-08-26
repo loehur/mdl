@@ -599,8 +599,8 @@
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
             Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id per nomor WA (device).
-            Template dibagikan ke <span class="text-slate-200">semua team</span> dalam tenant.
-            Daftar dikelompokkan per <span class="text-slate-200">WABA ID</span>.
+            Jika satu <span class="text-slate-200">WABA ID</span> dipakai lebih dari 1 team, template wajib
+            <span class="text-slate-200">di-assign per team</span> sebelum bisa dipakai kirim/blast.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
             <button
@@ -672,6 +672,9 @@
                 <p class="text-[11px] text-slate-500 mt-0.5">
                   <span v-if="group.waba_label && group.waba_id">{{ group.waba_label }} · </span>
                   {{ group.templates.length }} template
+                  <span v-if="group.waba_team_count > 1" class="text-amber-500">
+                    · {{ group.waba_team_count }} team — wajib assign template
+                  </span>
                 </p>
               </div>
 
@@ -702,14 +705,73 @@
                       <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-2">
                         {{ t.body_preview }}
                       </p>
+                      <div v-if="t.requires_team_assign" class="mt-2 flex flex-wrap gap-1.5 items-center">
+                        <span
+                          v-for="tm in (t.assigned_teams || [])"
+                          :key="'asg-' + tm.id"
+                          class="px-2 py-0.5 rounded-full text-[10px] bg-accent/10 text-accent-soft"
+                        >
+                          {{ tm.name }}
+                        </span>
+                        <span
+                          v-if="!(t.assigned_teams || []).length"
+                          class="text-[10px] text-amber-500"
+                        >
+                          Belum di-assign ke team manapun
+                        </span>
+                      </div>
                     </div>
-                    <div class="flex gap-1 shrink-0">
+                    <div class="flex gap-1 shrink-0 flex-wrap justify-end">
+                      <button
+                        v-if="t.requires_team_assign"
+                        type="button"
+                        class="btn-sm text-xs"
+                        @click="openTemplateAssign(t, group.waba_id)"
+                      >
+                        {{ assignTemplateId === t.id ? "Tutup assign" : "Assign" }}
+                      </button>
                       <button
                         type="button"
                         class="btn-sm text-xs"
                         @click="expandedTemplate = expandedTemplate === t.id ? null : t.id"
                       >
                         {{ expandedTemplate === t.id ? 'Tutup' : 'Detail' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="assignTemplateId === t.id && assignMeta"
+                    class="mt-3 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-3 text-xs"
+                  >
+                    <p class="text-slate-300 font-medium">Assign ke team (WABA sama)</p>
+                    <p v-if="!assignMeta.eligible_teams?.length" class="text-amber-500">
+                      Tidak ada team pada WABA ini. Assign team ke channel dulu di tab Channel.
+                    </p>
+                    <div v-else class="space-y-2">
+                      <label
+                        v-for="tm in assignMeta.eligible_teams"
+                        :key="'pick-' + tm.id"
+                        class="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          v-model="assignDraft"
+                          type="checkbox"
+                          class="rounded border-white/20"
+                          :value="Number(tm.id)"
+                        />
+                        <span>{{ tm.name }}</span>
+                      </label>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-1">
+                      <button type="button" class="btn-sm text-xs" @click="assignTemplateId = null">Batal</button>
+                      <button
+                        type="button"
+                        class="btn-sm text-xs"
+                        :disabled="savingAssignId === t.id || !assignMeta.eligible_teams?.length"
+                        @click="saveTemplateAssign(t, group.waba_id)"
+                      >
+                        {{ savingAssignId === t.id ? "Menyimpan..." : "Simpan assign" }}
                       </button>
                     </div>
                   </div>
@@ -1264,6 +1326,11 @@ const templateBrowseHasMore = ref(true);
 const templateBrowseSentinel = ref(null);
 let templateBrowseObserver = null;
 let templateSearchTimer = null;
+const assignTemplateId = ref(null);
+const assignWabaId = ref("");
+const assignDraft = ref([]);
+const assignMeta = ref(null);
+const savingAssignId = ref(null);
 const msg = ref("");
 const err = ref("");
 
@@ -1360,10 +1427,15 @@ const templateGroups = computed(() => {
       map.set(key, {
         waba_id: wabaId,
         waba_label: t.waba_label || "",
+        waba_team_count: Number(t.waba_team_count || 0),
         templates: [],
       });
     }
-    map.get(key).templates.push(t);
+    const g = map.get(key);
+    if (Number(t.waba_team_count || 0) > g.waba_team_count) {
+      g.waba_team_count = Number(t.waba_team_count);
+    }
+    g.templates.push(t);
   }
   return [...map.values()].sort((a, b) => {
     if (!a.waba_id && b.waba_id) return 1;
@@ -1664,6 +1736,54 @@ async function loadTemplateBrowse(reset = false) {
     loadingTemplateBrowse.value = false;
     await nextTick();
     setupTemplateBrowseObserver();
+  }
+}
+
+async function openTemplateAssign(t, wabaId = "") {
+  if (assignTemplateId.value === t.id) {
+    assignTemplateId.value = null;
+    assignMeta.value = null;
+    return;
+  }
+  assignTemplateId.value = t.id;
+  assignWabaId.value = String(wabaId || t.waba_id || "").trim();
+  assignMeta.value = null;
+  try {
+    const params = new URLSearchParams({ template_id: String(t.id) });
+    if (assignWabaId.value) params.set("waba_id", assignWabaId.value);
+    const res = await api(`/WaDesk/Templates/teamOptions?${params.toString()}`, { cache: "no-store" });
+    assignMeta.value = res.data;
+    assignDraft.value = [...(res.data?.assigned_team_ids || [])].map(Number);
+  } catch (e) {
+    assignTemplateId.value = null;
+    flash(false, e.message || "Gagal memuat opsi team");
+  }
+}
+
+async function saveTemplateAssign(t, wabaId = "") {
+  savingAssignId.value = t.id;
+  err.value = "";
+  try {
+    const res = await api("/WaDesk/Templates/assignTeams", {
+      method: "POST",
+      body: {
+        template_id: Number(t.id),
+        team_ids: assignDraft.value.map(Number),
+        waba_id: String(wabaId || assignWabaId.value || t.waba_id || "").trim() || undefined,
+      },
+    });
+    const row = templateBrowseRows.value.find((x) => Number(x.id) === Number(t.id));
+    if (row) {
+      row.assigned_teams = res.data?.assigned_teams || [];
+      row.requires_team_assign = true;
+    }
+    assignTemplateId.value = null;
+    assignMeta.value = null;
+    flash(true, res.message || "Assign template disimpan");
+  } catch (e) {
+    flash(false, e.message || "Gagal menyimpan assign");
+  } finally {
+    savingAssignId.value = null;
   }
 }
 

@@ -27,7 +27,7 @@ class Templates extends WaDeskController
             }
             $tbl = $this->channelsTable();
             $channel = $this->db($this->db_index)->query(
-                "SELECT device_id FROM {$tbl} k
+                "SELECT id, device_id, waba_id FROM {$tbl} k
                  WHERE k.id = ? AND k.tenant_id = ? AND k.status = 'active'
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  LIMIT 1",
@@ -51,6 +51,16 @@ class Templates extends WaDeskController
                  ORDER BY t.template_name ASC, t.id ASC",
                 [$deviceId, $tenantId]
             )->result_array();
+
+            if ($channelId > 0 && $this->templateTeamsTableExists()) {
+                $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+                $teamId = (int) ($user['team_id'] ?? 0);
+                if ($wabaId !== '' && $teamId > 0 && $this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)) {
+                    $rows = array_values(array_filter($rows, function (array $row) use ($teamId) {
+                        return $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId);
+                    }));
+                }
+            }
         } else {
             $pageRaw = $this->query('page');
             if ($pageRaw !== null && $pageRaw !== '' && ($user['role'] ?? '') === 'admin') {
@@ -193,6 +203,12 @@ class Templates extends WaDeskController
                 $wabaId = trim((string) ($row['waba_id'] ?? ''));
                 $row['channels'] = $this->loadTemplateChannelLabels((int) $row['id'], $tenantId, $wabaId !== '' ? $wabaId : null);
                 $row['waba_label'] = $wabaLabels[(int) $row['id']][$wabaId] ?? ($wabaId !== '' ? $wabaId : '');
+            }
+            if ($this->templateTeamsTableExists()) {
+                $row['assigned_teams'] = $this->loadTemplateAssignedTeams((int) $row['id'], $tenantId);
+                $wabaId = trim((string) ($row['waba_id'] ?? ''));
+                $row['waba_team_count'] = $wabaId !== '' ? $this->countTeamsOnWaba($tenantId, $wabaId) : 0;
+                $row['requires_team_assign'] = $wabaId !== '' && $row['waba_team_count'] > 1;
             }
         }
         unset($row);
@@ -792,6 +808,171 @@ class Templates extends WaDeskController
         $this->success(['updated' => $updated], 'Maxlength param diupdate');
     }
 
+    /** GET ?template_id= — team yang boleh di-assign (WABA sama) + status */
+    public function teamOptions()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->templateTeamsTableExists()) {
+            $this->error('Tabel wa_template_teams belum ada. Jalankan migration 025.', 500);
+        }
+
+        $templateId = (int) $this->query('template_id', 0);
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
+        }
+
+        $tenantId = (int) $admin['tenant_id'];
+        if (!$this->findTemplateForTenant($templateId, $tenantId)) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+
+        $wabaIds = $this->templateWabaIds($templateId, $tenantId);
+        $primaryWaba = trim((string) $this->query('waba_id', ''));
+        if ($primaryWaba !== '' && in_array($primaryWaba, $wabaIds, true)) {
+            $wabaIds = [$primaryWaba];
+        } elseif ($primaryWaba !== '' && $wabaIds === []) {
+            $wabaIds = [$primaryWaba];
+        }
+
+        $eligibleMap = [];
+        foreach ($wabaIds as $wabaId) {
+            foreach ($this->teamsOnWaba($tenantId, $wabaId) as $team) {
+                $eligibleMap[(int) $team['id']] = $team;
+            }
+        }
+        $eligibleTeams = array_values($eligibleMap);
+        usort($eligibleTeams, static fn ($a, $b) => strcmp((string) $a['name'], (string) $b['name']));
+
+        $assigned = $this->loadTemplateAssignedTeams($templateId, $tenantId);
+        if ($eligibleTeams !== []) {
+            $eligibleIdSet = array_flip(array_map(static fn ($t) => (int) $t['id'], $eligibleTeams));
+            $assigned = array_values(array_filter($assigned, static fn ($t) => isset($eligibleIdSet[(int) $t['id']])));
+        }
+        $wabaTeamCount = 0;
+        $requiresAssign = false;
+        foreach ($wabaIds as $wabaId) {
+            $cnt = $this->countTeamsOnWaba($tenantId, $wabaId);
+            if ($cnt > $wabaTeamCount) {
+                $wabaTeamCount = $cnt;
+            }
+            if ($cnt > 1) {
+                $requiresAssign = true;
+            }
+        }
+
+        $this->success([
+            'template_id' => $templateId,
+            'waba_ids' => $wabaIds,
+            'waba_team_count' => $wabaTeamCount,
+            'requires_team_assign' => $requiresAssign,
+            'eligible_teams' => $eligibleTeams,
+            'assigned_teams' => $assigned,
+            'assigned_team_ids' => array_map(static fn ($t) => (int) $t['id'], $assigned),
+        ]);
+    }
+
+    /** POST { template_id, team_ids: [] } */
+    public function assignTeams()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+        if (!$this->templateTeamsTableExists()) {
+            $this->error('Tabel wa_template_teams belum ada. Jalankan migration 025.', 500);
+        }
+
+        $body = $this->getBody();
+        $templateId = (int) ($body['template_id'] ?? 0);
+        $teamIds = $body['team_ids'] ?? [];
+        $wabaScope = trim((string) ($body['waba_id'] ?? ''));
+
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
+        }
+        if (!is_array($teamIds)) {
+            $this->error('team_ids harus array', 400);
+        }
+
+        $tenantId = (int) $admin['tenant_id'];
+        if (!$this->findTemplateForTenant($templateId, $tenantId)) {
+            $this->error('Template tidak ditemukan', 404);
+        }
+
+        $wabaIds = $this->templateWabaIds($templateId, $tenantId);
+        if ($wabaScope !== '') {
+            if ($wabaIds !== [] && !in_array($wabaScope, $wabaIds, true)) {
+                $this->error('WABA tidak cocok dengan template ini', 400);
+            }
+            $wabaIds = [$wabaScope];
+        }
+
+        $eligibleIds = [];
+        foreach ($wabaIds as $wabaId) {
+            foreach ($this->teamsOnWaba($tenantId, $wabaId) as $team) {
+                $eligibleIds[(int) $team['id']] = true;
+            }
+        }
+
+        $teamIds = array_values(array_unique(array_map('intval', $teamIds)));
+        $teamIds = array_filter($teamIds, static fn ($id) => $id > 0);
+
+        foreach ($teamIds as $teamId) {
+            if (!isset($eligibleIds[$teamId])) {
+                $this->error(
+                    'Team tidak eligible — hanya team yang sudah assign ke WABA yang sama dengan template',
+                    400,
+                    ['team_id' => $teamId]
+                );
+            }
+        }
+
+        if ($eligibleIds !== []) {
+            $eligibleList = array_keys($eligibleIds);
+            $placeholders = implode(',', array_fill(0, count($eligibleList), '?'));
+            $this->db($this->db_index)->query(
+                "DELETE FROM wa_template_teams
+                 WHERE template_id = ? AND tenant_id = ? AND team_id IN ({$placeholders})",
+                array_merge([$templateId, $tenantId], $eligibleList)
+            );
+        }
+
+        foreach ($teamIds as $teamId) {
+            $this->db($this->db_index)->insert('wa_template_teams', [
+                'template_id' => $templateId,
+                'team_id' => $teamId,
+                'tenant_id' => $tenantId,
+            ]);
+        }
+
+        $assigned = $this->loadTemplateAssignedTeams($templateId, $tenantId);
+
+        $this->success([
+            'template_id' => $templateId,
+            'assigned_teams' => $assigned,
+            'assigned_team_ids' => array_map(static fn ($t) => (int) $t['id'], $assigned),
+        ], 'Assign team template disimpan');
+    }
+
+    /** @return list<array{id:int,name:string}> */
+    private function loadTemplateAssignedTeams(int $templateId, int $tenantId): array
+    {
+        if (!$this->templateTeamsTableExists() || $templateId <= 0) {
+            return [];
+        }
+
+        return $this->db($this->db_index)->query(
+            "SELECT t.id, t.name
+             FROM wa_template_teams tt
+             INNER JOIN teams t ON t.id = tt.team_id
+             WHERE tt.template_id = ? AND tt.tenant_id = ?
+             ORDER BY t.name ASC",
+            [$templateId, $tenantId]
+        )->result_array();
+    }
+
     private function replaceParams(int $templateId, array $params): void
     {
         $maxMap = $this->loadExistingMaxlengthMap($templateId);
@@ -943,6 +1124,9 @@ class Templates extends WaDeskController
         }
         if ($this->templateDevicesTableExists()) {
             $this->db($this->db_index)->delete('wa_template_devices', ['template_id' => $id]);
+        }
+        if ($this->templateTeamsTableExists()) {
+            $this->db($this->db_index)->delete('wa_template_teams', ['template_id' => $id]);
         }
         $this->db($this->db_index)->delete('wa_template_params', ['template_id' => $id]);
         $this->db($this->db_index)->delete('wa_templates', ['id' => $id]);
