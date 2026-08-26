@@ -699,6 +699,18 @@
         },
         type: "POST",
         success: function (response) {
+          // clearTuntas berjalan otomatis saat view dimuat. Jangan mengganti
+          // #load ketika operator sedang mengisi modal "Selesai"; reload akan
+          // menghancurkan DOM modal dan terlihat seperti modal menutup sendiri.
+          if (document.querySelector(".op-modal.is-open")) {
+            var reloadWhenModalClosed = function () {
+              if (document.querySelector(".op-modal.is-open")) return;
+              document.removeEventListener("op-modal:close", reloadWhenModalClosed);
+              loadDiv();
+            };
+            document.addEventListener("op-modal:close", reloadWhenModalClosed);
+            return;
+          }
           loadDiv();
         },
       });
