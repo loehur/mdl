@@ -5582,7 +5582,7 @@ class WAReplies
                 return 'Rp' . number_format((int) $amount, 0, ',', '.');
             };
             $nama = trim((string) ($user['nama_user'] ?? 'Karyawan'));
-            $lines = ['*SKEMA PEMBAYARAN KERJA*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*', 'Ketik: _Fee Layanan_'];
+            $lines = ['*SKEMA PENGGAJIAN*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*', 'Ketik: _Fee Layanan_'];
 
             $lines = array_merge($lines, [
                 '', '*FEE LAUNDRY*',
@@ -5983,6 +5983,7 @@ class WAReplies
                 // Data rekening tidak lengkap - tampilkan Cash
                 $text .= "*Cash*";
             }
+            $text .= "\n\nCek Skema Gaji:\nKetik *Skema*";
 
             // Kirim pesan
             $res = $this->sendQuotedFreeText($waNumber, $text);
