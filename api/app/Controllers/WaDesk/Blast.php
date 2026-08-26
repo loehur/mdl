@@ -92,7 +92,7 @@ class Blast extends WaDeskController
              WHERE id = ? AND tenant_id = ? AND status = 'active'
                AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
              LIMIT 1",
-            [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
+            [$channelId, (int) $user['tenant_id']]
         )->row_array();
         if (!$channel) {
             $this->error('Channel tidak ditemukan atau tidak aktif', 404);
@@ -431,7 +431,7 @@ class Blast extends WaDeskController
             $tbl = $this->channelsTable();
             return [
                 ' AND ' . $this->channelTeamSql($tbl, (int) $user['team_id']),
-                [(int) $user['team_id']],
+                [],
             ];
         }
         if (($user['role'] ?? '') === 'admin') {

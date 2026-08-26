@@ -507,7 +507,7 @@ class Chat extends WaDeskController
             "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND status = 'active'
                AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
              LIMIT 1",
-            [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
+            [$channelId, (int) $user['tenant_id']]
         )->row_array() ?: null;
     }
 

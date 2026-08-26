@@ -203,7 +203,7 @@ class Quota extends WaDeskController
                  WHERE id = ? AND tenant_id = ?
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  LIMIT 1",
-                [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
+                [$channelId, (int) $user['tenant_id']]
             )->row_array();
             if (!$accessible) {
                 $this->error('Channel tidak dapat diakses', 403);

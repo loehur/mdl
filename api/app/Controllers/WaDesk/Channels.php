@@ -37,7 +37,7 @@ class Channels extends WaDeskController
                  WHERE k.tenant_id = ? AND k.status = 'active'
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  ORDER BY k.id DESC",
-                [(int) $user['tenant_id'], (int) $user['team_id']]
+                [(int) $user['tenant_id']]
             )->result_array();
         } else {
             $rows = [];
@@ -157,6 +157,17 @@ class Channels extends WaDeskController
             $this->error('Device sudah di-assign ke team lain', 409);
         }
 
+        $teamPrimaryTaken = $this->db($this->db_index)->query(
+            "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
+            [$tenantId, $teamId]
+        )->row_array();
+        if ($teamPrimaryTaken) {
+            $this->error(
+                'Team ini sudah jadi team utama di channel lain. Gunakan sebagai team tambahan, bukan team utama.',
+                409
+            );
+        }
+
         $meta = $this->resolveDeviceMeta($deviceId, $tenantId);
         $phone = isset($body['phone_number'])
             ? $this->normalizePhone((string) $body['phone_number'])
@@ -186,6 +197,12 @@ class Channels extends WaDeskController
         }
 
         $id = (int) $this->db($this->db_index)->insert($tbl, $insertData);
+        if ($id <= 0) {
+            $this->error(
+                'Gagal assign channel. Team mungkin sudah jadi team utama di channel lain — gunakan sebagai team tambahan.',
+                409
+            );
+        }
         if ($wabaId !== '') {
             $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
         }
@@ -249,11 +266,27 @@ class Channels extends WaDeskController
             if (!$team) {
                 $this->error('Team tidak ditemukan', 404);
             }
+            $otherPrimary = $this->db($this->db_index)->query(
+                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? AND id <> ? LIMIT 1",
+                [$tenantId, $teamId, $id]
+            )->row_array();
+            if ($otherPrimary) {
+                $this->error(
+                    'Team ini sudah jadi team utama di channel lain. Gunakan sebagai team tambahan, bukan team utama.',
+                    409
+                );
+            }
             $data['team_id'] = $teamId;
         }
 
         if ($data) {
-            $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
+            $updated = $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
+            if ($updated === false && isset($data['team_id'])) {
+                $this->error(
+                    'Gagal update channel. Team mungkin sudah jadi team utama di channel lain — gunakan sebagai team tambahan.',
+                    409
+                );
+            }
             $newWaba = trim((string) ($data['waba_id'] ?? $channel['waba_id'] ?? ''));
             if ($newWaba !== '') {
                 $label = trim((string) ($data['label'] ?? $channel['label'] ?? ''));

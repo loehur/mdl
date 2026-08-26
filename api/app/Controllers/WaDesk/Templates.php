@@ -31,7 +31,7 @@ class Templates extends WaDeskController
                  WHERE id = ? AND tenant_id = ? AND status = 'active'
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  LIMIT 1",
-                [$channelId, $tenantId, (int) $user['team_id']]
+                [$channelId, $tenantId]
             )->row_array();
             if (!$channel) {
                 $this->error('Channel tidak ditemukan', 404);

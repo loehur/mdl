@@ -76,6 +76,10 @@
                 <p class="font-medium truncate">{{ t.name }}</p>
                 <p class="text-xs text-slate-500">
                   Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
+                  <span v-if="(t.channels || []).length">
+                    · Channel: {{ (t.channels || []).map((c) => c.label || c.phone_number).join(", ") }}
+                  </span>
+                  <span v-else class="text-amber-400/80"> · Belum ada channel</span>
                 </p>
               </template>
             </div>
@@ -322,12 +326,14 @@
             </option>
           </select>
           <input v-model="channelForm.label" required class="field" placeholder="Label tampilan" />
-          <select v-model="channelForm.team_id" required class="field">
-            <option disabled value="">Team utama (pesan baru)</option>
+          <label class="text-xs text-slate-400 sm:col-span-2">Team utama (pesan baru)</label>
+          <select v-model="channelForm.team_id" required class="field sm:col-span-2">
+            <option disabled value="">Pilih team utama</option>
             <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
+          <label class="text-xs text-slate-400 sm:col-span-2">Team tambahan</label>
           <select v-model="channelForm.team_ids" multiple class="field sm:col-span-2" size="3">
-            <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="channelForm.team_id === t.id">
+            <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="Number(channelForm.team_id) === t.id">
               {{ t.name }}
             </option>
           </select>
@@ -349,12 +355,14 @@
                   placeholder="WABA ID (wajib untuk kirim pesan)"
                   required
                 />
+                <label class="text-xs text-slate-400 sm:col-span-2">Team utama (pesan baru)</label>
                 <select v-model="editKeyForm.team_id" required class="field sm:col-span-2">
-                  <option disabled value="">Team utama (pesan baru)</option>
+                  <option disabled :value="0">Pilih team utama</option>
                   <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
                 </select>
+                <label class="text-xs text-slate-400 sm:col-span-2">Team tambahan</label>
                 <select v-model="editKeyForm.team_ids" multiple class="field sm:col-span-2" size="3">
-                  <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="editKeyForm.team_id === t.id">
+                  <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="Number(editKeyForm.team_id) === t.id">
                     {{ t.name }}
                   </option>
                 </select>
@@ -378,7 +386,7 @@
                     <span v-if="k.waba_id"> · WABA: {{ k.waba_id }}</span>
                     <span v-else class="text-amber-400"> · WABA ID belum diisi</span>
                     · <span class="text-slate-300">{{ k.team_names || k.team_name || "—" }}</span>
-                    <span v-if="k.team_names" class="text-slate-600">(utama: {{ k.team_name }})</span>
+                    <span v-if="channelHasMultipleTeams(k)" class="text-slate-600">(utama: {{ k.team_name }})</span>
                     · {{ k.status }}
                   </p>
                 </div>
@@ -841,7 +849,7 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const editKeyForm = reactive({ label: "", phone_number: "", team_id: "", team_ids: [], waba_id: "" });
+const editKeyForm = reactive({ label: "", phone_number: "", team_id: 0, team_ids: [], waba_id: "" });
 const savingKey = ref(false);
 const syncing = ref(false);
 const resyncingId = ref(null);
@@ -1364,6 +1372,12 @@ async function assignChannel() {
   }
 }
 
+function channelHasMultipleTeams(k) {
+  if (Array.isArray(k.team_ids) && k.team_ids.length > 1) return true;
+  const names = String(k.team_names || "");
+  return names.includes(" + ");
+}
+
 function startEditKey(k) {
   editingKeyId.value = k.id;
   const teamIds = Array.isArray(k.team_ids)
@@ -1372,7 +1386,7 @@ function startEditKey(k) {
   Object.assign(editKeyForm, {
     label: k.label || "",
     phone_number: k.phone_number || "",
-    team_id: String(k.team_id || ""),
+    team_id: Number(k.team_id) || 0,
     team_ids: teamIds,
     waba_id: k.waba_id || "",
   });

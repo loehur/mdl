@@ -756,6 +756,7 @@ abstract class WaDeskController extends BaseController
     /**
      * SQL fragment: channel dipakai oleh team (sebagai team utama ATAU team tambahan).
      * Selalu mulai dengan 'k.'-less alias — $table dipakai sebagai nama tabel/k alias.
+     * $teamId di-inline (int); caller TIDAK perlu menambahkan bind param untuk team_id.
      */
     protected function channelTeamSql(string $table, int $teamId): string
     {

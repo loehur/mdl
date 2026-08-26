@@ -22,6 +22,12 @@ class Teams extends WaDeskController
             [(int) $admin['tenant_id']]
         )->result_array();
 
+        $channelsByTeam = $this->loadTeamChannelsMap((int) $admin['tenant_id']);
+        foreach ($rows as &$row) {
+            $row['channels'] = $channelsByTeam[(int) $row['id']] ?? [];
+        }
+        unset($row);
+
         $this->success(['teams' => $rows]);
     }
 
@@ -132,5 +138,52 @@ class Teams extends WaDeskController
             "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
             [$id, $tenantId]
         )->row_array() ?: null;
+    }
+
+    /** @return array<int, list<array{id:int,label:string,phone_number:string,is_primary:bool}>> */
+    private function loadTeamChannelsMap(int $tenantId): array
+    {
+        $tbl = $this->channelsTable();
+        $links = $this->db($this->db_index)->query(
+            "SELECT c.id, c.label, c.phone_number, c.team_id AS primary_team_id, link.team_id
+             FROM {$tbl} c
+             INNER JOIN (
+               SELECT channel_id, team_id FROM wa_channel_teams
+               UNION
+               SELECT id, team_id FROM {$tbl} WHERE team_id IS NOT NULL
+             ) link ON link.channel_id = c.id
+             WHERE c.tenant_id = ? AND c.status = 'active'
+             ORDER BY c.label ASC, c.id ASC",
+            [$tenantId]
+        )->result_array();
+
+        $map = [];
+        foreach ($links as $link) {
+            $teamId = (int) ($link['team_id'] ?? 0);
+            $channelId = (int) ($link['id'] ?? 0);
+            if ($teamId <= 0 || $channelId <= 0) {
+                continue;
+            }
+            if (!isset($map[$teamId])) {
+                $map[$teamId] = [];
+            }
+            $exists = false;
+            foreach ($map[$teamId] as $ch) {
+                if ((int) $ch['id'] === $channelId) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if ($exists) {
+                continue;
+            }
+            $map[$teamId][] = [
+                'id' => $channelId,
+                'label' => (string) ($link['label'] ?? ''),
+                'phone_number' => (string) ($link['phone_number'] ?? ''),
+                'is_primary' => $teamId === (int) ($link['primary_team_id'] ?? 0),
+            ];
+        }
+        return $map;
     }
 }
