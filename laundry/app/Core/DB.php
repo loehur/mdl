@@ -36,6 +36,10 @@ class DB extends DBC
              $this->__construct($this->db_id);
              return;
         }
+        // mysqli::ping() deprecated on PHP 8.4 and writes warnings into JSON responses.
+        if (PHP_VERSION_ID >= 80400) {
+            return;
+        }
         try {
             if (!$this->mysqli->ping()) {
                 $this->__construct($this->db_id);
