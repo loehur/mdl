@@ -14,6 +14,7 @@ class BankAccounts extends Controller
     public function __construct()
     {
         $this->handleCors();
+        $this->setCorsHeaders();
     }
 
     public function index()
@@ -42,6 +43,7 @@ class BankAccounts extends Controller
         }
 
         $payload = BankAccountGuide::publicPayload($qrisUrl, $qrisImageUrl);
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }

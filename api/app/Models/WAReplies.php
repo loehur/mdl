@@ -3904,7 +3904,7 @@ class WAReplies
 
     /**
      * Handle intent REKENING - balas data rekening pembayaran dan QRIS (customer bisa menyebut "barcode")
-     * Sumber: laundry GET /Get/rekening (URL::NON_TUNAI_GUIDE + QRIS)
+     * Sumber: BankAccountGuide (Env::BCA_PAYMENT_ACCOUNTS), sama dengan CRM.
      */
     private function handleRekening($phoneIn, $waNumber, $textBody = '')
     {
@@ -3922,7 +3922,7 @@ class WAReplies
     }
 
     /**
-     * Ambil teks rekening terformat dari laundry public endpoint.
+     * Ambil teks rekening terformat dari sumber backend terpusat.
      */
     /**
      * @return array{page_url:string,image_url:string}

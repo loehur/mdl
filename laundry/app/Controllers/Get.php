@@ -33,7 +33,8 @@ class Get extends Controller
    }
 
    /**
-    * Ambil rekening dari API terpusat; fallback ke URL::NON_TUNAI_GUIDE.
+    * Proxy kompatibilitas untuk klien lama. Data rekening hanya boleh berasal
+    * dari API backend, supaya tidak ada daftar rekening kedua di Laundry.
     *
     * @return array<string,mixed>
     */
@@ -60,40 +61,9 @@ class Get extends Controller
          }
       }
 
-      $guide = URL::NON_TUNAI_GUIDE;
-      $accounts = [];
-      $lines = ['QRIS', $qrisUrl, ''];
-      $ownerName = 'LUHUR GUNAWAN';
-
-      foreach ($guide as $code => $row) {
-         $label = trim((string) ($row['label'] ?? $code));
-         $number = trim((string) ($row['number'] ?? ''));
-         $name = trim((string) ($row['name'] ?? ''));
-         if ($number === '') {
-            continue;
-         }
-         if ($name !== '') {
-            $ownerName = $name;
-         }
-         $accounts[] = [
-            'code' => (string) $code,
-            'label' => $label,
-            'number' => $number,
-            'name' => $name !== '' ? $name : $ownerName,
-         ];
-         $lines[] = $label;
-         $lines[] = $number;
-         $lines[] = '';
-      }
-      $lines[] = 'an. ' . $ownerName;
-
       return [
-         'ok' => true,
-         'qris_url' => $qrisUrl,
-         'qris_image_url' => $qrisImageUrl,
-         'accounts' => $accounts,
-         'bca' => $accounts[0] ?? null,
-         'message' => rtrim(implode("\n", $lines)),
+         'ok' => false,
+         'message' => 'Data rekening backend sedang tidak tersedia',
       ];
    }
 

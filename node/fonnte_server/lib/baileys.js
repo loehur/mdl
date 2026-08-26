@@ -20,7 +20,31 @@ const { jidToSender, deviceDisplayNumber, isGroupJid, isBroadcastJid, isLidJid, 
 const { setLidPhone, getPhoneJidForLid } = require('./lid-map');
 
 const AUTH_DIR = path.join(__dirname, '..', 'auth');
-const logger = pino({ level: process.env.LOG_LEVEL || 'warn' });
+/**
+ * WhatsApp kadang timeout saat sync awal `fetchProps`. Selama socket kemudian
+ * berhasil open, ini tidak memengaruhi pengiriman atau webhook dan hanya
+ * memenuhi error log. Error Baileys lain tetap diteruskan ke log.
+ */
+function isTransientInitQueryTimeout(args) {
+  const detail = args.find((arg) => arg && typeof arg === 'object') || {};
+  const message = args.find((arg) => typeof arg === 'string') || detail.msg || '';
+  const errorMessage = detail.err?.message || '';
+
+  return String(message).includes("unexpected error in 'init queries'")
+    && errorMessage === 'Timed Out';
+}
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'warn',
+  hooks: {
+    logMethod(args, method) {
+      if (isTransientInitQueryTimeout(args)) {
+        return;
+      }
+      method.apply(this, args);
+    },
+  },
+});
 
 /** Log info hanya muncul saat DEBUG_FONNTE=1 — biar log tidak ramai (cukup error/warn). */
 function debugLog(...args) {

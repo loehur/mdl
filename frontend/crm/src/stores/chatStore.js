@@ -11,12 +11,14 @@ export const API_BASE = "https://api.nalju.com";
 export const LAUNDRY_BASE = "https://ml.nalju.com";
 
 /**
- * Load quick replies from laundry public GET endpoints (rekening + lokasi).
+ * Load quick replies from the central backend (rekening) and Laundry (lokasi).
  * Returns [{ id, shortcut, title, message }, ...]
  */
 export async function loadQuickRepliesFromLaundry() {
   const [rekeningRes, lokasiRes, customRes] = await Promise.all([
-    fetch(`${LAUNDRY_BASE}/Get/rekening`).then((r) => r.json()),
+    // Rekening harus memakai sumber yang sama dengan WAReplies:
+    // api/Payment/BankAccounts → BankAccountGuide → Env::BCA_PAYMENT_ACCOUNTS.
+    fetch(`${API_BASE}/Payment/BankAccounts/index`).then((r) => r.json()),
     fetch(`${LAUNDRY_BASE}/Get/lokasi`).then((r) => r.json()),
     fetch(`${LAUNDRY_BASE}/Get/quickReplies`)
       .then((r) => r.json())
