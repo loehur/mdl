@@ -206,7 +206,9 @@ class Chat extends WaDeskController
             $conv = null;
         }
 
-        $channel = $this->findAccessibleChannel($channelId);
+        $channel = $conv
+            ? $this->findChannelForConversation($channelId, $conv)
+            : $this->findAccessibleChannel($channelId);
         if (!$channel) {
             $this->error('Channel tidak dapat diakses', 403);
         }
@@ -511,6 +513,41 @@ class Chat extends WaDeskController
              LIMIT 1",
             [$channelId, (int) $user['tenant_id']]
         )->row_array() ?: null;
+    }
+
+    /**
+     * Channel untuk balasan thread yang sudah lolos visibility check.
+     * Tidak memaksa channelTeamSql — conversation sudah terikat ke team user.
+     */
+    private function findChannelForConversation(int $channelId, array $conv): ?array
+    {
+        $user = $this->currentUser();
+        if (!$this->hasOperationalTeam($user)) {
+            return null;
+        }
+        if ((int) ($conv['channel_id'] ?? 0) !== $channelId) {
+            return null;
+        }
+        if ((int) ($conv['team_id'] ?? 0) !== (int) ($user['team_id'] ?? 0)) {
+            return null;
+        }
+        if ((int) ($conv['tenant_id'] ?? 0) !== (int) ($user['tenant_id'] ?? 0)) {
+            return null;
+        }
+
+        $tbl = $this->channelsTable();
+        $channel = $this->db($this->db_index)->query(
+            "SELECT * FROM {$tbl} k
+             WHERE k.id = ? AND k.tenant_id = ? AND k.status = 'active'
+             LIMIT 1",
+            [$channelId, (int) $user['tenant_id']]
+        )->row_array() ?: null;
+
+        if ($channel) {
+            return $channel;
+        }
+
+        return $this->findAccessibleChannel($channelId);
     }
 
     private function getOrCreateConversation(array $channel, string $phone, ?string $name, ?int $teamId = null): array
