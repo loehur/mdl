@@ -50,9 +50,11 @@ class SurcasKurir
             // Tabel belum ada — fallback request di bawah
         }
 
-        if (count($out) === count($safe)) {
+        $remaining = array_values(array_diff($safe, array_keys($out)));
+        if ($remaining === []) {
             return $out;
         }
+        $remainingIn = implode(',', $remaining);
 
         try {
             $rows = $db->query_array(
@@ -66,7 +68,7 @@ class SurcasKurir
                    AND s.bin = 0
                    AND $refMatch
                    AND $cabangMatch
-                 WHERE dri.id_penjualan IN ($in)"
+                 WHERE dri.id_penjualan IN ($remainingIn)"
             );
             if (is_array($rows)) {
                 foreach ($rows as $r) {
@@ -80,9 +82,11 @@ class SurcasKurir
             // ignore
         }
 
-        if (count($out) === count($safe)) {
+        $remaining = array_values(array_diff($safe, array_keys($out)));
+        if ($remaining === []) {
             return $out;
         }
+        $remainingIn = implode(',', $remaining);
 
         // Legacy: hanya jika baris surcas belum memakai surcas_item (binding per nota penuh)
         try {
@@ -94,7 +98,7 @@ class SurcasKurir
                    AND sc.dari_delivery = 1
                    AND $cabangMatch
                  WHERE s.bin = 0
-                   AND s.id_penjualan IN ($in)
+                   AND s.id_penjualan IN ($remainingIn)
                    AND NOT EXISTS (
                      SELECT 1 FROM surcas_item si
                      WHERE si.id_surcas = sc.id_surcas
