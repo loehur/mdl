@@ -180,8 +180,8 @@ class Controller extends URL
         $saleIds = [];
         $subTotal = 0;
         foreach ($sales as $s) {
-            $sid = (int) ($s['id_penjualan'] ?? 0);
-            if ($sid <= 0) {
+            $sid = trim((string) ($s['id_penjualan'] ?? ''));
+            if ($sid === '' || $sid === '0') {
                 $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: id_penjualan tidak valid");
                 return false;
             }
@@ -199,18 +199,21 @@ class Controller extends URL
             return false;
         }
 
-        $idsIn = implode(',', $saleIds);
+        $escapedIds = array_map(function ($id) use ($db) {
+            return "'" . $db->escape($id) . "'";
+        }, array_values($saleIds));
+        $idsIn = implode(',', $escapedIds);
         $ops = $db->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($idsIn)");
         $opsMap = [];
         foreach ((array) $ops as $o) {
-            $oid = (int) ($o['id_penjualan'] ?? 0);
+            $oid = trim((string) ($o['id_penjualan'] ?? ''));
             $jenis = (string) ($o['jenis_operasi'] ?? '');
-            if ($oid > 0 && $jenis !== '') {
+            if ($oid !== '' && $jenis !== '') {
                 $opsMap[$oid][$jenis] = true;
             }
         }
         foreach ($sales as $s) {
-            $sid = (int) ($s['id_penjualan'] ?? 0);
+            $sid = trim((string) ($s['id_penjualan'] ?? ''));
             $list = @unserialize($s['list_layanan'] ?? '', ['allowed_classes' => false]);
             if (!is_array($list) || $list === []) {
                 $this->model('Log')->write("[tuntasOrder] SKIP ref=$ref: item #$sid list_layanan tidak valid");
