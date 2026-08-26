@@ -12,9 +12,9 @@ UPDATE wa_autoreply_intents SET sort_order=29, case_value=NULL, notify=0, is_act
   note='Fee efektif Cuci/Jaga Malam per cabang', updated_at=CURRENT_TIMESTAMP WHERE code='FEE';
 
 INSERT INTO wa_autoreply_patterns (intent_id, pattern, sort_order, is_active, note)
-SELECT i.id, '/^\\s*fee(?:\\s+\\d+)?(?:\\s+(?:cuci|malam)\\s+[a-z0-9_-]+)?\\s*$/iu', 10, 1, 'fee cuci/malam cabang'
+SELECT i.id, '/^\\s*fee(?:\\s+\\d+)?(?:\\s+(?:(?:cuci|malam)\\s+[a-z0-9_-]+|layanan))?\\s*$/iu', 10, 1, 'fee layanan atau cuci/malam cabang'
 FROM wa_autoreply_intents i WHERE i.code='FEE'
-AND NOT EXISTS (SELECT 1 FROM wa_autoreply_patterns p WHERE p.intent_id=i.id AND p.pattern='/^\\s*fee(?:\\s+\\d+)?(?:\\s+(?:cuci|malam)\\s+[a-z0-9_-]+)?\\s*$/iu');
+AND NOT EXISTS (SELECT 1 FROM wa_autoreply_patterns p WHERE p.intent_id=i.id AND p.pattern='/^\\s*fee(?:\\s+\\d+)?(?:\\s+(?:(?:cuci|malam)\\s+[a-z0-9_-]+|layanan))?\\s*$/iu');
 
 INSERT INTO wa_autoreply_meta (meta_key, meta_value) VALUES ('cache_version','1')
 ON DUPLICATE KEY UPDATE meta_value=CAST(meta_value AS UNSIGNED)+1;

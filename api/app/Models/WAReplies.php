@@ -5565,18 +5565,6 @@ class WAReplies
                 return;
             }
 
-            $serviceRows = $db->query(
-                "SELECT r.gaji_laundry, r.target, r.max_target, r.bonus_target,
-                        COALESCE(p.penjualan_jenis, CONCAT('Jenis ', r.jenis_penjualan)) AS penjualan,
-                        COALESCE(l.layanan, CONCAT('Layanan ', r.id_layanan)) AS layanan,
-                        COALESCE(s.nama_satuan, 'qty') AS satuan
-                 FROM gaji_laundry_ref r
-                 LEFT JOIN penjualan_jenis p ON p.id_penjualan_jenis = r.jenis_penjualan
-                 LEFT JOIN layanan l ON l.id_layanan = r.id_layanan
-                 LEFT JOIN satuan s ON s.id_satuan = p.id_satuan
-                 ORDER BY r.jenis_penjualan ASC, r.id_layanan ASC"
-            )->result_array();
-
             $globalRef = [1 => 0, 2 => 0];
             foreach ($db->query('SELECT id_pengali, gaji_pengali FROM gaji_pengali_ref WHERE id_pengali IN (1, 2)')->result_array() as $row) {
                 $globalRef[(int) ($row['id_pengali'] ?? 0)] = (int) ($row['gaji_pengali'] ?? 0);
@@ -5594,32 +5582,7 @@ class WAReplies
                 return 'Rp' . number_format((int) $amount, 0, ',', '.');
             };
             $nama = trim((string) ($user['nama_user'] ?? 'Karyawan'));
-            $lines = ['*SKEMA PEMBAYARAN KERJA*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*'];
-
-            if ($serviceRows === []) {
-                $lines[] = '- Belum ada fee layanan yang diatur.';
-            } else {
-                foreach ($serviceRows as $row) {
-                    $unit = trim((string) ($row['satuan'] ?? ''));
-                    $unit = $unit !== '' ? $unit : 'qty';
-                    $target = (int) ($row['target'] ?? 0);
-                    $maxTarget = (int) ($row['max_target'] ?? 0);
-                    $bonusTarget = (int) ($row['bonus_target'] ?? 0);
-                    $lines[] = '';
-                    $lines[] = mb_strtoupper(trim((string) ($row['penjualan'] ?? '')), 'UTF-8')
-                        . ' — ' . trim((string) ($row['layanan'] ?? ''));
-                    $lines[] = 'Fee: ' . $rupiah($row['gaji_laundry'] ?? 0) . '/' . $unit;
-                    if ($target > 0) {
-                        $lines[] = 'Target: ' . number_format($target, 0, ',', '.') . ' ' . $unit;
-                    }
-                    if ($bonusTarget > 0) {
-                        $lines[] = 'Bonus: ' . $rupiah($bonusTarget) . '/target';
-                    }
-                    if ($target > 0 && $bonusTarget > 0 && $maxTarget > 0) {
-                        $lines[] = 'Maks. target bonus: ' . number_format($maxTarget, 0, ',', '.') . ' ' . $unit;
-                    }
-                }
-            }
+            $lines = ['*SKEMA PEMBAYARAN KERJA*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*', 'Ketik: _Fee Layanan_'];
 
             $lines = array_merge($lines, [
                 '', '*FEE LAUNDRY*',
@@ -5660,6 +5623,41 @@ class WAReplies
 
         if (!$this->intentLabMode && !$isAdmin && (empty($ctx['is_karyawan']) || $ownUserId < 1)) {
             $this->logAutoreplyTrace($waNumber, 'FEE', 'require_karyawan_or_admin');
+            return;
+        }
+        if (preg_match('/^\s*fee\s+layanan\s*$/iu', $textBody)) {
+            try {
+                $db = DB::getInstance(1);
+                $rows = $db->query(
+                    "SELECT r.gaji_laundry, r.target, r.max_target, r.bonus_target,
+                            COALESCE(p.penjualan_jenis, CONCAT('Jenis ', r.jenis_penjualan)) AS penjualan,
+                            COALESCE(l.layanan, CONCAT('Layanan ', r.id_layanan)) AS layanan,
+                            COALESCE(s.nama_satuan, 'qty') AS satuan
+                     FROM gaji_laundry_ref r
+                     LEFT JOIN penjualan_jenis p ON p.id_penjualan_jenis = r.jenis_penjualan
+                     LEFT JOIN layanan l ON l.id_layanan = r.id_layanan
+                     LEFT JOIN satuan s ON s.id_satuan = p.id_satuan
+                     ORDER BY r.jenis_penjualan ASC, r.id_layanan ASC"
+                )->result_array();
+                $rp = static function ($v): string { return 'Rp' . number_format((int) $v, 0, ',', '.'); };
+                $lines = ['*FEE LAYANAN*'];
+                foreach ($rows ?: [] as $row) {
+                    $unit = trim((string) ($row['satuan'] ?? '')) ?: 'qty';
+                    $target = (int) ($row['target'] ?? 0);
+                    $bonus = (int) ($row['bonus_target'] ?? 0);
+                    $max = (int) ($row['max_target'] ?? 0);
+                    $lines[] = '';
+                    $lines[] = mb_strtoupper((string) ($row['penjualan'] ?? ''), 'UTF-8') . ' — ' . (string) ($row['layanan'] ?? '');
+                    $lines[] = 'Fee: ' . $rp($row['gaji_laundry'] ?? 0) . '/' . $unit;
+                    if ($target > 0) $lines[] = 'Target: ' . number_format($target, 0, ',', '.') . ' ' . $unit;
+                    if ($bonus > 0) $lines[] = 'Bonus: ' . $rp($bonus) . '/target';
+                    if ($target > 0 && $bonus > 0 && $max > 0) $lines[] = 'Maks. target bonus: ' . number_format($max, 0, ',', '.') . ' ' . $unit;
+                }
+                if (count($lines) === 1) $lines[] = 'Belum ada fee layanan yang diatur.';
+                $this->sendQuotedFreeText($waNumber, implode("\n", $lines));
+            } catch (\Throwable $e) {
+                $this->logAutoreplyTrace($waNumber, 'FEE', 'layanan_error=' . mb_substr($e->getMessage(), 0, 120));
+            }
             return;
         }
         if (!preg_match('/^\s*fee\s+(?:(\d+)\s+)?(cuci|malam)\s+([a-z0-9_-]+)\s*$/iu', $textBody, $m)) {
