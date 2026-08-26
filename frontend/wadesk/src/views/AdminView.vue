@@ -351,14 +351,35 @@
           </ul>
         </div>
 
-        <div class="flex flex-wrap gap-2">
-          <button type="button" class="btn-sm" :disabled="syncingDevices" @click="syncDevicesFromKirimin">
-            {{ syncingDevices ? "Sync..." : "Sync device dari Kirimin" }}
-          </button>
-        </div>
-
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-4" @submit.prevent="assignChannel">
-          <p class="text-sm font-medium text-slate-200">Assign nomor ke team</p>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-medium text-slate-200">Assign nomor ke team</p>
+            <button
+              type="button"
+              class="btn-sm shrink-0 inline-flex items-center justify-center h-9 w-9 p-0"
+              :disabled="syncingDevices"
+              title="Sync device dari Kirimin"
+              aria-label="Sync device dari Kirimin"
+              @click="syncDevicesFromKirimin"
+            >
+              <svg
+                class="h-4 w-4"
+                :class="{ 'animate-spin': syncingDevices }"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+          </div>
 
           <div>
             <label class="label">Device / nomor</label>
