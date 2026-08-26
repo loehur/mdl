@@ -2,10 +2,16 @@
 
 class Operasi extends Controller
 {
+   private float $loadDataPerfStart = 0.0;
+   private array $loadDataPerfMark = [];
+
    public function __construct()
    {
+      $this->loadDataPerfStart = microtime(true);
       $this->session_cek();
+      $this->loadDataPerfMark['session'] = (microtime(true) - $this->loadDataPerfStart) * 1000;
       $this->operating_data();
+      $this->loadDataPerfMark['bootstrap'] = (microtime(true) - $this->loadDataPerfStart) * 1000;
    }
 
    public function i($modeOperasi, $id_pelanggan)
@@ -51,8 +57,8 @@ class Operasi extends Controller
    {
       // Profil ringan untuk DevTools (Network > Timing > Server Timing).
       // Berguna mengisolasi query/proses terberat tanpa mencatat log per request.
-      $perfStart = microtime(true);
-      $perfMark = [];
+      $perfStart = $this->loadDataPerfStart > 0 ? $this->loadDataPerfStart : microtime(true);
+      $perfMark = $this->loadDataPerfMark;
       $mark = static function (string $name) use (&$perfMark, $perfStart): void {
          $perfMark[$name] = (microtime(true) - $perfStart) * 1000;
       };
@@ -144,11 +150,13 @@ class Operasi extends Controller
             $saleIdsInt,
             (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
          );
+         $mark('surcas_jemput');
          $boundAntar = SurcasKurir::boundSaleIds(
             $this->db(0),
             $saleIdsInt,
             (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
          );
+         $mark('surcas_antar');
          foreach ($saleIdsInt as $sid) {
             if ($sid <= 0) {
                continue;
@@ -172,6 +180,7 @@ class Operasi extends Controller
                (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
             ]
          );
+         $mark('surcas_unbind');
          foreach ($unbindable as $sid => $jenisMap) {
             $flags = [];
             if (isset($boundJemput[$sid]) && isset($jenisMap[(int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN])) {
