@@ -303,73 +303,151 @@
           </ul>
         </div>
 
-        <p class="text-xs text-slate-400">
-          Sync device dari Kirimin, lalu assign <strong>1 nomor bisa dipakai beberapa team</strong>.
-          Pesan masuk baru masuk ke <strong>team utama</strong>; balasan mengikuti team yang terakhir aktif.
-        </p>
+        <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
+          <p class="text-sm font-medium text-slate-200">Satu nomor WA bisa dipakai beberapa team</p>
+          <ul class="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
+            <li>
+              <strong class="text-slate-300">Default Team</strong> — customer yang
+              <em>belum pernah</em> chat di nomor ini masuk ke team ini (inbox team default).
+            </li>
+            <li>
+              <strong class="text-slate-300">Team berbagi nomor</strong> — team lain yang boleh kirim template
+              &amp; lihat inbox nomor yang sama. Jika customer sudah pernah chat dengan team tertentu,
+              balasan berikutnya masuk ke team itu (bukan default).
+            </li>
+          </ul>
+        </div>
+
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn-sm" :disabled="syncingDevices" @click="syncDevicesFromKirimin">
             {{ syncingDevices ? "Sync..." : "Sync device dari Kirimin" }}
           </button>
         </div>
-        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="assignChannel">
-          <select v-model="channelForm.device_id" required class="field sm:col-span-2">
-            <option disabled value="">Pilih device (sync dulu jika kosong)</option>
-            <option
-              v-for="d in availableDevices"
-              :key="d.device_id"
-              :value="d.device_id"
-              :disabled="!!d.assigned"
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-4" @submit.prevent="assignChannel">
+          <p class="text-sm font-medium text-slate-200">Assign nomor baru</p>
+
+          <div>
+            <label class="label">Device / nomor</label>
+            <select v-model="channelForm.device_id" required class="field">
+              <option disabled value="">Pilih device (sync dulu jika kosong)</option>
+              <option
+                v-for="d in availableDevices"
+                :key="d.device_id"
+                :value="d.device_id"
+                :disabled="!!d.assigned"
+              >
+                {{ d.label || d.device_id }} · {{ d.phone_number || "—" }}
+                {{ d.assigned ? "(sudah di-assign)" : "" }}
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="label">Label tampilan</label>
+            <input v-model="channelForm.label" required class="field" placeholder="Contoh: CS Utama" />
+          </div>
+
+          <div>
+            <label class="label">Default Team</label>
+            <p class="text-[11px] text-slate-500 mb-1.5">
+              Customer baru (belum ada riwayat chat di nomor ini) masuk ke team ini.
+            </p>
+            <select
+              v-model="channelForm.team_id"
+              required
+              class="field"
+              @change="onDefaultTeamChange(channelForm)"
             >
-              {{ d.label || d.device_id }} · {{ d.phone_number || "—" }}
-              {{ d.assigned ? "(sudah di-assign)" : "" }}
-            </option>
-          </select>
-          <input v-model="channelForm.label" required class="field" placeholder="Label tampilan" />
-          <label class="text-xs text-slate-400 sm:col-span-2">Team utama (pesan baru)</label>
-          <select v-model="channelForm.team_id" required class="field sm:col-span-2">
-            <option disabled value="">Pilih team utama</option>
-            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
-          </select>
-          <label class="text-xs text-slate-400 sm:col-span-2">Team tambahan</label>
-          <select v-model="channelForm.team_ids" multiple class="field sm:col-span-2" size="3">
-            <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="Number(channelForm.team_id) === t.id">
-              {{ t.name }}
-            </option>
-          </select>
-          <p class="text-[11px] text-slate-500 sm:col-span-2 -mt-1">
-            Team tambahan (tahan Ctrl/Shift untuk pilih banyak). Pesan masuk dari customer yang belum ada
-            riwayatnya tetap masuk ke team utama.
-          </p>
-          <button class="btn sm:col-span-2">Assign channel</button>
+              <option disabled value="">Pilih default team</option>
+              <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
+          </div>
+
+          <div class="rounded-lg border border-white/10 bg-ink-950/30 p-3 space-y-2">
+            <p class="text-xs font-medium text-slate-300">
+              Team berbagi nomor
+              <span class="text-slate-500 font-normal">(opsional)</span>
+            </p>
+            <p class="text-[11px] text-slate-500">
+              Centang team yang juga boleh pakai nomor ini. Mereka bisa kirim template &amp; lihat inbox;
+              routing balasan tetap mengikuti team yang terakhir aktif dengan customer.
+            </p>
+            <p v-if="!channelForm.team_id" class="text-[11px] text-amber-300/90">Pilih Default Team dulu.</p>
+            <div v-else class="flex flex-wrap gap-x-4 gap-y-2">
+              <label
+                v-for="t in sharedTeamOptions(channelForm.team_id)"
+                :key="t.id"
+                class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
+              >
+                <input
+                  v-model="channelForm.team_ids"
+                  type="checkbox"
+                  :value="t.id"
+                  class="rounded"
+                />
+                {{ t.name }}
+              </label>
+              <p v-if="!sharedTeamOptions(channelForm.team_id).length" class="text-[11px] text-slate-500">
+                Tidak ada team lain.
+              </p>
+            </div>
+          </div>
+
+          <button class="btn w-full sm:w-auto">Assign nomor</button>
         </form>
+
+        <div v-if="keys.length" class="space-y-2">
+          <p class="text-sm font-medium text-slate-200">Nomor terdaftar</p>
+        </div>
         <ul class="divide-y divide-white/5">
           <li v-for="k in keys" :key="k.id" class="py-3">
             <template v-if="editingKeyId === k.id">
-              <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveKey(k)">
-                <input v-model="editKeyForm.label" required class="field" placeholder="Label" />
+              <form class="grid sm:grid-cols-2 gap-3 mt-1 rounded-xl border border-white/10 bg-ink-950/30 p-4" @submit.prevent="saveKey(k)">
+                <input v-model="editKeyForm.label" required class="field sm:col-span-2" placeholder="Label" />
                 <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
                 <input
                   v-model="editKeyForm.waba_id"
-                  class="field sm:col-span-2"
+                  class="field"
                   placeholder="WABA ID (wajib untuk kirim pesan)"
                   required
                 />
-                <label class="text-xs text-slate-400 sm:col-span-2">Team utama (pesan baru)</label>
-                <select v-model="editKeyForm.team_id" required class="field sm:col-span-2">
-                  <option disabled :value="0">Pilih team utama</option>
-                  <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
-                <label class="text-xs text-slate-400 sm:col-span-2">Team tambahan</label>
-                <select v-model="editKeyForm.team_ids" multiple class="field sm:col-span-2" size="3">
-                  <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="Number(editKeyForm.team_id) === t.id">
-                    {{ t.name }}
-                  </option>
-                </select>
-                <p class="text-[11px] text-slate-500 sm:col-span-2 -mt-1">
-                  Team tambahan (tahan Ctrl/Shift). Perhatian: conversation team yang dicabut dari nomor ini
-                  beserta riwayat chat-nya akan dihapus.
-                </p>
+                <div class="sm:col-span-2">
+                  <label class="label">Default Team</label>
+                  <p class="text-[11px] text-slate-500 mb-1.5">
+                    Customer baru masuk ke team ini.
+                  </p>
+                  <select
+                    v-model="editKeyForm.team_id"
+                    required
+                    class="field"
+                    @change="onDefaultTeamChange(editKeyForm)"
+                  >
+                    <option disabled :value="0">Pilih default team</option>
+                    <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+                  </select>
+                </div>
+                <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
+                  <p class="text-xs font-medium text-slate-300">Team berbagi nomor <span class="text-slate-500 font-normal">(opsional)</span></p>
+                  <div class="flex flex-wrap gap-x-4 gap-y-2">
+                    <label
+                      v-for="t in sharedTeamOptions(editKeyForm.team_id)"
+                      :key="t.id"
+                      class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
+                    >
+                      <input
+                        v-model="editKeyForm.team_ids"
+                        type="checkbox"
+                        :value="t.id"
+                        class="rounded"
+                      />
+                      {{ t.name }}
+                    </label>
+                  </div>
+                  <p class="text-[11px] text-amber-300/80">
+                    Menghapus team dari daftar ini ikut menghapus riwayat chat team tersebut di nomor ini.
+                  </p>
+                </div>
                 <div class="sm:col-span-2 flex gap-2">
                   <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
                   <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
@@ -380,14 +458,21 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="font-medium">{{ k.label }}</p>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-xs text-slate-500 mt-0.5">
                     {{ k.phone_number }}
-                    <span v-if="k.device_id"> · device: {{ k.device_id }}</span>
-                    <span v-if="k.waba_id"> · WABA: {{ k.waba_id }}</span>
-                    <span v-else class="text-amber-400"> · WABA ID belum diisi</span>
-                    · <span class="text-slate-300">{{ k.team_names || k.team_name || "—" }}</span>
-                    <span v-if="channelHasMultipleTeams(k)" class="text-slate-600">(utama: {{ k.team_name }})</span>
+                    <span v-if="k.device_id"> · {{ k.device_id }}</span>
+                    <span v-if="k.waba_id"> · WABA {{ k.waba_id }}</span>
+                    <span v-else class="text-amber-400"> · WABA belum diisi</span>
                     · {{ k.status }}
+                  </p>
+                  <p class="text-xs text-slate-400 mt-1">
+                    <span class="text-slate-500">Default:</span>
+                    <span class="text-slate-200">{{ k.team_name || "—" }}</span>
+                    <template v-if="channelSharedTeamNames(k)">
+                      <span class="text-slate-600 mx-1">·</span>
+                      <span class="text-slate-500">Berbagi:</span>
+                      <span class="text-slate-300">{{ channelSharedTeamNames(k) }}</span>
+                    </template>
                   </p>
                 </div>
                 <div class="flex items-center gap-3 shrink-0">
@@ -1372,10 +1457,26 @@ async function assignChannel() {
   }
 }
 
-function channelHasMultipleTeams(k) {
-  if (Array.isArray(k.team_ids) && k.team_ids.length > 1) return true;
-  const names = String(k.team_names || "");
-  return names.includes(" + ");
+function sharedTeamOptions(defaultTeamId) {
+  const defaultId = Number(defaultTeamId);
+  if (!defaultId) return teams.value;
+  return teams.value.filter((t) => Number(t.id) !== defaultId);
+}
+
+function onDefaultTeamChange(form) {
+  const defaultId = Number(form.team_id);
+  if (!defaultId) return;
+  form.team_ids = (form.team_ids || []).filter((id) => Number(id) > 0 && Number(id) !== defaultId);
+}
+
+function channelSharedTeamNames(k) {
+  const defaultId = Number(k.team_id);
+  const ids = Array.isArray(k.team_ids) ? k.team_ids.map((v) => Number(v)).filter((id) => id > 0 && id !== defaultId) : [];
+  if (!ids.length) return "";
+  const names = ids
+    .map((id) => teams.value.find((t) => Number(t.id) === id)?.name)
+    .filter(Boolean);
+  return names.join(", ");
 }
 
 function startEditKey(k) {
