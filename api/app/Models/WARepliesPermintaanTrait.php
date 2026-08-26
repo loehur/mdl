@@ -12,8 +12,8 @@ use App\Helpers\Laundry\PermintaanSummaryHelper;
  */
 trait WARepliesPermintaanTrait
 {
-    private const PERMINTAAN_SESSION_TTL_MINUTES = 60; // jendela follow-up chat
-    private const PERMINTAAN_NOTIFY_TTL_HOURS = 24; // kartu notif laundry
+    private static $permintaanSessionTtlMinutes = 60; // jendela follow-up chat
+    private static $permintaanNotifyTtlHours = 24; // kartu notif laundry
 
     private function getPermintaanSession(string $waNumber): ?array
     {
@@ -56,8 +56,8 @@ trait WARepliesPermintaanTrait
             return;
         }
         $now = date('Y-m-d H:i:s');
-        $expires = date('Y-m-d H:i:s', time() + (self::PERMINTAAN_SESSION_TTL_MINUTES * 60));
-        $notifyExpires = date('Y-m-d H:i:s', time() + (self::PERMINTAAN_NOTIFY_TTL_HOURS * 3600));
+        $expires = date('Y-m-d H:i:s', time() + (self::$permintaanSessionTtlMinutes * 60));
+        $notifyExpires = date('Y-m-d H:i:s', time() + (self::$permintaanNotifyTtlHours * 3600));
 
         try {
             $db = DB::getInstance(0);

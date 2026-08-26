@@ -10,7 +10,7 @@ use App\Core\DB;
  */
 trait WARepliesHargaTrait
 {
-    private const HARGA_SESSION_TTL_MINUTES = 30;
+    private static $hargaSessionTtlMinutes = 30;
 
     /** @var array<string, string> */
     private static $hargaServiceDefaults = [
@@ -71,7 +71,7 @@ trait WARepliesHargaTrait
             return;
         }
         $now = date('Y-m-d H:i:s');
-        $expires = date('Y-m-d H:i:s', time() + (self::HARGA_SESSION_TTL_MINUTES * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::$hargaSessionTtlMinutes * 60));
         try {
             DB::getInstance(0)->query(
                 'INSERT INTO wa_harga_session

@@ -11,7 +11,7 @@ use App\Helpers\Laundry\DeliveryTarifGrant;
  */
 trait WARepliesKurirTrait
 {
-    private const KURIR_SESSION_TTL_MINUTES = 60;
+    private static $kurirSessionTtlMinutes = 60;
 
     private function getKurirSession(string $waNumber): ?array
     {
@@ -73,7 +73,7 @@ trait WARepliesKurirTrait
 
         $now = date('Y-m-d H:i:s');
         $step = (string) $merge('step', 'ask_jenis');
-        $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::$kurirSessionTtlMinutes * 60));
         $sekalianJemput = (!empty($data['sekalian_jemput']) || !empty($existing['sekalian_jemput'])) ? 1 : 0;
         $vals = [
             $phone,
@@ -144,7 +144,7 @@ trait WARepliesKurirTrait
         };
         $now = date('Y-m-d H:i:s');
         $step = (string) $merge('step', 'ask_jenis');
-        $expires = date('Y-m-d H:i:s', time() + (self::KURIR_SESSION_TTL_MINUTES * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::$kurirSessionTtlMinutes * 60));
         $vals = [
             $phone,
             $merge('id_pelanggan'),

@@ -12,11 +12,11 @@ use App\Helpers\Laundry\AntarTarif;
 trait WARepliesLokasiTrait
 {
     /** Session LOKASI idle max 1 jam */
-    private const LOKASI_SESSION_TTL_MINUTES = 60;
+    private static $lokasiSessionTtlMinutes = 60;
     /** Titik dianggap lokasi yang sama (km) */
-    private const LOKASI_NEAR_KM = 0.08;
+    private static $lokasiNearKm = 0.08;
     /** Jangan spam tanya lengkapi dalam session yang sama */
-    private const LOKASI_ASK_COOLDOWN_MINUTES = 60;
+    private static $lokasiAskCooldownMinutes = 60;
 
     private function getLokasiSession(string $waNumber): ?array
     {
@@ -89,7 +89,7 @@ trait WARepliesLokasiTrait
         };
 
         $now = date('Y-m-d H:i:s');
-        $expires = date('Y-m-d H:i:s', time() + (self::LOKASI_SESSION_TTL_MINUTES * 60));
+        $expires = date('Y-m-d H:i:s', time() + (self::$lokasiSessionTtlMinutes * 60));
         $vals = [
             $phone,
             $merge('id_pelanggan'),
@@ -268,7 +268,7 @@ trait WARepliesLokasiTrait
         if ($ts === false) {
             return true;
         }
-        return (time() - $ts) >= (self::LOKASI_ASK_COOLDOWN_MINUTES * 60);
+        return (time() - $ts) >= (self::$lokasiAskCooldownMinutes * 60);
     }
 
     /**
@@ -296,7 +296,7 @@ trait WARepliesLokasiTrait
         }
         foreach ($rows as $r) {
             $km = AntarTarif::distanceKm($lat, $lng, (float) $r['latt'], (float) $r['longt']);
-            if ($km <= self::LOKASI_NEAR_KM) {
+            if ($km <= self::$lokasiNearKm) {
                 return $r;
             }
         }
