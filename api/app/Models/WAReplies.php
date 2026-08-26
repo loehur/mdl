@@ -5489,7 +5489,7 @@ class WAReplies
 
         $db1 = DB::getInstance(1);
         $db0 = DB::getInstance(0);
-        $users = $db1->query("SELECT no_user, nama_user, bank_code, bank_account_number, bank_account_name FROM user WHERE en = 1")->result_array();
+        $users = $db1->query("SELECT id_user, no_user, nama_user, bank_code, bank_account_number, bank_account_name FROM user WHERE en = 1")->result_array();
 
         // 1. Regex: exact match (case insensitive)
         $found = null;
@@ -5663,6 +5663,7 @@ class WAReplies
      */
     private function formatKaryawanReply($row, $db0)
     {
+        $id_user = (int) ($row['id_user'] ?? 0);
         $no_user = $row['no_user'] ?? '';
         $nama_user = trim((string) ($row['nama_user'] ?? ''));
         $bank_code = trim($row['bank_code'] ?? '');
@@ -5685,8 +5686,7 @@ class WAReplies
         }
 
         $lines = [
-            "DATA KARYAWAN",
-            "*{$nama_user}*",
+            "*" . mb_strtoupper($nama_user, 'UTF-8') . "* #{$id_user}",
             "No. HP: {$no_user}",
             "Bank: " . ($bank_code ?: '-') . $bankName,
             "No. Rek: " . ($bank_account_number ?: '-'),
