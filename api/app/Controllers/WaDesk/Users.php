@@ -155,6 +155,14 @@ class Users extends WaDeskController
                 $this->error('Team leader belum terhubung ke team', 400);
             }
             $teamId = (int) $leader['team_id'];
+            $agentCount = $this->countTeamAgents($teamId, (int) $admin['tenant_id']);
+            if ($agentCount >= self::MAX_AGENTS_PER_TEAM) {
+                $this->error(
+                    'Team sudah memiliki maksimal ' . self::MAX_AGENTS_PER_TEAM . ' agent',
+                    400,
+                    ['code' => 'max_agents', 'max_agents' => self::MAX_AGENTS_PER_TEAM]
+                );
+            }
         }
 
         $email = strtolower(trim($body['email']));

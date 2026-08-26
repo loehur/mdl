@@ -276,6 +276,8 @@ abstract class WaDeskController extends BaseController
         return $_SESSION[$this->session_key]['user'] ?? null;
     }
 
+    public const MAX_AGENTS_PER_TEAM = 2;
+
     protected function requireAdmin(): array
     {
         $user = $this->currentUser();
@@ -283,6 +285,76 @@ abstract class WaDeskController extends BaseController
             $this->error('Admin only', 403);
         }
         return $user;
+    }
+
+    /** Team Leader atau Admin — untuk tab Team & Quota di Account. */
+    protected function requireTeamLeaderOrAdmin(): array
+    {
+        $user = $this->currentUser();
+        $role = $user['role'] ?? '';
+        if (!$user || !in_array($role, ['admin', 'team_leader'], true)) {
+            $this->error('Team Leader atau Admin only', 403);
+        }
+        return $user;
+    }
+
+    protected function countTeamAgents(int $teamId, int $tenantId): int
+    {
+        if ($teamId <= 0) {
+            return 0;
+        }
+        $row = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS c FROM users
+             WHERE team_id = ? AND tenant_id = ? AND role = 'agent' AND is_active = 1",
+            [$teamId, $tenantId]
+        )->row_array();
+
+        return (int) ($row['c'] ?? 0);
+    }
+
+    /**
+     * Team operasional yang boleh dikelola TL/admin (Account → Team & Quota).
+     * TL: team tempat user jadi leader resmi. Admin: team yang sudah di-join.
+     */
+    protected function resolveManagedTeamId(array $user): int
+    {
+        $tenantId = (int) ($user['tenant_id'] ?? 0);
+        $role = $user['role'] ?? '';
+
+        if ($role === 'team_leader') {
+            $team = $this->db($this->db_index)->query(
+                "SELECT id FROM teams
+                 WHERE tenant_id = ? AND team_leader_user_id = ?
+                 LIMIT 1",
+                [$tenantId, (int) $user['id']]
+            )->row_array();
+            $teamId = (int) ($team['id'] ?? 0);
+            if ($teamId <= 0) {
+                $this->error('Anda belum terhubung sebagai Team Leader pada team manapun', 403, ['code' => 'no_team']);
+            }
+            return $teamId;
+        }
+
+        if ($role === 'admin') {
+            $teamId = (int) ($user['team_id'] ?? 0);
+            if ($teamId <= 0) {
+                $this->error(
+                    'Admin belum bergabung ke team. Masuk team dulu di Admin.',
+                    403,
+                    ['code' => 'no_team']
+                );
+            }
+            $team = $this->db($this->db_index)->query(
+                "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$teamId, $tenantId]
+            )->row_array();
+            if (!$team) {
+                $this->error('Team tidak ditemukan', 404);
+            }
+            return $teamId;
+        }
+
+        $this->error('Forbidden', 403);
     }
 
     protected function requireChatUser(): array

@@ -11,6 +11,8 @@ export const useAuthStore = defineStore("auth", {
   }),
   getters: {
     isAdmin: (s) => s.user?.role === "admin",
+    isTeamLeader: (s) => s.user?.role === "team_leader",
+    canManageTeam: (s) => ["admin", "team_leader"].includes(s.user?.role),
     isLoggedIn: (s) => !!s.user,
     hasTeam: (s) => !!s.user?.team_id,
     canSendWa: (s) => s.user?.role !== "admin" || !!s.user?.team_id,

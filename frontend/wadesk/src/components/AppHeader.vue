@@ -146,6 +146,7 @@ const mainNavItems = [
   { to: "/", label: "Chat" },
   { to: "/report", label: "Report" },
   { to: "/blast", label: "Blast" },
+  { to: "/account", label: "Account" },
 ];
 
 watch(

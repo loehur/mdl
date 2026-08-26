@@ -5,6 +5,7 @@ import InboxView from "./views/InboxView.vue";
 import AdminView from "./views/AdminView.vue";
 import BlastView from "./views/BlastView.vue";
 import ReportView from "./views/ReportView.vue";
+import AccountView from "./views/AccountView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -14,6 +15,7 @@ const router = createRouter({
     { path: "/admin", name: "admin", component: AdminView, meta: { auth: true, admin: true } },
     { path: "/blast", name: "blast", component: BlastView, meta: { auth: true } },
     { path: "/report", name: "report", component: ReportView, meta: { auth: true } },
+    { path: "/account", name: "account", component: AccountView, meta: { auth: true } },
   ],
 });
 
