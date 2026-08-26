@@ -5534,6 +5534,131 @@ class WAReplies
     }
 
     /**
+     * Handle intent SKEMA_GAJI untuk karyawan sendiri, atau admin: "skema {id_karyawan}".
+     * Nilai Cuci/Malam adalah minimum efektif: max(clamp minimum global, fee khusus karyawan).
+     */
+    function handleSkema_gaji($phoneIn, $waNumber, $textBody = '')
+    {
+        $ctx = $this->ensureSenderContext($waNumber);
+        $idUser = (int) ($ctx['id_karyawan'] ?? 0);
+        $isAdmin = !empty($ctx['is_admin']);
+        if (!$this->intentLabMode && (!$isAdmin && (empty($ctx['is_karyawan']) || $idUser < 1))) {
+            $this->logAutoreplyTrace($waNumber, 'SKEMA_GAJI', 'require_karyawan_or_admin');
+            return;
+        }
+
+        if ($isAdmin && preg_match('/^\s*skema\s+(\d+)\s*$/iu', (string) $textBody, $m)) {
+            $idUser = (int) $m[1];
+        }
+        if ($idUser < 1) {
+            $this->logAutoreplyTrace($waNumber, 'SKEMA_GAJI', 'missing_target_user');
+            return;
+        }
+
+        try {
+            $db = DB::getInstance(1); // database laundry
+            $user = $idUser > 0
+                ? $db->query('SELECT id_user, nama_user FROM user WHERE id_user = ? AND en = 1 LIMIT 1', [$idUser])->row_array()
+                : null;
+            if (empty($user['id_user'])) {
+                $this->logAutoreplyTrace($waNumber, 'SKEMA_GAJI', 'user_not_found');
+                return;
+            }
+
+            $serviceRows = $db->query(
+                "SELECT r.gaji_laundry, r.target, r.max_target, r.bonus_target,
+                        COALESCE(p.penjualan_jenis, CONCAT('Jenis ', r.jenis_penjualan)) AS penjualan,
+                        COALESCE(l.layanan, CONCAT('Layanan ', r.id_layanan)) AS layanan,
+                        COALESCE(s.nama_satuan, 'qty') AS satuan
+                 FROM gaji_laundry_ref r
+                 LEFT JOIN penjualan_jenis p ON p.id_penjualan_jenis = r.jenis_penjualan
+                 LEFT JOIN layanan l ON l.id_layanan = r.id_layanan
+                 LEFT JOIN satuan s ON s.id_satuan = p.id_satuan
+                 ORDER BY r.jenis_penjualan ASC, r.id_layanan ASC"
+            )->result_array();
+
+            $globalRef = [1 => 0, 2 => 0];
+            foreach ($db->query('SELECT id_pengali, gaji_pengali FROM gaji_pengali_ref WHERE id_pengali IN (1, 2)')->result_array() as $row) {
+                $globalRef[(int) ($row['id_pengali'] ?? 0)] = (int) ($row['gaji_pengali'] ?? 0);
+            }
+
+            $feeKaryawan = [3 => 0, 4 => 0, 5 => 0, 6 => 0];
+            foreach ($db->query(
+                'SELECT id_pengali, gaji_pengali FROM gaji_pengali WHERE id_karyawan = ? AND id_pengali IN (3, 4, 5, 6)',
+                [$idUser]
+            )->result_array() as $row) {
+                $feeKaryawan[(int) ($row['id_pengali'] ?? 0)] = (int) ($row['gaji_pengali'] ?? 0);
+            }
+
+            $minimumGlobal = ['malam' => 14000, 'cuci' => 65000];
+            try {
+                foreach ($db->query("SELECT kode, clamp_min FROM gaji_fee_formula WHERE kode IN ('malam', 'cuci')")->result_array() as $row) {
+                    $kode = (string) ($row['kode'] ?? '');
+                    if (isset($minimumGlobal[$kode])) {
+                        $minimumGlobal[$kode] = max(0, (int) ($row['clamp_min'] ?? $minimumGlobal[$kode]));
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Tabel rumus belum ada: gunakan minimum bawaan yang sama dengan modul Gaji.
+            }
+
+            $rupiah = static function ($amount): string {
+                return 'Rp' . number_format((int) $amount, 0, ',', '.');
+            };
+            $nama = trim((string) ($user['nama_user'] ?? 'Karyawan'));
+            $lines = ['*SKEMA PEMBAYARAN KERJA*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*'];
+
+            if ($serviceRows === []) {
+                $lines[] = '- Belum ada fee layanan yang diatur.';
+            } else {
+                foreach ($serviceRows as $row) {
+                    $unit = trim((string) ($row['satuan'] ?? ''));
+                    $unit = $unit !== '' ? $unit : 'qty';
+                    $target = (int) ($row['target'] ?? 0);
+                    $maxTarget = (int) ($row['max_target'] ?? 0);
+                    $bonusTarget = (int) ($row['bonus_target'] ?? 0);
+                    $lines[] = '';
+                    $lines[] = mb_strtoupper(trim((string) ($row['penjualan'] ?? '')), 'UTF-8')
+                        . ' — ' . trim((string) ($row['layanan'] ?? ''));
+                    $lines[] = 'Fee: ' . $rupiah($row['gaji_laundry'] ?? 0) . '/' . $unit;
+                    if ($target > 0) {
+                        $lines[] = 'Target: ' . number_format($target, 0, ',', '.') . ' ' . $unit;
+                    }
+                    if ($bonusTarget > 0) {
+                        $lines[] = 'Bonus: ' . $rupiah($bonusTarget) . '/target';
+                    }
+                    if ($target > 0 && $bonusTarget > 0 && $maxTarget > 0) {
+                        $lines[] = 'Maks. target bonus: ' . number_format($maxTarget, 0, ',', '.') . ' ' . $unit;
+                    }
+                }
+            }
+
+            $minimumCuci = max($minimumGlobal['cuci'], $feeKaryawan[6]);
+            $minimumMalam = max($minimumGlobal['malam'], $feeKaryawan[5]);
+            $lines = array_merge($lines, [
+                '', '*FEE LAUNDRY*',
+                'Terima: ' . $rupiah($globalRef[1]) . '/nota',
+                'Kembali: ' . $rupiah($globalRef[2]) . '/nota',
+                '', '*FEE ABSENSI*',
+                'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari',
+                'Cuci: Minimum ' . $rupiah($minimumCuci) . '/hari',
+                'Jaga malam: Minimum ' . $rupiah($minimumMalam) . '/malam',
+                '', '*TUNJANGAN BULANAN*',
+                $rupiah($feeKaryawan[4]) . '/bulan',
+                '', '*POTONGAN*',
+                'Kasbon akan dikurangi dari gaji periode terkait.',
+            ]);
+
+            $this->sendQuotedFreeText($waNumber, implode("\n", $lines));
+        } catch (\Throwable $e) {
+            $this->logAutoreplyTrace($waNumber, 'SKEMA_GAJI', 'error=' . mb_substr($e->getMessage(), 0, 120));
+            if (class_exists('\Log')) {
+                \Log::write('handleSkema_gaji ERROR: ' . $e->getMessage(), 'wa_error', 'Autoreply');
+            }
+        }
+    }
+
+    /**
      * Format data karyawan untuk balasan WA (no_user, nama_user, bank_code, bank_account_number, bank_account_name)
      */
     private function formatKaryawanReply($row, $db0)
