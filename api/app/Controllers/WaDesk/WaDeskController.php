@@ -824,6 +824,70 @@ abstract class WaDeskController extends BaseController
      * Sinkronkan team-set channel di wa_channel_teams.
      * $teamIds: SEMUA team yang boleh memakai channel (termasuk team utama).
      */
+    /** Team belum jadi default team di nomor lain (tenant-wide). */
+    protected function isTeamAvailableAsDefault(int $tenantId, int $teamId, int $exceptChannelId = 0): bool
+    {
+        if ($teamId <= 0) {
+            return false;
+        }
+        $tbl = $this->channelsTable();
+        $sql = "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ?";
+        $binds = [$tenantId, $teamId];
+        if ($exceptChannelId > 0) {
+            $sql .= ' AND id <> ?';
+            $binds[] = $exceptChannelId;
+        }
+        $sql .= ' LIMIT 1';
+        $taken = $this->db($this->db_index)->query($sql, $binds)->row_array();
+
+        return !$taken;
+    }
+
+    /**
+     * Pilih team dari daftar yang belum jadi default di nomor lain.
+     *
+     * @param list<int> $teamIds
+     */
+    protected function pickAvailableDefaultTeam(int $tenantId, array $teamIds, int $exceptChannelId = 0): int
+    {
+        foreach ($teamIds as $tid) {
+            $tid = (int) $tid;
+            if ($tid > 0 && $this->isTeamAvailableAsDefault($tenantId, $tid, $exceptChannelId)) {
+                return $tid;
+            }
+        }
+
+        $this->error(
+            'Semua team terpilih sudah jadi default di nomor lain. Atur default team di tab Teams.',
+            409
+        );
+    }
+
+    /** Ganti default team channel setelah team $excludeTeamId tidak lagi default di sini. */
+    protected function reassignChannelDefaultAwayFromTeam(int $channelId, int $excludeTeamId, int $tenantId): void
+    {
+        foreach ($this->channelTeamRows($channelId, $tenantId) as $row) {
+            $tid = (int) ($row['id'] ?? 0);
+            if ($tid <= 0 || $tid === $excludeTeamId) {
+                continue;
+            }
+            if ($this->isTeamAvailableAsDefault($tenantId, $tid, $channelId)) {
+                $this->db($this->db_index)->update(
+                    $this->channelsTable(),
+                    ['team_id' => $tid],
+                    ['id' => $channelId]
+                );
+
+                return;
+            }
+        }
+
+        $this->error(
+            'Nomor ini butuh default team lain. Assign team lain ke nomor ini atau pilih default di tab Teams.',
+            409
+        );
+    }
+
     protected function syncChannelTeams(int $channelId, array $teamIds): void
     {
         $teamIds = array_values(array_unique(array_map('intval', $teamIds)));

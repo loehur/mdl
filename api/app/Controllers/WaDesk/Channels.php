@@ -134,16 +134,27 @@ class Channels extends WaDeskController
         }
 
         $body = $this->getBody();
-        $this->validate($body, ['device_id', 'team_id', 'label']);
+        $this->validate($body, ['device_id', 'label']);
 
-        $teamId = (int) $body['team_id'];
         $tenantId = (int) $admin['tenant_id'];
-        $team = $this->db($this->db_index)->query(
-            "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$teamId, $tenantId]
-        )->row_array();
-        if (!$team) {
-            $this->error('Team tidak ditemukan', 404);
+        $teamIds = $this->extractTeamIds($body);
+        if ($teamIds === []) {
+            $this->error('Pilih minimal satu team', 400);
+        }
+        foreach ($teamIds as $tid) {
+            $team = $this->db($this->db_index)->query(
+                "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$tid, $tenantId]
+            )->row_array();
+            if (!$team) {
+                $this->error('Team tidak ditemukan', 404);
+            }
+        }
+        $teamId = isset($body['team_id']) && (int) $body['team_id'] > 0
+            ? (int) $body['team_id']
+            : $this->pickAvailableDefaultTeam($tenantId, $teamIds);
+        if (!in_array($teamId, $teamIds, true)) {
+            $teamIds[] = $teamId;
         }
 
         $deviceId = trim((string) $body['device_id']);
@@ -155,17 +166,6 @@ class Channels extends WaDeskController
         )->row_array();
         if ($deviceTaken) {
             $this->error('Device sudah di-assign ke team lain', 409);
-        }
-
-        $teamPrimaryTaken = $this->db($this->db_index)->query(
-            "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
-            [$tenantId, $teamId]
-        )->row_array();
-        if ($teamPrimaryTaken) {
-            $this->error(
-                'Team ini sudah jadi Default Team di nomor lain. Assign sebagai team lain di nomor ini, bukan sebagai Default Team.',
-                409
-            );
         }
 
         $meta = $this->resolveDeviceMeta($deviceId, $tenantId);
@@ -207,8 +207,6 @@ class Channels extends WaDeskController
             $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
         }
 
-        // Team-set: team utama + team tambahan (opsional)
-        $teamIds = array_merge([$teamId], $this->extractTeamIds($body));
         $this->syncChannelTeams($id, $teamIds);
 
         $this->success([
@@ -294,12 +292,24 @@ class Channels extends WaDeskController
             }
         }
 
-        // Sync team-set: team utama + team tambahan; conversation team yang dicabut dihapus
-        $teamIds = array_merge(
-            isset($data['team_id']) ? [(int) $data['team_id']] : [(int) $channel['team_id']],
-            $this->extractTeamIds($body)
-        );
-        $this->syncChannelTeams($id, $teamIds);
+        $requestedTeamIds = $this->extractTeamIds($body);
+        if (isset($body['team_ids']) || isset($body['teams']) || isset($body['team_ids[]'])) {
+            if ($requestedTeamIds === []) {
+                $this->error('Pilih minimal satu team', 400);
+            }
+            $currentDefault = (int) ($data['team_id'] ?? $channel['team_id']);
+            if (!in_array($currentDefault, $requestedTeamIds, true)) {
+                $data['team_id'] = $this->pickAvailableDefaultTeam($tenantId, $requestedTeamIds, $id);
+                $this->db($this->db_index)->update($tbl, ['team_id' => $data['team_id']], ['id' => $id]);
+            }
+            $this->syncChannelTeams($id, $requestedTeamIds);
+        } elseif (isset($body['team_id'])) {
+            $assignedIds = array_map(
+                static fn ($r) => (int) ($r['id'] ?? 0),
+                $this->channelTeamRows($id, $tenantId)
+            );
+            $this->syncChannelTeams($id, array_values(array_unique(array_merge([(int) $data['team_id']], $assignedIds))));
+        }
 
         $this->success(null, 'Channel diupdate');
     }

@@ -88,6 +88,80 @@ class Teams extends WaDeskController
         $this->success(['id' => $id, 'name' => $name], 'Nama team diubah');
     }
 
+    /** Set default team untuk nomor WA (customer baru masuk ke team ini). */
+    public function setDefaultChannel()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $this->validate($body, ['team_id']);
+        $teamId = (int) $body['team_id'];
+        $channelId = (int) ($body['channel_id'] ?? 0);
+        $tenantId = (int) $admin['tenant_id'];
+
+        if (!$this->getTenantTeam($teamId, $tenantId)) {
+            $this->error('Team tidak ditemukan', 404);
+        }
+
+        $tbl = $this->channelsTable();
+
+        if ($channelId <= 0) {
+            $current = $this->db($this->db_index)->query(
+                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
+                [$tenantId, $teamId]
+            )->row_array();
+            if (!$current) {
+                $this->success(null, 'Tidak ada perubahan');
+
+                return;
+            }
+            $this->reassignChannelDefaultAwayFromTeam((int) $current['id'], $teamId, $tenantId);
+            $this->success(null, 'Default team dihapus dari nomor ini');
+
+            return;
+        }
+
+        $channel = $this->db($this->db_index)->query(
+            "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? LIMIT 1",
+            [$channelId, $tenantId]
+        )->row_array();
+        if (!$channel) {
+            $this->error('Channel tidak ditemukan', 404);
+        }
+
+        $assignedIds = array_map(
+            static fn ($r) => (int) ($r['id'] ?? 0),
+            $this->channelTeamRows($channelId, $tenantId)
+        );
+        if (!in_array($teamId, $assignedIds, true)) {
+            $this->error('Team belum di-assign ke nomor ini. Assign dulu di tab Channel.', 400);
+        }
+
+        if (!$this->isTeamAvailableAsDefault($tenantId, $teamId, $channelId)) {
+            $prev = $this->db($this->db_index)->query(
+                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
+                [$tenantId, $teamId]
+            )->row_array();
+            if ($prev && (int) $prev['id'] !== $channelId) {
+                $this->reassignChannelDefaultAwayFromTeam((int) $prev['id'], $teamId, $tenantId);
+            }
+        }
+
+        $updated = $this->db($this->db_index)->update($tbl, ['team_id' => $teamId], ['id' => $channelId]);
+        if ($updated === false) {
+            $this->error('Gagal menyimpan default team.', 409);
+        }
+
+        $teamIds = array_values(array_unique(array_merge($assignedIds, [$teamId])));
+        $this->syncChannelTeams($channelId, $teamIds);
+
+        $this->success(null, 'Default team disimpan');
+    }
+
     public function delete()
     {
         $this->verifyAuth();
