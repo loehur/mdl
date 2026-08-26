@@ -19,19 +19,11 @@ class WAReplies
     use WARepliesHargaTrait;
 
     private $waService = null;
-    private $noRegisterTextVariations = [
-        "Maaf, nomor kakak belum terdaftar di sistem kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 🙏",
-        "Mohon maaf, nomor kakak tidak ditemukan di sistem.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 😊",
-        "Maaf, nomor kakak belum terdaftar di data kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 🙏",
-        "Mohon maaf, nomor kakak belum ada di sistem Madinah Laundry.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 😊",
-        "Maaf, nomor kakak belum terdaftar di database kami.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 🙏",
-        "Mohon maaf, nomor kakak tidak terdaftar di sistem.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 🙏",
-        "Maaf, nomor kakak belum terdaftar di sistem Madinah Laundry.\n\nBoleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. Terima kasih 😊",
-    ];
-
     private function getNoRegisterText()
     {
-        return $this->noRegisterTextVariations[array_rand($this->noRegisterTextVariations)];
+        return 'Mohon maaf, nomor kakak tidak ditemukan di sistem. '
+            . 'Boleh bantu kirim bukti nota di sini ya, agar kami bantu pengecekan. '
+            . 'Terima kasih ' . $this->pickPenutupSoftSmile() . '.';
     }
     /** @var string|null Nama handler saat ini (untuk log saat send gagal) */
     private $currentHandler = null;
@@ -1365,6 +1357,13 @@ class WAReplies
         // Human agent baru aktif: jangan kirim "CS/Admin sedang..." (biarkan CS; tanpa case 4)
         if ($this->isHumanAgentRecentlyActive($waNumber)) {
             $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'human_active_skip');
+            return false;
+        }
+
+        // Pesan tanpa handler dari nomor yang belum terhubung ke pelanggan
+        // tetap masuk CRM, tetapi jangan kirim fallback otomatis ke WhatsApp.
+        if (empty(($this->senderContext ?? [])['is_pelanggan'])) {
+            $this->logAutoreplyTrace($waNumber, 'DEFAULT_FALLBACK', 'no_pelanggan_silent');
             return false;
         }
 
