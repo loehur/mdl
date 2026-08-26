@@ -3,32 +3,6 @@
     <AppHeader page-title="Admin" active="admin" @logout="onLogout" />
 
     <div class="max-w-5xl mx-auto p-4 space-y-6">
-      <!-- Admin team operasional -->
-      <section class="card space-y-3 border-accent/20">
-        <h2 class="font-display font-semibold text-lg">Team operasional</h2>
-        <p class="text-sm text-slate-400">
-          Admin harus masuk team untuk kirim chat atau blast WA. Panel admin tetap bisa diakses tanpa team.
-        </p>
-        <div v-if="auth.hasTeam" class="flex flex-col sm:flex-row sm:items-center gap-3">
-          <p class="text-sm text-slate-200">
-            Aktif di team: <span class="font-semibold text-accent">{{ auth.user?.team_name || `#${auth.user?.team_id}` }}</span>
-          </p>
-          <button type="button" class="btn-sm shrink-0" :disabled="joiningTeam" @click="leaveOperationalTeam">
-            {{ joiningTeam ? "..." : "Keluar dari team" }}
-          </button>
-        </div>
-        <form v-else class="flex flex-col sm:flex-row gap-2" @submit.prevent="joinOperationalTeam">
-          <select v-model="adminTeamPick" required class="field flex-1">
-            <option disabled value="">Pilih team untuk operasional</option>
-            <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
-          </select>
-          <button type="submit" class="btn shrink-0" :disabled="joiningTeam || !teams.length">
-            {{ joiningTeam ? "Masuk..." : "Masuk team" }}
-          </button>
-        </form>
-        <p v-if="!teams.length" class="text-xs text-amber-300">Buat team dulu di tab Teams.</p>
-      </section>
-
       <nav class="flex flex-wrap gap-2">
         <button
           v-for="t in tabs"
@@ -869,6 +843,32 @@
       <section v-if="tab === 'config'" class="card space-y-6">
         <h2 class="font-display font-semibold text-lg">Config</h2>
 
+        <form
+          class="rounded-xl border border-accent/20 bg-accent/5 p-3"
+          @submit.prevent="switchOperationalTeam"
+        >
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-slate-200">Team operasional</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">
+                Untuk chat &amp; blast WA.
+                <span v-if="auth.hasTeam">
+                  Aktif: <span class="text-accent font-medium">{{ auth.user?.team_name || `#${auth.user?.team_id}` }}</span>
+                </span>
+                <span v-else class="text-amber-300/90">Belum aktif.</span>
+              </p>
+            </div>
+            <select v-model="adminTeamPick" class="field sm:w-52 py-2 text-sm shrink-0">
+              <option value="">— Tidak aktif —</option>
+              <option v-for="t in teams" :key="'op-' + t.id" :value="String(t.id)">{{ t.name }}</option>
+            </select>
+            <button type="submit" class="btn-sm shrink-0" :disabled="joiningTeam || !teams.length">
+              {{ joiningTeam ? "..." : "Terapkan" }}
+            </button>
+          </div>
+          <p v-if="!teams.length" class="text-[11px] text-amber-300/90 mt-2">Buat team dulu di tab Teams.</p>
+        </form>
+
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveDefaultTeam">
           <p class="text-sm font-medium text-slate-200">Default team</p>
           <p class="text-xs text-slate-400">
@@ -1077,6 +1077,16 @@
         </div>
       </section>
 
+      <!-- Report -->
+      <section v-if="tab === 'report'">
+        <DailyReportPanel
+          admin-mode
+          :teams="teams"
+          v-model:team-id="reportTeamId"
+          :active="tab === 'report'"
+        />
+      </section>
+
       <!-- Template fail logs -->
       <section v-if="tab === 'log'" class="card space-y-4">
         <div class="flex items-center justify-between gap-3">
@@ -1201,12 +1211,14 @@ import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import AppHeader from "../components/AppHeader.vue";
+import DailyReportPanel from "../components/DailyReportPanel.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
 const tab = ref("teams");
 const adminTeamPick = ref("");
 const joiningTeam = ref(false);
+const reportTeamId = ref("");
 const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
@@ -1215,6 +1227,7 @@ const tabs = [
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
   { id: "quota", label: "Quota" },
+  { id: "report", label: "Report" },
   { id: "log", label: "Log" },
 ];
 
@@ -1430,27 +1443,31 @@ function flash(ok, text) {
   err.value = ok ? "" : text;
 }
 
-async function joinOperationalTeam() {
-  if (!adminTeamPick.value) return;
-  joiningTeam.value = true;
-  try {
-    await auth.joinTeam(adminTeamPick.value);
-    adminTeamPick.value = "";
-    flash(true, `Masuk team ${auth.user?.team_name || ""}`.trim());
-  } catch (e) {
-    flash(false, e.message || "Gagal masuk team");
-  } finally {
-    joiningTeam.value = false;
-  }
+function syncAdminTeamPick() {
+  adminTeamPick.value = auth.user?.team_id ? String(auth.user.team_id) : "";
 }
 
-async function leaveOperationalTeam() {
+async function switchOperationalTeam() {
+  const pick = adminTeamPick.value ? Number(adminTeamPick.value) : 0;
+  const current = Number(auth.user?.team_id || 0);
   joiningTeam.value = true;
   try {
-    await auth.leaveTeam();
-    flash(true, "Keluar dari team operasional");
+    if (pick <= 0) {
+      if (current > 0) {
+        await auth.leaveTeam();
+        flash(true, "Keluar dari team operasional");
+      }
+      return;
+    }
+    if (pick === current) {
+      flash(true, `Sudah aktif di team ${auth.user?.team_name || ""}`.trim());
+      return;
+    }
+    await auth.joinTeam(pick);
+    flash(true, `Masuk team ${auth.user?.team_name || ""}`.trim());
   } catch (e) {
-    flash(false, e.message || "Gagal keluar team");
+    flash(false, e.message || "Gagal ganti team");
+    syncAdminTeamPick();
   } finally {
     joiningTeam.value = false;
   }
@@ -1757,6 +1774,13 @@ function setupQuotaBrowseObserver() {
   quotaBrowseObserver.observe(quotaBrowseSentinel.value);
 }
 
+async function loadReportTab() {
+  await loadTeamOptions();
+  if (!reportTeamId.value && teams.value.length) {
+    reportTeamId.value = String(teams.value[0].id);
+  }
+}
+
 async function loadTeamOptions() {
   const res = await api("/WaDesk/Teams/options");
   teams.value = res.data?.teams || [];
@@ -1939,6 +1963,12 @@ watch(tab, (id) => {
   }
   if (id === "templates") {
     loadTemplateBrowse(true);
+  }
+  if (id === "report") {
+    loadReportTab();
+  }
+  if (id === "config") {
+    loadTeamOptions().then(syncAdminTeamPick);
   }
 });
 

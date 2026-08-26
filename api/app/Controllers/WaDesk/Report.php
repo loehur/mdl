@@ -28,7 +28,7 @@ class Report extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
 
-        if (!$this->hasOperationalTeam($user)) {
+        if (($user['role'] ?? '') !== 'admin' && !$this->hasOperationalTeam($user)) {
             $this->error('Masuk team dulu untuk melihat report', 403);
         }
 
@@ -38,7 +38,7 @@ class Report extends WaDeskController
         );
 
         $tenantId = (int) $user['tenant_id'];
-        $teamId = (int) $user['team_id'];
+        $teamId = $this->resolveReportTeamId($user, $tenantId);
 
         $fromDt = $from . ' 00:00:00';
         $toExclusive = date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00';
@@ -102,6 +102,32 @@ class Report extends WaDeskController
             'days' => $days,
             'summary' => $summary,
         ]);
+    }
+
+    private function resolveReportTeamId(array $user, int $tenantId): int
+    {
+        if (($user['role'] ?? '') === 'admin') {
+            $this->requireAdmin();
+            $teamId = (int) $this->query('team_id', 0);
+            if ($teamId <= 0) {
+                $this->error('team_id wajib', 400);
+            }
+            $team = $this->db($this->db_index)->query(
+                "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                [$teamId, $tenantId]
+            )->row_array();
+            if (!$team) {
+                $this->error('Team tidak ditemukan', 404);
+            }
+
+            return $teamId;
+        }
+
+        if (!$this->hasOperationalTeam($user)) {
+            $this->error('Masuk team dulu untuk melihat report', 403);
+        }
+
+        return (int) $user['team_id'];
     }
 
     /** @return array{0:string,1:string} */
