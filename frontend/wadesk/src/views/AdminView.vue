@@ -45,6 +45,40 @@
       <!-- Teams -->
       <section v-if="tab === 'teams'" class="card space-y-4">
         <h2 class="font-display font-semibold text-lg">Teams</h2>
+
+        <div v-if="teams.length" class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
+          <p class="text-sm font-medium text-slate-200">Default team</p>
+          <p class="text-xs text-slate-400">
+            Customer baru — belum pernah ada riwayat chat di nomor manapun — masuk ke team ini.
+            Hanya boleh satu default team.
+          </p>
+          <div class="space-y-1">
+            <label
+              v-for="t in teams"
+              :key="'default-' + t.id"
+              class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
+            >
+              <input
+                v-model="defaultTeamDraft"
+                type="radio"
+                name="default-team"
+                :value="t.id"
+                class="rounded-full"
+              />
+              {{ t.name }}
+              <span v-if="t.is_default" class="text-[10px] text-accent">(saat ini)</span>
+            </label>
+          </div>
+          <button
+            type="button"
+            class="btn-sm"
+            :disabled="!defaultTeamDraft || savingDefaultTeam"
+            @click="saveDefaultTeam"
+          >
+            {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
+          </button>
+        </div>
+
         <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
           <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team" />
           <button class="btn">Tambah</button>
@@ -81,48 +115,6 @@
                   </span>
                   <span v-else class="text-amber-400/80"> · Belum ada nomor</span>
                 </p>
-                <div
-                  v-if="(t.channels || []).length"
-                  class="mt-2 rounded-lg border border-white/10 bg-ink-950/30 p-3 space-y-2"
-                >
-                  <p class="text-[11px] text-slate-400">
-                    Default team — customer baru (belum pernah chat) masuk ke team ini di nomor:
-                  </p>
-                  <div class="space-y-1">
-                    <label
-                      v-for="c in t.channels"
-                      :key="c.id"
-                      class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
-                    >
-                      <input
-                        v-model="teamDefaultDraft[t.id]"
-                        type="radio"
-                        :name="'default-channel-' + t.id"
-                        :value="c.id"
-                        class="rounded-full"
-                      />
-                      {{ c.label || c.phone_number }}
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
-                      <input
-                        v-model="teamDefaultDraft[t.id]"
-                        type="radio"
-                        :name="'default-channel-' + t.id"
-                        :value="0"
-                        class="rounded-full"
-                      />
-                      Bukan default di nomor manapun
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn-sm"
-                    :disabled="savingTeamDefaultId === t.id"
-                    @click="saveTeamDefault(t)"
-                  >
-                    {{ savingTeamDefaultId === t.id ? "Menyimpan..." : "Simpan" }}
-                  </button>
-                </div>
               </template>
             </div>
             <div v-if="editingTeamId !== t.id" class="flex items-center gap-3 shrink-0">
@@ -353,8 +345,8 @@
               setiap team hanya melihat chat milik team sendiri. Team A tidak bisa lihat chat team B.
             </li>
             <li>
-              <strong class="text-slate-300">Default team</strong> — customer baru masuk ke team
-              yang Anda tentukan per nomor. Atur di tab <strong class="text-slate-300">Teams</strong>.
+              <strong class="text-slate-300">Default team</strong> — customer baru (belum pernah chat)
+              masuk ke satu team default. Atur di tab <strong class="text-slate-300">Teams</strong>.
             </li>
             <li>
               Customer yang sudah pernah chat dengan team tertentu — balasan berikutnya masuk ke
@@ -480,13 +472,8 @@
                     · {{ k.status }}
                   </p>
                   <p class="text-xs text-slate-400 mt-1">
-                    <span class="text-slate-500">Default:</span>
-                    <span class="text-slate-200">{{ k.team_name || "—" }}</span>
-                    <template v-if="channelAssignedTeamNames(k)">
-                      <span class="text-slate-600 mx-1">·</span>
-                      <span class="text-slate-500">Team:</span>
-                      <span class="text-slate-300">{{ channelAssignedTeamNames(k) }}</span>
-                    </template>
+                    <span class="text-slate-500">Team:</span>
+                    <span class="text-slate-300">{{ k.team_names || "—" }}</span>
                   </p>
                 </div>
                 <div class="flex items-center gap-3 shrink-0">
@@ -930,8 +917,8 @@ const teamForm = reactive({ name: "" });
 const editingTeamId = ref(null);
 const editingTeamName = ref("");
 const savingTeam = ref(false);
-const teamDefaultDraft = reactive({});
-const savingTeamDefaultId = ref(null);
+const defaultTeamDraft = ref("");
+const savingDefaultTeam = ref(false);
 const userForm = reactive({
   name: "",
   email: "",
@@ -1029,7 +1016,7 @@ async function refresh() {
     api("/WaDesk/Settings/dailyLimit"),
   ]);
   teams.value = t.data.teams || [];
-  syncTeamDefaultDrafts();
+  syncDefaultTeamDraft();
   users.value = u.data.users || [];
   keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
@@ -1164,29 +1151,29 @@ async function removeTeam(id) {
   });
 }
 
-function syncTeamDefaultDrafts() {
-  for (const t of teams.value) {
-    const primary = (t.channels || []).find((c) => c.is_primary);
-    teamDefaultDraft[t.id] = primary ? primary.id : 0;
-  }
+function syncDefaultTeamDraft() {
+  const current = teams.value.find((t) => Number(t.is_default) === 1);
+  defaultTeamDraft.value = current ? current.id : "";
 }
 
-async function saveTeamDefault(t) {
-  savingTeamDefaultId.value = t.id;
+async function saveDefaultTeam() {
+  const teamId = Number(defaultTeamDraft.value);
+  if (!teamId) {
+    flash(false, "Pilih default team");
+    return;
+  }
+  savingDefaultTeam.value = true;
   try {
-    await api("/WaDesk/Teams/setDefaultChannel", {
+    await api("/WaDesk/Teams/setDefault", {
       method: "POST",
-      body: {
-        team_id: t.id,
-        channel_id: Number(teamDefaultDraft[t.id] ?? 0),
-      },
+      body: { team_id: teamId },
     });
     flash(true, "Default team disimpan");
     await refresh();
   } catch (e) {
     flash(false, e.message);
   } finally {
-    savingTeamDefaultId.value = null;
+    savingDefaultTeam.value = false;
   }
 }
 
@@ -1499,16 +1486,6 @@ async function assignChannel() {
   } catch (e) {
     flash(false, e.message);
   }
-}
-
-function channelAssignedTeamNames(k) {
-  const defaultId = Number(k.team_id);
-  const ids = Array.isArray(k.team_ids) ? k.team_ids.map((v) => Number(v)).filter((id) => id > 0 && id !== defaultId) : [];
-  if (!ids.length) return "";
-  const names = ids
-    .map((id) => teams.value.find((t) => Number(t.id) === id)?.name)
-    .filter(Boolean);
-  return names.join(", ");
 }
 
 function startEditKey(k) {

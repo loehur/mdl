@@ -5,8 +5,7 @@ namespace App\Controllers\WaDesk;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 
 /**
- * Channels — Kirimin device/nomor, 1 device = 1 channel, channel bisa dipakai beberapa team
- * (team utama di wa_channels.team_id + team tambahan di wa_channel_teams).
+ * Channels — Kirimin device/nomor; satu channel bisa dipakai beberapa team (wa_channel_teams).
  */
 class Channels extends WaDeskController
 {
@@ -150,12 +149,7 @@ class Channels extends WaDeskController
                 $this->error('Team tidak ditemukan', 404);
             }
         }
-        $teamId = isset($body['team_id']) && (int) $body['team_id'] > 0
-            ? (int) $body['team_id']
-            : $this->pickAvailableDefaultTeam($tenantId, $teamIds);
-        if (!in_array($teamId, $teamIds, true)) {
-            $teamIds[] = $teamId;
-        }
+        $teamId = $teamIds[0];
 
         $deviceId = trim((string) $body['device_id']);
         $tbl = $this->channelsTable();
@@ -198,10 +192,7 @@ class Channels extends WaDeskController
 
         $id = (int) $this->db($this->db_index)->insert($tbl, $insertData);
         if ($id <= 0) {
-            $this->error(
-                'Gagal assign channel. Team mungkin sudah jadi Default Team di nomor lain — assign sebagai team lain saja.',
-                409
-            );
+            $this->error('Gagal assign channel.', 409);
         }
         if ($wabaId !== '') {
             $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
@@ -255,35 +246,10 @@ class Channels extends WaDeskController
             $wabaId = trim((string) $body['waba_id']);
             $data['waba_id'] = $wabaId !== '' ? $wabaId : null;
         }
-        if (isset($body['team_id'])) {
-            $teamId = (int) $body['team_id'];
-            $team = $this->db($this->db_index)->query(
-                "SELECT id FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-                [$teamId, $tenantId]
-            )->row_array();
-            if (!$team) {
-                $this->error('Team tidak ditemukan', 404);
-            }
-            $otherPrimary = $this->db($this->db_index)->query(
-                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? AND id <> ? LIMIT 1",
-                [$tenantId, $teamId, $id]
-            )->row_array();
-            if ($otherPrimary) {
-                $this->error(
-                    'Team ini sudah jadi Default Team di nomor lain. Assign sebagai team lain di nomor ini, bukan sebagai Default Team.',
-                    409
-                );
-            }
-            $data['team_id'] = $teamId;
-        }
-
         if ($data) {
             $updated = $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
-            if ($updated === false && isset($data['team_id'])) {
-                $this->error(
-                    'Gagal update channel. Team mungkin sudah jadi Default Team di nomor lain — assign sebagai team lain saja.',
-                    409
-                );
+            if ($updated === false) {
+                $this->error('Gagal update channel.', 409);
             }
             $newWaba = trim((string) ($data['waba_id'] ?? $channel['waba_id'] ?? ''));
             if ($newWaba !== '') {
@@ -297,18 +263,8 @@ class Channels extends WaDeskController
             if ($requestedTeamIds === []) {
                 $this->error('Pilih minimal satu team', 400);
             }
-            $currentDefault = (int) ($data['team_id'] ?? $channel['team_id']);
-            if (!in_array($currentDefault, $requestedTeamIds, true)) {
-                $data['team_id'] = $this->pickAvailableDefaultTeam($tenantId, $requestedTeamIds, $id);
-                $this->db($this->db_index)->update($tbl, ['team_id' => $data['team_id']], ['id' => $id]);
-            }
             $this->syncChannelTeams($id, $requestedTeamIds);
-        } elseif (isset($body['team_id'])) {
-            $assignedIds = array_map(
-                static fn ($r) => (int) ($r['id'] ?? 0),
-                $this->channelTeamRows($id, $tenantId)
-            );
-            $this->syncChannelTeams($id, array_values(array_unique(array_merge([(int) $data['team_id']], $assignedIds))));
+            $this->db($this->db_index)->update($tbl, ['team_id' => $requestedTeamIds[0]], ['id' => $id]);
         }
 
         $this->success(null, 'Channel diupdate');

@@ -88,8 +88,8 @@ class Teams extends WaDeskController
         $this->success(['id' => $id, 'name' => $name], 'Nama team diubah');
     }
 
-    /** Set default team untuk nomor WA (customer baru masuk ke team ini). */
-    public function setDefaultChannel()
+    /** Tetapkan satu default team untuk tenant (customer baru masuk ke team ini). */
+    public function setDefault()
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
@@ -100,66 +100,16 @@ class Teams extends WaDeskController
         $body = $this->getBody();
         $this->validate($body, ['team_id']);
         $teamId = (int) $body['team_id'];
-        $channelId = (int) ($body['channel_id'] ?? 0);
         $tenantId = (int) $admin['tenant_id'];
 
         if (!$this->getTenantTeam($teamId, $tenantId)) {
             $this->error('Team tidak ditemukan', 404);
         }
 
-        $tbl = $this->channelsTable();
+        $this->db($this->db_index)->update('teams', ['is_default' => 0], ['tenant_id' => $tenantId]);
+        $this->db($this->db_index)->update('teams', ['is_default' => 1], ['id' => $teamId, 'tenant_id' => $tenantId]);
 
-        if ($channelId <= 0) {
-            $current = $this->db($this->db_index)->query(
-                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
-                [$tenantId, $teamId]
-            )->row_array();
-            if (!$current) {
-                $this->success(null, 'Tidak ada perubahan');
-
-                return;
-            }
-            $this->reassignChannelDefaultAwayFromTeam((int) $current['id'], $teamId, $tenantId);
-            $this->success(null, 'Default team dihapus dari nomor ini');
-
-            return;
-        }
-
-        $channel = $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? LIMIT 1",
-            [$channelId, $tenantId]
-        )->row_array();
-        if (!$channel) {
-            $this->error('Channel tidak ditemukan', 404);
-        }
-
-        $assignedIds = array_map(
-            static fn ($r) => (int) ($r['id'] ?? 0),
-            $this->channelTeamRows($channelId, $tenantId)
-        );
-        if (!in_array($teamId, $assignedIds, true)) {
-            $this->error('Team belum di-assign ke nomor ini. Assign dulu di tab Channel.', 400);
-        }
-
-        if (!$this->isTeamAvailableAsDefault($tenantId, $teamId, $channelId)) {
-            $prev = $this->db($this->db_index)->query(
-                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
-                [$tenantId, $teamId]
-            )->row_array();
-            if ($prev && (int) $prev['id'] !== $channelId) {
-                $this->reassignChannelDefaultAwayFromTeam((int) $prev['id'], $teamId, $tenantId);
-            }
-        }
-
-        $updated = $this->db($this->db_index)->update($tbl, ['team_id' => $teamId], ['id' => $channelId]);
-        if ($updated === false) {
-            $this->error('Gagal menyimpan default team.', 409);
-        }
-
-        $teamIds = array_values(array_unique(array_merge($assignedIds, [$teamId])));
-        $this->syncChannelTeams($channelId, $teamIds);
-
-        $this->success(null, 'Default team disimpan');
+        $this->success(['team_id' => $teamId], 'Default team disimpan');
     }
 
     public function delete()
@@ -174,8 +124,12 @@ class Teams extends WaDeskController
         $this->validate($body, ['id']);
         $id = (int) $body['id'];
 
-        if (!$this->getTenantTeam($id, (int) $admin['tenant_id'])) {
+        $team = $this->getTenantTeam($id, (int) $admin['tenant_id']);
+        if (!$team) {
             $this->error('Team tidak ditemukan', 404);
+        }
+        if ((int) ($team['is_default'] ?? 0) === 1) {
+            $this->error('Team ini masih default team. Pilih default team lain dulu di tab Teams.', 400);
         }
 
         $members = $this->db($this->db_index)->query(
@@ -187,19 +141,11 @@ class Teams extends WaDeskController
         }
 
         $keys = $this->db($this->db_index)->query(
-            "SELECT COUNT(*) AS c FROM {$this->channelsTable()} WHERE team_id = ?",
-            [$id]
-        )->row_array();
-        if ((int) ($keys['c'] ?? 0) > 0) {
-            $this->error('Pindahkan/hapus channel team dulu', 400);
-        }
-
-        $shared = $this->db($this->db_index)->query(
             "SELECT COUNT(*) AS c FROM wa_channel_teams WHERE team_id = ?",
             [$id]
         )->row_array();
-        if ((int) ($shared['c'] ?? 0) > 0) {
-            $this->error('Team masih di-assign ke nomor lain. Hapus dari channel dulu.', 400);
+        if ((int) ($keys['c'] ?? 0) > 0) {
+            $this->error('Team masih di-assign ke nomor WA. Hapus dari tab Channel dulu.', 400);
         }
 
         $this->db($this->db_index)->delete('teams', ['id' => $id]);
@@ -219,12 +165,10 @@ class Teams extends WaDeskController
     {
         $tbl = $this->channelsTable();
         $links = $this->db($this->db_index)->query(
-            "SELECT c.id, c.label, c.phone_number, c.team_id AS primary_team_id, link.team_id
+            "SELECT c.id, c.label, c.phone_number, link.team_id
              FROM {$tbl} c
              INNER JOIN (
                SELECT channel_id, team_id FROM wa_channel_teams
-               UNION
-               SELECT id, team_id FROM {$tbl} WHERE team_id IS NOT NULL
              ) link ON link.channel_id = c.id
              WHERE c.tenant_id = ? AND c.status = 'active'
              ORDER BY c.label ASC, c.id ASC",
@@ -255,7 +199,6 @@ class Teams extends WaDeskController
                 'id' => $channelId,
                 'label' => (string) ($link['label'] ?? ''),
                 'phone_number' => (string) ($link['phone_number'] ?? ''),
-                'is_primary' => $teamId === (int) ($link['primary_team_id'] ?? 0),
             ];
         }
         return $map;

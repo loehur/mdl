@@ -480,9 +480,18 @@ class WaDesk extends Controller
 
         $now = date('Y-m-d H:i:s');
         if (!$conv) {
+            $defaultTeamId = $this->getTenantDefaultTeamId((int) $channel['tenant_id']);
+            if ($defaultTeamId <= 0) {
+                $this->logWebhook(
+                    'INBOUND skipped: no default team tenant=' . (int) $channel['tenant_id']
+                    . ' channel=' . (int) $channel['id']
+                );
+
+                return;
+            }
             $convId = (int) $db->insert('conversations', [
                 'tenant_id' => (int) $channel['tenant_id'],
-                'team_id' => (int) $channel['team_id'],
+                'team_id' => $defaultTeamId,
                 'channel_id' => (int) $channel['id'],
                 'phone' => $customerPhone,
                 'name' => $profileName,
@@ -521,7 +530,7 @@ class WaDesk extends Controller
         WaDeskServer::push([
             'type' => 'message_in',
             'tenant_id' => (int) ($conv['tenant_id'] ?? $channel['tenant_id']),
-            'team_id' => (int) ($conv['team_id'] ?? $channel['team_id']),
+            'team_id' => (int) ($conv['team_id'] ?? $this->getTenantDefaultTeamId((int) $channel['tenant_id'])),
             'conversation_id' => $convId,
             'message_id' => $msgId,
             'preview' => $bodyText,
@@ -895,5 +904,15 @@ class WaDesk extends Controller
             $digits = '62' . ltrim($digits, '0');
         }
         return $digits;
+    }
+
+    private function getTenantDefaultTeamId(int $tenantId): int
+    {
+        $row = $this->db($this->dbIndex)->query(
+            "SELECT id FROM teams WHERE tenant_id = ? AND is_default = 1 LIMIT 1",
+            [$tenantId]
+        )->row_array();
+
+        return (int) ($row['id'] ?? 0);
     }
 }

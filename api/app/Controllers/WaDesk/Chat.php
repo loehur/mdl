@@ -272,7 +272,8 @@ class Chat extends WaDeskController
 
             // Per-team template quota (admin ikut team saat sudah join)
             $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-            $teamId = (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'];
+            $teamId = (int) ($conv['team_id'] ?? $user['team_id'] ?? 0)
+                ?: $this->getTenantDefaultTeamId((int) $channel['tenant_id']);
             $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
             if (!$teamQuota->canConsume($teamId, 1)) {
                 $this->error('Kuota template team habis', 422, [
@@ -326,7 +327,8 @@ class Chat extends WaDeskController
                 $provErr = \App\Helpers\WaDesk\TemplateFailLogger::extractProviderError($result);
                 $this->logTemplateSendFailure([
                     'tenant_id' => (int) $channel['tenant_id'],
-                    'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
+                    'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0)
+                        ?: $this->getTenantDefaultTeamId((int) $channel['tenant_id']),
                     'channel_id' => (int) $channel['id'],
                     'user_id' => (int) $user['id'],
                     'conversation_id' => (int) $conv['id'],
@@ -387,7 +389,8 @@ class Chat extends WaDeskController
             WaDeskServer::push([
                 'type' => 'message_out',
                 'tenant_id' => (int) $channel['tenant_id'],
-                'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
+                'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0)
+                    ?: $this->getTenantDefaultTeamId((int) $channel['tenant_id']),
                 'conversation_id' => (int) $conv['id'],
                 'message_id' => $msgId,
             ]);
@@ -470,7 +473,8 @@ class Chat extends WaDeskController
         WaDeskServer::push([
             'type' => 'message_out',
             'tenant_id' => (int) $channel['tenant_id'],
-            'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
+            'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0)
+                ?: $this->getTenantDefaultTeamId((int) $channel['tenant_id']),
             'conversation_id' => (int) $conv['id'],
             'message_id' => $msgId,
         ]);
@@ -516,7 +520,7 @@ class Chat extends WaDeskController
         $user = $this->currentUser();
         $teamId = $teamId ?: (int) ($user['team_id'] ?? 0);
         if ($teamId <= 0) {
-            $teamId = (int) $channel['team_id'];
+            $teamId = $this->getTenantDefaultTeamId((int) $channel['tenant_id']);
         }
 
         $existing = $this->db($this->db_index)->query(
