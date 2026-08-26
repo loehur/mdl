@@ -11,33 +11,91 @@ class Users extends WaDeskController
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
+        $tenantId = (int) $admin['tenant_id'];
 
         $role = $this->query('role');
         $teamId = $this->query('team_id');
+        $pageRaw = $this->query('page');
+        $q = trim((string) $this->query('q', ''));
 
-        $sql = "SELECT u.id, u.email, u.name, u.role, u.team_id, u.is_active, u.created_at,
-                       t.name AS team_name,
-                       t.team_leader_user_id,
-                       tl.name AS team_leader_name,
-                       tl.email AS team_leader_email
-                FROM users u
-                LEFT JOIN teams t ON t.id = u.team_id
-                LEFT JOIN users tl ON tl.id = t.team_leader_user_id
-                WHERE u.tenant_id = ? AND u.role IN ('team_leader', 'agent')";
-        $binds = [(int) $admin['tenant_id']];
+        $select = "SELECT u.id, u.email, u.name, u.role, u.team_id, u.is_active, u.created_at,
+                          t.name AS team_name,
+                          t.team_leader_user_id,
+                          tl.name AS team_leader_name,
+                          tl.email AS team_leader_email,
+                          (SELECT COUNT(*) FROM users a
+                           WHERE a.team_id = u.team_id AND a.role = 'agent'
+                             AND a.tenant_id = u.tenant_id AND a.id <> u.id) AS agent_count";
+
+        $where = "u.tenant_id = ? AND u.role IN ('team_leader', 'agent')";
+        $binds = [$tenantId];
 
         if ($role === 'team_leader' || $role === 'agent') {
-            $sql .= ' AND u.role = ?';
+            $where .= ' AND u.role = ?';
             $binds[] = $role;
         }
         if ($teamId !== null && $teamId !== '') {
-            $sql .= ' AND u.team_id = ?';
+            $where .= ' AND u.team_id = ?';
             $binds[] = (int) $teamId;
         }
-        $sql .= ' ORDER BY u.role ASC, u.name ASC';
+        if ($q !== '') {
+            $where .= ' AND (u.name LIKE ? OR u.email LIKE ? OR t.name LIKE ? OR tl.name LIKE ?)';
+            $like = '%' . $q . '%';
+            $binds = array_merge($binds, [$like, $like, $like, $like]);
+        }
 
-        $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
+        $from = "FROM users u
+                 LEFT JOIN teams t ON t.id = u.team_id
+                 LEFT JOIN users tl ON tl.id = t.team_leader_user_id";
+
+        if ($pageRaw !== null && $pageRaw !== '') {
+            $page = max(1, (int) $pageRaw);
+            $limit = min(50, max(1, (int) $this->query('limit', 20)));
+            $totalRow = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS c {$from} WHERE {$where}",
+                $binds
+            )->row_array();
+            $total = (int) ($totalRow['c'] ?? 0);
+            $offset = ($page - 1) * $limit;
+            $rows = $this->db($this->db_index)->query(
+                "{$select} {$from} WHERE {$where}
+                 ORDER BY u.role ASC, u.name ASC
+                 LIMIT {$limit} OFFSET {$offset}",
+                $binds
+            )->result_array();
+            $this->success([
+                'users' => $rows,
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+            ]);
+
+            return;
+        }
+
+        $rows = $this->db($this->db_index)->query(
+            "{$select} {$from} WHERE {$where} ORDER BY u.role ASC, u.name ASC",
+            $binds
+        )->result_array();
         $this->success(['users' => $rows]);
+    }
+
+    /** Ringkas — team leader aktif untuk dropdown form user. */
+    public function leaders()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT u.id, u.name, u.email, u.team_id, t.name AS team_name
+             FROM users u
+             LEFT JOIN teams t ON t.id = u.team_id
+             WHERE u.tenant_id = ? AND u.role = 'team_leader' AND u.is_active = 1
+             ORDER BY u.name ASC",
+            [(int) $admin['tenant_id']]
+        )->result_array();
+
+        $this->success(['leaders' => $rows]);
     }
 
     public function create()

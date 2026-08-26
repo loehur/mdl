@@ -19,17 +19,53 @@ class Quota extends WaDeskController
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
+        $tenantId = (int) $admin['tenant_id'];
+
+        $pageRaw = $this->query('page');
+        $q = trim((string) $this->query('q', ''));
+
+        $select = "SELECT t.id AS team_id, t.name AS team_name, t.team_leader_user_id,
+                          tl.name AS leader_name, tl.email AS leader_email,
+                          COALESCE(q.balance, 0) AS balance, q.updated_at AS quota_updated_at";
+
+        $from = "FROM teams t
+                 LEFT JOIN users tl ON tl.id = t.team_leader_user_id
+                 LEFT JOIN wa_team_template_quotas q ON q.team_id = t.id";
+
+        $where = 't.tenant_id = ?';
+        $binds = [$tenantId];
+        if ($q !== '') {
+            $where .= ' AND (t.name LIKE ? OR tl.name LIKE ? OR tl.email LIKE ?)';
+            $like = '%' . $q . '%';
+            $binds = array_merge($binds, [$like, $like, $like]);
+        }
+
+        if ($pageRaw !== null && $pageRaw !== '') {
+            $page = max(1, (int) $pageRaw);
+            $limit = min(50, max(1, (int) $this->query('limit', 20)));
+            $totalRow = $this->db($this->db_index)->query(
+                "SELECT COUNT(*) AS c {$from} WHERE {$where}",
+                $binds
+            )->row_array();
+            $total = (int) ($totalRow['c'] ?? 0);
+            $offset = ($page - 1) * $limit;
+            $rows = $this->db($this->db_index)->query(
+                "{$select} {$from} WHERE {$where} ORDER BY t.name ASC LIMIT {$limit} OFFSET {$offset}",
+                $binds
+            )->result_array();
+            $this->success([
+                'quotas' => $rows,
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+            ]);
+
+            return;
+        }
 
         $rows = $this->db($this->db_index)->query(
-            "SELECT t.id AS team_id, t.name AS team_name, t.team_leader_user_id,
-                    tl.name AS leader_name, tl.email AS leader_email,
-                    COALESCE(q.balance, 0) AS balance, q.updated_at AS quota_updated_at
-             FROM teams t
-             LEFT JOIN users tl ON tl.id = t.team_leader_user_id
-             LEFT JOIN wa_team_template_quotas q ON q.team_id = t.id
-             WHERE t.tenant_id = ?
-             ORDER BY t.name ASC",
-            [(int) $admin['tenant_id']]
+            "{$select} {$from} WHERE {$where} ORDER BY t.name ASC",
+            $binds
         )->result_array();
 
         $this->success(['quotas' => $rows]);

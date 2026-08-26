@@ -169,7 +169,12 @@
 
       <!-- Users -->
       <section v-if="tab === 'users'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Team Leader & Agent</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 class="font-display font-semibold text-lg">Team Leader & Agent</h2>
+          <p v-if="userBrowseTotal" class="text-xs text-slate-500">
+            {{ userBrowseRows.length }} / {{ userBrowseTotal }} user
+          </p>
+        </div>
         <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="createUser">
           <input v-model="userForm.name" required class="field" placeholder="Nama" />
           <input v-model="userForm.email" type="email" required class="field" placeholder="Email" />
@@ -202,19 +207,54 @@
               class="field sm:col-span-2"
             >
               <option disabled value="">Pilih Team Leader</option>
-              <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
+              <option v-for="l in userLeaders" :key="l.id" :value="l.id">
                 {{ l.name }} ({{ l.team_name || "tanpa team" }})
               </option>
             </select>
-            <p v-if="!teamLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
+            <p v-if="!userLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
               Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.
             </p>
           </template>
 
           <button class="btn sm:col-span-2" :disabled="!canSubmitUser">Tambah user</button>
         </form>
-        <ul class="divide-y divide-white/5">
-          <li v-for="u in users" :key="u.id" class="py-3">
+
+        <div class="relative">
+          <input
+            v-model="userBrowseQuery"
+            type="search"
+            class="field pl-9"
+            placeholder="Cari nama, email, team..."
+            autocomplete="off"
+          />
+          <svg
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+        </div>
+
+        <div class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+            <div
+              v-if="loadingUserBrowse && !userBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              Memuat user...
+            </div>
+            <p
+              v-else-if="!userBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              {{ userBrowseQuery.trim() ? "User tidak ditemukan." : "Belum ada user." }}
+            </p>
+
+            <div v-for="u in userBrowseRows" :key="u.id" class="px-4 py-3">
             <template v-if="editingUserId === u.id">
               <form class="grid sm:grid-cols-2 gap-3 mt-1" @submit.prevent="saveUser(u)">
                 <input v-model="editUserForm.name" required class="field" placeholder="Nama" />
@@ -245,7 +285,7 @@
                 <template v-else>
                   <select v-model="editUserForm.team_leader_user_id" class="field sm:col-span-2">
                     <option value="">— Tetap di team saat ini —</option>
-                    <option v-for="l in teamLeaders" :key="l.id" :value="l.id">
+                    <option v-for="l in userLeaders" :key="l.id" :value="l.id">
                       {{ l.name }} ({{ l.team_name || "tanpa team" }})
                     </option>
                   </select>
@@ -290,8 +330,24 @@
                 </div>
               </div>
             </template>
-          </li>
-        </ul>
+            </div>
+
+            <div ref="userBrowseSentinel" class="h-1" aria-hidden="true" />
+
+            <div
+              v-if="loadingUserBrowse && userBrowseRows.length"
+              class="py-3 text-center text-xs text-slate-500"
+            >
+              Memuat lagi...
+            </div>
+            <p
+              v-else-if="userBrowseRows.length && !userBrowseHasMore"
+              class="py-3 text-center text-xs text-slate-600"
+            >
+              Semua user sudah dimuat
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- Channels -->
@@ -833,49 +889,112 @@
 
       <!-- Quota -->
       <section v-if="tab === 'quota'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Kuota Template</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 class="font-display font-semibold text-lg">Kuota Template</h2>
+          <p v-if="quotaBrowseTotal" class="text-xs text-slate-500">
+            {{ quotaBrowseRows.length }} / {{ quotaBrowseTotal }} team
+          </p>
+        </div>
         <p class="text-xs text-slate-500">
           Saldo per team (Team Leader). Dipakai bersama TL + semua agent di team tersebut.
           Potong 1 hanya jika kirim template sukses di YCloud.
         </p>
 
-        <form class="grid sm:grid-cols-[1fr_8rem_1fr_auto] gap-2 items-end" @submit.prevent="doTopup">
-          <div>
-            <label class="label">Team</label>
-            <select v-model="quotaForm.team_id" required class="field">
-              <option disabled value="">Pilih team</option>
-              <option v-for="q in quotas" :key="q.team_id" :value="q.team_id">
-                {{ q.team_name }} — TL: {{ q.leader_name || "—" }} (saldo {{ q.balance }})
-              </option>
-            </select>
+        <form class="space-y-3 rounded-xl border border-white/10 bg-ink-950/40 p-4" @submit.prevent="doTopup">
+          <p class="text-sm font-medium text-slate-200">Top-up kuota</p>
+          <div class="grid sm:grid-cols-[1fr_8rem_1fr_auto] gap-2 items-end">
+            <div class="sm:col-span-4 lg:col-span-1">
+              <label class="label">Team</label>
+              <p v-if="selectedQuotaTeam" class="text-xs text-slate-400 mb-2">
+                Terpilih: <span class="text-slate-200">{{ selectedQuotaTeam.team_name }}</span>
+                · saldo {{ selectedQuotaTeam.balance }}
+              </p>
+              <p v-else class="text-xs text-amber-300/90 mb-2">Pilih team dari daftar di bawah.</p>
+            </div>
+            <div>
+              <label class="label">Jumlah</label>
+              <input v-model.number="quotaForm.amount" type="number" min="1" required class="field" placeholder="100" />
+            </div>
+            <div>
+              <label class="label">Catatan</label>
+              <input v-model="quotaForm.note" class="field" placeholder="Opsional" />
+            </div>
+            <button class="btn" :disabled="!quotaForm.team_id">Top-up</button>
           </div>
-          <div>
-            <label class="label">Jumlah</label>
-            <input v-model.number="quotaForm.amount" type="number" min="1" required class="field" placeholder="100" />
-          </div>
-          <div>
-            <label class="label">Catatan</label>
-            <input v-model="quotaForm.note" class="field" placeholder="Opsional" />
-          </div>
-          <button class="btn">Top-up</button>
         </form>
 
-        <ul class="divide-y divide-white/5">
-          <li v-for="q in quotas" :key="q.team_id" class="py-3 flex items-center justify-between gap-2">
-            <div>
-              <p class="font-medium">{{ q.team_name }}</p>
-              <p class="text-xs text-slate-500">
-                TL: {{ q.leader_name || "—" }}
-                <span v-if="q.leader_email"> · {{ q.leader_email }}</span>
-              </p>
+        <div class="relative">
+          <input
+            v-model="quotaBrowseQuery"
+            type="search"
+            class="field pl-9"
+            placeholder="Cari team, TL, email..."
+            autocomplete="off"
+          />
+          <svg
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+        </div>
+
+        <div class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+            <div
+              v-if="loadingQuotaBrowse && !quotaBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              Memuat kuota...
             </div>
-            <div class="text-right">
-              <p class="text-lg font-semibold text-accent">{{ q.balance }}</p>
-              <p class="text-[10px] text-slate-500">sisa kuota</p>
+            <p
+              v-else-if="!quotaBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              {{ quotaBrowseQuery.trim() ? "Team tidak ditemukan." : "Belum ada team." }}
+            </p>
+
+            <button
+              v-for="q in quotaBrowseRows"
+              :key="q.team_id"
+              type="button"
+              class="w-full px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-white/[0.02] transition"
+              :class="Number(quotaForm.team_id) === Number(q.team_id) ? 'bg-accent/10' : ''"
+              @click="quotaForm.team_id = q.team_id"
+            >
+              <div>
+                <p class="font-medium">{{ q.team_name }}</p>
+                <p class="text-xs text-slate-500">
+                  TL: {{ q.leader_name || "—" }}
+                  <span v-if="q.leader_email"> · {{ q.leader_email }}</span>
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="text-lg font-semibold text-accent">{{ q.balance }}</p>
+                <p class="text-[10px] text-slate-500">sisa kuota</p>
+              </div>
+            </button>
+
+            <div ref="quotaBrowseSentinel" class="h-1" aria-hidden="true" />
+
+            <div
+              v-if="loadingQuotaBrowse && quotaBrowseRows.length"
+              class="py-3 text-center text-xs text-slate-500"
+            >
+              Memuat lagi...
             </div>
-          </li>
-        </ul>
-        <p v-if="!quotas.length" class="text-sm text-slate-500 text-center py-2">Belum ada team</p>
+            <p
+              v-else-if="quotaBrowseRows.length && !quotaBrowseHasMore"
+              class="py-3 text-center text-xs text-slate-600"
+            >
+              Semua team sudah dimuat
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- Template fail logs -->
@@ -1030,7 +1149,27 @@ const teamBrowseHasMore = ref(true);
 const teamBrowseSentinel = ref(null);
 let teamBrowseObserver = null;
 let teamSearchTimer = null;
-const users = ref([]);
+const USER_BROWSE_LIMIT = 20;
+const userBrowseRows = ref([]);
+const userBrowseTotal = ref(0);
+const userBrowsePage = ref(1);
+const userBrowseQuery = ref("");
+const loadingUserBrowse = ref(false);
+const userBrowseHasMore = ref(true);
+const userBrowseSentinel = ref(null);
+const userLeaders = ref([]);
+let userBrowseObserver = null;
+let userSearchTimer = null;
+const QUOTA_BROWSE_LIMIT = 20;
+const quotaBrowseRows = ref([]);
+const quotaBrowseTotal = ref(0);
+const quotaBrowsePage = ref(1);
+const quotaBrowseQuery = ref("");
+const loadingQuotaBrowse = ref(false);
+const quotaBrowseHasMore = ref(true);
+const quotaBrowseSentinel = ref(null);
+let quotaBrowseObserver = null;
+let quotaSearchTimer = null;
 const availableDevices = ref([]);
 const deviceQuery = ref("");
 const CHANNEL_BROWSE_LIMIT = 20;
@@ -1067,7 +1206,6 @@ const deletingOpenAiKey = ref(false);
 const syncingDevices = ref(false);
 const editingKeyId = ref(null);
 const templates = ref([]);
-const quotas = ref([]);
 const msg = ref("");
 const err = ref("");
 
@@ -1142,12 +1280,12 @@ const failLogsReady = ref(true);
 const loadingFailLogs = ref(false);
 const expandedFailLog = ref(null);
 
-const teamLeaders = computed(() =>
-  users.value.filter((u) => u.role === "team_leader" && Number(u.is_active) === 1)
-);
-
 const teamsWithoutLeader = computed(() =>
   teams.value.filter((t) => !t.team_leader_user_id)
+);
+
+const selectedQuotaTeam = computed(() =>
+  quotaBrowseRows.value.find((q) => Number(q.team_id) === Number(quotaForm.team_id)) || null
 );
 
 const selectedAssignDevice = computed(() =>
@@ -1169,7 +1307,7 @@ const canSubmitUser = computed(() => {
   if (userForm.role === "team_leader") {
     return !!userForm.team_id && teamsWithoutLeader.value.length > 0;
   }
-  return !!userForm.team_leader_user_id && teamLeaders.value.length > 0;
+  return !!userForm.team_leader_user_id && userLeaders.value.length > 0;
 });
 
 function onRoleChange() {
@@ -1327,6 +1465,131 @@ async function loadAssignTab() {
   }
 }
 
+async function loadUserLeaders() {
+  try {
+    const res = await api("/WaDesk/Users/leaders", { cache: "no-store" });
+    userLeaders.value = res.data?.leaders || [];
+  } catch {
+    userLeaders.value = [];
+  }
+}
+
+async function loadUserBrowse(reset = false) {
+  if (loadingUserBrowse.value) return;
+  if (!reset && !userBrowseHasMore.value) return;
+
+  loadingUserBrowse.value = true;
+  try {
+    if (reset) {
+      userBrowsePage.value = 1;
+      userBrowseHasMore.value = true;
+    }
+    const page = reset ? 1 : userBrowsePage.value;
+    const q = userBrowseQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Users/list?page=${page}&limit=${USER_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.users || [];
+    userBrowseTotal.value = Number(res.data?.total ?? rows.length);
+    if (reset) {
+      userBrowseRows.value = rows;
+    } else {
+      const seen = new Set(userBrowseRows.value.map((u) => u.id));
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          userBrowseRows.value.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+    userBrowseHasMore.value = userBrowseRows.value.length < userBrowseTotal.value;
+    userBrowsePage.value = page + 1;
+  } catch (e) {
+    if (reset) {
+      userBrowseRows.value = [];
+      userBrowseTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat user");
+  } finally {
+    loadingUserBrowse.value = false;
+    await nextTick();
+    setupUserBrowseObserver();
+  }
+}
+
+function setupUserBrowseObserver() {
+  userBrowseObserver?.disconnect();
+  if (tab.value !== "users" || !userBrowseSentinel.value || !userBrowseHasMore.value) return;
+  userBrowseObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadUserBrowse(false);
+    },
+    { rootMargin: "160px" }
+  );
+  userBrowseObserver.observe(userBrowseSentinel.value);
+}
+
+async function loadUsersTab() {
+  await Promise.all([loadUserBrowse(true), loadUserLeaders(), loadTeamOptions()]);
+}
+
+async function loadQuotaBrowse(reset = false) {
+  if (loadingQuotaBrowse.value) return;
+  if (!reset && !quotaBrowseHasMore.value) return;
+
+  loadingQuotaBrowse.value = true;
+  try {
+    if (reset) {
+      quotaBrowsePage.value = 1;
+      quotaBrowseHasMore.value = true;
+    }
+    const page = reset ? 1 : quotaBrowsePage.value;
+    const q = quotaBrowseQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Quota/list?page=${page}&limit=${QUOTA_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.quotas || [];
+    quotaBrowseTotal.value = Number(res.data?.total ?? rows.length);
+    if (reset) {
+      quotaBrowseRows.value = rows;
+    } else {
+      const seen = new Set(quotaBrowseRows.value.map((r) => r.team_id));
+      for (const row of rows) {
+        if (!seen.has(row.team_id)) {
+          quotaBrowseRows.value.push(row);
+          seen.add(row.team_id);
+        }
+      }
+    }
+    quotaBrowseHasMore.value = quotaBrowseRows.value.length < quotaBrowseTotal.value;
+    quotaBrowsePage.value = page + 1;
+  } catch (e) {
+    if (reset) {
+      quotaBrowseRows.value = [];
+      quotaBrowseTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat kuota");
+  } finally {
+    loadingQuotaBrowse.value = false;
+    await nextTick();
+    setupQuotaBrowseObserver();
+  }
+}
+
+function setupQuotaBrowseObserver() {
+  quotaBrowseObserver?.disconnect();
+  if (tab.value !== "quota" || !quotaBrowseSentinel.value || !quotaBrowseHasMore.value) return;
+  quotaBrowseObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadQuotaBrowse(false);
+    },
+    { rootMargin: "160px" }
+  );
+  quotaBrowseObserver.observe(quotaBrowseSentinel.value);
+}
+
 async function loadTeamOptions() {
   const res = await api("/WaDesk/Teams/options");
   teams.value = res.data?.teams || [];
@@ -1412,10 +1675,8 @@ async function reloadTeamsTab() {
 }
 
 async function refresh() {
-  const [u, tp, q, kir, oai, daily] = await Promise.all([
-    api("/WaDesk/Users/list"),
+  const [tp, kir, oai, daily] = await Promise.all([
     api("/WaDesk/Templates/list"),
-    api("/WaDesk/Quota/list"),
     api("/WaDesk/Settings/kirimin"),
     api("/WaDesk/Settings/openai"),
     api("/WaDesk/Settings/dailyLimit"),
@@ -1427,9 +1688,13 @@ async function refresh() {
   if (tab.value === "assign") {
     await loadAssignTab();
   }
-  users.value = u.data.users || [];
+  if (tab.value === "users") {
+    await loadUsersTab();
+  }
+  if (tab.value === "quota") {
+    await loadQuotaBrowse(true);
+  }
   templates.value = tp.data.templates || [];
-  quotas.value = q.data.quotas || [];
   initMaxlengthDrafts(templates.value);
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
@@ -1499,6 +1764,34 @@ watch(tab, (id) => {
   if (id === "assign") {
     loadAssignTab();
   }
+  if (id === "users") {
+    loadUsersTab();
+  }
+  if (id === "quota") {
+    loadQuotaBrowse(true);
+  }
+});
+
+watch(userBrowseQuery, () => {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(() => {
+    if (tab.value === "users") loadUserBrowse(true);
+  }, 300);
+});
+
+watch(quotaBrowseQuery, () => {
+  clearTimeout(quotaSearchTimer);
+  quotaSearchTimer = setTimeout(() => {
+    if (tab.value === "quota") loadQuotaBrowse(true);
+  }, 300);
+});
+
+watch(userBrowseSentinel, () => {
+  nextTick(setupUserBrowseObserver);
+});
+
+watch(quotaBrowseSentinel, () => {
+  nextTick(setupQuotaBrowseObserver);
 });
 
 watch(channelBrowseQuery, () => {
@@ -1661,7 +1954,7 @@ async function createUser() {
       team_leader_user_id: "",
     });
     flash(true, "User dibuat");
-    await refresh();
+    await loadUsersTab();
   } catch (e) {
     flash(false, e.message);
   }
@@ -1705,7 +1998,7 @@ async function saveUser(u) {
     await api("/WaDesk/Users/update", { method: "POST", body });
     flash(true, "User diupdate");
     cancelEditUser();
-    await refresh();
+    await loadUsersTab();
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -1714,14 +2007,12 @@ async function saveUser(u) {
 }
 
 async function promoteAgent(u) {
-  const currentTl = users.value.find(
-    (x) => x.role === "team_leader" && Number(x.team_id) === Number(u.team_id)
-  );
-  const tlName = currentTl?.name || u.team_leader_name || "TL saat ini";
+  const tlName = u.team_leader_name || "TL saat ini";
+  const hasTl = !!u.team_leader_name;
 
   askConfirm({
     title: "Jadikan Team Leader",
-    message: currentTl
+    message: hasTl
       ? `"${u.name}" akan jadi Team Leader. "${tlName}" otomatis turun jadi agent di team yang sama. Lanjutkan?`
       : `"${u.name}" akan jadi Team Leader team ini. Lanjutkan?`,
     confirmLabel: "Ya, promote",
@@ -1734,11 +2025,11 @@ async function promoteAgent(u) {
         });
         flash(
           true,
-          currentTl
+          hasTl
             ? `${u.name} sekarang TL; ${tlName} turun jadi agent`
             : `${u.name} sekarang Team Leader`
         );
-        await refresh();
+        await loadUsersTab();
       } catch (e) {
         flash(false, e.message);
       }
@@ -1748,9 +2039,7 @@ async function promoteAgent(u) {
 
 async function removeUser(u) {
   const isTl = u.role === "team_leader";
-  const agentCount = isTl
-    ? users.value.filter((x) => x.role === "agent" && Number(x.team_id) === Number(u.team_id)).length
-    : 0;
+  const agentCount = isTl ? Number(u.agent_count || 0) : 0;
 
   if (isTl && agentCount > 0) {
     askConfirm({
@@ -1773,7 +2062,7 @@ async function removeUser(u) {
       try {
         await api("/WaDesk/Users/delete", { method: "POST", body: { id: u.id } });
         flash(true, "User dihapus");
-        await refresh();
+        await loadUsersTab();
       } catch (e) {
         flash(false, e.message);
       }
@@ -2084,7 +2373,7 @@ async function doTopup() {
     });
     Object.assign(quotaForm, { amount: 100, note: "" });
     flash(true, `Top-up berhasil. Saldo sekarang: ${res.data?.balance ?? "—"}`);
-    await refresh();
+    await loadQuotaBrowse(true);
   } catch (e) {
     flash(false, e.message);
   }
@@ -2100,9 +2389,13 @@ onUnmounted(() => {
   teamBrowseObserver?.disconnect();
   channelBrowseObserver?.disconnect();
   assignTeamObserver?.disconnect();
+  userBrowseObserver?.disconnect();
+  quotaBrowseObserver?.disconnect();
   clearTimeout(teamSearchTimer);
   clearTimeout(channelSearchTimer);
   clearTimeout(assignTeamSearchTimer);
+  clearTimeout(userSearchTimer);
+  clearTimeout(quotaSearchTimer);
 });
 </script>
 
