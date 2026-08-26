@@ -296,7 +296,10 @@
 
       <!-- Channels -->
       <section v-if="tab === 'keys'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Channel / Nomor (Kirimin)</h2>
+        <h2 class="font-display font-semibold text-lg">Channel</h2>
+        <p class="text-xs text-slate-500">
+          Limit harian per WABA ID. Assign nomor ke team ada di tab <strong class="text-slate-300">Assign</strong>.
+        </p>
 
         <div v-if="wabaLimits.length" class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3">
           <p class="text-xs font-medium text-slate-300">Limit per WABA ID</p>
@@ -332,6 +335,14 @@
             </li>
           </ul>
         </div>
+        <p v-else class="text-sm text-slate-500 text-center py-6">
+          Belum ada WABA ID terdaftar. Assign nomor dulu di tab Assign.
+        </p>
+      </section>
+
+      <!-- Assign -->
+      <section v-if="tab === 'assign'" class="card space-y-4">
+        <h2 class="font-display font-semibold text-lg">Assign</h2>
 
         <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
           <p class="text-sm font-medium text-slate-200">Satu nomor WA bisa di-assign ke beberapa team</p>
@@ -939,6 +950,7 @@ const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
   { id: "keys", label: "Channel" },
+  { id: "assign", label: "Assign" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
   { id: "quota", label: "Quota" },
@@ -1271,6 +1283,9 @@ watch(tab, (id) => {
   }
   if (id === "teams") {
     loadTeamBrowse(true);
+  }
+  if (id === "assign" && !availableDevices.value.length) {
+    syncDevicesFromKirimin();
   }
 });
 
