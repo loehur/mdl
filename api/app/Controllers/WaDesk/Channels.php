@@ -5,7 +5,8 @@ namespace App\Controllers\WaDesk;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 
 /**
- * Channels — Kirimin device/nomor mapped 1:1 to team (API key per tenant).
+ * Channels — Kirimin device/nomor, 1 device = 1 channel, channel bisa dipakai beberapa team
+ * (team utama di wa_channels.team_id + team tambahan di wa_channel_teams).
  */
 class Channels extends WaDeskController
 {
@@ -33,7 +34,8 @@ class Channels extends WaDeskController
                 "{$select}
                  FROM {$tbl} k
                  LEFT JOIN teams t ON t.id = k.team_id
-                 WHERE k.tenant_id = ? AND k.team_id = ? AND k.status = 'active'
+                 WHERE k.tenant_id = ? AND k.status = 'active'
+                   AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  ORDER BY k.id DESC",
                 [(int) $user['tenant_id'], (int) $user['team_id']]
             )->result_array();
@@ -42,6 +44,11 @@ class Channels extends WaDeskController
         }
 
         $channels = array_map(fn ($r) => $this->mapChannelRow($r), $rows);
+        $channels = array_map(function (array $r) {
+            $r['team_ids'] = array_map('intval', array_column($this->channelTeamRows((int) $r['id'], (int) $r['tenant_id']), 'id'));
+            $r['team_names'] = $this->formatTeamNames($this->channelTeamRows((int) $r['id'], (int) $r['tenant_id']));
+            return $r;
+        }, $channels);
         $this->success(['channels' => $channels, 'keys' => $channels]);
     }
 
@@ -68,6 +75,8 @@ class Channels extends WaDeskController
         foreach ($assigned as $row) {
             $did = trim((string) ($row['device_id'] ?? ''));
             if ($did !== '') {
+                $row['team_ids'] = array_map('intval', array_column($this->channelTeamRows((int) $row['id'], $tenantId), 'id'));
+                $row['team_names'] = $this->formatTeamNames($this->channelTeamRows((int) $row['id'], $tenantId));
                 $byDevice[$did] = $this->mapChannelRow($row);
             }
         }
@@ -140,14 +149,6 @@ class Channels extends WaDeskController
         $deviceId = trim((string) $body['device_id']);
         $tbl = $this->channelsTable();
 
-        $teamTaken = $this->db($this->db_index)->query(
-            "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? LIMIT 1",
-            [$tenantId, $teamId]
-        )->row_array();
-        if ($teamTaken) {
-            $this->error('Team sudah punya channel/nomor. Hapus mapping lama dulu.', 409);
-        }
-
         $deviceTaken = $this->db($this->db_index)->query(
             "SELECT id FROM {$tbl} WHERE device_id = ? LIMIT 1",
             [$deviceId]
@@ -188,6 +189,10 @@ class Channels extends WaDeskController
         if ($wabaId !== '') {
             $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
         }
+
+        // Team-set: team utama + team tambahan (opsional)
+        $teamIds = array_merge([$teamId], $this->extractTeamIds($body));
+        $this->syncChannelTeams($id, $teamIds);
 
         $this->success([
             'id' => $id,
@@ -244,29 +249,24 @@ class Channels extends WaDeskController
             if (!$team) {
                 $this->error('Team tidak ditemukan', 404);
             }
-            $other = $this->db($this->db_index)->query(
-                "SELECT id FROM {$tbl} WHERE tenant_id = ? AND team_id = ? AND id <> ? LIMIT 1",
-                [$tenantId, $teamId, $id]
-            )->row_array();
-            if ($other) {
-                $this->error('Team sudah punya channel lain', 409);
-            }
             $data['team_id'] = $teamId;
         }
 
         if ($data) {
             $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
-            if (isset($data['team_id']) && (int) $data['team_id'] !== (int) $channel['team_id']) {
-                $this->db($this->db_index)->update('conversations', [
-                    'team_id' => (int) $data['team_id'],
-                ], ['channel_id' => $id]);
-            }
             $newWaba = trim((string) ($data['waba_id'] ?? $channel['waba_id'] ?? ''));
             if ($newWaba !== '') {
                 $label = trim((string) ($data['label'] ?? $channel['label'] ?? ''));
                 $this->syncWabaLimitRow($newWaba, $tenantId, $label);
             }
         }
+
+        // Sync team-set: team utama + team tambahan; conversation team yang dicabut dihapus
+        $teamIds = array_merge(
+            isset($data['team_id']) ? [(int) $data['team_id']] : [(int) $channel['team_id']],
+            $this->extractTeamIds($body)
+        );
+        $this->syncChannelTeams($id, $teamIds);
 
         $this->success(null, 'Channel diupdate');
     }
@@ -300,6 +300,26 @@ class Channels extends WaDeskController
     public function create()
     {
         return $this->assign();
+    }
+
+    /** Team tambahan dari body (team_ids[] / team_id / teams[]), dibersihkan ke int > 0. */
+    private function extractTeamIds(array $body): array
+    {
+        $ids = [];
+        foreach (['team_ids', 'teams', 'team_ids[]'] as $key) {
+            if (isset($body[$key]) && is_array($body[$key])) {
+                foreach ($body[$key] as $v) {
+                    $id = (int) $v;
+                    if ($id > 0) {
+                        $ids[] = $id;
+                    }
+                }
+            }
+        }
+        if (isset($body['team_id']) && (int) $body['team_id'] > 0) {
+            $ids[] = (int) $body['team_id'];
+        }
+        return array_values(array_unique($ids));
     }
 
     /** @return array{phone_number:string,waba_id:string,channel_type:string} */

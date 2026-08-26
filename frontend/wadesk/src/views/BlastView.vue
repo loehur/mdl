@@ -24,7 +24,7 @@
           <select v-model="form.channel_id" class="field" :disabled="!auth.canSendWa" @change="onKeyChange">
             <option disabled value="">Pilih channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
-              {{ k.label }} ({{ k.phone_number }}) — {{ k.team_name }}
+              {{ k.label }} ({{ k.phone_number }}) — {{ k.team_names || k.team_name }}
             </option>
           </select>
           <p v-if="keyQuota !== null" class="text-xs mt-1.5 space-y-1">

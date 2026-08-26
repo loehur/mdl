@@ -33,7 +33,8 @@ class WaDeskBlast extends Controller
         // Pick pending blast jobs (oldest first)
         $channelsTable = 'wa_channels';
         $blasts = $db->query(
-            "SELECT b.*, k.device_id, k.phone_number, k.tenant_id AS key_tenant_id, k.team_id,
+            "SELECT b.*, k.device_id, k.phone_number, k.tenant_id AS key_tenant_id,
+                    COALESCE(b.team_id, k.team_id) AS team_id,
                     t.template_name, t.language, t.body_preview
              FROM wa_blasts b
              INNER JOIN {$channelsTable} k ON k.id = b.channel_id
@@ -115,7 +116,7 @@ class WaDeskBlast extends Controller
                 $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0, true, [
                     'blast_id' => $blastId,
                     'blast_recipient_id' => $recipId,
-                ]);
+                ], (int) $blast['team_id']);
 
                 if ($result['success']) {
                     $db->update('wa_blast_recipients', [

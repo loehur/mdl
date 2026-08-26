@@ -189,30 +189,50 @@ class Quota extends WaDeskController
         $channel = $this->db($this->db_index)->query(
             "SELECT k.id, k.team_id, k.label, k.tenant_id, k.waba_id, t.name AS team_name
              FROM {$tbl} k
-             INNER JOIN teams t ON t.id = k.team_id
+             LEFT JOIN teams t ON t.id = k.team_id
              WHERE k.id = ? AND k.tenant_id = ? LIMIT 1",
             [$channelId, (int) $user['tenant_id']]
         )->row_array();
         if (!$channel) {
             $this->error('Channel tidak ditemukan', 404);
         }
-        if ($this->hasOperationalTeam($user) && (int) $channel['team_id'] !== (int) $user['team_id']) {
-            $this->error('Channel tidak dapat diakses', 403);
+        if ($this->hasOperationalTeam($user)) {
+            // Channel harus dipakai team user (utama ATAU team tambahan)
+            $accessible = $this->db($this->db_index)->query(
+                "SELECT 1 AS ok FROM {$tbl}
+                 WHERE id = ? AND tenant_id = ?
+                   AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
+                 LIMIT 1",
+                [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
+            )->row_array();
+            if (!$accessible) {
+                $this->error('Channel tidak dapat diakses', 403);
+            }
         }
         if (($user['role'] ?? '') === 'admin' && !$this->hasOperationalTeam($user)) {
             $this->error('Admin harus masuk team dulu', 403, ['code' => 'no_team']);
         }
 
+        // Kuota & tagihan pakai team user (yang mengirim), bukan team utama channel
+        $billingTeamId = (int) ($user['team_id'] ?? $channel['team_id'] ?? 0);
+        if ($billingTeamId <= 0) {
+            $billingTeamId = (int) $channel['team_id'];
+        }
         $quota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $quota->ensureRow((int) $channel['team_id'], (int) $user['tenant_id']);
+        $quota->ensureRow($billingTeamId, (int) $user['tenant_id']);
+
+        $billingTeam = $this->db($this->db_index)->query(
+            "SELECT name FROM teams WHERE id = ? LIMIT 1",
+            [$billingTeamId]
+        )->row_array();
 
         $this->success([
             'channel_id' => (int) $channel['id'],
-            'team_id' => (int) $channel['team_id'],
-            'team_name' => $channel['team_name'],
+            'team_id' => $billingTeamId,
+            'team_name' => $billingTeam['name'] ?? $channel['team_name'],
             'key_label' => $channel['label'],
             'channel_label' => $channel['label'],
-            'balance' => $quota->getBalance((int) $channel['team_id']),
+            'balance' => $quota->getBalance($billingTeamId),
             'daily_limit' => $this->dailyLimitStatusForChannel($channel),
         ]);
     }

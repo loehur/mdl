@@ -744,8 +744,122 @@ abstract class WaDeskController extends BaseController
         }
         $tbl = $this->channelsTable();
         return $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl} WHERE team_id = ? AND tenant_id = ? LIMIT 1",
-            [$teamId, $tenantId]
+            "SELECT * FROM {$tbl}
+             WHERE tenant_id = ? AND status = 'active'
+               AND {$this->channelTeamSql($tbl, $teamId)}
+             ORDER BY (team_id = ?) DESC, id DESC
+             LIMIT 1",
+            [$tenantId, $teamId]
         )->row_array() ?: null;
+    }
+
+    /**
+     * SQL fragment: channel dipakai oleh team (sebagai team utama ATAU team tambahan).
+     * Selalu mulai dengan 'k.'-less alias — $table dipakai sebagai nama tabel/k alias.
+     */
+    protected function channelTeamSql(string $table, int $teamId): string
+    {
+        $alias = $this->channelTeamAlias($table);
+        return "({$alias}.team_id = {$teamId}
+                 OR EXISTS (
+                   SELECT 1 FROM wa_channel_teams ct
+                   WHERE ct.channel_id = {$alias}.id AND ct.team_id = {$teamId}
+                 ))";
+    }
+
+    /** Alias aman untuk channelTeamSql: nama tabel polos -> 'k', selain itu dipakai apa adanya. */
+    protected function channelTeamAlias(string $table): string
+    {
+        $table = trim($table);
+        return $table === '' || $table === $this->channelsTable() ? 'k' : $table;
+    }
+
+    /** Semua team (id + nama) yang memakai channel, termasuk team utama. */
+    protected function channelTeamRows(int $channelId, int $tenantId): array
+    {
+        $rows = $this->db($this->db_index)->query(
+            "SELECT DISTINCT t.id, t.name
+             FROM teams t
+             INNER JOIN wa_channel_teams ct ON ct.team_id = t.id
+             WHERE ct.channel_id = ? AND t.tenant_id = ?
+             ORDER BY t.name ASC",
+            [$channelId, $tenantId]
+        )->result_array();
+
+        // Pastikan team utama selalu ada walau join table belum sinkron
+        $main = $this->db($this->db_index)->query(
+            "SELECT team_id FROM {$this->channelsTable()} WHERE id = ? LIMIT 1",
+            [$channelId]
+        )->row_array();
+        $mainId = (int) ($main['team_id'] ?? 0);
+        if ($mainId > 0) {
+            $found = false;
+            foreach ($rows as $r) {
+                if ((int) $r['id'] === $mainId) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                $t = $this->db($this->db_index)->query(
+                    "SELECT id, name FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
+                    [$mainId, $tenantId]
+                )->row_array();
+                if ($t) {
+                    $rows[] = $t;
+                }
+            }
+        }
+        return $rows;
+    }
+
+    /** @param list<array{id:int,name:string}> $rows */
+    protected function formatTeamNames(array $rows): string
+    {
+        return implode(' + ', array_map(static fn ($r) => (string) ($r['name'] ?? ''), $rows));
+    }
+
+    /**
+     * Sinkronkan team-set channel di wa_channel_teams.
+     * $teamIds: SEMUA team yang boleh memakai channel (termasuk team utama).
+     */
+    protected function syncChannelTeams(int $channelId, array $teamIds): void
+    {
+        $teamIds = array_values(array_unique(array_map('intval', $teamIds)));
+        $teamIds = array_filter($teamIds, static fn ($id) => $id > 0);
+        if ($teamIds === []) {
+            return;
+        }
+
+        $existing = $this->db($this->db_index)->query(
+            "SELECT team_id FROM wa_channel_teams WHERE channel_id = ?",
+            [$channelId]
+        )->result_array();
+        $have = array_map('intval', array_column($existing, 'team_id'));
+
+        $toAdd = array_diff($teamIds, $have);
+        foreach ($toAdd as $tid) {
+            $this->db($this->db_index)->insert('wa_channel_teams', [
+                'channel_id' => $channelId,
+                'team_id' => $tid,
+            ]);
+        }
+
+        $toRemove = array_diff($have, $teamIds);
+        if ($toRemove !== []) {
+            $placeholders = implode(',', array_fill(0, count($toRemove), '?'));
+            $binds = array_merge([$channelId], $toRemove);
+            $this->db($this->db_index)->query(
+                "DELETE FROM wa_channel_teams WHERE channel_id = ? AND team_id IN ({$placeholders})",
+                $binds
+            );
+
+            // Conversation team yang dicabut ikut dihapus (messages cascade),
+            // supaya routing tidak menunjuk ke conversation team yang sudah tidak memakai nomor.
+            $this->db($this->db_index)->query(
+                "DELETE FROM conversations WHERE channel_id = ? AND team_id IN ({$placeholders})",
+                $binds
+            );
+        }
     }
 }

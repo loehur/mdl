@@ -89,7 +89,8 @@ class Blast extends WaDeskController
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
             "SELECT * FROM {$tbl}
-             WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active'
+             WHERE id = ? AND tenant_id = ? AND status = 'active'
+               AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
              LIMIT 1",
             [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array();
@@ -166,7 +167,7 @@ class Blast extends WaDeskController
         }
 
         $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $teamId = (int) $channel['team_id'];
+        $teamId = (int) $user['team_id'] ?: (int) $channel['team_id'];
         $teamQuota->ensureRow($teamId, (int) $user['tenant_id']);
         $rowCount = count($rows);
         if (!$teamQuota->canConsume($teamId, $rowCount)) {
@@ -185,6 +186,7 @@ class Blast extends WaDeskController
         $blastId = (int) $this->db($this->db_index)->insert('wa_blasts', [
             'tenant_id'     => (int) $user['tenant_id'],
             'channel_id' => $channelId,
+            'team_id'    => $teamId,
             'template_id'   => $templateId,
             'created_by'    => (int) $user['id'],
             'campaign_name' => $campaignName,
@@ -426,7 +428,11 @@ class Blast extends WaDeskController
     private function blastTeamScope(array $user): array
     {
         if ($this->hasOperationalTeam($user)) {
-            return [' AND k.team_id = ?', [(int) $user['team_id']]];
+            $tbl = $this->channelsTable();
+            return [
+                ' AND ' . $this->channelTeamSql($tbl, (int) $user['team_id']),
+                [(int) $user['team_id']],
+            ];
         }
         if (($user['role'] ?? '') === 'admin') {
             return [' AND 1=0', []];

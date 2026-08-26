@@ -272,7 +272,7 @@ class Chat extends WaDeskController
 
             // Per-team template quota (admin ikut team saat sudah join)
             $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-            $teamId = (int) $channel['team_id'];
+            $teamId = (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'];
             $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
             if (!$teamQuota->canConsume($teamId, 1)) {
                 $this->error('Kuota template team habis', 422, [
@@ -326,7 +326,7 @@ class Chat extends WaDeskController
                 $provErr = \App\Helpers\WaDesk\TemplateFailLogger::extractProviderError($result);
                 $this->logTemplateSendFailure([
                     'tenant_id' => (int) $channel['tenant_id'],
-                    'team_id' => (int) $channel['team_id'],
+                    'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
                     'channel_id' => (int) $channel['id'],
                     'user_id' => (int) $user['id'],
                     'conversation_id' => (int) $conv['id'],
@@ -387,7 +387,7 @@ class Chat extends WaDeskController
             WaDeskServer::push([
                 'type' => 'message_out',
                 'tenant_id' => (int) $channel['tenant_id'],
-                'team_id' => (int) $channel['team_id'],
+                'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
                 'conversation_id' => (int) $conv['id'],
                 'message_id' => $msgId,
             ]);
@@ -470,7 +470,7 @@ class Chat extends WaDeskController
         WaDeskServer::push([
             'type' => 'message_out',
             'tenant_id' => (int) $channel['tenant_id'],
-            'team_id' => (int) $channel['team_id'],
+            'team_id' => (int) ($conv['team_id'] ?? $user['team_id'] ?? 0) ?: (int) $channel['team_id'],
             'conversation_id' => (int) $conv['id'],
             'message_id' => $msgId,
         ]);
@@ -504,16 +504,24 @@ class Chat extends WaDeskController
             return null;
         }
         return $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active' LIMIT 1",
+            "SELECT * FROM {$tbl} WHERE id = ? AND tenant_id = ? AND status = 'active'
+               AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
+             LIMIT 1",
             [$channelId, (int) $user['tenant_id'], (int) $user['team_id']]
         )->row_array() ?: null;
     }
 
-    private function getOrCreateConversation(array $channel, string $phone, ?string $name): array
+    private function getOrCreateConversation(array $channel, string $phone, ?string $name, ?int $teamId = null): array
     {
+        $user = $this->currentUser();
+        $teamId = $teamId ?: (int) ($user['team_id'] ?? 0);
+        if ($teamId <= 0) {
+            $teamId = (int) $channel['team_id'];
+        }
+
         $existing = $this->db($this->db_index)->query(
-            "SELECT * FROM conversations WHERE channel_id = ? AND phone = ? LIMIT 1",
-            [(int) $channel['id'], $phone]
+            "SELECT * FROM conversations WHERE channel_id = ? AND team_id = ? AND phone = ? LIMIT 1",
+            [(int) $channel['id'], $teamId, $phone]
         )->row_array();
         if ($existing) {
             return $existing;
@@ -521,7 +529,7 @@ class Chat extends WaDeskController
 
         $id = (int) $this->db($this->db_index)->insert('conversations', [
             'tenant_id' => (int) $channel['tenant_id'],
-            'team_id' => (int) $channel['team_id'],
+            'team_id' => $teamId,
             'channel_id' => (int) $channel['id'],
             'phone' => $phone,
             'name' => $name,

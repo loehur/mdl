@@ -28,7 +28,8 @@ class Templates extends WaDeskController
             $tbl = $this->channelsTable();
             $channel = $this->db($this->db_index)->query(
                 "SELECT device_id FROM {$tbl}
-                 WHERE id = ? AND tenant_id = ? AND team_id = ? AND status = 'active'
+                 WHERE id = ? AND tenant_id = ? AND status = 'active'
+                   AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  LIMIT 1",
                 [$channelId, $tenantId, (int) $user['team_id']]
             )->row_array();

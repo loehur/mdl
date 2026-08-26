@@ -27,7 +27,8 @@ class TemplateSender
         array $rawParams,
         int $sentByUserId = 0,
         bool $skipParamModeration = false,
-        array $logMeta = []
+        array $logMeta = [],
+        ?int $teamId = null
     ): array {
         try {
             $tenantId = (int) $channel['tenant_id'];
@@ -52,7 +53,15 @@ class TemplateSender
                 ];
             }
 
-            $teamId = (int) $channel['team_id'];
+            $teamId = $teamId ?: ((int) ($channel['team_id'] ?? 0));
+            if ($teamId <= 0) {
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'Blast tanpa team tujuan',
+                ];
+            }
             $teamQuota = new TemplateQuota($this->db);
             $teamQuota->ensureRow($teamId, $tenantId);
             if (!$teamQuota->canConsume($teamId, 1)) {
@@ -127,7 +136,8 @@ class TemplateSender
                     $result,
                     $provErr,
                     $sentByUserId,
-                    $logMeta
+                    $logMeta,
+                    $teamId
                 );
                 return [
                     'success' => false,
@@ -139,7 +149,7 @@ class TemplateSender
 
             $limitGuard->recordSuccess($wabaId, $tenantId, $phone, $sentByUserId ?: null, 'blast');
 
-            $conv = $this->getOrCreateConversation($channel, $phone, null);
+            $conv = $this->getOrCreateConversation($channel, $phone, null, $teamId);
             $fakeUser = ['id' => $sentByUserId];
             $msgId = $this->storeOutbound($conv, $fakeUser, 'template', $preview, $tpl['template_name'], $paramsForStore, $result);
             $this->touchConversationOut((int) $conv['id'], $preview);
@@ -175,11 +185,12 @@ class TemplateSender
         }
     }
 
-    private function getOrCreateConversation(array $channel, string $phone, ?string $name): array
+    private function getOrCreateConversation(array $channel, string $phone, ?string $name, ?int $teamId = null): array
     {
+        $teamId = $teamId ?: (int) ($channel['team_id'] ?? 0);
         $existing = $this->db->query(
-            "SELECT * FROM conversations WHERE channel_id = ? AND phone = ? LIMIT 1",
-            [(int) $channel['id'], $phone]
+            "SELECT * FROM conversations WHERE channel_id = ? AND team_id = ? AND phone = ? LIMIT 1",
+            [(int) $channel['id'], $teamId, $phone]
         )->row_array();
 
         if ($existing) {
@@ -188,7 +199,7 @@ class TemplateSender
 
         $id = (int) $this->db->insert('conversations', [
             'tenant_id'     => (int) $channel['tenant_id'],
-            'team_id'       => (int) $channel['team_id'],
+            'team_id'       => $teamId,
             'channel_id' => (int) $channel['id'],
             'phone'         => $phone,
             'name'          => $name,
@@ -380,13 +391,14 @@ class TemplateSender
         array $result,
         array $provErr,
         int $sentByUserId,
-        array $logMeta
+        array $logMeta,
+        ?int $teamId = null
     ): void {
         try {
             $logger = new TemplateFailLogger($this->db);
             $logger->log([
                 'tenant_id' => (int) $channel['tenant_id'],
-                'team_id' => (int) $channel['team_id'],
+                'team_id' => $teamId ?: ((int) ($channel['team_id'] ?? 0)) ?: null,
                 'channel_id' => (int) $channel['id'],
                 'user_id' => $sentByUserId > 0 ? $sentByUserId : null,
                 'blast_id' => $logMeta['blast_id'] ?? null,

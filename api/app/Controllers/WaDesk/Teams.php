@@ -114,6 +114,14 @@ class Teams extends WaDeskController
             $this->error('Pindahkan/hapus channel team dulu', 400);
         }
 
+        $shared = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS c FROM wa_channel_teams WHERE team_id = ?",
+            [$id]
+        )->row_array();
+        if ((int) ($shared['c'] ?? 0) > 0) {
+            $this->error('Team masih dipakai sebagai team tambahan di nomor lain. Hapus dari channel dulu.', 400);
+        }
+
         $this->db($this->db_index)->delete('teams', ['id' => $id]);
         $this->success(null, 'Team dihapus');
     }

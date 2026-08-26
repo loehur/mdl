@@ -233,7 +233,8 @@ class Settings extends WaDeskController
                     MAX(l.daily_unique_limit) AS daily_unique_limit,
                     MAX(l.label) AS limit_label
              FROM {$tbl} c
-             LEFT JOIN teams t ON t.id = c.team_id
+             LEFT JOIN wa_channel_teams ct ON ct.channel_id = c.id
+             LEFT JOIN teams t ON t.id = ct.team_id
              LEFT JOIN wa_waba_daily_limits l ON l.waba_id = TRIM(c.waba_id) AND l.tenant_id = c.tenant_id
              WHERE c.tenant_id = ?
                AND c.waba_id IS NOT NULL

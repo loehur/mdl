@@ -300,7 +300,8 @@
         </div>
 
         <p class="text-xs text-slate-400">
-          Sync device dari Kirimin, lalu assign <strong>1 nomor = 1 team</strong>.
+          Sync device dari Kirimin, lalu assign <strong>1 nomor bisa dipakai beberapa team</strong>.
+          Pesan masuk baru masuk ke <strong>team utama</strong>; balasan mengikuti team yang terakhir aktif.
         </p>
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn-sm" :disabled="syncingDevices" @click="syncDevicesFromKirimin">
@@ -322,9 +323,18 @@
           </select>
           <input v-model="channelForm.label" required class="field" placeholder="Label tampilan" />
           <select v-model="channelForm.team_id" required class="field">
-            <option disabled value="">Assign ke team</option>
+            <option disabled value="">Team utama (pesan baru)</option>
             <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
+          <select v-model="channelForm.team_ids" multiple class="field sm:col-span-2" size="3">
+            <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="channelForm.team_id === t.id">
+              {{ t.name }}
+            </option>
+          </select>
+          <p class="text-[11px] text-slate-500 sm:col-span-2 -mt-1">
+            Team tambahan (tahan Ctrl/Shift untuk pilih banyak). Pesan masuk dari customer yang belum ada
+            riwayatnya tetap masuk ke team utama.
+          </p>
           <button class="btn sm:col-span-2">Assign channel</button>
         </form>
         <ul class="divide-y divide-white/5">
@@ -340,9 +350,18 @@
                   required
                 />
                 <select v-model="editKeyForm.team_id" required class="field sm:col-span-2">
-                  <option disabled value="">Assign ke team</option>
+                  <option disabled value="">Team utama (pesan baru)</option>
                   <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
                 </select>
+                <select v-model="editKeyForm.team_ids" multiple class="field sm:col-span-2" size="3">
+                  <option v-for="t in teams" :key="t.id" :value="t.id" :disabled="editKeyForm.team_id === t.id">
+                    {{ t.name }}
+                  </option>
+                </select>
+                <p class="text-[11px] text-slate-500 sm:col-span-2 -mt-1">
+                  Team tambahan (tahan Ctrl/Shift). Perhatian: conversation team yang dicabut dari nomor ini
+                  beserta riwayat chat-nya akan dihapus.
+                </p>
                 <div class="sm:col-span-2 flex gap-2">
                   <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
                   <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
@@ -358,7 +377,9 @@
                     <span v-if="k.device_id"> · device: {{ k.device_id }}</span>
                     <span v-if="k.waba_id"> · WABA: {{ k.waba_id }}</span>
                     <span v-else class="text-amber-400"> · WABA ID belum diisi</span>
-                    · {{ k.team_name }} · {{ k.status }}
+                    · <span class="text-slate-300">{{ k.team_names || k.team_name || "—" }}</span>
+                    <span v-if="k.team_names" class="text-slate-600">(utama: {{ k.team_name }})</span>
+                    · {{ k.status }}
                   </p>
                 </div>
                 <div class="flex items-center gap-3 shrink-0">
@@ -748,7 +769,7 @@ const teams = ref([]);
 const users = ref([]);
 const keys = ref([]);
 const availableDevices = ref([]);
-const channelForm = reactive({ device_id: "", label: "", team_id: "" });
+const channelForm = reactive({ device_id: "", label: "", team_id: "", team_ids: [] });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const dailyLimitForm = reactive({ daily_unique_limit: 250 });
 const wabaLimits = ref([]);
@@ -820,7 +841,7 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const editKeyForm = reactive({ label: "", phone_number: "", team_id: "", waba_id: "" });
+const editKeyForm = reactive({ label: "", phone_number: "", team_id: "", team_ids: [], waba_id: "" });
 const savingKey = ref(false);
 const syncing = ref(false);
 const resyncingId = ref(null);
@@ -1323,15 +1344,19 @@ async function syncDevicesFromKirimin() {
 
 async function assignChannel() {
   try {
+    const teamIds = (channelForm.team_ids || [])
+      .map((v) => Number(v))
+      .filter((id) => id > 0 && id !== Number(channelForm.team_id));
     await api("/WaDesk/Channels/assign", {
       method: "POST",
       body: {
         device_id: channelForm.device_id,
         label: channelForm.label,
         team_id: Number(channelForm.team_id),
+        team_ids: teamIds,
       },
     });
-    Object.assign(channelForm, { device_id: "", label: "", team_id: "" });
+    Object.assign(channelForm, { device_id: "", label: "", team_id: "", team_ids: [] });
     flash(true, "Channel di-assign");
     await refresh();
   } catch (e) {
@@ -1341,10 +1366,14 @@ async function assignChannel() {
 
 function startEditKey(k) {
   editingKeyId.value = k.id;
+  const teamIds = Array.isArray(k.team_ids)
+    ? k.team_ids.map((v) => Number(v)).filter((id) => id > 0 && id !== Number(k.team_id))
+    : [];
   Object.assign(editKeyForm, {
     label: k.label || "",
     phone_number: k.phone_number || "",
     team_id: String(k.team_id || ""),
+    team_ids: teamIds,
     waba_id: k.waba_id || "",
   });
 }
@@ -1357,11 +1386,15 @@ function cancelEditKey() {
 async function saveKey(k) {
   savingKey.value = true;
   try {
+    const teamIds = (editKeyForm.team_ids || [])
+      .map((v) => Number(v))
+      .filter((id) => id > 0 && id !== Number(editKeyForm.team_id));
     const body = {
       id: k.id,
       label: editKeyForm.label,
       phone_number: editKeyForm.phone_number,
       team_id: Number(editKeyForm.team_id),
+      team_ids: teamIds,
       waba_id: String(editKeyForm.waba_id || "").trim(),
     };
     await api("/WaDesk/Channels/update", { method: "POST", body });

@@ -784,8 +784,6 @@ class WaDesk extends Controller
              WHERE c.phone = ?
                AND c.channel_id IN ($placeholders)
              ORDER BY
-               (c.last_out_at IS NULL) ASC,
-               c.last_out_at DESC,
                (c.last_message_at IS NULL) ASC,
                c.last_message_at DESC,
                c.id DESC

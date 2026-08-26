@@ -13,5 +13,6 @@ api/database/**/seeds/
 # Sandbox API tester (lokal, jangan ikut commit)
 /api_tester/
 
-# Command Code setup lokal per-developer (settings machine-specific; taste/ ikut di-track antar laptop)
+# Command Code setup lokal per-developer (settings machine-specific; taste/ di-push ke cloud ai)
 .commandcode/settings.json
+.commandcode/taste/

@@ -146,6 +146,17 @@ CREATE TABLE IF NOT EXISTS wa_template_params (
   CONSTRAINT fk_tpl_param FOREIGN KEY (template_id) REFERENCES wa_templates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS wa_channel_teams (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  channel_id INT UNSIGNED NOT NULL,
+  team_id INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_channel_team_link (channel_id, team_id),
+  INDEX idx_channel_teams_team (team_id),
+  CONSTRAINT fk_channel_teams_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_channel_teams_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS conversations (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
@@ -160,7 +171,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   unread INT UNSIGNED NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_conv_channel_phone (channel_id, phone),
+  UNIQUE KEY uq_conv_channel_team_phone (channel_id, team_id, phone),
   INDEX idx_conv_tenant_team (tenant_id, team_id),
   INDEX idx_conv_last (last_message_at),
   CONSTRAINT fk_conv_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -194,6 +205,7 @@ CREATE TABLE IF NOT EXISTS wa_blasts (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
   channel_id INT UNSIGNED NOT NULL,
+  team_id INT UNSIGNED NULL,
   template_id INT UNSIGNED NOT NULL,
   created_by INT UNSIGNED NOT NULL,
   campaign_name VARCHAR(150) NOT NULL,
@@ -206,6 +218,7 @@ CREATE TABLE IF NOT EXISTS wa_blasts (
   finished_at DATETIME NULL,
   INDEX idx_blast_tenant (tenant_id),
   INDEX idx_blast_status (status),
+  INDEX idx_blast_team (team_id),
   INDEX idx_blast_campaign (tenant_id, campaign_name),
   CONSTRAINT fk_blast_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
   CONSTRAINT fk_blast_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE,
