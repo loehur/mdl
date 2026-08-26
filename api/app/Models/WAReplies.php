@@ -5627,8 +5627,6 @@ class WAReplies
                 'Kembali: ' . $rupiah($globalRef[2]) . '/nota',
                 '', '*TUNJANGAN BULANAN*',
                 $rupiah($feeKaryawan[4]) . '/bulan',
-                '', '*POTONGAN*',
-                'Kasbon akan dikurangi dari gaji periode terkait.',
                 '', '*FEE ABSENSI*',
                 'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari',
                 '', '*Cuci*',

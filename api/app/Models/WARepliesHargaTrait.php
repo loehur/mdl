@@ -121,7 +121,7 @@ trait WARepliesHargaTrait
             'TAGIHAN', 'NOTA', 'STATUS', 'PEMBUKA', 'PENUTUP',
             'JAM_OPERASIONAL', 'JAM_TUTUP', 'JAM_BUKA',
             'KURIR', 'PERMINTAAN',
-            'LOKASI', 'REKENING',
+            'LOKASI', 'REKENING', 'SKEMA_GAJI', 'FEE',
         ];
         foreach ($breakout as $handler) {
             $patterns = $keywordConfig[$handler]['patterns'] ?? [];
