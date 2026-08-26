@@ -102,6 +102,7 @@ class Operasi extends Controller
          $ids_in = "'" . implode("','", $sale_ids) . "'";
          $operasi = $this->db(0)->get_where('operasi', $this->wCabang . " AND id_penjualan IN ($ids_in)");
          $notifSelesai = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 2 AND no_ref IN ($ids_in)");
+         $mark('operasi_notif');
 
          // Badge J/A/JA dari riwayat delivery (jemput / antar)
          $deliveryFlags = [];
@@ -132,6 +133,7 @@ class Operasi extends Controller
                $delivery_badge[$sid] = 'A';
             }
          }
+         $mark('riwayat_delivery');
 
          // Badge surcas kurir terikat (penyebab item tidak eligible di panel Kurir)
          $this->helper('AntarTarif');
@@ -182,6 +184,7 @@ class Operasi extends Controller
                $kurir_surcas_unbindable[(string) $sid] = $flags;
             }
          }
+         $mark('surcas_kurir');
       }
       if (!empty($sale_ids) && !empty($deliveryRows)) {
          $saleIdToRef = [];
@@ -226,6 +229,7 @@ class Operasi extends Controller
          $notifBon = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 1 AND no_ref IN ($refs_in)");
          $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref IN ($refs_in)");
       }
+      $mark('kas_notif_surcas');
       $mark('relasi');
 
       // MEMBER - OPTIMIZED: batch query instead of N+1
