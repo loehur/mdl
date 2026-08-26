@@ -662,15 +662,6 @@
                 >
                   {{ expandedTemplate === t.id ? 'Tutup' : 'Detail' }}
                 </button>
-                <button
-                  type="button"
-                  class="btn-sm text-xs"
-                  :disabled="resyncingId === t.id"
-                  @click="resyncOneTemplate(t.template_name)"
-                  title="Resync params template ini dari Kirimin"
-                >
-                  {{ resyncingId === t.id ? "..." : "Resync" }}
-                </button>
               </div>
             </div>
 
@@ -690,7 +681,7 @@
                 </thead>
                 <tbody class="divide-y divide-white/5">
                   <tr v-if="!(t.params||[]).length">
-                    <td colspan="7" class="px-3 py-3 text-center text-slate-500">Tidak ada params — klik Resync</td>
+                    <td colspan="7" class="px-3 py-3 text-center text-slate-500">Tidak ada params</td>
                   </tr>
                   <tr v-for="p in (t.params||[])" :key="p.component+'-'+p.param_index" class="hover:bg-white/5">
                     <td class="px-3 py-2">
@@ -1139,7 +1130,6 @@ const savingUser = ref(false);
 const editKeyForm = reactive({ label: "", phone_number: "", team_ids: [], waba_id: "" });
 const savingKey = ref(false);
 const syncing = ref(false);
-const resyncingId = ref(null);
 const savingMaxlengthId = ref(null);
 const maxlengthDraft = reactive({});
 const expandedTemplate = ref(null);
@@ -2061,29 +2051,6 @@ async function saveMaxlength(t) {
     flash(false, e.message);
   } finally {
     savingMaxlengthId.value = null;
-  }
-}
-
-async function resyncOneTemplate(templateName) {
-  const tpl = templates.value.find((t) => t.template_name === templateName);
-  if (!tpl) return;
-  resyncingId.value = tpl.id;
-  expandedTemplate.value = null;
-  try {
-    const res = await api("/WaDesk/Templates/resyncOne", {
-      method: "POST",
-      body: { template_name: templateName },
-    });
-    const count = res.data?.params_synced ?? 0;
-    await refresh();
-    flash(true, `Resync OK: ${templateName} — ${count} params diupdate`);
-    // Re-open detail so user can see updated params
-    const updated = templates.value.find((t) => t.template_name === templateName);
-    if (updated) expandedTemplate.value = updated.id;
-  } catch (e) {
-    flash(false, e.message);
-  } finally {
-    resyncingId.value = null;
   }
 }
 
