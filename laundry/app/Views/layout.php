@@ -3125,10 +3125,12 @@ if ($privUi === 100) {
                 <?php if ((int) ($this->id_privilege ?? 0) === 100) { ?>
                 (function () {
                     var IDLE_MS = <?= (int) $adminIdleLimitSec ?> * 1000;
-                    var PING_MS = 30000;
+                    var PING_MS = 300000;
+                    var PING_IDLE_MS = 9000;
                     var mode = <?= (int) $log_mode ?>;
                     var unlocked = <?= (int) $adminUnlocked ?>;
                     var idleTimer = null;
+                    var pingIdleTimer = null;
                     var lastPing = 0;
 
                     function idleNotify(msg) {
@@ -3150,6 +3152,8 @@ if ($privUi === 100) {
                         unlocked = 0;
                         clearTimeout(idleTimer);
                         idleTimer = null;
+                        clearTimeout(pingIdleTimer);
+                        pingIdleTimer = null;
                         $.ajax({
                             url: "<?= URL::BASE_URL ?>Login/log_mode",
                             data: { mode: 0, lock: 1 },
@@ -3164,6 +3168,28 @@ if ($privUi === 100) {
                         });
                     }
 
+                    function pingWhenIdle() {
+                        if (!unlocked) return;
+                        var now = Date.now();
+                        if (now - lastPing < PING_MS) return;
+                        lastPing = now;
+                        $.ajax({
+                            url: "<?= URL::BASE_URL ?>Login/admin_mode_ping",
+                            type: "POST",
+                            dataType: "json",
+                            success: function (res) {
+                                if (res && res.expired == 1) {
+                                    mode = 0;
+                                    unlocked = 0;
+                                    clearTimeout(idleTimer);
+                                    clearTimeout(pingIdleTimer);
+                                    applyKasirUi();
+                                    idleNotify('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
+                                }
+                            }
+                        });
+                    }
+
                     function resetIdle() {
                         if (!unlocked) return;
                         clearTimeout(idleTimer);
@@ -3171,24 +3197,10 @@ if ($privUi === 100) {
                             forceLock(true);
                         }, IDLE_MS);
 
-                        var now = Date.now();
-                        if (now - lastPing >= PING_MS) {
-                            lastPing = now;
-                            $.ajax({
-                                url: "<?= URL::BASE_URL ?>Login/admin_mode_ping",
-                                type: "POST",
-                                dataType: "json",
-                                success: function (res) {
-                                    if (res && res.expired == 1) {
-                                        mode = 0;
-                                        unlocked = 0;
-                                        clearTimeout(idleTimer);
-                                        applyKasirUi();
-                                        idleNotify('Mode Admin berakhir karena idle 10 menit. Kembali ke Kasir.');
-                                    }
-                                }
-                            });
-                        }
+                        // Ping tidak ikut load halaman/aktivitas. Tunggu 9 detik
+                        // tanpa aktivitas, dan paling cepat satu kali tiap 5 menit.
+                        clearTimeout(pingIdleTimer);
+                        pingIdleTimer = setTimeout(pingWhenIdle, PING_IDLE_MS);
                     }
 
                     window.MDL_adminIdle = {
@@ -3206,6 +3218,8 @@ if ($privUi === 100) {
                             } else {
                                 clearTimeout(idleTimer);
                                 idleTimer = null;
+                                clearTimeout(pingIdleTimer);
+                                pingIdleTimer = null;
                             }
                         },
                         isUnlocked: function () { return !!unlocked; }
@@ -3596,6 +3610,19 @@ if ($privUi === 100) {
                             .fail(function() { /* silent */ });
                     }
 
+                    // Badge tidak perlu ikut membebani load awal. Ambil angka hanya
+                    // setelah halaman diam 10 detik, lalu paling cepat setiap 5 menit.
+                    var countIdleTimer = null;
+                    function scheduleCountWhenIdle() {
+                        if (countIdleTimer) {
+                            window.clearTimeout(countIdleTimer);
+                        }
+                        countIdleTimer = window.setTimeout(function() {
+                            countIdleTimer = null;
+                            refreshCount();
+                        }, 10000);
+                    }
+
                     function defaultTimeValue() {
                         var d = new Date();
                         d.setMinutes(d.getMinutes() + 60);
@@ -3924,9 +3951,11 @@ if ($privUi === 100) {
                         });
                     });
 
-                    // Sync badge dari server → session; cek tiap 2 menit
-                    refreshCount();
-                    window.setInterval(refreshCount, 120000);
+                    // Tidak ada request saat load. Aktivitas apa pun menunda request
+                    // hingga user benar-benar idle selama 10 detik.
+                    scheduleCountWhenIdle();
+                    $(document).on('mousemove.notifBadgeIdle keydown.notifBadgeIdle click.notifBadgeIdle scroll.notifBadgeIdle touchstart.notifBadgeIdle', scheduleCountWhenIdle);
+                    window.setInterval(scheduleCountWhenIdle, 300000);
 
                     $(bodyEl).on('click', '.js-notif-open-chat', function() {
                         var $card = $(this).closest('.mdl-notif-card');

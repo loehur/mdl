@@ -409,7 +409,9 @@ class Estimasi extends Controller
                 // kolom belum ada
             }
             try {
-                $n += count($this->getOpenPermintaanTasks());
+                // Badge hanya butuh angka. Jangan membangun kartu notifikasi di sini:
+                // getOpenPermintaanTasks() dapat mencari pelanggan dan merangkum chat/AI.
+                $n += $this->countOpenPermintaanTasks();
             } catch (\Throwable $e) {
                 // skip
             }
@@ -423,6 +425,25 @@ class Estimasi extends Controller
     private function getNotifTaskCountFromSession(): int
     {
         return (int) ($_SESSION[URL::SESSID]['notif_task_count'] ?? 0);
+    }
+
+    /** Jumlah kartu permintaan aktif untuk badge, tanpa lookup pelanggan atau ringkasan AI. */
+    private function countOpenPermintaanTasks(): int
+    {
+        $cabangId = $this->currentCabangId();
+        if ($cabangId <= 0) {
+            return 0;
+        }
+
+        $rows = $this->db(100)->query_array(
+            "SELECT COUNT(DISTINCT phone) AS c
+             FROM wa_permintaan_session
+             WHERE " . $this->permintaanNotifyOpenWhereSql() . "
+               AND id_cabang = " . (int) $cabangId . "
+               AND notify_expires_at > NOW()"
+        );
+
+        return (int) ($rows[0]['c'] ?? 0);
     }
 
     private function currentCabangId(): int
