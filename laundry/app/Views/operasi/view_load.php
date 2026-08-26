@@ -823,7 +823,9 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
             } else {
               echo "<td nowrap colspan='3' class='text-right'><b><i class='fas fa-check-circle text-success'></i> " . number_format($subTotal) . "</b><br>";
               if (!$deliverySelesai && $countEndLayananDone[$ref] == $countItem[$ref] && $countAmbil[$ref] == $countItem[$ref] && $modeView <> 2 && $deliveryBlockMsg !== '') {
-                echo "<small class='text-warning'>" . htmlspecialchars($deliveryBlockMsg, ENT_QUOTES, 'UTF-8') . "</small><br>";
+                echo "<small class='text-warning d-block' style='font-size:.72rem;line-height:1.2;white-space:normal;overflow-wrap:anywhere;word-break:break-word;'>"
+                  . htmlspecialchars($deliveryBlockMsg, ENT_QUOTES, 'UTF-8')
+                  . "</small><br>";
               }
             }
             ?>

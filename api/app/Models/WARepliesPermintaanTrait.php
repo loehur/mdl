@@ -260,7 +260,7 @@ trait WARepliesPermintaanTrait
                     preg_split('/\n---\n/', $newRaw) ?: []
                 );
             }
-            $summary = PermintaanSummaryHelper::finalize($summary, 220);
+            $summary = PermintaanSummaryHelper::finalize($summary, 120);
         }
 
         $this->savePermintaanSession($waNumber, [
@@ -511,7 +511,7 @@ trait WARepliesPermintaanTrait
             $chatBlock .= ($i + 1) . '. ' . $line . "\n";
         }
 
-        $system = PermintaanSummaryHelper::aiSystemPrompt(220);
+        $system = PermintaanSummaryHelper::aiSystemPrompt(120);
 
         $user = "Ringkasan sebelumnya (opsional): " . ($prevSummary !== '' ? $prevSummary : '(belum ada)') . "\n\n"
             . "Semua chat pelanggan di sesi ini (urut waktu, WAJIB digabung):\n"

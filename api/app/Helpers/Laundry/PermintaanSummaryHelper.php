@@ -8,14 +8,14 @@ namespace App\Helpers\Laundry;
 class PermintaanSummaryHelper
 {
     /** Prompt system AI (satu sumber untuk API + laundry). */
-    public static function aiSystemPrompt(int $maxChars = 220): string
+    public static function aiSystemPrompt(int $maxChars = 120): string
     {
-        return "Kamu merangkum chat pelanggan laundry menjadi SATU baris ringkasan formal Bahasa Indonesia.\n"
+        return "Kamu merangkum chat pelanggan laundry menjadi SATU kalimat super singkat Bahasa Indonesia.\n"
             . "WAJIB gabungkan SEMUA bubble chat bernomor (bukan hanya yang terakhir).\n\n"
             . "Ambil HANYA pertanyaan kesiapan/waktu, permintaan layanan khusus laundry, atau permintaan pengecekan barang/cucian.\n"
             . "Jangan masukkan keluhan telepon, rekening, metode pembayaran, atau hal di luar layanan laundry.\n"
-            . "Setiap klause wajib diawali \"Menanyakan \" atau \"Meminta \". Pertahankan waktu, layanan, atau objek penting dengan singkat.\n"
-            . "Pisahkan klause dengan titik koma dan akhiri titik. Maksimal ~{$maxChars} karakter.\n\n"
+            . "Mulai dengan \"Menanyakan\" atau \"Meminta\". Gabungkan semua maksud yang terkait memakai kata \"dan\", bukan daftar.\n"
+            . "WAJIB tepat satu kalimat, TANPA titik koma, dan akhiri titik. Maksimal {$maxChars} karakter.\n\n"
             . "CONTOH GAYA:\n"
             . "- Menanyakan apakah bisa siap jam 3.\n"
             . "- Meminta siap jam 5 sore.\n"
@@ -56,7 +56,7 @@ class PermintaanSummaryHelper
             $items[] = 'Meminta cek hal terkait laundry';
         }
 
-        return self::finalize(implode('; ', array_values(array_unique($items))), 220);
+        return self::finalize(implode(' dan ', array_values(array_unique($items))), 120);
     }
 
     public static function stripPreviewPrefix(string $text): string
@@ -68,7 +68,7 @@ class PermintaanSummaryHelper
     }
 
     /**
-     * Rapikan tampilan ringkasan: buang koma/titik koma di awal, normalisasi pemisah, titik di akhir.
+     * Rapikan tampilan ringkasan: satu kalimat tanpa titik koma, titik di akhir.
      */
     public static function normalize(string $text): string
     {
@@ -81,9 +81,12 @@ class PermintaanSummaryHelper
         $text = trim($text, " \t\n\r\0\x0B\"'");
         $text = preg_replace('/^(baik|oke|ok|siap)[,.]?\s+/iu', '', $text) ?? $text;
         $text = preg_replace('/^[,;.\-–—:\s]+/u', '', $text) ?? $text;
-        $text = preg_replace('#\s*/\s*#u', '; ', $text) ?? $text;
-        $text = preg_replace('/\s*;\s*/u', '; ', $text) ?? $text;
-        $text = preg_replace('/;\s*;/u', '; ', $text) ?? $text;
+        $text = preg_replace('#\s*/\s*#u', ' dan ', $text) ?? $text;
+        $text = preg_replace('/\s*;\s*/u', ' dan ', $text) ?? $text;
+        $text = preg_replace('/(?:\s+dan){2,}\s+/u', ' dan ', $text) ?? $text;
+        $text = preg_replace_callback('/\bdan\s+(Menanyakan|Meminta)\b/u', static function (array $m) {
+            return 'dan ' . mb_strtolower($m[1], 'UTF-8');
+        }, $text) ?? $text;
         $text = trim($text, " ;");
 
         if ($text === '') {
@@ -107,7 +110,15 @@ class PermintaanSummaryHelper
             return '';
         }
 
-        return mb_substr($text, 0, $maxLen);
+        if (mb_strlen($text) <= $maxLen) {
+            return $text;
+        }
+
+        // Jangan memotong kata atau mengirim notifikasi tanpa penutup kalimat.
+        $cut = rtrim(mb_substr($text, 0, max(1, $maxLen - 1)));
+        $cut = preg_replace('/\s+\S*$/u', '', $cut) ?? $cut;
+
+        return rtrim($cut, " .,;") . '.';
     }
 
     /**
