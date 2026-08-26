@@ -569,12 +569,17 @@
                 <form class="grid sm:grid-cols-2 gap-3 rounded-xl border border-white/10 bg-ink-950/30 p-4" @submit.prevent="saveKey(k)">
                   <input v-model="editKeyForm.label" required class="field sm:col-span-2" placeholder="Label" />
                   <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
-                  <input
-                    v-model="editKeyForm.waba_id"
-                    class="field"
-                    placeholder="WABA ID (wajib untuk kirim pesan)"
-                    required
-                  />
+                  <div>
+                    <label class="label">WABA ID</label>
+                    <input
+                      :value="k.waba_id || ''"
+                      class="field bg-ink-950/50 text-slate-400 cursor-not-allowed"
+                      readonly
+                      tabindex="-1"
+                      placeholder="Belum tersedia — sync dari Kirimin"
+                    />
+                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sync device Kirimin, tidak bisa diubah manual.</p>
+                  </div>
                   <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
                     <p class="text-xs font-medium text-slate-300">Team yang di-assign</p>
                     <input
@@ -1339,7 +1344,7 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const editKeyForm = reactive({ label: "", phone_number: "", team_ids: [], waba_id: "" });
+const editKeyForm = reactive({ label: "", phone_number: "", team_ids: [] });
 const savingKey = ref(false);
 const syncing = ref(false);
 const savingMaxlengthId = ref(null);
@@ -2416,7 +2421,6 @@ function startEditKey(k) {
     label: k.label || "",
     phone_number: k.phone_number || "",
     team_ids: teamIds,
-    waba_id: k.waba_id || "",
   });
 }
 
@@ -2438,7 +2442,6 @@ async function saveKey(k) {
       label: editKeyForm.label,
       phone_number: editKeyForm.phone_number,
       team_ids: teamIds,
-      waba_id: String(editKeyForm.waba_id || "").trim(),
     };
     await api("/WaDesk/Channels/update", { method: "POST", body });
     flash(true, "Channel diupdate");
