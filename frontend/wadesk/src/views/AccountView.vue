@@ -1,92 +1,122 @@
 <template>
   <AppHeader page-title="Account" active="account" @logout="onLogout">
-    <div class="flex-1 overflow-y-auto">
-      <div class="max-w-3xl mx-auto p-4 space-y-6">
-        <nav class="flex flex-wrap gap-2">
-          <button
-            v-for="t in visibleTabs"
-            :key="t.id"
-            type="button"
-            class="px-3 py-1.5 rounded-lg text-sm"
-            :class="tab === t.id ? 'bg-accent text-white' : 'bg-white/5 text-slate-300'"
-            @click="switchTab(t.id)"
-          >
-            {{ t.label }}
-          </button>
-        </nav>
+    <div class="flex-1 overflow-y-auto bg-ink-950">
+      <div class="max-w-3xl mx-auto p-4 space-y-4">
+        <!-- Tab bar -->
+        <div class="card">
+          <nav class="flex flex-wrap gap-2" aria-label="Tab account">
+            <button
+              v-for="t in visibleTabs"
+              :key="t.id"
+              type="button"
+              class="account-tab"
+              :class="{ 'account-tab-active': tab === t.id }"
+              @click="switchTab(t.id)"
+            >
+              {{ t.label }}
+            </button>
+          </nav>
+        </div>
 
-        <p v-if="error" class="text-sm text-red-400">{{ error }}</p>
-        <p v-if="success" class="text-sm text-emerald-400">{{ success }}</p>
+        <div v-if="error" class="alert alert-error">{{ error }}</div>
+        <div v-if="success" class="alert alert-success">{{ success }}</div>
 
         <!-- Profil -->
-        <section v-if="tab === 'profile'" class="card space-y-5">
-          <h2 class="font-display font-semibold text-lg">Profil</h2>
-
-          <div v-if="loadingProfile" class="text-sm text-slate-500">Memuat profil...</div>
+        <template v-if="tab === 'profile'">
+          <div v-if="loadingProfile" class="card text-sm text-slate-500">Memuat profil...</div>
           <template v-else-if="profile">
-            <dl class="grid sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <dt class="text-slate-500 mb-1">Organisasi</dt>
-                <dd class="text-slate-100">{{ profile.tenant_name || "—" }}</dd>
-              </div>
-              <div>
-                <dt class="text-slate-500 mb-1">Role</dt>
-                <dd><span class="px-2 py-0.5 rounded-full bg-white/5">{{ roleLabel(profile.role) }}</span></dd>
-              </div>
-              <div>
-                <dt class="text-slate-500 mb-1">Team</dt>
-                <dd class="text-slate-100">{{ profile.team_name || "—" }}</dd>
-              </div>
-              <div>
-                <dt class="text-slate-500 mb-1">Bergabung sejak</dt>
-                <dd class="text-slate-100">{{ formatDate(profile.created_at) }}</dd>
-              </div>
-            </dl>
+            <div class="card space-y-4">
+              <h2 class="section-title">Informasi akun</h2>
+              <dl class="info-grid">
+                <div class="info-item">
+                  <dt>Organisasi</dt>
+                  <dd>{{ profile.tenant_name || "—" }}</dd>
+                </div>
+                <div class="info-item">
+                  <dt>Role</dt>
+                  <dd><span class="badge">{{ roleLabel(profile.role) }}</span></dd>
+                </div>
+                <div class="info-item">
+                  <dt>Team</dt>
+                  <dd>{{ profile.team_name || "—" }}</dd>
+                </div>
+                <div class="info-item">
+                  <dt>Bergabung sejak</dt>
+                  <dd>{{ formatDate(profile.created_at) }}</dd>
+                </div>
+              </dl>
+            </div>
 
-            <form class="space-y-3 pt-2 border-t border-white/10" @submit.prevent="saveProfile">
-              <div>
-                <label class="label">Nama</label>
-                <input v-model="profileForm.name" required class="field" />
-              </div>
-              <div>
-                <label class="label">Email</label>
-                <input :value="profile.email" disabled class="field opacity-60 cursor-not-allowed" />
-              </div>
-              <button class="btn" :disabled="savingProfile">{{ savingProfile ? "Menyimpan..." : "Simpan profil" }}</button>
-            </form>
+            <div class="card space-y-4">
+              <h2 class="section-title">Edit profil</h2>
+              <form class="space-y-3" @submit.prevent="saveProfile">
+                <div>
+                  <label class="label">Nama</label>
+                  <input v-model="profileForm.name" required class="field" />
+                </div>
+                <div>
+                  <label class="label">Email</label>
+                  <input :value="profile.email" disabled class="field field-disabled" />
+                </div>
+                <div class="pt-1">
+                  <button class="btn" :disabled="savingProfile">
+                    {{ savingProfile ? "Menyimpan..." : "Simpan profil" }}
+                  </button>
+                </div>
+              </form>
+            </div>
 
-            <form class="space-y-3 pt-4 border-t border-white/10" @submit.prevent="savePassword">
-              <h3 class="font-medium text-slate-200">Ubah password</h3>
-              <div>
-                <label class="label">Password saat ini</label>
-                <input v-model="passwordForm.current_password" type="password" required class="field" autocomplete="current-password" />
-              </div>
-              <div>
-                <label class="label">Password baru</label>
-                <input v-model="passwordForm.new_password" type="password" required minlength="6" class="field" autocomplete="new-password" />
-              </div>
-              <button class="btn" :disabled="savingPassword">{{ savingPassword ? "Menyimpan..." : "Ubah password" }}</button>
-            </form>
+            <div class="card space-y-4">
+              <h2 class="section-title">Ubah password</h2>
+              <form class="space-y-3" @submit.prevent="savePassword">
+                <div>
+                  <label class="label">Password saat ini</label>
+                  <input
+                    v-model="passwordForm.current_password"
+                    type="password"
+                    required
+                    class="field"
+                    autocomplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label class="label">Password baru</label>
+                  <input
+                    v-model="passwordForm.new_password"
+                    type="password"
+                    required
+                    minlength="6"
+                    class="field"
+                    autocomplete="new-password"
+                  />
+                </div>
+                <div class="pt-1">
+                  <button class="btn" :disabled="savingPassword">
+                    {{ savingPassword ? "Menyimpan..." : "Ubah password" }}
+                  </button>
+                </div>
+              </form>
+            </div>
           </template>
-        </section>
+        </template>
 
         <!-- Team -->
-        <section v-if="tab === 'team'" class="card space-y-4">
-          <h2 class="font-display font-semibold text-lg">Team</h2>
-
+        <template v-if="tab === 'team'">
           <div
             v-if="auth.isAdmin && !auth.hasTeam"
-            class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            class="card alert alert-warn"
           >
             Admin belum bergabung ke team.
-            <router-link to="/admin" class="text-accent-soft hover:underline ml-1">Masuk team di Admin →</router-link>
+            <router-link to="/admin" class="alert-link">Masuk team di Admin →</router-link>
           </div>
 
-          <div v-else-if="loadingTeam" class="text-sm text-slate-500">Memuat data team...</div>
+          <div v-else-if="loadingTeam" class="card text-sm text-slate-500">Memuat data team...</div>
+
           <template v-else-if="teamData">
-            <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-1">
+            <div class="card space-y-3">
+              <h2 class="section-title">Ringkasan team</h2>
               <p class="text-lg font-semibold text-slate-100">{{ teamData.team.name }}</p>
-              <p class="text-sm text-slate-400">
+              <p class="text-sm text-slate-500">
                 Team Leader: {{ teamData.team.leader_name || "—" }}
                 <span v-if="teamData.team.leader_email"> · {{ teamData.team.leader_email }}</span>
               </p>
@@ -95,119 +125,119 @@
               </p>
             </div>
 
-            <div class="rounded-xl border border-white/10 overflow-hidden divide-y divide-white/5">
-              <div
-                v-for="m in teamData.members"
-                :key="m.id"
-                class="px-4 py-3 flex items-center justify-between gap-3"
-              >
-                <div class="min-w-0">
-                  <p class="font-medium text-slate-100 truncate">
-                    {{ m.name }}
-                    <span v-if="m.is_self" class="text-xs text-accent-soft font-normal">(Anda)</span>
-                  </p>
-                  <p class="text-xs text-slate-500 truncate">{{ m.email }}</p>
+            <div class="card space-y-3">
+              <h2 class="section-title">Anggota team</h2>
+              <div class="subcard-list">
+                <div
+                  v-for="m in teamData.members"
+                  :key="m.id"
+                  class="subcard-row"
+                >
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-100 truncate">
+                      {{ m.name }}
+                      <span v-if="m.is_self" class="text-xs text-accent-soft font-normal">(Anda)</span>
+                    </p>
+                    <p class="text-xs text-slate-500 truncate">{{ m.email }}</p>
+                  </div>
+                  <span class="badge shrink-0">{{ roleLabel(m.role) }}</span>
                 </div>
-                <span class="shrink-0 px-2 py-0.5 rounded-full text-xs bg-white/5 text-slate-400">
-                  {{ roleLabel(m.role) }}
-                </span>
+                <p v-if="!teamData.members.length" class="empty-state">
+                  Belum ada anggota team.
+                </p>
               </div>
-              <p v-if="!teamData.members.length" class="py-8 text-center text-sm text-slate-500">
-                Belum ada anggota team.
-              </p>
             </div>
 
-            <form
-              v-if="teamData.can_add_agent"
-              class="space-y-3 pt-2 border-t border-white/10"
-              @submit.prevent="addAgent"
-            >
-              <h3 class="font-medium text-slate-200">Tambah agent</h3>
-              <p class="text-xs text-slate-500">Maksimal {{ teamData.max_agents }} agent per team.</p>
-              <div class="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="label">Nama</label>
-                  <input v-model="agentForm.name" required class="field" />
+            <div v-if="teamData.can_add_agent" class="card space-y-4">
+              <h2 class="section-title">Tambah agent</h2>
+              <p class="text-xs text-slate-500 -mt-2">Maksimal {{ teamData.max_agents }} agent per team.</p>
+              <form class="space-y-3" @submit.prevent="addAgent">
+                <div class="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="label">Nama</label>
+                    <input v-model="agentForm.name" required class="field" />
+                  </div>
+                  <div>
+                    <label class="label">Email</label>
+                    <input v-model="agentForm.email" type="email" required class="field" />
+                  </div>
                 </div>
                 <div>
-                  <label class="label">Email</label>
-                  <input v-model="agentForm.email" type="email" required class="field" />
+                  <label class="label">Password awal</label>
+                  <input v-model="agentForm.password" type="password" required minlength="6" class="field" />
                 </div>
-              </div>
-              <div>
-                <label class="label">Password awal</label>
-                <input v-model="agentForm.password" type="password" required minlength="6" class="field" />
-              </div>
-              <button class="btn" :disabled="addingAgent">{{ addingAgent ? "Menambah..." : "Tambah agent" }}</button>
-            </form>
-            <p v-else class="text-sm text-slate-500 pt-2 border-t border-white/10">
+                <div class="pt-1">
+                  <button class="btn" :disabled="addingAgent">
+                    {{ addingAgent ? "Menambah..." : "Tambah agent" }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div v-else class="card text-sm text-slate-500">
               Kuota agent team sudah penuh (maks. {{ teamData.max_agents }}).
-            </p>
+            </div>
           </template>
-        </section>
+        </template>
 
         <!-- Quota -->
-        <section v-if="tab === 'quota'" class="card space-y-4">
-          <h2 class="font-display font-semibold text-lg">Kuota Template</h2>
-
+        <template v-if="tab === 'quota'">
           <div
             v-if="auth.isAdmin && !auth.hasTeam"
-            class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            class="card alert alert-warn"
           >
             Admin belum bergabung ke team.
-            <router-link to="/admin" class="text-accent-soft hover:underline ml-1">Masuk team di Admin →</router-link>
+            <router-link to="/admin" class="alert-link">Masuk team di Admin →</router-link>
           </div>
 
-          <div v-else-if="loadingQuota" class="text-sm text-slate-500">Memuat kuota...</div>
+          <div v-else-if="loadingQuota" class="card text-sm text-slate-500">Memuat kuota...</div>
+
           <template v-else-if="quotaData">
-            <div class="rounded-xl border border-accent/20 bg-accent/5 p-4 flex items-center justify-between gap-4">
-              <div>
-                <p class="text-sm text-slate-400">{{ quotaData.team_name }}</p>
-                <p class="text-3xl font-semibold text-accent">{{ quotaData.balance }}</p>
-                <p class="text-xs text-slate-500">sisa kuota template</p>
-              </div>
+            <div class="card space-y-2">
+              <h2 class="section-title">Sisa kuota</h2>
+              <p class="text-sm text-slate-500">{{ quotaData.team_name }}</p>
+              <p class="text-4xl font-semibold text-accent tabular-nums">{{ quotaData.balance }}</p>
+              <p class="text-xs text-slate-500">kuota template tersisa</p>
             </div>
 
-            <div>
-              <h3 class="font-medium text-slate-200 mb-3">Riwayat</h3>
-              <div class="rounded-xl border border-white/10 overflow-hidden">
-                <div class="max-h-[min(50vh,24rem)] overflow-y-auto divide-y divide-white/5">
-                  <div
-                    v-if="!quotaData.logs.length"
-                    class="py-10 text-center text-sm text-slate-500"
-                  >
-                    Belum ada riwayat kuota.
+            <div class="card space-y-4">
+              <h2 class="section-title">Riwayat top-up & pemakaian</h2>
+              <div class="subcard-list max-h-[min(50vh,24rem)] overflow-y-auto">
+                <div
+                  v-if="!quotaData.logs.length"
+                  class="empty-state"
+                >
+                  Belum ada riwayat kuota.
+                </div>
+                <div
+                  v-for="log in quotaData.logs"
+                  :key="log.id"
+                  class="subcard-row items-start"
+                >
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-200">
+                      <span :class="quotaTypeClass(log.type)">{{ quotaTypeLabel(log.type) }}</span>
+                      <span class="ml-2 tabular-nums" :class="log.amount >= 0 ? 'text-emerald-500' : 'text-red-500'">
+                        {{ log.amount >= 0 ? "+" : "" }}{{ log.amount }}
+                      </span>
+                    </p>
+                    <p v-if="log.note" class="text-xs text-slate-500 mt-0.5">{{ log.note }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      {{ formatDate(log.created_at) }}
+                      <span v-if="log.user_name"> · {{ log.user_name }}</span>
+                    </p>
                   </div>
-                  <div
-                    v-for="log in quotaData.logs"
-                    :key="log.id"
-                    class="px-4 py-3 flex items-start justify-between gap-3 text-sm"
-                  >
-                    <div class="min-w-0">
-                      <p class="font-medium text-slate-200">
-                        <span :class="quotaTypeClass(log.type)">{{ quotaTypeLabel(log.type) }}</span>
-                        <span class="ml-2" :class="log.amount >= 0 ? 'text-emerald-400' : 'text-red-400'">
-                          {{ log.amount >= 0 ? "+" : "" }}{{ log.amount }}
-                        </span>
-                      </p>
-                      <p v-if="log.note" class="text-xs text-slate-500 mt-0.5">{{ log.note }}</p>
-                      <p class="text-xs text-slate-600 mt-0.5">
-                        {{ formatDate(log.created_at) }}
-                        <span v-if="log.user_name"> · {{ log.user_name }}</span>
-                      </p>
-                    </div>
-                    <p class="shrink-0 text-slate-400 text-xs">saldo {{ log.balance_after }}</p>
-                  </div>
+                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
                 </div>
               </div>
-              <div v-if="quotaHasMore" class="pt-3 text-center">
-                <button type="button" class="px-3 py-1.5 rounded-lg text-sm bg-white/5 text-slate-300 hover:bg-white/10" :disabled="loadingMoreQuota" @click="loadMoreQuota">
+              <div v-if="quotaHasMore" class="text-center pt-1">
+                <button type="button" class="btn-secondary" :disabled="loadingMoreQuota" @click="loadMoreQuota">
                   {{ loadingMoreQuota ? "Memuat..." : "Muat lebih banyak" }}
                 </button>
               </div>
             </div>
           </template>
-        </section>
+        </template>
       </div>
     </div>
   </AppHeader>
@@ -283,9 +313,9 @@ function quotaTypeLabel(type) {
 }
 
 function quotaTypeClass(type) {
-  if (type === "topup") return "text-emerald-400";
-  if (type === "consume") return "text-amber-300";
-  return "text-slate-300";
+  if (type === "topup") return "text-emerald-500";
+  if (type === "consume") return "text-amber-500";
+  return "text-slate-400";
 }
 
 function clearMessages() {
@@ -446,3 +476,124 @@ watch(
   }
 );
 </script>
+
+<style scoped>
+.card {
+  @apply rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-sm;
+}
+
+.section-title {
+  @apply font-display font-semibold text-base text-slate-100;
+}
+
+.account-tab {
+  @apply px-4 py-2 rounded-xl text-sm font-medium text-slate-400 transition;
+  @apply hover:bg-white/5 hover:text-slate-200;
+}
+
+.account-tab-active {
+  @apply bg-accent text-white shadow-sm hover:bg-accent hover:text-white;
+}
+
+.label {
+  @apply block text-xs text-slate-500 mb-1.5 font-medium;
+}
+
+.field {
+  @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm text-slate-100;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40 transition;
+}
+
+.field-disabled {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+.btn {
+  @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm text-white hover:opacity-90 transition disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 rounded-xl text-sm font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition disabled:opacity-50;
+}
+
+.info-grid {
+  @apply grid sm:grid-cols-2 gap-4;
+}
+
+.info-item dt {
+  @apply text-xs text-slate-500 mb-1;
+}
+
+.info-item dd {
+  @apply text-sm text-slate-100 font-medium;
+}
+
+.badge {
+  @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/5 text-slate-400;
+}
+
+.subcard-list {
+  @apply rounded-xl border border-white/10 overflow-hidden divide-y divide-white/5 bg-ink-950/30;
+}
+
+.subcard-row {
+  @apply px-4 py-3 flex items-center justify-between gap-3;
+}
+
+.empty-state {
+  @apply py-10 text-center text-sm text-slate-500;
+}
+
+.alert {
+  @apply rounded-2xl border px-4 py-3 text-sm;
+}
+
+.alert-error {
+  @apply border-red-500/30 bg-red-500/10 text-red-400;
+}
+
+.alert-success {
+  @apply border-emerald-500/30 bg-emerald-500/10 text-emerald-400;
+}
+
+.alert-warn {
+  @apply border-amber-500/30 bg-amber-500/10 text-amber-200;
+}
+
+.alert-link {
+  @apply text-accent-soft hover:underline ml-1 font-medium;
+}
+
+/* Light theme — card putih */
+[data-theme="light"] .card {
+  @apply bg-white border-slate-200/80 shadow-sm;
+}
+
+[data-theme="light"] .subcard-list {
+  @apply bg-slate-50 border-slate-200/80 divide-slate-200/60;
+}
+
+[data-theme="light"] .field {
+  @apply bg-white border-slate-200;
+}
+
+[data-theme="light"] .account-tab {
+  @apply text-slate-500 hover:bg-slate-100 hover:text-slate-800;
+}
+
+[data-theme="light"] .account-tab-active {
+  @apply bg-accent text-white hover:bg-accent hover:text-white;
+}
+
+[data-theme="light"] .btn-secondary {
+  @apply bg-slate-100 text-slate-700 hover:bg-slate-200;
+}
+
+[data-theme="light"] .badge {
+  @apply bg-slate-100 text-slate-600;
+}
+
+[data-theme="light"] .alert-warn {
+  @apply text-amber-800 bg-amber-50 border-amber-200;
+}
+</style>
