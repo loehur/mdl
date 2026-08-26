@@ -61,23 +61,26 @@
       </nav>
 
       <div class="p-3 border-t border-white/10 space-y-3 shrink-0">
-        <div class="flex flex-wrap gap-1.5 text-xs">
-          <span class="px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ auth.user?.role }}</span>
-          <span
-            v-if="auth.user?.team_name"
-            class="px-2 py-0.5 rounded-full bg-accent/10 text-accent-soft truncate max-w-full"
-          >
-            {{ auth.user.team_name }}
-          </span>
+        <div class="space-y-1.5 min-w-0">
+          <p v-if="auth.user?.name" class="text-sm font-medium text-slate-100 truncate">
+            {{ auth.user.name }}
+          </p>
+          <div class="flex flex-wrap gap-1.5 text-xs">
+            <span class="px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ auth.user?.role }}</span>
+            <span
+              v-if="auth.user?.team_name"
+              class="px-2 py-0.5 rounded-full bg-accent/10 text-accent-soft truncate max-w-full"
+            >
+              {{ auth.user.team_name }}
+            </span>
+          </div>
         </div>
-        <p v-if="auth.user?.name" class="text-xs text-slate-500 truncate">{{ auth.user.name }}</p>
         <div class="flex items-center gap-2">
           <ThemeToggle compact />
-          <button type="button" class="wadesk-logout-btn flex-1 justify-center" @click="emitLogout">
+          <button type="button" class="wadesk-logout-btn shrink-0 p-2" aria-label="Keluar" @click="emitLogout">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
             </svg>
-            <span>Keluar</span>
           </button>
         </div>
       </div>
