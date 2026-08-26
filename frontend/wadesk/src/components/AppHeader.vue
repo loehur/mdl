@@ -106,7 +106,7 @@
           <h1 v-if="pageTitle" class="font-display font-semibold text-slate-100 truncate">
             {{ pageTitle }}
           </h1>
-          <span v-else class="font-display font-semibold text-slate-100 md:hidden truncate">Inbox</span>
+          <span v-else class="font-display font-semibold text-slate-100 md:hidden truncate">Chat</span>
         </div>
 
         <div v-if="$slots.extra" class="hidden sm:flex items-center gap-2 shrink-0">
@@ -143,7 +143,7 @@ const route = useRoute();
 const sidebarOpen = ref(false);
 
 const mainNavItems = [
-  { to: "/", label: "Inbox" },
+  { to: "/", label: "Chat" },
   { to: "/report", label: "Report" },
   { to: "/blast", label: "Blast" },
 ];
