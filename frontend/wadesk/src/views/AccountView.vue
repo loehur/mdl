@@ -207,7 +207,8 @@
                   {{ topupQuota.logs.length }} / {{ topupQuota.total }} entri
                 </p>
               </div>
-              <div ref="topupListRef" class="subcard-list max-h-[min(40vh,20rem)] overflow-y-auto">
+              <div class="subcard-list">
+                <div class="subcard-list-body">
                 <p v-if="!topupQuota.logs.length" class="empty-state">Belum ada riwayat top-up.</p>
                 <div
                   v-for="log in topupQuota.logs"
@@ -227,6 +228,7 @@
                   </div>
                   <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
                 </div>
+                </div>
               </div>
               <div v-if="topupQuota.has_more" class="text-center pt-1">
                 <button type="button" class="btn-secondary" :disabled="topupQuota.loading_more" @click="loadMoreQuota('topup')">
@@ -242,7 +244,8 @@
                   {{ usageQuota.logs.length }} / {{ usageQuota.total }} entri
                 </p>
               </div>
-              <div ref="usageListRef" class="subcard-list max-h-[min(40vh,20rem)] overflow-y-auto">
+              <div class="subcard-list">
+                <div class="subcard-list-body">
                 <p v-if="!usageQuota.logs.length" class="empty-state">Belum ada riwayat pemakaian.</p>
                 <div
                   v-for="log in usageQuota.logs"
@@ -264,6 +267,7 @@
                   </div>
                   <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
                 </div>
+                </div>
               </div>
               <div v-if="usageQuota.has_more" class="text-center pt-1">
                 <button type="button" class="btn-secondary" :disabled="usageQuota.loading_more" @click="loadMoreQuota('usage')">
@@ -279,7 +283,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { api } from "../api";
@@ -307,8 +311,6 @@ const agentForm = ref({ name: "", email: "", password: "" });
 
 const loadingQuota = ref(false);
 const quotaSummary = ref(null);
-const topupListRef = ref(null);
-const usageListRef = ref(null);
 const QUOTA_PAGE_SIZE = 20;
 
 function emptyQuotaSection() {
@@ -374,10 +376,6 @@ function quotaUsageTypeClass(log) {
   return "text-slate-400";
 }
 
-function quotaSectionRef(category) {
-  return category === "topup" ? topupListRef : usageListRef;
-}
-
 function quotaSectionState(category) {
   return category === "topup" ? topupQuota : usageQuota;
 }
@@ -433,14 +431,6 @@ async function loadQuotaCategory(category, reset = false) {
         : merged.length < Number(data?.total ?? 0),
       loading_more: false,
     };
-
-    if (!reset) {
-      await nextTick();
-      quotaSectionRef(category).value?.scrollTo({
-        top: quotaSectionRef(category).value.scrollHeight,
-        behavior: "smooth",
-      });
-    }
   } catch (e) {
     section.value.loading_more = false;
     throw e;
@@ -647,7 +637,12 @@ watch(
 }
 
 .subcard-list {
-  @apply rounded-xl border border-white/10 overflow-hidden divide-y divide-white/5 bg-ink-950/30;
+  @apply rounded-xl border border-white/10 overflow-hidden bg-ink-950/30;
+}
+
+.subcard-list-body {
+  @apply max-h-[min(40vh,20rem)] overflow-y-auto overscroll-y-contain divide-y divide-white/5;
+  -webkit-overflow-scrolling: touch;
 }
 
 .subcard-row {
@@ -684,7 +679,11 @@ watch(
 }
 
 [data-theme="light"] .subcard-list {
-  @apply bg-slate-50 border-slate-200/80 divide-slate-200/60;
+  @apply bg-slate-50 border-slate-200/80;
+}
+
+[data-theme="light"] .subcard-list-body {
+  @apply divide-slate-200/60;
 }
 
 [data-theme="light"] .field {
