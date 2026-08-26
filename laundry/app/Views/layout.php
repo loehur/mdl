@@ -3545,7 +3545,13 @@ if ($privUi === 100) {
                         return;
                     }
 
-                    var baseUrl = '<?= URL::BASE_URL ?>';
+                    // URL::BASE_URL adalah path lokal XAMPP; produksi berjalan dari root domain.
+                    var baseUrl = (function() {
+                        var scriptPath = '<?= htmlspecialchars((string) ($_SERVER['SCRIPT_NAME'] ?? ''), ENT_QUOTES, 'UTF-8') ?>';
+                        var slash = scriptPath.lastIndexOf('/');
+                        var base = slash > 0 ? scriptPath.slice(0, slash + 1) : '/';
+                        return base || '/';
+                    })();
                     var bsOffcanvas = null;
                     if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
                         try {
