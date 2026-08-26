@@ -42,7 +42,94 @@ class GajiPengaturan extends Controller
          'rows' => $rows,
          'pengali_ref' => $pengaliRef,
          'fee_formula' => $this->loadFeeFormulas(),
+         'harian_karyawan' => $this->loadHarianKaryawanCabang(),
       ]);
+   }
+
+   /** Karyawan aktif cabang saat ini + fee Harian (id_pengali=3), jika sudah diatur. */
+   private function loadHarianKaryawanCabang(): array
+   {
+      $idCabang = (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+      if ($idCabang < 1) {
+         return [];
+      }
+
+      $rows = $this->db(0)->query_array(
+         "SELECT u.id_user, u.nama_user, gp.id_gaji_pengali, gp.gaji_pengali
+          FROM user u
+          LEFT JOIN gaji_pengali gp
+            ON gp.id_karyawan = u.id_user AND gp.id_pengali = 3
+          WHERE u.en = 1 AND u.id_cabang = $idCabang
+          ORDER BY u.nama_user ASC, u.id_user ASC"
+      );
+
+      return is_array($rows) ? $rows : [];
+   }
+
+   /** Create/update fee Harian (id_pengali=3) untuk karyawan aktif di cabang saat ini. */
+   public function saveHarianKaryawan()
+   {
+      header('Content-Type: text/plain; charset=utf-8');
+      $idUser = (int) ($_POST['id_user'] ?? 0);
+      $fee = (int) ($_POST['gaji_pengali'] ?? -1);
+      $idCabang = (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+      if ($idUser < 1 || $fee < 0 || $idCabang < 1) {
+         echo 'Data tidak valid';
+         return;
+      }
+
+      $user = $this->db(0)->get_where_row(
+         'user',
+         'id_user = ' . $idUser . ' AND en = 1 AND id_cabang = ' . $idCabang
+      );
+      if (!is_array($user) || empty($user['id_user'])) {
+         echo 'Karyawan tidak ditemukan di cabang ini';
+         return;
+      }
+
+      $existing = $this->db(0)->get_where_row(
+         'gaji_pengali',
+         'id_karyawan = ' . $idUser . ' AND id_pengali = 3'
+      );
+      if (is_array($existing) && !empty($existing['id_gaji_pengali'])) {
+         $do = $this->db(0)->update(
+            'gaji_pengali',
+            ['gaji_pengali' => $fee],
+            'id_karyawan = ' . $idUser . ' AND id_pengali = 3'
+         );
+      } else {
+         $do = $this->db(0)->insert('gaji_pengali', [
+            'id_karyawan' => $idUser,
+            'id_pengali' => 3,
+            'gaji_pengali' => $fee,
+         ]);
+      }
+
+      echo (($do['errno'] ?? 1) == 0) ? 1 : ($do['error'] ?? 'Gagal menyimpan');
+   }
+
+   /** Hapus fee Harian (id_pengali=3), hanya jika karyawan masih di cabang aktif. */
+   public function deleteHarianKaryawan()
+   {
+      header('Content-Type: text/plain; charset=utf-8');
+      $idUser = (int) ($_POST['id_user'] ?? 0);
+      $idCabang = (int) ($this->id_cabang ?? $_SESSION[URL::SESSID]['user']['id_cabang'] ?? 0);
+      if ($idUser < 1 || $idCabang < 1) {
+         echo 'Data tidak valid';
+         return;
+      }
+
+      $user = $this->db(0)->get_where_row(
+         'user',
+         'id_user = ' . $idUser . ' AND en = 1 AND id_cabang = ' . $idCabang
+      );
+      if (!is_array($user) || empty($user['id_user'])) {
+         echo 'Karyawan tidak ditemukan di cabang ini';
+         return;
+      }
+
+      $do = $this->db(0)->delete('gaji_pengali', 'id_karyawan = ' . $idUser . ' AND id_pengali = 3');
+      echo (($do['errno'] ?? 1) == 0) ? 1 : ($do['error'] ?? 'Gagal menghapus');
    }
 
    private function loadFeeFormulas(): array
