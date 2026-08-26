@@ -1,0 +1,27 @@
+# Normalisasi line-ending: semua file teks disimpan sebagai LF di repo
+# (mencegah dirty palsu akibat CRLF yang tercampur antara Windows & VPS).
+* text=auto eol=lf
+
+# File yang harus tetap CRLF di Windows (jika ada)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# File biner jangan disentuh
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.mp4 binary
+*.mp3 binary
+*.sqlite binary
+*.db binary
