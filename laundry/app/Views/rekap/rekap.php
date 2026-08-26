@@ -232,9 +232,11 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     </div>
 
     <div class="card">
-      <div class="card-body text-center py-4" id="rekapContent">
-        <div class="spinner-border text-success" role="status"></div>
-        <p class="text-muted small mt-2 mb-0">Memuat data rekap…</p>
+      <div class="card-body py-4" id="rekapContent">
+        <div class="text-center">
+          <div class="spinner-border text-success" role="status"></div>
+          <p class="text-muted small mt-2 mb-0">Memuat data rekap…</p>
+        </div>
       </div>
     </div>
   </div>
