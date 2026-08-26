@@ -519,9 +519,17 @@ class Estimasi extends Controller
 
                 $sessCabang = (int) ($row['id_cabang'] ?? 0);
                 if ($sessCabang > 0 && $sessCabang !== $cabangId) {
-                    continue;
-                }
-                if ($sessCabang <= 0) {
+                    // Session lama bisa membawa cabang dari transaksi sebelumnya.
+                    // Validasi ulang nomor WA agar kartu tidak hilang di cabang pelanggan yang sebenarnya.
+                    $fakeRow = [
+                        'code' => '',
+                        'cust_id' => $row['id_pelanggan'] ?? null,
+                        'wa_number' => $row['phone'] ?? '',
+                    ];
+                    if (!$this->permintaanBelongsToCabang($fakeRow, $cabangId, $kodeCabang, $waPhone)) {
+                        continue;
+                    }
+                } elseif ($sessCabang <= 0) {
                     $fakeRow = [
                         'code' => '',
                         'cust_id' => $row['id_pelanggan'] ?? null,
