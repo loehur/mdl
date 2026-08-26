@@ -3,7 +3,8 @@
 namespace App\Helpers\WaDesk;
 
 /**
- * AI polish free-text WhatsApp replies: extract intent, rewrite friendly, or reject.
+ * AI polish free-text WhatsApp replies: extract intent, rewrite friendly.
+ * Harsh business reminders (tagihan/hutang) are softened, not rejected.
  */
 class FreeTextPolisher
 {
@@ -36,17 +37,26 @@ Contoh rapikan:
 - JANGAN menambah: "Baik kak, terima kasih sudah menghubungi kami..." jika draf hanya "nanti dicek"
 - JANGAN: "Baik, Kak. Permintaan Anda akan segera kami proses." (terlalu kaku)
 
-WAJIB TOLAK (status=false) jika draf mengandung ancaman, intimidasi, atau tekanan berbahaya — tanpa terkecuali, meskipun ada konteks bisnis/komplain:
-- ancaman kekerasan fisik, penyebaran aib, atau merugikan pihak lain ("sayang kalau...", "hati-hati", "awas", "tunggu saja", "saya laporin polisi" jika bernada mengancam)
-- ultimatum menakut-nakuti: "kalau tidak X saya Y", "besok saya datangi", "saya viral kan", "saya sebar data kamu"
-- pelecehan, hinaan berat, atau kata kasar yang ditujukan untuk menyerang/mengintimidasi pelanggan
-- ancaman hukum yang bersifat intimidasi/abusive, bukan pemberitahuan resmi netral (mis. "kami akan proses sesuai prosedur" = boleh; "kamu pasti kena hukum" = tolak)
+PENAGIHAN / REMINDER BISNIS (WAJIB SETUJUI + RAPIKAN, jangan tolak):
+- Pengingat tagihan, hutang, jatuh tempo, keterlambatan bayar, atau tunggakan adalah komunikasi bisnis wajar.
+- Jika draf terdengar keras, menekan, atau seperti intimidasi — JANGAN tolak. Tetap status=true, lalu lembutkan nada di new_words tanpa menghilangkan maksud (masih mengingatkan bayar / sudah lewat batas / segera lunasi).
+- Contoh:
+  - "segera bayar hutang anda, sudah lewat batas" → "Mohon segera melakukan pembayaran tagihan yang sudah melewati batas waktu ya kak. Terima kasih."
+  - "bayar sekarang atau kami blacklist" → "Mohon segera melunasi tagihan ya kak. Apabila belum dibayar, akun dapat kami tahan sesuai kebijakan."
+  - "udah telat 3 hari bayar dong" → "Tagihan sudah melewati jatuh tempo 3 hari. Mohon segera dilakukan pembayaran ya kak."
+
+WAJIB TOLAK (status=false) HANYA untuk konten benar-benar berbahaya:
+- ancaman kekerasan fisik, penyebaran aib/doxing, atau merugikan pihak lain secara personal ("saya viral kan", "saya sebar data kamu", "besok saya datangi rumahmu" dengan nada menakut-nakuti)
+- pelecehan, hinaan berat, atau kata kasar yang ditujukan menyerang pribadi pelanggan
+- ultimatum non-bisnis yang jelas-jelas abusive tanpa konteks layanan
+
+Jangan tolak hanya karena ada kata "segera", "lewat batas", "hutang", "tagihan", "telat", "bayar", atau tekanan bisnis wajar — cukup rapikan nadaannya.
 
 Tolak (status=false) juga jika:
 - murni umpatan/kata kotor tanpa maksud layanan
 - string acak tanpa makna
 
-Jika ditolak karena ancaman/intimidasi, reason singkat contoh: "Pesan mengandung ancaman atau intimidasi — tidak dapat dikirim."
+Jika ditolak karena konten berbahaya, reason singkat contoh: "Pesan mengandung ancaman atau pelecehan — tidak dapat dikirim."
 
 Balas HANYA JSON valid, tanpa markdown:
 {"status":true,"new_words":"kalimat siap kirim WA"}
