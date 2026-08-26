@@ -6,7 +6,9 @@
   "use strict";
 
   var BASES = ["http://localhost:3000", "http://127.0.0.1:3000"];
-  var PROBE_MS = 2000;
+  // Health hanya diperiksa saat benar-benar mencetak. Local bridge yang mati
+  // seharusnya tidak menambah request/timeout pada load halaman Operasi.
+  var PROBE_MS = 900;
   var PRINT_MS = 8000;
   var CACHE_OK_MS = 30000;
   var CACHE_FAIL_MS = 3000; // short — allow quick retry after Start Server
@@ -318,11 +320,4 @@
   window.isPrintServerReady = isPrintServerReady;
   window.showPrintServerAlert = showAlert;
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      probe(false);
-    });
-  } else {
-    probe(false);
-  }
 })(window);

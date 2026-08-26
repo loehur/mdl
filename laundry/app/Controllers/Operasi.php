@@ -49,8 +49,16 @@ class Operasi extends Controller
 
    public function loadData($id_pelanggan, $mode = 0)
    {
+      // Profil ringan untuk DevTools (Network > Timing > Server Timing).
+      // Berguna mengisolasi query/proses terberat tanpa mencatat log per request.
+      $perfStart = microtime(true);
+      $perfMark = [];
+      $mark = static function (string $name) use (&$perfMark, $perfStart): void {
+         $perfMark[$name] = (microtime(true) - $perfStart) * 1000;
+      };
       $id_pelanggan = (int) $id_pelanggan;
       $this->ensureCabangForPelanggan($id_pelanggan, false);
+      $mark('cabang');
       // operating_data() sudah di __construct; ensureCabangForPelanggan refresh saat perlu.
 
       $pelanggan = $this->pelanggan[$id_pelanggan] ?? 0;
@@ -71,6 +79,7 @@ class Operasi extends Controller
       $whereSale = $this->wCabang . " AND id_pelanggan = $id_pelanggan AND bin = 0 AND tuntas = " . ($mode == 1 ? "1 AND YEAR(insertTime) = $year" : "0") . " ORDER BY id_penjualan DESC";
 
       $data_main2 = $this->db(0)->get_where('sale', $whereSale, 'no_ref', 1);
+      $mark('sale');
 
       // Extract IDs and refs in single loop
       $sale_ids = [];
@@ -217,6 +226,7 @@ class Operasi extends Controller
          $notifBon = $this->db(0)->get_where('notif', $this->wCabang . " AND tipe = 1 AND no_ref IN ($refs_in)");
          $surcas = $this->db(0)->get_where('surcas', $this->wCabang . " AND no_ref IN ($refs_in)");
       }
+      $mark('relasi');
 
       // MEMBER - OPTIMIZED: batch query instead of N+1
       $data_member = $this->db(0)->get_where('member', $this->wCabang . " AND bin = 0 AND id_pelanggan = $id_pelanggan AND lunas = 0");
@@ -256,6 +266,7 @@ class Operasi extends Controller
             }
          }
       }
+      $mark('member');
 
       // Finance history - optimized merge
       $finance_history = [];
@@ -277,13 +288,16 @@ class Operasi extends Controller
       $topup = $this->db(0)->sum_col_where('kas', 'jumlah', "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 1 AND status_mutasi = 3") ?? 0;
       $topup_out = $this->db(0)->sum_col_where('kas', 'jumlah', "id_client = '$id_pelanggan' AND jenis_transaksi = 6 AND jenis_mutasi = 2 AND status_mutasi = 3") ?? 0;
       $usage = $this->db(0)->sum_col_where('kas', 'jumlah', "id_client = '$id_pelanggan' AND metode_mutasi = 3 AND jenis_mutasi = 2") ?? 0;
+      $mark('saldo');
 
       $customerDeliveryRequests = [];
       if ($mode == 0 && $id_pelanggan > 0) {
          require_once __DIR__ . '/Delivery.php';
          $customerDeliveryRequests = (new Delivery())->pendingCustomerRequestsForPelanggan($id_pelanggan);
       }
+      $mark('delivery');
 
+      ob_start();
       $this->view('operasi/view_load', [
          'modeView' => $modeView, 'pelanggan' => $pelanggan, 'data_main' => $data_main2,
          'operasi' => $operasi, 'kas' => $kas, 'notif_bon' => $notifBon, 'notif_selesai' => $notifSelesai,
@@ -297,6 +311,20 @@ class Operasi extends Controller
          'customer_delivery_requests' => $customerDeliveryRequests,
          'selectedYear' => $year, 'currentYear' => $currentYear, 'minYear' => $minYear
       ]);
+      $html = (string) ob_get_clean();
+      $mark('render');
+
+      if (!headers_sent()) {
+         $segments = [];
+         $previous = 0.0;
+         foreach ($perfMark as $name => $at) {
+            $segments[] = $name . ';dur=' . number_format(max(0, $at - $previous), 1, '.', '');
+            $previous = $at;
+         }
+         $segments[] = 'total;dur=' . number_format((microtime(true) - $perfStart) * 1000, 1, '.', '');
+         header('Server-Timing: ' . implode(', ', $segments));
+      }
+      echo $html;
    }
 
    /**
