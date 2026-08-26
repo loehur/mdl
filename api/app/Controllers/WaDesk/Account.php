@@ -253,8 +253,18 @@ class Account extends WaDeskController
         $quota->ensureRow($teamId, $tenantId);
         $balance = $quota->getBalance($teamId);
 
+        $category = strtolower(trim((string) $this->query('category', 'all')));
+        $typeFilter = '';
+        if ($category === 'topup') {
+            $typeFilter = " AND l.type = 'topup'";
+        } elseif ($category === 'usage') {
+            $typeFilter = " AND l.type IN ('consume', 'adjust')";
+        } elseif ($category !== '' && $category !== 'all') {
+            $this->error('category harus topup, usage, atau all', 400);
+        }
+
         $page = max(1, (int) $this->query('page', 1));
-        $limit = 50;
+        $limit = min(50, max(1, (int) $this->query('limit', 20)));
         $offset = ($page - 1) * $limit;
 
         $rows = $this->db($this->db_index)->query(
@@ -262,25 +272,30 @@ class Account extends WaDeskController
                     u.name AS user_name
              FROM wa_team_template_quota_logs l
              LEFT JOIN users u ON u.id = l.user_id
-             WHERE l.team_id = ? AND l.tenant_id = ?
+             WHERE l.team_id = ? AND l.tenant_id = ?{$typeFilter}
              ORDER BY l.id DESC
              LIMIT {$limit} OFFSET {$offset}",
             [$teamId, $tenantId]
         )->result_array();
 
-        $total = (int) $this->db($this->db_index)->query(
-            "SELECT COUNT(*) AS cnt FROM wa_team_template_quota_logs
-             WHERE team_id = ? AND tenant_id = ?",
+        $totalRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS cnt FROM wa_team_template_quota_logs l
+             WHERE l.team_id = ? AND l.tenant_id = ?{$typeFilter}",
             [$teamId, $tenantId]
-        )->row_array()['cnt'];
+        )->row_array();
+        $total = (int) ($totalRow['cnt'] ?? 0);
+        $loaded = $offset + count($rows);
 
         $this->success([
             'team_id' => $teamId,
             'team_name' => $team['name'],
             'balance' => $balance,
+            'category' => $category !== '' ? $category : 'all',
             'logs' => $rows,
             'total' => $total,
             'page' => $page,
+            'limit' => $limit,
+            'has_more' => $loaded < $total,
         ]);
     }
 }

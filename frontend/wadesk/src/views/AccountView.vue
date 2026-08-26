@@ -192,33 +192,68 @@
 
           <div v-else-if="loadingQuota" class="card text-sm text-slate-500">Memuat kuota...</div>
 
-          <template v-else-if="quotaData">
+          <template v-else-if="quotaSummary">
             <div class="card space-y-2">
               <h2 class="section-title">Sisa kuota</h2>
-              <p class="text-sm text-slate-500">{{ quotaData.team_name }}</p>
-              <p class="text-4xl font-semibold text-accent tabular-nums">{{ quotaData.balance }}</p>
+              <p class="text-sm text-slate-500">{{ quotaSummary.team_name }}</p>
+              <p class="text-4xl font-semibold text-accent tabular-nums">{{ quotaSummary.balance }}</p>
               <p class="text-xs text-slate-500">kuota template tersisa</p>
             </div>
 
             <div class="card space-y-4">
-              <h2 class="section-title">Riwayat top-up & pemakaian</h2>
-              <div class="subcard-list max-h-[min(50vh,24rem)] overflow-y-auto">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h2 class="section-title">Riwayat top-up</h2>
+                <p v-if="topupQuota.total" class="text-xs text-slate-500">
+                  {{ topupQuota.logs.length }} / {{ topupQuota.total }} entri
+                </p>
+              </div>
+              <div ref="topupListRef" class="subcard-list max-h-[min(40vh,20rem)] overflow-y-auto">
+                <p v-if="!topupQuota.logs.length" class="empty-state">Belum ada riwayat top-up.</p>
                 <div
-                  v-if="!quotaData.logs.length"
-                  class="empty-state"
-                >
-                  Belum ada riwayat kuota.
-                </div>
-                <div
-                  v-for="log in quotaData.logs"
-                  :key="log.id"
+                  v-for="log in topupQuota.logs"
+                  :key="'topup-' + log.id"
                   class="subcard-row items-start"
                 >
                   <div class="min-w-0">
                     <p class="font-medium text-slate-200">
-                      <span :class="quotaTypeClass(log.type)">{{ quotaTypeLabel(log.type) }}</span>
-                      <span class="ml-2 tabular-nums" :class="log.amount >= 0 ? 'text-emerald-500' : 'text-red-500'">
-                        {{ log.amount >= 0 ? "+" : "" }}{{ log.amount }}
+                      <span class="text-emerald-500">Top-up</span>
+                      <span class="ml-2 tabular-nums text-emerald-500">+{{ log.amount }}</span>
+                    </p>
+                    <p v-if="log.note" class="text-xs text-slate-500 mt-0.5">{{ log.note }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      {{ formatDate(log.created_at) }}
+                      <span v-if="log.user_name"> · {{ log.user_name }}</span>
+                    </p>
+                  </div>
+                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
+                </div>
+              </div>
+              <div v-if="topupQuota.has_more" class="text-center pt-1">
+                <button type="button" class="btn-secondary" :disabled="topupQuota.loading_more" @click="loadMoreQuota('topup')">
+                  {{ topupQuota.loading_more ? "Memuat..." : "Muat lebih banyak" }}
+                </button>
+              </div>
+            </div>
+
+            <div class="card space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h2 class="section-title">Riwayat pakai & refund</h2>
+                <p v-if="usageQuota.total" class="text-xs text-slate-500">
+                  {{ usageQuota.logs.length }} / {{ usageQuota.total }} entri
+                </p>
+              </div>
+              <div ref="usageListRef" class="subcard-list max-h-[min(40vh,20rem)] overflow-y-auto">
+                <p v-if="!usageQuota.logs.length" class="empty-state">Belum ada riwayat pemakaian.</p>
+                <div
+                  v-for="log in usageQuota.logs"
+                  :key="'usage-' + log.id"
+                  class="subcard-row items-start"
+                >
+                  <div class="min-w-0">
+                    <p class="font-medium text-slate-200">
+                      <span :class="quotaUsageTypeClass(log)">{{ quotaUsageTypeLabel(log) }}</span>
+                      <span class="ml-2 tabular-nums" :class="Number(log.amount) >= 0 ? 'text-emerald-500' : 'text-red-500'">
+                        {{ Number(log.amount) >= 0 ? "+" : "" }}{{ log.amount }}
                       </span>
                     </p>
                     <p v-if="log.note" class="text-xs text-slate-500 mt-0.5">{{ log.note }}</p>
@@ -230,9 +265,9 @@
                   <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
                 </div>
               </div>
-              <div v-if="quotaHasMore" class="text-center pt-1">
-                <button type="button" class="btn-secondary" :disabled="loadingMoreQuota" @click="loadMoreQuota">
-                  {{ loadingMoreQuota ? "Memuat..." : "Muat lebih banyak" }}
+              <div v-if="usageQuota.has_more" class="text-center pt-1">
+                <button type="button" class="btn-secondary" :disabled="usageQuota.loading_more" @click="loadMoreQuota('usage')">
+                  {{ usageQuota.loading_more ? "Memuat..." : "Muat lebih banyak" }}
                 </button>
               </div>
             </div>
@@ -244,7 +279,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { api } from "../api";
@@ -271,9 +306,23 @@ const teamData = ref(null);
 const agentForm = ref({ name: "", email: "", password: "" });
 
 const loadingQuota = ref(false);
-const loadingMoreQuota = ref(false);
-const quotaData = ref(null);
-const quotaPage = ref(1);
+const quotaSummary = ref(null);
+const topupListRef = ref(null);
+const usageListRef = ref(null);
+const QUOTA_PAGE_SIZE = 20;
+
+function emptyQuotaSection() {
+  return {
+    logs: [],
+    total: 0,
+    page: 1,
+    has_more: false,
+    loading_more: false,
+  };
+}
+
+const topupQuota = ref(emptyQuotaSection());
+const usageQuota = ref(emptyQuotaSection());
 
 const allTabs = [
   { id: "profile", label: "Profil", roles: "all" },
@@ -285,10 +334,16 @@ const visibleTabs = computed(() =>
   allTabs.filter((t) => t.roles === "all" || auth.canManageTeam)
 );
 
-const quotaHasMore = computed(() => {
-  if (!quotaData.value) return false;
-  return (quotaData.value.logs?.length ?? 0) < (quotaData.value.total ?? 0);
-});
+function mergeQuotaLogs(existing = [], incoming = []) {
+  const map = new Map();
+  for (const row of existing) {
+    if (row?.id != null) map.set(Number(row.id), row);
+  }
+  for (const row of incoming) {
+    if (row?.id != null) map.set(Number(row.id), row);
+  }
+  return [...map.values()].sort((a, b) => Number(b.id) - Number(a.id));
+}
 
 function roleLabel(role) {
   const map = { admin: "Admin", team_leader: "Team Leader", agent: "Agent" };
@@ -307,15 +362,24 @@ function formatDate(iso) {
   }
 }
 
-function quotaTypeLabel(type) {
-  const map = { topup: "Top-up", consume: "Pakai", adjust: "Adjust" };
-  return map[type] || type;
+function quotaUsageTypeLabel(log) {
+  if (log.type === "consume") return "Pakai";
+  if (log.type === "adjust" && Number(log.amount) > 0) return "Refund";
+  return "Adjust";
 }
 
-function quotaTypeClass(type) {
-  if (type === "topup") return "text-emerald-500";
-  if (type === "consume") return "text-amber-500";
+function quotaUsageTypeClass(log) {
+  if (log.type === "consume") return "text-amber-500";
+  if (log.type === "adjust" && Number(log.amount) > 0) return "text-emerald-500";
   return "text-slate-400";
+}
+
+function quotaSectionRef(category) {
+  return category === "topup" ? topupListRef : usageListRef;
+}
+
+function quotaSectionState(category) {
+  return category === "topup" ? topupQuota : usageQuota;
 }
 
 function clearMessages() {
@@ -328,7 +392,90 @@ function switchTab(id) {
   clearMessages();
   if (id === "profile" && !profile.value) loadProfile();
   if (id === "team" && auth.canManageTeam) loadTeam();
-  if (id === "quota" && auth.canManageTeam) loadQuota(true);
+  if (id === "quota" && auth.canManageTeam) loadAllQuota(true);
+}
+
+async function loadQuotaCategory(category, reset = false) {
+  const section = quotaSectionState(category);
+  const pageToLoad = reset ? 1 : section.value.page + 1;
+
+  if (reset) {
+    section.value = { ...emptyQuotaSection(), page: 1 };
+  } else {
+    section.value.loading_more = true;
+  }
+
+  try {
+    const res = await api(
+      `/WaDesk/Account/quota?category=${category}&page=${pageToLoad}&limit=${QUOTA_PAGE_SIZE}`,
+      { cache: "no-store" }
+    );
+    const data = res.data;
+    const incoming = Array.isArray(data?.logs) ? data.logs : [];
+
+    if (data?.team_name != null || data?.balance != null) {
+      quotaSummary.value = {
+        team_name: data.team_name ?? quotaSummary.value?.team_name ?? "",
+        balance: data.balance ?? quotaSummary.value?.balance ?? 0,
+      };
+    }
+
+    const merged = reset
+      ? mergeQuotaLogs([], incoming)
+      : mergeQuotaLogs(section.value.logs || [], incoming);
+
+    section.value = {
+      logs: merged,
+      total: Number(data?.total ?? 0),
+      page: pageToLoad,
+      has_more: typeof data?.has_more === "boolean"
+        ? data.has_more
+        : merged.length < Number(data?.total ?? 0),
+      loading_more: false,
+    };
+
+    if (!reset) {
+      await nextTick();
+      quotaSectionRef(category).value?.scrollTo({
+        top: quotaSectionRef(category).value.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  } catch (e) {
+    section.value.loading_more = false;
+    throw e;
+  }
+}
+
+async function loadAllQuota(reset = true) {
+  loadingQuota.value = true;
+  clearMessages();
+  if (reset) {
+    quotaSummary.value = null;
+    topupQuota.value = emptyQuotaSection();
+    usageQuota.value = emptyQuotaSection();
+  }
+  try {
+    await Promise.all([
+      loadQuotaCategory("topup", true),
+      loadQuotaCategory("usage", true),
+    ]);
+  } catch (e) {
+    error.value = e.message;
+    if (reset) quotaSummary.value = null;
+  } finally {
+    loadingQuota.value = false;
+  }
+}
+
+async function loadMoreQuota(category) {
+  const section = quotaSectionState(category);
+  if (section.value.loading_more || loadingQuota.value || !section.value.has_more) return;
+  try {
+    await loadQuotaCategory(category, false);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function loadProfile() {
@@ -419,39 +566,6 @@ async function addAgent() {
   }
 }
 
-async function loadQuota(reset = false) {
-  if (reset) {
-    quotaPage.value = 1;
-    loadingQuota.value = true;
-  } else {
-    loadingMoreQuota.value = true;
-  }
-  clearMessages();
-  try {
-    const res = await api(`/WaDesk/Account/quota?page=${quotaPage.value}`);
-    const data = res.data;
-    if (reset || !quotaData.value) {
-      quotaData.value = data;
-    } else {
-      quotaData.value = {
-        ...data,
-        logs: [...(quotaData.value.logs || []), ...(data.logs || [])],
-      };
-    }
-  } catch (e) {
-    error.value = e.message;
-    if (reset) quotaData.value = null;
-  } finally {
-    loadingQuota.value = false;
-    loadingMoreQuota.value = false;
-  }
-}
-
-async function loadMoreQuota() {
-  quotaPage.value += 1;
-  await loadQuota(false);
-}
-
 async function onLogout() {
   await auth.logout();
   router.push({ name: "login" });
@@ -464,7 +578,7 @@ onMounted(() => {
   else tab.value = "profile";
   loadProfile();
   if (tab.value === "team") loadTeam();
-  if (tab.value === "quota") loadQuota(true);
+  if (tab.value === "quota") loadAllQuota(true);
 });
 
 watch(
