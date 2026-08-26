@@ -163,7 +163,7 @@ class Channels extends WaDeskController
         )->row_array();
         if ($teamPrimaryTaken) {
             $this->error(
-                'Team ini sudah jadi team utama di channel lain. Gunakan sebagai team tambahan, bukan team utama.',
+                'Team ini sudah jadi Default Team di nomor lain. Assign sebagai team lain di nomor ini, bukan sebagai Default Team.',
                 409
             );
         }
@@ -199,7 +199,7 @@ class Channels extends WaDeskController
         $id = (int) $this->db($this->db_index)->insert($tbl, $insertData);
         if ($id <= 0) {
             $this->error(
-                'Gagal assign channel. Team mungkin sudah jadi team utama di channel lain — gunakan sebagai team tambahan.',
+                'Gagal assign channel. Team mungkin sudah jadi Default Team di nomor lain — assign sebagai team lain saja.',
                 409
             );
         }
@@ -272,7 +272,7 @@ class Channels extends WaDeskController
             )->row_array();
             if ($otherPrimary) {
                 $this->error(
-                    'Team ini sudah jadi team utama di channel lain. Gunakan sebagai team tambahan, bukan team utama.',
+                    'Team ini sudah jadi Default Team di nomor lain. Assign sebagai team lain di nomor ini, bukan sebagai Default Team.',
                     409
                 );
             }
@@ -283,7 +283,7 @@ class Channels extends WaDeskController
             $updated = $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
             if ($updated === false && isset($data['team_id'])) {
                 $this->error(
-                    'Gagal update channel. Team mungkin sudah jadi team utama di channel lain — gunakan sebagai team tambahan.',
+                    'Gagal update channel. Team mungkin sudah jadi Default Team di nomor lain — assign sebagai team lain saja.',
                     409
                 );
             }

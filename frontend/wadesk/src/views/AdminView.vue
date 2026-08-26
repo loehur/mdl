@@ -304,16 +304,19 @@
         </div>
 
         <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
-          <p class="text-sm font-medium text-slate-200">Satu nomor WA bisa dipakai beberapa team</p>
+          <p class="text-sm font-medium text-slate-200">Satu nomor WA bisa di-assign ke beberapa team</p>
           <ul class="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
             <li>
-              <strong class="text-slate-300">Default Team</strong> — customer yang
-              <em>belum pernah</em> chat di nomor ini masuk ke team ini (inbox team default).
+              <strong class="text-slate-300">Inbox privat per team</strong> — meskipun nomornya sama,
+              setiap team hanya melihat chat milik team sendiri. Team A tidak bisa lihat chat team B.
             </li>
             <li>
-              <strong class="text-slate-300">Team berbagi nomor</strong> — team lain yang boleh kirim template
-              &amp; lihat inbox nomor yang sama. Jika customer sudah pernah chat dengan team tertentu,
-              balasan berikutnya masuk ke team itu (bukan default).
+              <strong class="text-slate-300">Default Team</strong> — customer yang
+              <em>belum pernah</em> chat di nomor ini masuk ke team ini.
+            </li>
+            <li>
+              Customer yang sudah pernah chat dengan team tertentu — balasan berikutnya masuk ke
+              team itu (bukan default).
             </li>
           </ul>
         </div>
@@ -366,17 +369,17 @@
 
           <div class="rounded-lg border border-white/10 bg-ink-950/30 p-3 space-y-2">
             <p class="text-xs font-medium text-slate-300">
-              Team berbagi nomor
+              Team yang juga di-assign
               <span class="text-slate-500 font-normal">(opsional)</span>
             </p>
             <p class="text-[11px] text-slate-500">
-              Centang team yang juga boleh pakai nomor ini. Mereka bisa kirim template &amp; lihat inbox;
-              routing balasan tetap mengikuti team yang terakhir aktif dengan customer.
+              Centang team lain yang pakai nomor ini. Masing-masing punya inbox terpisah —
+              chat customer hanya terlihat di team yang bersangkutan.
             </p>
             <p v-if="!channelForm.team_id" class="text-[11px] text-amber-300/90">Pilih Default Team dulu.</p>
             <div v-else class="flex flex-wrap gap-x-4 gap-y-2">
               <label
-                v-for="t in sharedTeamOptions(channelForm.team_id)"
+                v-for="t in assignedTeamOptions(channelForm.team_id)"
                 :key="t.id"
                 class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
               >
@@ -388,7 +391,7 @@
                 />
                 {{ t.name }}
               </label>
-              <p v-if="!sharedTeamOptions(channelForm.team_id).length" class="text-[11px] text-slate-500">
+              <p v-if="!assignedTeamOptions(channelForm.team_id).length" class="text-[11px] text-slate-500">
                 Tidak ada team lain.
               </p>
             </div>
@@ -428,10 +431,13 @@
                   </select>
                 </div>
                 <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
-                  <p class="text-xs font-medium text-slate-300">Team berbagi nomor <span class="text-slate-500 font-normal">(opsional)</span></p>
+                  <p class="text-xs font-medium text-slate-300">Team yang juga di-assign <span class="text-slate-500 font-normal">(opsional)</span></p>
+                  <p class="text-[11px] text-slate-500 mb-1">
+                    Inbox privat per team — chat hanya terlihat di team masing-masing.
+                  </p>
                   <div class="flex flex-wrap gap-x-4 gap-y-2">
                     <label
-                      v-for="t in sharedTeamOptions(editKeyForm.team_id)"
+                      v-for="t in assignedTeamOptions(editKeyForm.team_id)"
                       :key="t.id"
                       class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
                     >
@@ -445,7 +451,7 @@
                     </label>
                   </div>
                   <p class="text-[11px] text-amber-300/80">
-                    Menghapus team dari daftar ini ikut menghapus riwayat chat team tersebut di nomor ini.
+                    Menghapus team dari nomor ini ikut menghapus riwayat chat team tersebut (hanya milik team itu).
                   </p>
                 </div>
                 <div class="sm:col-span-2 flex gap-2">
@@ -468,10 +474,10 @@
                   <p class="text-xs text-slate-400 mt-1">
                     <span class="text-slate-500">Default:</span>
                     <span class="text-slate-200">{{ k.team_name || "—" }}</span>
-                    <template v-if="channelSharedTeamNames(k)">
+                    <template v-if="channelAssignedTeamNames(k)">
                       <span class="text-slate-600 mx-1">·</span>
-                      <span class="text-slate-500">Berbagi:</span>
-                      <span class="text-slate-300">{{ channelSharedTeamNames(k) }}</span>
+                      <span class="text-slate-500">Team:</span>
+                      <span class="text-slate-300">{{ channelAssignedTeamNames(k) }}</span>
                     </template>
                   </p>
                 </div>
@@ -1457,7 +1463,7 @@ async function assignChannel() {
   }
 }
 
-function sharedTeamOptions(defaultTeamId) {
+function assignedTeamOptions(defaultTeamId) {
   const defaultId = Number(defaultTeamId);
   if (!defaultId) return teams.value;
   return teams.value.filter((t) => Number(t.id) !== defaultId);
@@ -1469,7 +1475,7 @@ function onDefaultTeamChange(form) {
   form.team_ids = (form.team_ids || []).filter((id) => Number(id) > 0 && Number(id) !== defaultId);
 }
 
-function channelSharedTeamNames(k) {
+function channelAssignedTeamNames(k) {
   const defaultId = Number(k.team_id);
   const ids = Array.isArray(k.team_ids) ? k.team_ids.map((v) => Number(v)).filter((id) => id > 0 && id !== defaultId) : [];
   if (!ids.length) return "";

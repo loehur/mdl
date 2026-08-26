@@ -125,7 +125,7 @@ class Teams extends WaDeskController
             [$id]
         )->row_array();
         if ((int) ($shared['c'] ?? 0) > 0) {
-            $this->error('Team masih dipakai sebagai team tambahan di nomor lain. Hapus dari channel dulu.', 400);
+            $this->error('Team masih di-assign ke nomor lain. Hapus dari channel dulu.', 400);
         }
 
         $this->db($this->db_index)->delete('teams', ['id' => $id]);
