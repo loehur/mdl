@@ -1760,16 +1760,25 @@ async function openTemplateAssign(t, wabaId = "") {
   }
 }
 
+function pickAssignWabaId(fallback = "") {
+  const ids = (assignMeta.value?.waba_ids || []).map((x) => String(x).trim()).filter(Boolean);
+  const fb = String(fallback || assignWabaId.value || "").trim();
+  if (ids.length === 1) return ids[0];
+  if (fb && ids.includes(fb)) return fb;
+  return fb || ids[0] || "";
+}
+
 async function saveTemplateAssign(t, wabaId = "") {
   savingAssignId.value = t.id;
   err.value = "";
   try {
+    const scopeWaba = pickAssignWabaId(wabaId || t.waba_id || "");
     const res = await api("/WaDesk/Templates/assignTeams", {
       method: "POST",
       body: {
         template_id: Number(t.id),
         team_ids: assignDraft.value.map(Number),
-        waba_id: String(wabaId || assignWabaId.value || t.waba_id || "").trim() || undefined,
+        ...(scopeWaba ? { waba_id: scopeWaba } : {}),
       },
     });
     const row = templateBrowseRows.value.find((x) => Number(x.id) === Number(t.id));

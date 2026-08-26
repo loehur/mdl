@@ -734,6 +734,34 @@ abstract class WaDeskController extends BaseController
         return array_keys($out);
     }
 
+    /**
+     * Resolve WABA scope untuk assign template ↔ team (teamOptions & assignTeams harus selaras).
+     *
+     * @return list<string>
+     */
+    protected function resolveTemplateAssignWabaIds(int $templateId, int $tenantId, string $wabaScope = ''): array
+    {
+        $linked = $this->templateWabaIds($templateId, $tenantId);
+        $scope = trim($wabaScope);
+
+        if ($scope !== '') {
+            foreach ($linked as $wabaId) {
+                if ($wabaId === $scope) {
+                    return [$wabaId];
+                }
+            }
+            if ($linked === []) {
+                return [$scope];
+            }
+        }
+
+        if ($linked !== []) {
+            return $linked;
+        }
+
+        return $scope !== '' ? [$scope] : [];
+    }
+
     protected function isTemplateAssignedToTeam(int $templateId, int $teamId): bool
     {
         if ($templateId <= 0 || $teamId <= 0 || !$this->templateTeamsTableExists()) {

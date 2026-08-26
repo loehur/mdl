@@ -827,13 +827,8 @@ class Templates extends WaDeskController
             $this->error('Template tidak ditemukan', 404);
         }
 
-        $wabaIds = $this->templateWabaIds($templateId, $tenantId);
-        $primaryWaba = trim((string) $this->query('waba_id', ''));
-        if ($primaryWaba !== '' && in_array($primaryWaba, $wabaIds, true)) {
-            $wabaIds = [$primaryWaba];
-        } elseif ($primaryWaba !== '' && $wabaIds === []) {
-            $wabaIds = [$primaryWaba];
-        }
+        $wabaScope = trim((string) $this->query('waba_id', ''));
+        $wabaIds = $this->resolveTemplateAssignWabaIds($templateId, $tenantId, $wabaScope);
 
         $eligibleMap = [];
         foreach ($wabaIds as $wabaId) {
@@ -901,13 +896,7 @@ class Templates extends WaDeskController
             $this->error('Template tidak ditemukan', 404);
         }
 
-        $wabaIds = $this->templateWabaIds($templateId, $tenantId);
-        if ($wabaScope !== '') {
-            if ($wabaIds !== [] && !in_array($wabaScope, $wabaIds, true)) {
-                $this->error('WABA tidak cocok dengan template ini', 400);
-            }
-            $wabaIds = [$wabaScope];
-        }
+        $wabaIds = $this->resolveTemplateAssignWabaIds($templateId, $tenantId, $wabaScope);
 
         $eligibleIds = [];
         foreach ($wabaIds as $wabaId) {
