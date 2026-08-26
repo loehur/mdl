@@ -2814,18 +2814,6 @@ class Delivery extends Controller
          return [];
       }
 
-      $this->helper('SurcasKurir');
-      $saleIdsForPurge = [];
-      foreach ($rows as $r) {
-         $sid = (int) ($r['id_penjualan'] ?? 0);
-         if ($sid > 0) {
-            $saleIdsForPurge[] = $sid;
-         }
-      }
-      if ($saleIdsForPurge !== []) {
-         SurcasKurir::purgeInvalidSurcasItems($this->db(0), $saleIdsForPurge);
-      }
-
       if ($includeDeliveredMissingSurcas && $jenis === 'antar') {
          $this->helper('AntarTarif');
          $this->helper('SurcasKurir');

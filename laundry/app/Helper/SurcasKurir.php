@@ -117,6 +117,65 @@ class SurcasKurir
     }
 
     /**
+     * Binding surcas item yang dapat dilepas dari badge karena masih memiliki
+     * item lain pada baris surcas yang sama. Dihitung sekaligus agar halaman
+     * Operasi tidak melakukan query per nota.
+     *
+     * @param object $db
+     * @param int[] $ids
+     * @param int[] $jenisSurcas
+     * @return array<int,array<int,true>> [id_penjualan => [id_jenis_surcas => true]]
+     */
+    public static function unbindableSaleIds($db, array $ids, array $jenisSurcas): array
+    {
+        $safe = self::safeIds($ids);
+        $jenis = self::safeIds($jenisSurcas);
+        if ($safe === [] || $jenis === []) {
+            return [];
+        }
+
+        $in = implode(',', $safe);
+        $jenisIn = implode(',', $jenis);
+        $refMatch = self::sqlRefEquals('s.no_ref', 'sc.no_ref');
+        $cabangMatch = self::sqlCabangEquals('s.id_cabang', 'sc.id_cabang');
+        $out = [];
+
+        try {
+            $rows = $db->query_array(
+                "SELECT si.id_penjualan, si.id_jenis_surcas
+                 FROM surcas_item si
+                 INNER JOIN (
+                    SELECT id_surcas, id_jenis_surcas, COUNT(*) AS total_item
+                    FROM surcas_item
+                    WHERE id_jenis_surcas IN ($jenisIn)
+                    GROUP BY id_surcas, id_jenis_surcas
+                    HAVING COUNT(*) > 1
+                 ) sibling ON sibling.id_surcas = si.id_surcas
+                    AND sibling.id_jenis_surcas = si.id_jenis_surcas
+                 INNER JOIN surcas sc ON sc.id_surcas = si.id_surcas
+                    AND sc.id_jenis_surcas = si.id_jenis_surcas
+                 INNER JOIN sale s ON s.id_penjualan = si.id_penjualan
+                    AND s.bin = 0
+                    AND $refMatch
+                    AND $cabangMatch
+                 WHERE si.id_penjualan IN ($in)
+                   AND si.id_jenis_surcas IN ($jenisIn)"
+            );
+            foreach ((array) $rows as $row) {
+                $idSale = (int) ($row['id_penjualan'] ?? 0);
+                $idJenis = (int) ($row['id_jenis_surcas'] ?? 0);
+                if ($idSale > 0 && $idJenis > 0) {
+                    $out[$idSale][$idJenis] = true;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Tabel belum tersedia atau query gagal: badge tetap aman, hanya tidak dapat di-unbind.
+        }
+
+        return $out;
+    }
+
+    /**
      * Hapus surcas_item invalid (orphan / no_ref atau cabang tidak cocok).
      *
      * @param object $db

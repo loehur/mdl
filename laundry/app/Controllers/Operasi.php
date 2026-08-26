@@ -128,12 +128,6 @@ class Operasi extends Controller
          $this->helper('AntarTarif');
          $this->helper('SurcasKurir');
          $saleIdsInt = array_map('intval', $sale_ids);
-         $purgedSurcasItem = SurcasKurir::purgeInvalidSurcasItems($this->db(0), $saleIdsInt);
-         if ($purgedSurcasItem > 0) {
-            $this->model('Log')->write(
-               '[Operasi::loadData] purgeInvalidSurcasItems: ' . $purgedSurcasItem . ' baris dihapus (pelanggan #' . $id_pelanggan . ')'
-            );
-         }
          $boundJemput = SurcasKurir::boundSaleIds(
             $this->db(0),
             $saleIdsInt,
@@ -159,23 +153,21 @@ class Operasi extends Controller
             }
          }
 
-         $kurir_surcas_unbindable = [];
-         foreach ($saleIdsInt as $sid) {
-            if ($sid <= 0) {
-               continue;
-            }
+         $unbindable = SurcasKurir::unbindableSaleIds(
+            $this->db(0),
+            $saleIdsInt,
+            [
+               (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN,
+               (int) AntarTarif::SURCAS_JENIS_PENGANTARAN,
+            ]
+         );
+         foreach ($unbindable as $sid => $jenisMap) {
             $flags = [];
-            if (isset($boundJemput[$sid])) {
-               $flags['jemput'] = $this->surcasUnbindableForSale(
-                  $sid,
-                  (int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN
-               );
+            if (isset($boundJemput[$sid]) && isset($jenisMap[(int) AntarTarif::SURCAS_JENIS_PENJEMPUTAN])) {
+               $flags['jemput'] = true;
             }
-            if (isset($boundAntar[$sid])) {
-               $flags['antar'] = $this->surcasUnbindableForSale(
-                  $sid,
-                  (int) AntarTarif::SURCAS_JENIS_PENGANTARAN
-               );
+            if (isset($boundAntar[$sid]) && isset($jenisMap[(int) AntarTarif::SURCAS_JENIS_PENGANTARAN])) {
+               $flags['antar'] = true;
             }
             if ($flags !== []) {
                $kurir_surcas_unbindable[(string) $sid] = $flags;
