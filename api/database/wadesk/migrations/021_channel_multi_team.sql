@@ -24,9 +24,13 @@ SELECT id, team_id FROM wa_channels WHERE team_id IS NOT NULL;
 -- 3) Conversations: 1 conversation per (channel, team, phone) — tiap team punya
 --    riwayat chat terpisah dengan customer yang sama di nomor yang sama.
 --    Aman karena saat ini 1 channel = 1 team (tidak ada duplikat per team).
+--    MySQL 5.7: drop FK dulu karena index uq_conv_channel_phone dipakai FK.
+ALTER TABLE conversations DROP FOREIGN KEY fk_conv_channel;
 ALTER TABLE conversations DROP INDEX uq_conv_channel_phone;
 ALTER TABLE conversations
   ADD UNIQUE KEY uq_conv_channel_team_phone (channel_id, team_id, phone);
+ALTER TABLE conversations
+  ADD CONSTRAINT fk_conv_channel FOREIGN KEY (channel_id) REFERENCES wa_channels(id) ON DELETE CASCADE;
 
 -- 4) Blast: simpan team pembuat, supaya cron memakai team yang benar saat channel
 --    dipakai banyak team (fallback ke team utama channel untuk blast lama).
