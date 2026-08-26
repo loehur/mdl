@@ -35,7 +35,9 @@ function isTransientInitQueryTimeout(args) {
 }
 
 const logger = pino({
-  level: process.env.LOG_LEVEL || 'warn',
+  // Default 'error': warn Baileys (decrypt MessageCounterError, Invalid mex,
+  // stream error) itu noise rutin non-fatal — error asli tetap tampil.
+  level: process.env.LOG_LEVEL || 'error',
   hooks: {
     logMethod(args, method) {
       if (isTransientInitQueryTimeout(args)) {
