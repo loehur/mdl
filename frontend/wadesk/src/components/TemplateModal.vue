@@ -22,7 +22,7 @@
               <select v-model="form.channel_id" required class="field" :disabled="busy || checking" @change="onKeyChange">
                 <option disabled value="">Pilih channel</option>
                 <option v-for="k in keys" :key="k.id" :value="k.id">
-                  {{ k.label }} ({{ k.phone_number }}) — {{ k.team_names || k.team_name }}
+                  {{ k.label }} ({{ k.phone_number }})
                 </option>
               </select>
             </div>
