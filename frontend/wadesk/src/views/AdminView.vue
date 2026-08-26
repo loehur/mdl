@@ -844,29 +844,30 @@
         <h2 class="font-display font-semibold text-lg">Config</h2>
 
         <form
-          class="rounded-xl border border-accent/20 bg-accent/5 p-3"
+          class="rounded-xl border border-accent/20 bg-accent/5 p-4 space-y-3"
           @submit.prevent="switchOperationalTeam"
         >
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-slate-200">Team operasional</p>
-              <p class="text-[11px] text-slate-500 mt-0.5">
-                Untuk chat &amp; blast WA.
-                <span v-if="auth.hasTeam">
-                  Aktif: <span class="text-accent font-medium">{{ auth.user?.team_name || `#${auth.user?.team_id}` }}</span>
-                </span>
-                <span v-else class="text-amber-300/90">Belum aktif.</span>
-              </p>
-            </div>
-            <select v-model="adminTeamPick" class="field sm:w-52 py-2 text-sm shrink-0">
+          <div>
+            <p class="text-sm font-medium text-slate-200">Team operasional</p>
+            <p class="text-xs text-slate-500 mt-1">Untuk chat &amp; blast WA. Admin panel tetap bisa diakses tanpa team.</p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <select v-model="adminTeamPick" class="field flex-1 sm:max-w-sm">
               <option value="">— Tidak aktif —</option>
               <option v-for="t in teams" :key="'op-' + t.id" :value="String(t.id)">{{ t.name }}</option>
             </select>
-            <button type="submit" class="btn-sm shrink-0" :disabled="joiningTeam || !teams.length">
-              {{ joiningTeam ? "..." : "Terapkan" }}
+            <button type="submit" class="btn-sm shrink-0 w-full sm:w-auto" :disabled="joiningTeam || !teams.length">
+              {{ joiningTeam ? "Menyimpan..." : "Terapkan" }}
             </button>
           </div>
-          <p v-if="!teams.length" class="text-[11px] text-amber-300/90 mt-2">Buat team dulu di tab Teams.</p>
+
+          <p v-if="auth.hasTeam" class="text-xs text-slate-500">
+            Aktif sekarang:
+            <span class="text-accent font-medium">{{ auth.user?.team_name || `#${auth.user?.team_id}` }}</span>
+          </p>
+          <p v-else class="text-xs text-amber-300/90">Belum masuk team operasional.</p>
+          <p v-if="!teams.length" class="text-xs text-amber-300/90">Buat team dulu di tab Teams.</p>
         </form>
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveDefaultTeam">
