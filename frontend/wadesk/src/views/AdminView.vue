@@ -342,22 +342,21 @@
 
       <!-- Assign -->
       <section v-if="tab === 'assign'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Assign</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 class="font-display font-semibold text-lg">Assign</h2>
+          <p v-if="channelBrowseTotal" class="text-xs text-slate-500">
+            {{ channelBrowseRows.length }} / {{ channelBrowseTotal }} nomor
+          </p>
+        </div>
 
         <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
           <p class="text-sm font-medium text-slate-200">Satu nomor WA bisa di-assign ke beberapa team</p>
           <ul class="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
             <li>
-              <strong class="text-slate-300">Inbox privat per team</strong> — meskipun nomornya sama,
-              setiap team hanya melihat chat milik team sendiri. Team A tidak bisa lihat chat team B.
+              <strong class="text-slate-300">Inbox privat per team</strong> — chat hanya terlihat di team masing-masing.
             </li>
             <li>
-              <strong class="text-slate-300">Default team</strong> — customer baru masuk ke team default tenant.
-              Atur di tab <strong class="text-slate-300">Config</strong>.
-            </li>
-            <li>
-              Customer yang sudah pernah chat dengan team tertentu — balasan berikutnya masuk ke
-              team itu (bukan default).
+              <strong class="text-slate-300">Default team</strong> — customer baru masuk ke team default. Atur di tab Config.
             </li>
           </ul>
         </div>
@@ -394,20 +393,36 @@
 
           <div>
             <label class="label">Device / nomor</label>
-            <select v-model="channelForm.device_id" required class="field" @change="onAssignDeviceChange">
-              <option disabled value="">Pilih device (sync dulu jika kosong)</option>
-              <option
-                v-for="d in availableDevices"
+            <input
+              v-model="deviceQuery"
+              type="search"
+              class="field mb-2"
+              placeholder="Cari label, nomor, device ID..."
+              autocomplete="off"
+            />
+            <div class="rounded-lg border border-white/10 bg-ink-950/30 max-h-52 overflow-y-auto">
+              <button
+                v-for="d in filteredDevices"
                 :key="d.device_id"
-                :value="d.device_id"
+                type="button"
+                class="w-full text-left px-3 py-2.5 text-sm border-b border-white/5 last:border-0 hover:bg-white/5 transition"
+                :class="channelForm.device_id === d.device_id ? 'bg-accent/10 text-accent' : 'text-slate-300'"
+                @click="selectAssignDevice(d)"
               >
-                {{ d.label || d.device_id }} · {{ d.phone_number || "—" }}
-                <template v-if="d.assigned">
-                  · Team: {{ d.assigned.team_names || "—" }}
-                </template>
-              </option>
-            </select>
-            <p v-if="selectedAssignDevice?.assigned" class="text-[11px] text-slate-500 mt-1">
+                <span class="font-medium">{{ d.label || d.device_id }}</span>
+                <span class="text-slate-500"> · {{ d.phone_number || "—" }}</span>
+                <span v-if="d.assigned" class="block text-[11px] text-slate-500 mt-0.5">
+                  Team: {{ d.assigned.team_names || "—" }}
+                </span>
+              </button>
+              <p v-if="!availableDevices.length && !syncingDevices" class="px-3 py-6 text-xs text-slate-500 text-center">
+                Klik Sync untuk ambil device dari Kirimin.
+              </p>
+              <p v-else-if="!filteredDevices.length" class="px-3 py-6 text-xs text-slate-500 text-center">
+                Device tidak ditemukan.
+              </p>
+            </div>
+            <p v-if="selectedAssignDevice?.assigned" class="text-[11px] text-slate-500 mt-1.5">
               Nomor sudah terdaftar — centang team tambahan yang juga ingin memakai nomor ini.
             </p>
           </div>
@@ -419,17 +434,21 @@
 
           <div class="rounded-lg border border-white/10 bg-ink-950/30 p-3 space-y-2">
             <p class="text-xs font-medium text-slate-300">Team yang di-assign</p>
-            <p class="text-[11px] text-slate-500">
-              Centang team yang pakai nomor ini. Masing-masing punya inbox terpisah —
-              chat customer hanya terlihat di team yang bersangkutan.
+            <p v-if="channelForm.team_ids.length" class="text-[11px] text-slate-500">
+              Terpilih: {{ channelForm.team_ids.length }} team
             </p>
-            <p v-if="!teams.length" class="text-[11px] text-amber-300/90">Buat team dulu di tab Teams.</p>
-            <p v-else-if="!channelForm.team_ids.length" class="text-[11px] text-amber-300/90">Pilih minimal satu team.</p>
-            <div v-else class="flex flex-wrap gap-x-4 gap-y-2">
+            <input
+              v-model="assignTeamQuery"
+              type="search"
+              class="field py-2 text-sm"
+              placeholder="Cari team..."
+              autocomplete="off"
+            />
+            <div class="max-h-40 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
               <label
-                v-for="t in teams"
-                :key="t.id"
-                class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
+                v-for="t in assignTeamRows"
+                :key="'pick-' + t.id"
+                class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 cursor-pointer hover:bg-white/5"
               >
                 <input
                   v-model="channelForm.team_ids"
@@ -439,83 +458,135 @@
                 />
                 {{ t.name }}
               </label>
+              <div ref="assignTeamSentinel" class="h-1" aria-hidden="true" />
+              <p v-if="loadingAssignTeams && !assignTeamRows.length" class="px-3 py-4 text-xs text-slate-500 text-center">
+                Memuat team...
+              </p>
+              <p v-else-if="!assignTeamRows.length" class="px-3 py-4 text-xs text-slate-500 text-center">
+                {{ assignTeamQuery.trim() ? "Team tidak ditemukan." : "Buat team dulu di tab Teams." }}
+              </p>
+              <p v-else-if="loadingAssignTeams" class="px-3 py-2 text-[11px] text-slate-500 text-center">Memuat lagi...</p>
             </div>
-            <p class="text-[11px] text-slate-500">Default team diatur di tab Config.</p>
+            <p v-if="!channelForm.team_ids.length" class="text-[11px] text-amber-300/90">Pilih minimal satu team.</p>
           </div>
 
-          <button class="btn w-full sm:w-auto">Assign nomor</button>
+          <button class="btn w-full sm:w-auto" :disabled="!channelForm.device_id || !channelForm.team_ids.length">
+            Assign nomor
+          </button>
         </form>
 
-        <div v-if="keys.length" class="space-y-2">
-          <p class="text-sm font-medium text-slate-200">Nomor terdaftar</p>
+        <div class="relative">
+          <input
+            v-model="channelBrowseQuery"
+            type="search"
+            class="field pl-9"
+            placeholder="Cari nomor terdaftar..."
+            autocomplete="off"
+          />
+          <svg
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
         </div>
-        <ul class="divide-y divide-white/5">
-          <li v-for="k in keys" :key="k.id" class="py-3">
-            <template v-if="editingKeyId === k.id">
-              <form class="grid sm:grid-cols-2 gap-3 mt-1 rounded-xl border border-white/10 bg-ink-950/30 p-4" @submit.prevent="saveKey(k)">
-                <input v-model="editKeyForm.label" required class="field sm:col-span-2" placeholder="Label" />
-                <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
-                <input
-                  v-model="editKeyForm.waba_id"
-                  class="field"
-                  placeholder="WABA ID (wajib untuk kirim pesan)"
-                  required
-                />
-                <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
-                  <p class="text-xs font-medium text-slate-300">Team yang di-assign</p>
-                  <p class="text-[11px] text-slate-500 mb-1">
-                    Inbox privat per team — chat hanya terlihat di team masing-masing.
-                  </p>
-                  <div class="flex flex-wrap gap-x-4 gap-y-2">
-                    <label
-                      v-for="t in teams"
-                      :key="t.id"
-                      class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
-                    >
-                      <input
-                        v-model="editKeyForm.team_ids"
-                        type="checkbox"
-                        :value="t.id"
-                        class="rounded"
-                      />
-                      {{ t.name }}
-                    </label>
+
+        <div class="rounded-xl border border-white/10 overflow-hidden">
+          <p class="px-4 pt-3 pb-1 text-sm font-medium text-slate-200">Nomor terdaftar</p>
+          <div class="max-h-[min(55vh,28rem)] overflow-y-auto divide-y divide-white/5">
+            <div
+              v-if="loadingChannelBrowse && !channelBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              Memuat nomor...
+            </div>
+            <p v-else-if="!channelBrowseRows.length" class="py-10 text-center text-sm text-slate-500">
+              {{ channelBrowseQuery.trim() ? "Nomor tidak ditemukan." : "Belum ada nomor terdaftar." }}
+            </p>
+
+            <div v-for="k in channelBrowseRows" :key="k.id" class="px-4 py-3">
+              <template v-if="editingKeyId === k.id">
+                <form class="grid sm:grid-cols-2 gap-3 rounded-xl border border-white/10 bg-ink-950/30 p-4" @submit.prevent="saveKey(k)">
+                  <input v-model="editKeyForm.label" required class="field sm:col-span-2" placeholder="Label" />
+                  <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
+                  <input
+                    v-model="editKeyForm.waba_id"
+                    class="field"
+                    placeholder="WABA ID (wajib untuk kirim pesan)"
+                    required
+                  />
+                  <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
+                    <p class="text-xs font-medium text-slate-300">Team yang di-assign</p>
+                    <input
+                      v-model="assignTeamQuery"
+                      type="search"
+                      class="field py-2 text-sm"
+                      placeholder="Cari team..."
+                      autocomplete="off"
+                    />
+                    <div class="max-h-36 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
+                      <label
+                        v-for="t in assignTeamRows"
+                        :key="'edit-' + t.id"
+                        class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 cursor-pointer hover:bg-white/5"
+                      >
+                        <input v-model="editKeyForm.team_ids" type="checkbox" :value="t.id" class="rounded" />
+                        {{ t.name }}
+                      </label>
+                    </div>
+                    <p class="text-[11px] text-amber-300/80">
+                      Menghapus team ikut menghapus riwayat chat team tersebut.
+                    </p>
                   </div>
-                  <p class="text-[11px] text-slate-500">Default team diatur di tab Config.</p>
-                  <p class="text-[11px] text-amber-300/80">
-                    Menghapus team dari nomor ini ikut menghapus riwayat chat team tersebut (hanya milik team itu).
-                  </p>
+                  <div class="sm:col-span-2 flex gap-2">
+                    <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
+                    <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
+                  </div>
+                </form>
+              </template>
+              <template v-else>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="font-medium truncate">{{ k.label }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5 truncate">
+                      {{ k.phone_number }}
+                      <span v-if="k.device_id"> · {{ k.device_id }}</span>
+                      <span v-if="k.waba_id"> · WABA {{ k.waba_id }}</span>
+                      <span v-else class="text-amber-400"> · WABA belum diisi</span>
+                      · {{ k.status }}
+                    </p>
+                    <p class="text-xs text-slate-400 mt-1">
+                      <span class="text-slate-500">{{ k.team_count || 0 }} team:</span>
+                      <span class="text-slate-300">{{ k.team_names || "—" }}</span>
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <button type="button" class="text-xs text-accent hover:underline" @click="startEditKey(k)">Ubah</button>
+                    <button type="button" class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
+                  </div>
                 </div>
-                <div class="sm:col-span-2 flex gap-2">
-                  <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
-                  <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
-                </div>
-              </form>
-            </template>
-            <template v-else>
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                  <p class="font-medium">{{ k.label }}</p>
-                  <p class="text-xs text-slate-500 mt-0.5">
-                    {{ k.phone_number }}
-                    <span v-if="k.device_id"> · {{ k.device_id }}</span>
-                    <span v-if="k.waba_id"> · WABA {{ k.waba_id }}</span>
-                    <span v-else class="text-amber-400"> · WABA belum diisi</span>
-                    · {{ k.status }}
-                  </p>
-                  <p class="text-xs text-slate-400 mt-1">
-                    <span class="text-slate-500">Team:</span>
-                    <span class="text-slate-300">{{ k.team_names || "—" }}</span>
-                  </p>
-                </div>
-                <div class="flex items-center gap-3 shrink-0">
-                  <button type="button" class="text-xs text-accent hover:underline" @click="startEditKey(k)">Ubah</button>
-                  <button type="button" class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
-                </div>
-              </div>
-            </template>
-          </li>
-        </ul>
+              </template>
+            </div>
+
+            <div ref="channelBrowseSentinel" class="h-1" aria-hidden="true" />
+            <div
+              v-if="loadingChannelBrowse && channelBrowseRows.length"
+              class="py-3 text-center text-xs text-slate-500"
+            >
+              Memuat lagi...
+            </div>
+            <p
+              v-else-if="channelBrowseRows.length && !channelBrowseHasMore"
+              class="py-3 text-center text-xs text-slate-600"
+            >
+              Semua nomor sudah dimuat
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- Templates -->
@@ -969,8 +1040,28 @@ const teamBrowseSentinel = ref(null);
 let teamBrowseObserver = null;
 let teamSearchTimer = null;
 const users = ref([]);
-const keys = ref([]);
 const availableDevices = ref([]);
+const deviceQuery = ref("");
+const CHANNEL_BROWSE_LIMIT = 20;
+const channelBrowseRows = ref([]);
+const channelBrowseTotal = ref(0);
+const channelBrowsePage = ref(1);
+const channelBrowseQuery = ref("");
+const loadingChannelBrowse = ref(false);
+const channelBrowseHasMore = ref(true);
+const channelBrowseSentinel = ref(null);
+const ASSIGN_TEAM_LIMIT = 20;
+const assignTeamRows = ref([]);
+const assignTeamTotal = ref(0);
+const assignTeamPage = ref(1);
+const assignTeamQuery = ref("");
+const loadingAssignTeams = ref(false);
+const assignTeamHasMore = ref(true);
+const assignTeamSentinel = ref(null);
+let channelBrowseObserver = null;
+let assignTeamObserver = null;
+let channelSearchTimer = null;
+let assignTeamSearchTimer = null;
 const channelForm = reactive({ device_id: "", label: "", team_ids: [] });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const dailyLimitForm = reactive({ daily_unique_limit: 250 });
@@ -1073,6 +1164,17 @@ const selectedAssignDevice = computed(() =>
   availableDevices.value.find((d) => d.device_id === channelForm.device_id) || null
 );
 
+const filteredDevices = computed(() => {
+  const q = deviceQuery.value.trim().toLowerCase();
+  if (!q) return availableDevices.value;
+  return availableDevices.value.filter((d) => {
+    const label = String(d.label || d.device_id || "").toLowerCase();
+    const phone = String(d.phone_number || "").toLowerCase();
+    const id = String(d.device_id || "").toLowerCase();
+    return label.includes(q) || phone.includes(q) || id.includes(q);
+  });
+});
+
 const canSubmitUser = computed(() => {
   if (userForm.role === "team_leader") {
     return !!userForm.team_id && teamsWithoutLeader.value.length > 0;
@@ -1113,6 +1215,125 @@ async function leaveOperationalTeam() {
     flash(false, e.message || "Gagal keluar team");
   } finally {
     joiningTeam.value = false;
+  }
+}
+
+async function loadChannelBrowse(reset = false) {
+  if (loadingChannelBrowse.value) return;
+  if (!reset && !channelBrowseHasMore.value) return;
+
+  loadingChannelBrowse.value = true;
+  try {
+    if (reset) {
+      channelBrowsePage.value = 1;
+      channelBrowseHasMore.value = true;
+    }
+    const page = reset ? 1 : channelBrowsePage.value;
+    const q = channelBrowseQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Channels/list?scope=all&page=${page}&limit=${CHANNEL_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.channels || res.data?.keys || [];
+    channelBrowseTotal.value = Number(res.data?.total ?? rows.length);
+    if (reset) {
+      channelBrowseRows.value = rows;
+    } else {
+      const seen = new Set(channelBrowseRows.value.map((r) => r.id));
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          channelBrowseRows.value.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+    channelBrowseHasMore.value = channelBrowseRows.value.length < channelBrowseTotal.value;
+    channelBrowsePage.value = page + 1;
+  } catch (e) {
+    if (reset) {
+      channelBrowseRows.value = [];
+      channelBrowseTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat nomor");
+  } finally {
+    loadingChannelBrowse.value = false;
+    await nextTick();
+    setupChannelBrowseObserver();
+  }
+}
+
+async function loadAssignTeams(reset = false) {
+  if (loadingAssignTeams.value) return;
+  if (!reset && !assignTeamHasMore.value) return;
+
+  loadingAssignTeams.value = true;
+  try {
+    if (reset) {
+      assignTeamPage.value = 1;
+      assignTeamHasMore.value = true;
+    }
+    const page = reset ? 1 : assignTeamPage.value;
+    const q = assignTeamQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Teams/list?page=${page}&limit=${ASSIGN_TEAM_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.teams || [];
+    assignTeamTotal.value = Number(res.data?.total ?? rows.length);
+    if (reset) {
+      assignTeamRows.value = rows;
+    } else {
+      const seen = new Set(assignTeamRows.value.map((t) => t.id));
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          assignTeamRows.value.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+    assignTeamHasMore.value = assignTeamRows.value.length < assignTeamTotal.value;
+    assignTeamPage.value = page + 1;
+  } catch (e) {
+    if (reset) {
+      assignTeamRows.value = [];
+      assignTeamTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat team");
+  } finally {
+    loadingAssignTeams.value = false;
+    await nextTick();
+    setupAssignTeamObserver();
+  }
+}
+
+function setupChannelBrowseObserver() {
+  channelBrowseObserver?.disconnect();
+  if (tab.value !== "assign" || !channelBrowseSentinel.value || !channelBrowseHasMore.value) return;
+  channelBrowseObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadChannelBrowse(false);
+    },
+    { rootMargin: "160px" }
+  );
+  channelBrowseObserver.observe(channelBrowseSentinel.value);
+}
+
+function setupAssignTeamObserver() {
+  assignTeamObserver?.disconnect();
+  if (tab.value !== "assign" || !assignTeamSentinel.value || !assignTeamHasMore.value) return;
+  assignTeamObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadAssignTeams(false);
+    },
+    { rootMargin: "120px" }
+  );
+  assignTeamObserver.observe(assignTeamSentinel.value);
+}
+
+async function loadAssignTab() {
+  await Promise.all([loadChannelBrowse(true), loadAssignTeams(true)]);
+  if (!availableDevices.value.length) {
+    await syncDevicesFromKirimin();
   }
 }
 
@@ -1201,9 +1422,8 @@ async function reloadTeamsTab() {
 }
 
 async function refresh() {
-  const [u, k, tp, q, kir, oai, daily] = await Promise.all([
+  const [u, tp, q, kir, oai, daily] = await Promise.all([
     api("/WaDesk/Users/list"),
-    api("/WaDesk/Channels/list?scope=all"),
     api("/WaDesk/Templates/list"),
     api("/WaDesk/Quota/list"),
     api("/WaDesk/Settings/kirimin"),
@@ -1214,8 +1434,10 @@ async function refresh() {
   if (tab.value === "teams") {
     await loadTeamBrowse(true);
   }
+  if (tab.value === "assign") {
+    await loadAssignTab();
+  }
   users.value = u.data.users || [];
-  keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
   quotas.value = q.data.quotas || [];
   initMaxlengthDrafts(templates.value);
@@ -1284,9 +1506,31 @@ watch(tab, (id) => {
   if (id === "teams") {
     loadTeamBrowse(true);
   }
-  if (id === "assign" && !availableDevices.value.length) {
-    syncDevicesFromKirimin();
+  if (id === "assign") {
+    loadAssignTab();
   }
+});
+
+watch(channelBrowseQuery, () => {
+  clearTimeout(channelSearchTimer);
+  channelSearchTimer = setTimeout(() => {
+    if (tab.value === "assign") loadChannelBrowse(true);
+  }, 300);
+});
+
+watch(assignTeamQuery, () => {
+  clearTimeout(assignTeamSearchTimer);
+  assignTeamSearchTimer = setTimeout(() => {
+    if (tab.value === "assign") loadAssignTeams(true);
+  }, 300);
+});
+
+watch(channelBrowseSentinel, () => {
+  nextTick(setupChannelBrowseObserver);
+});
+
+watch(assignTeamSentinel, () => {
+  nextTick(setupAssignTeamObserver);
 });
 
 watch(teamBrowseQuery, () => {
@@ -1679,8 +1923,21 @@ async function syncDevicesFromKirimin() {
   }
 }
 
+function selectAssignDevice(dev) {
+  channelForm.device_id = dev.device_id;
+  channelForm.label = dev.assigned?.label || dev.label || "";
+  const existing = Array.isArray(dev.assigned?.team_ids)
+    ? dev.assigned.team_ids.map((id) => Number(id)).filter((id) => id > 0)
+    : [];
+  channelForm.team_ids = [...existing];
+}
+
 async function assignChannel() {
   try {
+    if (!channelForm.device_id) {
+      flash(false, "Pilih device / nomor dulu");
+      return;
+    }
     const teamIds = (channelForm.team_ids || []).map((v) => Number(v)).filter((id) => id > 0);
     if (!teamIds.length) {
       flash(false, "Pilih minimal satu team");
@@ -1695,29 +1952,18 @@ async function assignChannel() {
       },
     });
     Object.assign(channelForm, { device_id: "", label: "", team_ids: [] });
+    deviceQuery.value = "";
     flash(true, res.message || (res.data?.merged ? "Team ditambahkan ke nomor" : "Channel di-assign"));
-    await refresh();
+    await loadChannelBrowse(true);
+    await syncDevicesFromKirimin();
   } catch (e) {
     flash(false, e.message);
   }
 }
 
-function onAssignDeviceChange() {
-  const dev = selectedAssignDevice.value;
-  if (!dev) {
-    channelForm.label = "";
-    channelForm.team_ids = [];
-    return;
-  }
-  channelForm.label = dev.assigned?.label || dev.label || "";
-  const existing = Array.isArray(dev.assigned?.team_ids)
-    ? dev.assigned.team_ids.map((id) => Number(id)).filter((id) => id > 0)
-    : [];
-  channelForm.team_ids = [...existing];
-}
-
 function startEditKey(k) {
   editingKeyId.value = k.id;
+  loadAssignTeams(true);
   const primaryId = Number(k.team_id) || 0;
   const extraIds = Array.isArray(k.team_ids) ? k.team_ids.map((v) => Number(v)).filter((id) => id > 0) : [];
   const teamIds = [...new Set([primaryId, ...extraIds].filter((id) => id > 0))];
@@ -1752,7 +1998,8 @@ async function saveKey(k) {
     await api("/WaDesk/Channels/update", { method: "POST", body });
     flash(true, "Channel diupdate");
     cancelEditKey();
-    await refresh();
+    await loadChannelBrowse(true);
+    await syncDevicesFromKirimin();
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -1768,7 +2015,8 @@ async function removeKey(id) {
       try {
         await api("/WaDesk/Channels/delete", { method: "POST", body: { id } });
         flash(true, "Channel dihapus");
-        await refresh();
+        await loadChannelBrowse(true);
+        await syncDevicesFromKirimin();
       } catch (e) {
         flash(false, e.message);
       }
@@ -1883,7 +2131,11 @@ async function onLogout() {
 onMounted(refresh);
 onUnmounted(() => {
   teamBrowseObserver?.disconnect();
+  channelBrowseObserver?.disconnect();
+  assignTeamObserver?.disconnect();
   clearTimeout(teamSearchTimer);
+  clearTimeout(channelSearchTimer);
+  clearTimeout(assignTeamSearchTimer);
 });
 </script>
 

@@ -20,13 +20,53 @@ class Channels extends WaDeskController
                           k.waba_id, k.channel_type, k.status, k.created_at, t.name AS team_name";
 
         if ($user['role'] === 'admin' && $scope === 'all') {
+            $pageRaw = $this->query('page');
+            $tenantId = (int) $user['tenant_id'];
+            if ($pageRaw !== null && $pageRaw !== '') {
+                $page = max(1, (int) $pageRaw);
+                $limit = min(50, max(1, (int) $this->query('limit', 20)));
+                $q = trim((string) $this->query('q', ''));
+                $where = 'k.tenant_id = ?';
+                $binds = [$tenantId];
+                if ($q !== '') {
+                    $where .= ' AND (k.label LIKE ? OR k.phone_number LIKE ? OR k.device_id LIKE ? OR k.waba_id LIKE ?)';
+                    $like = '%' . $q . '%';
+                    $binds = array_merge($binds, [$like, $like, $like, $like]);
+                }
+                $totalRow = $this->db($this->db_index)->query(
+                    "SELECT COUNT(*) AS c FROM {$tbl} k WHERE {$where}",
+                    $binds
+                )->row_array();
+                $total = (int) ($totalRow['c'] ?? 0);
+                $offset = ($page - 1) * $limit;
+                $rows = $this->db($this->db_index)->query(
+                    "{$select}
+                     FROM {$tbl} k
+                     LEFT JOIN teams t ON t.id = k.team_id
+                     WHERE {$where}
+                     ORDER BY k.label ASC, k.id DESC
+                     LIMIT {$limit} OFFSET {$offset}",
+                    $binds
+                )->result_array();
+                $channels = $this->enrichChannelRows($rows, $tenantId);
+                $this->success([
+                    'channels' => $channels,
+                    'keys' => $channels,
+                    'total' => $total,
+                    'page' => $page,
+                    'limit' => $limit,
+                ]);
+
+                return;
+            }
+
             $rows = $this->db($this->db_index)->query(
                 "{$select}
                  FROM {$tbl} k
                  LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ?
                  ORDER BY k.id DESC",
-                [(int) $user['tenant_id']]
+                [$tenantId]
             )->result_array();
         } elseif ($this->hasOperationalTeam($user)) {
             $rows = $this->db($this->db_index)->query(
@@ -42,13 +82,23 @@ class Channels extends WaDeskController
             $rows = [];
         }
 
+        $channels = $this->enrichChannelRows($rows, (int) $user['tenant_id']);
+        $this->success(['channels' => $channels, 'keys' => $channels]);
+    }
+
+    /** @param list<array> $rows */
+    private function enrichChannelRows(array $rows, int $tenantId): array
+    {
         $channels = array_map(fn ($r) => $this->mapChannelRow($r), $rows);
-        $channels = array_map(function (array $r) {
-            $r['team_ids'] = array_map('intval', array_column($this->channelTeamRows((int) $r['id'], (int) $r['tenant_id']), 'id'));
-            $r['team_names'] = $this->formatTeamNames($this->channelTeamRows((int) $r['id'], (int) $r['tenant_id']));
+
+        return array_map(function (array $r) use ($tenantId) {
+            $teamRows = $this->channelTeamRows((int) $r['id'], $tenantId);
+            $r['team_ids'] = array_map('intval', array_column($teamRows, 'id'));
+            $r['team_names'] = $this->formatTeamNames($teamRows);
+            $r['team_count'] = count($teamRows);
+
             return $r;
         }, $channels);
-        $this->success(['channels' => $channels, 'keys' => $channels]);
     }
 
     public function syncFromKirimin()
