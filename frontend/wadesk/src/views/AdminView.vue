@@ -44,87 +44,150 @@
 
       <!-- Teams -->
       <section v-if="tab === 'teams'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Teams</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h2 class="font-display font-semibold text-lg">Teams</h2>
+          <p v-if="teamBrowseTotal" class="text-xs text-slate-500">
+            {{ teamBrowseRows.length }} / {{ teamBrowseTotal }} team
+          </p>
+        </div>
 
         <div v-if="teams.length" class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
           <p class="text-sm font-medium text-slate-200">Default team</p>
           <p class="text-xs text-slate-400">
-            Customer baru — belum pernah ada riwayat chat di nomor manapun — masuk ke team ini.
-            Hanya boleh satu default team.
+            Customer baru — belum pernah ada riwayat chat — masuk ke team ini. Hanya satu default team.
           </p>
-          <div class="space-y-1">
-            <label
-              v-for="t in teams"
-              :key="'default-' + t.id"
-              class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer"
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <select v-model="defaultTeamDraft" class="field sm:max-w-xs">
+              <option disabled value="">Pilih default team</option>
+              <option v-for="t in teams" :key="'default-' + t.id" :value="t.id">
+                {{ t.name }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn-sm shrink-0"
+              :disabled="!defaultTeamDraft || savingDefaultTeam"
+              @click="saveDefaultTeam"
             >
-              <input
-                v-model="defaultTeamDraft"
-                type="radio"
-                name="default-team"
-                :value="t.id"
-                class="rounded-full"
-              />
-              {{ t.name }}
-              <span v-if="t.is_default" class="text-[10px] text-accent">(saat ini)</span>
-            </label>
+              {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
+            </button>
           </div>
-          <button
-            type="button"
-            class="btn-sm"
-            :disabled="!defaultTeamDraft || savingDefaultTeam"
-            @click="saveDefaultTeam"
-          >
-            {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
-          </button>
         </div>
 
         <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
-          <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team" />
-          <button class="btn">Tambah</button>
+          <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team baru" />
+          <button class="btn shrink-0">Tambah</button>
         </form>
-        <ul class="divide-y divide-white/5">
-          <li v-for="t in teams" :key="t.id" class="py-3 flex items-center justify-between gap-2">
-            <div class="min-w-0 flex-1">
-              <template v-if="editingTeamId === t.id">
-                <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="saveTeamName(t)">
-                  <input
-                    v-model="editingTeamName"
-                    required
-                    maxlength="100"
-                    class="field flex-1"
-                    placeholder="Nama team"
-                    @keydown.esc.prevent="cancelEditTeam"
-                  />
-                  <div class="flex gap-2 shrink-0">
-                    <button type="submit" class="btn" :disabled="savingTeam">
-                      {{ savingTeam ? "Menyimpan..." : "Simpan" }}
-                    </button>
-                    <button type="button" class="btn-sm" :disabled="savingTeam" @click="cancelEditTeam">
-                      Batal
-                    </button>
+
+        <div class="relative">
+          <input
+            v-model="teamBrowseQuery"
+            type="search"
+            class="field pl-9"
+            placeholder="Cari team..."
+            autocomplete="off"
+          />
+          <svg
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+        </div>
+
+        <div class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+            <div
+              v-if="loadingTeamBrowse && !teamBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              Memuat team...
+            </div>
+            <p
+              v-else-if="!teamBrowseRows.length"
+              class="py-10 text-center text-sm text-slate-500"
+            >
+              {{ teamBrowseQuery.trim() ? "Team tidak ditemukan." : "Belum ada team." }}
+            </p>
+
+            <div
+              v-for="t in teamBrowseRows"
+              :key="t.id"
+              class="px-4 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02]"
+            >
+              <div class="min-w-0 flex-1">
+                <template v-if="editingTeamId === t.id">
+                  <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="saveTeamName(t)">
+                    <input
+                      v-model="editingTeamName"
+                      required
+                      maxlength="100"
+                      class="field flex-1"
+                      placeholder="Nama team"
+                      @keydown.esc.prevent="cancelEditTeam"
+                    />
+                    <div class="flex gap-2 shrink-0">
+                      <button type="submit" class="btn" :disabled="savingTeam">
+                        {{ savingTeam ? "Menyimpan..." : "Simpan" }}
+                      </button>
+                      <button type="button" class="btn-sm" :disabled="savingTeam" @click="cancelEditTeam">
+                        Batal
+                      </button>
+                    </div>
+                  </form>
+                </template>
+                <template v-else>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <p class="font-medium truncate">{{ t.name }}</p>
+                    <span
+                      v-if="Number(t.is_default) === 1"
+                      class="shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent/15 text-accent"
+                    >
+                      Default
+                    </span>
                   </div>
-                </form>
-              </template>
-              <template v-else>
-                <p class="font-medium truncate">{{ t.name }}</p>
-                <p class="text-xs text-slate-500">
-                  Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
-                  <span v-if="(t.channels || []).length">
-                    · Nomor: {{ (t.channels || []).map((c) => c.label || c.phone_number).join(", ") }}
-                  </span>
-                  <span v-else class="text-amber-400/80"> · Belum ada nomor</span>
-                </p>
-              </template>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
+                  </p>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    <template v-if="Number(t.channel_count) > 0">
+                      {{ t.channel_count }} nomor
+                      <span v-if="teamChannelPreview(t)" class="text-slate-600">
+                        · {{ teamChannelPreview(t) }}
+                      </span>
+                    </template>
+                    <span v-else class="text-amber-400/80">Belum ada nomor</span>
+                  </p>
+                </template>
+              </div>
+              <div v-if="editingTeamId !== t.id" class="flex items-center gap-3 shrink-0 pt-0.5">
+                <button type="button" class="text-xs text-accent hover:underline" @click="startEditTeam(t)">
+                  Ubah
+                </button>
+                <button type="button" class="text-xs text-rose-400" @click="removeTeam(t.id)">Hapus</button>
+              </div>
             </div>
-            <div v-if="editingTeamId !== t.id" class="flex items-center gap-3 shrink-0">
-              <button type="button" class="text-xs text-accent hover:underline" @click="startEditTeam(t)">
-                Ubah
-              </button>
-              <button type="button" class="text-xs text-rose-400" @click="removeTeam(t.id)">Hapus</button>
+
+            <div ref="teamBrowseSentinel" class="h-1" aria-hidden="true" />
+
+            <div
+              v-if="loadingTeamBrowse && teamBrowseRows.length"
+              class="py-3 text-center text-xs text-slate-500"
+            >
+              Memuat lagi...
             </div>
-          </li>
-        </ul>
+            <p
+              v-else-if="teamBrowseRows.length && !teamBrowseHasMore"
+              class="py-3 text-center text-xs text-slate-600"
+            >
+              Semua team sudah dimuat
+            </p>
+          </div>
+        </div>
       </section>
 
       <!-- Users -->
@@ -841,7 +904,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
@@ -864,6 +927,16 @@ const tabs = [
 ];
 
 const teams = ref([]);
+const TEAM_BROWSE_LIMIT = 20;
+const teamBrowseRows = ref([]);
+const teamBrowseTotal = ref(0);
+const teamBrowsePage = ref(1);
+const teamBrowseQuery = ref("");
+const loadingTeamBrowse = ref(false);
+const teamBrowseHasMore = ref(true);
+const teamBrowseSentinel = ref(null);
+let teamBrowseObserver = null;
+let teamSearchTimer = null;
 const users = ref([]);
 const keys = ref([]);
 const availableDevices = ref([]);
@@ -1012,9 +1085,92 @@ async function leaveOperationalTeam() {
   }
 }
 
+async function loadTeamOptions() {
+  const res = await api("/WaDesk/Teams/options");
+  teams.value = res.data?.teams || [];
+  if (res.data?.default_team_id) {
+    defaultTeamDraft.value = res.data.default_team_id;
+  } else {
+    syncDefaultTeamDraft();
+  }
+}
+
+async function loadTeamBrowse(reset = false) {
+  if (loadingTeamBrowse.value) return;
+  if (!reset && !teamBrowseHasMore.value) return;
+
+  loadingTeamBrowse.value = true;
+  try {
+    if (reset) {
+      teamBrowsePage.value = 1;
+      teamBrowseHasMore.value = true;
+    }
+    const page = reset ? 1 : teamBrowsePage.value;
+    const q = teamBrowseQuery.value.trim();
+    const res = await api(
+      `/WaDesk/Teams/list?page=${page}&limit=${TEAM_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    const rows = res.data?.teams || [];
+    teamBrowseTotal.value = Number(res.data?.total ?? 0);
+    if (reset) {
+      teamBrowseRows.value = rows;
+    } else {
+      const seen = new Set(teamBrowseRows.value.map((t) => t.id));
+      for (const row of rows) {
+        if (!seen.has(row.id)) {
+          teamBrowseRows.value.push(row);
+          seen.add(row.id);
+        }
+      }
+    }
+    teamBrowseHasMore.value = teamBrowseRows.value.length < teamBrowseTotal.value;
+    teamBrowsePage.value = page + 1;
+    if (res.data?.default_team_id) {
+      defaultTeamDraft.value = res.data.default_team_id;
+    }
+  } catch (e) {
+    if (reset) {
+      teamBrowseRows.value = [];
+      teamBrowseTotal.value = 0;
+    }
+    flash(false, e.message || "Gagal memuat team");
+  } finally {
+    loadingTeamBrowse.value = false;
+    await nextTick();
+    setupTeamBrowseObserver();
+  }
+}
+
+function setupTeamBrowseObserver() {
+  teamBrowseObserver?.disconnect();
+  if (tab.value !== "teams" || !teamBrowseSentinel.value || !teamBrowseHasMore.value) return;
+  teamBrowseObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        loadTeamBrowse(false);
+      }
+    },
+    { rootMargin: "160px" }
+  );
+  teamBrowseObserver.observe(teamBrowseSentinel.value);
+}
+
+function teamChannelPreview(t) {
+  const channels = Array.isArray(t.channels) ? t.channels : [];
+  if (!channels.length) return "";
+  const labels = channels.slice(0, 2).map((c) => c.label || c.phone_number).filter(Boolean);
+  const extra = Number(t.channel_count || channels.length) - labels.length;
+  if (extra > 0) return `${labels.join(", ")} +${extra}`;
+  return labels.join(", ");
+}
+
+async function reloadTeamsTab() {
+  await Promise.all([loadTeamOptions(), loadTeamBrowse(true)]);
+}
+
 async function refresh() {
-  const [t, u, k, tp, q, kir, oai, daily] = await Promise.all([
-    api("/WaDesk/Teams/list"),
+  const [u, k, tp, q, kir, oai, daily] = await Promise.all([
     api("/WaDesk/Users/list"),
     api("/WaDesk/Channels/list?scope=all"),
     api("/WaDesk/Templates/list"),
@@ -1022,9 +1178,11 @@ async function refresh() {
     api("/WaDesk/Settings/kirimin"),
     api("/WaDesk/Settings/openai"),
     api("/WaDesk/Settings/dailyLimit"),
+    loadTeamOptions(),
   ]);
-  teams.value = t.data.teams || [];
-  syncDefaultTeamDraft();
+  if (tab.value === "teams") {
+    await loadTeamBrowse(true);
+  }
   users.value = u.data.users || [];
   keys.value = k.data.channels || k.data.keys || [];
   templates.value = tp.data.templates || [];
@@ -1092,13 +1250,27 @@ watch(tab, (id) => {
   if (id === "log") {
     loadFailLogs(1);
   }
+  if (id === "teams") {
+    loadTeamBrowse(true);
+  }
+});
+
+watch(teamBrowseQuery, () => {
+  clearTimeout(teamSearchTimer);
+  teamSearchTimer = setTimeout(() => {
+    if (tab.value === "teams") loadTeamBrowse(true);
+  }, 300);
+});
+
+watch(teamBrowseSentinel, () => {
+  nextTick(setupTeamBrowseObserver);
 });
 
 async function createTeam() {
   try {
     await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name } });
-    teamForm.name = "";
     flash(true, "Team dibuat");
+    teamForm.name = "";
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -1134,7 +1306,7 @@ async function saveTeamName(t) {
     });
     flash(true, "Nama team diubah");
     cancelEditTeam();
-    await refresh();
+    await reloadTeamsTab();
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -1177,7 +1349,7 @@ async function saveDefaultTeam() {
       body: { team_id: teamId },
     });
     flash(true, "Default team disimpan");
-    await refresh();
+    await reloadTeamsTab();
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -1675,6 +1847,10 @@ async function onLogout() {
 }
 
 onMounted(refresh);
+onUnmounted(() => {
+  teamBrowseObserver?.disconnect();
+  clearTimeout(teamSearchTimer);
+});
 </script>
 
 <style scoped>

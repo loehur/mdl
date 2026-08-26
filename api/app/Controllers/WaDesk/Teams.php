@@ -11,24 +11,94 @@ class Teams extends WaDeskController
     {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
+        $tenantId = (int) $admin['tenant_id'];
 
+        $page = max(1, (int) $this->query('page', 0));
+        $limit = min(50, max(1, (int) $this->query('limit', 20)));
+        $q = trim((string) $this->query('q', ''));
+
+        $where = 't.tenant_id = ?';
+        $binds = [$tenantId];
+        if ($q !== '') {
+            $where .= ' AND t.name LIKE ?';
+            $binds[] = '%' . $q . '%';
+        }
+
+        $totalRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS c FROM teams t WHERE {$where}",
+            $binds
+        )->row_array();
+        $total = (int) ($totalRow['c'] ?? 0);
+
+        $defaultRow = $this->db($this->db_index)->query(
+            "SELECT id FROM teams WHERE tenant_id = ? AND is_default = 1 LIMIT 1",
+            [$tenantId]
+        )->row_array();
+        $defaultTeamId = (int) ($defaultRow['id'] ?? 0);
+
+        if ($page <= 0) {
+            $page = 1;
+            $limit = max($limit, $total > 0 ? $total : 1);
+        }
+
+        $offset = ($page - 1) * $limit;
         $rows = $this->db($this->db_index)->query(
             "SELECT t.*, u.name AS leader_name, u.email AS leader_email,
-                    (SELECT COUNT(*) FROM users a WHERE a.team_id = t.id AND a.role = 'agent') AS agent_count
+                    (SELECT COUNT(*) FROM users a WHERE a.team_id = t.id AND a.role = 'agent') AS agent_count,
+                    (SELECT COUNT(*) FROM wa_channel_teams ct WHERE ct.team_id = t.id) AS channel_count
              FROM teams t
              LEFT JOIN users u ON u.id = t.team_leader_user_id
-             WHERE t.tenant_id = ?
-             ORDER BY t.name ASC",
-            [(int) $admin['tenant_id']]
+             WHERE {$where}
+             ORDER BY t.is_default DESC, t.name ASC
+             LIMIT {$limit} OFFSET {$offset}",
+            $binds
         )->result_array();
 
-        $channelsByTeam = $this->loadTeamChannelsMap((int) $admin['tenant_id']);
+        $teamIds = array_map(static fn ($r) => (int) ($r['id'] ?? 0), $rows);
+        $channelsByTeam = $this->loadTeamChannelsMap($tenantId, $teamIds);
         foreach ($rows as &$row) {
             $row['channels'] = $channelsByTeam[(int) $row['id']] ?? [];
         }
         unset($row);
 
-        $this->success(['teams' => $rows]);
+        $this->success([
+            'teams' => $rows,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+            'default_team_id' => $defaultTeamId > 0 ? $defaultTeamId : null,
+        ]);
+    }
+
+    /** Ringkas — untuk dropdown di tab lain (tanpa channel detail). */
+    public function options()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT t.id, t.name, t.is_default, t.team_leader_user_id,
+                    u.name AS leader_name,
+                    (SELECT COUNT(*) FROM users a WHERE a.team_id = t.id AND a.role = 'agent') AS agent_count
+             FROM teams t
+             LEFT JOIN users u ON u.id = t.team_leader_user_id
+             WHERE t.tenant_id = ?
+             ORDER BY t.is_default DESC, t.name ASC",
+            [(int) $admin['tenant_id']]
+        )->result_array();
+
+        $defaultTeamId = 0;
+        foreach ($rows as $row) {
+            if ((int) ($row['is_default'] ?? 0) === 1) {
+                $defaultTeamId = (int) $row['id'];
+                break;
+            }
+        }
+
+        $this->success([
+            'teams' => $rows,
+            'default_team_id' => $defaultTeamId > 0 ? $defaultTeamId : null,
+        ]);
     }
 
     public function create()
@@ -160,19 +230,28 @@ class Teams extends WaDeskController
         )->row_array() ?: null;
     }
 
-    /** @return array<int, list<array{id:int,label:string,phone_number:string,is_primary:bool}>> */
-    private function loadTeamChannelsMap(int $tenantId): array
+    /** @return array<int, list<array{id:int,label:string,phone_number:string}>> */
+    private function loadTeamChannelsMap(int $tenantId, array $teamIds = []): array
     {
         $tbl = $this->channelsTable();
+        $teamIds = array_values(array_filter(array_map('intval', $teamIds), static fn ($id) => $id > 0));
+        $teamFilter = '';
+        $binds = [$tenantId];
+        if ($teamIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+            $teamFilter = " AND link.team_id IN ({$placeholders})";
+            $binds = array_merge($binds, $teamIds);
+        }
+
         $links = $this->db($this->db_index)->query(
             "SELECT c.id, c.label, c.phone_number, link.team_id
              FROM {$tbl} c
              INNER JOIN (
                SELECT channel_id, team_id FROM wa_channel_teams
              ) link ON link.channel_id = c.id
-             WHERE c.tenant_id = ? AND c.status = 'active'
+             WHERE c.tenant_id = ? AND c.status = 'active'{$teamFilter}
              ORDER BY c.label ASC, c.id ASC",
-            [$tenantId]
+            $binds
         )->result_array();
 
         $map = [];
