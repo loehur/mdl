@@ -199,8 +199,8 @@ class Quota extends WaDeskController
         if ($this->hasOperationalTeam($user)) {
             // Channel harus dipakai team user (utama ATAU team tambahan)
             $accessible = $this->db($this->db_index)->query(
-                "SELECT 1 AS ok FROM {$tbl}
-                 WHERE id = ? AND tenant_id = ?
+                "SELECT 1 AS ok FROM {$tbl} k
+                 WHERE k.id = ? AND k.tenant_id = ?
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  LIMIT 1",
                 [$channelId, (int) $user['tenant_id']]

@@ -88,8 +88,8 @@ class Blast extends WaDeskController
 
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl}
-             WHERE id = ? AND tenant_id = ? AND status = 'active'
+            "SELECT * FROM {$tbl} k
+             WHERE k.id = ? AND k.tenant_id = ? AND k.status = 'active'
                AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
              LIMIT 1",
             [$channelId, (int) $user['tenant_id']]

@@ -744,10 +744,10 @@ abstract class WaDeskController extends BaseController
         }
         $tbl = $this->channelsTable();
         return $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl}
-             WHERE tenant_id = ? AND status = 'active'
+            "SELECT * FROM {$tbl} k
+             WHERE k.tenant_id = ? AND k.status = 'active'
                AND {$this->channelTeamSql($tbl, $teamId)}
-             ORDER BY (team_id = ?) DESC, id DESC
+             ORDER BY (k.team_id = ?) DESC, k.id DESC
              LIMIT 1",
             [$tenantId, $teamId]
         )->row_array() ?: null;
@@ -755,7 +755,7 @@ abstract class WaDeskController extends BaseController
 
     /**
      * SQL fragment: channel dipakai oleh team (sebagai team utama ATAU team tambahan).
-     * Selalu mulai dengan 'k.'-less alias — $table dipakai sebagai nama tabel/k alias.
+     * Caller WAJIB pakai alias `k` untuk tabel wa_channels (FROM wa_channels k).
      * $teamId di-inline (int); caller TIDAK perlu menambahkan bind param untuk team_id.
      */
     protected function channelTeamSql(string $table, int $teamId): string

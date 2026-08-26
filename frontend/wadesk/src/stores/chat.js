@@ -76,8 +76,9 @@ export const useChatStore = defineStore("chat", {
       this.templates = [];
       try {
         this.templates = await fetchEligibleTemplates(channelId);
-      } catch {
+      } catch (e) {
         this.templates = [];
+        console.warn("loadTemplates failed:", e?.message || e);
       }
     },
     async sendFree(message) {
