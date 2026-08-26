@@ -853,10 +853,13 @@
           </div>
 
           <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <select v-model="adminTeamPick" class="field flex-1 sm:max-w-sm">
-              <option value="">— Tidak aktif —</option>
-              <option v-for="t in teams" :key="'op-' + t.id" :value="String(t.id)">{{ t.name }}</option>
-            </select>
+            <TeamSearchSelect
+              v-model="adminTeamPick"
+              allow-empty
+              class="flex-1 sm:max-w-sm"
+              :fallback-label="auth.user?.team_name || ''"
+              :active="tab === 'config'"
+            />
             <button type="submit" class="btn-sm shrink-0 w-full sm:w-auto" :disabled="joiningTeam || !teams.length">
               {{ joiningTeam ? "Menyimpan..." : "Terapkan" }}
             </button>
@@ -876,12 +879,13 @@
             Customer baru — belum pernah ada riwayat chat — masuk ke team ini. Hanya satu default team.
           </p>
           <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <select v-model="defaultTeamDraft" class="field sm:max-w-md" required>
-              <option disabled value="">Pilih default team</option>
-              <option v-for="t in teams" :key="'cfg-default-' + t.id" :value="t.id">
-                {{ t.name }}
-              </option>
-            </select>
+            <TeamSearchSelect
+              v-model="defaultTeamDraft"
+              class="flex-1 sm:max-w-md"
+              placeholder="Pilih default team..."
+              :fallback-label="defaultTeamLabel"
+              :active="tab === 'config'"
+            />
             <button type="submit" class="btn-sm shrink-0" :disabled="!defaultTeamDraft || savingDefaultTeam">
               {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
             </button>
@@ -1213,6 +1217,7 @@ import { useAuthStore } from "../stores/auth";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import AppHeader from "../components/AppHeader.vue";
 import DailyReportPanel from "../components/DailyReportPanel.vue";
+import TeamSearchSelect from "../components/TeamSearchSelect.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -1386,6 +1391,11 @@ const expandedFailLog = ref(null);
 const teamsWithoutLeader = computed(() =>
   teams.value.filter((t) => !t.team_leader_user_id)
 );
+
+const defaultTeamLabel = computed(() => {
+  const hit = teams.value.find((t) => String(t.id) === String(defaultTeamDraft.value));
+  return hit?.name || "";
+});
 
 const selectedQuotaTeam = computed(() =>
   quotaBrowseRows.value.find((q) => Number(q.team_id) === Number(quotaForm.team_id)) || null
@@ -1786,7 +1796,7 @@ async function loadTeamOptions() {
   const res = await api("/WaDesk/Teams/options");
   teams.value = res.data?.teams || [];
   if (res.data?.default_team_id) {
-    defaultTeamDraft.value = res.data.default_team_id;
+    defaultTeamDraft.value = String(res.data.default_team_id);
   } else {
     syncDefaultTeamDraft();
   }
@@ -1824,7 +1834,7 @@ async function loadTeamBrowse(reset = false) {
     teamBrowseHasMore.value = teamBrowseRows.value.length < teamBrowseTotal.value;
     teamBrowsePage.value = page + 1;
     if (res.data?.default_team_id) {
-      defaultTeamDraft.value = res.data.default_team_id;
+      defaultTeamDraft.value = String(res.data.default_team_id);
     }
   } catch (e) {
     if (reset) {
@@ -2106,7 +2116,7 @@ async function removeTeam(id) {
 
 function syncDefaultTeamDraft() {
   const current = teams.value.find((t) => Number(t.is_default) === 1);
-  defaultTeamDraft.value = current ? current.id : "";
+  defaultTeamDraft.value = current ? String(current.id) : "";
 }
 
 async function saveDefaultTeam() {
