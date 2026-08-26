@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark (default) */
+/* ── Surfaces ── */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
@@ -13,9 +13,35 @@
   --theme-border: 255 255 255;
   --theme-muted-bg: 255 255 255;
   --theme-overlay: 0 0 0;
+  --color-accent: 13 148 136;
+  --color-accent-soft: 20 184 166;
+
+  /* Teks di atas background gelap */
+  --text-slate-100: 241 245 249;
+  --text-slate-200: 226 232 240;
+  --text-slate-300: 203 213 225;
+  --text-slate-400: 148 163 184;
+  --text-slate-500: 100 116 139;
+  --text-slate-600: 71 85 105;
+  --text-slate-700: 51 65 85;
+  --text-slate-800: 30 41 59;
+
+  --text-accent: 13 148 136;
+  --text-accent-soft: 20 184 166;
+  --text-emerald-300: 110 231 183;
+  --text-emerald-400: 52 211 153;
+  --text-emerald-500: 16 185 129;
+  --text-amber-100: 254 243 199;
+  --text-amber-200: 253 230 138;
+  --text-amber-300: 252 211 77;
+  --text-amber-400: 251 191 36;
+  --text-amber-500: 245 158 11;
+  --text-amber-800: 146 64 14;
+  --text-red-400: 248 113 113;
+  --text-red-500: 239 68 68;
+  --text-rose-400: 251 113 133;
 }
 
-/* Light — teal accent kept; soft slate surfaces */
 [data-theme="light"] {
   color-scheme: light;
   --color-ink-950: 241 245 249;
@@ -25,6 +51,33 @@
   --theme-border: 15 23 42;
   --theme-muted-bg: 15 23 42;
   --theme-overlay: 15 23 42;
+  --color-accent: 13 148 136;
+  --color-accent-soft: 15 118 110;
+
+  /* Teks di atas background terang — kontras lebih kuat */
+  --text-slate-100: 15 23 42;
+  --text-slate-200: 30 41 59;
+  --text-slate-300: 51 65 85;
+  --text-slate-400: 71 85 105;
+  --text-slate-500: 100 116 139;
+  --text-slate-600: 71 85 105;
+  --text-slate-700: 51 65 85;
+  --text-slate-800: 30 41 59;
+
+  --text-accent: 15 118 110;
+  --text-accent-soft: 17 94 89;
+  --text-emerald-300: 5 150 105;
+  --text-emerald-400: 5 150 105;
+  --text-emerald-500: 4 120 87;
+  --text-amber-100: 146 64 14;
+  --text-amber-200: 146 64 14;
+  --text-amber-300: 180 83 9;
+  --text-amber-400: 180 83 9;
+  --text-amber-500: 146 64 14;
+  --text-amber-800: 120 53 15;
+  --text-red-400: 220 38 38;
+  --text-red-500: 220 38 38;
+  --text-rose-400: 225 29 72;
 }
 
 html,
@@ -34,30 +87,12 @@ body,
 }
 
 body {
-  @apply bg-ink-950 text-slate-100 antialiased;
+  @apply bg-ink-950 antialiased;
+  color: rgb(var(--text-slate-100));
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Remap dark-oriented utilities for light theme */
-[data-theme="light"] .text-slate-100 {
-  color: #0f172a;
-}
-[data-theme="light"] .text-slate-200 {
-  color: #1e293b;
-}
-[data-theme="light"] .text-slate-300 {
-  color: #334155;
-}
-[data-theme="light"] .text-slate-400 {
-  color: #64748b;
-}
-[data-theme="light"] .text-slate-500 {
-  color: #94a3b8;
-}
-[data-theme="light"] .hover\:text-white:hover,
-[data-theme="light"] .hover\:text-slate-100:hover {
-  color: #0f172a;
-}
+/* ── Border & muted surfaces ── */
 [data-theme="light"] .border-white\/10 {
   border-color: rgb(var(--theme-border) / 0.1);
 }
@@ -79,21 +114,22 @@ body {
 [data-theme="light"] .text-white\/20 {
   color: rgb(15 23 42 / 0.25);
 }
-[data-theme="light"] .placeholder\:text-slate-500::placeholder {
-  color: #94a3b8;
+[data-theme="light"] .hover\:text-white:hover {
+  color: #0f172a;
 }
 
-/*
- * Native <select>/<option> + scoped .field/@apply text-slate-100 bake white color
- * into a higher-specificity rule, so remap form controls explicitly for light.
- */
+[data-theme="light"] .placeholder\:text-slate-500::placeholder {
+  color: rgb(var(--text-slate-500));
+}
+
+/* Form controls — pastikan kontras di scoped .field */
 [data-theme="light"] select,
 [data-theme="light"] select.field,
 [data-theme="light"] .field,
 [data-theme="light"] input,
 [data-theme="light"] textarea,
 [data-theme="light"] .input {
-  color: #0f172a !important;
+  color: rgb(var(--text-slate-100)) !important;
   color-scheme: light;
 }
 [data-theme="light"] select option,
@@ -104,18 +140,10 @@ body {
 [data-theme="light"] select:disabled,
 [data-theme="light"] .field:disabled,
 [data-theme="light"] input:disabled {
-  color: #64748b !important;
+  color: rgb(var(--text-slate-400)) !important;
 }
 
-/* Scoped @apply text-slate-* on .btn-sm stays pale in light — bump contrast */
-[data-theme="light"] .btn-sm {
-  color: #334155 !important;
-}
-[data-theme="light"] .btn-sm-accent {
-  color: #0f766e !important;
-}
-
-/* Logout — stronger contrast, especially in light theme */
+/* Logout */
 .wadesk-logout-btn {
   @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition active:scale-[0.98];
   border: 1px solid rgb(244 63 94 / 0.5);
@@ -138,7 +166,6 @@ body {
   color: rgb(159 18 57);
 }
 
-/* Login gradient softens in light mode */
 [data-theme="light"] .theme-login-glow {
   background:
     radial-gradient(ellipse at top, rgba(13, 148, 136, 0.14), transparent 55%),

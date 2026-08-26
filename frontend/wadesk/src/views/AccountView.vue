@@ -564,7 +564,7 @@ watch(
   @apply text-accent-soft hover:underline ml-1 font-medium;
 }
 
-/* Light theme — card putih */
+/* Light theme — surface cards (warna teks via CSS variables global) */
 [data-theme="light"] .card {
   @apply bg-white border-slate-200/80 shadow-sm;
 }
@@ -577,23 +577,19 @@ watch(
   @apply bg-white border-slate-200;
 }
 
-[data-theme="light"] .account-tab {
-  @apply text-slate-500 hover:bg-slate-100 hover:text-slate-800;
-}
-
 [data-theme="light"] .account-tab-active {
   @apply bg-accent text-white hover:bg-accent hover:text-white;
 }
 
 [data-theme="light"] .btn-secondary {
-  @apply bg-slate-100 text-slate-700 hover:bg-slate-200;
+  @apply bg-slate-100 hover:bg-slate-200;
 }
 
 [data-theme="light"] .badge {
-  @apply bg-slate-100 text-slate-600;
+  @apply bg-slate-100;
 }
 
 [data-theme="light"] .alert-warn {
-  @apply text-amber-800 bg-amber-50 border-amber-200;
+  @apply bg-amber-50 border-amber-200;
 }
 </style>

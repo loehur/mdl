@@ -15,8 +15,45 @@ export default {
           700: "rgb(var(--color-ink-700) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "#0d9488",
-          soft: "#14b8a6",
+          DEFAULT: "rgb(var(--color-accent) / <alpha-value>)",
+          soft: "rgb(var(--color-accent-soft) / <alpha-value>)",
+        },
+      },
+      /* Warna teks terpisah dari bg — bisa dibalik di tema terang tanpa merusak bg-slate-* */
+      textColor: {
+        slate: {
+          100: "rgb(var(--text-slate-100) / <alpha-value>)",
+          200: "rgb(var(--text-slate-200) / <alpha-value>)",
+          300: "rgb(var(--text-slate-300) / <alpha-value>)",
+          400: "rgb(var(--text-slate-400) / <alpha-value>)",
+          500: "rgb(var(--text-slate-500) / <alpha-value>)",
+          600: "rgb(var(--text-slate-600) / <alpha-value>)",
+          700: "rgb(var(--text-slate-700) / <alpha-value>)",
+          800: "rgb(var(--text-slate-800) / <alpha-value>)",
+        },
+        accent: {
+          DEFAULT: "rgb(var(--text-accent) / <alpha-value>)",
+          soft: "rgb(var(--text-accent-soft) / <alpha-value>)",
+        },
+        emerald: {
+          300: "rgb(var(--text-emerald-300) / <alpha-value>)",
+          400: "rgb(var(--text-emerald-400) / <alpha-value>)",
+          500: "rgb(var(--text-emerald-500) / <alpha-value>)",
+        },
+        amber: {
+          100: "rgb(var(--text-amber-100) / <alpha-value>)",
+          200: "rgb(var(--text-amber-200) / <alpha-value>)",
+          300: "rgb(var(--text-amber-300) / <alpha-value>)",
+          400: "rgb(var(--text-amber-400) / <alpha-value>)",
+          500: "rgb(var(--text-amber-500) / <alpha-value>)",
+          800: "rgb(var(--text-amber-800) / <alpha-value>)",
+        },
+        red: {
+          400: "rgb(var(--text-red-400) / <alpha-value>)",
+          500: "rgb(var(--text-red-500) / <alpha-value>)",
+        },
+        rose: {
+          400: "rgb(var(--text-rose-400) / <alpha-value>)",
         },
       },
     },
