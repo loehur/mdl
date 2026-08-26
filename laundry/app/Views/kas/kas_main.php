@@ -319,7 +319,7 @@
                   </label>
                 </div>
               </div>
-              <?php $bcaGuide = URL::NON_TUNAI_GUIDE['BCA'] ?? null; ?>
+              <?php $bcaGuide = BankAccountsApi::bcaAccount(); ?>
               <div class="kas-nontunai-row__side">
                 <div class="kas-nontunai-row__panel penarikanQrisGuideField is-visible">
                   <label class="op-label">Panduan QRIS</label>

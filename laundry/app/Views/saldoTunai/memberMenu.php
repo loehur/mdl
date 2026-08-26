@@ -26,7 +26,7 @@
     modeView: '0',
     idPelanggan: '<?= (int) $id_pelanggan ?>',
     kodeCabang: '<?= htmlspecialchars($this->dCabang['kode_cabang'] ?? '', ENT_QUOTES, 'UTF-8') ?>',
-    nonTunaiGuide: <?= json_encode(URL::NON_TUNAI_GUIDE) ?>,
+    nonTunaiGuide: <?= json_encode(BankAccountsApi::accounts()) ?>,
     loadRekap: {},
     arrTuntas: [],
     arrTuntasSerial: <?= json_encode(serialize([])) ?>,

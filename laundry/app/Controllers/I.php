@@ -196,16 +196,7 @@ class I extends Controller
       $usage = $this->db(0)->sum_col_where('kas', 'jumlah', $q_use) ?? 0;
       $saldoTunai = $topup - $topup_out - $usage;
 
-      // Hardcoded fallback to prevent URL class access errors
-      $nonTunaiGuide = [
-          'BCA' => ['label' => 'BCA (BANK CENTRAL ASIA)', 'number' => '8455103793', 'name' => 'LUHUR GUNAWAN'],
-          'BRI' => ['label' => 'BRI (BANK RAKYAT INDONESIA)', 'number' => '327901031534535', 'name' => 'LUHUR GUNAWAN']
-      ];
-      
-      // Try to use constant if available
-      if (class_exists('URL') && defined('URL::NON_TUNAI_GUIDE')) {
-          $nonTunaiGuide = URL::NON_TUNAI_GUIDE;
-      }
+      $nonTunaiGuide = BankAccountsApi::accounts();
 
       $this->view($viewData, [
          'data_pelanggan' => $this->pelanggan_p,

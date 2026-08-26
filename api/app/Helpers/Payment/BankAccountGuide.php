@@ -17,7 +17,14 @@ class BankAccountGuide
             $raw = \Env::BCA_PAYMENT_ACCOUNTS;
         }
         if (!is_array($raw) || empty($raw)) {
-            $raw = self::defaultAccounts();
+            return [];
+        }
+
+        // Konfigurasi saat ini adalah satu rekening BCA langsung. Bentuk map
+        // berkode (BCA => [...]) tetap didukung agar migrasi konfigurasi lama
+        // tidak membuat jawaban pembayaran kosong.
+        if (isset($raw['number'])) {
+            $raw = ['BCA' => $raw];
         }
 
         $out = [];
@@ -117,22 +124,4 @@ class BankAccountGuide
             . 'an. ' . trim((string) ($bca['name'] !== '' ? $bca['name'] : 'LUHUR GUNAWAN'));
     }
 
-    /**
-     * @return array<string,array{label:string,number:string,name:string}>
-     */
-    private static function defaultAccounts(): array
-    {
-        return [
-            'BCA' => [
-                'label' => 'BCA (BANK CENTRAL ASIA)',
-                'number' => '8455103793',
-                'name' => 'LUHUR GUNAWAN',
-            ],
-            'BRI' => [
-                'label' => 'BRI (BANK RAKYAT INDONESIA)',
-                'number' => '327901031534535',
-                'name' => 'LUHUR GUNAWAN',
-            ],
-        ];
-    }
 }

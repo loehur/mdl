@@ -948,7 +948,7 @@ class J extends Controller
          'tampil' => $tampil,
          'finance_history' => array_values($finance),
          'nonTunai' => URL::NON_TUNAI,
-         'nonTunaiGuide' => URL::NON_TUNAI_GUIDE,
+         'nonTunaiGuide' => BankAccountsApi::accounts(),
          'maxSaldo' => $maxSaldo,
          'maxPending' => $maxPending,
          'pendingSum' => $pendingSum,
@@ -1432,7 +1432,7 @@ class J extends Controller
          }
       }
 
-      $nonTunaiGuide = URL::NON_TUNAI_GUIDE;
+      $nonTunaiGuide = BankAccountsApi::accounts();
       $nonTunai = URL::NON_TUNAI;
 
       return [

@@ -170,16 +170,9 @@ class Env
 
     // Rekening pembayaran terpusat (BCA auto-confirm, invoice, salon, CRM /rekening)
     const BCA_PAYMENT_ACCOUNTS = [
-        'BCA' => [
-            'label' => 'BCA (BANK CENTRAL ASIA)',
-            'number' => '8455103793',
-            'name' => 'LUHUR GUNAWAN',
-        ],
-        'BRI' => [
-            'label' => 'BRI (BANK RAKYAT INDONESIA)',
-            'number' => '327901031534535',
-            'name' => 'LUHUR GUNAWAN',
-        ],
+        'label' => 'BCA (BANK CENTRAL ASIA)',
+        'number' => '8455103793',
+        'name' => 'LUHUR GUNAWAN',
     ];
 
     // URL QRIS publik (opsional — untuk payload /Payment/BankAccounts)

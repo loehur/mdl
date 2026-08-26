@@ -20,7 +20,7 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
   'hp' => $customer['hp'] ?? ($p['nomor_pelanggan'] ?? ''),
   'unpaid' => [],
   'nonTunai' => $data['nonTunai'] ?? URL::NON_TUNAI,
-  'nonTunaiGuide' => $data['nonTunaiGuide'] ?? URL::NON_TUNAI_GUIDE,
+  'nonTunaiGuide' => $data['nonTunaiGuide'] ?? BankAccountsApi::accounts(),
   'base' => $base,
   'maxSaldo' => $maxSaldo,
   'topupRoom' => $topupRoom,

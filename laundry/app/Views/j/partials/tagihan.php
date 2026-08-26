@@ -25,7 +25,7 @@ $telpCabang = trim((string) ($cabang['phone_number'] ?? ''));
   'hp' => $hp,
   'unpaid' => $unpaid,
   'nonTunai' => $data['nonTunai'] ?? URL::NON_TUNAI,
-  'nonTunaiGuide' => $data['nonTunaiGuide'] ?? URL::NON_TUNAI_GUIDE,
+  'nonTunaiGuide' => $data['nonTunaiGuide'] ?? BankAccountsApi::accounts(),
   'saldoTunai' => (int) round((float) ($data['saldoTunai'] ?? 0)),
   'base' => $base,
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>

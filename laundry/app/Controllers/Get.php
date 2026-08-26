@@ -45,9 +45,11 @@ class Get extends Controller
       $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'ml.nalju.com'));
       $qrisImageUrl = $scheme . '://' . $host . URL::IN_ASSETS . 'img/qris/qris_1.jpeg';
 
+      // Sumber tunggal rekening ada di API. ApiLoopback memakai API_BASE_URL
+      // (di VPS: http://127.0.0.1:8832), sehingga tidak bergantung pada
+      // routing domain Laundry yang memang tidak memiliki endpoint /api.
       $apiPaths = [
-         $scheme . '://' . $host . '/api/Payment/BankAccounts/index',
-         $scheme . '://' . $host . '/mdl/api/Payment/BankAccounts/index',
+         ApiLoopback::baseUrl() . '/Payment/BankAccounts/index',
       ];
 
       foreach ($apiPaths as $apiUrl) {
@@ -76,13 +78,14 @@ class Get extends Controller
          return null;
       }
       $ch = curl_init($url);
-      curl_setopt_array($ch, [
+      $options = [
          CURLOPT_RETURNTRANSFER => true,
          CURLOPT_TIMEOUT => 5,
          CURLOPT_CONNECTTIMEOUT => 3,
          CURLOPT_FOLLOWLOCATION => true,
-         CURLOPT_HTTPHEADER => ['Accept: application/json'],
-      ]);
+         CURLOPT_HTTPHEADER => ApiLoopback::headers($url, ['Accept: application/json']),
+      ];
+      curl_setopt_array($ch, ApiLoopback::curlOpts($url, $options));
       $raw = curl_exec($ch);
       $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
       curl_close($ch);
