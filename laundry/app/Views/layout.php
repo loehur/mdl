@@ -36,6 +36,8 @@ if (isset($data['data_operasi'])) {
             backdrop-filter: blur(2px);
         }
         .loaderDiv.is-show { display: flex; }
+        /* jQuery .fadeIn() menyetel inline display:block — paksa tetap flex agar spinner di tengah */
+        .loaderDiv[style*="display: block"] { display: flex !important; }
         .loaderDiv .loader {
             width: 48px;
             height: 48px;

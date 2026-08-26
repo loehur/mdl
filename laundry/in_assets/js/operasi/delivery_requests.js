@@ -696,29 +696,37 @@
             tarifSurcasLoading = false;
             tarifBtn.disabled = false;
           });
+        return;
+      }
+
+      // Delegasi tombol modal — konten #load di-refresh via AJAX, elemen baru
+      // tidak mewarisi addEventListener langsung, jadi binding harus di document.
+      var batalBtn = e.target.closest('#dlvSelesaiBatal');
+      if (batalBtn) {
+        e.preventDefault();
+        batalDelivery();
+        return;
+      }
+      var confirmYesBtn = e.target.closest('#dlvConfirmYes');
+      if (confirmYesBtn) {
+        e.preventDefault();
+        confirmBatalDelivery();
+        return;
+      }
+      var pendingYesBtn = e.target.closest('#dlvPendingYes');
+      if (pendingYesBtn) {
+        e.preventDefault();
+        confirmPendingRequest();
+        return;
       }
     });
 
-    var selesaiForm = document.getElementById('dlvSelesaiForm');
-    if (selesaiForm && !selesaiForm.dataset.opDlvBound) {
-      selesaiForm.dataset.opDlvBound = '1';
-      selesaiForm.addEventListener('submit', submitSelesai);
-    }
-    var batalBtn = document.getElementById('dlvSelesaiBatal');
-    if (batalBtn && !batalBtn.dataset.opDlvBound) {
-      batalBtn.dataset.opDlvBound = '1';
-      batalBtn.addEventListener('click', batalDelivery);
-    }
-    var confirmYes = document.getElementById('dlvConfirmYes');
-    if (confirmYes && !confirmYes.dataset.opDlvBound) {
-      confirmYes.dataset.opDlvBound = '1';
-      confirmYes.addEventListener('click', confirmBatalDelivery);
-    }
-    var pendingYes = document.getElementById('dlvPendingYes');
-    if (pendingYes && !pendingYes.dataset.opDlvBound) {
-      pendingYes.dataset.opDlvBound = '1';
-      pendingYes.addEventListener('click', confirmPendingRequest);
-    }
+    document.addEventListener('submit', function (e) {
+      var selesaiForm = e.target.closest('#dlvSelesaiForm');
+      if (selesaiForm && document.getElementById('dlvSelesaiModal') && document.getElementById('dlvSelesaiModal').classList.contains('is-open')) {
+        submitSelesai(e);
+      }
+    });
   }
 
   window.OpDlvSelesai = {
