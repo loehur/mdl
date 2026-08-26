@@ -61,6 +61,17 @@
       }
     }
 
+    function flushDeferredLoad() {
+      if (document.querySelectorAll(".op-modal.is-open").length !== 0) return;
+      if (!window.__opDeferredLoadDiv || typeof window.__opReloadDiv !== "function") return;
+      window.__opDeferredLoadDiv = false;
+      window.setTimeout(function () {
+        if (!document.querySelector(".op-modal.is-open")) {
+          window.__opReloadDiv();
+        }
+      }, 0);
+    }
+
     function open(id, opts) {
       opts = opts || {};
       var modal = el(id);
@@ -92,6 +103,7 @@
       try {
         modal.dispatchEvent(new CustomEvent("op-modal:close", { bubbles: true }));
       } catch (e) {}
+      flushDeferredLoad();
     }
 
     function closeAll() {
@@ -103,6 +115,7 @@
         } catch (e) {}
       });
       syncLock();
+      flushDeferredLoad();
     }
 
     if (!window.__opModalDelegatesBound) {
@@ -3600,6 +3613,14 @@
   };
 
   function loadDiv() {
+    // Semua sumber refresh Operasi harus tunduk pada modal yang sedang dibuka.
+    // Tanpa guard ini, respons AJAX lama dapat mengganti #load dan menghapus
+    // modal sebelum operator menekan Submit.
+    window.__opReloadDiv = loadDiv;
+    if (document.querySelector(".op-modal.is-open")) {
+      window.__opDeferredLoadDiv = true;
+      return;
+    }
     if (config.saldoTunaiView) {
       var pelSaldo = $("select[name=p]").val();
       if (pelSaldo) {
