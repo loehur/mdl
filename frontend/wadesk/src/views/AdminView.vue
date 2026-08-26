@@ -356,14 +356,13 @@
             <p class="text-sm font-medium text-slate-200">Assign nomor ke team</p>
             <button
               type="button"
-              class="btn-sm shrink-0 inline-flex items-center justify-center h-9 w-9 p-0"
+              class="btn-sm shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-300 disabled:opacity-50"
               :disabled="syncingDevices"
               title="Sync device dari Kirimin"
-              aria-label="Sync device dari Kirimin"
               @click="syncDevicesFromKirimin"
             >
               <svg
-                class="h-4 w-4"
+                class="h-4 w-4 shrink-0"
                 :class="{ 'animate-spin': syncingDevices }"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -378,6 +377,7 @@
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
+              {{ syncingDevices ? "Sync..." : "Sync" }}
             </button>
           </div>
 
