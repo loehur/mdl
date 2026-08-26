@@ -500,6 +500,7 @@ class Estimasi extends Controller
                 "SELECT phone, id_pelanggan, id_cabang, status, summary, raw_log, updated_at, expires_at, notify_expires_at
                  FROM wa_permintaan_session
                  WHERE " . $this->permintaanNotifyOpenWhereSql() . "
+                   AND notify_expires_at > NOW()
                  ORDER BY updated_at DESC
                  LIMIT 100"
             );
