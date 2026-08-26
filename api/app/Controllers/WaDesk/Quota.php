@@ -181,7 +181,7 @@ class Quota extends WaDeskController
                 'team_id' => null,
                 'balance' => null,
                 'team_name' => null,
-                'daily_limit' => $this->dailyLimitStatusForChannel(null),
+                'daily_limit' => $this->dailyLimitStatusForTenant((int) $user['tenant_id']),
             ]);
             return;
         }
@@ -201,7 +201,7 @@ class Quota extends WaDeskController
             'team_id' => $teamId,
             'team_name' => $team['name'] ?? null,
             'balance' => $quota->getBalance($teamId),
-            'daily_limit' => $this->dailyLimitStatusForChannel($channel),
+            'daily_limit' => $this->dailyLimitStatusForTenant((int) $user['tenant_id']),
         ]);
     }
 
@@ -269,7 +269,7 @@ class Quota extends WaDeskController
             'key_label' => $channel['label'],
             'channel_label' => $channel['label'],
             'balance' => $quota->getBalance($billingTeamId),
-            'daily_limit' => $this->dailyLimitStatusForChannel($channel),
+            'daily_limit' => $this->dailyLimitStatusForTenant((int) $user['tenant_id']),
         ]);
     }
 }

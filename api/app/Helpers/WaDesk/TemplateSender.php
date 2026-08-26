@@ -43,7 +43,7 @@ class TemplateSender
             }
 
             $limitGuard = new DailyKeyLimit($this->db);
-            $quota = $limitGuard->canSend($wabaId, $tenantId, $phone);
+            $quota = $limitGuard->canSend($tenantId, $phone);
             if (!$quota['allowed']) {
                 return [
                     'success' => false,
@@ -147,7 +147,7 @@ class TemplateSender
                 ];
             }
 
-            $limitGuard->recordSuccess($wabaId, $tenantId, $phone, $sentByUserId ?: null, 'blast');
+            $limitGuard->recordSuccess($tenantId, $phone, $sentByUserId ?: null, 'blast');
 
             $conv = $this->getOrCreateConversation($channel, $phone, null, $teamId);
             $fakeUser = ['id' => $sentByUserId];

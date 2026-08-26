@@ -693,48 +693,35 @@ abstract class WaDeskController extends BaseController
         return $wabaId;
     }
 
-    protected function syncWabaLimitRow(string $wabaId, int $tenantId, ?string $label = null): void
+    /** @return array{configured:bool,limit:?int,used_today:?int,remaining_today:?int} */
+    protected function dailyLimitStatusForTenant(int $tenantId): array
     {
-        $guard = new \App\Helpers\WaDesk\DailyKeyLimit($this->db($this->db_index));
-        $guard->ensureLimitRow(trim($wabaId), $tenantId, $label);
-    }
-
-    /** @return array{configured:bool,waba_id:?string,limit:?int,used_today:?int,remaining_today:?int} */
-    protected function dailyLimitStatusForChannel(?array $channel): array
-    {
-        if (!$channel) {
+        if ($tenantId <= 0) {
             return [
                 'configured' => false,
-                'waba_id' => null,
                 'limit' => null,
                 'used_today' => null,
                 'remaining_today' => null,
             ];
         }
 
-        $wabaId = trim((string) ($channel['waba_id'] ?? ''));
-        if ($wabaId === '') {
-            return [
-                'configured' => false,
-                'waba_id' => null,
-                'limit' => null,
-                'used_today' => null,
-                'remaining_today' => null,
-            ];
-        }
-
-        $tenantId = (int) ($channel['tenant_id'] ?? 0);
         $guard = new \App\Helpers\WaDesk\DailyKeyLimit($this->db($this->db_index));
-        $limit = $guard->getLimit($wabaId, $tenantId);
-        $used = $guard->countUsedToday($wabaId);
+        $limit = $guard->getLimit($tenantId);
+        $used = $guard->countUsedToday($tenantId);
 
         return [
             'configured' => true,
-            'waba_id' => $wabaId,
             'limit' => $limit,
             'used_today' => $used,
             'remaining_today' => max(0, $limit - $used),
         ];
+    }
+
+    /** @deprecated Use dailyLimitStatusForTenant() */
+    protected function dailyLimitStatusForChannel(?array $channel): array
+    {
+        $tenantId = (int) ($channel['tenant_id'] ?? 0);
+        return $this->dailyLimitStatusForTenant($tenantId);
     }
 
     protected function findTeamChannel(int $teamId, int $tenantId): ?array

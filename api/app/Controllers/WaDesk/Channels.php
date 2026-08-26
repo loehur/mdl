@@ -153,7 +153,6 @@ class Channels extends WaDeskController
                 if ($channelId > 0 && $currentWaba === '') {
                     $this->db($this->db_index)->update($tbl, ['waba_id' => $wabaId], ['id' => $channelId]);
                     $byDevice[$deviceId]['waba_id'] = $wabaId;
-                    $this->syncWabaLimitRow($wabaId, $tenantId, (string) ($byDevice[$deviceId]['label'] ?? ''));
                 }
             }
 
@@ -264,9 +263,6 @@ class Channels extends WaDeskController
         if ($id <= 0) {
             $this->error('Gagal assign channel.', 409);
         }
-        if ($wabaId !== '') {
-            $this->syncWabaLimitRow($wabaId, $tenantId, trim($body['label']));
-        }
 
         $this->syncChannelTeams($id, $teamIds);
 
@@ -320,11 +316,6 @@ class Channels extends WaDeskController
             $updated = $this->db($this->db_index)->update($tbl, $data, ['id' => $id]);
             if ($updated === false) {
                 $this->error('Gagal update channel.', 409);
-            }
-            $newWaba = trim((string) ($data['waba_id'] ?? $channel['waba_id'] ?? ''));
-            if ($newWaba !== '') {
-                $label = trim((string) ($data['label'] ?? $channel['label'] ?? ''));
-                $this->syncWabaLimitRow($newWaba, $tenantId, $label);
             }
         }
 

@@ -327,46 +327,10 @@
       <!-- Channels -->
       <section v-if="tab === 'keys'" class="card space-y-4">
         <h2 class="font-display font-semibold text-lg">Channel</h2>
-        <p class="text-xs text-slate-500">
-          Limit harian per WABA ID. Assign nomor ke team ada di tab <strong class="text-slate-300">Assign</strong>.
-        </p>
-
-        <div v-if="wabaLimits.length" class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3">
-          <p class="text-xs font-medium text-slate-300">Limit per WABA ID</p>
-          <ul class="divide-y divide-white/5">
-            <li v-for="w in wabaLimits" :key="w.waba_id" class="py-3 space-y-2">
-              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span class="font-mono text-xs text-accent">{{ w.waba_id }}</span>
-                <span class="text-xs text-slate-500">{{ w.label }} · {{ w.team_names }}</span>
-              </div>
-              <div class="flex flex-col sm:flex-row gap-2 items-end">
-                <div class="flex-1 w-full">
-                  <label class="label text-[11px]">Maks. nomor unik / hari</label>
-                  <input
-                    v-model.number="wabaLimitDrafts[w.waba_id]"
-                    type="number"
-                    min="1"
-                    max="100000"
-                    class="field"
-                  />
-                </div>
-                <p class="text-xs text-slate-500 shrink-0 pb-2">
-                  Terpakai hari ini: <span class="text-slate-200 font-medium">{{ w.used_today }}</span>
-                </p>
-                <button
-                  type="button"
-                  class="btn-sm shrink-0"
-                  :disabled="savingWabaLimitId === w.waba_id"
-                  @click="saveWabaLimit(w)"
-                >
-                  {{ savingWabaLimitId === w.waba_id ? "..." : "Simpan" }}
-                </button>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <p v-else class="text-sm text-slate-500 text-center py-6">
-          Belum ada WABA ID terdaftar. Assign nomor dulu di tab Assign.
+        <p class="text-sm text-slate-400">
+          Kelola nomor WA di tab <strong class="text-slate-200">Assign</strong>.
+          Limit harian nomor unik terkirim diatur per tenant di tab <strong class="text-slate-200">Config</strong>
+          (<code class="text-xs">daily_unique_limit</code>).
         </p>
       </section>
 
@@ -894,10 +858,10 @@
         </form>
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveDailyLimit">
-          <p class="text-sm font-medium text-slate-200">Default limit harian</p>
+          <p class="text-sm font-medium text-slate-200">Limit harian tenant</p>
           <p class="text-xs text-slate-400">
-            Limit default nomor customer unik terkirim (status sent+) per WABA ID untuk WABA baru.
-            Pengiriman gagal tidak dihitung. Reset setiap hari.
+            Maks. nomor customer unik terkirim (status sent+) per hari untuk seluruh tenant.
+            Semua channel/WABA dalam tenant berbagi kuota ini. Pengiriman gagal tidak dihitung. Reset setiap hari.
           </p>
           <div class="flex flex-col sm:flex-row gap-2 items-end">
             <div class="flex-1 w-full sm:max-w-xs">
@@ -1294,9 +1258,6 @@ let assignTeamSearchTimer = null;
 const channelForm = reactive({ device_id: "", label: "", team_ids: [] });
 const kiriminForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const dailyLimitForm = reactive({ daily_unique_limit: 250 });
-const wabaLimits = ref([]);
-const wabaLimitDrafts = reactive({});
-const savingWabaLimitId = ref("");
 const openaiForm = reactive({ api_key: "", api_key_masked: "", configured: false });
 const savingKiriminKey = ref(false);
 const savingDailyLimit = ref(false);
@@ -1901,10 +1862,6 @@ async function refresh() {
   kiriminForm.configured = !!kir.data?.configured;
   kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
   dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit ?? kir.data?.daily_unique_limit) || 250;
-  wabaLimits.value = daily.data?.wabas || [];
-  for (const w of wabaLimits.value) {
-    wabaLimitDrafts[w.waba_id] = Number(w.daily_unique_limit) || dailyLimitForm.daily_unique_limit;
-  }
   openaiForm.configured = !!oai.data?.configured;
   openaiForm.api_key_masked = oai.data?.api_key_masked || "";
   if (tab.value === "log") {
@@ -2328,38 +2285,12 @@ async function saveDailyLimit() {
       body: { daily_unique_limit: limit },
     });
     dailyLimitForm.daily_unique_limit = Number(res.data?.daily_unique_limit) || limit;
-    wabaLimits.value = res.data?.wabas || wabaLimits.value;
-    flash(true, "Default limit harian tenant disimpan");
+    flash(true, "Limit harian tenant disimpan");
     await refresh();
   } catch (e) {
     flash(false, e.message);
   } finally {
     savingDailyLimit.value = false;
-  }
-}
-
-async function saveWabaLimit(w) {
-  const limit = Number(wabaLimitDrafts[w.waba_id]);
-  if (!Number.isFinite(limit) || limit < 1) {
-    flash(false, "Limit WABA minimal 1");
-    return;
-  }
-  savingWabaLimitId.value = w.waba_id;
-  try {
-    await api("/WaDesk/Settings/wabaDailyLimit", {
-      method: "POST",
-      body: {
-        waba_id: w.waba_id,
-        daily_unique_limit: limit,
-        label: w.label || null,
-      },
-    });
-    flash(true, `Limit WABA ${w.waba_id} disimpan`);
-    await refresh();
-  } catch (e) {
-    flash(false, e.message);
-  } finally {
-    savingWabaLimitId.value = "";
   }
 }
 
