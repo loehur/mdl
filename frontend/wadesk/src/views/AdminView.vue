@@ -51,29 +51,6 @@
           </p>
         </div>
 
-        <div v-if="teams.length" class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-3">
-          <p class="text-sm font-medium text-slate-200">Default team</p>
-          <p class="text-xs text-slate-400">
-            Customer baru — belum pernah ada riwayat chat — masuk ke team ini. Hanya satu default team.
-          </p>
-          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <select v-model="defaultTeamDraft" class="field sm:max-w-xs">
-              <option disabled value="">Pilih default team</option>
-              <option v-for="t in teams" :key="'default-' + t.id" :value="t.id">
-                {{ t.name }}
-              </option>
-            </select>
-            <button
-              type="button"
-              class="btn-sm shrink-0"
-              :disabled="!defaultTeamDraft || savingDefaultTeam"
-              @click="saveDefaultTeam"
-            >
-              {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
-            </button>
-          </div>
-        </div>
-
         <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
           <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team baru" />
           <button class="btn shrink-0">Tambah</button>
@@ -321,50 +298,6 @@
       <section v-if="tab === 'keys'" class="card space-y-4">
         <h2 class="font-display font-semibold text-lg">Channel / Nomor (Kirimin)</h2>
 
-        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveKiriminKey">
-          <p class="text-xs text-slate-400">
-            API key Kirimin disimpan per tenant (1 admin = 1 key). Dipakai untuk sync device & template.
-          </p>
-          <div class="flex flex-col sm:flex-row gap-2">
-            <input
-              v-model="kiriminForm.api_key"
-              type="password"
-              class="field flex-1"
-              :placeholder="kiriminForm.configured ? kiriminForm.api_key_masked : 'kc_live_...'"
-              autocomplete="off"
-            />
-            <button type="submit" class="btn shrink-0" :disabled="savingKiriminKey">
-              {{ savingKiriminKey ? "Menyimpan..." : "Simpan API key" }}
-            </button>
-          </div>
-          <p v-if="kiriminForm.configured" class="text-xs text-emerald-400">
-            Terkonfigurasi: {{ kiriminForm.api_key_masked }}
-          </p>
-        </form>
-
-        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveDailyLimit">
-          <p class="text-xs text-slate-400">
-            <strong>Default</strong> limit harian nomor customer unik terkirim (status sent+) per WABA ID.
-            Channel tanpa WABA ID wajib diisi manual. Pengiriman gagal tidak dihitung. Reset setiap hari.
-          </p>
-          <div class="flex flex-col sm:flex-row gap-2 items-end">
-            <div class="flex-1 w-full">
-              <label class="label">Default tenant (WABA baru)</label>
-              <input
-                v-model.number="dailyLimitForm.daily_unique_limit"
-                type="number"
-                min="1"
-                max="100000"
-                required
-                class="field"
-              />
-            </div>
-            <button type="submit" class="btn shrink-0" :disabled="savingDailyLimit">
-              {{ savingDailyLimit ? "Menyimpan..." : "Simpan default" }}
-            </button>
-          </div>
-        </form>
-
         <div v-if="wabaLimits.length" class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3">
           <p class="text-xs font-medium text-slate-300">Limit per WABA ID</p>
           <ul class="divide-y divide-white/5">
@@ -408,8 +341,8 @@
               setiap team hanya melihat chat milik team sendiri. Team A tidak bisa lihat chat team B.
             </li>
             <li>
-              <strong class="text-slate-300">Default team</strong> — customer baru (belum pernah chat)
-              masuk ke satu team default. Atur di tab <strong class="text-slate-300">Teams</strong>.
+              <strong class="text-slate-300">Default team</strong> — customer baru masuk ke team default tenant.
+              Atur di tab <strong class="text-slate-300">Config</strong>.
             </li>
             <li>
               Customer yang sudah pernah chat dengan team tertentu — balasan berikutnya masuk ke
@@ -475,7 +408,7 @@
                 {{ t.name }}
               </label>
             </div>
-            <p class="text-[11px] text-slate-500">Default team untuk customer baru diatur di tab Teams.</p>
+            <p class="text-[11px] text-slate-500">Default team diatur di tab Config.</p>
           </div>
 
           <button class="btn w-full sm:w-auto">Assign nomor</button>
@@ -516,7 +449,7 @@
                       {{ t.name }}
                     </label>
                   </div>
-                  <p class="text-[11px] text-slate-500">Default team diatur di tab Teams.</p>
+                  <p class="text-[11px] text-slate-500">Default team diatur di tab Config.</p>
                   <p class="text-[11px] text-amber-300/80">
                     Menghapus team dari nomor ini ikut menghapus riwayat chat team tersebut (hanya milik team itu).
                   </p>
@@ -702,14 +635,80 @@
         </p>
       </section>
 
-      <!-- OpenAI -->
-      <section v-if="tab === 'openai'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">OpenAI</h2>
-        <p class="text-xs text-slate-500">
-          API key OpenAI disimpan per tenant. Fitur AI akan ditambahkan di step berikutnya.
-        </p>
+      <!-- Config -->
+      <section v-if="tab === 'config'" class="card space-y-6">
+        <h2 class="font-display font-semibold text-lg">Config</h2>
 
-        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-3" @submit.prevent="saveOpenAiKey">
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveDefaultTeam">
+          <p class="text-sm font-medium text-slate-200">Default team</p>
+          <p class="text-xs text-slate-400">
+            Customer baru — belum pernah ada riwayat chat — masuk ke team ini. Hanya satu default team.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <select v-model="defaultTeamDraft" class="field sm:max-w-md" required>
+              <option disabled value="">Pilih default team</option>
+              <option v-for="t in teams" :key="'cfg-default-' + t.id" :value="t.id">
+                {{ t.name }}
+              </option>
+            </select>
+            <button type="submit" class="btn-sm shrink-0" :disabled="!defaultTeamDraft || savingDefaultTeam">
+              {{ savingDefaultTeam ? "Menyimpan..." : "Simpan" }}
+            </button>
+          </div>
+          <p v-if="!teams.length" class="text-xs text-amber-300/90">Buat team dulu di tab Teams.</p>
+        </form>
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveDailyLimit">
+          <p class="text-sm font-medium text-slate-200">Default limit harian</p>
+          <p class="text-xs text-slate-400">
+            Limit default nomor customer unik terkirim (status sent+) per WABA ID untuk WABA baru.
+            Pengiriman gagal tidak dihitung. Reset setiap hari.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2 items-end">
+            <div class="flex-1 w-full sm:max-w-xs">
+              <label class="label">Maks. nomor unik / hari</label>
+              <input
+                v-model.number="dailyLimitForm.daily_unique_limit"
+                type="number"
+                min="1"
+                max="100000"
+                required
+                class="field"
+              />
+            </div>
+            <button type="submit" class="btn shrink-0" :disabled="savingDailyLimit">
+              {{ savingDailyLimit ? "Menyimpan..." : "Simpan" }}
+            </button>
+          </div>
+        </form>
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveKiriminKey">
+          <p class="text-sm font-medium text-slate-200">API key Kirimin</p>
+          <p class="text-xs text-slate-400">
+            Disimpan per tenant. Dipakai untuk sync device & template dari Kirimin.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input
+              v-model="kiriminForm.api_key"
+              type="password"
+              class="field flex-1"
+              :placeholder="kiriminForm.configured ? kiriminForm.api_key_masked : 'kc_live_...'"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn shrink-0" :disabled="savingKiriminKey">
+              {{ savingKiriminKey ? "Menyimpan..." : kiriminForm.configured ? "Update" : "Simpan" }}
+            </button>
+          </div>
+          <p v-if="kiriminForm.configured" class="text-xs text-emerald-400">
+            Terkonfigurasi: {{ kiriminForm.api_key_masked }}
+          </p>
+        </form>
+
+        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveOpenAiKey">
+          <p class="text-sm font-medium text-slate-200">OpenAI</p>
+          <p class="text-xs text-slate-400">
+            API key OpenAI disimpan per tenant. Dipakai fitur AI WaDesk.
+          </p>
           <div class="flex flex-col sm:flex-row gap-2">
             <input
               v-model="openaiForm.api_key"
@@ -719,24 +718,23 @@
               autocomplete="off"
             />
             <button type="submit" class="btn shrink-0" :disabled="savingOpenAiKey">
-              {{ savingOpenAiKey ? "Menyimpan..." : openaiForm.configured ? "Update API key" : "Simpan API key" }}
+              {{ savingOpenAiKey ? "Menyimpan..." : openaiForm.configured ? "Update" : "Simpan" }}
             </button>
           </div>
           <p v-if="openaiForm.configured" class="text-xs text-emerald-400">
             Terkonfigurasi: {{ openaiForm.api_key_masked }}
           </p>
+          <div v-if="openaiForm.configured" class="flex justify-end">
+            <button
+              type="button"
+              class="text-xs text-rose-400 hover:text-rose-300"
+              :disabled="deletingOpenAiKey"
+              @click="askDeleteOpenAiKey"
+            >
+              {{ deletingOpenAiKey ? "Menghapus..." : "Hapus API key" }}
+            </button>
+          </div>
         </form>
-
-        <div v-if="openaiForm.configured" class="flex justify-end">
-          <button
-            type="button"
-            class="text-xs text-rose-400 hover:text-rose-300"
-            :disabled="deletingOpenAiKey"
-            @click="askDeleteOpenAiKey"
-          >
-            {{ deletingOpenAiKey ? "Menghapus..." : "Hapus API key" }}
-          </button>
-        </div>
       </section>
 
       <!-- Quota -->
@@ -921,7 +919,7 @@ const tabs = [
   { id: "users", label: "Users" },
   { id: "keys", label: "Channel" },
   { id: "templates", label: "Templates" },
-  { id: "openai", label: "OpenAI" },
+  { id: "config", label: "Config" },
   { id: "quota", label: "Quota" },
   { id: "log", label: "Log" },
 ];
