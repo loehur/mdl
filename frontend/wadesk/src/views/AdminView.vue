@@ -568,7 +568,17 @@
               <template v-if="editingKeyId === k.id">
                 <form class="grid sm:grid-cols-2 gap-3 rounded-xl border border-white/10 bg-ink-950/30 p-4" @submit.prevent="saveKey(k)">
                   <input v-model="editKeyForm.label" required class="field sm:col-span-2" placeholder="Label" />
-                  <input v-model="editKeyForm.phone_number" class="field" placeholder="Nomor (opsional)" />
+                  <div>
+                    <label class="label">Nomor</label>
+                    <input
+                      :value="k.phone_number || ''"
+                      class="field bg-ink-950/50 text-slate-400 cursor-not-allowed"
+                      readonly
+                      tabindex="-1"
+                      placeholder="Belum tersedia — sync dari Kirimin"
+                    />
+                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sync device Kirimin, tidak bisa diubah manual.</p>
+                  </div>
                   <div>
                     <label class="label">WABA ID</label>
                     <input
@@ -1344,7 +1354,7 @@ const editUserForm = reactive({
   team_leader_user_id: "",
 });
 const savingUser = ref(false);
-const editKeyForm = reactive({ label: "", phone_number: "", team_ids: [] });
+const editKeyForm = reactive({ label: "", team_ids: [] });
 const savingKey = ref(false);
 const syncing = ref(false);
 const savingMaxlengthId = ref(null);
@@ -2419,7 +2429,6 @@ function startEditKey(k) {
   const teamIds = [...new Set([primaryId, ...extraIds].filter((id) => id > 0))];
   Object.assign(editKeyForm, {
     label: k.label || "",
-    phone_number: k.phone_number || "",
     team_ids: teamIds,
   });
 }
@@ -2440,7 +2449,6 @@ async function saveKey(k) {
     const body = {
       id: k.id,
       label: editKeyForm.label,
-      phone_number: editKeyForm.phone_number,
       team_ids: teamIds,
     };
     await api("/WaDesk/Channels/update", { method: "POST", body });
