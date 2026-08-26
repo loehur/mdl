@@ -323,16 +323,6 @@
         </div>
       </section>
 
-      <!-- Channels -->
-      <section v-if="tab === 'keys'" class="card space-y-4">
-        <h2 class="font-display font-semibold text-lg">Channel</h2>
-        <p class="text-sm text-slate-400">
-          Kelola nomor WA di tab <strong class="text-slate-200">Assign</strong>.
-          Limit harian nomor unik terkirim diatur per tenant di tab <strong class="text-slate-200">Config</strong>
-          (<code class="text-xs">daily_unique_limit</code>).
-        </p>
-      </section>
-
       <!-- Assign -->
       <section v-if="tab === 'assign'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1192,7 +1182,6 @@ const reportTeamId = ref("");
 const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
-  { id: "keys", label: "Channel" },
   { id: "assign", label: "Assign" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
