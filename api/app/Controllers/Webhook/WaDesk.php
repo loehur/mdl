@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateFailLogger;
 use App\Helpers\WaDesk\TemplateQuota;
+use App\Helpers\WaDesk\WaMediaHelper;
 
 /**
  * Kirimin.id webhook for WaDesk — /Webhook/WaDesk
@@ -234,7 +235,8 @@ class WaDesk extends Controller
             $whatsapp['wamid'] ?? ($whatsapp['id'] ?? null),
             (string) ($whatsapp['type'] ?? 'text'),
             $this->extractBody($whatsapp),
-            $whatsapp['customerProfile']['name'] ?? ($whatsapp['profile']['name'] ?? null)
+            $whatsapp['customerProfile']['name'] ?? ($whatsapp['profile']['name'] ?? null),
+            $this->extractRemoteMediaUrl($whatsapp)
         );
     }
 
@@ -255,7 +257,17 @@ class WaDesk extends Controller
             return;
         }
 
-        $this->persistInbound($from, $businessPhone, null, $deviceId, $msgId, $type, $body, $name);
+        $this->persistInbound(
+            $from,
+            $businessPhone,
+            null,
+            $deviceId,
+            $msgId,
+            $type,
+            $body,
+            $name,
+            $this->extractRemoteMediaUrl($data)
+        );
     }
 
     private function handleMetaInbound(array $data): void
@@ -279,7 +291,8 @@ class WaDesk extends Controller
             $messages['id'] ?? null,
             (string) ($messages['type'] ?? 'text'),
             $this->extractBody($messages),
-            $entry['contacts'][0]['profile']['name'] ?? null
+            $entry['contacts'][0]['profile']['name'] ?? null,
+            $this->extractRemoteMediaUrl($messages)
         );
     }
 
@@ -326,7 +339,17 @@ class WaDesk extends Controller
         $body = (string) ($msg['text'] ?? $msg['body'] ?? $msg['message'] ?? $inner['message'] ?? $inner['text'] ?? '');
         $name = $inner['contact']['name'] ?? ($inner['name'] ?? ($msg['push_name'] ?? null));
 
-        $this->persistInbound($from, $to, $meta['phone_number_id'] ?? null, $deviceId, $msgId, $type, $body, $name);
+        $this->persistInbound(
+            $from,
+            $to,
+            $meta['phone_number_id'] ?? null,
+            $deviceId,
+            $msgId,
+            $type,
+            $body,
+            $name,
+            $this->extractRemoteMediaUrl(array_merge($inner, is_array($msg) ? $msg : []))
+        );
     }
 
     private function handleKirimNativeStatus(array $data): void
@@ -401,7 +424,17 @@ class WaDesk extends Controller
         );
         $name = $inner['customer_name'] ?? ($inner['push_name'] ?? ($inner['name'] ?? null));
 
-        $this->persistInbound($from, '', null, $deviceId !== '' ? $deviceId : null, $msgId, $type, $body, $name);
+        $this->persistInbound(
+            $from,
+            '',
+            null,
+            $deviceId !== '' ? $deviceId : null,
+            $msgId,
+            $type,
+            $body,
+            $name,
+            $this->extractRemoteMediaUrl($inner)
+        );
     }
 
     private function handleKiriminIdOutboundStatus(array $inner): void
@@ -442,7 +475,8 @@ class WaDesk extends Controller
         $wamid,
         string $type,
         string $bodyText,
-        $profileName
+        $profileName,
+        ?string $remoteMediaUrl = null
     ): void {
         $customerPhone = $this->normalizePhone($fromRaw);
         $businessPhone = $this->normalizePhone($businessRaw);
@@ -478,6 +512,20 @@ class WaDesk extends Controller
             $bodyText = '[' . $type . ']';
         }
 
+        $localMediaUrl = null;
+        if ($remoteMediaUrl !== null && trim($remoteMediaUrl) !== '') {
+            $localMediaUrl = WaMediaHelper::downloadAndSave(
+                $remoteMediaUrl,
+                $wamid !== null ? (string) $wamid : null
+            );
+            if ($localMediaUrl === null) {
+                $this->logWebhook(
+                    'INBOUND media download failed wamid=' . ($wamid ?? '-')
+                    . ' url=' . mb_substr($remoteMediaUrl, 0, 200)
+                );
+            }
+        }
+
         $now = date('Y-m-d H:i:s');
         if (!$conv) {
             $defaultTeamId = $this->getTenantDefaultTeamId((int) $channel['tenant_id']);
@@ -511,20 +559,25 @@ class WaDesk extends Controller
             ], ['id' => $convId]);
         }
 
-        $msgId = (int) $db->insert('messages', [
+        $msgRow = [
             'conversation_id' => $convId,
             'direction' => 'in',
             'type' => $type,
             'body' => $bodyText,
             'provider_msg_id' => $wamid,
             'status' => 'received',
-        ]);
+        ];
+        if ($localMediaUrl !== null) {
+            $msgRow['media_url'] = $localMediaUrl;
+        }
+        $msgId = (int) $db->insert('messages', $msgRow);
 
         $this->logWebhook(
             'INBOUND saved conv=' . $convId
             . ' msg=' . $msgId
             . ' customer=' . $customerPhone
             . ' channel=' . (int) $channel['id']
+            . ($localMediaUrl ? ' media=local' : '')
         );
 
         WaDeskServer::push([
@@ -877,6 +930,34 @@ class WaDesk extends Controller
     {
         $event = strtolower((string) ($data['event'] ?? $data['type'] ?? ''));
         return str_contains($event, 'status') && (isset($data['message_id']) || isset($data['id']));
+    }
+
+    private function extractRemoteMediaUrl(array $payload): ?string
+    {
+        $direct = $payload['media_url'] ?? ($payload['mediaUrl'] ?? null);
+        if (is_string($direct) && trim($direct) !== '') {
+            return trim($direct);
+        }
+
+        foreach (['image', 'video', 'audio', 'document', 'sticker'] as $kind) {
+            if (empty($payload[$kind]) || !is_array($payload[$kind])) {
+                continue;
+            }
+            $url = $payload[$kind]['url']
+                ?? ($payload[$kind]['link'] ?? ($payload[$kind]['media_url'] ?? null));
+            if (is_string($url) && trim($url) !== '') {
+                return trim($url);
+            }
+        }
+
+        if (!empty($payload['media']) && is_array($payload['media'])) {
+            $url = $payload['media']['url'] ?? ($payload['media']['media_url'] ?? null);
+            if (is_string($url) && trim($url) !== '') {
+                return trim($url);
+            }
+        }
+
+        return null;
     }
 
     private function extractBody(array $payload): string

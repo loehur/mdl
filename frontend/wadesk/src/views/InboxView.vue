@@ -185,7 +185,38 @@
                 :class="m.direction === 'out' ? 'bg-accent text-white rounded-br-md' : 'bg-ink-800 text-slate-100 rounded-bl-md'"
               >
                 <p v-if="m.type === 'template'" class="text-[10px] opacity-70 mb-1">template: {{ m.template_name }}</p>
-                <div class="whitespace-pre-wrap">{{ formatMessageBody(m) }}</div>
+                <img
+                  v-if="m.media_url && isImageMessage(m)"
+                  :src="mediaSrc(m.media_url)"
+                  class="max-w-full rounded-lg mb-1 max-h-72 object-contain cursor-pointer"
+                  alt="Gambar"
+                  loading="lazy"
+                  @click="openMedia(m.media_url)"
+                />
+                <video
+                  v-else-if="m.media_url && m.type === 'video'"
+                  :src="mediaSrc(m.media_url)"
+                  class="max-w-full rounded-lg mb-1 max-h-72"
+                  controls
+                  preload="metadata"
+                />
+                <audio
+                  v-else-if="m.media_url && m.type === 'audio'"
+                  :src="mediaSrc(m.media_url)"
+                  class="w-full mb-1"
+                  controls
+                  preload="metadata"
+                />
+                <a
+                  v-else-if="m.media_url"
+                  :href="mediaSrc(m.media_url)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block text-xs underline mb-1 opacity-90"
+                >
+                  Buka lampiran
+                </a>
+                <div v-if="showMessageText(m)" class="whitespace-pre-wrap">{{ formatMessageBody(m) }}</div>
                 <p
                   v-if="m.body_raw && m.body_raw !== m.body"
                   class="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] opacity-70 whitespace-pre-wrap"
@@ -304,6 +335,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
+import { API_BASE } from "../api";
 import AppHeader from "../components/AppHeader.vue";
 import TemplateModal from "../components/TemplateModal.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
@@ -378,6 +410,34 @@ function formatConvTime(c) {
 
 function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function mediaSrc(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `${API_BASE}${raw.startsWith("/") ? raw : `/${raw}`}`;
+}
+
+function openMedia(url) {
+  const src = mediaSrc(url);
+  if (src) window.open(src, "_blank", "noopener,noreferrer");
+}
+
+function isImageMessage(m) {
+  const type = String(m?.type || "").toLowerCase();
+  if (type === "image" || type === "sticker") return true;
+  const url = String(m?.media_url || "").toLowerCase();
+  return /\.(jpe?g|png|gif|webp)(\?|$)/.test(url);
+}
+
+function showMessageText(m) {
+  const body = String(formatMessageBody(m) || "").trim();
+  if (!body) return false;
+  if (m?.media_url && /^\[(image|video|audio|document|sticker)\]$/i.test(body)) {
+    return false;
+  }
+  return true;
 }
 
 /** Fill {{customer}} / {{1}} in template bubbles only when placeholders remain. */
