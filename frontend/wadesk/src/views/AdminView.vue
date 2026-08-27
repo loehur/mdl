@@ -599,8 +599,8 @@
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
             Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id per nomor WA (device).
-            Jika satu <span class="text-slate-200">WABA ID</span> dipakai lebih dari 1 team, template wajib
-            <span class="text-slate-200">di-assign per team</span> sebelum bisa dipakai kirim/blast.
+            Template perlu <span class="text-slate-200">di-assign ke team</span> yang memakai WABA yang sama
+            sebelum bisa dipakai kirim/blast — termasuk jika WABA hanya dipakai 1 team.
           </p>
           <div class="flex flex-col sm:flex-row gap-2">
             <button
@@ -689,31 +689,29 @@
                           · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
                         </span>
                       </p>
-                      <div v-if="t.requires_team_assign" class="mt-2 flex flex-wrap gap-1.5 items-center">
-                        <span
-                          v-for="tm in (t.assigned_teams || [])"
-                          :key="'asg-' + tm.id"
-                          class="px-2 py-0.5 rounded-full text-[10px] bg-accent/10 text-accent-soft"
-                        >
-                          {{ tm.name }}
-                        </span>
-                        <span
-                          v-if="!(t.assigned_teams || []).length"
-                          class="text-[10px] text-amber-500"
-                        >
-                          Belum di-assign ke team manapun
-                        </span>
-                      </div>
-                    </div>
-                    <div class="flex gap-1 shrink-0 flex-wrap justify-end">
-                      <button
-                        v-if="t.requires_team_assign"
-                        type="button"
-                        class="btn-sm text-xs"
-                        @click="openTemplateAssign(t, group.waba_id)"
-                      >
-                        {{ assignTemplateId === t.id ? "Tutup assign" : "Assign" }}
-                      </button>
+                  <div v-if="(t.assigned_teams || []).length" class="mt-2 flex flex-wrap gap-1.5 items-center">
+                    <span
+                      v-for="tm in (t.assigned_teams || [])"
+                      :key="'asg-' + tm.id"
+                      class="px-2 py-0.5 rounded-full text-[10px] bg-accent/10 text-accent-soft"
+                    >
+                      {{ tm.name }}
+                    </span>
+                  </div>
+                  <div v-else class="mt-2">
+                    <span class="text-[10px] text-amber-500">
+                      Belum di-assign ke team manapun
+                    </span>
+                  </div>
+                </div>
+                <div class="flex gap-1 shrink-0 flex-wrap justify-end">
+                  <button
+                    type="button"
+                    class="btn-sm text-xs"
+                    @click="openTemplateAssign(t, group.waba_id)"
+                  >
+                    {{ assignTemplateId === t.id ? "Tutup assign" : "Assign" }}
+                  </button>
                       <button
                         type="button"
                         class="btn-sm text-xs"
@@ -1886,7 +1884,6 @@ async function saveTemplateAssign(t, wabaId = "") {
     const row = templateBrowseRows.value.find((x) => Number(x.id) === Number(t.id));
     if (row) {
       row.assigned_teams = res.data?.assigned_teams || [];
-      row.requires_team_assign = true;
     }
     assignTemplateId.value = null;
     assignMeta.value = null;
