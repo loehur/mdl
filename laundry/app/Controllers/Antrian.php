@@ -493,7 +493,6 @@ class Antrian extends Controller
    {
       $jenis = (int) ($_POST['surcas'] ?? 0);
       $jumlah = $_POST['jumlah'];
-      $user = $_POST['user'];
       $id_transaksi = $_POST['no_ref'];
 
       // Jenis 1/2/3 (jemput/antar/gabungan) tidak lagi ditambah dari Operasi
@@ -513,7 +512,6 @@ class Antrian extends Controller
             'transaksi_jenis' => 1,
             'id_jenis_surcas' => $jenis,
             'jumlah' => $jumlah,
-            'id_user' => $user,
             'no_ref' => $id_transaksi
          ];
              $in = $this->db(0)->insert('surcas', $data);
