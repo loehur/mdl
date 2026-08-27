@@ -168,7 +168,7 @@
                 {{ chat.maskPhoneNumbers ? maskPhoneNumber(chat.active.phone) : chat.active.phone }}
                 ·
                 <span :class="chat.active.csw_open ? 'text-emerald-400' : 'text-amber-400'">
-                  {{ chat.active.csw_open ? "CSW terbuka" : "CSW tertutup" }}
+                  {{ chat.active.csw_open ? "CSW open" : "CSW closed" }}
                 </span>
               </p>
             </div>
@@ -264,7 +264,7 @@
               <input
                 v-model="draft"
                 class="flex-1 rounded-xl bg-ink-950 border border-white/10 px-3 py-2.5 text-sm disabled:opacity-50"
-                placeholder="Tulis balasan..."
+                placeholder="Write a reply..."
                 :disabled="sending"
                 @keyup.enter="sendFree"
               />

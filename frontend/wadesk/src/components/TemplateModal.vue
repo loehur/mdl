@@ -61,7 +61,7 @@
               Parameter template
             </p>
             <p v-else class="text-sm text-slate-500 rounded-lg border border-dashed border-white/10 p-4 text-center">
-              Pilih template untuk mengisi parameter.
+              Select a template to fill in the parameters.
             </p>
 
             <div v-for="p in selectedTpl?.params || []" :key="paramKey(p)" class="space-y-1">

@@ -3,9 +3,9 @@
     <section class="card space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 class="font-display font-semibold text-base">Ringkasan harian</h2>
+          <h2 class="font-display font-semibold text-base">Daily summary</h2>
           <p class="text-xs text-slate-500 mt-1">
-            Pesan keluar{{ teamLabel ? (teamLabel === "All Teams" ? " seluruh team" : ` team ${teamLabel}`) : "" }}: terkirim, gagal, delivered, dan read (maks. 7 hari).
+            Outbound messages{{ teamLabel ? (teamLabel === "All Teams" ? " across all teams" : ` for ${teamLabel}`) : "" }}: sent, failed, delivered, and read (max. 7 days).
           </p>
         </div>
         <div class="flex gap-2 shrink-0">
@@ -14,7 +14,7 @@
             Download
           </button>
           <button type="button" class="btn-sm" :disabled="loading || !canLoad" @click="loadReport">
-            {{ loading ? "Memuat..." : "Refresh" }}
+            {{ loading ? "Loading..." : "Refresh" }}
           </button>
         </div>
       </div>
@@ -27,17 +27,17 @@
         <div v-if="adminMode">
           <label class="label">Team</label>
           <select v-model="localTeamId" class="field" required @change="onTeamChange">
-            <option disabled value="">Pilih team</option>
+            <option disabled value="">Select a team</option>
             <option value="all">All Teams</option>
             <option v-for="t in teams" :key="t.id" :value="String(t.id)">{{ t.name }}</option>
           </select>
         </div>
         <div>
-          <label class="label">Dari</label>
+          <label class="label">From</label>
           <input v-model="filter.from" type="date" class="field" required :max="filter.to" @change="onFromChange" />
         </div>
         <div>
-          <label class="label">Sampai</label>
+          <label class="label">To</label>
           <input
             v-model="filter.to"
             type="date"
@@ -48,23 +48,23 @@
             @change="onToChange"
           />
         </div>
-        <button type="submit" class="btn" :disabled="loading || !canLoad">Tampilkan</button>
+        <button type="submit" class="btn" :disabled="loading || !canLoad">Show</button>
       </form>
     </section>
 
     <section v-if="summary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <div class="rounded-xl border border-white/10 bg-ink-900/40 p-3">
-        <p class="text-[10px] uppercase tracking-wide text-slate-500">Total pesan</p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Total messages</p>
         <p class="text-xl font-semibold text-slate-100 mt-1">{{ summary.total }}</p>
         <p class="text-[10px] text-slate-600 mt-0.5">↑ {{ summary.total_in }} · ↓ {{ summary.total_out }}</p>
       </div>
       <div class="rounded-xl border border-white/10 bg-ink-900/40 p-3">
-        <p class="text-[10px] uppercase tracking-wide text-slate-500">Terkirim</p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Sent</p>
         <p class="text-xl font-semibold text-emerald-400 mt-1">{{ summary.sent }}</p>
-        <p class="text-[10px] text-slate-600 mt-0.5">keluar, bukan gagal</p>
+        <p class="text-[10px] text-slate-600 mt-0.5">outbound, not failed</p>
       </div>
       <div class="rounded-xl border border-white/10 bg-ink-900/40 p-3">
-        <p class="text-[10px] uppercase tracking-wide text-slate-500">Gagal</p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Failed</p>
         <p class="text-xl font-semibold text-rose-400 mt-1">{{ summary.failed }}</p>
       </div>
       <div class="rounded-xl border border-white/10 bg-ink-900/40 p-3">
@@ -76,24 +76,24 @@
         <p class="text-xl font-semibold text-accent-soft mt-1">{{ summary.read }}</p>
       </div>
       <div class="rounded-xl border border-white/10 bg-ink-900/40 p-3">
-        <p class="text-[10px] uppercase tracking-wide text-slate-500">Periode</p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Period</p>
         <p class="text-sm font-medium text-slate-200 mt-1">{{ formatDateShort(filter.from) }}</p>
-        <p class="text-[10px] text-slate-600">s/d {{ formatDateShort(filter.to) }}</p>
+        <p class="text-[10px] text-slate-600">to {{ formatDateShort(filter.to) }}</p>
       </div>
     </section>
 
     <section class="card overflow-hidden">
-      <div v-if="loading && !days.length" class="text-sm text-slate-500 py-8 text-center">Memuat report...</div>
+      <div v-if="loading && !days.length" class="text-sm text-slate-500 py-8 text-center">Loading report...</div>
       <div v-else class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs text-slate-500 border-b border-white/10">
-              <th class="py-3 pr-4 font-medium">Tanggal</th>
+              <th class="py-3 pr-4 font-medium">Date</th>
               <th class="py-3 pr-4 font-medium text-right">Total</th>
-              <th class="py-3 pr-4 font-medium text-right hidden sm:table-cell">Masuk</th>
-              <th class="py-3 pr-4 font-medium text-right hidden sm:table-cell">Keluar</th>
-              <th class="py-3 pr-4 font-medium text-right">Terkirim</th>
-              <th class="py-3 pr-4 font-medium text-right">Gagal</th>
+              <th class="py-3 pr-4 font-medium text-right hidden sm:table-cell">Inbound</th>
+              <th class="py-3 pr-4 font-medium text-right hidden sm:table-cell">Outbound</th>
+              <th class="py-3 pr-4 font-medium text-right">Sent</th>
+              <th class="py-3 pr-4 font-medium text-right">Failed</th>
               <th class="py-3 pr-4 font-medium text-right">Delivered</th>
               <th class="py-3 font-medium text-right">Read</th>
             </tr>
@@ -134,8 +134,8 @@
           </tfoot>
         </table>
       </div>
-      <p v-if="!loading && !days.length && canLoad" class="text-sm text-slate-500 text-center py-6">Tidak ada data.</p>
-      <p v-if="adminMode && !canLoad" class="text-sm text-slate-500 text-center py-6">Pilih team untuk melihat report.</p>
+      <p v-if="!loading && !days.length && canLoad" class="text-sm text-slate-500 text-center py-6">No data available.</p>
+      <p v-if="adminMode && !canLoad" class="text-sm text-slate-500 text-center py-6">Select a team to view the report.</p>
     </section>
 
     <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>

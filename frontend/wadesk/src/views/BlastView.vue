@@ -15,13 +15,13 @@
            SECTION 1: Setup blast (key, template, campaign name)
       ================================================================ -->
       <section class="card space-y-4">
-        <h2 class="font-display font-semibold text-base">1. Setup blast</h2>
+        <h2 class="font-display font-semibold text-base">1. Set up blast</h2>
 
         <!-- API Key -->
         <div>
-          <label class="label">Channel / nomor WA</label>
+          <label class="label">Channel / WhatsApp number</label>
           <select v-model="form.channel_id" class="field" :disabled="!auth.canSendWa" @change="onKeyChange">
-            <option disabled value="">Pilih channel</option>
+            <option disabled value="">Select a channel</option>
             <option v-for="k in keys" :key="k.id" :value="k.id">
               {{ k.label }} ({{ k.phone_number }}) — {{ k.team_names || k.team_name }}
             </option>
@@ -48,13 +48,13 @@
         <div>
           <label class="label">Template</label>
           <select v-model="form.template_id" class="field" :disabled="!form.channel_id" @change="onTemplateChange">
-            <option disabled value="">Pilih template</option>
+            <option disabled value="">Select a template</option>
             <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
           <p v-if="form.channel_id && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
-            Tidak ada template untuk nomor WA ini. Sync ulang di Admin → Templates.
+            No templates are available for this WhatsApp number. Sync again in Admin → Templates.
           </p>
           <div
             v-if="blastTemplatePreview"
@@ -71,10 +71,10 @@
           <input
             v-model="form.campaign_name"
             class="field"
-            placeholder="contoh: Promo Juli 2026"
+            placeholder="e.g. July 2026 promotion"
             maxlength="150"
           />
-          <p class="text-xs text-slate-500 mt-1">Nama pengelompokan blast ini. Satu campaign bisa punya banyak blast.</p>
+          <p class="text-xs text-slate-500 mt-1">A grouping name for this blast. One campaign can contain multiple blasts.</p>
         </div>
 
         <!-- CSV Columns info -->
@@ -195,7 +195,7 @@
       ================================================================ -->
       <section class="card space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="font-display font-semibold text-base">3. Riwayat blast</h2>
+        <h2 class="font-display font-semibold text-base">3. Blast history</h2>
           <button type="button" class="btn-sm" @click="loadBlasts">↻ Refresh</button>
         </div>
 
@@ -203,13 +203,13 @@
         <div class="flex gap-2 items-center">
           <input v-model="filter.campaign" class="field flex-1 text-sm py-1.5" placeholder="Filter campaign..." @input="loadBlasts" />
           <select v-model="filter.campaign" class="field text-sm py-1.5 w-48" @change="loadBlasts">
-            <option value="">Semua campaign</option>
+            <option value="">All campaigns</option>
             <option v-for="c in campaignOptions" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
 
-        <div v-if="blasts.length === 0 && !loadingBlasts" class="text-sm text-slate-500 text-center py-4">Belum ada blast</div>
-        <div v-if="loadingBlasts" class="text-sm text-slate-500 text-center py-4">Memuat...</div>
+        <div v-if="blasts.length === 0 && !loadingBlasts" class="text-sm text-slate-500 text-center py-4">No blasts yet</div>
+        <div v-if="loadingBlasts" class="text-sm text-slate-500 text-center py-4">Loading...</div>
 
         <div class="space-y-3">
           <div

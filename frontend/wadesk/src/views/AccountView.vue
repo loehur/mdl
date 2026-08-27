@@ -23,13 +23,13 @@
 
         <!-- Profil -->
         <template v-if="tab === 'profile'">
-          <div v-if="loadingProfile" class="card text-sm text-slate-500">Memuat profil...</div>
+          <div v-if="loadingProfile" class="card text-sm text-slate-500">Loading profile...</div>
           <template v-else-if="profile">
             <div class="card space-y-4">
-              <h2 class="section-title">Informasi akun</h2>
+              <h2 class="section-title">Account information</h2>
               <dl class="info-grid">
                 <div class="info-item">
-                  <dt>Organisasi</dt>
+                  <dt>Organization</dt>
                   <dd>{{ profile.tenant_name || "—" }}</dd>
                 </div>
                 <div class="info-item">
@@ -41,17 +41,17 @@
                   <dd>{{ profile.team_name || "—" }}</dd>
                 </div>
                 <div class="info-item">
-                  <dt>Bergabung sejak</dt>
+                  <dt>Member since</dt>
                   <dd>{{ formatDate(profile.created_at) }}</dd>
                 </div>
               </dl>
             </div>
 
             <div class="card space-y-4">
-              <h2 class="section-title">Edit profil</h2>
+              <h2 class="section-title">Edit profile</h2>
               <form class="space-y-3" @submit.prevent="saveProfile">
                 <div>
-                  <label class="label">Nama</label>
+                  <label class="label">Name</label>
                   <input v-model="profileForm.name" required class="field" />
                 </div>
                 <div>
@@ -60,17 +60,17 @@
                 </div>
                 <div class="pt-1">
                   <button class="btn" :disabled="savingProfile">
-                    {{ savingProfile ? "Menyimpan..." : "Simpan profil" }}
+                    {{ savingProfile ? "Saving..." : "Save profile" }}
                   </button>
                 </div>
               </form>
             </div>
 
             <div class="card space-y-4">
-              <h2 class="section-title">Ubah password</h2>
+              <h2 class="section-title">Change password</h2>
               <form class="space-y-3" @submit.prevent="savePassword">
                 <div>
-                  <label class="label">Password saat ini</label>
+                  <label class="label">Current password</label>
                   <input
                     v-model="passwordForm.current_password"
                     type="password"
@@ -80,7 +80,7 @@
                   />
                 </div>
                 <div>
-                  <label class="label">Password baru</label>
+                  <label class="label">New password</label>
                   <input
                     v-model="passwordForm.new_password"
                     type="password"
@@ -92,7 +92,7 @@
                 </div>
                 <div class="pt-1">
                   <button class="btn" :disabled="savingPassword">
-                    {{ savingPassword ? "Menyimpan..." : "Ubah password" }}
+                    {{ savingPassword ? "Saving..." : "Change password" }}
                   </button>
                 </div>
               </form>
@@ -106,15 +106,15 @@
             v-if="auth.isAdmin && !auth.hasTeam"
             class="card alert alert-warn"
           >
-            Admin belum bergabung ke team.
-            <router-link to="/admin" class="alert-link">Masuk team di Admin →</router-link>
+            Admin has not joined a team.
+            <router-link to="/admin" class="alert-link">Join a team in Admin →</router-link>
           </div>
 
-          <div v-else-if="loadingTeam" class="card text-sm text-slate-500">Memuat data team...</div>
+          <div v-else-if="loadingTeam" class="card text-sm text-slate-500">Loading team data...</div>
 
           <template v-else-if="teamData">
             <div class="card space-y-3">
-              <h2 class="section-title">Ringkasan team</h2>
+              <h2 class="section-title">Team summary</h2>
               <p class="text-lg font-semibold text-slate-100">{{ teamData.team.name }}</p>
               <p class="text-sm text-slate-500">
                 Team Leader: {{ teamData.team.leader_name || "—" }}
@@ -126,7 +126,7 @@
             </div>
 
             <div class="card space-y-3">
-              <h2 class="section-title">Anggota team</h2>
+              <h2 class="section-title">Team members</h2>
               <div class="subcard-list">
                 <div
                   v-for="m in teamData.members"
@@ -136,25 +136,25 @@
                   <div class="min-w-0">
                     <p class="font-medium text-slate-100 truncate">
                       {{ m.name }}
-                      <span v-if="m.is_self" class="text-xs text-accent-soft font-normal">(Anda)</span>
+                      <span v-if="m.is_self" class="text-xs text-accent-soft font-normal">(You)</span>
                     </p>
                     <p class="text-xs text-slate-500 truncate">{{ m.email }}</p>
                   </div>
                   <span class="badge shrink-0">{{ roleLabel(m.role) }}</span>
                 </div>
                 <p v-if="!teamData.members.length" class="empty-state">
-                  Belum ada anggota team.
+                  No team members yet.
                 </p>
               </div>
             </div>
 
             <div v-if="teamData.can_add_agent" class="card space-y-4">
-              <h2 class="section-title">Tambah agent</h2>
-              <p class="text-xs text-slate-500 -mt-2">Maksimal {{ teamData.max_agents }} agent per team.</p>
+              <h2 class="section-title">Add agent</h2>
+              <p class="text-xs text-slate-500 -mt-2">Maximum {{ teamData.max_agents }} agents per team.</p>
               <form class="space-y-3" @submit.prevent="addAgent">
                 <div class="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label class="label">Nama</label>
+                    <label class="label">Name</label>
                     <input v-model="agentForm.name" required class="field" />
                   </div>
                   <div>
@@ -163,19 +163,19 @@
                   </div>
                 </div>
                 <div>
-                  <label class="label">Password awal</label>
+                  <label class="label">Initial password</label>
                   <input v-model="agentForm.password" type="password" required minlength="6" class="field" />
                 </div>
                 <div class="pt-1">
                   <button class="btn" :disabled="addingAgent">
-                    {{ addingAgent ? "Menambah..." : "Tambah agent" }}
+                    {{ addingAgent ? "Adding..." : "Add agent" }}
                   </button>
                 </div>
               </form>
             </div>
 
             <div v-else class="card text-sm text-slate-500">
-              Kuota agent team sudah penuh (maks. {{ teamData.max_agents }}).
+              Team agent quota is full (max. {{ teamData.max_agents }}).
             </div>
           </template>
         </template>
@@ -186,30 +186,30 @@
             v-if="auth.isAdmin && !auth.hasTeam"
             class="card alert alert-warn"
           >
-            Admin belum bergabung ke team.
-            <router-link to="/admin" class="alert-link">Masuk team di Admin →</router-link>
+            Admin has not joined a team.
+            <router-link to="/admin" class="alert-link">Join a team in Admin →</router-link>
           </div>
 
-          <div v-else-if="loadingQuota" class="card text-sm text-slate-500">Memuat kuota...</div>
+          <div v-else-if="loadingQuota" class="card text-sm text-slate-500">Loading quota...</div>
 
           <template v-else-if="quotaSummary">
             <div class="card space-y-2">
-              <h2 class="section-title">Sisa kuota</h2>
+              <h2 class="section-title">Remaining quota</h2>
               <p class="text-sm text-slate-500">{{ quotaSummary.team_name }}</p>
               <p class="text-4xl font-semibold text-accent tabular-nums">{{ quotaSummary.balance }}</p>
-              <p class="text-xs text-slate-500">kuota template tersisa</p>
+              <p class="text-xs text-slate-500">template quota remaining</p>
             </div>
 
             <div class="card space-y-4">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h2 class="section-title">Riwayat top-up</h2>
+                <h2 class="section-title">Top-up history</h2>
                 <p v-if="topupQuota.total" class="text-xs text-slate-500">
                   {{ topupQuota.logs.length }} / {{ topupQuota.total }} entri
                 </p>
               </div>
               <div class="subcard-list">
                 <div class="subcard-list-body">
-                <p v-if="!topupQuota.logs.length" class="empty-state">Belum ada riwayat top-up.</p>
+                <p v-if="!topupQuota.logs.length" class="empty-state">No top-up history yet.</p>
                 <div
                   v-for="log in topupQuota.logs"
                   :key="'topup-' + log.id"
@@ -226,27 +226,27 @@
                       <span v-if="log.user_name"> · {{ log.user_name }}</span>
                     </p>
                   </div>
-                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
+                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">balance {{ log.balance_after }}</p>
                 </div>
                 </div>
               </div>
               <div v-if="topupQuota.has_more" class="text-center pt-1">
                 <button type="button" class="btn-secondary" :disabled="topupQuota.loading_more" @click="loadMoreQuota('topup')">
-                  {{ topupQuota.loading_more ? "Memuat..." : "Muat lebih banyak" }}
+                  {{ topupQuota.loading_more ? "Loading..." : "Load more" }}
                 </button>
               </div>
             </div>
 
             <div class="card space-y-4">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h2 class="section-title">Riwayat pakai & refund</h2>
+                <h2 class="section-title">Usage & refund history</h2>
                 <p v-if="usageQuota.total" class="text-xs text-slate-500">
                   {{ usageQuota.logs.length }} / {{ usageQuota.total }} entri
                 </p>
               </div>
               <div class="subcard-list">
                 <div class="subcard-list-body">
-                <p v-if="!usageQuota.logs.length" class="empty-state">Belum ada riwayat pemakaian.</p>
+                <p v-if="!usageQuota.logs.length" class="empty-state">No usage history yet.</p>
                 <div
                   v-for="log in usageQuota.logs"
                   :key="'usage-' + log.id"
@@ -265,13 +265,13 @@
                       <span v-if="log.user_name"> · {{ log.user_name }}</span>
                     </p>
                   </div>
-                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">saldo {{ log.balance_after }}</p>
+                  <p class="shrink-0 text-xs text-slate-500 tabular-nums">balance {{ log.balance_after }}</p>
                 </div>
                 </div>
               </div>
               <div v-if="usageQuota.has_more" class="text-center pt-1">
                 <button type="button" class="btn-secondary" :disabled="usageQuota.loading_more" @click="loadMoreQuota('usage')">
-                  {{ usageQuota.loading_more ? "Memuat..." : "Muat lebih banyak" }}
+                  {{ usageQuota.loading_more ? "Loading..." : "Load more" }}
                 </button>
               </div>
             </div>
@@ -327,7 +327,7 @@ const topupQuota = ref(emptyQuotaSection());
 const usageQuota = ref(emptyQuotaSection());
 
 const allTabs = [
-  { id: "profile", label: "Profil", roles: "all" },
+  { id: "profile", label: "Profile", roles: "all" },
   { id: "team", label: "Team", roles: "manager" },
   { id: "quota", label: "Quota", roles: "manager" },
 ];
@@ -365,7 +365,7 @@ function formatDate(iso) {
 }
 
 function quotaUsageTypeLabel(log) {
-  if (log.type === "consume") return "Pakai";
+  if (log.type === "consume") return "Used";
   if (log.type === "adjust" && Number(log.amount) > 0) return "Refund";
   return "Adjust";
 }
@@ -495,7 +495,7 @@ async function saveProfile() {
       auth.persist();
     }
     profile.value = { ...profile.value, name: profileForm.value.name.trim() };
-    success.value = res.message || "Profil diperbarui";
+    success.value = res.message || "Profile updated";
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -512,7 +512,7 @@ async function savePassword() {
       body: { ...passwordForm.value },
     });
     passwordForm.value = { current_password: "", new_password: "" };
-    success.value = res.message || "Password berhasil diubah";
+    success.value = res.message || "Password updated";
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -547,7 +547,7 @@ async function addAgent() {
       },
     });
     agentForm.value = { name: "", email: "", password: "" };
-    success.value = res.message || "Agent ditambahkan";
+    success.value = res.message || "Agent added";
     await loadTeam();
   } catch (e) {
     error.value = e.message;
