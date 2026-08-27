@@ -789,15 +789,6 @@ abstract class WaDeskController extends BaseController
             return;
         }
 
-        $wabaId = trim((string) ($channel['waba_id'] ?? ''));
-        if ($wabaId === '') {
-            return;
-        }
-
-        if (!$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)) {
-            return;
-        }
-
         if ($this->isTemplateAssignedToTeam($templateId, $teamId)) {
             return;
         }
@@ -806,9 +797,9 @@ abstract class WaDeskController extends BaseController
         $name = trim((string) ($templateRow['template_name'] ?? 'template'));
         $this->error(
             'Template "' . $name . '" belum di-assign ke team Anda. '
-            . 'WABA ini dipakai lebih dari 1 team — assign template di Admin → Templates.',
+            . 'Assign template di Admin → Templates terlebih dahulu.',
             422,
-            ['code' => 'template_not_assigned', 'waba_id' => $wabaId]
+            ['code' => 'template_not_assigned']
         );
     }
 

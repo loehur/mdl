@@ -32,7 +32,11 @@ class Templates extends WaDeskController
         $limit = min(50, max(1, (int) $this->query('limit', 20)));
         $q = trim((string) $this->query('q', ''));
 
-        if ($role === 'admin') {
+        // Admin who has joined a team uses the same scoped catalogue as that
+        // team. The global catalogue is only useful for an Admin without a
+        // selected operational team; full management remains in Admin → Templates.
+        $teamId = (int) ($user['team_id'] ?? 0);
+        if ($role === 'admin' && $teamId <= 0) {
             $total = 0;
             $rows = $this->listAdminTemplatesPaginated($tenantId, $page, $limit, $q, $total);
             $rows = $this->enrichTemplateListRows($rows, $tenantId, true);
@@ -45,7 +49,6 @@ class Templates extends WaDeskController
             return;
         }
 
-        $teamId = (int) ($user['team_id'] ?? 0);
         if ($teamId <= 0 || !$this->templateDevicesTableExists()) {
             $this->success(['templates' => [], 'total' => 0, 'page' => $page, 'limit' => $limit]);
             return;
@@ -86,9 +89,7 @@ class Templates extends WaDeskController
                 if (!$this->isTemplateAvailableOnDevice($templateId, (string) ($channel['device_id'] ?? ''))) {
                     continue;
                 }
-                $wabaId = trim((string) ($channel['waba_id'] ?? ''));
-                if ($wabaId === '' || !$this->templateTeamsTableExists()
-                    || !$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)
+                if (!$this->templateTeamsTableExists()
                     || $this->isTemplateAssignedToTeam($templateId, $teamId)) {
                     return true;
                 }
@@ -150,9 +151,8 @@ class Templates extends WaDeskController
             )->result_array();
 
             if ($channelId > 0 && $this->templateTeamsTableExists()) {
-                $wabaId = trim((string) ($channel['waba_id'] ?? ''));
                 $teamId = (int) ($user['team_id'] ?? 0);
-                if ($wabaId !== '' && $teamId > 0 && $this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)) {
+                if ($teamId > 0) {
                     $rows = array_values(array_filter($rows, function (array $row) use ($teamId) {
                         return $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId);
                     }));

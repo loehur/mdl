@@ -6,12 +6,12 @@
           <div>
             <h2 class="section-title">Template WhatsApp</h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ auth.isAdmin ? "Semua template dalam tenant." : "Template yang tersedia untuk team Anda." }}
+              {{ auth.isAdmin && !auth.hasTeam ? "Semua template dalam tenant." : "Template yang tersedia untuk team Anda." }}
             </p>
           </div>
           <input
             v-model="search"
-            class="field"
+            class="field w-full"
             type="search"
             placeholder="Cari nama, bahasa, atau isi template..."
             @input="onSearch"
@@ -26,8 +26,8 @@
         </section>
 
         <section v-else class="space-y-2">
-          <article v-for="template in templates" :key="template.id" class="card template-row">
-            <div class="min-w-0">
+          <article v-for="template in templates" :key="template.id" class="template-card">
+            <div class="min-w-0 space-y-1">
               <div class="flex flex-wrap items-center gap-2">
                 <h3 class="font-semibold text-slate-100 break-all">{{ template.template_name }}</h3>
                 <span v-if="template.language" class="badge">{{ template.language }}</span>
@@ -39,7 +39,7 @@
                 <span v-for="team in template.assigned_teams" :key="team.id" class="team-chip">{{ team.name }}</span>
               </div>
             </div>
-            <button type="button" class="btn btn-secondary shrink-0" @click="toggleDetail(template.id)">
+            <button type="button" class="detail-button shrink-0" @click="toggleDetail(template.id)">
               {{ expandedId === template.id ? "Close" : "Detail" }}
             </button>
 
@@ -143,7 +143,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.template-row { @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start; }
+.template-card { @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start rounded-2xl border border-white/10 bg-ink-900 p-4 shadow-sm; }
 .template-detail { @apply col-span-2 rounded-xl border border-white/10 bg-white/[0.03] p-3; }
 .team-chip { @apply rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent-soft; }
+.detail-button { @apply rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-medium text-accent-soft transition hover:bg-accent/20; }
 </style>
