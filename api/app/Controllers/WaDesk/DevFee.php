@@ -32,7 +32,9 @@ class DevFee extends WaDeskController
             'quota_used' => $used,
             'quota_remaining' => $total === null ? null : max(0, $total - $used),
             'updated_at' => $row['updated_at'] ?? null,
-            'pending_payment' => $this->pendingPayment($tenantId),
+            'pending_payment' => ($pending = $this->pendingPayment($tenantId))
+                ? $this->paymentPayload($pending)
+                : null,
         ]);
     }
 
