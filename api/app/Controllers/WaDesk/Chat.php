@@ -59,11 +59,23 @@ class Chat extends WaDeskController
         }
         if ($q !== '') {
             $like = '%' . $q . '%';
-            // Nomor hanya boleh terlihat dalam bentuk bertopeng di UI. Jangan
-            // menyediakan pencarian untuk nomor lengkap atau bagiannya.
+            // Nomor hanya boleh dicari dari bagian yang memang terlihat di UI:
+            // tiga digit awal atau maksimal tujuh digit terakhir.
             if (preg_match('/^\d+$/', $q)) {
-                $sql .= ' AND c.last_message LIKE ?';
-                $binds[] = $like;
+                $digitCount = strlen($q);
+                if ($digitCount <= 3) {
+                    $sql .= ' AND (c.phone LIKE ? OR c.phone LIKE ? OR c.last_message LIKE ?)';
+                    $binds[] = $q . '%';
+                    $binds[] = '%' . $q;
+                    $binds[] = $like;
+                } elseif ($digitCount <= 7) {
+                    $sql .= ' AND (c.phone LIKE ? OR c.last_message LIKE ?)';
+                    $binds[] = '%' . $q;
+                    $binds[] = $like;
+                } else {
+                    $sql .= ' AND c.last_message LIKE ?';
+                    $binds[] = $like;
+                }
             } else {
                 $sql .= ' AND (c.name LIKE ? OR c.last_message LIKE ?)';
                 $binds[] = $like;
