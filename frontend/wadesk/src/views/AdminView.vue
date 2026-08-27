@@ -689,22 +689,6 @@
                           · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
                         </span>
                       </p>
-                      <p class="text-xs text-slate-500 mt-0.5">
-                        {{ (t.params || []).length }} param ·
-                        <span
-                          v-for="comp in ['header','body','button']"
-                          :key="comp"
-                          class="mr-2"
-                        >
-                          <span v-if="(t.params||[]).some(p=>p.component===comp)">
-                            <span class="font-medium capitalize">{{ comp }}</span>:
-                            {{ (t.params||[]).filter(p=>p.component===comp).map(p=>p.param_name||('#'+p.param_index)).join(', ') }}
-                          </span>
-                        </span>
-                      </p>
-                      <p v-if="t.body_preview" class="mt-1 text-[11px] text-slate-400 whitespace-pre-wrap line-clamp-2">
-                        {{ t.body_preview }}
-                      </p>
                       <div v-if="t.requires_team_assign" class="mt-2 flex flex-wrap gap-1.5 items-center">
                         <span
                           v-for="tm in (t.assigned_teams || [])"
