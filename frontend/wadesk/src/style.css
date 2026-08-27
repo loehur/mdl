@@ -143,6 +143,14 @@ body {
   color: rgb(var(--text-slate-400)) !important;
 }
 
+/* Primary/green actions need white labels in light mode for reliable contrast. */
+[data-theme="light"] button.btn,
+[data-theme="light"] button.bg-emerald-500,
+[data-theme="light"] button.bg-green-500,
+[data-theme="light"] button.bg-teal-500 {
+  color: #fff !important;
+}
+
 /* Logout */
 .wadesk-logout-btn {
   @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition active:scale-[0.98];
