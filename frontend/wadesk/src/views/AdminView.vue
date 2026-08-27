@@ -672,9 +672,6 @@
                 <p class="text-[11px] text-slate-500 mt-0.5">
                   <span v-if="group.waba_label && group.waba_id">{{ group.waba_label }} · </span>
                   {{ group.templates.length }} template
-                  <span v-if="group.waba_team_count > 1" class="text-amber-500">
-                    · {{ group.waba_team_count }} team — wajib assign template
-                  </span>
                 </p>
               </div>
 
@@ -1527,15 +1524,10 @@ const templateGroups = computed(() => {
       map.set(key, {
         waba_id: wabaId,
         waba_label: t.waba_label || "",
-        waba_team_count: Number(t.waba_team_count || 0),
         templates: [],
       });
     }
-    const g = map.get(key);
-    if (Number(t.waba_team_count || 0) > g.waba_team_count) {
-      g.waba_team_count = Number(t.waba_team_count);
-    }
-    g.templates.push(t);
+    map.get(key).templates.push(t);
   }
   return [...map.values()].sort((a, b) => {
     if (!a.waba_id && b.waba_id) return 1;
