@@ -5433,6 +5433,10 @@ class WAReplies
 
             $data = [];
             foreach ($cabangs as $a) {
+                if (!empty($a['is_training'])) {
+                    continue;
+                }
+
                 $id_cabang = $a['id_cabang'];
                 $kode_cabang = $a['kode_cabang'];
 

@@ -694,24 +694,6 @@
           <label class="op-label">Jumlah Biaya</label>
           <input type="number" name="jumlah" class="op-input">
         </div>
-        <div class="op-field">
-          <label class="op-label">Di input Oleh</label>
-          <select name="user" class="tize userSurcas" style="width: 100%;" required>
-            <option value="" selected disabled></option>
-            <optgroup label="<?= $this->dCabang['nama'] ?> [<?= $this->dCabang['kode_cabang'] ?>]">
-              <?php foreach ($this->user as $a) { ?>
-                <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-              <?php } ?>
-            </optgroup>
-            <?php if (count($this->userCabang) > 0) { ?>
-              <optgroup label="---- Cabang Lain ----">
-                <?php foreach ($this->userCabang as $a) { ?>
-                  <option id="<?= $a['id_user'] ?>" value="<?= $a['id_user'] ?>"><?= $a['id_user'] . "-" . strtoupper($a['nama_user']) ?></option>
-                <?php } ?>
-              </optgroup>
-            <?php } ?>
-          </select>
-        </div>
       </div>
       <div class="op-modal__foot">
         <button type="button" class="op-btn op-btn--ghost" data-op-close>Batal</button>
