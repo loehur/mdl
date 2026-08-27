@@ -28,6 +28,9 @@ class Report extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
 
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true)) {
+            $this->error('Report hanya tersedia untuk Admin dan Team Leader', 403);
+        }
         if (($user['role'] ?? '') !== 'admin' && !$this->hasOperationalTeam($user)) {
             $this->error('Masuk team dulu untuk melihat report', 403);
         }

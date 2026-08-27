@@ -146,7 +146,7 @@ const mainNavItems = [
   { to: "/", label: "Chat" },
   { to: "/templates", label: "Templates", manageOnly: true },
   { to: "/blast", label: "Blast" },
-  { to: "/report", label: "Report" },
+  { to: "/report", label: "Report", manageOnly: true },
   { to: "/account", label: "Account" },
 ];
 
