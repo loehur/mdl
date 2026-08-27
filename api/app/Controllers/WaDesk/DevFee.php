@@ -49,8 +49,8 @@ class DevFee extends WaDeskController
         if (!$fee->tableReady()) $this->error('Tabel Dev Fee belum tersedia', 409);
         $tenantId = (int) $admin['tenant_id'];
         $quota = (int) (($this->getBody()['quota_amount'] ?? 0));
-        if ($quota < 1 || $quota > 10000000) {
-            $this->error('Jumlah quota harus antara 1 dan 10.000.000', 400);
+        if ($quota < 1000 || $quota > 150000) {
+            $this->error('Jumlah quota harus antara 1.000 dan 150.000', 400);
         }
         $existing = $this->pendingPayment($tenantId);
         if ($existing) {

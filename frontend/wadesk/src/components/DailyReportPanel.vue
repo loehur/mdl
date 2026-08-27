@@ -5,7 +5,7 @@
         <div>
           <h2 class="font-display font-semibold text-base">Ringkasan harian</h2>
           <p class="text-xs text-slate-500 mt-1">
-            Pesan keluar{{ teamLabel ? ` team ${teamLabel}` : "" }}: terkirim, gagal, delivered, dan read (maks. 7 hari).
+            Pesan keluar{{ teamLabel ? (teamLabel === "All Teams" ? " seluruh team" : ` team ${teamLabel}`) : "" }}: terkirim, gagal, delivered, dan read (maks. 7 hari).
           </p>
         </div>
         <button type="button" class="btn-sm shrink-0" :disabled="loading || !canLoad" @click="loadReport">
@@ -22,6 +22,7 @@
           <label class="label">Team</label>
           <select v-model="localTeamId" class="field" required @change="onTeamChange">
             <option disabled value="">Pilih team</option>
+            <option value="all">All Teams</option>
             <option v-for="t in teams" :key="t.id" :value="String(t.id)">{{ t.name }}</option>
           </select>
         </div>
@@ -179,7 +180,7 @@ const localTeamId = ref(props.teamId ? String(props.teamId) : "");
 
 const canLoad = computed(() => {
   if (!props.enabled) return false;
-  if (props.adminMode) return Number(localTeamId.value) > 0;
+  if (props.adminMode) return localTeamId.value === "all" || Number(localTeamId.value) > 0;
   return true;
 });
 
@@ -193,7 +194,7 @@ watch(
   () => props.teamId,
   (v) => {
     localTeamId.value = v ? String(v) : "";
-    if (props.adminMode && props.active && Number(v) > 0) {
+    if (props.adminMode && props.active && (v === "all" || Number(v) > 0)) {
       loadReport();
     }
   }
@@ -236,7 +237,7 @@ function onToChange() {
 }
 
 function onTeamChange() {
-  if (props.adminMode && props.active && Number(localTeamId.value) > 0) {
+  if (props.adminMode && props.active && canLoad.value) {
     loadReport();
   }
 }

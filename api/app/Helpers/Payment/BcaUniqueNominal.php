@@ -3,11 +3,11 @@
 namespace App\Helpers\Payment;
 
 /**
- * Alokasi nominal transfer BCA unik — hindari collision antar pending (7 hari).
+ * Alokasi nominal transfer BCA unik — hindari collision antar pending (6 hari).
  */
 class BcaUniqueNominal
 {
-    public const LOOKBACK_DAYS = 7;
+    public const LOOKBACK_DAYS = 6;
 
     /**
      * @param object|null $invoiceDb db(6)
@@ -31,7 +31,7 @@ class BcaUniqueNominal
     }
 
     /**
-     * Nominal pending BCA yang belum lunas (7 hari terakhir).
+     * Nominal BCA yang masih pending / belum terkonfirmasi dalam 6 hari terakhir.
      *
      * @return int[]
      */

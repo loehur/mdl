@@ -992,7 +992,7 @@
             <div class="flex flex-col sm:flex-row sm:items-end gap-3">
               <div class="flex-1">
                 <label class="label">Jumlah quota</label>
-                <input v-model.number="devFeeTopupQuota" type="number" min="1" required class="field" placeholder="Contoh: 1000" />
+                <input v-model.number="devFeeTopupQuota" type="number" min="1000" max="150000" required class="field" placeholder="Contoh: 1000" />
               </div>
               <div class="text-xs text-slate-400 sm:pb-3">Rp50 per quota · pembayaran BCA saja</div>
               <button class="btn shrink-0" :disabled="creatingDevFeeTopup">
@@ -2177,8 +2177,8 @@ function formatCurrency(value) {
 
 async function createDevFeeTopup() {
   const quotaAmount = Number(devFeeTopupQuota.value);
-  if (!Number.isInteger(quotaAmount) || quotaAmount < 1) {
-    flash(false, "Jumlah quota minimal 1");
+  if (!Number.isInteger(quotaAmount) || quotaAmount < 1000 || quotaAmount > 150000) {
+    flash(false, "Jumlah quota harus antara 1.000 dan 150.000");
     return;
   }
   creatingDevFeeTopup.value = true;

@@ -43,6 +43,11 @@ class Report extends WaDeskController
         $fromDt = $from . ' 00:00:00';
         $toExclusive = date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00';
 
+        $teamWhere = $teamId > 0 ? ' AND c.team_id = ?' : '';
+        $binds = [$tenantId];
+        if ($teamId > 0) $binds[] = $teamId;
+        $binds[] = $fromDt;
+        $binds[] = $toExclusive;
         $rows = $this->db($this->db_index)->query(
             "SELECT DATE(m.created_at) AS report_date,
                     COUNT(*) AS total,
@@ -59,11 +64,11 @@ class Report extends WaDeskController
                         THEN 1 ELSE 0 END) AS read_count
              FROM messages m
              INNER JOIN conversations c ON c.id = m.conversation_id
-             WHERE c.tenant_id = ? AND c.team_id = ?
+             WHERE c.tenant_id = ?{$teamWhere}
                AND m.created_at >= ? AND m.created_at < ?
              GROUP BY DATE(m.created_at)
              ORDER BY report_date DESC",
-            [$tenantId, $teamId, $fromDt, $toExclusive]
+            $binds
         )->result_array();
 
         $byDate = [];
@@ -89,10 +94,10 @@ class Report extends WaDeskController
         $days = $this->fillDateRange($from, $to, $byDate);
         $summary = $this->summarizeDays($days);
 
-        $team = $this->db($this->db_index)->query(
+        $team = $teamId > 0 ? $this->db($this->db_index)->query(
             "SELECT name FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
             [$teamId, $tenantId]
-        )->row_array();
+        )->row_array() : ['name' => 'All Teams'];
 
         $this->success([
             'team_id' => $teamId,
@@ -106,10 +111,15 @@ class Report extends WaDeskController
 
     private function resolveReportTeamId(array $user, int $tenantId): int
     {
-        $queryTeamId = (int) $this->query('team_id', 0);
+        $rawTeamId = strtolower(trim((string) $this->query('team_id', '')));
+        $queryTeamId = (int) $rawTeamId;
 
         if (($user['role'] ?? '') === 'admin') {
             $this->requireAdmin();
+
+            if ($rawTeamId === 'all') {
+                return 0;
+            }
 
             if ($queryTeamId > 0) {
                 $team = $this->db($this->db_index)->query(
