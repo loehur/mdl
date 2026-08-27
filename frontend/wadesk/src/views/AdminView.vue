@@ -1030,7 +1030,9 @@
               <p v-else-if="!devFeeLogs.length" class="py-10 text-center text-sm text-slate-500">Belum ada template yang tercatat.</p>
               <div v-for="log in devFeeLogs" :key="log.id" class="px-4 py-3 flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="font-medium truncate">{{ log.template_name }}</p>
+                  <p class="font-medium truncate">
+                    <span :class="log.type === 'refund' ? 'text-emerald-400' : ''">{{ log.type === 'refund' ? 'Refund · ' : '' }}</span>{{ log.template_name }}
+                  </p>
                   <p class="text-xs text-slate-500 mt-0.5">
                     {{ log.phone || '—' }} · {{ log.source === 'blast' ? 'Blast' : 'Chat' }} · {{ log.team_name || '—' }}
                     <span v-if="log.channel_label"> · {{ log.channel_label }}</span>

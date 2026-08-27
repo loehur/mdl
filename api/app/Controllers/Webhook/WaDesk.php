@@ -6,6 +6,7 @@ use App\Core\Controller;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateFailLogger;
 use App\Helpers\WaDesk\TemplateQuota;
+use App\Helpers\WaDesk\TenantDevFee;
 use App\Helpers\WaDesk\WaMediaHelper;
 
 /**
@@ -813,6 +814,9 @@ class WaDesk extends Controller
                     'webhook',
                     'refund: template delivery failed'
                 );
+            }
+            if ($msgId > 0) {
+                (new TenantDevFee($db))->refundForMessage($tenantId, $msgId, 'refund: template delivery failed');
             }
         } catch (\Throwable $e) {
             $this->logWebhook('template_fail_log webhook error: ' . $e->getMessage());
