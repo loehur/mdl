@@ -6,23 +6,23 @@
           <div>
             <h2 class="section-title">Template WhatsApp</h2>
             <p class="mt-1 text-sm text-slate-500">
-              {{ auth.isAdmin && !auth.hasTeam ? "Semua template dalam tenant." : "Template yang tersedia untuk team Anda." }}
+              {{ auth.isAdmin && !auth.hasTeam ? "All templates in this tenant." : "Templates available to your team." }}
             </p>
           </div>
           <input
             v-model="search"
             class="field w-full"
             type="search"
-            placeholder="Cari nama, bahasa, atau isi template..."
+            placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
         </section>
 
         <p v-if="error" class="alert alert-error">{{ error }}</p>
 
-        <section v-if="loading && !templates.length" class="card text-sm text-slate-500">Memuat template...</section>
+        <section v-if="loading && !templates.length" class="card text-sm text-slate-500">Loading templates...</section>
         <section v-else-if="!templates.length" class="card text-sm text-slate-500">
-          Tidak ada template yang dapat ditampilkan.
+          No templates to display.
         </section>
 
         <section v-else class="space-y-2">
@@ -45,7 +45,7 @@
 
             <div v-if="expandedId === template.id" class="template-detail">
               <p v-if="template.body_preview" class="whitespace-pre-wrap break-words text-sm text-slate-300">{{ template.body_preview }}</p>
-              <p v-else class="text-sm text-slate-500">Tidak ada preview isi template.</p>
+              <p v-else class="text-sm text-slate-500">No template content preview.</p>
               <div v-if="template.params?.length" class="mt-3 border-t border-white/10 pt-3">
                 <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Parameters</p>
                 <div class="mt-2 space-y-1.5">
@@ -61,8 +61,8 @@
         </section>
 
         <div ref="loadMoreTarget" class="h-8" aria-hidden="true" />
-        <p v-if="loading && templates.length" class="text-center text-sm text-slate-500">Memuat template berikutnya...</p>
-        <p v-else-if="templates.length < total" class="text-center text-sm text-slate-500">Scroll untuk memuat lebih banyak template.</p>
+        <p v-if="loading && templates.length" class="text-center text-sm text-slate-500">Loading more templates...</p>
+        <p v-else-if="templates.length < total" class="text-center text-sm text-slate-500">Scroll to load more templates.</p>
       </div>
     </div>
   </AppHeader>
@@ -107,7 +107,7 @@ async function loadTemplates({ reset = false } = {}) {
     total.value = Number(data.total || 0);
     page.value += 1;
   } catch (e) {
-    error.value = e.message || "Gagal memuat template.";
+    error.value = e.message || "Failed to load templates.";
   } finally {
     loading.value = false;
   }

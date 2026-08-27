@@ -120,9 +120,9 @@
                       :disabled="savingTeamMaskId === t.id"
                       @change="setTeamPhoneMasking(t, $event.target.checked)"
                     />
-                    <span>Masking nomor pelanggan</span>
+                    <span>Phone number masking</span>
                     <span :class="Boolean(Number(t.mask_phone_numbers)) ? 'text-emerald-400' : 'text-slate-600'">
-                      {{ Boolean(Number(t.mask_phone_numbers)) ? 'Aktif' : 'Nonaktif' }}
+                      {{ Boolean(Number(t.mask_phone_numbers)) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </label>
                 </template>
@@ -2416,9 +2416,9 @@ async function setTeamPhoneMasking(team, enabled) {
       body: { team_id: team.id, enabled },
     });
     team.mask_phone_numbers = res.data?.mask_phone_numbers ? 1 : 0;
-    flash(true, enabled ? "Masking nomor diaktifkan" : "Masking nomor dinonaktifkan");
+    flash(true, enabled ? "Phone masking enabled" : "Phone masking disabled");
   } catch (e) {
-    flash(false, e.message || "Gagal menyimpan pengaturan masking nomor");
+    flash(false, e.message || "Failed to save phone masking setting");
   } finally {
     savingTeamMaskId.value = null;
   }

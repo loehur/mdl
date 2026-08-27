@@ -35,11 +35,11 @@
 
 <script setup>
 defineProps({
-  title: { type: String, default: "Konfirmasi" },
+  title: { type: String, default: "Confirm" },
   message: { type: String, required: true },
   mode: { type: String, default: "confirm" }, // confirm | alert
-  confirmLabel: { type: String, default: "Ya" },
-  cancelLabel: { type: String, default: "Batal" },
+  confirmLabel: { type: String, default: "Confirm" },
+  cancelLabel: { type: String, default: "Cancel" },
   danger: { type: Boolean, default: false },
 });
 

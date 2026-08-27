@@ -31,7 +31,7 @@
             class="w-full py-3 rounded-xl bg-accent hover:bg-accent-soft font-semibold transition disabled:opacity-50"
             :disabled="auth.loading"
           >
-            {{ auth.loading ? "Memproses..." : "Masuk" }}
+            {{ auth.loading ? "Signing in..." : "Sign in" }}
           </button>
         </form>
       </div>

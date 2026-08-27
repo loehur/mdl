@@ -6,7 +6,7 @@
         v-if="sidebarOpen"
         type="button"
         class="fixed inset-0 z-40 bg-black/60 md:hidden cursor-default"
-        aria-label="Tutup menu"
+        aria-label="Close menu"
         @click="sidebarOpen = false"
       />
     </Transition>
@@ -16,7 +16,7 @@
       id="wadesk-sidebar"
       class="fixed md:static inset-y-0 left-0 z-50 w-60 shrink-0 flex flex-col border-r border-white/10 bg-ink-900/95 md:bg-ink-900 backdrop-blur-md md:backdrop-blur-none transition-transform duration-200 ease-out md:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-      aria-label="Menu navigasi"
+      aria-label="Navigation menu"
     >
       <div class="h-14 px-4 flex items-center justify-between border-b border-white/10 shrink-0">
         <router-link
@@ -29,7 +29,7 @@
         <button
           type="button"
           class="menu-btn md:hidden"
-          aria-label="Tutup menu"
+          aria-label="Close menu"
           @click="sidebarOpen = false"
         >
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -38,7 +38,7 @@
         </button>
       </div>
 
-      <nav class="flex-1 overflow-y-auto p-3 space-y-1" aria-label="Navigasi utama">
+      <nav class="flex-1 overflow-y-auto p-3 space-y-1" aria-label="Main navigation">
         <RouterLink
           v-for="item in visibleMainNavItems"
           :key="item.to"
@@ -77,7 +77,7 @@
         </div>
         <div class="flex items-center gap-2">
           <ThemeToggle compact />
-          <button type="button" class="wadesk-logout-btn shrink-0 p-2" aria-label="Keluar" @click="emitLogout">
+          <button type="button" class="wadesk-logout-btn shrink-0 p-2" aria-label="Sign out" @click="emitLogout">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H9m4 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
             </svg>
@@ -94,7 +94,7 @@
           class="menu-btn md:hidden shrink-0"
           :aria-expanded="sidebarOpen"
           aria-controls="wadesk-sidebar"
-          aria-label="Buka menu"
+          aria-label="Open menu"
           @click="sidebarOpen = true"
         >
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
