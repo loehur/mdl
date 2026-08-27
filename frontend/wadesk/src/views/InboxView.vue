@@ -108,7 +108,7 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">
-                  <p class="font-medium text-slate-100 truncate">{{ c.name || c.phone }}</p>
+                  <p class="font-medium text-slate-100 truncate">{{ displayConversationName(c) }}</p>
                   <span
                     v-if="formatConvTime(c)"
                     class="shrink-0 text-[10px] tabular-nums"
@@ -159,9 +159,9 @@
           <div class="h-14 px-4 border-b border-white/10 flex items-center gap-3 bg-ink-900/50">
             <button class="sm:hidden text-slate-400" @click="chat.activeId = null">←</button>
             <div class="min-w-0">
-              <p class="font-medium truncate">{{ chat.active.name || chat.active.phone }}</p>
+              <p class="font-medium truncate">{{ displayConversationName(chat.active) }}</p>
               <p class="text-xs text-slate-500">
-                {{ chat.active.phone }}
+                {{ maskPhoneNumber(chat.active.phone) }}
                 ·
                 <span :class="chat.active.csw_open ? 'text-emerald-400' : 'text-amber-400'">
                   {{ chat.active.csw_open ? "CSW terbuka" : "CSW tertutup" }}
@@ -350,6 +350,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useChatStore } from "../stores/chat";
+import { displayConversationName, maskPhoneNumber } from "../utils/phoneMask";
 import { API_BASE } from "../api";
 import AppHeader from "../components/AppHeader.vue";
 import TemplateModal from "../components/TemplateModal.vue";

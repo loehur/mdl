@@ -58,11 +58,17 @@ class Chat extends WaDeskController
             $sql .= ' AND c.last_in_at IS NOT NULL AND c.last_in_at >= DATE_SUB(NOW(), INTERVAL 23 HOUR)';
         }
         if ($q !== '') {
-            $sql .= ' AND (c.phone LIKE ? OR c.name LIKE ? OR c.last_message LIKE ?)';
             $like = '%' . $q . '%';
-            $binds[] = $like;
-            $binds[] = $like;
-            $binds[] = $like;
+            // Nomor hanya boleh terlihat dalam bentuk bertopeng di UI. Jangan
+            // menyediakan pencarian untuk nomor lengkap atau bagiannya.
+            if (preg_match('/^\d+$/', $q)) {
+                $sql .= ' AND c.last_message LIKE ?';
+                $binds[] = $like;
+            } else {
+                $sql .= ' AND (c.name LIKE ? OR c.last_message LIKE ?)';
+                $binds[] = $like;
+                $binds[] = $like;
+            }
         }
         $sql .= ' ORDER BY COALESCE(c.last_message_at, c.updated_at, c.created_at) DESC LIMIT 200';
 
