@@ -10,6 +10,105 @@ use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
  */
 class Templates extends WaDeskController
 {
+    /**
+     * Read-only template catalogue for Admin and Team Leader.
+     * Admin can inspect all tenant templates; a Team Leader only sees templates
+     * available through the channels assigned to their own team.
+     */
+    public function teamList()
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        $role = (string) ($user['role'] ?? '');
+        if (!in_array($role, ['admin', 'team_leader'], true)) {
+            $this->error('Halaman template hanya tersedia untuk Admin dan Team Leader', 403);
+        }
+
+        $tenantId = (int) $user['tenant_id'];
+        $page = max(1, (int) $this->query('page', 1));
+        $limit = min(50, max(1, (int) $this->query('limit', 20)));
+        $q = trim((string) $this->query('q', ''));
+
+        if ($role === 'admin') {
+            $total = 0;
+            $rows = $this->listAdminTemplatesPaginated($tenantId, $page, $limit, $q, $total);
+            $rows = $this->enrichTemplateListRows($rows, $tenantId, true);
+            $this->success([
+                'templates' => $rows,
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+            ]);
+            return;
+        }
+
+        $teamId = (int) ($user['team_id'] ?? 0);
+        if ($teamId <= 0 || !$this->templateDevicesTableExists()) {
+            $this->success(['templates' => [], 'total' => 0, 'page' => $page, 'limit' => $limit]);
+            return;
+        }
+
+        $channels = $this->channelsTable();
+        $where = "t.tenant_id = ? AND c.status = 'active' AND " . $this->channelTeamSql('c', $teamId);
+        $binds = [$tenantId];
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            $where .= ' AND (t.template_name LIKE ? OR t.language LIKE ? OR t.body_preview LIKE ?)';
+            $binds = array_merge($binds, [$like, $like, $like]);
+        }
+
+        $rows = $this->db($this->db_index)->query(
+            "SELECT DISTINCT t.*
+             FROM wa_templates t
+             INNER JOIN wa_template_devices td ON td.template_id = t.id
+             INNER JOIN {$channels} c ON c.device_id = td.device_id AND c.tenant_id = t.tenant_id
+             WHERE {$where}
+             ORDER BY t.template_name ASC, t.id ASC",
+            $binds
+        )->result_array();
+
+        if ($this->templateTeamsTableExists()) {
+            $wabaRows = $this->db($this->db_index)->query(
+                "SELECT DISTINCT NULLIF(TRIM(c.waba_id), '') AS waba_id
+                 FROM {$channels} c
+                 WHERE c.tenant_id = ? AND c.status = 'active'
+                   AND " . $this->channelTeamSql('c', $teamId) . "
+                   AND NULLIF(TRIM(c.waba_id), '') IS NOT NULL",
+                [$tenantId]
+            )->result_array();
+            $availableWabas = array_fill_keys(array_filter(array_map(
+                static fn ($row) => trim((string) ($row['waba_id'] ?? '')),
+                $wabaRows
+            )), true);
+
+            $rows = array_values(array_filter($rows, function (array $row) use ($tenantId, $teamId, $availableWabas) {
+                $wabaIds = array_filter($this->templateWabaIds((int) ($row['id'] ?? 0), $tenantId),
+                    static fn ($wabaId) => isset($availableWabas[$wabaId])
+                );
+                foreach ($wabaIds as $wabaId) {
+                    if (!$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)
+                        || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+        }
+
+        $total = count($rows);
+        $rows = array_slice($rows, ($page - 1) * $limit, $limit);
+        $rows = $this->enrichTemplateListRows($rows, $tenantId, true);
+        $this->success([
+            'templates' => $rows,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+        ]);
+    }
+
     public function list()
     {
         header('Cache-Control: no-store, no-cache, must-revalidate');

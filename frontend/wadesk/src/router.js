@@ -6,6 +6,7 @@ import AdminView from "./views/AdminView.vue";
 import BlastView from "./views/BlastView.vue";
 import ReportView from "./views/ReportView.vue";
 import AccountView from "./views/AccountView.vue";
+import TemplatesView from "./views/TemplatesView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -16,6 +17,7 @@ const router = createRouter({
     { path: "/blast", name: "blast", component: BlastView, meta: { auth: true } },
     { path: "/report", name: "report", component: ReportView, meta: { auth: true } },
     { path: "/account", name: "account", component: AccountView, meta: { auth: true } },
+    { path: "/templates", name: "templates", component: TemplatesView, meta: { auth: true, templateViewer: true } },
   ],
 });
 
@@ -27,6 +29,7 @@ router.beforeEach(async (to) => {
   }
   if (to.meta.auth && !auth.isLoggedIn) return { name: "login" };
   if (to.meta.admin && !auth.isAdmin) return { name: "inbox" };
+  if (to.meta.templateViewer && !auth.canManageTeam) return { name: "inbox" };
   if (to.meta.guest && auth.isLoggedIn) return { name: "inbox" };
   return true;
 });

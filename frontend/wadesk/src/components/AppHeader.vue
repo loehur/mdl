@@ -58,6 +58,15 @@
         >
           Admin
         </RouterLink>
+        <RouterLink
+          v-if="auth.canManageTeam"
+          to="/templates"
+          class="sidebar-link"
+          :class="{ 'sidebar-link-active': isActive('/templates') }"
+          @click="sidebarOpen = false"
+        >
+          Templates
+        </RouterLink>
       </nav>
 
       <div class="p-3 border-t border-white/10 space-y-3 shrink-0">
