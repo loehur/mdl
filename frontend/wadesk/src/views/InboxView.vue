@@ -27,8 +27,8 @@
       v-if="auth.isAdmin && !auth.canSendWa"
       class="shrink-0 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
     >
-      <span>Anda belum masuk team — tidak bisa kirim chat atau blast WA.</span>
-      <router-link to="/admin" class="text-accent-soft hover:underline shrink-0">Masuk team di Admin →</router-link>
+      <span>You have not joined a team, so chat and WhatsApp blasts are unavailable.</span>
+      <router-link to="/admin" class="text-accent-soft hover:underline shrink-0">Join a team in Admin →</router-link>
     </div>
 
     <div class="flex-1 min-h-0 flex">
@@ -42,7 +42,7 @@
             <input
               v-model="chat.search"
               class="flex-1 rounded-xl bg-ink-950 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Cari chat..."
+              placeholder="Search chats..."
               @keyup.enter="chat.loadConversations()"
             />
             <button
@@ -96,7 +96,7 @@
           </div>
         </div>
         <div class="flex-1 overflow-y-auto">
-          <div v-if="chat.loadingList && !chat.conversations.length" class="p-4 text-sm text-slate-500">Memuat...</div>
+          <div v-if="chat.loadingList && !chat.conversations.length" class="p-4 text-sm text-slate-500">Loading...</div>
           <button
             v-for="c in chat.conversations"
             :key="c.id"
@@ -155,7 +155,7 @@
         :class="!chat.activeId ? 'hidden sm:flex' : 'flex'"
       >
         <div v-if="!chat.active" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
-          Pilih percakapan atau mulai chat baru dengan template
+          Select a conversation or start a new chat with a template
         </div>
         <template v-else>
           <div class="h-14 px-4 border-b border-white/10 flex items-center gap-3 bg-ink-900/50">
@@ -175,7 +175,7 @@
           </div>
 
           <div ref="scrollEl" class="flex-1 overflow-y-auto p-4 space-y-3">
-            <div v-if="chat.loadingMessages && !chat.messages.length" class="text-sm text-slate-500">Memuat pesan...</div>
+            <div v-if="chat.loadingMessages && !chat.messages.length" class="text-sm text-slate-500">Loading messages...</div>
             <div
               v-for="m in chat.messages"
               :key="m.id"
@@ -191,7 +191,7 @@
                   v-if="m.media_url && isImageMessage(m)"
                   :src="mediaSrc(m.media_url)"
                   class="max-w-full rounded-lg mb-1 max-h-72 object-contain cursor-pointer"
-                  alt="Gambar"
+                  alt="Image"
                   loading="lazy"
                   @click="openMedia(m.media_url)"
                 />
@@ -288,7 +288,7 @@
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                {{ sending ? "Memeriksa AI..." : "Kirim" }}
+                {{ sending ? "Checking with AI..." : "Send" }}
               </button>
             </div>
             <div v-else-if="auth.canSendWa" class="flex flex-col gap-2">
@@ -323,7 +323,7 @@
     <ConfirmModal
       v-if="freeReject.open"
       mode="alert"
-      title="Pesan tidak dapat dikirim"
+      title="Message cannot be sent"
       :message="freeReject.message"
       confirm-label="Mengerti"
       @confirm="freeReject.open = false"
@@ -546,7 +546,7 @@ async function sendFree() {
     await loadTemplateQuota();
   } catch (e) {
     if (e.status === 422 && (e.data?.status === false || e.data?.reason)) {
-      freeReject.message = e.data.reason || e.message || "Pesan ditolak AI.";
+      freeReject.message = e.data.reason || e.message || "Message rejected by AI.";
       freeReject.open = true;
     } else {
       sendError.value = e.message;
@@ -615,7 +615,7 @@ async function onTemplateSubmit(payload) {
       devFeeMaintenanceOpen.value = true;
       return;
     }
-    tplError.value = e.message || "Gagal mengirim template";
+    tplError.value = e.message || "Failed to send template";
     sendError.value = tplError.value;
   } finally {
     tplSending.value = false;

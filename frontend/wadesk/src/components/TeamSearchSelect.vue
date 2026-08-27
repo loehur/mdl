@@ -38,10 +38,10 @@
 
         <div ref="sentinelRef" class="h-1" aria-hidden="true" />
 
-        <p v-if="loading && !rows.length" class="px-3 py-4 text-xs text-slate-500 text-center">Memuat team...</p>
-        <p v-else-if="loading" class="px-3 py-2 text-[11px] text-slate-500 text-center">Memuat lagi...</p>
+        <p v-if="loading && !rows.length" class="px-3 py-4 text-xs text-slate-500 text-center">Loading teams...</p>
+        <p v-else-if="loading" class="px-3 py-2 text-[11px] text-slate-500 text-center">Loading more...</p>
         <p v-else-if="!rows.length" class="px-3 py-4 text-xs text-slate-500 text-center">
-          {{ query.trim() ? "Team tidak ditemukan." : "Belum ada team." }}
+          {{ query.trim() ? "No teams found." : "No teams available." }}
         </p>
       </div>
     </div>
@@ -55,9 +55,9 @@ import { api } from "../api";
 const props = defineProps({
   modelValue: { type: [String, Number], default: "" },
   allowEmpty: { type: Boolean, default: false },
-  emptyLabel: { type: String, default: "— Tidak aktif —" },
-  placeholder: { type: String, default: "Pilih team..." },
-  searchPlaceholder: { type: String, default: "Cari team..." },
+  emptyLabel: { type: String, default: "— Inactive —" },
+  placeholder: { type: String, default: "Select a team..." },
+  searchPlaceholder: { type: String, default: "Search teams..." },
   fallbackLabel: { type: String, default: "" },
   active: { type: Boolean, default: true },
 });

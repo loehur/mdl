@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60">
     <div class="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl rounded-t-2xl sm:rounded-2xl bg-ink-900 border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto relative">
       <div class="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-ink-900 z-10">
-        <h2 class="font-display font-semibold text-lg text-slate-100">Kirim template</h2>
+        <h2 class="font-display font-semibold text-lg text-slate-100">Send template</h2>
         <button
           type="button"
           class="text-slate-400 hover:text-slate-100 disabled:opacity-40 disabled:pointer-events-none"
@@ -20,7 +20,7 @@
             <div v-if="!fixedKeyId">
               <label class="label">Channel / nomor WA</label>
               <select v-model="form.channel_id" required class="field" :disabled="busy || checking" @change="onKeyChange">
-                <option disabled value="">Pilih channel</option>
+                <option disabled value="">Select a channel</option>
                 <option v-for="k in keys" :key="k.id" :value="k.id">
                   {{ k.label }} ({{ k.phone_number }})
                 </option>
@@ -28,7 +28,7 @@
             </div>
 
             <div v-if="!fixedPhone">
-              <label class="label">Nomor tujuan</label>
+              <label class="label">Recipient number</label>
               <input v-model="form.phone" required class="field" placeholder="62812..." :disabled="busy || checking" />
             </div>
 
@@ -41,13 +41,13 @@
                 :disabled="busy || checking || !hasChannel"
                 @change="onTplChange"
               >
-                <option disabled value="">Pilih template</option>
+                <option disabled value="">Select a template</option>
                 <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
                   {{ t.template_name }} ({{ t.language }})
                 </option>
               </select>
               <p v-if="hasChannel && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
-                Tidak ada template untuk nomor WA ini. Sync ulang di Admin → Templates.
+                No templates are available for this WhatsApp number. Sync again in Admin → Templates.
               </p>
               <p v-if="livePreview" class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-3 border border-white/5 min-h-[5rem]">
                 {{ livePreview }}
@@ -80,7 +80,7 @@
                 :disabled="busy || checking"
                 @input="clearAiWarning"
               />
-              <p class="text-[10px] text-slate-500">Maks. {{ paramMaxlength(p) }} karakter</p>
+              <p class="text-[10px] text-slate-500">Max. {{ paramMaxlength(p) }} characters</p>
             </div>
           </div>
         </div>
@@ -90,7 +90,7 @@
           class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100"
           role="alert"
         >
-          <p class="font-medium text-amber-200 mb-1">Template tidak dapat dikirim</p>
+          <p class="font-medium text-amber-200 mb-1">Template cannot be sent</p>
           <p class="text-xs text-amber-100/90 whitespace-pre-wrap">{{ aiWarning }}</p>
         </div>
 
@@ -121,7 +121,7 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          {{ checking ? "Memeriksa AI..." : busy ? "Mengirim..." : "Kirim template" }}
+          {{ checking ? "Checking with AI..." : busy ? "Sending..." : "Send template" }}
         </button>
       </form>
 
@@ -146,7 +146,7 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <p class="text-sm text-slate-200">Mengirim template...</p>
+          <p class="text-sm text-slate-200">Sending template...</p>
         </div>
       </div>
     </div>
@@ -306,7 +306,7 @@ async function submit() {
 
     emit("submit", payload);
   } catch (e) {
-    aiWarning.value = e.message || "Gagal memeriksa parameter dengan AI";
+    aiWarning.value = e.message || "Failed to check parameters with AI";
   } finally {
     checking.value = false;
   }
