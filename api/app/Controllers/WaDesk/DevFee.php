@@ -73,6 +73,27 @@ class DevFee extends WaDeskController
         $this->success($this->paymentPayload($payment ?: []), 'Silakan transfer sesuai nominal BCA');
     }
 
+    /** Cancel the current tenant's pending BCA top-up before it is confirmed. */
+    public function cancelTopup()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        $ref = trim((string) (($this->getBody()['payment_ref'] ?? '')));
+        if ($ref === '') $this->error('payment_ref wajib', 400);
+        $updated = $this->db($this->db_index)->update('wa_tenant_dev_fee_payments', [
+            'payment_status' => 'cancelled',
+        ], [
+            'tenant_id' => (int) $admin['tenant_id'],
+            'payment_ref' => $ref,
+            'payment_status' => 'pending',
+        ]);
+        if (!$updated || (int) $this->db($this->db_index)->affected_rows() < 1) {
+            $this->error('Pembayaran pending tidak ditemukan atau sudah diproses', 404);
+        }
+        $this->success([], 'Pembayaran BCA dibatalkan');
+    }
+
     public function logs()
     {
         $this->verifyAuth();

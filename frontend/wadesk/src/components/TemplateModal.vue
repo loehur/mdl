@@ -94,7 +94,12 @@
           <p class="text-xs text-amber-100/90 whitespace-pre-wrap">{{ aiWarning }}</p>
         </div>
 
-        <p v-if="error && !aiWarning" class="text-sm text-rose-400">{{ error }}</p>
+        <p
+          v-if="error && !aiWarning"
+          class="rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-sm leading-6 text-rose-300 whitespace-normal break-words"
+        >
+          {{ error }}
+        </p>
 
         <button
           type="submit"

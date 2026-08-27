@@ -1000,13 +1000,13 @@
               </button>
             </div>
           </form>
-          <div v-if="devFeePendingPayment" class="rounded-xl border border-sky-500/25 bg-sky-500/5 p-4 space-y-2">
-            <p class="font-medium text-sky-200">Menunggu transfer BCA</p>
-            <p class="text-sm text-slate-300">Transfer tepat <span class="font-semibold text-sky-200">Rp{{ formatCurrency(devFeePendingPayment.amount) }}</span> untuk {{ devFeePendingPayment.quota_amount }} quota.</p>
-            <p v-if="devFeePendingPayment.bank_account" class="text-xs text-slate-400 whitespace-pre-line">
-              {{ devFeePendingPayment.bank_account.label }} · {{ devFeePendingPayment.bank_account.number }} · a.n. {{ devFeePendingPayment.bank_account.name }}
-            </p>
-            <p class="text-[11px] text-slate-500">Konfirmasi otomatis oleh cron BCA setelah mutasi ditemukan.</p>
+          <div v-if="devFeePendingPayment" class="rounded-xl border border-sky-400/30 bg-sky-500/10 p-4">
+            <p class="font-semibold text-sky-100">BCA transfer is awaiting confirmation</p>
+            <p class="mt-1 text-sm text-slate-300">Your Dev Fee top-up is ready. Review the payment details or cancel this order.</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button type="button" class="btn-sm border border-sky-400/30 bg-sky-400/10 text-sky-100 hover:bg-sky-400/20" @click="devFeePaymentModal = 'check'">Check</button>
+              <button type="button" class="btn-sm border border-rose-400/30 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20" @click="devFeePaymentModal = 'cancel'">Cancel</button>
+            </div>
           </div>
           <div class="grid sm:grid-cols-3 gap-3">
             <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4">
@@ -1278,6 +1278,31 @@
       @confirm="onDialogConfirm"
       @close="closeDialog"
     />
+
+    <div v-if="devFeePaymentModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm">
+      <div class="w-full max-w-md rounded-3xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
+        <template v-if="devFeePaymentModal === 'check'">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">BCA Payment Details</p>
+          <h3 class="mt-2 font-display text-xl font-semibold">Transfer exactly this amount</h3>
+          <p class="mt-5 text-4xl font-semibold tabular-nums text-sky-200">Rp{{ formatCurrency(devFeePendingPayment?.amount) }}</p>
+          <p class="mt-1 text-sm text-slate-400">Credits {{ devFeePendingPayment?.quota_amount }} Dev Fee quota.</p>
+          <div class="mt-5 rounded-2xl border border-white/10 bg-ink-950/50 p-4 text-sm">
+            <p class="text-slate-500">Transfer to</p>
+            <p class="mt-1 font-medium text-slate-100">{{ devFeePendingPayment?.bank_account?.label || 'BCA' }}</p>
+            <p class="mt-1 text-lg font-semibold tracking-wide text-slate-100">{{ devFeePendingPayment?.bank_account?.number || '—' }}</p>
+            <p class="mt-1 text-slate-400">a.n. {{ devFeePendingPayment?.bank_account?.name || '—' }}</p>
+          </div>
+          <p class="mt-4 text-xs leading-5 text-slate-500">Confirmation is automatic after the BCA transaction appears in our records.</p>
+          <button type="button" class="btn mt-6 w-full" @click="devFeePaymentModal = null">Done</button>
+        </template>
+        <template v-else>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-rose-300">Cancel BCA Payment</p>
+          <h3 class="mt-2 font-display text-xl font-semibold">Cancel this pending top-up?</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-400">The payment instruction will be cancelled. Do not transfer the displayed amount after cancelling.</p>
+          <div class="mt-6 flex gap-2"><button type="button" class="btn-sm flex-1" @click="devFeePaymentModal = null">Keep it</button><button type="button" class="btn flex-1 bg-rose-500 hover:bg-rose-400" :disabled="cancellingDevFeeTopup" @click="cancelDevFeeTopup">{{ cancellingDevFeeTopup ? 'Cancelling...' : 'Cancel payment' }}</button></div>
+        </template>
+      </div>
+    </div>
   </AppHeader>
 </template>
 
@@ -1460,6 +1485,8 @@ const devFeeSummary = reactive({ quota_total: null, quota_used: 0, quota_remaini
 const devFeeTopupQuota = ref(1000);
 const devFeePendingPayment = ref(null);
 const creatingDevFeeTopup = ref(false);
+const cancellingDevFeeTopup = ref(false);
+const devFeePaymentModal = ref(null);
 const devFeePayments = ref([]);
 const devFeeLogs = ref([]);
 const devFeeLogsTotal = ref(0);
@@ -2164,6 +2191,23 @@ async function createDevFeeTopup() {
     flash(false, e.message || "Gagal membuat pembayaran BCA");
   } finally {
     creatingDevFeeTopup.value = false;
+  }
+}
+
+async function cancelDevFeeTopup() {
+  const paymentRef = devFeePendingPayment.value?.payment_ref;
+  if (!paymentRef) return;
+  cancellingDevFeeTopup.value = true;
+  try {
+    await api("/WaDesk/DevFee/cancelTopup", { method: "POST", body: { payment_ref: paymentRef } });
+    devFeePaymentModal.value = null;
+    devFeePendingPayment.value = null;
+    flash(true, "Pembayaran BCA dibatalkan");
+    await loadDevFee(true);
+  } catch (e) {
+    flash(false, e.message || "Gagal membatalkan pembayaran");
+  } finally {
+    cancellingDevFeeTopup.value = false;
   }
 }
 
