@@ -9,6 +9,7 @@ export const useChatStore = defineStore("chat", {
     loadingList: false,
     loadingMessages: false,
     search: "",
+    maskPhoneNumbers: false,
     listFilter: "all",
     unreadCount: 0,
     openCount: 0,
@@ -36,6 +37,7 @@ export const useChatStore = defineStore("chat", {
         this.conversations = res.data.conversations || [];
         this.unreadCount = Number(res.data.unread_count ?? 0);
         this.openCount = Number(res.data.open_count ?? 0);
+        this.maskPhoneNumbers = Boolean(res.data.mask_phone_numbers);
       } finally {
         if (showLoading) this.loadingList = false;
       }

@@ -182,6 +182,34 @@ class Teams extends WaDeskController
         $this->success(['team_id' => $teamId], 'Default team disimpan');
     }
 
+    /** Toggle masking nomor pelanggan untuk satu team. */
+    public function setPhoneMasking()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+
+        $body = $this->getBody();
+        $this->validate($body, ['team_id', 'enabled']);
+        $teamId = (int) $body['team_id'];
+        $enabled = !empty($body['enabled']) ? 1 : 0;
+
+        if (!$this->getTenantTeam($teamId, (int) $admin['tenant_id'])) {
+            $this->error('Team tidak ditemukan', 404);
+        }
+
+        $this->db($this->db_index)->update('teams', [
+            'mask_phone_numbers' => $enabled,
+        ], ['id' => $teamId, 'tenant_id' => (int) $admin['tenant_id']]);
+
+        $this->success([
+            'team_id' => $teamId,
+            'mask_phone_numbers' => (bool) $enabled,
+        ], $enabled ? 'Masking nomor diaktifkan' : 'Masking nomor dinonaktifkan');
+    }
+
     public function delete()
     {
         $this->verifyAuth();

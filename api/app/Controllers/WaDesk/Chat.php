@@ -22,6 +22,7 @@ class Chat extends WaDeskController
         [$visSql, $visBinds] = $this->visibilitySql('c');
         $q = trim((string) $this->query('q', ''));
         $filter = strtolower(trim((string) $this->query('filter', 'all')));
+        $maskPhoneNumbers = $this->teamPhoneMaskingEnabled($user);
 
         $tbl = $this->channelsTable();
         $unreadRow = $this->db($this->db_index)->query(
@@ -59,9 +60,14 @@ class Chat extends WaDeskController
         }
         if ($q !== '') {
             $like = '%' . $q . '%';
-            // Nomor hanya boleh dicari dari bagian yang memang terlihat di UI:
-            // tiga digit awal atau maksimal tujuh digit terakhir.
-            if (preg_match('/^\d+$/', $q)) {
+            if (!$maskPhoneNumbers) {
+                $sql .= ' AND (c.phone LIKE ? OR c.name LIKE ? OR c.last_message LIKE ?)';
+                $binds[] = $like;
+                $binds[] = $like;
+                $binds[] = $like;
+            // Saat masking aktif, nomor hanya dapat dicari dari bagian yang
+            // memang terlihat di UI: tiga digit awal atau tujuh digit terakhir.
+            } elseif (preg_match('/^\d+$/', $q)) {
                 $digitCount = strlen($q);
                 if ($digitCount <= 3) {
                     $sql .= ' AND (c.phone LIKE ? OR c.phone LIKE ? OR c.last_message LIKE ?)';
@@ -93,7 +99,23 @@ class Chat extends WaDeskController
             'conversations' => $rows,
             'unread_count' => $unreadCount,
             'open_count' => $openCount,
+            'mask_phone_numbers' => $maskPhoneNumbers,
         ]);
+    }
+
+    private function teamPhoneMaskingEnabled(array $user): bool
+    {
+        $teamId = (int) ($user['team_id'] ?? 0);
+        if ($teamId <= 0) {
+            return false;
+        }
+
+        $row = $this->db($this->db_index)->query(
+            'SELECT mask_phone_numbers FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1',
+            [$teamId, (int) ($user['tenant_id'] ?? 0)]
+        )->row_array();
+
+        return !empty($row['mask_phone_numbers']);
     }
 
     public function getMessages()

@@ -108,7 +108,9 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">
-                  <p class="font-medium text-slate-100 truncate">{{ displayConversationName(c) }}</p>
+                  <p class="font-medium text-slate-100 truncate">
+                    {{ chat.maskPhoneNumbers ? displayConversationName(c) : (c.name || c.phone) }}
+                  </p>
                   <span
                     v-if="formatConvTime(c)"
                     class="shrink-0 text-[10px] tabular-nums"
@@ -159,9 +161,11 @@
           <div class="h-14 px-4 border-b border-white/10 flex items-center gap-3 bg-ink-900/50">
             <button class="sm:hidden text-slate-400" @click="chat.activeId = null">←</button>
             <div class="min-w-0">
-              <p class="font-medium truncate">{{ displayConversationName(chat.active) }}</p>
+              <p class="font-medium truncate">
+                {{ chat.maskPhoneNumbers ? displayConversationName(chat.active) : (chat.active.name || chat.active.phone) }}
+              </p>
               <p class="text-xs text-slate-500">
-                {{ maskPhoneNumber(chat.active.phone) }}
+                {{ chat.maskPhoneNumbers ? maskPhoneNumber(chat.active.phone) : chat.active.phone }}
                 ·
                 <span :class="chat.active.csw_open ? 'text-emerald-400' : 'text-amber-400'">
                   {{ chat.active.csw_open ? "CSW terbuka" : "CSW tertutup" }}

@@ -112,6 +112,19 @@
                     </template>
                     <span v-else class="text-amber-400/80">Belum ada nomor</span>
                   </p>
+                  <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      class="rounded border-white/20"
+                      :checked="Boolean(Number(t.mask_phone_numbers))"
+                      :disabled="savingTeamMaskId === t.id"
+                      @change="setTeamPhoneMasking(t, $event.target.checked)"
+                    />
+                    <span>Masking nomor pelanggan</span>
+                    <span :class="Boolean(Number(t.mask_phone_numbers)) ? 'text-emerald-400' : 'text-slate-600'">
+                      {{ Boolean(Number(t.mask_phone_numbers)) ? 'Aktif' : 'Nonaktif' }}
+                    </span>
+                  </label>
                 </template>
               </div>
               <div v-if="editingTeamId !== t.id" class="flex items-center gap-3 shrink-0 pt-0.5">
@@ -1447,6 +1460,7 @@ const teamForm = reactive({ name: "" });
 const editingTeamId = ref(null);
 const editingTeamName = ref("");
 const savingTeam = ref(false);
+const savingTeamMaskId = ref(null);
 const defaultTeamDraft = ref("");
 const savingDefaultTeam = ref(false);
 const userForm = reactive({
@@ -2391,6 +2405,22 @@ async function saveTeamName(t) {
     flash(false, e.message);
   } finally {
     savingTeam.value = false;
+  }
+}
+
+async function setTeamPhoneMasking(team, enabled) {
+  savingTeamMaskId.value = team.id;
+  try {
+    const res = await api("/WaDesk/Teams/setPhoneMasking", {
+      method: "POST",
+      body: { team_id: team.id, enabled },
+    });
+    team.mask_phone_numbers = res.data?.mask_phone_numbers ? 1 : 0;
+    flash(true, enabled ? "Masking nomor diaktifkan" : "Masking nomor dinonaktifkan");
+  } catch (e) {
+    flash(false, e.message || "Gagal menyimpan pengaturan masking nomor");
+  } finally {
+    savingTeamMaskId.value = null;
   }
 }
 
