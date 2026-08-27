@@ -6,6 +6,7 @@ import CustomerPanel from "./CustomerPanel.vue";
 import MessageStatusIcon from "./MessageStatusIcon.vue";
 import twemoji from 'twemoji';
 import { messageUpdateTrigger, chatContainer, loadQuickRepliesFromLaundry, isNativeApp, showCustomerPanel, showCrewSendModal, LAUNDRY_BASE } from "../stores/chatStore.js";
+import { displayConversationName } from "../utils/phoneMask.js";
 
 const props = defineProps({
   activeConversation: {
@@ -1277,7 +1278,7 @@ onUnmounted(() => {
                <div class="flex items-center gap-3 flex-1 min-w-0">
                   <button @click="backToMenu" class="md:hidden p-1 -ml-2 text-[var(--wa-icon-default)]"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
                   <div @click="showCustomerInfo" class="min-w-0 flex-1 cursor-pointer">
-                      <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ activeConversation.name }}</h2>
+                      <h2 class="font-medium text-[var(--wa-text-primary)] text-base md:text-lg truncate uppercase">{{ displayConversationName(activeConversation) }}</h2>
                       <div class="flex items-center gap-2 flex-wrap">
                         <span v-if="activeConversation.kode_cabang" class="text-xs font-bold text-[var(--wa-accent-green)]">{{ activeConversation.kode_cabang }}</span>
                         <span v-if="activeConversation.cust_id" class="text-xs text-[var(--wa-text-tertiary)]">#{{ activeConversation.cust_id }}</span>

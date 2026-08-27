@@ -71,11 +71,16 @@ class Chat extends Controller
             // Add search filter if provided
             elseif (!empty($search)) {
                 $safSearch = $db->conn()->real_escape_string($search);
-                $whereClause .= " AND (
-                    c.contact_name LIKE '%$safSearch%' 
-                    OR c.wa_number LIKE '%$safSearch%'
-                    OR COALESCE(c.code, '00') LIKE '%$safSearch%'
-                )";
+                // Nomor WA ditampilkan bertopeng di UI. Jangan jadikan deretan
+                // angka sebagai jalan untuk menemukan nomor lengkap lewat search.
+                if (preg_match('/^\d+$/', $search)) {
+                    $whereClause .= " AND COALESCE(c.code, '00') LIKE '%$safSearch%'";
+                } else {
+                    $whereClause .= " AND (
+                        c.contact_name LIKE '%$safSearch%'
+                        OR COALESCE(c.code, '00') LIKE '%$safSearch%'
+                    )";
+                }
             }
             
             // Get user role:

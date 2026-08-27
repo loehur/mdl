@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import twemoji from 'twemoji';
 import { getCaseColor, getCaseLabel } from "../stores/chatStore.js";
+import { displayConversationName } from "../utils/phoneMask.js";
 
 const props = defineProps({
   conversations: { type: Array, default: () => [] },
@@ -310,9 +311,9 @@ const parseEmoji = (text) => {
             <h3
               class="text-[17px] leading-snug truncate max-w-[240px] font-medium uppercase"
               style="color: var(--wa-conv-name);"
-              :title="chat.name"
+              :title="displayConversationName(chat)"
             >
-              {{ chat.name }}
+              {{ displayConversationName(chat) }}
             </h3>
             <span
               class="text-xs leading-none flex-shrink-0 font-normal"
