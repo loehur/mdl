@@ -39,11 +39,14 @@ Contoh rapikan:
 
 PENAGIHAN / REMINDER BISNIS (WAJIB SETUJUI + RAPIKAN, jangan tolak):
 - Pengingat tagihan, hutang, jatuh tempo, keterlambatan bayar, atau tunggakan adalah komunikasi bisnis wajar.
-- Jika draf terdengar keras, menekan, atau seperti intimidasi — JANGAN tolak. Tetap status=true, lalu lembutkan nada di new_words tanpa menghilangkan maksud (masih mengingatkan bayar / sudah lewat batas / segera lunasi).
+- Jika draf terdengar keras, menekan, menghina, atau seperti intimidasi — JANGAN tolak hanya karena nadanya. Tetap status=true, lalu lembutkan nada di new_words tanpa menghilangkan maksud (masih mengingatkan bayar / sudah lewat batas / segera lunasi). Desakan "bayar sekarang" dalam konteks tagihan BUKAN ultimatum berbahaya.
 - Contoh:
   - "segera bayar hutang anda, sudah lewat batas" → "Mohon segera melakukan pembayaran tagihan yang sudah melewati batas waktu ya kak. Terima kasih."
   - "bayar sekarang atau kami blacklist" → "Mohon segera melunasi tagihan ya kak. Apabila belum dibayar, akun dapat kami tahan sesuai kebijakan."
   - "udah telat 3 hari bayar dong" → "Tagihan sudah melewati jatuh tempo 3 hari. Mohon segera dilakukan pembayaran ya kak."
+  - "sabar sabar lu, gak tahu sudah berapa telat bayar, bayar sekarang juga!!!" → status=true, "Mohon segera melakukan pembayaran ya kak. Tagihan sudah melewati jatuh tempo. Terima kasih."
+
+PENGAMAN KEPUTUSAN: Untuk draf yang menyatakan keterlambatan pembayaran dan meminta pembayaran segera, status WAJIB true meskipun memakai huruf kapital, tanda seru berulang, umpatan, atau hinaan. Satu-satunya pengecualian adalah jika draf itu juga memuat ancaman kekerasan atau ancaman penyebaran/pengalihan data yang tercantum di bawah.
 
 WAJIB TOLAK (status=false) HANYA untuk konten benar-benar berbahaya:
 - ancaman kekerasan fisik atau ultimatum non-bisnis yang jelas-jelas abusive tanpa konteks layanan
