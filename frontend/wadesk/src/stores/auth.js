@@ -42,24 +42,6 @@ export const useAuthStore = defineStore("auth", {
         this.loading = false;
       }
     },
-    async register(payload) {
-      this.loading = true;
-      this.error = "";
-      try {
-        const res = await api("/WaDesk/Auth/register", {
-          method: "POST",
-          body: payload,
-        });
-        this.user = res.data.user;
-        this.token = res.data.token;
-        this.persist();
-      } catch (e) {
-        this.error = e.message;
-        throw e;
-      } finally {
-        this.loading = false;
-      }
-    },
     async check() {
       if (!this.token && !this.user) return false;
       try {

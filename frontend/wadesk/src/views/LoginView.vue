@@ -14,34 +14,7 @@
       </div>
 
       <div class="rounded-2xl border border-white/10 bg-ink-900/80 backdrop-blur-xl p-6 shadow-2xl">
-        <div class="flex gap-2 mb-6 p-1 rounded-xl bg-ink-950/60">
-          <button
-            type="button"
-            class="flex-1 py-2 rounded-lg text-sm font-medium transition"
-            :class="mode === 'login' ? 'bg-accent text-white' : 'text-slate-400 hover:text-slate-100'"
-            @click="mode = 'login'"
-          >
-            Masuk
-          </button>
-          <button
-            type="button"
-            class="flex-1 py-2 rounded-lg text-sm font-medium transition"
-            :class="mode === 'register' ? 'bg-accent text-white' : 'text-slate-400 hover:text-slate-100'"
-            @click="mode = 'register'"
-          >
-            Daftar Admin
-          </button>
-        </div>
-
         <form class="space-y-4" @submit.prevent="submit">
-          <div v-if="mode === 'register'">
-            <label class="block text-xs text-slate-400 mb-1">Nama organisasi</label>
-            <input v-model="form.org_name" required class="input" placeholder="PT Contoh" />
-          </div>
-          <div v-if="mode === 'register'">
-            <label class="block text-xs text-slate-400 mb-1">Nama Anda</label>
-            <input v-model="form.name" required class="input" placeholder="Nama admin" />
-          </div>
           <div>
             <label class="block text-xs text-slate-400 mb-1">Email</label>
             <input v-model="form.email" type="email" required class="input" placeholder="admin@email.com" />
@@ -58,7 +31,7 @@
             class="w-full py-3 rounded-xl bg-accent hover:bg-accent-soft font-semibold transition disabled:opacity-50"
             :disabled="auth.loading"
           >
-            {{ auth.loading ? "Memproses..." : mode === "login" ? "Masuk" : "Buat akun" }}
+            {{ auth.loading ? "Memproses..." : "Masuk" }}
           </button>
         </form>
       </div>
@@ -67,33 +40,21 @@
 </template>
 
 <script setup>
-import { reactive, ref } from "vue";
+import { reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import ThemeToggle from "../components/ThemeToggle.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
-const mode = ref("login");
 const form = reactive({
-  org_name: "",
-  name: "",
   email: "",
   password: "",
 });
 
 async function submit() {
   try {
-    if (mode.value === "login") {
-      await auth.login(form.email, form.password);
-    } else {
-      await auth.register({
-        org_name: form.org_name,
-        name: form.name,
-        email: form.email,
-        password: form.password,
-      });
-    }
+    await auth.login(form.email, form.password);
     router.push({ name: "inbox" });
   } catch {
     /* shown via auth.error */

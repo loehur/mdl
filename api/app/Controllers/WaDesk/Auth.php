@@ -3,76 +3,14 @@
 namespace App\Controllers\WaDesk;
 
 /**
- * Auth — register admin+tenant, login, check, logout
+ * Auth — login, check, logout
  */
 class Auth extends WaDeskController
 {
-    /** POST /WaDesk/Auth/register — buat tenant + admin pertama */
+    /** POST /WaDesk/Auth/register — pendaftaran publik dinonaktifkan. */
     public function register()
     {
-        if (!$this->isPost()) {
-            $this->error('Method not allowed', 405);
-        }
-
-        try {
-            $body = $this->getBody();
-            $this->validate($body, ['org_name', 'name', 'email', 'password']);
-
-            $email = strtolower(trim($body['email']));
-            $orgName = trim($body['org_name']);
-            $name = trim($body['name']);
-            $password = (string) $body['password'];
-
-            if (strlen($password) < 6) {
-                $this->error('Password minimal 6 karakter', 400);
-            }
-
-            $db = $this->db($this->db_index);
-            $exists = $db->get_where('users', ['email' => $email], 1)->row_array();
-            if ($exists) {
-                $this->error('Email sudah terdaftar', 409);
-            }
-
-            $tenantId = (int) $db->insert('tenants', ['name' => $orgName]);
-            if ($tenantId <= 0) {
-                $this->error('Gagal membuat tenant', 500);
-            }
-
-            $userId = (int) $db->insert('users', [
-                'tenant_id' => $tenantId,
-                'team_id' => null,
-                'email' => $email,
-                'name' => $name,
-                'password' => password_hash($password, PASSWORD_DEFAULT),
-                'role' => 'admin',
-                'is_active' => 1,
-            ]);
-            if ($userId <= 0) {
-                $this->error('Gagal membuat user admin', 500);
-            }
-
-            $db->update('tenants', ['admin_user_id' => $userId], ['id' => $tenantId]);
-
-            $user = $this->publicUser([
-                'id' => $userId,
-                'name' => $name,
-                'email' => $email,
-                'role' => 'admin',
-                'tenant_id' => $tenantId,
-                'team_id' => null,
-            ]);
-
-            $this->establishSession($user);
-            $this->extendSession();
-            $token = $this->issueAuthToken($userId);
-
-            $this->success([
-                'user' => $user,
-                'token' => $token,
-            ], 'Registrasi berhasil');
-        } catch (\Throwable $e) {
-            $this->error('Registrasi gagal: ' . $e->getMessage(), 500);
-        }
+        $this->error('Pendaftaran admin saat ini ditutup', 403);
     }
 
     public function login()
