@@ -135,7 +135,9 @@ class DevFee extends WaDeskController
             $rows = $db->query(
                 "SELECT p.*, u.name AS user_name FROM wa_tenant_dev_fee_payments p
                  LEFT JOIN users u ON u.id = p.created_by
-                 WHERE p.tenant_id = ? ORDER BY p.id DESC LIMIT 50",
+                 WHERE p.tenant_id = ?
+                   AND p.payment_status IN ('pending', 'success')
+                 ORDER BY p.id DESC LIMIT 50",
                 [(int) $admin['tenant_id']]
             )->result_array();
             $this->success(['payments' => $rows]);
