@@ -1136,8 +1136,10 @@
           Belum ada log kegagalan template.
         </p>
 
-        <ul v-else class="divide-y divide-white/5 space-y-0">
-          <li v-for="row in failLogs" :key="row.id" class="py-3">
+        <div v-else class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+          <ul class="space-y-0">
+            <li v-for="row in failLogs" :key="row.id" class="px-4 py-3">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <p class="font-medium text-rose-300 truncate" :title="row.error_message">
@@ -1186,14 +1188,16 @@
                 <pre class="overflow-x-auto whitespace-pre-wrap break-all text-slate-300">{{ prettyJson(row.response) }}</pre>
               </div>
             </div>
-          </li>
-        </ul>
+            </li>
+          </ul>
 
-        <div v-if="failLogs.length" ref="failLogsSentinel" class="h-1" aria-hidden="true" />
-        <div v-if="failLogs.length" class="pt-2 text-center text-xs text-slate-500">
-          <span v-if="loadingFailLogs">Memuat log berikutnya...</span>
-          <span v-else-if="failLogsHasMore">Scroll untuk memuat lebih banyak</span>
-          <span v-else>Semua {{ failLogsTotal }} log sudah dimuat</span>
+          <div v-if="failLogs.length" ref="failLogsSentinel" class="h-1" aria-hidden="true" />
+          <div v-if="failLogs.length" class="px-4 py-3 text-center text-xs text-slate-500">
+            <span v-if="loadingFailLogs">Memuat log berikutnya...</span>
+            <span v-else-if="failLogsHasMore">Scroll untuk memuat lebih banyak</span>
+            <span v-else>Semua {{ failLogsTotal }} log sudah dimuat</span>
+          </div>
+        </div>
         </div>
       </section>
 
@@ -1390,7 +1394,8 @@ const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
 const failLogs = ref([]);
 const failLogsTotal = ref(0);
 const failLogsPage = ref(1);
-const failLogsLimit = ref(50);
+const FAIL_LOGS_LIMIT = 20;
+const failLogsLimit = ref(FAIL_LOGS_LIMIT);
 const failLogsReady = ref(true);
 const loadingFailLogs = ref(false);
 const expandedFailLog = ref(null);
