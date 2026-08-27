@@ -35,7 +35,7 @@
               <p v-if="template.waba_label || template.waba_id" class="mt-1 text-xs text-slate-500 truncate">
                 {{ template.waba_label || template.waba_id }}
               </p>
-              <div v-if="template.assigned_teams?.length" class="mt-2 flex flex-wrap gap-1.5">
+              <div v-if="auth.isAdmin && template.assigned_teams?.length" class="mt-2 flex flex-wrap gap-1.5">
                 <span v-for="team in template.assigned_teams" :key="team.id" class="team-chip">{{ team.name }}</span>
               </div>
             </div>

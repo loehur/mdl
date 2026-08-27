@@ -40,7 +40,7 @@
 
       <nav class="flex-1 overflow-y-auto p-3 space-y-1" aria-label="Navigasi utama">
         <RouterLink
-          v-for="item in mainNavItems"
+          v-for="item in visibleMainNavItems"
           :key="item.to"
           :to="item.to"
           class="sidebar-link"
@@ -57,15 +57,6 @@
           @click="sidebarOpen = false"
         >
           Admin
-        </RouterLink>
-        <RouterLink
-          v-if="auth.canManageTeam"
-          to="/templates"
-          class="sidebar-link"
-          :class="{ 'sidebar-link-active': isActive('/templates') }"
-          @click="sidebarOpen = false"
-        >
-          Templates
         </RouterLink>
       </nav>
 
@@ -135,7 +126,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, RouterLink } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import ThemeToggle from "./ThemeToggle.vue";
@@ -153,10 +144,15 @@ const sidebarOpen = ref(false);
 
 const mainNavItems = [
   { to: "/", label: "Chat" },
-  { to: "/report", label: "Report" },
+  { to: "/templates", label: "Templates", manageOnly: true },
   { to: "/blast", label: "Blast" },
+  { to: "/report", label: "Report" },
   { to: "/account", label: "Account" },
 ];
+
+const visibleMainNavItems = computed(() =>
+  mainNavItems.filter((item) => !item.manageOnly || auth.canManageTeam)
+);
 
 watch(
   () => route.path,

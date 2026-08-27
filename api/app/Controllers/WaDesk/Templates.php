@@ -70,33 +70,31 @@ class Templates extends WaDeskController
             $binds
         )->result_array();
 
-        if ($this->templateTeamsTableExists()) {
-            $wabaRows = $this->db($this->db_index)->query(
-                "SELECT DISTINCT NULLIF(TRIM(c.waba_id), '') AS waba_id
+        // Apply the identical availability rule used before sending a template:
+        // it must exist on at least one channel usable by this team, and—when
+        // that channel's WABA is shared—must be explicitly assigned to it.
+        $teamChannels = $this->db($this->db_index)->query(
+                "SELECT c.device_id, c.waba_id
                  FROM {$channels} c
                  WHERE c.tenant_id = ? AND c.status = 'active'
-                   AND " . $this->channelTeamSql('c', $teamId) . "
-                   AND NULLIF(TRIM(c.waba_id), '') IS NOT NULL",
+                   AND " . $this->channelTeamSql('c', $teamId),
                 [$tenantId]
             )->result_array();
-            $availableWabas = array_fill_keys(array_filter(array_map(
-                static fn ($row) => trim((string) ($row['waba_id'] ?? '')),
-                $wabaRows
-            )), true);
-
-            $rows = array_values(array_filter($rows, function (array $row) use ($tenantId, $teamId, $availableWabas) {
-                $wabaIds = array_filter($this->templateWabaIds((int) ($row['id'] ?? 0), $tenantId),
-                    static fn ($wabaId) => isset($availableWabas[$wabaId])
-                );
-                foreach ($wabaIds as $wabaId) {
-                    if (!$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)
-                        || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)) {
-                        return true;
-                    }
+        $rows = array_values(array_filter($rows, function (array $row) use ($tenantId, $teamId, $teamChannels) {
+            $templateId = (int) ($row['id'] ?? 0);
+            foreach ($teamChannels as $channel) {
+                if (!$this->isTemplateAvailableOnDevice($templateId, (string) ($channel['device_id'] ?? ''))) {
+                    continue;
                 }
-                return false;
-            }));
-        }
+                $wabaId = trim((string) ($channel['waba_id'] ?? ''));
+                if ($wabaId === '' || !$this->templateTeamsTableExists()
+                    || !$this->wabaRequiresTemplateTeamAssignment($tenantId, $wabaId)
+                    || $this->isTemplateAssignedToTeam($templateId, $teamId)) {
+                    return true;
+                }
+            }
+            return false;
+        }));
 
         $total = count($rows);
         $rows = array_slice($rows, ($page - 1) * $limit, $limit);
