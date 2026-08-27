@@ -7,6 +7,7 @@ use App\Helpers\Beauty_Salon\SalonBcaConfirm;
 use App\Helpers\BcaMutasiMatcher;
 use App\Helpers\BcaScrapper;
 use App\Helpers\Invoice\InvoiceBcaConfirm;
+use App\Helpers\WaDesk\DevFeeBcaConfirm;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\BcaMutasiUnbind;
 use App\Helpers\Payment\BcaUniqueNominal;
@@ -16,6 +17,7 @@ use App\Helpers\Payment\BcaUniqueNominal;
  * - kas laundry (± Rp 1.000)
  * - invoice project (± Rp 1.000)
  * - beauty salon subscription (± Rp 1.000)
+ * - WaDesk Dev Fee top-up (nominal BCA unik)
  *
  * URL: /Cron/BcaKasConfirm/index?secret=YOUR_CRON_SECRET
  */
@@ -36,6 +38,7 @@ class BcaKasConfirm extends Controller
         $dbLaundry = $this->db(1);
         $dbSalon = $this->db(4);
         $dbInvoice = $this->db(6);
+        $dbWadesk = $this->db(7);
 
         if (!$dbMain || !$dbLaundry) {
             echo "ERROR: Database connection failed\n";
@@ -66,6 +69,7 @@ class BcaKasConfirm extends Controller
         $kasStats = $this->processKasLaundry($dbMain, $dbLaundry, $crmDb);
         $invoiceStats = $this->processInvoiceBca($dbMain, $dbInvoice);
         $salonStats = $this->processSalonBca($dbMain, $dbSalon);
+        $devFeeStats = $this->processWadeskDevFeeBca($dbMain, $dbWadesk);
 
         echo sprintf(
             "\nDone kas: checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
@@ -93,6 +97,11 @@ class BcaKasConfirm extends Controller
             $salonStats['scraped'],
             $salonStats['skipped'],
             $salonStats['errors']
+        );
+        echo sprintf(
+            "Done Dev Fee: checked=%d matched=%d confirmed=%d scraped=%d skipped=%d errors=%d\n",
+            $devFeeStats['checked'], $devFeeStats['matched'], $devFeeStats['confirmed'],
+            $devFeeStats['scraped'], $devFeeStats['skipped'], $devFeeStats['errors']
         );
     }
 
@@ -389,6 +398,59 @@ class BcaKasConfirm extends Controller
             echo "OK [Salon] {$paymentRef}: mutasi#{$mutasiId} nominal {$match['nominal']} range {$match['range_start']}..{$match['range_end']}\n";
         }
 
+        return $stats;
+    }
+
+    /** @return array{checked:int,matched:int,confirmed:int,scraped:int,skipped:int,errors:int} */
+    private function processWadeskDevFeeBca($dbMain, $dbWadesk): array
+    {
+        $stats = ['checked' => 0, 'matched' => 0, 'confirmed' => 0, 'scraped' => 0, 'skipped' => 0, 'errors' => 0];
+        if (!$dbWadesk) {
+            echo "SKIP Dev Fee: db unavailable\n";
+            return $stats;
+        }
+        try {
+            $dbWadesk->query(
+                "UPDATE wa_tenant_dev_fee_payments SET payment_status = 'expired'
+                 WHERE payment_status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
+            );
+            $rows = $dbWadesk->query(
+                "SELECT payment_ref, amount AS total, created_at AS insertTime
+                 FROM wa_tenant_dev_fee_payments
+                 WHERE payment_method = 'bca' AND payment_status = 'pending'
+                 ORDER BY created_at ASC LIMIT 30"
+            )->result_array();
+        } catch (\Throwable $e) {
+            echo "SKIP Dev Fee: " . $e->getMessage() . "\n";
+            return $stats;
+        }
+        echo 'Pending BCA Dev Fee: ' . count($rows) . "\n";
+        foreach ($rows as $row) {
+            $stats['checked']++;
+            $ref = trim((string) ($row['payment_ref'] ?? ''));
+            $match = BcaMutasiMatcher::matchAndBindForEntity($dbMain, $row, BcaScrapper::ENTITY_WADESK_DEV_FEE, $ref, true);
+            if (empty($match['ok'])) {
+                $stats['errors']++;
+                echo "ERR [Dev Fee] {$ref}: " . ($match['message'] ?? 'match_failed') . "\n";
+                continue;
+            }
+            if (!empty($match['scraped'])) $stats['scraped']++;
+            if (empty($match['matched'])) {
+                $stats['skipped']++;
+                echo "SKIP [Dev Fee] {$ref}: mutasi CR nominal {$row['total']} tidak ditemukan\n";
+                continue;
+            }
+            $stats['matched']++;
+            $confirm = DevFeeBcaConfirm::approve($dbWadesk, $ref);
+            if (empty($confirm['ok'])) {
+                BcaMutasiMatcher::unbindEntity($dbMain, BcaScrapper::ENTITY_WADESK_DEV_FEE, $ref);
+                $stats['errors']++;
+                echo "ERR [Dev Fee] {$ref}: " . ($confirm['message'] ?? 'konfirmasi gagal') . "\n";
+                continue;
+            }
+            $stats['confirmed']++;
+            echo "OK [Dev Fee] {$ref}: +{$confirm['quota_added']} quota\n";
+        }
         return $stats;
     }
 

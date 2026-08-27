@@ -325,6 +325,23 @@
       @confirm="freeReject.open = false"
       @close="freeReject.open = false"
     />
+
+    <div v-if="devFeeMaintenanceOpen" class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-ink-950/85 backdrop-blur-sm">
+      <div class="w-full max-w-md overflow-hidden rounded-3xl border border-sky-400/30 bg-ink-900 shadow-2xl shadow-sky-950/50">
+        <div class="h-1 bg-gradient-to-r from-sky-400 via-accent to-violet-400" />
+        <div class="p-7 text-center">
+          <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-400/10 text-sky-300 ring-1 ring-sky-400/25">
+            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">WA_Desk Service Notice</p>
+          <h2 class="mt-3 font-display text-2xl font-semibold text-white">We’ll be right back.</h2>
+          <p class="mt-3 text-sm leading-6 text-slate-400">WA_Desk is currently undergoing scheduled maintenance to keep messaging services reliable and secure. Please try again shortly.</p>
+          <button type="button" class="btn mt-6 w-full" @click="devFeeMaintenanceOpen = false">Understood</button>
+        </div>
+      </div>
+    </div>
   </AppHeader>
 </template>
 
@@ -363,6 +380,7 @@ const dailyLimitTitle = computed(() => {
   return `Unique recipients sent today: ${dailyLimitUsed.value ?? 0} / ${dailyLimitMax.value}`;
 });
 const freeReject = reactive({ open: false, message: "" });
+const devFeeMaintenanceOpen = ref(false);
 let pollTimer = null;
 
 function formatTime(v) {
@@ -586,6 +604,12 @@ async function onTemplateSubmit(payload) {
     closeModals();
     await loadTemplateQuota();
   } catch (e) {
+    if (e.data?.code === "dev_fee_maintenance") {
+      showNew.value = false;
+      showTpl.value = false;
+      devFeeMaintenanceOpen.value = true;
+      return;
+    }
     tplError.value = e.message || "Gagal mengirim template";
     sendError.value = tplError.value;
   } finally {

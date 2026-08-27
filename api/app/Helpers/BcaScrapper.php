@@ -17,6 +17,7 @@ class BcaScrapper
     public const ENTITY_KAS_LAUNDRY = 'kas_laundry';
     public const ENTITY_INVOICE = 'invoice';
     public const ENTITY_SALON_SUBSCRIPTION = 'salon_subscription';
+    public const ENTITY_WADESK_DEV_FEE = 'wadesk_dev_fee';
     public const CRON_NOMINAL_TOLERANCE = 1000;
 
     private const DEFAULT_MUTASI_URL = 'http://127.0.0.1:3021/mutasi';

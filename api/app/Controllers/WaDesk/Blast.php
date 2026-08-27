@@ -4,6 +4,7 @@ namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
+use App\Helpers\WaDesk\TenantDevFee as WaDeskTenantDevFee;
 
 /**
  * Blast — bulk WhatsApp template sender via CSV.
@@ -180,6 +181,13 @@ class Blast extends WaDeskController
                     'needed' => $rowCount,
                 ]
             );
+        }
+
+        $devFee = new WaDeskTenantDevFee($this->db($this->db_index));
+        if (!$devFee->canConsume($tenantId, $rowCount)) {
+            $this->error('WA_Desk is temporarily unavailable for scheduled maintenance.', 503, [
+                'code' => 'dev_fee_maintenance',
+            ]);
         }
 
         // Insert blast job

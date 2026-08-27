@@ -6,6 +6,7 @@ use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\FreeTextSpamGuard;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
+use App\Helpers\WaDesk\TenantDevFee as WaDeskTenantDevFee;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 
 /**
@@ -283,6 +284,13 @@ class Chat extends WaDeskController
                 ]);
             }
 
+            $devFee = new WaDeskTenantDevFee($this->db($this->db_index));
+            if (!$devFee->canSend($tenantId)) {
+                $this->error('WA_Desk is temporarily unavailable for scheduled maintenance.', 503, [
+                    'code' => 'dev_fee_maintenance',
+                ]);
+            }
+
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
                 $tplParamDefs,
                 $rawParams
@@ -386,6 +394,18 @@ class Chat extends WaDeskController
                 }
             }
             $consumedBalance = $consumed['balance'] ?? $teamQuota->getBalance($teamId);
+
+            $devFee->recordUsage([
+                'tenant_id' => (int) $channel['tenant_id'],
+                'message_id' => $msgId,
+                'template_id' => $templateId ?: null,
+                'template_name' => $templateName,
+                'user_id' => (int) $user['id'],
+                'team_id' => $teamId,
+                'channel_id' => (int) $channel['id'],
+                'phone' => $phone,
+                'source' => 'chat',
+            ]);
 
             WaDeskServer::push([
                 'type' => 'message_out',

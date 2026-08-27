@@ -14,10 +14,10 @@ class BcaUniqueNominal
      * @param object|null $salonDb db(4)
      * @param object|null $laundryDb db(1)
      */
-    public static function allocate(int $baseAmount, $invoiceDb = null, $salonDb = null, $laundryDb = null): int
+    public static function allocate(int $baseAmount, $invoiceDb = null, $salonDb = null, $laundryDb = null, $wadeskDb = null): int
     {
         $baseAmount = max(1, (int) round($baseAmount));
-        $used = self::collectUsedAmounts($invoiceDb, $salonDb, $laundryDb);
+        $used = self::collectUsedAmounts($invoiceDb, $salonDb, $laundryDb, $wadeskDb);
         $usedMap = array_fill_keys($used, true);
 
         $candidate = $baseAmount;
@@ -35,7 +35,7 @@ class BcaUniqueNominal
      *
      * @return int[]
      */
-    public static function collectUsedAmounts($invoiceDb = null, $salonDb = null, $laundryDb = null): array
+    public static function collectUsedAmounts($invoiceDb = null, $salonDb = null, $laundryDb = null, $wadeskDb = null): array
     {
         $since = date('Y-m-d H:i:s', strtotime('-' . self::LOOKBACK_DAYS . ' days'));
         $amounts = [];
@@ -92,6 +92,19 @@ class BcaUniqueNominal
                 }
             } catch (\Throwable $e) {
                 // ignore
+            }
+        }
+
+        if ($wadeskDb) {
+            try {
+                $rows = $wadeskDb->query(
+                    "SELECT amount FROM wa_tenant_dev_fee_payments
+                     WHERE payment_method = 'bca' AND payment_status = 'pending' AND created_at >= ?",
+                    [$since]
+                )->result_array();
+                foreach ($rows as $row) $amounts[] = (int) ($row['amount'] ?? 0);
+            } catch (\Throwable $e) {
+                // Dev Fee migration may not have run yet.
             }
         }
 

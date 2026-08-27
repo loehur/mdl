@@ -971,6 +971,85 @@
         </form>
       </section>
 
+      <!-- Dev Fee -->
+      <section v-if="tab === 'dev-fee'" class="card space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="font-display font-semibold text-lg">Dev Fee</h2>
+            <p class="text-xs text-slate-500 mt-1">Pemakaian template gabungan untuk seluruh team dan channel pada tenant ini.</p>
+          </div>
+          <button type="button" class="btn-sm shrink-0" :disabled="loadingDevFee" @click="loadDevFee(true)">
+            {{ loadingDevFee ? 'Memuat...' : 'Refresh' }}
+          </button>
+        </div>
+
+        <p v-if="!devFeeReady" class="text-sm text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+          Tabel Dev Fee belum tersedia. Jalankan migration <code class="text-amber-100">026_tenant_dev_fee.sql</code> dan <code class="text-amber-100">027_tenant_dev_fee_bca_payments.sql</code>.
+        </p>
+
+        <template v-else>
+          <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="createDevFeeTopup">
+            <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div class="flex-1">
+                <label class="label">Jumlah quota</label>
+                <input v-model.number="devFeeTopupQuota" type="number" min="1" required class="field" placeholder="Contoh: 1000" />
+              </div>
+              <div class="text-xs text-slate-400 sm:pb-3">Rp50 per quota · pembayaran BCA saja</div>
+              <button class="btn shrink-0" :disabled="creatingDevFeeTopup">
+                {{ creatingDevFeeTopup ? 'Membuat...' : 'Buat pembayaran BCA' }}
+              </button>
+            </div>
+          </form>
+          <div v-if="devFeePendingPayment" class="rounded-xl border border-sky-500/25 bg-sky-500/5 p-4 space-y-2">
+            <p class="font-medium text-sky-200">Menunggu transfer BCA</p>
+            <p class="text-sm text-slate-300">Transfer tepat <span class="font-semibold text-sky-200">Rp{{ formatCurrency(devFeePendingPayment.amount) }}</span> untuk {{ devFeePendingPayment.quota_amount }} quota.</p>
+            <p v-if="devFeePendingPayment.bank_account" class="text-xs text-slate-400 whitespace-pre-line">
+              {{ devFeePendingPayment.bank_account.label }} · {{ devFeePendingPayment.bank_account.number }} · a.n. {{ devFeePendingPayment.bank_account.name }}
+            </p>
+            <p class="text-[11px] text-slate-500">Konfirmasi otomatis oleh cron BCA setelah mutasi ditemukan.</p>
+          </div>
+          <div class="grid sm:grid-cols-3 gap-3">
+            <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4">
+              <p class="text-xs text-slate-500">Quota total</p>
+              <p class="mt-1 text-2xl font-semibold">{{ devFeeSummary.quota_total ?? 'Belum diatur' }}</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4">
+              <p class="text-xs text-slate-500">Template terpakai</p>
+              <p class="mt-1 text-2xl font-semibold text-accent">{{ devFeeSummary.quota_used }}</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4">
+              <p class="text-xs text-slate-500">Sisa quota</p>
+              <p class="mt-1 text-2xl font-semibold">{{ devFeeSummary.quota_remaining ?? '—' }}</p>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500">Setiap template yang berhasil dikirim akan mengurangi quota tenant dan tercatat di bawah.</p>
+
+          <div class="rounded-xl border border-white/10 overflow-hidden">
+            <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+              <p v-if="loadingDevFee && !devFeeLogs.length" class="py-10 text-center text-sm text-slate-500">Memuat riwayat...</p>
+              <p v-else-if="!devFeeLogs.length" class="py-10 text-center text-sm text-slate-500">Belum ada template yang tercatat.</p>
+              <div v-for="log in devFeeLogs" :key="log.id" class="px-4 py-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="font-medium truncate">{{ log.template_name }}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    {{ log.phone || '—' }} · {{ log.source === 'blast' ? 'Blast' : 'Chat' }} · {{ log.team_name || '—' }}
+                    <span v-if="log.channel_label"> · {{ log.channel_label }}</span>
+                    <span v-if="log.user_name"> · {{ log.user_name }}</span>
+                  </p>
+                </div>
+                <p class="shrink-0 text-[10px] text-slate-600">{{ formatLogTime(log.created_at) }}</p>
+              </div>
+              <div v-if="devFeeLogs.length" ref="devFeeSentinel" class="h-1" aria-hidden="true" />
+              <p v-if="devFeeLogs.length" class="px-4 py-3 text-center text-xs text-slate-500">
+                <span v-if="loadingDevFee">Memuat lagi...</span>
+                <span v-else-if="devFeeHasMore">Scroll untuk memuat lebih banyak</span>
+                <span v-else>Semua {{ devFeeLogsTotal }} pemakaian sudah dimuat</span>
+              </p>
+            </div>
+          </div>
+        </template>
+      </section>
+
       <!-- Quota -->
       <section v-if="tab === 'quota'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1225,6 +1304,7 @@ const tabs = [
   { id: "assign", label: "Assign" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
+  { id: "dev-fee", label: "Dev Fee" },
   { id: "quota", label: "Quota" },
   { id: "report", label: "Report" },
   { id: "log", label: "Log" },
@@ -1375,6 +1455,19 @@ const savingMaxlengthId = ref(null);
 const maxlengthDraft = reactive({});
 const expandedTemplate = ref(null);
 const quotaForm = reactive({ team_id: "", amount: 100, note: "" });
+const DEV_FEE_LIMIT = 20;
+const devFeeReady = ref(true);
+const devFeeSummary = reactive({ quota_total: null, quota_used: 0, quota_remaining: null });
+const devFeeTopupQuota = ref(1000);
+const devFeePendingPayment = ref(null);
+const creatingDevFeeTopup = ref(false);
+const devFeeLogs = ref([]);
+const devFeeLogsTotal = ref(0);
+const devFeePage = ref(1);
+const devFeeHasMore = ref(true);
+const loadingDevFee = ref(false);
+const devFeeSentinel = ref(null);
+let devFeeObserver = null;
 const failLogs = ref([]);
 const failLogsTotal = ref(0);
 const failLogsPage = ref(1);
@@ -1993,6 +2086,84 @@ function prettyJson(obj) {
   }
 }
 
+function setupDevFeeObserver() {
+  devFeeObserver?.disconnect();
+  if (tab.value !== "dev-fee" || !devFeeSentinel.value || !devFeeHasMore.value) return;
+  devFeeObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadDevFee(false);
+    },
+    { rootMargin: "160px" }
+  );
+  devFeeObserver.observe(devFeeSentinel.value);
+}
+
+async function loadDevFee(reset = false) {
+  if (loadingDevFee.value || (!reset && !devFeeHasMore.value)) return;
+  const page = reset ? 1 : devFeePage.value + 1;
+  loadingDevFee.value = true;
+  try {
+    const [summary, logs] = await Promise.all([
+      reset ? api(`/WaDesk/DevFee/summary?_=${Date.now()}`, { cache: "no-store" }) : Promise.resolve(null),
+      api(`/WaDesk/DevFee/logs?page=${page}&limit=${DEV_FEE_LIMIT}&_=${Date.now()}`, { cache: "no-store" }),
+    ]);
+    if (summary) {
+      devFeeReady.value = summary.data?.table_ready !== false;
+      Object.assign(devFeeSummary, {
+        quota_total: summary.data?.quota_total ?? null,
+        quota_used: Number(summary.data?.quota_used ?? 0),
+        quota_remaining: summary.data?.quota_remaining ?? null,
+      });
+      devFeePendingPayment.value = summary.data?.pending_payment ?? null;
+    }
+    if (logs.data?.table_ready === false) {
+      devFeeReady.value = false;
+      devFeeLogs.value = [];
+      devFeeLogsTotal.value = 0;
+      devFeeHasMore.value = false;
+      return;
+    }
+    const rows = logs.data?.logs ?? [];
+    devFeeLogs.value = reset ? rows : [...devFeeLogs.value, ...rows];
+    devFeeLogsTotal.value = Number(logs.data?.total ?? 0);
+    devFeePage.value = Number(logs.data?.page ?? page);
+    devFeeHasMore.value = devFeeLogs.value.length < devFeeLogsTotal.value && rows.length > 0;
+    await nextTick();
+    setupDevFeeObserver();
+  } catch (e) {
+    if (reset) {
+      devFeeLogs.value = [];
+      devFeeLogsTotal.value = 0;
+      devFeeHasMore.value = false;
+    }
+    flash(false, e.message || "Gagal memuat Dev Fee");
+  } finally {
+    loadingDevFee.value = false;
+  }
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("id-ID").format(Number(value) || 0);
+}
+
+async function createDevFeeTopup() {
+  const quotaAmount = Number(devFeeTopupQuota.value);
+  if (!Number.isInteger(quotaAmount) || quotaAmount < 1) {
+    flash(false, "Jumlah quota minimal 1");
+    return;
+  }
+  creatingDevFeeTopup.value = true;
+  try {
+    const res = await api("/WaDesk/DevFee/createTopup", { method: "POST", body: { quota_amount: quotaAmount } });
+    devFeePendingPayment.value = res.data;
+    flash(true, res.message || "Pembayaran BCA dibuat");
+  } catch (e) {
+    flash(false, e.message || "Gagal membuat pembayaran BCA");
+  } finally {
+    creatingDevFeeTopup.value = false;
+  }
+}
+
 function setupFailLogsObserver() {
   failLogsObserver?.disconnect();
   if (tab.value !== "log" || !failLogsSentinel.value || !failLogsHasMore.value) return;
@@ -2036,6 +2207,9 @@ async function loadFailLogs(reset = false) {
 }
 
 watch(tab, (id) => {
+  if (id === "dev-fee") {
+    loadDevFee(true);
+  }
   if (id === "log") {
     loadFailLogs(true);
   }
@@ -2097,6 +2271,10 @@ watch(templateBrowseSentinel, () => {
 
 watch(failLogsSentinel, () => {
   nextTick(setupFailLogsObserver);
+});
+
+watch(devFeeSentinel, () => {
+  nextTick(setupDevFeeObserver);
 });
 
 watch(channelBrowseQuery, () => {
@@ -2668,6 +2846,7 @@ onUnmounted(() => {
   quotaBrowseObserver?.disconnect();
   templateBrowseObserver?.disconnect();
   failLogsObserver?.disconnect();
+  devFeeObserver?.disconnect();
   clearTimeout(teamSearchTimer);
   clearTimeout(channelSearchTimer);
   clearTimeout(assignTeamSearchTimer);

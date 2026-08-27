@@ -73,6 +73,16 @@ class TemplateSender
                 ];
             }
 
+            $devFee = new TenantDevFee($this->db);
+            if (!$devFee->canSend($tenantId)) {
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'Kuota Dev Fee tenant habis',
+                ];
+            }
+
             $deviceId = trim((string) ($channel['device_id'] ?? ''));
             if ($deviceId === '') {
                 return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Channel tanpa device_id'];
@@ -162,6 +172,18 @@ class TemplateSender
                 'message',
                 $msgId
             );
+
+            $devFee->recordUsage([
+                'tenant_id' => $tenantId,
+                'message_id' => $msgId,
+                'template_id' => (int) ($tpl['id'] ?? 0),
+                'template_name' => (string) ($tpl['template_name'] ?? ''),
+                'user_id' => $sentByUserId ?: null,
+                'team_id' => $teamId,
+                'channel_id' => (int) ($channel['id'] ?? 0),
+                'phone' => $phone,
+                'source' => 'blast',
+            ]);
 
             try {
                 Server::push([
