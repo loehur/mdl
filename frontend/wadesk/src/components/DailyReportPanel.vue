@@ -8,9 +8,15 @@
             Pesan keluar{{ teamLabel ? (teamLabel === "All Teams" ? " seluruh team" : ` team ${teamLabel}`) : "" }}: terkirim, gagal, delivered, dan read (maks. 7 hari).
           </p>
         </div>
-        <button type="button" class="btn-sm shrink-0" :disabled="loading || !canLoad" @click="loadReport">
-          {{ loading ? "Memuat..." : "Refresh" }}
-        </button>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" class="btn-sm inline-flex items-center gap-1.5" :disabled="!summary || loading" title="Download Excel-compatible CSV" @click="downloadReport">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+            Download
+          </button>
+          <button type="button" class="btn-sm" :disabled="loading || !canLoad" @click="loadReport">
+            {{ loading ? "Memuat..." : "Refresh" }}
+          </button>
+        </div>
       </div>
 
       <form
@@ -267,6 +273,42 @@ function formatDateRow(iso) {
   } catch {
     return iso;
   }
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadReport() {
+  if (!summary.value) return;
+  const team = teamLabel.value || "All Teams";
+  const rows = [
+    ["WA_Desk Daily Report"],
+    ["Team", team],
+    ["Period", `${filter.from} to ${filter.to}`],
+    [],
+    ["Summary"],
+    ["Total messages", summary.value.total],
+    ["Inbound", summary.value.total_in],
+    ["Outbound", summary.value.total_out],
+    ["Sent", summary.value.sent],
+    ["Failed", summary.value.failed],
+    ["Delivered", summary.value.delivered],
+    ["Read", summary.value.read],
+    [],
+    ["Date", "Total", "Inbound", "Outbound", "Sent", "Failed", "Delivered", "Read"],
+    ...days.value.map((row) => [row.date, row.total, row.total_in, row.total_out, row.sent, row.failed, row.delivered, row.read]),
+  ];
+  const csv = "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `wadesk-report-${String(team).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${filter.from}-${filter.to}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function loadReport() {
