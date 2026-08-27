@@ -102,6 +102,25 @@ class DevFee extends WaDeskController
         $this->success(['table_ready' => true, 'logs' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
     }
 
+    /** Successful and pending BCA top-up history for the current tenant. */
+    public function payments()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        $db = $this->db($this->db_index);
+        try {
+            $rows = $db->query(
+                "SELECT p.*, u.name AS user_name FROM wa_tenant_dev_fee_payments p
+                 LEFT JOIN users u ON u.id = p.created_by
+                 WHERE p.tenant_id = ? ORDER BY p.id DESC LIMIT 50",
+                [(int) $admin['tenant_id']]
+            )->result_array();
+            $this->success(['payments' => $rows]);
+        } catch (\Throwable $e) {
+            $this->success(['payments' => []]);
+        }
+    }
+
     private function pendingPayment(int $tenantId): ?array
     {
         try {

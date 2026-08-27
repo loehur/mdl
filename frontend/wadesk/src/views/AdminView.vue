@@ -1024,29 +1024,26 @@
           </div>
           <p class="text-xs text-slate-500">Setiap template yang berhasil dikirim akan mengurangi quota tenant dan tercatat di bawah.</p>
 
-          <div class="rounded-xl border border-white/10 overflow-hidden">
-            <div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
-              <p v-if="loadingDevFee && !devFeeLogs.length" class="py-10 text-center text-sm text-slate-500">Memuat riwayat...</p>
-              <p v-else-if="!devFeeLogs.length" class="py-10 text-center text-sm text-slate-500">Belum ada template yang tercatat.</p>
-              <div v-for="log in devFeeLogs" :key="log.id" class="px-4 py-3 flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="font-medium truncate">
-                    <span :class="log.type === 'refund' ? 'text-emerald-400' : ''">{{ log.type === 'refund' ? 'Refund · ' : '' }}</span>{{ log.template_name }}
-                  </p>
-                  <p class="text-xs text-slate-500 mt-0.5">
-                    {{ log.phone || '—' }} · {{ log.source === 'blast' ? 'Blast' : 'Chat' }} · {{ log.team_name || '—' }}
-                    <span v-if="log.channel_label"> · {{ log.channel_label }}</span>
-                    <span v-if="log.user_name"> · {{ log.user_name }}</span>
-                  </p>
+          <div class="space-y-4">
+            <div class="rounded-2xl border border-white/10 bg-ink-950/25 p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2"><h3 class="font-medium">Riwayat top-up</h3><span class="text-xs text-slate-500">{{ devFeePayments.length }} transaksi</span></div>
+              <div class="rounded-xl border border-white/10 overflow-hidden"><div class="max-h-64 overflow-y-auto divide-y divide-white/5">
+                <p v-if="!devFeePayments.length" class="py-8 text-center text-sm text-slate-500">Belum ada riwayat top-up.</p>
+                <div v-for="payment in devFeePayments" :key="payment.id" class="px-4 py-3 flex items-start justify-between gap-3">
+                  <div><p class="font-medium text-emerald-400">Top-up <span class="ml-2 tabular-nums">+{{ payment.quota_amount }} quota</span></p><p class="text-xs text-slate-500 mt-0.5">BCA · Rp{{ formatCurrency(payment.amount) }} · {{ formatLogTime(payment.created_at) }}</p></div>
+                  <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px]" :class="payment.payment_status === 'success' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'">{{ payment.payment_status === 'success' ? 'Success' : 'Pending' }}</span>
                 </div>
-                <p class="shrink-0 text-[10px] text-slate-600">{{ formatLogTime(log.created_at) }}</p>
-              </div>
-              <div v-if="devFeeLogs.length" ref="devFeeSentinel" class="h-1" aria-hidden="true" />
-              <p v-if="devFeeLogs.length" class="px-4 py-3 text-center text-xs text-slate-500">
-                <span v-if="loadingDevFee">Memuat lagi...</span>
-                <span v-else-if="devFeeHasMore">Scroll untuk memuat lebih banyak</span>
-                <span v-else>Semua {{ devFeeLogsTotal }} pemakaian sudah dimuat</span>
-              </p>
+              </div></div>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-ink-950/25 p-4 space-y-3">
+              <div class="flex items-center justify-between gap-2"><h3 class="font-medium">Riwayat pakai & refund</h3><span class="text-xs text-slate-500">{{ devFeeLogs.length }} / {{ devFeeLogsTotal }} entri</span></div>
+              <div class="rounded-xl border border-white/10 overflow-hidden"><div class="max-h-[min(60vh,32rem)] overflow-y-auto divide-y divide-white/5">
+                <p v-if="loadingDevFee && !devFeeLogs.length" class="py-8 text-center text-sm text-slate-500">Memuat riwayat...</p>
+                <p v-else-if="!devFeeLogs.length" class="py-8 text-center text-sm text-slate-500">Belum ada pemakaian quota.</p>
+                <div v-for="log in devFeeLogs" :key="log.id" class="px-4 py-3 flex items-start justify-between gap-3"><div class="min-w-0"><p class="font-medium" :class="log.type === 'refund' ? 'text-emerald-400' : 'text-rose-400'">{{ log.type === 'refund' ? 'Refund +1 quota' : 'Template sent −1 quota' }}</p><p class="text-xs text-slate-300 mt-0.5 truncate">{{ log.template_name }}</p><p class="text-xs text-slate-500 mt-0.5">{{ log.phone || '—' }} · {{ log.source === 'blast' ? 'Blast' : 'Chat' }} · {{ log.team_name || '—' }}</p></div><p class="shrink-0 text-[10px] text-slate-600">{{ formatLogTime(log.created_at) }}</p></div>
+                <div v-if="devFeeLogs.length" ref="devFeeSentinel" class="h-1" aria-hidden="true" />
+                <p v-if="devFeeLogs.length" class="px-4 py-3 text-center text-xs text-slate-500"><span v-if="loadingDevFee">Memuat lagi...</span><span v-else-if="devFeeHasMore">Scroll untuk memuat lebih banyak</span><span v-else>Semua riwayat dimuat</span></p>
+              </div></div>
             </div>
           </div>
         </template>
@@ -1463,6 +1460,7 @@ const devFeeSummary = reactive({ quota_total: null, quota_used: 0, quota_remaini
 const devFeeTopupQuota = ref(1000);
 const devFeePendingPayment = ref(null);
 const creatingDevFeeTopup = ref(false);
+const devFeePayments = ref([]);
 const devFeeLogs = ref([]);
 const devFeeLogsTotal = ref(0);
 const devFeePage = ref(1);
@@ -2105,9 +2103,10 @@ async function loadDevFee(reset = false) {
   const page = reset ? 1 : devFeePage.value + 1;
   loadingDevFee.value = true;
   try {
-    const [summary, logs] = await Promise.all([
+    const [summary, logs, payments] = await Promise.all([
       reset ? api(`/WaDesk/DevFee/summary?_=${Date.now()}`, { cache: "no-store" }) : Promise.resolve(null),
       api(`/WaDesk/DevFee/logs?page=${page}&limit=${DEV_FEE_LIMIT}&_=${Date.now()}`, { cache: "no-store" }),
+      reset ? api(`/WaDesk/DevFee/payments?_=${Date.now()}`, { cache: "no-store" }) : Promise.resolve(null),
     ]);
     if (summary) {
       devFeeReady.value = summary.data?.table_ready !== false;
@@ -2118,6 +2117,7 @@ async function loadDevFee(reset = false) {
       });
       devFeePendingPayment.value = summary.data?.pending_payment ?? null;
     }
+    if (payments) devFeePayments.value = payments.data?.payments ?? [];
     if (logs.data?.table_ready === false) {
       devFeeReady.value = false;
       devFeeLogs.value = [];
@@ -2158,6 +2158,7 @@ async function createDevFeeTopup() {
   try {
     const res = await api("/WaDesk/DevFee/createTopup", { method: "POST", body: { quota_amount: quotaAmount } });
     devFeePendingPayment.value = res.data;
+    await loadDevFee(true);
     flash(true, res.message || "Pembayaran BCA dibuat");
   } catch (e) {
     flash(false, e.message || "Gagal membuat pembayaran BCA");
