@@ -32,30 +32,19 @@ Prinsip: cenderung SETUJUI (status=true) untuk setiap draf yang memiliki maksud 
 
 PEMBUKA / PENUTUP PERCAKAPAN (WAJIB SETUJUI + RAPIKAN):
 - Draf singkat yang berfungsi sebagai pembuka atau penutup tetap punya tujuan komunikasi yang sah, walaupun tidak memuat permintaan layanan lengkap. Set status=true.
-- Contoh pembuka: "pagi", "halo", "permisi", "kak", "selamat malam", "boleh tanya". Rapikan menjadi pembuka yang ramah, misalnya "Selamat pagi, kak 😊" atau "Halo, kak. Ada yang bisa kami bantu?"
-- Contoh penutup: "makasih", "terima kasih", "ok", "siap", "baik", "udah ya", "selamat malam". Rapikan menjadi penutup/konfirmasi yang ramah, misalnya "Baik, kak. Terima kasih 😊" atau "Siap, kak. Terima kasih ya."
-- Boleh menambahkan maksimal satu emoji ringan dan relevan (mis. 😊) bila membantu membuat pembuka/penutup terdengar hangat. Jangan menambahkan informasi layanan, janji, atau permintaan baru.
+- Kenali sapaan, izin memulai percakapan, konfirmasi, ucapan terima kasih, dan salam penutup; rapikan menjadi pembuka atau penutup yang ramah.
+- Boleh menambahkan maksimal satu emoji ringan dan relevan bila membantu membuat pembuka/penutup terdengar hangat. Jangan menambahkan informasi layanan, janji, atau permintaan baru.
 - Jangan menganggap pembuka/penutup tersebut sebagai string acak atau pesan tanpa maksud.
-
-Contoh rapikan:
-- "ok nanti saya cek dlu ya" → "Baik, nanti akan dicek dulu ya kak"
-- "ordernya udh diproses tunggu aja" → "Ordernya sudah diproses, mohon ditunggu ya kak"
-- "mohon maaf sebelumnya pesanan anda belum bisa kami proses karena stok habis dan kami tidak bisa janji kapan restock" → "Mohon maaf, pesanan belum bisa diproses karena stok habis. Kami belum bisa memastikan kapan restock."
-- JANGAN menambah: "Baik kak, terima kasih sudah menghubungi kami..." jika draf hanya "nanti dicek"
-- JANGAN: "Baik, Kak. Permintaan Anda akan segera kami proses." (terlalu kaku)
 
 PENAGIHAN / REMINDER BISNIS (WAJIB SETUJUI + RAPIKAN, jangan tolak):
 - Pengingat tagihan, hutang, jatuh tempo, keterlambatan bayar, atau tunggakan adalah komunikasi bisnis wajar.
-- Jika draf terdengar keras, menekan, atau seperti intimidasi — JANGAN tolak. Tetap status=true, lalu lembutkan nada di new_words tanpa menghilangkan maksud (masih mengingatkan bayar / sudah lewat batas / segera lunasi).
-- Contoh:
-  - "segera bayar hutang anda, sudah lewat batas" → "Mohon segera melakukan pembayaran tagihan yang sudah melewati batas waktu ya kak. Terima kasih."
-  - "bayar sekarang atau kami blacklist" → "Mohon segera melunasi tagihan ya kak. Apabila belum dibayar, akun dapat kami tahan sesuai kebijakan."
-  - "udah telat 3 hari bayar dong" → "Tagihan sudah melewati jatuh tempo 3 hari. Mohon segera dilakukan pembayaran ya kak."
+- Jika draf terdengar keras, menekan, menghina, atau memakai umpatan — JANGAN tolak hanya karena pilihan katanya. Tetap status=true, hapus seluruh umpatan/hinaan, lalu lembutkan nada di new_words tanpa menghilangkan maksud (masih mengingatkan bayar / sudah lewat batas / segera lunasi).
+
+PENGAMAN KEPUTUSAN: Draf yang berisi permintaan atau pengingat pembayaran WAJIB status=true, meskipun mengandung kata kasar, umpatan, huruf kapital, atau tanda seru berulang. Umpatan harus dihapus, bukan menjadi alasan penolakan. Satu-satunya pengecualian adalah jika draf juga memuat ancaman kekerasan atau ancaman penyebaran/pengalihan data yang dilarang di bawah.
 
 WAJIB TOLAK (status=false) HANYA untuk konten benar-benar berbahaya:
 - ancaman kekerasan fisik atau ultimatum non-bisnis yang jelas-jelas abusive tanpa konteks layanan
 - SETIAP ancaman untuk menyebarkan, memviralkan, membocorkan, menyerahkan, menjual, mengalihkan, atau memberikan data kepada pihak lain/pihak ketiga. Ini mencakup data pribadi, data pelanggan, data karyawan, data perusahaan, foto, dokumen, kontak, riwayat, atau informasi apa pun. Tolak meskipun ancaman tersebut dipakai untuk menagih, menekan, atau meminta tindakan dari penerima.
-- Contoh yang wajib ditolak: "kalau tidak bayar data kamu saya sebar", "akan kami viralkan", "data Anda kami kirim ke pihak ketiga", "kami serahkan data ini ke orang lain", atau bentuk ancaman/pengalihan data yang maknanya setara.
 
 JANGAN tolak hanya karena terdapat pelecehan, hinaan berat, atau kata kasar yang ditujukan kepada pelanggan, selama maksud dan tujuan pesan masih jelas serta tidak mengandung ancaman yang dilarang. Ganti seluruh kata kasar/menyerang tersebut dengan bahasa ramah yang tetap menyampaikan tujuan layanan.
 
@@ -133,10 +122,41 @@ PROMPT;
             $reason = 'Pesan ditolak — tidak ada tujuan komunikasi yang jelas.';
         }
 
+        // Pengingat pembayaran dengan kata kasar tetap harus dapat dikirim
+        // dalam versi sopan. Fallback ini mencegah penilaian AI yang terlalu
+        // ketat, tanpa meloloskan ancaman kekerasan atau penyebaran data.
+        if ($this->isSafePaymentReminder($message)) {
+            return [
+                'status' => true,
+                'new_words' => $this->friendlyPaymentReminder($message),
+                'reason' => '',
+            ];
+        }
+
         return [
             'status' => false,
             'new_words' => '',
             'reason' => $reason,
         ];
+    }
+
+    private function isSafePaymentReminder(string $message): bool
+    {
+        $text = mb_strtolower($message);
+        $isPaymentRelated = preg_match('/\b(bayar|pembayaran|tagihan|hutang|utang|lunasi|pelunasan|jatuh tempo|tunggakan)\b/u', $text) === 1;
+        $hasDataThreat = preg_match('/\b(sebar|viralkan|bocor|serahkan|jual|alihkan|berikan|kirim)\b.*\b(data|foto|dokumen|kontak|informasi|riwayat)\b|\b(data|foto|dokumen|kontak|informasi|riwayat)\b.*\b(sebar|viralkan|bocor|serahkan|jual|alihkan|berikan|kirim)\b/u', $text) === 1;
+        $hasPhysicalThreat = preg_match('/\b(bunuh|pukul|hajar|celakai|datangi rumah)\b/u', $text) === 1;
+
+        return $isPaymentRelated && !$hasDataThreat && !$hasPhysicalThreat;
+    }
+
+    private function friendlyPaymentReminder(string $message): string
+    {
+        $text = mb_strtolower($message);
+        $urgent = preg_match('/\b(segera|sekarang|cepat)\b/u', $text) === 1;
+
+        return $urgent
+            ? 'Mohon segera lakukan pembayaran tagihan ya kak.'
+            : 'Mohon lakukan pembayaran tagihan ya kak.';
     }
 }

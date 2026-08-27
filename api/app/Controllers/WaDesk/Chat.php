@@ -471,7 +471,10 @@ class Chat extends WaDeskController
         }
 
         $pendingOutbound = $this->findLastUnansweredOutboundText((int) $conv['id']);
-        if ($pendingOutbound !== null) {
+        // Anti-spam AI baru dijalankan saat akan mengirim free-text keempat
+        // berturut-turut tanpa balasan pelanggan. Tiga pesan pertama bebas.
+        $unansweredTextCount = $this->countUnansweredOutboundTexts((int) $conv['id']);
+        if ($pendingOutbound !== null && $unansweredTextCount >= 3) {
             $spam = $this->checkFreeTextDuplicateSpam(
                 (int) $user['tenant_id'],
                 (string) ($pendingOutbound['body'] ?? ''),
@@ -680,6 +683,34 @@ class Chat extends WaDeskController
         }
 
         return $latest;
+    }
+
+    /** Number of outbound free-text messages after the latest inbound reply. */
+    private function countUnansweredOutboundTexts(int $conversationId): int
+    {
+        if ($conversationId <= 0) {
+            return 0;
+        }
+
+        $row = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS cnt
+             FROM messages
+             WHERE conversation_id = ?
+               AND direction = 'out'
+               AND type = 'text'
+               AND id > COALESCE(
+                   (SELECT last_in.id
+                    FROM messages last_in
+                    WHERE last_in.conversation_id = ?
+                      AND last_in.direction = 'in'
+                    ORDER BY last_in.id DESC
+                    LIMIT 1),
+                   0
+               )",
+            [$conversationId, $conversationId]
+        )->row_array();
+
+        return (int) ($row['cnt'] ?? 0);
     }
 
     /**
