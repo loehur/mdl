@@ -1116,7 +1116,7 @@
               Kegagalan langsung dari API Kirimin, atau delivery gagal via webhook (sent → failed).
             </p>
           </div>
-          <button type="button" class="btn-sm shrink-0" :disabled="loadingFailLogs" @click="loadFailLogs(failLogsPage)">
+          <button type="button" class="btn-sm shrink-0" :disabled="loadingFailLogs" @click="loadFailLogs(true)">
             {{ loadingFailLogs ? "Memuat..." : "Refresh" }}
           </button>
         </div>
@@ -1189,21 +1189,11 @@
           </li>
         </ul>
 
-        <div v-if="failLogsTotal > failLogsLimit" class="flex gap-2 justify-center items-center pt-2">
-          <button type="button" class="btn-sm" :disabled="failLogsPage <= 1 || loadingFailLogs" @click="loadFailLogs(failLogsPage - 1)">
-            ‹ Prev
-          </button>
-          <span class="text-xs text-slate-500">
-            Halaman {{ failLogsPage }} / {{ Math.ceil(failLogsTotal / failLogsLimit) || 1 }}
-          </span>
-          <button
-            type="button"
-            class="btn-sm"
-            :disabled="failLogsPage * failLogsLimit >= failLogsTotal || loadingFailLogs"
-            @click="loadFailLogs(failLogsPage + 1)"
-          >
-            Next ›
-          </button>
+        <div v-if="failLogs.length" ref="failLogsSentinel" class="h-1" aria-hidden="true" />
+        <div v-if="failLogs.length" class="pt-2 text-center text-xs text-slate-500">
+          <span v-if="loadingFailLogs">Memuat log berikutnya...</span>
+          <span v-else-if="failLogsHasMore">Scroll untuk memuat lebih banyak</span>
+          <span v-else>Semua {{ failLogsTotal }} log sudah dimuat</span>
         </div>
       </section>
 
@@ -1404,6 +1394,9 @@ const failLogsLimit = ref(50);
 const failLogsReady = ref(true);
 const loadingFailLogs = ref(false);
 const expandedFailLog = ref(null);
+const failLogsHasMore = ref(true);
+const failLogsSentinel = ref(null);
+let failLogsObserver = null;
 
 const teamsWithoutLeader = computed(() =>
   teams.value.filter((t) => !t.team_leader_user_id)
@@ -1983,7 +1976,7 @@ async function refresh() {
   openaiForm.configured = !!oai.data?.configured;
   openaiForm.api_key_masked = oai.data?.api_key_masked || "";
   if (tab.value === "log") {
-    await loadFailLogs(failLogsPage.value);
+    await loadFailLogs(true);
   }
 }
 
@@ -2011,20 +2004,42 @@ function prettyJson(obj) {
   }
 }
 
-async function loadFailLogs(page = 1) {
+function setupFailLogsObserver() {
+  failLogsObserver?.disconnect();
+  if (tab.value !== "log" || !failLogsSentinel.value || !failLogsHasMore.value) return;
+  failLogsObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadFailLogs(false);
+    },
+    { rootMargin: "160px" }
+  );
+  failLogsObserver.observe(failLogsSentinel.value);
+}
+
+async function loadFailLogs(reset = false) {
+  if (loadingFailLogs.value || (!reset && !failLogsHasMore.value)) return;
+  const page = reset ? 1 : failLogsPage.value + 1;
   loadingFailLogs.value = true;
-  expandedFailLog.value = null;
+  if (reset) expandedFailLog.value = null;
   try {
     const res = await api(
       `/WaDesk/TemplateLogs/list?page=${encodeURIComponent(page)}&limit=${failLogsLimit.value}&_=${Date.now()}`,
       { cache: "no-store" }
     );
     failLogsReady.value = res.data?.table_ready !== false;
-    failLogs.value = res.data?.logs ?? [];
+    const rows = res.data?.logs ?? [];
+    failLogs.value = reset ? rows : [...failLogs.value, ...rows];
     failLogsTotal.value = Number(res.data?.total ?? 0);
     failLogsPage.value = Number(res.data?.page ?? page);
+    failLogsHasMore.value = failLogs.value.length < failLogsTotal.value && rows.length > 0;
+    await nextTick();
+    setupFailLogsObserver();
   } catch (e) {
-    failLogs.value = [];
+    if (reset) {
+      failLogs.value = [];
+      failLogsTotal.value = 0;
+      failLogsHasMore.value = false;
+    }
     flash(false, e.message || "Gagal memuat log");
   } finally {
     loadingFailLogs.value = false;
@@ -2033,7 +2048,7 @@ async function loadFailLogs(page = 1) {
 
 watch(tab, (id) => {
   if (id === "log") {
-    loadFailLogs(1);
+    loadFailLogs(true);
   }
   if (id === "teams") {
     loadTeamBrowse(true);
@@ -2089,6 +2104,10 @@ watch(quotaBrowseSentinel, () => {
 
 watch(templateBrowseSentinel, () => {
   nextTick(setupTemplateBrowseObserver);
+});
+
+watch(failLogsSentinel, () => {
+  nextTick(setupFailLogsObserver);
 });
 
 watch(channelBrowseQuery, () => {
@@ -2659,6 +2678,7 @@ onUnmounted(() => {
   userBrowseObserver?.disconnect();
   quotaBrowseObserver?.disconnect();
   templateBrowseObserver?.disconnect();
+  failLogsObserver?.disconnect();
   clearTimeout(teamSearchTimer);
   clearTimeout(channelSearchTimer);
   clearTimeout(assignTeamSearchTimer);
