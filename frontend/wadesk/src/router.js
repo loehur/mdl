@@ -15,9 +15,9 @@ const router = createRouter({
     { path: "/", name: "inbox", component: InboxView, meta: { auth: true } },
     { path: "/admin", name: "admin", component: AdminView, meta: { auth: true, admin: true } },
     { path: "/blast", name: "blast", component: BlastView, meta: { auth: true } },
-    { path: "/report", name: "report", component: ReportView, meta: { auth: true, reportViewer: true } },
+    { path: "/report", name: "report", component: ReportView, meta: { auth: true } },
     { path: "/account", name: "account", component: AccountView, meta: { auth: true } },
-    { path: "/templates", name: "templates", component: TemplatesView, meta: { auth: true, templateViewer: true } },
+    { path: "/templates", name: "templates", component: TemplatesView, meta: { auth: true } },
   ],
 });
 
@@ -29,8 +29,6 @@ router.beforeEach(async (to) => {
   }
   if (to.meta.auth && !auth.isLoggedIn) return { name: "login" };
   if (to.meta.admin && !auth.isAdmin) return { name: "inbox" };
-  if (to.meta.templateViewer && !auth.canManageTeam) return { name: "inbox" };
-  if (to.meta.reportViewer && !auth.canManageTeam) return { name: "inbox" };
   if (to.meta.guest && auth.isLoggedIn) return { name: "inbox" };
   return true;
 });

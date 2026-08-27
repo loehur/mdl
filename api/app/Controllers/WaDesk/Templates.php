@@ -23,8 +23,8 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         $role = (string) ($user['role'] ?? '');
-        if (!in_array($role, ['admin', 'team_leader'], true)) {
-            $this->error('Halaman template hanya tersedia untuk Admin dan Team Leader', 403);
+        if (!in_array($role, ['admin', 'team_leader', 'agent'], true)) {
+            $this->error('Halaman template hanya tersedia untuk pengguna WaDesk', 403);
         }
 
         $tenantId = (int) $user['tenant_id'];

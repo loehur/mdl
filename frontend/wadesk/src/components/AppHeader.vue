@@ -144,9 +144,9 @@ const sidebarOpen = ref(false);
 
 const mainNavItems = [
   { to: "/", label: "Chat" },
-  { to: "/templates", label: "Templates", manageOnly: true },
+  { to: "/templates", label: "Templates" },
   { to: "/blast", label: "Blast" },
-  { to: "/report", label: "Report", manageOnly: true },
+  { to: "/report", label: "Report" },
   { to: "/account", label: "Account" },
 ];
 
