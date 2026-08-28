@@ -292,12 +292,14 @@
               </button>
             </div>
             <div v-else-if="auth.canSendWa" class="flex flex-col gap-2">
-              <p class="text-xs text-amber-300/90">CSW tertutup. Mulai/lanjutkan dengan template WhatsApp.</p>
+              <p class="text-xs text-amber-300/90">CSW is closed. Start or continue with a WhatsApp template.</p>
               <button
-                class="w-full py-2.5 rounded-xl border border-accent/40 text-accent-soft hover:bg-accent/10 text-sm font-medium"
+                class="w-full py-2.5 rounded-xl border border-accent/40 text-accent-soft hover:bg-accent/10 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                :disabled="Number(chat.active?.template_sending_enabled ?? 1) !== 1"
+                :title="Number(chat.active?.template_sending_enabled ?? 1) !== 1 ? 'Template sending is disabled for this channel' : ''"
                 @click="openTemplateForActive"
               >
-                Kirim template
+                Send template
               </button>
             </div>
             <p v-if="sendError" class="text-xs text-rose-400 mt-2">{{ sendError }}</p>

@@ -17,7 +17,8 @@ class Channels extends WaDeskController
         $scope = trim((string) $this->query('scope', 'operational'));
 
         $select = "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
-                          k.waba_id, k.channel_type, k.status, k.created_at, t.name AS team_name";
+                          k.waba_id, k.channel_type, k.status, k.template_sending_enabled,
+                          k.created_at, t.name AS team_name";
 
         if ($user['role'] === 'admin' && $scope === 'all') {
             $pageRaw = $this->query('page');
@@ -115,7 +116,7 @@ class Channels extends WaDeskController
 
         $tbl = $this->channelsTable();
         $assigned = $this->db($this->db_index)->query(
-            "SELECT id, device_id, team_id, label, phone_number, waba_id, status
+            "SELECT id, device_id, team_id, label, phone_number, waba_id, status, template_sending_enabled
              FROM {$tbl} WHERE tenant_id = ?",
             [$tenantId]
         )->result_array();
@@ -307,6 +308,9 @@ class Channels extends WaDeskController
         }
         if (isset($body['status']) && in_array($body['status'], ['active', 'inactive'], true)) {
             $data['status'] = $body['status'];
+        }
+        if (array_key_exists('template_sending_enabled', $body)) {
+            $data['template_sending_enabled'] = !empty($body['template_sending_enabled']) ? 1 : 0;
         }
         if (array_key_exists('waba_id', $body)) {
             $wabaId = trim((string) $body['waba_id']);

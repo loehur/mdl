@@ -98,6 +98,12 @@ class Blast extends WaDeskController
         if (!$channel) {
             $this->error('Channel tidak ditemukan atau tidak aktif', 404);
         }
+        if (array_key_exists('template_sending_enabled', $channel)
+            && (int) $channel['template_sending_enabled'] !== 1) {
+            $this->error('Template sending is disabled for this channel', 403, [
+                'code' => 'template_sending_disabled',
+            ]);
+        }
 
         $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
         if (!$tpl) {

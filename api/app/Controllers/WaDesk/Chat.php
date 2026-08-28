@@ -47,7 +47,7 @@ class Chat extends WaDeskController
 
         $binds = $visBinds;
         $sql = "SELECT c.*, k.label AS key_label, k.label AS channel_label,
-                       k.phone_number AS wa_number, t.name AS team_name,
+                       k.phone_number AS wa_number, k.template_sending_enabled, t.name AS team_name,
                        c.channel_id AS channel_id
                 FROM conversations c
                 INNER JOIN {$tbl} k ON k.id = c.channel_id
@@ -266,6 +266,12 @@ class Chat extends WaDeskController
         $client = $this->requireKiriminConfigured((int) $user['tenant_id']);
 
         if ($mode === 'template') {
+            if (array_key_exists('template_sending_enabled', $channel)
+                && (int) $channel['template_sending_enabled'] !== 1) {
+                $this->error('Template sending is disabled for this channel', 403, [
+                    'code' => 'template_sending_disabled',
+                ]);
+            }
             if ($cswOpen) {
                 $this->error('CSW terbuka — gunakan free text, bukan template', 400, [
                     'csw_open' => true,

@@ -31,6 +31,16 @@ class TemplateSender
         ?int $teamId = null
     ): array {
         try {
+            if (array_key_exists('template_sending_enabled', $channel)
+                && (int) $channel['template_sending_enabled'] !== 1) {
+                return [
+                    'success' => false,
+                    'message_id' => 0,
+                    'conversation_id' => 0,
+                    'error' => 'Template sending is disabled for this channel',
+                ];
+            }
+
             $tenantId = (int) $channel['tenant_id'];
             $wabaId = trim((string) ($channel['waba_id'] ?? ''));
             if ($wabaId === '') {

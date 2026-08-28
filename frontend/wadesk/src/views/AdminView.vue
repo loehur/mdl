@@ -554,8 +554,8 @@
                     </p>
                   </div>
                   <div class="sm:col-span-2 flex gap-2">
-                    <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Menyimpan..." : "Simpan" }}</button>
-                    <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Batal</button>
+                    <button type="submit" class="btn" :disabled="savingKey">{{ savingKey ? "Saving..." : "Save" }}</button>
+                    <button type="button" class="btn-sm" :disabled="savingKey" @click="cancelEditKey">Cancel</button>
                   </div>
                 </form>
               </template>
@@ -567,17 +567,30 @@
                       {{ k.phone_number }}
                       <span v-if="k.device_id"> · {{ k.device_id }}</span>
                       <span v-if="k.waba_id"> · WABA {{ k.waba_id }}</span>
-                      <span v-else class="text-amber-400"> · WABA belum diisi</span>
+                      <span v-else class="text-amber-400"> · WABA not set</span>
                       · {{ k.status }}
                     </p>
                     <p class="text-xs text-slate-400 mt-1">
                       <span class="text-slate-500">{{ k.team_count || 0 }} team:</span>
                       <span class="text-slate-300">{{ k.team_names || "—" }}</span>
                     </p>
+                    <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        class="accent-teal-500"
+                        :checked="Number(k.template_sending_enabled ?? 1) === 1"
+                        :disabled="savingTemplateSendChannelId === k.id"
+                        @change="setChannelTemplateSending(k, $event.target.checked)"
+                      />
+                      <span>Allow template sending</span>
+                      <span :class="Number(k.template_sending_enabled ?? 1) === 1 ? 'text-emerald-400' : 'text-amber-300'">
+                        {{ Number(k.template_sending_enabled ?? 1) === 1 ? 'Enabled' : 'Disabled' }}
+                      </span>
+                    </label>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">
-                    <button type="button" class="text-xs text-accent hover:underline" @click="startEditKey(k)">Ubah</button>
-                    <button type="button" class="text-xs text-rose-400" @click="removeKey(k.id)">Hapus</button>
+                    <button type="button" class="text-xs text-accent hover:underline" @click="startEditKey(k)">Edit</button>
+                    <button type="button" class="text-xs text-rose-400" @click="removeKey(k.id)">Delete</button>
                   </div>
                 </div>
               </template>
@@ -1384,6 +1397,7 @@ const channelBrowseQuery = ref("");
 const loadingChannelBrowse = ref(false);
 const channelBrowseHasMore = ref(true);
 const channelBrowseSentinel = ref(null);
+const savingTemplateSendChannelId = ref(null);
 const ASSIGN_TEAM_LIMIT = 20;
 const assignTeamRows = ref([]);
 const assignTeamTotal = ref(0);
@@ -2742,7 +2756,7 @@ async function assignChannel() {
     }
     const teamIds = (channelForm.team_ids || []).map((v) => Number(v)).filter((id) => id > 0);
     if (!teamIds.length) {
-      flash(false, "Pilih minimal satu team");
+      flash(false, "Select at least one team");
       return;
     }
     const res = await api("/WaDesk/Channels/assign", {
@@ -2794,7 +2808,7 @@ async function saveKey(k) {
       team_ids: teamIds,
     };
     await api("/WaDesk/Channels/update", { method: "POST", body });
-    flash(true, "Channel diupdate");
+    flash(true, "Channel updated");
     cancelEditKey();
     await loadChannelBrowse(true);
     await syncDevicesFromKirimin();
@@ -2805,14 +2819,30 @@ async function saveKey(k) {
   }
 }
 
+async function setChannelTemplateSending(channel, enabled) {
+  savingTemplateSendChannelId.value = channel.id;
+  try {
+    await api("/WaDesk/Channels/update", {
+      method: "POST",
+      body: { id: channel.id, template_sending_enabled: enabled },
+    });
+    channel.template_sending_enabled = enabled ? 1 : 0;
+    flash(true, enabled ? "Template sending enabled" : "Template sending disabled");
+  } catch (e) {
+    flash(false, e.message || "Failed to save template sending setting");
+  } finally {
+    savingTemplateSendChannelId.value = null;
+  }
+}
+
 async function removeKey(id) {
   askConfirm({
-    title: "Hapus channel",
-    message: "Mapping channel yang dihapus tidak bisa dikembalikan. Lanjutkan?",
+    title: "Delete channel",
+    message: "The deleted channel mapping cannot be restored. Continue?",
     action: async () => {
       try {
         await api("/WaDesk/Channels/delete", { method: "POST", body: { id } });
-        flash(true, "Channel dihapus");
+        flash(true, "Channel deleted");
         await loadChannelBrowse(true);
         await syncDevicesFromKirimin();
       } catch (e) {

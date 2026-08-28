@@ -18,11 +18,11 @@
           <!-- Kolom kiri: channel, nomor, template -->
           <div class="space-y-4">
             <div v-if="!fixedKeyId">
-              <label class="label">Channel / nomor WA</label>
+              <label class="label">Channel / WhatsApp number</label>
               <select v-model="form.channel_id" required class="field" :disabled="busy || checking" @change="onKeyChange">
                 <option disabled value="">Select a channel</option>
-                <option v-for="k in keys" :key="k.id" :value="k.id">
-                  {{ k.label }} ({{ k.phone_number }})
+                <option v-for="k in keys" :key="k.id" :value="k.id" :disabled="Number(k.template_sending_enabled ?? 1) !== 1">
+                  {{ k.label }} ({{ k.phone_number }}){{ Number(k.template_sending_enabled ?? 1) !== 1 ? ' — Templates disabled' : '' }}
                 </option>
               </select>
             </div>
