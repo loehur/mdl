@@ -9,6 +9,14 @@
  */
 module.exports = [
   {
+    id: 'wadesk-blast',
+    description: 'Process WaDesk template blast queue',
+    schedule: '*/7 * * * *',
+    method: 'GET',
+    url: '/Cron/WaDeskBlast/index?limit=20',
+    enabled: true,
+  },
+  {
     id: 'invoice-recurring',
     description: 'Generate invoice dari recurring_bills yang jatuh tempo',
     schedule: '0 1 * * *', // setiap hari jam 01:00

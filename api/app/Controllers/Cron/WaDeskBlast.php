@@ -33,7 +33,7 @@ class WaDeskBlast extends Controller
         // Pick pending blast jobs (oldest first)
         $channelsTable = 'wa_channels';
         $blasts = $db->query(
-            "SELECT b.*, k.device_id, k.phone_number, k.tenant_id AS key_tenant_id,
+            "SELECT b.*, k.device_id, k.phone_number, k.template_sending_enabled, k.tenant_id AS key_tenant_id,
                     COALESCE(b.team_id, k.team_id) AS team_id,
                     t.template_name, t.language, t.body_preview
              FROM wa_blasts b
@@ -88,6 +88,7 @@ class WaDeskBlast extends Controller
                 'id'          => (int) $blast['channel_id'],
                 'device_id'   => $blast['device_id'] ?? '',
                 'phone_number'=> $blast['phone_number'],
+                'template_sending_enabled' => (int) ($blast['template_sending_enabled'] ?? 1),
                 'tenant_id'   => (int) $blast['key_tenant_id'],
                 'team_id'     => (int) $blast['team_id'],
             ];
