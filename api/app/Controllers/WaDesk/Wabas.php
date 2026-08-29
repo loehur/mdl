@@ -278,7 +278,8 @@ class Wabas extends WaDeskController
             'waba_id' => $wabaId,
             'phone_number' => $number !== '' ? $number : $phoneId,
             'label' => $label,
-            'meta_verification_status' => trim($codeStatus . ($nameStatus !== '' ? ' · NAME_' . $nameStatus : '')),
+            // Kolom ini menyimpan status OTP saja; status koneksi disimpan pada `status`.
+            'meta_verification_status' => $codeStatus,
             'meta_quality_rating' => strtoupper(trim((string) ($phone['quality_rating'] ?? ''))),
             'channel_type' => 'waba',
             'provider' => 'meta',
