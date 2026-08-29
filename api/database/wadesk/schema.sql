@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   phone_number VARCHAR(32) NOT NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   template_sending_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  template_sent_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_channel_device (device_id),

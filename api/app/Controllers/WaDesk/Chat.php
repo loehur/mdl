@@ -425,6 +425,10 @@ class Chat extends WaDeskController
             }
 
             $limitGuard->recordSuccess((int) $channel['tenant_id'], $phone, (int) $user['id'], 'template');
+            $this->db($this->db_index)->query(
+                'UPDATE wa_channels SET template_sent_count = template_sent_count + 1 WHERE id = ?',
+                [(int) $channel['id']]
+            );
 
             $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
             $this->touchConversationOut($conv['id'], $preview);

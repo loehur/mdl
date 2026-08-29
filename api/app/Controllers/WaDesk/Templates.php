@@ -789,6 +789,9 @@ class Templates extends WaDeskController
         if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
             $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
         }
+        if (!$this->templateAiApprovalsTableExists()) {
+            $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
+        }
         $draft = trim((string) (($this->getBody())['draft'] ?? ''));
         if ($draft === '') $this->error('Tulis draf template untuk diproses AI.', 422);
         if (mb_strlen($draft) > 1024) $this->error('Draf template maksimal 1024 karakter.', 422);
@@ -825,6 +828,9 @@ class Templates extends WaDeskController
         if (!$this->isPost()) $this->error('Method not allowed', 405);
         if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
             $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
+        }
+        if (!$this->templateAiApprovalsTableExists()) {
+            $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
         }
         $body = $this->getBody();
         $name = strtolower(trim((string) ($body['template_name'] ?? '')));
@@ -871,6 +877,11 @@ class Templates extends WaDeskController
     {
         preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
         return array_values(array_map('trim', $matches[1] ?? []));
+    }
+
+    private function templateAiApprovalsTableExists(): bool
+    {
+        return (bool) $this->db($this->db_index)->query("SHOW TABLES LIKE 'wa_template_ai_approvals'")->row_array();
     }
 
     public function deleteForTeam()

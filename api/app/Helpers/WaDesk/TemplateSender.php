@@ -177,6 +177,12 @@ class TemplateSender
             }
 
             $limitGuard->recordSuccess($tenantId, $phone, $sentByUserId ?: null, 'blast');
+            if ((int) ($channel['id'] ?? 0) > 0) {
+                $this->db->query(
+                    'UPDATE wa_channels SET template_sent_count = template_sent_count + 1 WHERE id = ?',
+                    [(int) $channel['id']]
+                );
+            }
 
             $conv = $this->getOrCreateConversation($channel, $phone, null, $teamId);
             $fakeUser = ['id' => $sentByUserId];
