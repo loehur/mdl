@@ -61,6 +61,9 @@ class Env
     // WhatsApp Cloud API (Meta) — endpoint /Webhook/WhatsAppMeta.
     // Isi dengan Verify Token yang sama di Meta Developers.
     const META_WA_VERIFY_TOKEN = 'change-me-meta-wa-verify-token';
+    const META_WA_ACCESS_TOKEN = 'change-me-meta-wa-access-token';
+    const META_WA_SEND_API_KEY = 'change-me-meta-wa-send-api-key'; // Header X-Meta-Wa-Send-Key
+    const META_WA_GRAPH_VERSION = 'v23.0';
 
     // Node maps_server — resolve URL Google Maps → lat/lng (KURIR, dll.)
     const MAPS_SERVER_URL = 'http://127.0.0.1:3020/resolve';
