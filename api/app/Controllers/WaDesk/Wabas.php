@@ -46,12 +46,14 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'errors' => []];
+        $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
             if ($wabaId === '') {
                 continue;
             }
+            $activeWabaIds[] = $wabaId;
             $name = trim((string) ($waba['name'] ?? $wabaId));
             $this->upsertWaba($tenantId, $wabaId, $name);
             $stats['wabas']++;
@@ -78,6 +80,11 @@ class Wabas extends WaDeskController
                 $stats['errors'][] = "WABA {$wabaId} template: {$templates['error']}";
             }
         }
+
+        // Meta WABA yang tercantum di environment adalah source of truth.
+        // Template lama (termasuk template legacy tanpa WABA) tidak boleh muncul
+        // atau terkirim dari WaDesk setelah migrasi ke Meta.
+        $stats['templates_removed'] = $this->removeTemplatesOutsideWabas($tenantId, $activeWabaIds);
 
         $this->success($stats, 'Sinkronisasi WABA selesai');
     }
@@ -218,6 +225,26 @@ class Wabas extends WaDeskController
             }
         }
         return $parts === [] ? null : implode("\n\n", $parts);
+    }
+
+    /** Remove templates not attached to a WABA currently synced from META_WA_WABA_IDS. */
+    private function removeTemplatesOutsideWabas(int $tenantId, array $wabaIds): int
+    {
+        $db = $this->db($this->db_index);
+        if ($wabaIds === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($wabaIds), '?'));
+        $rows = $db->query(
+            "SELECT id FROM wa_templates
+             WHERE tenant_id = ?
+               AND (meta_waba_id IS NULL OR meta_waba_id = '' OR meta_waba_id NOT IN ({$placeholders}))",
+            array_merge([$tenantId], $wabaIds)
+        )->result_array();
+        foreach ($rows as $row) {
+            $db->delete('wa_templates', ['id' => (int) $row['id']]);
+        }
+        return count($rows);
     }
 
     private function requireWabaTable(): void

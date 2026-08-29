@@ -683,7 +683,6 @@
 
         <div class="flex flex-col sm:flex-row gap-2">
           <select v-model="templateWabaFilter" class="field sm:max-w-xs">
-            <option value="">Semua WABA</option>
             <option v-for="waba in wabas" :key="'filter-' + waba.id" :value="waba.meta_waba_id">{{ waba.name }}</option>
           </select>
           <div class="relative flex-1">
@@ -1849,6 +1848,12 @@ async function loadTemplateBrowse(reset = false) {
     const page = reset ? 1 : templateBrowsePage.value;
     const q = templateBrowseQuery.value.trim();
     const waba = templateWabaFilter.value.trim();
+    if (!waba) {
+      templateBrowseRows.value = [];
+      templateBrowseTotal.value = 0;
+      templateBrowseHasMore.value = false;
+      return;
+    }
     const res = await api(
       `/WaDesk/Templates/list?page=${page}&limit=${TEMPLATE_BROWSE_LIMIT}&q=${encodeURIComponent(q)}${waba ? `&waba_id=${encodeURIComponent(waba)}` : ""}&_=${Date.now()}`,
       { cache: "no-store" }
@@ -2119,6 +2124,7 @@ async function refresh() {
     await loadQuotaBrowse(true);
   }
   if (tab.value === "templates") {
+    await loadWabas();
     await loadTemplateBrowse(true);
   }
   dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit) || 250;
@@ -2316,7 +2322,7 @@ watch(tab, (id) => {
     loadQuotaBrowse(true);
   }
   if (id === "templates") {
-    Promise.all([loadTemplateBrowse(true), loadWabas()]);
+    loadWabas().then(() => loadTemplateBrowse(true));
   }
   if (id === "report") {
     loadReportTab();
@@ -2938,6 +2944,10 @@ async function loadWabas() {
   try {
     const res = await api("/WaDesk/Wabas/list", { cache: "no-store" });
     wabas.value = res.data?.wabas || [];
+    const selectedStillExists = wabas.value.some((waba) => waba.meta_waba_id === templateWabaFilter.value);
+    if (!selectedStillExists) {
+      templateWabaFilter.value = wabas.value[0]?.meta_waba_id || "";
+    }
   } catch (e) {
     wabas.value = [];
     flash(false, e.message || "Gagal memuat WABA");
@@ -2951,7 +2961,9 @@ async function syncWabas() {
     const res = await api("/WaDesk/Wabas/sync", { method: "POST", body: {} });
     const d = res.data || {};
     const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join("; ")}` : "";
-    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${suffix}`);
+    const removed = Number(d.templates_removed || 0);
+    const removedText = removed ? `, ${removed} template lama dihapus` : "";
+    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${removedText}${suffix}`);
     await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true)]);
   } catch (e) {
     flash(false, e.message || "Gagal sinkron WABA");
