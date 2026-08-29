@@ -73,6 +73,10 @@ class WaDesk extends Controller
     /** @param array<string,string> $headers */
     private function dispatchWebhook(array $data, array $headers): bool
     {
+        if ($this->handleMetaAccountUpdates($data)) {
+            return true;
+        }
+
         if ($this->looksLikeCoexistenceWebhook($data)) {
             return $this->handleCoexistenceWebhook($data);
         }
@@ -155,6 +159,111 @@ class WaDesk extends Controller
         }
 
         return false;
+    }
+
+    /** Apply Meta WABA configuration callbacks without requiring a manual sync. */
+    private function handleMetaAccountUpdates(array $data): bool
+    {
+        $entries = $data['entry'] ?? [];
+        if (!is_array($entries)) return false;
+        $handled = false;
+        $db = $this->db($this->dbIndex);
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) continue;
+            $wabaId = trim((string) ($entry['id'] ?? ''));
+            $changes = $entry['changes'] ?? [];
+            if (!is_array($changes)) continue;
+            foreach ($changes as $change) {
+                if (!is_array($change)) continue;
+                $field = strtolower(trim((string) ($change['field'] ?? '')));
+                if (!in_array($field, [
+                    'message_template_status_update',
+                    'message_template_quality_update',
+                    'template_category_update',
+                    'phone_number_quality_update',
+                ], true)) continue;
+
+                $value = is_array($change['value'] ?? null) ? $change['value'] : [];
+                if ($wabaId === '') $wabaId = trim((string) ($value['waba_id'] ?? ''));
+                if ($wabaId === '') {
+                    $this->logWebhook('SKIP Meta account update without WABA field=' . $field);
+                    $handled = true;
+                    continue;
+                }
+
+                if ($field === 'phone_number_quality_update') {
+                    $this->applyMetaPhoneQualityUpdate($db, $wabaId, $value);
+                } else {
+                    $this->applyMetaTemplateUpdate($db, $wabaId, $field, $value);
+                }
+                $this->logWebhook('META_ACCOUNT_UPDATE field=' . $field . ' waba=' . $wabaId);
+                $handled = true;
+            }
+        }
+        return $handled;
+    }
+
+    private function applyMetaTemplateUpdate($db, string $wabaId, string $field, array $value): void
+    {
+        $templateId = trim((string) ($value['message_template_id'] ?? $value['template_id'] ?? $value['id'] ?? ''));
+        $name = trim((string) ($value['message_template_name'] ?? $value['template_name'] ?? $value['name'] ?? ''));
+        $language = trim((string) ($value['message_template_language'] ?? $value['language'] ?? ''));
+        $sets = [];
+        $binds = [];
+
+        if ($field === 'message_template_status_update') {
+            $status = strtoupper(trim((string) ($value['status'] ?? $value['event'] ?? '')));
+            if ($status !== '') { $sets[] = 'meta_status = ?'; $binds[] = $status; }
+        }
+        if ($field === 'message_template_quality_update') {
+            $quality = strtoupper(trim((string) ($value['new_quality_score'] ?? $value['quality_score'] ?? $value['quality'] ?? $value['event'] ?? '')));
+            if ($quality !== '' && !in_array($quality, ['QUALITY_UPDATE', 'UPDATE'], true)) {
+                $sets[] = 'meta_quality_rating = ?'; $binds[] = $quality;
+            }
+        }
+        if ($field === 'template_category_update') {
+            $category = strtoupper(trim((string) ($value['new_category'] ?? $value['category'] ?? $value['correct_category'] ?? '')));
+            if ($category !== '') { $sets[] = 'meta_category = ?'; $binds[] = $category; }
+        }
+        if ($sets === []) return;
+
+        $where = 'meta_waba_id = ?';
+        $whereBinds = [$wabaId];
+        if ($templateId !== '') {
+            $where .= ' AND meta_template_id = ?';
+            $whereBinds[] = $templateId;
+        } elseif ($name !== '') {
+            $where .= ' AND template_name = ?';
+            $whereBinds[] = $name;
+            if ($language !== '') { $where .= ' AND language = ?'; $whereBinds[] = $language; }
+        } else {
+            $this->logWebhook('SKIP Meta template update without template identifier waba=' . $wabaId);
+            return;
+        }
+        $db->query('UPDATE wa_templates SET ' . implode(', ', $sets) . ' WHERE ' . $where, array_merge($binds, $whereBinds));
+    }
+
+    private function applyMetaPhoneQualityUpdate($db, string $wabaId, array $value): void
+    {
+        $phoneId = trim((string) ($value['phone_number_id'] ?? $value['id'] ?? ''));
+        $displayNumber = preg_replace('/\D+/', '', (string) ($value['display_phone_number'] ?? $value['phone_number'] ?? ''));
+        $quality = strtoupper(trim((string) ($value['quality_rating'] ?? $value['new_quality_rating'] ?? $value['quality'] ?? $value['event'] ?? '')));
+        if (!in_array($quality, ['GREEN', 'YELLOW', 'RED'], true)) return;
+
+        $where = 'waba_id = ? AND provider = \'meta\'';
+        $binds = [$wabaId];
+        if ($phoneId !== '') {
+            $where .= ' AND meta_phone_number_id = ?';
+            $binds[] = $phoneId;
+        } elseif ($displayNumber !== '') {
+            $where .= ' AND REPLACE(REPLACE(REPLACE(phone_number, \'+\', \'\'), \'-\', \'\'), \' \', \'\') = ?';
+            $binds[] = $displayNumber;
+        } else {
+            $this->logWebhook('SKIP Meta phone quality without phone identifier waba=' . $wabaId);
+            return;
+        }
+        $db->query('UPDATE wa_channels SET meta_quality_rating = ? WHERE ' . $where, array_merge([$quality], $binds));
     }
 
     /** Handle WhatsApp Coexistence events sent through /Webhook/WhatsAppMeta. */

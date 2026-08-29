@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS wa_templates (
   meta_template_id VARCHAR(64) NULL,
   body_preview TEXT NULL,
   meta_status VARCHAR(32) NULL,
+  meta_quality_rating VARCHAR(32) NULL,
   meta_category VARCHAR(32) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,

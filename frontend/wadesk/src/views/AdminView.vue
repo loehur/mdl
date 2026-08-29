@@ -839,6 +839,28 @@
                           · {{ (t.channels || []).map((c) => c.label || c.phone_number).join(', ') }}
                         </span>
                       </p>
+                      <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-medium">
+                        <span
+                          v-if="t.meta_category"
+                          class="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300"
+                        >
+                          {{ t.meta_category }}
+                        </span>
+                        <span
+                          v-if="t.meta_status"
+                          class="rounded-full px-2 py-0.5"
+                          :class="String(t.meta_status).toUpperCase() === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-300' : String(t.meta_status).toUpperCase() === 'REJECTED' ? 'bg-rose-500/15 text-rose-300' : 'bg-amber-500/15 text-amber-300'"
+                        >
+                          {{ t.meta_status }}
+                        </span>
+                        <span
+                          v-if="t.meta_quality_rating"
+                          class="rounded-full px-2 py-0.5"
+                          :class="String(t.meta_quality_rating).toUpperCase() === 'GREEN' ? 'bg-emerald-500/15 text-emerald-300' : String(t.meta_quality_rating).toUpperCase() === 'YELLOW' ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300'"
+                        >
+                          Quality: {{ t.meta_quality_rating }}
+                        </span>
+                      </div>
                   <div v-if="(t.assigned_teams || []).length" class="mt-2 flex flex-wrap gap-1.5 items-center">
                     <span
                       v-for="tm in (t.assigned_teams || [])"

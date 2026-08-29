@@ -158,7 +158,18 @@ class Templates extends WaDeskController
                 return;
             }
 
-            $sql = "SELECT t.* FROM wa_templates t WHERE t.tenant_id = ?";
+            $teamId = (int) ($user['team_id'] ?? 0);
+            if ($teamId > 0) {
+                $sql = "SELECT DISTINCT t.* FROM wa_templates t
+                        INNER JOIN {$this->channelsTable()} c
+                          ON c.tenant_id = t.tenant_id AND c.waba_id = t.meta_waba_id
+                        WHERE t.tenant_id = ? AND c.provider = 'meta' AND c.status = 'active'
+                          AND c.template_sending_enabled = 1
+                          AND UPPER(COALESCE(c.meta_quality_rating, '')) IN ('GREEN', 'YELLOW')
+                          AND {$this->channelTeamSql('c', $teamId)}";
+            } else {
+                $sql = "SELECT t.* FROM wa_templates t WHERE t.tenant_id = ?";
+            }
             $binds = [$tenantId];
             if ($wabaFilter !== '') {
                 $sql .= ' AND t.meta_waba_id = ?';
@@ -166,6 +177,11 @@ class Templates extends WaDeskController
             }
             $sql .= ' ORDER BY t.template_name ASC, t.id ASC';
             $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
+            if ($teamId > 0 && $this->templateTeamsTableExists()) {
+                $rows = array_values(array_filter($rows, fn (array $row) =>
+                    $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)
+                ));
+            }
         }
         $rows = $this->dedupeTemplateListRows($rows, $tenantId);
         $rows = $this->enrichTemplateListRows($rows, $tenantId, $channelId <= 0);

@@ -4,6 +4,7 @@ namespace App\Controllers\Cron;
 
 use App\Core\Controller;
 use App\Helpers\WaDesk\TemplateSender as WaDeskTemplateSender;
+use App\Helpers\WaDesk\TemplateChannelSelector;
 
 /**
  * WaDeskBlast — process wa_blast_recipients queue in batches.
@@ -35,7 +36,7 @@ class WaDeskBlast extends Controller
         $blasts = $db->query(
             "SELECT b.*, k.device_id, k.phone_number, k.template_sending_enabled, k.tenant_id AS key_tenant_id,
                     COALESCE(b.team_id, k.team_id) AS team_id,
-                    t.template_name, t.language, t.body_preview
+                    t.template_name, t.language, t.body_preview, t.meta_waba_id
              FROM wa_blasts b
              INNER JOIN {$channelsTable} k ON k.id = b.channel_id
              INNER JOIN wa_templates t ON t.id = b.template_id
@@ -84,23 +85,16 @@ class WaDeskBlast extends Controller
                 continue;
             }
 
-            $channelRow = [
-                'id'          => (int) $blast['channel_id'],
-                'device_id'   => $blast['device_id'] ?? '',
-                'phone_number'=> $blast['phone_number'],
-                'template_sending_enabled' => (int) ($blast['template_sending_enabled'] ?? 1),
-                'tenant_id'   => (int) $blast['key_tenant_id'],
-                'team_id'     => (int) $blast['team_id'],
-            ];
-
             $tplRow = [
                 'id'           => (int) $blast['template_id'],
                 'template_name'=> $blast['template_name'],
                 'language'     => $blast['language'],
                 'body_preview' => $blast['body_preview'],
+                'meta_waba_id' => $blast['meta_waba_id'] ?? '',
             ];
 
             $sender = new WaDeskTemplateSender($db, self::DB_INDEX);
+            $selector = new TemplateChannelSelector($db);
 
             foreach ($recipients as $recip) {
                 $recipId = (int) $recip['id'];
@@ -114,10 +108,20 @@ class WaDeskBlast extends Controller
                     }
                 }
 
-                $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0, true, [
-                    'blast_id' => $blastId,
-                    'blast_recipient_id' => $recipId,
-                ], (int) $blast['team_id']);
+                $channelRow = $selector->select(
+                    (int) $blast['tenant_id'],
+                    (int) $blast['team_id'],
+                    (string) ($tplRow['meta_waba_id'] ?? '')
+                );
+                if (!$channelRow) {
+                    $result = ['success' => false, 'message_id' => 0, 'conversation_id' => 0,
+                        'error' => 'Tidak ada nomor Meta GREEN/YELLOW yang aktif untuk template ini.'];
+                } else {
+                    $result = $sender->sendOne($channelRow, $tplRow, $paramDefs, $phone, $rawParams, 0, true, [
+                        'blast_id' => $blastId,
+                        'blast_recipient_id' => $recipId,
+                    ], (int) $blast['team_id']);
+                }
 
                 if ($result['success']) {
                     $db->update('wa_blast_recipients', [

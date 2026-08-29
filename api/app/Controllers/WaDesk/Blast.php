@@ -5,6 +5,7 @@ namespace App\Controllers\WaDesk;
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 use App\Helpers\WaDesk\TenantDevFee as WaDeskTenantDevFee;
+use App\Helpers\WaDesk\TemplateChannelSelector;
 
 /**
  * Blast — bulk WhatsApp template sender via CSV.
@@ -80,36 +81,23 @@ class Blast extends WaDeskController
             $this->error('campaign_name maksimal 150 karakter', 400);
         }
 
-        $channelId = (int) ($body['channel_id'] ?? 0);
         $templateId = (int) ($body['template_id'] ?? 0);
 
-        if ($channelId <= 0 || $templateId <= 0) {
-            $this->error('channel_id dan template_id wajib', 400);
-        }
-
-        $tbl = $this->channelsTable();
-        $channel = $this->db($this->db_index)->query(
-            "SELECT * FROM {$tbl} k
-             WHERE k.id = ? AND k.tenant_id = ? AND k.status = 'active'
-               AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
-             LIMIT 1",
-            [$channelId, (int) $user['tenant_id']]
-        )->row_array();
-        if (!$channel) {
-            $this->error('Channel tidak ditemukan atau tidak aktif', 404);
-        }
-        if (array_key_exists('template_sending_enabled', $channel)
-            && (int) $channel['template_sending_enabled'] !== 1) {
-            $this->error('Template sending is disabled for this channel', 403, [
-                'code' => 'template_sending_disabled',
-            ]);
+        if ($templateId <= 0) {
+            $this->error('template_id wajib', 400);
         }
 
         $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
         if (!$tpl) {
             $this->error('Template tidak ditemukan', 404);
         }
-        $this->assertTemplateOnChannel($templateId, $channel, (int) $user['tenant_id'], (int) ($user['team_id'] ?? 0));
+        $this->assertTemplateTeamAssignment($templateId, [], (int) $user['tenant_id'], (int) ($user['team_id'] ?? 0), $tpl);
+        $selector = new TemplateChannelSelector($this->db($this->db_index));
+        $channel = $selector->select((int) $user['tenant_id'], (int) $user['team_id'], (string) $tpl['meta_waba_id']);
+        if (!$channel) {
+            $this->error('Tidak ada nomor Meta GREEN/YELLOW yang aktif untuk mengirim template ini.', 422, ['code' => 'no_eligible_template_number']);
+        }
+        $channelId = (int) $channel['id'];
 
         $rows = $body['rows'] ?? [];
         if (!is_array($rows) || count($rows) === 0) {

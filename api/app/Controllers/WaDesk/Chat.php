@@ -9,6 +9,7 @@ use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 use App\Helpers\WaDesk\TenantDevFee as WaDeskTenantDevFee;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 use App\Helpers\WaDesk\Meta as WaDeskMeta;
+use App\Helpers\WaDesk\TemplateChannelSelector;
 
 /**
  * Chat — conversations, messages, send free/template
@@ -233,13 +234,32 @@ class Chat extends WaDeskController
         $channelId = (int) ($body['channel_id'] ?? 0);
         $phone = $this->normalizePhone((string) ($body['phone'] ?? ''));
         $conversationId = (int) ($body['conversation_id'] ?? 0);
+        $sourceLastInAt = null;
+        $selectedTemplate = null;
+        if ($mode === 'template') {
+            $templateIdForChannel = (int) ($body['template_id'] ?? 0);
+            if ($templateIdForChannel <= 0) $this->error('template_id wajib', 400);
+            $selectedTemplate = $this->findTemplateForTenant($templateIdForChannel, (int) $user['tenant_id']);
+            if (!$selectedTemplate) $this->error('Template tidak ditemukan', 404);
+            $this->assertTemplateTeamAssignment($templateIdForChannel, [], (int) $user['tenant_id'], (int) ($user['team_id'] ?? 0), $selectedTemplate);
+            $automaticChannel = (new TemplateChannelSelector($this->db($this->db_index)))->select(
+                (int) $user['tenant_id'], (int) $user['team_id'], (string) $selectedTemplate['meta_waba_id']
+            );
+            if (!$automaticChannel) {
+                $this->error('Tidak ada nomor Meta GREEN/YELLOW yang aktif untuk mengirim template ini.', 422, ['code' => 'no_eligible_template_number']);
+            }
+            $channelId = (int) $automaticChannel['id'];
+        }
 
         if ($conversationId > 0) {
             $conv = $this->findAccessibleConversation($conversationId);
             if (!$conv) {
                 $this->error('Conversation tidak ditemukan', 404);
             }
-            $channelId = (int) $conv['channel_id'];
+            $sourceLastInAt = $conv['last_in_at'] ?? null;
+            if ($mode !== 'template') {
+                $channelId = (int) $conv['channel_id'];
+            }
             $phone = $conv['phone'];
         } else {
             if ($channelId <= 0 || $phone === '') {
@@ -249,17 +269,20 @@ class Chat extends WaDeskController
         }
 
         $channel = $conv
-            ? $this->findChannelForConversation($channelId, $conv)
+            ? ($mode === 'template' ? $this->findAccessibleChannel($channelId) : $this->findChannelForConversation($channelId, $conv))
             : $this->findAccessibleChannel($channelId);
         if (!$channel) {
             $this->error('Channel tidak dapat diakses', 403);
         }
 
+        if ($mode === 'template' && $conv && (int) $conv['channel_id'] !== $channelId) {
+            $conv = null;
+        }
         if (!$conv) {
             $conv = $this->getOrCreateConversation($channel, $phone, $body['name'] ?? null);
         }
 
-        $cswOpen = WaDeskKirimin::isWithinCsw($conv['last_in_at'] ?? null);
+        $cswOpen = WaDeskKirimin::isWithinCsw($sourceLastInAt ?? ($conv['last_in_at'] ?? null));
         $deviceId = trim((string) ($channel['device_id'] ?? ''));
         $isMeta = (($channel['provider'] ?? 'kirimin') === 'meta');
         $metaPhoneNumberId = trim((string) ($channel['meta_phone_number_id'] ?? ''));
@@ -297,7 +320,7 @@ class Chat extends WaDeskController
             $tpl = null;
             $tplParamDefs = [];
             if ($templateId > 0) {
-                $tpl = $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
+                $tpl = $selectedTemplate ?: $this->findTemplateForTenant($templateId, (int) $user['tenant_id']);
                 if (!$tpl) {
                     \Log::write(json_encode([
                         'template_id'  => $templateId,

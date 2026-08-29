@@ -16,45 +16,21 @@
       ================================================================ -->
       <section class="card space-y-4">
         <h2 class="font-display font-semibold text-base">1. Set up blast</h2>
-
-        <!-- API Key -->
-        <div>
-          <label class="label">Channel / WhatsApp number</label>
-          <select v-model="form.channel_id" class="field" :disabled="!auth.canSendWa" @change="onKeyChange">
-            <option disabled value="">Select a channel</option>
-            <option v-for="k in keys" :key="k.id" :value="k.id" :disabled="Number(k.template_sending_enabled ?? 1) !== 1">
-              {{ k.label }} ({{ k.phone_number }}) — {{ k.team_names || k.team_name }}{{ Number(k.template_sending_enabled ?? 1) !== 1 ? ' — Templates disabled' : '' }}
-            </option>
-          </select>
-          <p v-if="keyQuota !== null" class="text-xs mt-1.5 space-y-1">
-            <span :class="keyQuota.balance > 0 ? 'text-slate-400' : 'text-rose-400'">
-              Quota · <span class="text-slate-200">{{ keyQuota.team_name }}</span>:
-              <span class="font-semibold text-accent">{{ keyQuota.balance }}</span>
-            </span>
-            <span
-              v-if="keyQuota.daily_remaining !== null"
-              class="block"
-              :class="keyQuota.daily_remaining <= 0 ? 'text-rose-400' : keyQuota.daily_remaining <= 20 ? 'text-amber-300' : 'text-slate-400'"
-              :title="`Unique recipients sent today: ${keyQuota.daily_used ?? 0} / ${keyQuota.daily_limit}`"
-            >
-              Daily Left:
-              <span class="font-semibold text-emerald-400">{{ keyQuota.daily_remaining }}</span>
-              <span class="text-slate-500"> / {{ keyQuota.daily_limit }}</span>
-            </span>
-          </p>
-        </div>
+        <p class="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-slate-300">
+          Nomor pengirim dipilih otomatis untuk setiap penerima berdasarkan kondisi nomor Meta.
+        </p>
 
         <!-- Template -->
         <div>
           <label class="label">Template</label>
-          <select v-model="form.template_id" class="field" :disabled="!form.channel_id" @change="onTemplateChange">
+          <select v-model="form.template_id" class="field" :disabled="!auth.canSendWa" @change="onTemplateChange">
             <option disabled value="">Select a template</option>
             <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
-          <p v-if="form.channel_id && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
-            No templates are available for this WhatsApp number. Sync again in Admin → Templates.
+          <p v-if="!filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
+            Tidak ada template dengan nomor Meta GREEN/YELLOW yang siap dipakai.
           </p>
           <div
             v-if="blastTemplatePreview"
@@ -407,11 +383,9 @@ async function onDialogConfirm() {
   }
 }
 // ---- state ----------------------------------------------------------------
-const keys = ref([]);
 const templates = ref([]);
 
 const form = reactive({
-  channel_id: '',
   template_id: '',
   campaign_name: '',
 });
@@ -467,15 +441,11 @@ async function onLogout() {
 
 // ---- lifecycle ------------------------------------------------------------
 onMounted(async () => {
-  await loadKeys();
-  templates.value = [];
+  await loadTemplates();
   form.template_id = '';
   csvParams.value = [];
   csvHeaders.value = [];
   resetUpload();
-  if (form.channel_id) {
-    await loadTemplates(form.channel_id);
-  }
   await loadBlasts();
   // Poll list every 10s to refresh active blast progress
   listPollTimer = setInterval(() => {
@@ -489,17 +459,10 @@ onUnmounted(() => {
 });
 
 // ---- API calls ------------------------------------------------------------
-async function loadKeys() {
-  try {
-    const res = await api('/WaDesk/Channels/list');
-    keys.value = res.data?.channels ?? res.data?.keys ?? [];
-  } catch (_) {}
-}
-
-async function loadTemplates(channelId = null) {
+async function loadTemplates() {
   templates.value = [];
   try {
-    templates.value = await fetchEligibleTemplates(channelId);
+    templates.value = await fetchEligibleTemplates();
   } catch (_) {
     templates.value = [];
   }
@@ -541,37 +504,6 @@ async function loadDetail(blastId, page = 1) {
 }
 
 // ---- event handlers -------------------------------------------------------
-async function onKeyChange() {
-  form.template_id = '';
-  csvParams.value = [];
-  csvHeaders.value = [];
-  keyQuota.value = null;
-  resetUpload();
-  if (form.channel_id) {
-    loadKeyQuota(form.channel_id);
-    await loadTemplates(form.channel_id);
-  } else {
-    templates.value = [];
-  }
-}
-
-async function loadKeyQuota(keyId) {
-  try {
-    const res = await api(`/WaDesk/Quota/forChannel?channel_id=${keyId}`);
-    const dl = res.data?.daily_limit;
-    keyQuota.value = {
-      team_id: res.data?.team_id,
-      team_name: res.data?.team_name,
-      balance: Number(res.data?.balance ?? 0),
-      daily_remaining: dl?.configured ? Number(dl.remaining_today ?? 0) : null,
-      daily_used: dl?.configured ? Number(dl.used_today ?? 0) : null,
-      daily_limit: dl?.configured ? Number(dl.limit ?? 0) : null,
-    };
-  } catch (_) {
-    keyQuota.value = null;
-  }
-}
-
 async function onTemplateChange() {
   resetUpload();
   if (form.template_id) {
@@ -674,7 +606,6 @@ async function submitBlast() {
       method: 'POST',
       body: {
         campaign_name:  form.campaign_name.trim(),
-        channel_id: Number(form.channel_id),
         template_id:    Number(form.template_id),
         rows,
       },
@@ -682,7 +613,6 @@ async function submitBlast() {
 
     resetUpload();
     form.campaign_name = '';
-    if (form.channel_id) await loadKeyQuota(form.channel_id);
     await loadBlasts();
   } catch (e) {
     submitError.value = e?.message ?? 'Gagal membuat blast';

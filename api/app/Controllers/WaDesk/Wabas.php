@@ -374,6 +374,7 @@ class Wabas extends WaDeskController
             'body_preview' => $keepFriendlyPreview ? $existing['body_preview'] : $preview,
             'meta_template_id' => (string) ($template['id'] ?? ''),
             'meta_status' => strtoupper((string) ($template['status'] ?? '')),
+            'meta_quality_rating' => strtoupper((string) ($template['quality_score'] ?? $template['quality_rating'] ?? '')),
             'meta_category' => strtoupper((string) ($template['category'] ?? '')),
         ];
         if ($existing) {

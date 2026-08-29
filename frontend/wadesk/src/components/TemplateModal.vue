@@ -15,18 +15,11 @@
 
       <form class="p-4 md:p-6 space-y-4 md:space-y-6" @submit.prevent="submit">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 md:items-start">
-          <!-- Kolom kiri: channel, nomor, template -->
+          <!-- Kolom kiri: nomor penerima dan template -->
           <div class="space-y-4">
-            <div v-if="!fixedKeyId">
-              <label class="label">Channel / WhatsApp number</label>
-              <select v-model="form.channel_id" required class="field" :disabled="busy || checking" @change="onKeyChange">
-                <option disabled value="">Select a channel</option>
-                <option v-for="k in keys" :key="k.id" :value="k.id" :disabled="Number(k.template_sending_enabled ?? 1) !== 1">
-                  {{ k.label }} ({{ k.phone_number }}){{ Number(k.template_sending_enabled ?? 1) !== 1 ? ' — Templates disabled' : '' }}
-                </option>
-              </select>
-            </div>
-
+            <p class="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-slate-300">
+              Nomor pengirim dipilih otomatis dari nomor Meta yang sehat dan tersedia.
+            </p>
             <div v-if="!fixedPhone">
               <label class="label">Recipient number</label>
               <input v-model="form.phone" required class="field" placeholder="62812..." :disabled="busy || checking" />
@@ -38,7 +31,7 @@
                 v-model="form.template_id"
                 required
                 class="field"
-                :disabled="busy || checking || !hasChannel"
+                :disabled="busy || checking"
                 @change="onTplChange"
               >
                 <option disabled value="">Select a template</option>
@@ -46,8 +39,8 @@
                   {{ t.template_name }} ({{ t.language }})
                 </option>
               </select>
-              <p v-if="hasChannel && !filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
-                No templates are available for this WhatsApp number. Sync again in Admin → Templates.
+              <p v-if="!filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
+                Tidak ada template dengan nomor Meta GREEN/YELLOW yang siap dipakai oleh team Anda.
               </p>
               <p v-if="livePreview" class="mt-2 text-xs text-slate-300 whitespace-pre-wrap rounded-lg bg-ink-950/60 p-3 border border-white/5 min-h-[5rem]">
                 {{ livePreview }}
@@ -174,7 +167,6 @@ const props = defineProps({
 const emit = defineEmits(["close", "submit", "load-templates"]);
 
 const form = reactive({
-  channel_id: props.fixedKeyId || "",
   phone: props.fixedPhone || "",
   template_id: "",
 });
@@ -183,8 +175,6 @@ const checking = ref(false);
 const aiWarning = ref("");
 
 const filteredTemplates = computed(() => props.templates);
-
-const hasChannel = computed(() => Boolean(form.channel_id || props.fixedKeyId));
 
 const selectedTpl = computed(() =>
   filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
@@ -208,26 +198,12 @@ function clearAiWarning() {
 }
 
 function requestTemplateReload() {
-  const cid = form.channel_id || props.fixedKeyId;
-  if (cid) {
-    emit("load-templates", cid);
-  }
+  emit("load-templates");
 }
 
 onMounted(() => {
   requestTemplateReload();
 });
-
-watch(
-  () => props.fixedKeyId,
-  (v) => {
-    if (v) {
-      form.channel_id = v;
-      requestTemplateReload();
-    }
-  },
-  { immediate: true }
-);
 
 watch(
   () => props.fixedPhone,
@@ -243,12 +219,6 @@ watch(
     if (props.error) aiWarning.value = "";
   }
 );
-
-function onKeyChange() {
-  form.template_id = "";
-  clearAiWarning();
-  requestTemplateReload();
-}
 
 function onTplChange() {
   Object.keys(paramValues).forEach((k) => delete paramValues[k]);
@@ -267,7 +237,6 @@ function buildPayload() {
   }
 
   return {
-    channel_id: Number(form.channel_id || props.fixedKeyId),
     phone: form.phone || props.fixedPhone,
     template_id: Number(form.template_id),
     template_name: tpl?.template_name,

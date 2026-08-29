@@ -318,7 +318,7 @@
       :busy="tplSending"
       :error="tplError"
       @close="closeModals"
-      @load-templates="(id) => chat.loadTemplates(id)"
+      @load-templates="() => chat.loadTemplates()"
       @submit="onTemplateSubmit"
     />
 
@@ -586,9 +586,7 @@ async function openTemplateForActive() {
   chat.templates = [];
   showNew.value = false;
   showTpl.value = true;
-  if (tplKeyId.value) {
-    await chat.loadTemplates(tplKeyId.value);
-  }
+  await chat.loadTemplates();
 }
 
 function closeModals() {
