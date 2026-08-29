@@ -797,7 +797,7 @@ class Templates extends WaDeskController
         preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
         $paramNames = array_values(array_unique(array_filter(array_map('trim', $matches[1] ?? []))));
         if (!preg_match('/^[a-z][a-z0-9_]{0,511}$/', $name) || $text === '') $this->error('Nama template (huruf kecil/angka/underscore) dan isi template wajib.', 422);
-        if (!in_array($category, ['UTILITY', 'MARKETING', 'AUTHENTICATION'], true)) $this->error('Kategori template tidak valid.', 422);
+        if (!in_array($category, ['UTILITY', 'MARKETING'], true)) $this->error('Kategori template tidak valid.', 422);
         foreach ($paramNames as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
         if (preg_match('/\{\{\s*\d+\s*\}\}/', $text)) $this->error('Parameter indeks seperti {{1}} tidak diizinkan. Gunakan nama enum seperti {{customer_name}}.', 422);
         $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
