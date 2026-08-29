@@ -114,6 +114,36 @@ class Meta
         return $this->post('/' . rawurlencode($phoneNumberId) . '/messages', $payload);
     }
 
+    public function addPhoneNumber(string $wabaId, string $countryCode, string $phoneNumber, string $verifiedName): array
+    {
+        return $this->post('/' . rawurlencode($wabaId) . '/phone_numbers', [
+            'cc' => preg_replace('/\D+/', '', $countryCode) ?: '62',
+            'phone_number' => preg_replace('/\D+/', '', $phoneNumber) ?: '',
+            'verified_name' => trim($verifiedName),
+        ]);
+    }
+
+    public function requestVerificationCode(string $phoneNumberId, string $method = 'SMS'): array
+    {
+        return $this->post('/' . rawurlencode($phoneNumberId) . '/request_code', [
+            'code_method' => strtoupper($method) === 'VOICE' ? 'VOICE' : 'SMS',
+            'language' => 'id',
+        ]);
+    }
+
+    public function verifyCode(string $phoneNumberId, string $code): array
+    {
+        return $this->post('/' . rawurlencode($phoneNumberId) . '/verify_code', ['code' => trim($code)]);
+    }
+
+    public function registerPhoneNumber(string $phoneNumberId): array
+    {
+        return $this->post('/' . rawurlencode($phoneNumberId) . '/register', [
+            'messaging_product' => 'whatsapp',
+            'pin' => '123654',
+        ]);
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int,paging?:array} */
     private function get(string $path, array $query = []): array
     {

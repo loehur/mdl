@@ -7,6 +7,71 @@ use App\Helpers\WaDesk\Meta;
 /** WABA catalogue. Numbers and templates are synced into their existing menus. */
 class Wabas extends WaDeskController
 {
+    private function metaForAdmin(): array
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+        $this->requireWabaTable();
+        $meta = new Meta();
+        if (!$meta->configured()) {
+            $this->error('META_WA_ACCESS_TOKEN belum diatur di server API.', 503);
+        }
+        return [$admin, $meta];
+    }
+
+    public function addNumber()
+    {
+        [$admin, $meta] = $this->metaForAdmin();
+        $body = $this->getBody();
+        $wabaId = trim((string) ($body['waba_id'] ?? ''));
+        $cc = trim((string) ($body['country_code'] ?? '62'));
+        $phone = trim((string) ($body['phone_number'] ?? ''));
+        $name = trim((string) ($body['verified_name'] ?? ''));
+        $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
+        if ($phone === '' || $name === '') $this->error('Nomor dan verified name wajib diisi', 422);
+        $res = $meta->addPhoneNumber($wabaId, $cc, $phone, $name);
+        if (!$res['success']) $this->error('Gagal menambah nomor: ' . $res['error'], 502, $res['data']);
+        $phoneId = (string) ($res['data']['id'] ?? $res['data']['phone_number_id'] ?? '');
+        $this->success(['phone_number_id' => $phoneId, 'meta' => $res['data']], 'Nomor ditambahkan. Minta OTP untuk melanjutkan.');
+    }
+
+    public function requestOtp()
+    {
+        [, $meta] = $this->metaForAdmin();
+        $body = $this->getBody();
+        $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
+        if ($phoneId === '') $this->error('phone_number_id wajib', 422);
+        $res = $meta->requestVerificationCode($phoneId, (string) ($body['method'] ?? 'SMS'));
+        if (!$res['success']) $this->error('Gagal meminta OTP: ' . $res['error'], 502, $res['data']);
+        $this->success(['meta' => $res['data']], 'OTP dikirim.');
+    }
+
+    public function verifyOtp()
+    {
+        [, $meta] = $this->metaForAdmin();
+        $body = $this->getBody();
+        $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
+        $code = trim((string) ($body['code'] ?? ''));
+        if ($phoneId === '' || $code === '') $this->error('Phone Number ID dan OTP wajib diisi', 422);
+        $res = $meta->verifyCode($phoneId, $code);
+        if (!$res['success']) $this->error('OTP tidak valid: ' . $res['error'], 502, $res['data']);
+        $this->success(['meta' => $res['data']], 'OTP terverifikasi. Nomor siap diregistrasikan.');
+    }
+
+    public function registerNumber()
+    {
+        [$admin, $meta] = $this->metaForAdmin();
+        $body = $this->getBody();
+        $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
+        if ($phoneId === '') $this->error('phone_number_id wajib', 422);
+        $res = $meta->registerPhoneNumber($phoneId);
+        if (!$res['success']) $this->error('Gagal register nomor: ' . $res['error'], 502, $res['data']);
+        $this->success(['meta' => $res['data']], 'Nomor berhasil diregistrasikan. Sync WABA untuk memunculkannya di daftar.');
+    }
+
     public function list()
     {
         $this->verifyAuth();
@@ -349,5 +414,14 @@ class Wabas extends WaDeskController
         if (!$waba || !$teams) {
             $this->error('Migration WABA belum lengkap. Jalankan 032_meta_waba_sync.sql lalu 033_waba_team_access.sql.', 503);
         }
+    }
+
+    private function assertTenantWaba(int $tenantId, string $metaWabaId): void
+    {
+        $row = $this->db($this->db_index)->query(
+            'SELECT id FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
+            [$tenantId, $metaWabaId]
+        )->row_array();
+        if (!$row) $this->error('WABA tidak ditemukan. Lakukan Sync WABA terlebih dahulu.', 404);
     }
 }

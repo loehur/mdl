@@ -346,6 +346,7 @@
           <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
             {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
           </button>
+          <button type="button" class="btn shrink-0" @click="openAddNumber">Add Number</button>
         </div>
         <select v-model="numberWabaFilter" class="field sm:max-w-md">
           <option v-for="waba in wabas" :key="`number-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option>
@@ -371,6 +372,30 @@
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="addingNumber" class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3">
+          <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="addingNumber = false">Tutup</button></div>
+          <template v-if="numberFlow.step === 'add'">
+            <select v-model="numberForm.waba_id" class="field"><option v-for="waba in wabas" :key="`add-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option></select>
+            <div class="grid sm:grid-cols-3 gap-2"><input v-model="numberForm.country_code" class="field" placeholder="Country code" /><input v-model="numberForm.phone_number" class="field sm:col-span-2" placeholder="Nomor tanpa +" /></div>
+            <input v-model="numberForm.verified_name" class="field" placeholder="Verified name" />
+            <button type="button" class="btn" :disabled="numberFlow.loading" @click="addNumber">{{ numberFlow.loading ? 'Memproses...' : 'Tambah nomor' }}</button>
+          </template>
+          <template v-else>
+            <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
+            <template v-if="numberFlow.step === 'request'">
+              <select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select>
+              <button type="button" class="btn" :disabled="numberFlow.loading" @click="requestOtp">Request OTP</button>
+            </template>
+            <template v-else-if="numberFlow.step === 'verify'">
+              <input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" />
+              <button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button>
+            </template>
+            <template v-else-if="numberFlow.step === 'register'">
+              <p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p>
+              <button type="button" class="btn" :disabled="numberFlow.loading" @click="registerNumber">Register Number</button>
+            </template>
+          </template>
         </div>
       </section>
 
@@ -1472,6 +1497,9 @@ const wabas = ref([]);
 const numbers = ref([]);
 const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
+const addingNumber = ref(false);
+const numberForm = reactive({ waba_id: "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
+const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false });
 const editingWabaTeamId = ref(null);
 const wabaTeamDraft = ref([]);
 const savingWabaTeamId = ref(null);
@@ -3055,6 +3083,52 @@ async function loadNumbers() {
   } finally {
     loadingNumbers.value = false;
   }
+}
+
+function openAddNumber() {
+  Object.assign(numberForm, { waba_id: numberWabaFilter.value || wabas.value[0]?.meta_waba_id || "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
+  Object.assign(numberFlow, { step: "add", phone_number_id: "", loading: false });
+  addingNumber.value = true;
+}
+
+async function addNumber() {
+  numberFlow.loading = true;
+  try {
+    const res = await api("/WaDesk/Wabas/addNumber", { method: "POST", body: numberForm });
+    const phoneId = String(res.data?.phone_number_id || "");
+    if (!phoneId) throw new Error("Meta tidak mengembalikan Phone Number ID");
+    numberFlow.phone_number_id = phoneId;
+    numberFlow.step = "request";
+    flash(true, "Nomor ditambahkan. Request OTP untuk melanjutkan.");
+  } catch (e) { flash(false, e.message || "Gagal menambah nomor"); } finally { numberFlow.loading = false; }
+}
+
+async function requestOtp() {
+  numberFlow.loading = true;
+  try {
+    await api("/WaDesk/Wabas/requestOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, method: numberForm.method } });
+    numberFlow.step = "verify";
+    flash(true, "OTP dikirim.");
+  } catch (e) { flash(false, e.message || "Gagal meminta OTP"); } finally { numberFlow.loading = false; }
+}
+
+async function verifyOtp() {
+  numberFlow.loading = true;
+  try {
+    await api("/WaDesk/Wabas/verifyOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, code: numberForm.otp } });
+    numberFlow.step = "register";
+    flash(true, "OTP terverifikasi.");
+  } catch (e) { flash(false, e.message || "OTP tidak valid"); } finally { numberFlow.loading = false; }
+}
+
+async function registerNumber() {
+  numberFlow.loading = true;
+  try {
+    await api("/WaDesk/Wabas/registerNumber", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id } });
+    flash(true, "Nomor berhasil diregistrasikan.");
+    addingNumber.value = false;
+    await syncWabas();
+  } catch (e) { flash(false, e.message || "Gagal register nomor"); } finally { numberFlow.loading = false; }
 }
 
 function openWabaTeamEditor(waba) {
