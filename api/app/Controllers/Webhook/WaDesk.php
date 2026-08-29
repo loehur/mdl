@@ -578,6 +578,12 @@ class WaDesk extends Controller
             $msgRow['media_url'] = $localMediaUrl;
         }
         $msgId = (int) $db->insert('messages', $msgRow);
+        // Count only persisted inbound messages. Duplicate webhook deliveries return
+        // above, and status/delivery webhooks never reach persistInbound().
+        $db->query(
+            'UPDATE wa_channels SET inbound_count = inbound_count + 1 WHERE id = ?',
+            [(int) $channel['id']]
+        );
 
         $this->logWebhook(
             'INBOUND saved conv=' . $convId
