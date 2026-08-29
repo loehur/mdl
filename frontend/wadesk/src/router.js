@@ -7,6 +7,7 @@ import BlastView from "./views/BlastView.vue";
 import ReportView from "./views/ReportView.vue";
 import AccountView from "./views/AccountView.vue";
 import TemplatesView from "./views/TemplatesView.vue";
+import NumbersView from "./views/NumbersView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -18,6 +19,7 @@ const router = createRouter({
     { path: "/report", name: "report", component: ReportView, meta: { auth: true } },
     { path: "/account", name: "account", component: AccountView, meta: { auth: true } },
     { path: "/templates", name: "templates", component: TemplatesView, meta: { auth: true } },
+    { path: "/numbers", name: "numbers", component: NumbersView, meta: { auth: true } },
   ],
 });
 

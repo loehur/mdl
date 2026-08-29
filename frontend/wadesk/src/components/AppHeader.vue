@@ -145,13 +145,14 @@ const sidebarOpen = ref(false);
 const mainNavItems = [
   { to: "/", label: "Chat" },
   { to: "/templates", label: "Templates" },
+  { to: "/numbers", label: "Numbers", teamLeaderOnly: true },
   { to: "/blast", label: "Blast" },
   { to: "/report", label: "Report" },
   { to: "/account", label: "Account" },
 ];
 
 const visibleMainNavItems = computed(() =>
-  mainNavItems.filter((item) => !item.manageOnly || auth.canManageTeam)
+  mainNavItems.filter((item) => (!item.manageOnly || auth.canManageTeam) && (!item.teamLeaderOnly || auth.isTeamLeader))
 );
 
 watch(

@@ -10,7 +10,9 @@ class Wabas extends WaDeskController
     private function metaForAdmin(): array
     {
         $this->verifyAuth();
-        $admin = $this->requireAdmin();
+        $admin = $this->requireChatUser();
+        if (!in_array((string) ($admin['role'] ?? ''), ['admin', 'team_leader'], true)) $this->error('Hanya Admin atau Team Leader yang dapat mengelola nomor.', 403);
+        if (($admin['role'] ?? '') === 'team_leader' && !$this->hasOperationalTeam($admin)) $this->error('Team Leader harus berada pada team aktif.', 403);
         if (!$this->isPost()) {
             $this->error('Method not allowed', 405);
         }
@@ -26,7 +28,7 @@ class Wabas extends WaDeskController
     {
         [$admin, $meta] = $this->metaForAdmin();
         $body = $this->getBody();
-        $wabaId = trim((string) ($body['waba_id'] ?? ''));
+        $wabaId = $this->managedWabaId($admin, (string) ($body['waba_id'] ?? ''));
         $cc = '62';
         $phone = trim((string) ($body['phone_number'] ?? ''));
         $waba = $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
@@ -38,6 +40,9 @@ class Wabas extends WaDeskController
         $res = $meta->addPhoneNumber($wabaId, $cc, $normalizedPhone, (string) $waba['name']);
         if (!$res['success']) $this->error('Gagal menambah nomor: ' . $res['error'], 502, $res['data']);
         $phoneId = (string) ($res['data']['id'] ?? $res['data']['phone_number_id'] ?? '');
+        if ($phoneId !== '' && ($admin['role'] ?? '') === 'team_leader') {
+            $this->recordTeamPendingPhone($admin, $wabaId, $phoneId, $normalizedPhone, (string) $waba['name']);
+        }
         $this->success(['phone_number_id' => $phoneId, 'meta' => $res['data']], 'Nomor ditambahkan. Minta OTP untuk melanjutkan.');
     }
 
@@ -47,6 +52,7 @@ class Wabas extends WaDeskController
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         if ($phoneId === '') $this->error('phone_number_id wajib', 422);
+        $this->assertManagedPhone($this->requireChatUser(), $phoneId);
         $res = $meta->requestVerificationCode($phoneId, (string) ($body['method'] ?? 'SMS'));
         if (!$res['success']) $this->error('Gagal meminta OTP: ' . $res['error'], 502, $res['data']);
         $this->success(['meta' => $res['data']], 'OTP dikirim.');
@@ -59,6 +65,7 @@ class Wabas extends WaDeskController
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         $code = trim((string) ($body['code'] ?? ''));
         if ($phoneId === '' || $code === '') $this->error('Phone Number ID dan OTP wajib diisi', 422);
+        $this->assertManagedPhone($this->requireChatUser(), $phoneId);
         $res = $meta->verifyCode($phoneId, $code);
         if (!$res['success']) $this->error('OTP tidak valid: ' . $res['error'], 502, $res['data']);
         $this->success(['meta' => $res['data']], 'OTP terverifikasi. Nomor siap diregistrasikan.');
@@ -70,6 +77,7 @@ class Wabas extends WaDeskController
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         if ($phoneId === '') $this->error('phone_number_id wajib', 422);
+        $this->assertManagedPhone($admin, $phoneId);
         $res = $meta->registerPhoneNumber($phoneId);
         if (!$res['success']) $this->error('Gagal register nomor: ' . $res['error'], 502, $res['data']);
         $this->success(['meta' => $res['data']], 'Nomor berhasil diregistrasikan. Sync WABA untuk memunculkannya di daftar.');
@@ -82,14 +90,43 @@ class Wabas extends WaDeskController
         $channelId = (int) ($body['channel_id'] ?? 0);
         $tenantId = (int) $admin['tenant_id'];
         $channel = $this->db($this->db_index)->query(
-            "SELECT id, meta_phone_number_id FROM wa_channels WHERE id = ? AND tenant_id = ? AND provider = 'meta' LIMIT 1",
+            "SELECT id, meta_phone_number_id, waba_id FROM wa_channels WHERE id = ? AND tenant_id = ? AND provider = 'meta' LIMIT 1",
             [$channelId, $tenantId]
         )->row_array();
         if (!$channel || empty($channel['meta_phone_number_id'])) $this->error('Nomor Meta tidak ditemukan', 404);
+        $this->managedWabaId($admin, (string) ($channel['waba_id'] ?? ''));
         $res = $meta->deletePhoneNumber((string) $channel['meta_phone_number_id']);
         if (!$res['success']) $this->error('Gagal menghapus nomor di Meta: ' . $res['error'], 502, $res['data']);
         $this->db($this->db_index)->delete('wa_channels', ['id' => $channelId]);
         $this->success(['meta' => $res['data']], 'Nomor berhasil dihapus.');
+    }
+
+    public function teamNumbers()
+    {
+        $this->verifyAuth(); $user = $this->requireChatUser();
+        if (($user['role'] ?? '') !== 'team_leader' || !$this->hasOperationalTeam($user)) $this->error('Khusus Team Leader pada team aktif.', 403);
+        $wabaId = $this->managedWabaId($user);
+        $waba = $this->assertTenantWaba((int) $user['tenant_id'], $wabaId);
+        $numbers = $this->db($this->db_index)->query(
+            "SELECT * FROM wa_channels WHERE tenant_id = ? AND waba_id = ? AND provider = 'meta' ORDER BY label ASC, id ASC",
+            [(int) $user['tenant_id'], $wabaId]
+        )->result_array();
+        $this->success(['waba' => ['id' => $wabaId, 'name' => $waba['name']], 'numbers' => $numbers]);
+    }
+
+    public function syncNumbersForTeam()
+    {
+        $this->verifyAuth(); $user = $this->requireChatUser();
+        if (($user['role'] ?? '') !== 'team_leader' || !$this->hasOperationalTeam($user)) $this->error('Khusus Team Leader pada team aktif.', 403);
+        $this->requireWabaTable();
+        $wabaId = $this->managedWabaId($user);
+        $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $res = $meta->listPhoneNumbers($wabaId);
+        if (!$res['success']) $this->error('Gagal sync nomor: ' . $res['error'], 502, $res['data']);
+        $count = 0;
+        foreach ($res['data'] as $phone) if (is_array($phone) && $this->upsertPhone((int) $user['tenant_id'], $wabaId, $phone)) $count++;
+        $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, [(int) $user['team_id']]);
+        $this->success(['numbers' => $count], 'Nomor WABA team berhasil disinkronkan.');
     }
 
     /** Sync templates for the caller's active team WABA without changing channels. */
@@ -554,5 +591,46 @@ class Wabas extends WaDeskController
         )->row_array();
         if (!$row) $this->error('WABA tidak ditemukan. Lakukan Sync WABA terlebih dahulu.', 404);
         return $row;
+    }
+
+    /** Resolve a Team Leader's only permitted WABA on the server. */
+    private function managedWabaId(array $user, string $requestedWabaId = ''): string
+    {
+        if (($user['role'] ?? '') === 'admin') return trim($requestedWabaId);
+        $row = $this->db($this->db_index)->query(
+            'SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1',
+            [(int) $user['tenant_id'], (int) $user['team_id']]
+        )->row_array();
+        $wabaId = trim((string) ($row['meta_waba_id'] ?? ''));
+        if ($wabaId === '') $this->error('Team belum di-assign ke WABA.', 422);
+        if (trim($requestedWabaId) !== '' && trim($requestedWabaId) !== $wabaId) $this->error('WABA tidak dapat diubah oleh Team Leader.', 403);
+        return $wabaId;
+    }
+
+    private function assertManagedPhone(array $user, string $phoneId): void
+    {
+        if (($user['role'] ?? '') === 'admin') return;
+        $row = $this->db($this->db_index)->query(
+            "SELECT waba_id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? AND provider = 'meta' LIMIT 1",
+            [(int) $user['tenant_id'], $phoneId]
+        )->row_array();
+        if (!$row) $this->error('Phone Number ID tidak berada pada WABA team Anda.', 403);
+        $this->managedWabaId($user, (string) ($row['waba_id'] ?? ''));
+    }
+
+    private function recordTeamPendingPhone(array $user, string $wabaId, string $phoneId, string $phone, string $label): void
+    {
+        $db = $this->db($this->db_index);
+        $exists = $db->query('SELECT id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1', [(int) $user['tenant_id'], $phoneId])->row_array();
+        if (!$exists) {
+            $db->insert('wa_channels', [
+                'tenant_id' => (int) $user['tenant_id'], 'waba_id' => $wabaId,
+                'meta_phone_number_id' => $phoneId, 'device_id' => $phoneId,
+                'phone_number' => '62' . $phone, 'label' => $label,
+                'meta_verification_status' => 'PENDING', 'channel_type' => 'waba',
+                'provider' => 'meta', 'status' => 'inactive',
+            ]);
+        }
+        $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, [(int) $user['team_id']]);
     }
 }
