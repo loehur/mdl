@@ -16,14 +16,14 @@
             placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
-          <button v-if="auth.canManageTeam" type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button>
+          <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
           <form v-if="showCreate" class="space-y-4 rounded-xl border border-accent/20 bg-ink-950/40 p-4" @submit.prevent="createTemplate">
             <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis.</p></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
             <div><label class="label block mb-1">Isi pesan</label><textarea v-model="createForm.body" class="field block w-full" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, tagihan Anda sudah jatuh tempo." /><p class="mt-1 text-[11px] text-slate-500">Gunakan parameter bernama seperti <code v-pre>{{customer_name}}</code>. Parameter angka seperti <code v-pre>{{1}}</code> tidak didukung.</p></div>
             <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di isi pesan bila diperlukan.</p></div>
-            <button class="btn w-full sm:w-auto disabled:opacity-100 disabled:bg-slate-700 disabled:text-slate-200" :disabled="creating">{{ creating ? 'Mengirim ke Meta...' : 'Kirim template ke Meta' }}</button>
+            <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed" style="background:#0f766e" :disabled="creating">{{ creating ? 'Mengirim ke Meta...' : 'Kirim template ke Meta' }}</button>
           </form>
         </section>
 
@@ -40,6 +40,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <h3 class="font-semibold text-slate-100 break-all">{{ template.template_name }}</h3>
                 <span v-if="template.language" class="badge">{{ template.language }}</span>
+                <span v-if="template.meta_status" class="badge" :class="String(template.meta_status).toUpperCase() === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'">{{ template.meta_status }}</span>
               </div>
               <p v-if="template.waba_label || template.waba_id" class="mt-1 text-xs text-slate-500 truncate">
                 {{ template.waba_label || template.waba_id }}
@@ -96,6 +97,7 @@ const expandedId = ref(null);
 const loadMoreTarget = ref(null);
 const showCreate = ref(false);
 const creating = ref(false);
+const syncing = ref(false);
 const createForm = reactive({ template_name: "", category: "UTILITY", body: "" });
 const namedParams = computed(() => [...new Set([...String(createForm.body || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
 let observer;
@@ -143,6 +145,13 @@ async function createTemplate() {
     showCreate.value = false;
     await loadTemplates({ reset: true });
   } catch (e) { error.value = e.message || "Gagal membuat template."; } finally { creating.value = false; }
+}
+
+async function syncTemplates() {
+  syncing.value = true; error.value = "";
+  try { await api("/WaDesk/Wabas/syncTemplatesForTeam", { method: "POST", body: {} }); await loadTemplates({ reset: true }); }
+  catch (e) { error.value = e.message || "Gagal sync template."; }
+  finally { syncing.value = false; }
 }
 
 async function onLogout() {

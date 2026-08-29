@@ -92,6 +92,24 @@ class Wabas extends WaDeskController
         $this->success(['meta' => $res['data']], 'Nomor berhasil dihapus.');
     }
 
+    /** Sync templates for the caller's active team WABA without changing channels. */
+    public function syncTemplatesForTeam()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) $this->error('Admin/Team Leader harus masuk team untuk sync template.', 403);
+        $this->requireWabaTable();
+        $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
+        $waba = $this->db($this->db_index)->query('SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1', [$tenantId, $teamId])->row_array();
+        if (!$waba) $this->error('Team belum di-assign ke WABA.', 422);
+        $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $res = $meta->listTemplates((string) $waba['meta_waba_id']);
+        if (!$res['success']) $this->error('Gagal sync template: ' . $res['error'], 502, $res['data']);
+        $count = 0; foreach ($res['data'] as $template) if (is_array($template) && $this->upsertTemplate($tenantId, (string) $waba['meta_waba_id'], $template)) $count++;
+        $this->success(['templates' => $count], 'Template berhasil disinkronkan.');
+    }
+
     public function list()
     {
         $this->verifyAuth();
