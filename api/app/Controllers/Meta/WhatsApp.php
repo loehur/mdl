@@ -102,6 +102,76 @@ class WhatsApp extends Controller
     }
 
     /**
+     * Send free-form text inside Meta's customer service window.
+     *
+     * POST /Meta/WhatsApp/send-text
+     */
+    public function send_text()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed. Use POST.', 405);
+        }
+
+        $this->authorize();
+        $body = $this->getBody();
+        $this->validate($body, ['phone_number_id', 'to', 'message']);
+
+        $accessToken = $this->config('META_WA_ACCESS_TOKEN');
+        if ($accessToken === '') {
+            $this->error('Meta WhatsApp belum dikonfigurasi. Isi META_WA_ACCESS_TOKEN.', 503);
+        }
+
+        $phoneNumberId = $this->strFromBody($body, 'phone_number_id');
+        $to = $this->normalizePhone($this->strFromBody($body, 'to'));
+        $message = $this->strFromBody($body, 'message');
+        if (!preg_match('/^\d{5,32}$/', $phoneNumberId)) {
+            $this->error('phone_number_id tidak valid.', 400);
+        }
+        if ($to === '') {
+            $this->error('Nomor tujuan tidak valid.', 400);
+        }
+        if ($message === '') {
+            $this->error('message tidak boleh kosong.', 400);
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $to,
+            'type' => 'text',
+            'text' => ['body' => $message],
+        ];
+        $replyTo = $this->strFromBody($body, 'reply_to');
+        if ($replyTo !== '') {
+            $payload['context'] = ['message_id' => $replyTo];
+        }
+
+        $version = $this->config('META_WA_GRAPH_VERSION', 'v23.0');
+        $url = 'https://graph.facebook.com/' . rawurlencode($version) . '/'
+            . rawurlencode($phoneNumberId) . '/messages';
+        $result = $this->postJson($url, $accessToken, $payload);
+
+        \Log::write(
+            'Free text send: to=' . $to
+                . ', phone_number_id=' . $phoneNumberId
+                . ', http=' . $result['http_code']
+                . ', response=' . $result['body'],
+            'wa_meta',
+            'send_text'
+        );
+
+        if ($result['http_code'] < 200 || $result['http_code'] >= 300) {
+            $this->error('Meta WhatsApp menolak pengiriman free text.', 502, [
+                'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+            ]);
+        }
+
+        $this->success([
+            'to' => $to,
+            'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+        ], 'Free text WhatsApp Meta berhasil dikirim.');
+    }
+
+    /**
      * Tambahkan nomor baru ke WABA Meta.
      *
      * POST /Meta/WhatsApp/add-phone-number
