@@ -169,6 +169,16 @@ class Wabas extends WaDeskController
     /** Discover accessible WABAs and sync all their numbers and templates. */
     public function sync()
     {
+        try {
+            $this->syncInternal();
+        } catch (\Throwable $e) {
+            \Log::write('WABA sync failed: ' . $e->getMessage(), 'wadesk', 'waba_sync');
+            $this->error('Sync WABA gagal: ' . $e->getMessage(), 500);
+        }
+    }
+
+    private function syncInternal(): void
+    {
         $this->verifyAuth();
         $admin = $this->requireAdmin();
         if (!$this->isPost()) {

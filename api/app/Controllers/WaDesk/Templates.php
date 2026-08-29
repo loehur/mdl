@@ -4,6 +4,7 @@ namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
 use App\Helpers\WaDesk\YCloud as WaDeskYCloud;
+use App\Helpers\WaDesk\Meta as WaDeskMeta;
 
 /**
  * Templates — Admin CRUD WhatsApp templates + Kirimin sync (tenant-wide).
@@ -777,6 +778,42 @@ class Templates extends WaDeskController
         $this->replaceParams($tplId, $body['params'] ?? []);
 
         $this->success(['id' => $tplId], 'Template dibuat');
+    }
+
+    /** Create a Meta template from the operational Templates menu. */
+    public function createForTeam()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
+            $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
+        }
+        $body = $this->getBody();
+        $name = strtolower(trim((string) ($body['template_name'] ?? '')));
+        $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
+        $category = strtoupper(trim((string) ($body['category'] ?? 'UTILITY')));
+        $text = trim((string) ($body['body'] ?? ''));
+        $paramNames = array_values(array_unique(array_filter(array_map('trim', (array) ($body['param_names'] ?? [])))));
+        if (!preg_match('/^[a-z][a-z0-9_]{0,511}$/', $name) || $text === '') $this->error('Nama template (huruf kecil/angka/underscore) dan isi template wajib.', 422);
+        if (!in_array($category, ['UTILITY', 'MARKETING', 'AUTHENTICATION'], true)) $this->error('Kategori template tidak valid.', 422);
+        foreach ($paramNames as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
+        if (preg_match('/\{\{\s*\d+\s*\}\}/', $text)) $this->error('Parameter indeks seperti {{1}} tidak diizinkan. Gunakan nama enum seperti {{customer_name}}.', 422);
+        $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
+        $waba = $this->db($this->db_index)->query(
+            'SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1',
+            [$tenantId, $teamId]
+        )->row_array();
+        if (!$waba) $this->error('Team Anda belum di-assign ke WABA.', 422);
+        $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $text, $paramNames);
+        if (!$res['success']) $this->error('Meta menolak template: ' . $res['error'], 502, $res['data']);
+        $data = $res['data'];
+        $templateId = (int) $this->db($this->db_index)->insert('wa_templates', ['tenant_id' => $tenantId, 'meta_waba_id' => $waba['meta_waba_id'], 'template_name' => $name, 'language' => $language, 'body_preview' => $text, 'meta_template_id' => (string) ($data['id'] ?? ''), 'meta_status' => strtoupper((string) ($data['status'] ?? 'PENDING')), 'meta_category' => $category]);
+        $params = []; foreach ($paramNames as $i => $param) $params[] = ['component' => 'body', 'param_index' => $i + 1, 'param_name' => $param, 'label' => $param, 'is_required' => 1];
+        $this->replaceParams($templateId, $params);
+        $this->db($this->db_index)->insert('wa_template_teams', ['template_id' => $templateId, 'team_id' => $teamId, 'tenant_id' => $tenantId]);
+        $this->success(['id' => $templateId, 'meta' => $data], 'Template dikirim ke Meta dan otomatis di-assign ke team Anda.');
     }
 
     public function update()

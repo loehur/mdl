@@ -150,6 +150,24 @@ class Meta
         return $this->delete('/' . rawurlencode($phoneNumberId));
     }
 
+    /** Create a Meta template with named (never positional) body parameters. */
+    public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramNames): array
+    {
+        $component = ['type' => 'BODY', 'text' => $body];
+        if ($paramNames !== []) {
+            $component['example'] = ['body_text_named_params' => array_map(
+                static fn (string $param) => ['param_name' => $param, 'example' => 'contoh'],
+                $paramNames
+            )];
+        }
+        return $this->post('/' . rawurlencode($wabaId) . '/message_templates', [
+            'name' => $name,
+            'language' => $language,
+            'category' => $category,
+            'components' => [$component],
+        ]);
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int,paging?:array} */
     private function get(string $path, array $query = []): array
     {

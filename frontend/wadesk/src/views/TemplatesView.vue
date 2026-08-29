@@ -16,6 +16,15 @@
             placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
+          <button v-if="auth.canManageTeam" type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button>
+          <form v-if="showCreate" class="space-y-2 rounded-xl border border-white/10 bg-ink-950/40 p-3" @submit.prevent="createTemplate">
+            <input v-model="createForm.template_name" class="field" placeholder="Nama template, contoh: tagihan_baru" />
+            <select v-model="createForm.category" class="field"><option value="UTILITY">UTILITY</option><option value="MARKETING">MARKETING</option><option value="AUTHENTICATION">AUTHENTICATION</option></select>
+            <textarea v-model="createForm.body" class="field min-h-24" placeholder="Isi template. Gunakan {{customer_name}}, bukan {{1}}." />
+            <input v-model="createForm.param_names" class="field" placeholder="Parameter enum, pisahkan koma: customer_name,company_name" />
+            <p class="text-xs text-slate-500">Template dikirim ke WABA team Anda dan otomatis di-assign ke team tersebut.</p>
+            <button class="btn" :disabled="creating">{{ creating ? 'Mengirim...' : 'Kirim template ke Meta' }}</button>
+          </form>
         </section>
 
         <p v-if="error" class="alert alert-error">{{ error }}</p>
@@ -69,7 +78,7 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
@@ -85,6 +94,9 @@ const loading = ref(false);
 const error = ref("");
 const expandedId = ref(null);
 const loadMoreTarget = ref(null);
+const showCreate = ref(false);
+const creating = ref(false);
+const createForm = reactive({ template_name: "", category: "UTILITY", body: "", param_names: "" });
 let observer;
 let searchTimer;
 
@@ -120,6 +132,17 @@ function onSearch() {
 
 function toggleDetail(id) {
   expandedId.value = expandedId.value === id ? null : id;
+}
+
+async function createTemplate() {
+  creating.value = true; error.value = "";
+  try {
+    const paramNames = createForm.param_names.split(",").map((v) => v.trim()).filter(Boolean);
+    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", body: createForm.body, param_names: paramNames } });
+    Object.assign(createForm, { template_name: "", category: "UTILITY", body: "", param_names: "" });
+    showCreate.value = false;
+    await loadTemplates({ reset: true });
+  } catch (e) { error.value = e.message || "Gagal membuat template."; } finally { creating.value = false; }
 }
 
 async function onLogout() {
