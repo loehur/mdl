@@ -1403,6 +1403,7 @@
       :mode="dialog.mode"
       :confirm-label="dialog.confirmLabel"
       :danger="dialog.danger"
+      :required-text="dialog.requiredText"
       @confirm="onDialogConfirm"
       @close="closeDialog"
     />
@@ -1565,16 +1566,18 @@ const dialog = reactive({
   message: "",
   confirmLabel: "Hapus",
   danger: true,
+  requiredText: "",
   action: null,
 });
 
-function askConfirm({ title, message, confirmLabel = "Hapus", danger = true, mode = "confirm", action }) {
+function askConfirm({ title, message, confirmLabel = "Hapus", danger = true, mode = "confirm", requiredText = "", action }) {
   dialog.open = true;
   dialog.mode = mode;
   dialog.title = title || "Konfirmasi";
   dialog.message = message;
   dialog.confirmLabel = confirmLabel;
   dialog.danger = danger;
+  dialog.requiredText = requiredText;
   dialog.action = action;
 }
 
@@ -3133,7 +3136,9 @@ async function registerNumber() {
 function deleteNumber(number) {
   askConfirm({
     title: "Hapus nomor WhatsApp",
-    message: `Nomor +${number.phone_number} akan dihapus dari Meta dan dari WaDesk. Percakapan pada nomor ini juga ikut terhapus. Lanjutkan?`,
+    message: `Tindakan permanen: nomor +${number.phone_number} akan dihapus dari Meta dan WaDesk. Seluruh percakapan pada nomor ini ikut terhapus dan tidak dapat dipulihkan.`,
+    confirmLabel: "Hapus permanen",
+    requiredText: `HAPUS ${number.phone_number}`,
     action: async () => {
       try {
         await api("/WaDesk/Wabas/deleteNumber", { method: "POST", body: { channel_id: number.id } });

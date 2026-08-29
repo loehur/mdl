@@ -10,6 +10,10 @@
       </div>
       <div class="p-4 space-y-4">
         <p class="text-sm text-slate-300 whitespace-pre-wrap">{{ message }}</p>
+        <div v-if="requiredText" class="space-y-2">
+          <p class="text-xs text-amber-300">Ketik <span class="font-mono select-all">{{ requiredText }}</span> untuk mengonfirmasi.</p>
+          <input v-model="typedText" class="field" :placeholder="requiredText" autocomplete="off" />
+        </div>
         <div class="flex gap-2 justify-end">
           <button
             v-if="mode === 'confirm'"
@@ -23,6 +27,8 @@
             type="button"
             class="px-4 py-2.5 rounded-xl text-sm font-medium"
             :class="danger ? 'bg-rose-500/90 hover:bg-rose-500 text-white' : 'bg-accent hover:bg-accent/90 text-white'"
+            :disabled="!!requiredText && typedText !== requiredText"
+            :title="requiredText && typedText !== requiredText ? 'Ketik teks konfirmasi terlebih dahulu' : ''"
             @click="onConfirm"
           >
             {{ confirmLabel }}
@@ -34,6 +40,8 @@
 </template>
 
 <script setup>
+import { ref } from "vue";
+
 defineProps({
   title: { type: String, default: "Confirm" },
   message: { type: String, required: true },
@@ -41,7 +49,10 @@ defineProps({
   confirmLabel: { type: String, default: "Confirm" },
   cancelLabel: { type: String, default: "Cancel" },
   danger: { type: Boolean, default: false },
+  requiredText: { type: String, default: "" },
 });
+
+const typedText = ref("");
 
 const emit = defineEmits(["confirm", "cancel", "close"]);
 
