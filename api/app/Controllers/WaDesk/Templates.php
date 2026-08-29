@@ -794,7 +794,8 @@ class Templates extends WaDeskController
         $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
         $category = strtoupper(trim((string) ($body['category'] ?? 'UTILITY')));
         $text = trim((string) ($body['body'] ?? ''));
-        $paramNames = array_values(array_unique(array_filter(array_map('trim', (array) ($body['param_names'] ?? [])))));
+        preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
+        $paramNames = array_values(array_unique(array_filter(array_map('trim', $matches[1] ?? []))));
         if (!preg_match('/^[a-z][a-z0-9_]{0,511}$/', $name) || $text === '') $this->error('Nama template (huruf kecil/angka/underscore) dan isi template wajib.', 422);
         if (!in_array($category, ['UTILITY', 'MARKETING', 'AUTHENTICATION'], true)) $this->error('Kategori template tidak valid.', 422);
         foreach ($paramNames as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);

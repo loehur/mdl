@@ -17,13 +17,13 @@
             @input="onSearch"
           />
           <button v-if="auth.canManageTeam" type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button>
-          <form v-if="showCreate" class="space-y-2 rounded-xl border border-white/10 bg-ink-950/40 p-3" @submit.prevent="createTemplate">
-            <input v-model="createForm.template_name" class="field" placeholder="Nama template, contoh: tagihan_baru" />
-            <select v-model="createForm.category" class="field"><option value="UTILITY">UTILITY</option><option value="MARKETING">MARKETING</option><option value="AUTHENTICATION">AUTHENTICATION</option></select>
-            <textarea v-model="createForm.body" class="field min-h-24" placeholder="Isi template. Gunakan {{customer_name}}, bukan {{1}}." />
-            <input v-model="createForm.param_names" class="field" placeholder="Parameter enum, pisahkan koma: customer_name,company_name" />
-            <p class="text-xs text-slate-500">Template dikirim ke WABA team Anda dan otomatis di-assign ke team tersebut.</p>
-            <button class="btn" :disabled="creating">{{ creating ? 'Mengirim...' : 'Kirim template ke Meta' }}</button>
+          <form v-if="showCreate" class="space-y-4 rounded-xl border border-accent/20 bg-ink-950/40 p-4" @submit.prevent="createTemplate">
+            <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis.</p></div>
+            <div><label class="label">Nama template</label><input v-model="createForm.template_name" class="field" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
+            <div><label class="label">Kategori</label><select v-model="createForm.category" class="field"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option><option value="AUTHENTICATION">Authentication — kode/login</option></select></div>
+            <div><label class="label">Isi pesan</label><textarea v-model="createForm.body" class="field min-h-28" placeholder="Halo {{customer_name}}, tagihan Anda sudah jatuh tempo." /><p class="mt-1 text-[11px] text-slate-500">Gunakan parameter bernama seperti <code v-pre>{{customer_name}}</code>. Parameter angka seperti <code v-pre>{{1}}</code> tidak didukung.</p></div>
+            <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di isi pesan bila diperlukan.</p></div>
+            <button class="btn w-full sm:w-auto" :disabled="creating || !createForm.template_name.trim() || !createForm.body.trim()">{{ creating ? 'Mengirim ke Meta...' : 'Kirim template ke Meta' }}</button>
           </form>
         </section>
 
@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api";
 import { useAuthStore } from "../stores/auth";
@@ -96,7 +96,8 @@ const expandedId = ref(null);
 const loadMoreTarget = ref(null);
 const showCreate = ref(false);
 const creating = ref(false);
-const createForm = reactive({ template_name: "", category: "UTILITY", body: "", param_names: "" });
+const createForm = reactive({ template_name: "", category: "UTILITY", body: "" });
+const namedParams = computed(() => [...new Set([...String(createForm.body || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
 let observer;
 let searchTimer;
 
@@ -137,9 +138,8 @@ function toggleDetail(id) {
 async function createTemplate() {
   creating.value = true; error.value = "";
   try {
-    const paramNames = createForm.param_names.split(",").map((v) => v.trim()).filter(Boolean);
-    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", body: createForm.body, param_names: paramNames } });
-    Object.assign(createForm, { template_name: "", category: "UTILITY", body: "", param_names: "" });
+    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", body: createForm.body } });
+    Object.assign(createForm, { template_name: "", category: "UTILITY", body: "" });
     showCreate.value = false;
     await loadTemplates({ reset: true });
   } catch (e) { error.value = e.message || "Gagal membuat template."; } finally { creating.value = false; }
