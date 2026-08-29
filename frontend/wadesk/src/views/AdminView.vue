@@ -349,6 +349,7 @@
           <button type="button" class="btn shrink-0" @click="openAddNumber">Add Number</button>
         </div>
         <select v-model="numberWabaFilter" class="field sm:max-w-md">
+          <option value="" disabled>Pilih WABA terlebih dahulu</option>
           <option v-for="waba in wabas" :key="`number-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option>
         </select>
         <p v-if="!numberWabaFilter" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
@@ -770,6 +771,7 @@
 
         <div class="flex flex-col sm:flex-row gap-2">
           <select v-model="templateWabaFilter" class="field sm:max-w-xs">
+            <option value="" disabled>Pilih WABA terlebih dahulu</option>
             <option v-for="waba in wabas" :key="'filter-' + waba.id" :value="waba.meta_waba_id">{{ waba.name }}</option>
           </select>
           <div class="relative flex-1">
@@ -805,7 +807,7 @@
               v-else-if="!templateBrowseRows.length"
               class="py-10 text-center text-sm text-slate-500"
             >
-              {{ templateBrowseQuery.trim() ? "Template tidak ditemukan." : "Belum ada template. Klik Sync WABA." }}
+              {{ !templateWabaFilter ? "Pilih WABA terlebih dahulu." : (templateBrowseQuery.trim() ? "Template tidak ditemukan." : "Belum ada template. Klik Sync WABA.") }}
             </p>
 
             <div v-for="group in templateGroups" :key="group.waba_id || '__none__'" class="border-b border-white/5 last:border-0">
@@ -3052,13 +3054,9 @@ async function loadWabas() {
     const res = await api("/WaDesk/Wabas/list", { cache: "no-store" });
     wabas.value = res.data?.wabas || [];
     const selectedStillExists = wabas.value.some((waba) => waba.meta_waba_id === templateWabaFilter.value);
-    if (!selectedStillExists) {
-      templateWabaFilter.value = wabas.value[0]?.meta_waba_id || "";
-    }
+    if (templateWabaFilter.value && !selectedStillExists) templateWabaFilter.value = "";
     const numberSelectedStillExists = wabas.value.some((waba) => waba.meta_waba_id === numberWabaFilter.value);
-    if (!numberSelectedStillExists) {
-      numberWabaFilter.value = wabas.value[0]?.meta_waba_id || "";
-    }
+    if (numberWabaFilter.value && !numberSelectedStillExists) numberWabaFilter.value = "";
   } catch (e) {
     wabas.value = [];
     flash(false, e.message || "Gagal memuat WABA");
