@@ -101,10 +101,85 @@ class WhatsApp extends Controller
         ], 'Template WhatsApp Meta berhasil dikirim.');
     }
 
-    private function authorize(): void
+    /**
+     * Tambahkan nomor baru ke WABA Meta.
+     *
+     * POST /Meta/WhatsApp/add-phone-number
+     * Setelah berhasil, Meta dapat meminta langkah verifikasi nomor/OTP lanjutan.
+     */
+    public function add_phone_number()
     {
-        $expected = $this->config('META_WA_SEND_API_KEY');
-        $provided = (string) ($_SERVER['HTTP_X_META_WA_SEND_KEY'] ?? '');
+        if (!$this->isPost()) {
+            $this->error('Method not allowed. Use POST.', 405);
+        }
+
+        $this->authorize('META_WA_ADMIN_API_KEY', 'HTTP_X_META_WA_ADMIN_KEY');
+        $body = $this->getBody();
+        $this->validate($body, ['waba_id', 'country_code', 'phone_number', 'verified_name']);
+
+        $accessToken = $this->config('META_WA_ACCESS_TOKEN');
+        if ($accessToken === '') {
+            $this->error('Meta WhatsApp belum dikonfigurasi. Isi META_WA_ACCESS_TOKEN.', 503);
+        }
+
+        $wabaId = $this->strFromBody($body, 'waba_id');
+        $countryCode = preg_replace('/\D+/', '', $this->strFromBody($body, 'country_code')) ?? '';
+        $phoneNumber = preg_replace('/\D+/', '', $this->strFromBody($body, 'phone_number')) ?? '';
+        $verifiedName = $this->strFromBody($body, 'verified_name');
+
+        if (!preg_match('/^\d{5,32}$/', $wabaId)
+            || !preg_match('/^\d{1,4}$/', $countryCode)
+            || !preg_match('/^\d{5,20}$/', $phoneNumber)
+            || $verifiedName === '') {
+            $this->error('waba_id, country_code, phone_number, atau verified_name tidak valid.', 400);
+        }
+
+        // Endpoint Meta menerima nomor nasional tanpa simbol +; nol depan dibuang.
+        $phoneNumber = ltrim($phoneNumber, '0');
+        if ($phoneNumber === '') {
+            $this->error('phone_number tidak valid.', 400);
+        }
+
+        $version = $this->config('META_WA_GRAPH_VERSION', 'v23.0');
+        $url = 'https://graph.facebook.com/' . rawurlencode($version) . '/'
+            . rawurlencode($wabaId) . '/phone_numbers';
+        $result = $this->postJson($url, $accessToken, [
+            'cc' => $countryCode,
+            'phone_number' => $phoneNumber,
+            'verified_name' => $verifiedName,
+        ]);
+
+        \Log::write(
+            'Add WABA phone number: waba_id=' . $wabaId
+                . ', cc=' . $countryCode
+                . ', phone=' . $phoneNumber
+                . ', http=' . $result['http_code']
+                . ', response=' . $result['body'],
+            'wa_meta',
+            'add_phone_number'
+        );
+
+        if ($result['http_code'] < 200 || $result['http_code'] >= 300) {
+            $this->error('Meta menolak penambahan nomor ke WABA.', 502, [
+                'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+            ]);
+        }
+
+        $this->success([
+            'waba_id' => $wabaId,
+            'country_code' => $countryCode,
+            'phone_number' => $phoneNumber,
+            'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+        ], 'Permintaan tambah nomor ke WABA berhasil dikirim ke Meta.');
+    }
+
+    private function authorize(
+        string $configName = 'META_WA_SEND_API_KEY',
+        string $headerName = 'HTTP_X_META_WA_SEND_KEY'
+    ): void
+    {
+        $expected = $this->config($configName);
+        $provided = (string) ($_SERVER[$headerName] ?? '');
 
         if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
             $this->error('Unauthorized.', 401);

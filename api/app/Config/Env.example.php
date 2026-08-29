@@ -63,6 +63,7 @@ class Env
     const META_WA_VERIFY_TOKEN = 'change-me-meta-wa-verify-token';
     const META_WA_ACCESS_TOKEN = 'change-me-meta-wa-access-token';
     const META_WA_SEND_API_KEY = 'change-me-meta-wa-send-api-key'; // Header X-Meta-Wa-Send-Key
+    const META_WA_ADMIN_API_KEY = 'change-me-meta-wa-admin-api-key'; // Header X-Meta-Wa-Admin-Key
     const META_WA_GRAPH_VERSION = 'v23.0';
 
     // Node maps_server — resolve URL Google Maps → lat/lng (KURIR, dll.)
