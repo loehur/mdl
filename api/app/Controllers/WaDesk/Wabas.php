@@ -21,8 +21,64 @@ class Wabas extends WaDeskController
             . " FROM wa_wabas w WHERE w.tenant_id = ? ORDER BY w.name ASC, w.id ASC",
             [$tenantId]
         )->result_array();
+        foreach ($rows as &$row) {
+            $teams = $this->db($this->db_index)->query(
+                "SELECT t.id, t.name FROM teams t
+                 INNER JOIN wa_waba_teams wt ON wt.team_id = t.id
+                 WHERE wt.tenant_id = ? AND wt.waba_id = ? ORDER BY t.name ASC",
+                [$tenantId, (int) $row['id']]
+            )->result_array();
+            $row['teams'] = $teams;
+            $row['team_ids'] = array_map('intval', array_column($teams, 'id'));
+            $row['team_names'] = implode(' + ', array_column($teams, 'name'));
+        }
+        unset($row);
 
         $this->success(['wabas' => $rows]);
+    }
+
+    /** Assign teams to one WABA. A team may belong to only one WABA. */
+    public function assignTeams()
+    {
+        $this->verifyAuth();
+        $admin = $this->requireAdmin();
+        if (!$this->isPost()) {
+            $this->error('Method not allowed', 405);
+        }
+        $this->requireWabaTable();
+        $body = $this->getBody();
+        $wabaId = (int) ($body['waba_id'] ?? 0);
+        $teamIds = array_values(array_unique(array_filter(array_map('intval', (array) ($body['team_ids'] ?? [])))));
+        $tenantId = (int) $admin['tenant_id'];
+        $db = $this->db($this->db_index);
+        $waba = $db->query('SELECT * FROM wa_wabas WHERE id = ? AND tenant_id = ? LIMIT 1', [$wabaId, $tenantId])->row_array();
+        if (!$waba) {
+            $this->error('WABA tidak ditemukan', 404);
+        }
+        if ($teamIds !== []) {
+            $marks = implode(',', array_fill(0, count($teamIds), '?'));
+            $valid = $db->query("SELECT id FROM teams WHERE tenant_id = ? AND id IN ({$marks})", array_merge([$tenantId], $teamIds))->result_array();
+            if (count($valid) !== count($teamIds)) {
+                $this->error('Ada team yang tidak valid untuk tenant ini', 422);
+            }
+            $conflict = $db->query(
+                "SELECT t.name, w.name AS waba_name FROM wa_waba_teams wt
+                 INNER JOIN teams t ON t.id = wt.team_id
+                 INNER JOIN wa_wabas w ON w.id = wt.waba_id
+                 WHERE wt.tenant_id = ? AND wt.team_id IN ({$marks}) AND wt.waba_id != ? LIMIT 1",
+                array_merge([$tenantId], $teamIds, [$wabaId])
+            )->row_array();
+            if ($conflict) {
+                $this->error('Team "' . $conflict['name'] . '" sudah terhubung ke WABA "' . $conflict['waba_name'] . '". Satu team hanya boleh berada pada satu WABA.', 422);
+            }
+        }
+
+        $db->delete('wa_waba_teams', ['tenant_id' => $tenantId, 'waba_id' => $wabaId]);
+        foreach ($teamIds as $teamId) {
+            $db->insert('wa_waba_teams', ['tenant_id' => $tenantId, 'waba_id' => $wabaId, 'team_id' => $teamId]);
+        }
+        $this->syncWabaTeamsToChannels($tenantId, (string) $waba['meta_waba_id'], $teamIds);
+        $this->success(['waba_id' => $wabaId, 'team_ids' => $teamIds], 'Team WABA disimpan');
     }
 
     /** Discover accessible WABAs and sync all their numbers and templates. */
@@ -68,6 +124,7 @@ class Wabas extends WaDeskController
             } else {
                 $stats['errors'][] = "WABA {$wabaId} nomor: {$phones['error']}";
             }
+            $this->syncWabaTeamsToChannels($tenantId, $wabaId, $this->wabaTeamIds($tenantId, $wabaId));
 
             $templates = $meta->listTemplates($wabaId);
             if ($templates['success']) {
@@ -247,11 +304,42 @@ class Wabas extends WaDeskController
         return count($rows);
     }
 
+    /** @return list<int> */
+    private function wabaTeamIds(int $tenantId, string $metaWabaId): array
+    {
+        $rows = $this->db($this->db_index)->query(
+            "SELECT wt.team_id FROM wa_waba_teams wt
+             INNER JOIN wa_wabas w ON w.id = wt.waba_id
+             WHERE wt.tenant_id = ? AND w.meta_waba_id = ?",
+            [$tenantId, $metaWabaId]
+        )->result_array();
+        return array_map('intval', array_column($rows, 'team_id'));
+    }
+
+    /** Mirror WABA team access to every Meta phone number in that WABA. */
+    private function syncWabaTeamsToChannels(int $tenantId, string $metaWabaId, array $teamIds): void
+    {
+        $db = $this->db($this->db_index);
+        $channels = $db->query(
+            "SELECT id FROM wa_channels WHERE tenant_id = ? AND waba_id = ? AND provider = 'meta'",
+            [$tenantId, $metaWabaId]
+        )->result_array();
+        foreach ($channels as $channel) {
+            $channelId = (int) $channel['id'];
+            $db->delete('wa_channel_teams', ['channel_id' => $channelId]);
+            foreach ($teamIds as $teamId) {
+                $db->insert('wa_channel_teams', ['channel_id' => $channelId, 'team_id' => (int) $teamId]);
+            }
+            $db->update('wa_channels', ['team_id' => null], ['id' => $channelId]);
+        }
+    }
+
     private function requireWabaTable(): void
     {
-        $row = $this->db($this->db_index)->query("SHOW TABLES LIKE 'wa_wabas'")->row_array();
-        if (!$row) {
-            $this->error('Migration WABA belum dijalankan. Jalankan 032_meta_waba_sync.sql.', 503);
+        $waba = $this->db($this->db_index)->query("SHOW TABLES LIKE 'wa_wabas'")->row_array();
+        $teams = $this->db($this->db_index)->query("SHOW TABLES LIKE 'wa_waba_teams'")->row_array();
+        if (!$waba || !$teams) {
+            $this->error('Migration WABA belum lengkap. Jalankan 032_meta_waba_sync.sql lalu 033_waba_team_access.sql.', 503);
         }
     }
 }

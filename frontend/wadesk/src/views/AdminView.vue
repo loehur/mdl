@@ -351,19 +351,43 @@
           Belum ada WABA. Klik Sync WABA untuk mengambil data dari Meta.
         </p>
         <div v-else class="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
-          <div v-for="waba in wabas" :key="waba.id" class="px-4 py-3 flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <p class="font-medium truncate">{{ waba.name }}</p>
-              <p class="font-mono text-xs text-accent mt-1 truncate">{{ waba.meta_waba_id }}</p>
-              <p class="text-xs text-slate-500 mt-1">{{ waba.phone_count }} nomor · {{ waba.template_count }} template</p>
+          <div v-for="waba in wabas" :key="waba.id" class="px-4 py-3 space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium truncate">{{ waba.name }}</p>
+                <p class="font-mono text-xs text-accent mt-1 truncate">{{ waba.meta_waba_id }}</p>
+                <p class="text-xs text-slate-500 mt-1">{{ waba.phone_count }} nomor · {{ waba.template_count }} template</p>
+                <p class="text-xs text-slate-400 mt-2">Team: {{ waba.team_names || 'Belum ada team' }}</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400">{{ waba.status || 'active' }}</span>
+                <button type="button" class="btn-sm text-xs" @click="openWabaTeamEditor(waba)">
+                  Assign team
+                </button>
+              </div>
             </div>
-            <span class="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400">{{ waba.status || 'active' }}</span>
+            <div v-if="editingWabaTeamId === waba.id" class="rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-3">
+              <p class="text-xs text-slate-400">Team yang dipilih bisa memakai seluruh nomor di WABA ini. Satu team hanya dapat berada pada satu WABA.</p>
+              <div class="grid sm:grid-cols-2 gap-2">
+                <label v-for="team in teams" :key="`waba-${waba.id}-${team.id}`" class="flex items-center gap-2 text-sm text-slate-300">
+                  <input v-model="wabaTeamDraft" type="checkbox" :value="team.id" class="rounded" />
+                  {{ team.name }}
+                </label>
+              </div>
+              <p v-if="!teams.length" class="text-xs text-amber-300">Buat team terlebih dahulu.</p>
+              <div class="flex justify-end gap-2">
+                <button type="button" class="btn-sm text-xs" @click="editingWabaTeamId = null">Batal</button>
+                <button type="button" class="btn-sm text-xs" :disabled="savingWabaTeamId === waba.id" @click="saveWabaTeams(waba)">
+                  {{ savingWabaTeamId === waba.id ? 'Menyimpan...' : 'Simpan' }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <!-- Assign -->
-      <section v-if="tab === 'assign'" class="card space-y-4">
+      <section v-if="false && tab === 'assign'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h2 class="font-display font-semibold text-lg">Assign</h2>
           <p v-if="channelBrowseTotal" class="text-xs text-slate-500">
@@ -1364,7 +1388,6 @@ const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
   { id: "wabas", label: "WABA" },
-  { id: "assign", label: "Assign" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
   { id: "dev-fee", label: "Dev Fee" },
@@ -1407,6 +1430,9 @@ let quotaBrowseObserver = null;
 let quotaSearchTimer = null;
 const availableDevices = ref([]);
 const wabas = ref([]);
+const editingWabaTeamId = ref(null);
+const wabaTeamDraft = ref([]);
+const savingWabaTeamId = ref(null);
 const syncingWabas = ref(false);
 const deviceQuery = ref("");
 const CHANNEL_BROWSE_LIMIT = 20;
@@ -2951,6 +2977,28 @@ async function loadWabas() {
   } catch (e) {
     wabas.value = [];
     flash(false, e.message || "Gagal memuat WABA");
+  }
+}
+
+function openWabaTeamEditor(waba) {
+  editingWabaTeamId.value = waba.id;
+  wabaTeamDraft.value = (waba.team_ids || []).map(Number);
+}
+
+async function saveWabaTeams(waba) {
+  savingWabaTeamId.value = waba.id;
+  try {
+    await api("/WaDesk/Wabas/assignTeams", {
+      method: "POST",
+      body: { waba_id: waba.id, team_ids: wabaTeamDraft.value.map(Number) },
+    });
+    editingWabaTeamId.value = null;
+    flash(true, "Akses team untuk WABA disimpan");
+    await Promise.all([loadWabas(), loadTemplateBrowse(true)]);
+  } catch (e) {
+    flash(false, e.message || "Gagal menyimpan team WABA");
+  } finally {
+    savingWabaTeamId.value = null;
   }
 }
 
