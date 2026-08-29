@@ -58,6 +58,10 @@ class Env
     const WA_LINE_CS_NAME = 'CS';
     const WA_SERVER_URL = 'http://127.0.0.1:3003/incoming'; // Node wa_server
 
+    // WhatsApp Cloud API (Meta) — endpoint /Webhook/WhatsAppMeta.
+    // Isi dengan Verify Token yang sama di Meta Developers.
+    const META_WA_VERIFY_TOKEN = 'change-me-meta-wa-verify-token';
+
     // Node maps_server — resolve URL Google Maps → lat/lng (KURIR, dll.)
     const MAPS_SERVER_URL = 'http://127.0.0.1:3020/resolve';
     const MAPS_SERVER_TOKEN = ''; // sama dengan MAPS_SERVER_TOKEN di node/maps_server/.env (opsional)
