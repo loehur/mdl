@@ -121,7 +121,6 @@ class Env
     // -------------------------------------------------------------------------
     const WADESK_SERVER_URL = 'http://127.0.0.1:3010/incoming'; // Node wadesk_server
     const WADESK_ENCRYPT_KEY = 'change-me-wadesk-encrypt-key-32b!!'; // Min. 32 char (legacy)
-    const WADESK_VERIFY_TOKEN = 'change-me-wadesk-verify-token';     // Webhook WaDesk (Kirimin)
 
     // Kirimin.id — base URL opsional (API key per tenant di tabel tenants.kirimin_api_key)
     const KIRIMIN_BASE_URL = 'https://apiapp.kirimin.id';

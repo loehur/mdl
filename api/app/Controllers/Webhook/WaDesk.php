@@ -9,51 +9,18 @@ use App\Helpers\WaDesk\TemplateQuota;
 use App\Helpers\WaDesk\TenantDevFee;
 use App\Helpers\WaDesk\WaMediaHelper;
 
-/**
- * Kirimin.id webhook for WaDesk — /Webhook/WaDesk
- */
+/** Internal WaDesk inbox processor. Meta events enter through WhatsAppMeta. */
 class WaDesk extends Controller
 {
     private int $dbIndex = 7;
 
     public function index()
     {
-        $method = $_SERVER['REQUEST_METHOD'];
-
-        if ($method === 'GET') {
-            return $this->verify();
-        }
-        if ($method === 'POST') {
-            return $this->receive();
-        }
-
-        http_response_code(405);
-        echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
-    }
-
-    private function verify(): void
-    {
-        $mode = $_GET['hub_mode'] ?? null;
-        $token = $_GET['hub_verify_token'] ?? ($_GET['token'] ?? null);
-        $challenge = $_GET['hub_challenge'] ?? ($_GET['challenge'] ?? null);
-        $verifyToken = defined('\Env::WADESK_VERIFY_TOKEN')
-            ? \Env::WADESK_VERIFY_TOKEN
-            : (\Env::WA_VERIFY_TOKEN ?? '');
-
-        if ($mode === 'subscribe' && $token === $verifyToken) {
-            header('Content-Type: text/plain');
-            echo $challenge;
-            exit;
-        }
-
-        if ($token !== null && $token === $verifyToken) {
-            header('Content-Type: application/json');
-            echo json_encode(['status' => 'ok']);
-            exit;
-        }
-
-        http_response_code(403);
-        exit;
+        // The legacy public Kirimin/WaDesk endpoint is intentionally retired.
+        // Native Meta callbacks must use /Webhook/WhatsAppMeta.
+        http_response_code(410);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status' => 'error', 'message' => 'Webhook WaDesk lama sudah dihentikan. Gunakan /Webhook/WhatsAppMeta.']);
     }
 
     private function receive(?string $rawBody = null): void
