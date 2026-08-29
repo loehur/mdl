@@ -817,6 +817,23 @@ class Templates extends WaDeskController
         $this->success(['id' => $templateId, 'meta' => $data], 'Template dikirim ke Meta dan otomatis di-assign ke team Anda.');
     }
 
+    public function deleteForTeam()
+    {
+        $this->verifyAuth(); $user = $this->requireChatUser();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) $this->error('Hanya Admin/Team Leader pada team aktif yang dapat menghapus template.', 403);
+        $body = $this->getBody(); $templateId = (int) ($body['template_id'] ?? 0); $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
+        $tpl = $this->db($this->db_index)->query('SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1', [$templateId, $tenantId])->row_array();
+        if (!$tpl) $this->error('Template tidak ditemukan', 404);
+        $waba = $this->db($this->db_index)->query('SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1', [$tenantId, $teamId])->row_array();
+        if (!$waba || (string) $waba['meta_waba_id'] !== (string) $tpl['meta_waba_id']) $this->error('Template bukan milik WABA team aktif.', 403);
+        $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $res = $meta->deleteTemplate((string) $tpl['meta_waba_id'], (string) $tpl['template_name'], (string) ($tpl['meta_template_id'] ?? ''));
+        if (!$res['success']) $this->error('Gagal menghapus template di Meta: ' . $res['error'], 502, $res['data']);
+        $this->db($this->db_index)->delete('wa_templates', ['id' => $templateId]);
+        $this->success(null, 'Template berhasil dihapus.');
+    }
+
     public function update()
     {
         $this->verifyAuth();

@@ -168,6 +168,13 @@ class Meta
         ]);
     }
 
+    public function deleteTemplate(string $wabaId, string $name, string $templateId = ''): array
+    {
+        $query = ['name' => $name];
+        if ($templateId !== '') $query['hsm_id'] = $templateId;
+        return $this->delete('/' . rawurlencode($wabaId) . '/message_templates?' . http_build_query($query));
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int,paging?:array} */
     private function get(string $path, array $query = []): array
     {

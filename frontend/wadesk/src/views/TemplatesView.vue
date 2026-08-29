@@ -49,9 +49,7 @@
                 <span v-for="team in template.assigned_teams" :key="team.id" class="team-chip">{{ team.name }}</span>
               </div>
             </div>
-            <button type="button" class="detail-button shrink-0" @click="toggleDetail(template.id)">
-              {{ expandedId === template.id ? "Close" : "Detail" }}
-            </button>
+            <div class="flex gap-2 shrink-0"><button type="button" class="detail-button" @click="toggleDetail(template.id)">{{ expandedId === template.id ? "Close" : "Detail" }}</button><button v-if="auth.canManageTeam" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20" @click="deleteTemplate(template)">Hapus</button></div>
 
             <div v-if="expandedId === template.id" class="template-detail">
               <p v-if="template.body_preview" class="whitespace-pre-wrap break-words text-sm text-slate-300">{{ template.body_preview }}</p>
@@ -152,6 +150,12 @@ async function syncTemplates() {
   try { await api("/WaDesk/Wabas/syncTemplatesForTeam", { method: "POST", body: {} }); await loadTemplates({ reset: true }); }
   catch (e) { error.value = e.message || "Gagal sync template."; }
   finally { syncing.value = false; }
+}
+
+async function deleteTemplate(template) {
+  if (!window.confirm(`Hapus template "${template.template_name}" dari Meta dan WaDesk? Tindakan ini tidak dapat dibatalkan.`)) return;
+  try { await api("/WaDesk/Templates/deleteForTeam", { method: "POST", body: { template_id: template.id } }); await loadTemplates({ reset: true }); }
+  catch (e) { error.value = e.message || "Gagal menghapus template."; }
 }
 
 async function onLogout() {
