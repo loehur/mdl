@@ -64,13 +64,16 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   label VARCHAR(150) NOT NULL,
   device_id VARCHAR(64) NULL,
   waba_id VARCHAR(64) NULL,
+  meta_phone_number_id VARCHAR(64) NULL,
   channel_type ENUM('waba','device') NOT NULL DEFAULT 'waba',
+  provider ENUM('kirimin','meta') NOT NULL DEFAULT 'kirimin',
   phone_number VARCHAR(32) NOT NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   template_sending_enabled TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_channel_device (device_id),
+  UNIQUE KEY uq_channel_tenant_meta_phone (tenant_id, meta_phone_number_id),
   INDEX idx_channels_tenant (tenant_id),
   INDEX idx_channels_team (team_id),
   INDEX idx_channels_phone (phone_number),
@@ -82,14 +85,32 @@ CREATE TABLE IF NOT EXISTS wa_channels (
 CREATE TABLE IF NOT EXISTS wa_templates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NULL,
+  meta_waba_id VARCHAR(64) NULL,
   template_name VARCHAR(150) NOT NULL,
   language VARCHAR(16) NOT NULL DEFAULT 'id',
+  meta_template_id VARCHAR(64) NULL,
   body_preview TEXT NULL,
+  meta_status VARCHAR(32) NULL,
+  meta_category VARCHAR(32) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_tpl_tenant (tenant_id),
-  UNIQUE KEY uq_tpl_tenant_name_lang (tenant_id, template_name, language),
+  UNIQUE KEY uq_tpl_tenant_waba_name_lang (tenant_id, meta_waba_id, template_name, language),
   CONSTRAINT fk_tpl_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_wabas (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id INT UNSIGNED NOT NULL,
+  meta_waba_id VARCHAR(64) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  last_synced_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_waba_tenant_meta (tenant_id, meta_waba_id),
+  INDEX idx_waba_tenant (tenant_id),
+  CONSTRAINT fk_waba_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_template_devices (

@@ -8,8 +8,7 @@ use App\Core\Controller;
  * WhatsApp Cloud API (Meta) webhook.
  *
  * Endpoint: /Webhook/WhatsAppMeta
- * Untuk tahap awal setiap event hanya dicatat ke log; tidak ada pemrosesan
- * pesan, penyimpanan database, maupun balasan WhatsApp.
+ * Event tervalidasi diteruskan ke inbox WaDesk.
  */
 class WhatsAppMeta extends Controller
 {
@@ -55,12 +54,20 @@ class WhatsAppMeta extends Controller
         http_response_code(403);
     }
 
-    /** Receive an event from Meta and log it without any further action. */
+    /** Validate an event from Meta, log a compact summary, then hand it to WaDesk. */
     private function receive(): void
     {
         $rawBody = file_get_contents('php://input');
         $payload = json_decode($rawBody, true);
         $signature = (string) ($_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '');
+
+        if (!$this->isValidSignature($rawBody, $signature)) {
+            \Log::write('Rejected Meta WhatsApp webhook: invalid signature', 'wa_meta', 'webhook');
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid signature']);
+            return;
+        }
 
         $summary = [
             'object' => is_array($payload) ? ($payload['object'] ?? 'unknown') : 'invalid_json',
@@ -77,15 +84,23 @@ class WhatsAppMeta extends Controller
             'webhook'
         );
 
-        // Meta hanya membutuhkan respons 2xx. Event sengaja belum diproses.
-        header('Content-Type: application/json; charset=utf-8');
-        http_response_code(200);
-        echo json_encode(['status' => 'ok', 'message' => 'EVENT_RECEIVED']);
+        (new WaDesk())->receiveMetaPayload($rawBody);
     }
 
     private function verifyToken(): string
     {
         // Dipisahkan dari token YCloud agar konfigurasi dua provider tidak saling memakai.
         return defined('Env::META_WA_VERIFY_TOKEN') ? (string) constant('Env::META_WA_VERIFY_TOKEN') : '';
+    }
+
+    private function isValidSignature(string $rawBody, string $signature): bool
+    {
+        $secret = defined('Env::META_WA_APP_SECRET') ? (string) constant('Env::META_WA_APP_SECRET') : '';
+        if ($secret === '') {
+            // Tetap kompatibel sementara saat App Secret belum dimasukkan ke environment.
+            return true;
+        }
+        $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+        return $signature !== '' && hash_equals($expected, $signature);
     }
 }

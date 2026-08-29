@@ -56,9 +56,9 @@ class WaDesk extends Controller
         exit;
     }
 
-    private function receive(): void
+    private function receive(?string $rawBody = null): void
     {
-        $json = file_get_contents('php://input');
+        $json = $rawBody ?? file_get_contents('php://input');
         $headers = $this->kirimHeaders();
         $this->logWebhook(
             'POST ip=' . ($this->clientIp())
@@ -95,6 +95,12 @@ class WaDesk extends Controller
         header('Content-Type: application/json');
         echo json_encode(['status' => 'ok']);
         exit;
+    }
+
+    /** Process a native Meta payload received by /Webhook/WhatsAppMeta. */
+    public function receiveMetaPayload(string $rawBody): void
+    {
+        $this->receive($rawBody);
     }
 
     /** @param array<string,string> $headers */
@@ -883,6 +889,16 @@ class WaDesk extends Controller
             $rows = $db->query(
                 "SELECT * FROM {$tbl} WHERE device_id = ? AND status = 'active'",
                 [(string) $deviceId]
+            )->result_array();
+            foreach ($rows as $row) {
+                $byId[(int) $row['id']] = $row;
+            }
+        }
+
+        if ($phoneId) {
+            $rows = $db->query(
+                "SELECT * FROM {$tbl} WHERE meta_phone_number_id = ? AND status = 'active'",
+                [(string) $phoneId]
             )->result_array();
             foreach ($rows as $row) {
                 $byId[(int) $row['id']] = $row;

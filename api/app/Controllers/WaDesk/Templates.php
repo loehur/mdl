@@ -117,6 +117,7 @@ class Templates extends WaDeskController
         $user = $this->requireChatUser();
         $tenantId = (int) $user['tenant_id'];
         $channelId = (int) $this->query('channel_id', 0);
+        $wabaFilter = trim((string) $this->query('waba_id', ''));
         $deviceId = null;
 
         if ($channelId > 0) {
@@ -165,7 +166,7 @@ class Templates extends WaDeskController
                 $limit = min(50, max(1, (int) $this->query('limit', 20)));
                 $q = trim((string) $this->query('q', ''));
                 $total = 0;
-                $rows = $this->listAdminTemplatesPaginated($tenantId, $page, $limit, $q, $total);
+                $rows = $this->listAdminTemplatesPaginated($tenantId, $page, $limit, $q, $total, $wabaFilter);
                 $rows = $this->enrichTemplateListRows($rows, $tenantId, true);
                 $this->success([
                     'templates' => $rows,
@@ -177,12 +178,14 @@ class Templates extends WaDeskController
                 return;
             }
 
-            $rows = $this->db($this->db_index)->query(
-                "SELECT t.* FROM wa_templates t
-                 WHERE t.tenant_id = ?
-                 ORDER BY t.template_name ASC, t.id ASC",
-                [$tenantId]
-            )->result_array();
+            $sql = "SELECT t.* FROM wa_templates t WHERE t.tenant_id = ?";
+            $binds = [$tenantId];
+            if ($wabaFilter !== '') {
+                $sql .= ' AND t.meta_waba_id = ?';
+                $binds[] = $wabaFilter;
+            }
+            $sql .= ' ORDER BY t.template_name ASC, t.id ASC';
+            $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
         }
         $rows = $this->dedupeTemplateListRows($rows, $tenantId);
         $rows = $this->enrichTemplateListRows($rows, $tenantId, $channelId <= 0);
@@ -191,14 +194,14 @@ class Templates extends WaDeskController
     }
 
     /** @return list<array> */
-    private function listAdminTemplatesPaginated(int $tenantId, int $page, int $limit, string $q, int &$total): array
+    private function listAdminTemplatesPaginated(int $tenantId, int $page, int $limit, string $q, int &$total, string $wabaFilter = ''): array
     {
         $tbl = $this->channelsTable();
         $hasLinks = $this->templateDevicesTableExists();
         $offset = ($page - 1) * $limit;
 
         if ($hasLinks) {
-            $wabaExpr = "COALESCE(NULLIF(TRIM(sub.waba_id), ''), '')";
+            $wabaExpr = "COALESCE(NULLIF(TRIM(t.meta_waba_id), ''), NULLIF(TRIM(sub.waba_id), ''), '')";
             $from = "FROM (
                 SELECT t.id,
                        MIN(NULLIF(TRIM(c.waba_id), '')) AS waba_id
@@ -212,6 +215,10 @@ class Templates extends WaDeskController
 
             $where = '1=1';
             $binds = [$tenantId];
+            if ($wabaFilter !== '') {
+                $where .= ' AND t.meta_waba_id = ?';
+                $binds[] = $wabaFilter;
+            }
             if ($q !== '') {
                 $where .= " AND (t.template_name LIKE ? OR t.language LIKE ? OR t.body_preview LIKE ?
                             OR {$wabaExpr} LIKE ?
@@ -245,6 +252,10 @@ class Templates extends WaDeskController
 
         $where = 't.tenant_id = ?';
         $binds = [$tenantId];
+        if ($wabaFilter !== '') {
+            $where .= ' AND t.meta_waba_id = ?';
+            $binds[] = $wabaFilter;
+        }
         if ($q !== '') {
             $where .= ' AND (t.template_name LIKE ? OR t.language LIKE ? OR t.body_preview LIKE ?)';
             $like = '%' . $q . '%';

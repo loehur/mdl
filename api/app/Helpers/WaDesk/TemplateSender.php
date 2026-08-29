@@ -93,13 +93,22 @@ class TemplateSender
                 ];
             }
 
-            $deviceId = trim((string) ($channel['device_id'] ?? ''));
+            $deviceId = trim((string) ($channel['meta_phone_number_id'] ?? $channel['device_id'] ?? ''));
             if ($deviceId === '') {
-                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Channel tanpa device_id'];
+                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'Channel tanpa Phone Number ID'];
             }
 
-            $apiKey = $this->fetchTenantKiriminApiKey($tenantId);
-            $client = Kirimin::fromApiKey($apiKey);
+            $isMeta = strtolower(trim((string) ($channel['provider'] ?? 'kirimin'))) === 'meta';
+            $client = null;
+            if ($isMeta) {
+                $client = new Meta();
+                if (!$client->configured()) {
+                    return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => 'META_WA_ACCESS_TOKEN belum dikonfigurasi'];
+                }
+            } else {
+                $apiKey = $this->fetchTenantKiriminApiKey($tenantId);
+                $client = Kirimin::fromApiKey($apiKey);
+            }
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams($paramDefs, $rawParams);
 
             $lengthErr = $this->validateParamLengths($paramDefs, $rawParams);
@@ -163,7 +172,7 @@ class TemplateSender
                     'success' => false,
                     'message_id' => 0,
                     'conversation_id' => 0,
-                    'error' => 'Kirimin: ' . $provErr['message'],
+                    'error' => ($isMeta ? 'Meta: ' : 'Kirimin: ') . $provErr['message'],
                 ];
             }
 

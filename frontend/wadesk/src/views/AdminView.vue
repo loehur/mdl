@@ -336,6 +336,32 @@
         </div>
       </section>
 
+      <!-- WABA -->
+      <section v-if="tab === 'wabas'" class="card space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 class="font-display font-semibold text-lg">WABA</h2>
+            <p class="text-xs text-slate-500 mt-1">Daftar koneksi WhatsApp Business Account Meta.</p>
+          </div>
+          <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
+            {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
+          </button>
+        </div>
+        <p v-if="!wabas.length" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
+          Belum ada WABA. Klik Sync WABA untuk mengambil data dari Meta.
+        </p>
+        <div v-else class="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+          <div v-for="waba in wabas" :key="waba.id" class="px-4 py-3 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-medium truncate">{{ waba.name }}</p>
+              <p class="font-mono text-xs text-accent mt-1 truncate">{{ waba.meta_waba_id }}</p>
+              <p class="text-xs text-slate-500 mt-1">{{ waba.phone_count }} nomor · {{ waba.template_count }} template</p>
+            </div>
+            <span class="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400">{{ waba.status || 'active' }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Assign -->
       <section v-if="tab === 'assign'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -364,7 +390,7 @@
               type="button"
               class="btn-sm shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-300 disabled:opacity-50"
               :disabled="syncingDevices"
-              title="Sync device dari Kirimin"
+              title="Sync nomor dari Meta WABA"
               @click="syncDevicesFromKirimin"
             >
               <svg
@@ -412,7 +438,7 @@
                 </span>
               </button>
               <p v-if="!availableDevices.length && !syncingDevices" class="px-3 py-6 text-xs text-slate-500 text-center">
-                Klik Sync untuk ambil device dari Kirimin.
+                Klik Sync untuk ambil nomor dari Meta WABA.
               </p>
               <p v-else-if="!filteredDevices.length" class="px-3 py-6 text-xs text-slate-500 text-center">
                 Device tidak ditemukan.
@@ -515,9 +541,9 @@
                       class="field bg-ink-950/50 text-slate-400 cursor-not-allowed"
                       readonly
                       tabindex="-1"
-                      placeholder="Belum tersedia — sync dari Kirimin"
+                      placeholder="Belum tersedia — sync dari Meta"
                     />
-                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sync device Kirimin, tidak bisa diubah manual.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sinkronisasi Meta WABA, tidak bisa diubah manual.</p>
                   </div>
                   <div>
                     <label class="label">WABA ID</label>
@@ -526,9 +552,9 @@
                       class="field bg-ink-950/50 text-slate-400 cursor-not-allowed"
                       readonly
                       tabindex="-1"
-                      placeholder="Belum tersedia — sync dari Kirimin"
+                      placeholder="Belum tersedia — sync dari Meta"
                     />
-                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sync device Kirimin, tidak bisa diubah manual.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Otomatis dari sinkronisasi Meta WABA, tidak bisa diubah manual.</p>
                   </div>
                   <div class="sm:col-span-2 rounded-lg border border-white/10 bg-ink-950/40 p-3 space-y-2">
                     <p class="text-xs font-medium text-slate-300">Team yang di-assign</p>
@@ -624,7 +650,7 @@
 
         <div class="rounded-xl border border-white/10 bg-ink-950/40 p-3 space-y-2">
           <p class="text-xs text-slate-400">
-            Sinkron template <span class="text-slate-200">APPROVED</span> dari Kirimin.id per nomor WA (device).
+            Template dari seluruh WABA Meta yang sudah disinkronkan.
             Template perlu <span class="text-slate-200">di-assign ke team</span> yang memakai WABA yang sama
             sebelum bisa dipakai kirim/blast — termasuk jika WABA hanya dipakai 1 team.
           </p>
@@ -632,11 +658,11 @@
             <button
               type="button"
               class="btn shrink-0 inline-flex items-center justify-center gap-2 min-w-[9rem]"
-              :disabled="syncing"
-              @click="syncTemplatesFromKirimin"
+              :disabled="syncingWabas"
+              @click="syncWabas"
             >
               <svg
-                v-if="syncing"
+                v-if="syncingWabas"
                 class="h-4 w-4 animate-spin"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -650,12 +676,17 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              {{ syncing ? "Sinkron..." : "Sync dari Kirimin" }}
+              {{ syncingWabas ? "Sinkron..." : "Sync WABA" }}
             </button>
           </div>
         </div>
 
-        <div class="relative">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <select v-model="templateWabaFilter" class="field sm:max-w-xs">
+            <option value="">Semua WABA</option>
+            <option v-for="waba in wabas" :key="'filter-' + waba.id" :value="waba.meta_waba_id">{{ waba.name }}</option>
+          </select>
+          <div class="relative flex-1">
           <input
             v-model="templateBrowseQuery"
             type="search"
@@ -673,6 +704,7 @@
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
           </svg>
+          </div>
         </div>
 
         <div class="rounded-xl border border-white/10 overflow-hidden">
@@ -687,7 +719,7 @@
               v-else-if="!templateBrowseRows.length"
               class="py-10 text-center text-sm text-slate-500"
             >
-              {{ templateBrowseQuery.trim() ? "Template tidak ditemukan." : "Belum ada template. Klik Sync dari Kirimin." }}
+              {{ templateBrowseQuery.trim() ? "Template tidak ditemukan." : "Belum ada template. Klik Sync WABA." }}
             </p>
 
             <div v-for="group in templateGroups" :key="group.waba_id || '__none__'" class="border-b border-white/5 last:border-0">
@@ -937,27 +969,13 @@
           </div>
         </form>
 
-        <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveKiriminKey">
-          <p class="text-sm font-medium text-slate-200">API key Kirimin</p>
+        <div class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-2">
+          <p class="text-sm font-medium text-slate-200">Koneksi WhatsApp Meta</p>
           <p class="text-xs text-slate-400">
-            Disimpan per tenant. Dipakai untuk sync device & template dari Kirimin.
+            Nomor dan template disinkronkan dari WABA Meta. Access token disimpan di environment backend,
+            bukan di konfigurasi tenant WaDesk.
           </p>
-          <div class="flex flex-col sm:flex-row gap-2">
-            <input
-              v-model="kiriminForm.api_key"
-              type="password"
-              class="field flex-1"
-              :placeholder="kiriminForm.configured ? kiriminForm.api_key_masked : 'kc_live_...'"
-              autocomplete="off"
-            />
-            <button type="submit" class="btn shrink-0" :disabled="savingKiriminKey">
-              {{ savingKiriminKey ? "Menyimpan..." : kiriminForm.configured ? "Update" : "Simpan" }}
-            </button>
-          </div>
-          <p v-if="kiriminForm.configured" class="text-xs text-emerald-400">
-            Terkonfigurasi: {{ kiriminForm.api_key_masked }}
-          </p>
-        </form>
+        </div>
 
         <form class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3" @submit.prevent="saveOpenAiKey">
           <p class="text-sm font-medium text-slate-200">OpenAI</p>
@@ -1196,7 +1214,7 @@
           <div>
             <h2 class="font-display font-semibold text-lg">Log Template Gagal</h2>
             <p class="text-xs text-slate-500 mt-1">
-              Kegagalan langsung dari API Kirimin, atau delivery gagal via webhook (sent → failed).
+              Kegagalan langsung dari API Meta, atau delivery gagal via webhook (sent → failed).
             </p>
           </div>
           <button type="button" class="btn-sm shrink-0" :disabled="loadingFailLogs" @click="loadFailLogs(true)">
@@ -1346,6 +1364,7 @@ const reportTeamId = ref("");
 const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
+  { id: "wabas", label: "WABA" },
   { id: "assign", label: "Assign" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
@@ -1388,6 +1407,8 @@ const quotaBrowseSentinel = ref(null);
 let quotaBrowseObserver = null;
 let quotaSearchTimer = null;
 const availableDevices = ref([]);
+const wabas = ref([]);
+const syncingWabas = ref(false);
 const deviceQuery = ref("");
 const CHANNEL_BROWSE_LIMIT = 20;
 const channelBrowseRows = ref([]);
@@ -1425,6 +1446,7 @@ const templateBrowseRows = ref([]);
 const templateBrowseTotal = ref(0);
 const templateBrowsePage = ref(1);
 const templateBrowseQuery = ref("");
+const templateWabaFilter = ref("");
 const loadingTemplateBrowse = ref(false);
 const templateBrowseHasMore = ref(true);
 const templateBrowseSentinel = ref(null);
@@ -1826,8 +1848,9 @@ async function loadTemplateBrowse(reset = false) {
     }
     const page = reset ? 1 : templateBrowsePage.value;
     const q = templateBrowseQuery.value.trim();
+    const waba = templateWabaFilter.value.trim();
     const res = await api(
-      `/WaDesk/Templates/list?page=${page}&limit=${TEMPLATE_BROWSE_LIMIT}&q=${encodeURIComponent(q)}&_=${Date.now()}`,
+      `/WaDesk/Templates/list?page=${page}&limit=${TEMPLATE_BROWSE_LIMIT}&q=${encodeURIComponent(q)}${waba ? `&waba_id=${encodeURIComponent(waba)}` : ""}&_=${Date.now()}`,
       { cache: "no-store" }
     );
     const rows = res.data?.templates || [];
@@ -2075,8 +2098,7 @@ async function reloadTeamsTab() {
 }
 
 async function refresh() {
-  const [kir, oai, daily] = await Promise.all([
-    api("/WaDesk/Settings/kirimin"),
+  const [oai, daily] = await Promise.all([
     api("/WaDesk/Settings/openai"),
     api("/WaDesk/Settings/dailyLimit"),
     loadTeamOptions(),
@@ -2090,15 +2112,16 @@ async function refresh() {
   if (tab.value === "users") {
     await loadUsersTab();
   }
+  if (tab.value === "wabas") {
+    await loadWabas();
+  }
   if (tab.value === "quota") {
     await loadQuotaBrowse(true);
   }
   if (tab.value === "templates") {
     await loadTemplateBrowse(true);
   }
-  kiriminForm.configured = !!kir.data?.configured;
-  kiriminForm.api_key_masked = kir.data?.api_key_masked || "";
-  dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit ?? kir.data?.daily_unique_limit) || 250;
+  dailyLimitForm.daily_unique_limit = Number(daily.data?.daily_unique_limit) || 250;
   openaiForm.configured = !!oai.data?.configured;
   openaiForm.api_key_masked = oai.data?.api_key_masked || "";
   if (tab.value === "log") {
@@ -2286,11 +2309,14 @@ watch(tab, (id) => {
   if (id === "users") {
     loadUsersTab();
   }
+  if (id === "wabas") {
+    loadWabas();
+  }
   if (id === "quota") {
     loadQuotaBrowse(true);
   }
   if (id === "templates") {
-    loadTemplateBrowse(true);
+    Promise.all([loadTemplateBrowse(true), loadWabas()]);
   }
   if (id === "report") {
     loadReportTab();
@@ -2319,6 +2345,10 @@ watch(templateBrowseQuery, () => {
   templateSearchTimer = setTimeout(() => {
     if (tab.value === "templates") loadTemplateBrowse(true);
   }, 300);
+});
+
+watch(templateWabaFilter, () => {
+  if (tab.value === "templates") loadTemplateBrowse(true);
 });
 
 watch(userBrowseSentinel, () => {
@@ -2729,9 +2759,21 @@ async function deleteOpenAiKey() {
 async function syncDevicesFromKirimin() {
   syncingDevices.value = true;
   try {
-    const res = await api("/WaDesk/Channels/syncFromKirimin");
-    availableDevices.value = res.data.devices || [];
-    flash(true, `Device Kirimin: ${availableDevices.value.length} ditemukan`);
+    await api("/WaDesk/Wabas/sync", { method: "POST", body: {} });
+    await loadChannelBrowse(true);
+    availableDevices.value = channelBrowseRows.value
+      .filter((channel) => String(channel.provider || "").toLowerCase() === "meta")
+      .map((channel) => ({
+        device_id: channel.meta_phone_number_id || channel.device_id,
+        label: channel.label,
+        phone_number: channel.phone_number,
+        assigned: {
+          label: channel.label,
+          team_ids: channel.team_ids || [],
+          team_names: channel.team_names || "",
+        },
+      }));
+    flash(true, `Nomor Meta: ${availableDevices.value.length} ditemukan`);
   } catch (e) {
     flash(false, e.message);
   } finally {
@@ -2889,6 +2931,32 @@ async function saveMaxlength(t) {
     flash(false, e.message);
   } finally {
     savingMaxlengthId.value = null;
+  }
+}
+
+async function loadWabas() {
+  try {
+    const res = await api("/WaDesk/Wabas/list", { cache: "no-store" });
+    wabas.value = res.data?.wabas || [];
+  } catch (e) {
+    wabas.value = [];
+    flash(false, e.message || "Gagal memuat WABA");
+  }
+}
+
+async function syncWabas() {
+  if (syncingWabas.value) return;
+  syncingWabas.value = true;
+  try {
+    const res = await api("/WaDesk/Wabas/sync", { method: "POST", body: {} });
+    const d = res.data || {};
+    const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join("; ")}` : "";
+    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${suffix}`);
+    await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true)]);
+  } catch (e) {
+    flash(false, e.message || "Gagal sinkron WABA");
+  } finally {
+    syncingWabas.value = false;
   }
 }
 

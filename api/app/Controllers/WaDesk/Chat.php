@@ -8,6 +8,7 @@ use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
 use App\Helpers\WaDesk\TenantDevFee as WaDeskTenantDevFee;
 use App\Helpers\WaDesk\Kirimin as WaDeskKirimin;
+use App\Helpers\WaDesk\Meta as WaDeskMeta;
 
 /**
  * Chat — conversations, messages, send free/template
@@ -260,10 +261,18 @@ class Chat extends WaDeskController
 
         $cswOpen = WaDeskKirimin::isWithinCsw($conv['last_in_at'] ?? null);
         $deviceId = trim((string) ($channel['device_id'] ?? ''));
-        if ($deviceId === '') {
-            $this->error('Channel belum punya device_id Kirimin', 400);
+        $isMeta = (($channel['provider'] ?? 'kirimin') === 'meta');
+        $metaPhoneNumberId = trim((string) ($channel['meta_phone_number_id'] ?? ''));
+        if ($isMeta && $metaPhoneNumberId === '') {
+            $this->error('Channel Meta belum punya Phone Number ID.', 400);
         }
-        $client = $this->requireKiriminConfigured((int) $user['tenant_id']);
+        if (!$isMeta && $deviceId === '') {
+            $this->error('Channel belum punya device ID', 400);
+        }
+        $client = $isMeta ? new WaDeskMeta() : $this->requireKiriminConfigured((int) $user['tenant_id']);
+        if ($isMeta && !$client->configured()) {
+            $this->error('META_WA_ACCESS_TOKEN belum diatur di server API.', 503);
+        }
 
         if ($mode === 'template') {
             if (array_key_exists('template_sending_enabled', $channel)
@@ -374,7 +383,9 @@ class Chat extends WaDeskController
                 'send_params'    => $sendParams,
             ], JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_req');
 
-            $result = $client->sendTemplate($deviceId, $phone, $templateName, $language, $sendParams);
+            $result = $isMeta
+                ? $client->sendTemplate($metaPhoneNumberId, $phone, $templateName, $language, $sendParams)
+                : $client->sendTemplate($deviceId, $phone, $templateName, $language, $sendParams);
 
             \Log::write('RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_res');
 
@@ -410,7 +421,7 @@ class Chat extends WaDeskController
                     'response' => $result,
                 ]);
                 $yErr = $provErr['message'];
-                $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
+                $this->error(($isMeta ? 'Meta Reject: ' : 'Provider Reject: ') . $yErr, 502, $result['data']);
             }
 
             $limitGuard->recordSuccess((int) $channel['tenant_id'], $phone, (int) $user['id'], 'template');
@@ -431,7 +442,7 @@ class Chat extends WaDeskController
                 // Race: provider already charged; keep message, do not fail the send response
                 try {
                     \Log::write(
-                        'WaDesk template quota consume failed after Kirimin success: team=' . $teamId . ' msg=' . $msgId,
+                        'WaDesk template quota consume failed after provider success: team=' . $teamId . ' msg=' . $msgId,
                         'wadesk',
                         'Quota'
                     );
@@ -528,10 +539,12 @@ class Chat extends WaDeskController
             ]);
         }
 
-        $result = $client->sendFreeText($deviceId, $phone, $message, $body['reply_to'] ?? null);
+        $result = $isMeta
+            ? $client->sendFreeText($metaPhoneNumberId, $phone, $message, $body['reply_to'] ?? null)
+            : $client->sendFreeText($deviceId, $phone, $message, $body['reply_to'] ?? null);
         if (!$result['success']) {
             $yErr = $result['data']['error']['message'] ?? ($result['data']['message'] ?? 'Send failed');
-            $this->error('Kirimin Reject: ' . $yErr, 502, $result['data']);
+            $this->error(($isMeta ? 'Meta Reject: ' : 'Provider Reject: ') . $yErr, 502, $result['data']);
         }
 
         $limitGuard->recordSuccess($tenantId, $phone, (int) $user['id'], 'free');
