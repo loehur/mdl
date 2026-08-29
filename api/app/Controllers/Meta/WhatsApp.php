@@ -186,7 +186,7 @@ class WhatsApp extends Controller
 
         $this->authorize('META_WA_ADMIN_API_KEY', 'HTTP_X_META_WA_ADMIN_KEY');
         $body = $this->getBody();
-        $this->validate($body, ['phone_number_id', 'pin']);
+        $this->validate($body, ['phone_number_id']);
 
         $accessToken = $this->config('META_WA_ACCESS_TOKEN');
         if ($accessToken === '') {
@@ -198,17 +198,21 @@ class WhatsApp extends Controller
         if (!preg_match('/^\d{5,32}$/', $phoneNumberId)) {
             $this->error('phone_number_id tidak valid.', 400);
         }
-        if (!preg_match('/^\d{6}$/', $pin)) {
-            $this->error('pin harus terdiri dari tepat 6 digit.', 400);
+        if ($pin !== '' && !preg_match('/^\d{6}$/', $pin)) {
+            $this->error('Jika diisi, pin harus terdiri dari tepat 6 digit.', 400);
         }
 
         $version = $this->config('META_WA_GRAPH_VERSION', 'v23.0');
         $url = 'https://graph.facebook.com/' . rawurlencode($version) . '/'
             . rawurlencode($phoneNumberId) . '/register';
-        $result = $this->postJson($url, $accessToken, [
+        $payload = [
             'messaging_product' => 'whatsapp',
-            'pin' => $pin,
-        ]);
+        ];
+        // PIN hanya diperlukan jika two-step verification telah diaktifkan.
+        if ($pin !== '') {
+            $payload['pin'] = $pin;
+        }
+        $result = $this->postJson($url, $accessToken, $payload);
 
         \Log::write(
             'Register WABA phone number: phone_number_id=' . $phoneNumberId
