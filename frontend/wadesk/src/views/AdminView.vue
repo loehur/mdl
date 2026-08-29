@@ -397,6 +397,11 @@
               <p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p>
               <button type="button" class="btn" :disabled="numberFlow.loading" @click="registerNumber">Register Number</button>
             </template>
+            <template v-else-if="numberFlow.step === 'done'">
+              <p class="text-sm text-emerald-400">Registrasi berhasil dikirim ke Meta.</p>
+              <p class="text-xs text-slate-400">Sinkronkan WABA untuk memuat status terbaru nomor ini.</p>
+              <button type="button" class="btn" :disabled="syncingWabas" @click="syncAfterRegistration">{{ syncingWabas ? 'Sinkron...' : 'Sync WABA sekarang' }}</button>
+            </template>
           </template>
         </div>
       </section>
@@ -3142,10 +3147,14 @@ async function registerNumber() {
   numberFlow.loading = true;
   try {
     await api("/WaDesk/Wabas/registerNumber", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id } });
-    flash(true, "Nomor berhasil diregistrasikan.");
-    addingNumber.value = false;
-    await syncWabas();
+    numberFlow.step = "done";
+    flash(true, "Registrasi berhasil dikirim ke Meta.");
   } catch (e) { flash(false, e.message || "Gagal register nomor"); } finally { numberFlow.loading = false; }
+}
+
+async function syncAfterRegistration() {
+  await syncWabas();
+  addingNumber.value = false;
 }
 
 function deleteNumber(number) {
