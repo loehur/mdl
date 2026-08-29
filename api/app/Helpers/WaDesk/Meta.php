@@ -254,7 +254,13 @@ class Meta
             return ['success' => false, 'data' => $decoded, 'error' => (string) ($metaError['message'] ?? 'Meta request gagal.') . $code . ($detail !== '' ? ': ' . $detail : ''), 'http_code' => $httpCode];
         }
         $message = is_array($decoded['messages'][0] ?? null) ? $decoded['messages'][0] : [];
-        return ['success' => true, 'data' => array_merge($decoded, ['id' => $message['id'] ?? null, 'message_id' => $message['id'] ?? null, 'wamid' => $message['id'] ?? null]), 'error' => '', 'http_code' => $httpCode];
+        $data = $decoded;
+        if ($message !== []) {
+            $data['id'] = $message['id'] ?? null;
+            $data['message_id'] = $message['id'] ?? null;
+            $data['wamid'] = $message['id'] ?? null;
+        }
+        return ['success' => true, 'data' => $data, 'error' => '', 'http_code' => $httpCode];
     }
 
     private function delete(string $path): array
