@@ -153,7 +153,8 @@ class Meta
     /** Subscribe the Meta app associated with this system-user token to a WABA. */
     public function subscribeCurrentAppToWaba(string $wabaId): array
     {
-        return $this->post('/' . rawurlencode($wabaId) . '/subscribed_apps', []);
+        // Sync should never be held up by a slow subscription handshake.
+        return $this->post('/' . rawurlencode($wabaId) . '/subscribed_apps', [], 10);
     }
 
     /** Create a Meta template using the positional body parameters required by Cloud API. */
@@ -236,7 +237,7 @@ class Meta
     }
 
     /** @return array{success:bool,data:array,error:string,http_code:int} */
-    private function post(string $path, array $payload): array
+    private function post(string $path, array $payload, int $timeout = 30): array
     {
         if (!$this->configured()) {
             return ['success' => false, 'data' => [], 'error' => 'META_WA_ACCESS_TOKEN belum diatur.', 'http_code' => 0];
@@ -249,7 +250,7 @@ class Meta
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->accessToken, 'Content-Type: application/json'],
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => max(1, $timeout),
         ]);
         $raw = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

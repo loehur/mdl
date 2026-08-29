@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS wa_wabas (
   meta_waba_id VARCHAR(64) NOT NULL,
   name VARCHAR(150) NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'active',
+  coex_subscription_status VARCHAR(32) NULL,
+  coex_subscription_checked_at DATETIME NULL,
   last_synced_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,

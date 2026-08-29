@@ -215,7 +215,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -240,11 +240,31 @@ class Wabas extends WaDeskController
                     }
                 }
                 if ($hasCoexistencePhone) {
-                    $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
-                    if ($subscription['success']) {
-                        $stats['coex_subscriptions']++;
+                    $wabaRow = $this->db($this->db_index)->query(
+                        'SELECT id, coex_subscription_status, coex_subscription_checked_at FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
+                        [$tenantId, $wabaId]
+                    )->row_array();
+                    $subscriptionStatus = (string) ($wabaRow['coex_subscription_status'] ?? '');
+                    $checkedAt = strtotime((string) ($wabaRow['coex_subscription_checked_at'] ?? ''));
+                    $recentFailure = $subscriptionStatus === 'failed'
+                        && $checkedAt !== false
+                        && $checkedAt > (time() - 3600);
+                    if ($subscriptionStatus === 'subscribed' || $recentFailure) {
+                        $stats['coex_subscriptions_skipped']++;
                     } else {
-                        $stats['errors'][] = "WABA {$wabaId} subscribe Coex: {$subscription['error']}";
+                        $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
+                        $subscriptionStatus = $subscription['success'] ? 'subscribed' : 'failed';
+                        if ($wabaRow) {
+                            $this->db($this->db_index)->update('wa_wabas', [
+                                'coex_subscription_status' => $subscriptionStatus,
+                                'coex_subscription_checked_at' => date('Y-m-d H:i:s'),
+                            ], ['id' => (int) $wabaRow['id']]);
+                        }
+                        if ($subscription['success']) {
+                            $stats['coex_subscriptions']++;
+                        } else {
+                            $stats['errors'][] = "WABA {$wabaId} subscribe Coex: {$subscription['error']}";
+                        }
                     }
                 }
             } else {
