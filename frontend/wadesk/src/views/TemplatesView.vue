@@ -21,7 +21,7 @@
             <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis.</p></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
-            <div><label class="label block mb-1">Isi pesan</label><textarea v-model="createForm.body" class="field block w-full" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, tagihan Anda sudah jatuh tempo." /><p class="mt-1 text-[11px] text-slate-500">Gunakan parameter bernama seperti <code v-pre>{{customer_name}}</code>. Parameter angka seperti <code v-pre>{{1}}</code> tidak didukung.</p></div>
+            <div><label class="label block mb-1">Isi pesan</label><textarea v-model="createForm.body" class="field block w-full" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, tagihan Anda sudah jatuh tempo." /><p class="mt-1 text-[11px] text-slate-500">Gunakan nama ramah seperti <code v-pre>{{customer_name}}</code>. WaDesk otomatis mengubahnya menjadi format Meta <code v-pre>{{1}}</code>, <code v-pre>{{2}}</code> saat dikirim.</p></div>
             <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di isi pesan bila diperlukan.</p></div>
             <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed" style="background:#0f766e" :disabled="creating">{{ creating ? 'Mengirim ke Meta...' : 'Kirim template ke Meta' }}</button>
           </form>
@@ -58,8 +58,8 @@
                 <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Parameters</p>
                 <div class="mt-2 space-y-1.5">
                   <div v-for="param in template.params" :key="param.id" class="text-sm text-slate-300">
-                    <span class="text-accent-soft">{{ param.component }} {{ Number(param.param_index) + 1 }}</span>
-                    <span v-if="param.label"> · {{ param.label }}</span>
+                    <span class="text-accent-soft">{{ param.component }}</span>
+                    <span> · {{ param.label || param.param_name }}</span>
                     <span v-if="param.example_value" class="text-slate-500"> — {{ param.example_value }}</span>
                   </div>
                 </div>

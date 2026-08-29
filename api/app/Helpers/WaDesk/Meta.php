@@ -150,15 +150,14 @@ class Meta
         return $this->delete('/' . rawurlencode($phoneNumberId));
     }
 
-    /** Create a Meta template with named (never positional) body parameters. */
-    public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramNames): array
+    /** Create a Meta template using the positional body parameters required by Cloud API. */
+    public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramLabels): array
     {
         $component = ['type' => 'BODY', 'text' => $body];
-        if ($paramNames !== []) {
-            $component['example'] = ['body_text_named_params' => array_map(
-                static fn (string $param) => ['param_name' => $param, 'example' => 'contoh'],
-                $paramNames
-            )];
+        if ($paramLabels !== []) {
+            // Meta requires positional examples for {{1}}, {{2}}, etc. Labels remain
+            // local to WaDesk and are never exposed to the Meta template schema.
+            $component['example'] = ['body_text' => [array_fill(0, count($paramLabels), 'contoh')]];
         }
         return $this->post('/' . rawurlencode($wabaId) . '/message_templates', [
             'name' => $name,
@@ -291,9 +290,8 @@ class Meta
             $row = is_array($value) ? $value : ['component' => 'body', 'text' => (string) $value];
             $component = strtolower((string) ($row['component'] ?? 'body'));
             $parameter = ['type' => 'text', 'text' => (string) ($row['text'] ?? '')];
-            if (!empty($row['param_name'])) {
-                $parameter['parameter_name'] = (string) $row['param_name'];
-            }
+            // Meta Cloud API templates use positional parameters. WaDesk's friendly
+            // param_name is only for the form/preview and must not be sent to Meta.
             if ($component === 'button') {
                 $key = 'button:' . (string) ($row['button_sub_type'] ?? 'url') . ':' . (int) ($row['button_index'] ?? 0);
                 $groups[$key] ??= ['type' => 'button', 'sub_type' => $row['button_sub_type'] ?? 'url', 'index' => (int) ($row['button_index'] ?? 0), 'parameters' => []];

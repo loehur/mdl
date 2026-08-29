@@ -324,11 +324,16 @@ class Wabas extends WaDeskController
         $preview = $this->templatePreview($components);
         $db = $this->db($this->db_index);
         $existing = $db->query(
-            'SELECT id FROM wa_templates WHERE tenant_id = ? AND meta_waba_id = ? AND template_name = ? AND language = ? LIMIT 1',
+            'SELECT id, body_preview FROM wa_templates WHERE tenant_id = ? AND meta_waba_id = ? AND template_name = ? AND language = ? LIMIT 1',
             [$tenantId, $wabaId, $name, $language]
         )->row_array();
+        // Templates created from WaDesk keep readable labels (for example
+        // {{customer_name}}) locally, while Meta returns its required {{1}} form.
+        $keepFriendlyPreview = $existing
+            && preg_match('/\{\{\s*\d+\s*\}\}/', (string) $preview)
+            && preg_match('/\{\{\s*[a-zA-Z][a-zA-Z0-9_]*\s*\}\}/', (string) ($existing['body_preview'] ?? ''));
         $data = [
-            'body_preview' => $preview,
+            'body_preview' => $keepFriendlyPreview ? $existing['body_preview'] : $preview,
             'meta_template_id' => (string) ($template['id'] ?? ''),
             'meta_status' => strtoupper((string) ($template['status'] ?? '')),
             'meta_category' => strtoupper((string) ($template['category'] ?? '')),
@@ -349,6 +354,14 @@ class Wabas extends WaDeskController
     private function syncTemplateParams(int $templateId, array $components): void
     {
         $db = $this->db($this->db_index);
+        $oldRows = $db->query(
+            'SELECT component, param_index, param_name, label FROM wa_template_params WHERE template_id = ? ORDER BY component, param_index',
+            [$templateId]
+        )->result_array();
+        $oldByPosition = [];
+        foreach ($oldRows as $old) {
+            $oldByPosition[strtolower((string) $old['component']) . ':' . (int) $old['param_index']] = $old;
+        }
         $db->delete('wa_template_params', ['template_id' => $templateId]);
         foreach ($components as $component) {
             if (!is_array($component)) {
@@ -364,10 +377,16 @@ class Wabas extends WaDeskController
             }
             foreach ($matches[1] as $index => $name) {
                 $name = trim((string) $name);
+                $position = $index + 1;
+                $old = $oldByPosition[$type . ':' . $position] ?? null;
+                // Preserve WaDesk labels when Meta returns the numeric schema.
+                if (preg_match('/^\d+$/', $name) && is_array($old) && preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', (string) ($old['param_name'] ?? ''))) {
+                    $name = (string) $old['param_name'];
+                }
                 $db->insert('wa_template_params', [
                     'template_id' => $templateId,
                     'component' => $type,
-                    'param_index' => $index + 1,
+                    'param_index' => $position,
                     'param_name' => $name,
                     'label' => $name !== '' ? $name : (string) ($index + 1),
                     'is_required' => 1,

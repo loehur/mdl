@@ -800,6 +800,10 @@ class Templates extends WaDeskController
         if (!in_array($category, ['UTILITY', 'MARKETING'], true)) $this->error('Kategori template tidak valid.', 422);
         foreach ($paramNames as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
         if (preg_match('/\{\{\s*\d+\s*\}\}/', $text)) $this->error('Parameter indeks seperti {{1}} tidak diizinkan. Gunakan nama enum seperti {{customer_name}}.', 422);
+        $metaBody = preg_replace_callback('/\{\{\s*([^}]+?)\s*\}\}/', static function (array $match) use ($paramNames): string {
+            $position = array_search(trim((string) $match[1]), $paramNames, true);
+            return '{{' . ($position + 1) . '}}';
+        }, $text) ?? $text;
         $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $waba = $this->db($this->db_index)->query(
             'SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1',
@@ -807,7 +811,7 @@ class Templates extends WaDeskController
         )->row_array();
         if (!$waba) $this->error('Team Anda belum di-assign ke WABA.', 422);
         $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
-        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $text, $paramNames);
+        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $metaBody, $paramNames);
         if (!$res['success']) $this->error('Meta menolak template: ' . $res['error'], 502, $res['data']);
         $data = $res['data'];
         $templateId = (int) $this->db($this->db_index)->insert('wa_templates', ['tenant_id' => $tenantId, 'meta_waba_id' => $waba['meta_waba_id'], 'template_name' => $name, 'language' => $language, 'body_preview' => $text, 'meta_template_id' => (string) ($data['id'] ?? ''), 'meta_status' => strtoupper((string) ($data['status'] ?? 'PENDING')), 'meta_category' => $category]);
