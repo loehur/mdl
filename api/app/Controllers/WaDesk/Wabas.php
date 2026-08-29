@@ -178,6 +178,8 @@ class Wabas extends WaDeskController
             'waba_id' => $wabaId,
             'phone_number' => $number !== '' ? $number : $phoneId,
             'label' => $label,
+            'meta_verification_status' => strtoupper(trim((string) ($phone['code_verification_status'] ?? $phone['status'] ?? ''))),
+            'meta_quality_rating' => strtoupper(trim((string) ($phone['quality_rating'] ?? ''))),
             'channel_type' => 'waba',
             'provider' => 'meta',
             'status' => $channelStatus,

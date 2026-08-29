@@ -336,6 +336,44 @@
         </div>
       </section>
 
+      <!-- Numbers -->
+      <section v-if="tab === 'numbers'" class="card space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 class="font-display font-semibold text-lg">Number</h2>
+            <p class="text-xs text-slate-500 mt-1">Nomor WhatsApp Meta yang tersinkron per WABA.</p>
+          </div>
+          <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
+            {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
+          </button>
+        </div>
+        <select v-model="numberWabaFilter" class="field sm:max-w-md">
+          <option v-for="waba in wabas" :key="`number-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option>
+        </select>
+        <p v-if="!numberWabaFilter" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
+          Sync WABA terlebih dahulu.
+        </p>
+        <div v-else class="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+          <p v-if="loadingNumbers" class="py-10 text-center text-sm text-slate-500">Memuat nomor...</p>
+          <p v-else-if="!numbers.length" class="py-10 text-center text-sm text-slate-500">Belum ada nomor pada WABA ini.</p>
+          <div v-for="number in numbers" :key="number.id" class="px-4 py-3">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium">{{ number.label || number.phone_number }}</p>
+                <p class="font-mono text-xs text-accent mt-1">+{{ number.phone_number || '—' }}</p>
+                <p class="text-[11px] text-slate-500 mt-1">Phone Number ID: {{ number.meta_phone_number_id || number.device_id }}</p>
+                <p class="text-xs text-slate-400 mt-2">Team: {{ number.team_names || 'Belum di-assign ke WABA' }}</p>
+              </div>
+              <div class="flex flex-wrap gap-1.5 justify-end text-xs">
+                <span class="px-2 py-1 rounded bg-white/5 text-slate-300">{{ number.status || 'unknown' }}</span>
+                <span v-if="number.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ number.meta_verification_status }}</span>
+                <span v-if="number.meta_quality_rating" class="px-2 py-1 rounded bg-amber-500/10 text-amber-300">Quality: {{ number.meta_quality_rating }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- WABA -->
       <section v-if="tab === 'wabas'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1388,6 +1426,7 @@ const tabs = [
   { id: "teams", label: "Teams" },
   { id: "users", label: "Users" },
   { id: "wabas", label: "WABA" },
+  { id: "numbers", label: "Number" },
   { id: "templates", label: "Templates" },
   { id: "config", label: "Config" },
   { id: "dev-fee", label: "Dev Fee" },
@@ -1430,6 +1469,9 @@ let quotaBrowseObserver = null;
 let quotaSearchTimer = null;
 const availableDevices = ref([]);
 const wabas = ref([]);
+const numbers = ref([]);
+const loadingNumbers = ref(false);
+const numberWabaFilter = ref("");
 const editingWabaTeamId = ref(null);
 const wabaTeamDraft = ref([]);
 const savingWabaTeamId = ref(null);
@@ -2146,6 +2188,10 @@ async function refresh() {
   if (tab.value === "wabas") {
     await loadWabas();
   }
+  if (tab.value === "numbers") {
+    await loadWabas();
+    await loadNumbers();
+  }
   if (tab.value === "quota") {
     await loadQuotaBrowse(true);
   }
@@ -2344,6 +2390,9 @@ watch(tab, (id) => {
   if (id === "wabas") {
     loadWabas();
   }
+  if (id === "numbers") {
+    loadWabas().then(() => loadNumbers());
+  }
   if (id === "quota") {
     loadQuotaBrowse(true);
   }
@@ -2381,6 +2430,10 @@ watch(templateBrowseQuery, () => {
 
 watch(templateWabaFilter, () => {
   if (tab.value === "templates") loadTemplateBrowse(true);
+});
+
+watch(numberWabaFilter, () => {
+  if (tab.value === "numbers") loadNumbers();
 });
 
 watch(userBrowseSentinel, () => {
@@ -2974,9 +3027,33 @@ async function loadWabas() {
     if (!selectedStillExists) {
       templateWabaFilter.value = wabas.value[0]?.meta_waba_id || "";
     }
+    const numberSelectedStillExists = wabas.value.some((waba) => waba.meta_waba_id === numberWabaFilter.value);
+    if (!numberSelectedStillExists) {
+      numberWabaFilter.value = wabas.value[0]?.meta_waba_id || "";
+    }
   } catch (e) {
     wabas.value = [];
     flash(false, e.message || "Gagal memuat WABA");
+  }
+}
+
+async function loadNumbers() {
+  const wabaId = numberWabaFilter.value.trim();
+  if (!wabaId) {
+    numbers.value = [];
+    return;
+  }
+  loadingNumbers.value = true;
+  try {
+    const res = await api("/WaDesk/Channels/list?scope=all", { cache: "no-store" });
+    numbers.value = (res.data?.channels || res.data?.keys || []).filter((channel) =>
+      String(channel.provider || "").toLowerCase() === "meta" && String(channel.waba_id || "") === wabaId
+    );
+  } catch (e) {
+    numbers.value = [];
+    flash(false, e.message || "Gagal memuat nomor");
+  } finally {
+    loadingNumbers.value = false;
   }
 }
 
@@ -3012,7 +3089,7 @@ async function syncWabas() {
     const removed = Number(d.templates_removed || 0);
     const removedText = removed ? `, ${removed} template lama dihapus` : "";
     flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${removedText}${suffix}`);
-    await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true)]);
+    await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true), loadNumbers()]);
   } catch (e) {
     flash(false, e.message || "Gagal sinkron WABA");
   } finally {
