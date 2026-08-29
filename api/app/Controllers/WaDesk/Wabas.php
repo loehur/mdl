@@ -215,7 +215,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -229,9 +229,22 @@ class Wabas extends WaDeskController
 
             $phones = $meta->listPhoneNumbers($wabaId);
             if ($phones['success']) {
+                $hasCoexistencePhone = false;
                 foreach ($phones['data'] as $phone) {
                     if (is_array($phone) && $this->upsertPhone($tenantId, $wabaId, $phone)) {
                         $stats['phones']++;
+                    }
+                    if (is_array($phone) && !empty($phone['is_on_biz_app'])) {
+                        $hasCoexistencePhone = true;
+                        $stats['coex_phones']++;
+                    }
+                }
+                if ($hasCoexistencePhone) {
+                    $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
+                    if ($subscription['success']) {
+                        $stats['coex_subscriptions']++;
+                    } else {
+                        $stats['errors'][] = "WABA {$wabaId} subscribe Coex: {$subscription['error']}";
                     }
                 }
             } else {
@@ -302,6 +315,8 @@ class Wabas extends WaDeskController
             // Kolom ini menyimpan status OTP saja; status koneksi disimpan pada `status`.
             'meta_verification_status' => $codeStatus,
             'meta_quality_rating' => strtoupper(trim((string) ($phone['quality_rating'] ?? ''))),
+            'meta_platform_type' => strtoupper(trim((string) ($phone['platform_type'] ?? ''))),
+            'is_coexistence' => !empty($phone['is_on_biz_app']) ? 1 : 0,
             'channel_type' => 'waba',
             'provider' => 'meta',
             'status' => $channelStatus,

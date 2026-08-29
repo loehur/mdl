@@ -50,7 +50,7 @@ class Meta
     public function listPhoneNumbers(string $wabaId): array
     {
         return $this->get('/' . rawurlencode($wabaId) . '/phone_numbers', [
-            'fields' => 'id,display_phone_number,verified_name,code_verification_status,quality_rating,status,name_status,new_name_status',
+            'fields' => 'id,display_phone_number,verified_name,code_verification_status,quality_rating,status,name_status,new_name_status,platform_type,is_on_biz_app',
         ]);
     }
 
@@ -148,6 +148,12 @@ class Meta
     public function deletePhoneNumber(string $phoneNumberId): array
     {
         return $this->delete('/' . rawurlencode($phoneNumberId));
+    }
+
+    /** Subscribe the Meta app associated with this system-user token to a WABA. */
+    public function subscribeCurrentAppToWaba(string $wabaId): array
+    {
+        return $this->post('/' . rawurlencode($wabaId) . '/subscribed_apps', []);
     }
 
     /** Create a Meta template using the positional body parameters required by Cloud API. */

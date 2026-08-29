@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   meta_phone_number_id VARCHAR(64) NULL,
   meta_verification_status VARCHAR(32) NULL,
   meta_quality_rating VARCHAR(32) NULL,
+  meta_platform_type VARCHAR(32) NULL,
+  is_coexistence TINYINT(1) NOT NULL DEFAULT 0,
   channel_type ENUM('waba','device') NOT NULL DEFAULT 'waba',
   provider ENUM('kirimin','meta') NOT NULL DEFAULT 'kirimin',
   phone_number VARCHAR(32) NOT NULL,
