@@ -379,7 +379,7 @@
           <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="addingNumber = false">Tutup</button></div>
           <template v-if="numberFlow.step === 'add'">
             <select v-model="numberForm.waba_id" class="field"><option v-for="waba in wabas" :key="`add-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option></select>
-            <div class="grid sm:grid-cols-3 gap-2"><input v-model="numberForm.country_code" class="field" placeholder="Country code" /><input v-model="numberForm.phone_number" class="field sm:col-span-2" placeholder="Nomor tanpa +" /></div>
+            <div class="flex gap-2"><input value="62" readonly tabindex="-1" class="field w-16 shrink-0 bg-ink-950/50 text-slate-400 cursor-not-allowed" aria-label="Country code Indonesia" /><input v-model="numberForm.phone_number" class="field flex-1" placeholder="Nomor tanpa +" /></div>
             <input v-model="numberForm.verified_name" class="field" placeholder="Verified name" />
             <button type="button" class="btn" :disabled="numberFlow.loading" @click="addNumber">{{ numberFlow.loading ? 'Memproses...' : 'Tambah nomor' }}</button>
           </template>
