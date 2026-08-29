@@ -80,11 +80,11 @@
                       v-model="editingTeamName"
                       required
                       maxlength="100"
-                      class="field flex-1"
+                      class="field flex-1 min-w-0"
                       placeholder="Nama team"
                       @keydown.esc.prevent="cancelEditTeam"
                     />
-                    <select v-model="editingTeamCategory" class="field sm:w-36">
+                    <select v-model="editingTeamCategory" class="field sm:w-36 shrink-0">
                       <option value="UTILITY">Utility</option>
                       <option value="MARKETING">Marketing</option>
                     </select>

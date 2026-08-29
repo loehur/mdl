@@ -104,7 +104,8 @@ class Wabas extends WaDeskController
     public function teamNumbers()
     {
         $this->verifyAuth(); $user = $this->requireChatUser();
-        if (($user['role'] ?? '') !== 'team_leader' || !$this->hasOperationalTeam($user)) $this->error('Khusus Team Leader pada team aktif.', 403);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true)) $this->error('Hanya Admin atau Team Leader yang dapat mengakses menu nomor.', 403);
+        if (($user['role'] ?? '') === 'team_leader' && !$this->hasOperationalTeam($user)) $this->error('Team Leader harus berada pada team aktif.', 403);
         $wabaId = $this->managedWabaId($user);
         $waba = $this->assertTenantWaba((int) $user['tenant_id'], $wabaId);
         $numbers = $this->db($this->db_index)->query(
@@ -117,7 +118,8 @@ class Wabas extends WaDeskController
     public function syncNumbersForTeam()
     {
         $this->verifyAuth(); $user = $this->requireChatUser();
-        if (($user['role'] ?? '') !== 'team_leader' || !$this->hasOperationalTeam($user)) $this->error('Khusus Team Leader pada team aktif.', 403);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true)) $this->error('Hanya Admin atau Team Leader yang dapat mengelola nomor.', 403);
+        if (($user['role'] ?? '') === 'team_leader' && !$this->hasOperationalTeam($user)) $this->error('Team Leader harus berada pada team aktif.', 403);
         $this->requireWabaTable();
         $wabaId = $this->managedWabaId($user);
         $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
@@ -125,8 +127,12 @@ class Wabas extends WaDeskController
         if (!$res['success']) $this->error('Gagal sync nomor: ' . $res['error'], 502, $res['data']);
         $count = 0;
         foreach ($res['data'] as $phone) if (is_array($phone) && $this->upsertPhone((int) $user['tenant_id'], $wabaId, $phone)) $count++;
-        $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, [(int) $user['team_id']]);
-        $this->success(['numbers' => $count], 'Nomor WABA team berhasil disinkronkan.');
+        if (($user['role'] ?? '') === 'admin') {
+            $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, $this->wabaTeamIds((int) $user['tenant_id'], $wabaId));
+        } else {
+            $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, [(int) $user['team_id']]);
+        }
+        $this->success(['numbers' => $count], 'Nomor WABA berhasil disinkronkan.');
     }
 
     /** Sync templates for the caller's active team WABA without changing channels. */
@@ -557,7 +563,6 @@ class Wabas extends WaDeskController
         return array_map('intval', array_column($rows, 'team_id'));
     }
 
-    /** Mirror WABA team access to every Meta phone number in that WABA. */
     private function syncWabaTeamsToChannels(int $tenantId, string $metaWabaId, array $teamIds): void
     {
         $db = $this->db($this->db_index);
