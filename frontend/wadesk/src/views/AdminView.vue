@@ -370,6 +370,7 @@
                 <span class="px-2 py-1 rounded bg-white/5 text-slate-300">{{ number.status || 'unknown' }}</span>
                 <span v-if="number.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ number.meta_verification_status }}</span>
                 <span v-if="number.meta_quality_rating" class="px-2 py-1 rounded bg-amber-500/10 text-amber-300">Quality: {{ number.meta_quality_rating }}</span>
+                <button v-if="String(number.meta_verification_status || '').toUpperCase() !== 'VERIFIED'" type="button" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20" @click="continueNumberRegistration(number)">Request OTP</button>
                 <button type="button" class="px-2 py-1 rounded bg-rose-500/10 text-rose-300 hover:bg-rose-500/20" @click="deleteNumber(number)">Hapus</button>
               </div>
             </div>
@@ -3098,6 +3099,12 @@ function normalizeAddPhone() {
   if (value.startsWith("628")) value = value.slice(2);
   else if (value.startsWith("08")) value = value.slice(1);
   numberForm.phone_number = value;
+}
+
+function continueNumberRegistration(number) {
+  Object.assign(numberForm, { waba_id: number.waba_id || "", country_code: "62", phone_number: number.phone_number || "", verified_name: "", method: "SMS", otp: "" });
+  Object.assign(numberFlow, { step: "request", phone_number_id: number.meta_phone_number_id || number.device_id, loading: false });
+  addingNumber.value = true;
 }
 
 async function addNumber() {
