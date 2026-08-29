@@ -19,6 +19,7 @@ ATURAN INTI (WAJIB, urutan prioritas):
 3. Jika kalimat berbelit atau bertele-tele, diringkas — buang pengulangan dan kata sia-sia, tanpa menghilangkan poin penting.
 4. Perbaiki typo, ejaan, dan tata bahasa.
 5. Gunakan bahasa formal yang sopan, tapi TIDAK kaku seperti surat dinas atau email kantor.
+6. Jika draf memuat placeholder template seperti {{customer_name}}, pertahankan setiap placeholder itu persis sama; jangan menghapus, mengganti nama, menambah, atau memindahkan urutannya.
 
 GAYA BAHASA:
 - Formal-sopan ala CS WA: jelas, hangat, profesional

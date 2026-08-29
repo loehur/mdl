@@ -780,6 +780,43 @@ class Templates extends WaDeskController
         $this->success(['id' => $tplId], 'Template dibuat');
     }
 
+    /** Generate the only server-approved content that may be submitted to Meta. */
+    public function generateForTeam()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
+            $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
+        }
+        $draft = trim((string) (($this->getBody())['draft'] ?? ''));
+        if ($draft === '') $this->error('Tulis draf template untuk diproses AI.', 422);
+        if (mb_strlen($draft) > 1024) $this->error('Draf template maksimal 1024 karakter.', 422);
+
+        $sourceSequence = $this->templateParamSequence($draft);
+        $sourceParams = array_values(array_unique($sourceSequence));
+        foreach ($sourceParams as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
+        if (preg_match('/\{\{\s*\d+\s*\}\}/', $draft)) $this->error('Gunakan nama parameter seperti {{customer_name}}, bukan angka.', 422);
+
+        $tenantId = (int) $user['tenant_id'];
+        $result = $this->polishFreeMessageText($tenantId, $draft);
+        if (empty($result['status'])) $this->error($result['reason'] ?: 'AI menolak draf template.', 422);
+        $generated = trim((string) ($result['new_words'] ?? ''));
+        if ($generated === '') $this->error('AI tidak menghasilkan isi template.', 422);
+        if ($this->templateParamSequence($generated) !== $sourceSequence) {
+            $this->error('AI mengubah parameter template. Generate ulang agar placeholder tetap sama.', 422);
+        }
+
+        $rawToken = bin2hex(random_bytes(32));
+        $this->db($this->db_index)->query('DELETE FROM wa_template_ai_approvals WHERE expires_at < NOW() OR used_at IS NOT NULL');
+        $this->db($this->db_index)->insert('wa_template_ai_approvals', [
+            'tenant_id' => $tenantId, 'team_id' => (int) $user['team_id'], 'user_id' => (int) $user['id'],
+            'token_hash' => hash('sha256', $rawToken), 'body' => $generated,
+            'expires_at' => date('Y-m-d H:i:s', time() + 900),
+        ]);
+        $this->success(['body' => $generated, 'approval_token' => $rawToken, 'expires_in' => 900], 'Draf sudah dirapikan AI dan siap diajukan ke Meta.');
+    }
+
     /** Create a Meta template from the operational Templates menu. */
     public function createForTeam()
     {
@@ -793,7 +830,15 @@ class Templates extends WaDeskController
         $name = strtolower(trim((string) ($body['template_name'] ?? '')));
         $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
         $category = strtoupper(trim((string) ($body['category'] ?? 'UTILITY')));
-        $text = trim((string) ($body['body'] ?? ''));
+        $approvalToken = trim((string) ($body['approval_token'] ?? ''));
+        $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
+        $approval = $approvalToken === '' ? null : $this->db($this->db_index)->query(
+            'SELECT id, body FROM wa_template_ai_approvals WHERE token_hash = ? AND tenant_id = ? AND team_id = ? AND user_id = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1',
+            [hash('sha256', $approvalToken), $tenantId, $teamId, (int) $user['id']]
+        )->row_array();
+        if (!$approval) $this->error('Isi template harus digenerate AI terlebih dahulu. Generate ulang bila persetujuan AI sudah kedaluwarsa.', 422);
+        // Never trust a body sent by the browser; only the stored AI result is used.
+        $text = trim((string) $approval['body']);
         preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
         $paramNames = array_values(array_unique(array_filter(array_map('trim', $matches[1] ?? []))));
         if (!preg_match('/^[a-z][a-z0-9_]{0,511}$/', $name) || $text === '') $this->error('Nama template (huruf kecil/angka/underscore) dan isi template wajib.', 422);
@@ -804,7 +849,6 @@ class Templates extends WaDeskController
             $position = array_search(trim((string) $match[1]), $paramNames, true);
             return '{{' . ($position + 1) . '}}';
         }, $text) ?? $text;
-        $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $waba = $this->db($this->db_index)->query(
             'SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1',
             [$tenantId, $teamId]
@@ -818,7 +862,15 @@ class Templates extends WaDeskController
         $params = []; foreach ($paramNames as $i => $param) $params[] = ['component' => 'body', 'param_index' => $i + 1, 'param_name' => $param, 'label' => $param, 'is_required' => 1];
         $this->replaceParams($templateId, $params);
         $this->db($this->db_index)->insert('wa_template_teams', ['template_id' => $templateId, 'team_id' => $teamId, 'tenant_id' => $tenantId]);
+        $this->db($this->db_index)->update('wa_template_ai_approvals', ['used_at' => date('Y-m-d H:i:s')], ['id' => (int) $approval['id']]);
         $this->success(['id' => $templateId, 'meta' => $data], 'Template dikirim ke Meta dan otomatis di-assign ke team Anda.');
+    }
+
+    /** @return list<string> Keeps duplicate placeholders and their order for AI validation. */
+    private function templateParamSequence(string $text): array
+    {
+        preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
+        return array_values(array_map('trim', $matches[1] ?? []));
     }
 
     public function deleteForTeam()

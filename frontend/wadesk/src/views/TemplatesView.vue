@@ -18,12 +18,14 @@
           />
           <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
           <form v-if="showCreate" class="space-y-4 rounded-xl border border-accent/20 bg-ink-950/40 p-4" @submit.prevent="createTemplate">
-            <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis.</p></div>
+            <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis. Isi yang dikirim ke Meta wajib berasal dari AI.</p></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
-            <div><label class="label block mb-1">Isi pesan</label><textarea v-model="createForm.body" class="field block w-full" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, tagihan Anda sudah jatuh tempo." /><p class="mt-1 text-[11px] text-slate-500">Gunakan nama ramah seperti <code v-pre>{{customer_name}}</code>. WaDesk otomatis mengubahnya menjadi format Meta <code v-pre>{{1}}</code>, <code v-pre>{{2}}</code> saat dikirim.</p></div>
-            <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di isi pesan bila diperlukan.</p></div>
-            <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed" style="background:#0f766e" :disabled="creating">{{ creating ? 'Mengirim ke Meta...' : 'Kirim template ke Meta' }}</button>
+            <div><label class="label block mb-1">Draf untuk AI</label><textarea v-model="createForm.draft" class="field block w-full" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, kami dari {{company_name}} mengingatkan tagihan Anda..." @input="clearAiApproval" /><p class="mt-1 text-[11px] text-slate-500">Gunakan nama ramah seperti <code v-pre>{{customer_name}}</code>. AI wajib mempertahankan parameter tersebut.</p></div>
+            <button type="button" class="detail-button" :disabled="generating" @click="generateTemplate">{{ generating ? 'AI sedang menyusun...' : approvalToken ? 'Generate ulang dengan AI' : 'Generate dengan AI' }}</button>
+            <div v-if="generatedBody" class="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3"><p class="text-xs font-medium text-emerald-300">Hasil AI — siap diajukan ke Meta</p><p class="mt-2 whitespace-pre-wrap text-sm text-slate-200">{{ generatedBody }}</p><p class="mt-2 text-[11px] text-slate-500">Hasil ini tidak dapat diedit. Ubah draf lalu generate ulang bila diperlukan.</p></div>
+            <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di draf bila diperlukan.</p></div>
+            <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60" style="background:#0f766e" :disabled="creating || !approvalToken">{{ creating ? 'Mengirim ke Meta...' : 'Kirim hasil AI ke Meta' }}</button>
           </form>
         </section>
 
@@ -115,8 +117,11 @@ const syncing = ref(false);
 const templateToDelete = ref(null);
 const deleting = ref(false);
 const deleteError = ref("");
-const createForm = reactive({ template_name: "", category: "UTILITY", body: "" });
-const namedParams = computed(() => [...new Set([...String(createForm.body || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
+const createForm = reactive({ template_name: "", category: "UTILITY", draft: "" });
+const generatedBody = ref("");
+const approvalToken = ref("");
+const generating = ref(false);
+const namedParams = computed(() => [...new Set([...String(generatedBody.value || createForm.draft || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
 let observer;
 let searchTimer;
 
@@ -157,11 +162,29 @@ function toggleDetail(id) {
 async function createTemplate() {
   creating.value = true; error.value = "";
   try {
-    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", body: createForm.body } });
-    Object.assign(createForm, { template_name: "", category: "UTILITY", body: "" });
+    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", approval_token: approvalToken.value } });
+    Object.assign(createForm, { template_name: "", category: "UTILITY", draft: "" });
+    generatedBody.value = ""; approvalToken.value = "";
     showCreate.value = false;
     await loadTemplates({ reset: true });
   } catch (e) { error.value = e.message || "Gagal membuat template."; } finally { creating.value = false; }
+}
+
+function clearAiApproval() {
+  generatedBody.value = "";
+  approvalToken.value = "";
+}
+
+async function generateTemplate() {
+  generating.value = true; error.value = "";
+  clearAiApproval();
+  try {
+    const res = await api("/WaDesk/Templates/generateForTeam", { method: "POST", body: { draft: createForm.draft } });
+    generatedBody.value = res.data?.body || "";
+    approvalToken.value = res.data?.approval_token || "";
+    if (!generatedBody.value || !approvalToken.value) throw new Error("AI tidak menghasilkan persetujuan template yang valid.");
+  } catch (e) { error.value = e.message || "Gagal membuat draf dengan AI."; }
+  finally { generating.value = false; }
 }
 
 async function syncTemplates() {
