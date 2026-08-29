@@ -3,7 +3,7 @@
 namespace App\Helpers\Payment;
 
 /**
- * Logika bisnis webhook QRIS terpusat (Tokopay, DOKU, dll.).
+ * Logika bisnis webhook QRIS terpusat (Tokopay, dll.).
  * Controller webhook hanya handle verifikasi gateway + delegasi ke class ini.
  */
 class QrisWebhookProcessor
