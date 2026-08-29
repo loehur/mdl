@@ -261,11 +261,20 @@ class WhatsApp extends Controller
         }
 
         $parameters = [];
-        foreach ($body['body_parameters'] as $value) {
+        $isNamed = array_keys($body['body_parameters']) !== range(0, count($body['body_parameters']) - 1);
+        foreach ($body['body_parameters'] as $name => $value) {
             if (!is_scalar($value) && $value !== null) {
                 return null;
             }
-            $parameters[] = ['type' => 'text', 'text' => (string) $value];
+            $parameter = ['type' => 'text', 'text' => (string) $value];
+            if ($isNamed) {
+                $name = trim((string) $name);
+                if ($name === '') {
+                    return null;
+                }
+                $parameter['parameter_name'] = $name;
+            }
+            $parameters[] = $parameter;
         }
 
         return $parameters === [] ? [] : [[
