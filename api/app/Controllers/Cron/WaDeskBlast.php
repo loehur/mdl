@@ -36,7 +36,7 @@ class WaDeskBlast extends Controller
         $blasts = $db->query(
             "SELECT b.*, k.device_id, k.phone_number, k.template_sending_enabled, k.tenant_id AS key_tenant_id,
                     COALESCE(b.team_id, k.team_id) AS team_id,
-                    t.template_name, t.language, t.body_preview, t.meta_waba_id
+                    t.template_name, t.language, t.body_preview, t.meta_waba_id, t.meta_category
              FROM wa_blasts b
              INNER JOIN {$channelsTable} k ON k.id = b.channel_id
              INNER JOIN wa_templates t ON t.id = b.template_id
@@ -91,6 +91,7 @@ class WaDeskBlast extends Controller
                 'language'     => $blast['language'],
                 'body_preview' => $blast['body_preview'],
                 'meta_waba_id' => $blast['meta_waba_id'] ?? '',
+                'meta_category' => $blast['meta_category'] ?? 'UTILITY',
             ];
 
             $sender = new WaDeskTemplateSender($db, self::DB_INDEX);

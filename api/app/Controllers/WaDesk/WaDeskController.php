@@ -521,16 +521,42 @@ abstract class WaDeskController extends BaseController
     }
 
     /**
-     * @return array{status:bool,new_words:string,reason:string}
+     * @return array{status:bool,new_words:string,reason:string,role:string}
      */
-    protected function polishFreeMessageText(int $tenantId, string $message): array
+    protected function polishFreeMessageText(int $tenantId, string $message, string $conversationSummary = ''): array
     {
         if ($this->getTenantOpenAiApiKey($tenantId) === '') {
             $this->error('OpenAI API key belum diatur. Simpan di Admin → OpenAI.', 400);
         }
 
         $polisher = new \App\Helpers\WaDesk\FreeTextPolisher();
-        return $polisher->polish($this->getTenantOpenAiApiKey($tenantId), $message);
+        return $polisher->polish($this->getTenantOpenAiApiKey($tenantId), $message, $conversationSummary);
+    }
+
+    /** Compact context sent with every AI-polished free-text message. */
+    protected function freeTextConversationSummary(int $conversationId): string
+    {
+        if ($conversationId <= 0) return '(Belum ada riwayat percakapan.)';
+        $rows = $this->db($this->db_index)->query(
+            "SELECT direction, type, body, template_name
+             FROM messages WHERE conversation_id = ?
+             ORDER BY id DESC LIMIT 16",
+            [$conversationId]
+        )->result_array();
+        if ($rows === []) return '(Belum ada riwayat percakapan.)';
+
+        $rows = array_reverse($rows);
+        $lines = [];
+        foreach ($rows as $row) {
+            $body = trim((string) ($row['body'] ?? ''));
+            if ($body === '') $body = '[template] ' . trim((string) ($row['template_name'] ?? ''));
+            $body = preg_replace('/\s+/u', ' ', $body) ?: '';
+            if ($body === '') continue;
+            $lines[] = ((string) ($row['direction'] ?? '') === 'in' ? 'Pelanggan' : 'Agent')
+                . ': ' . mb_substr($body, 0, 220);
+        }
+        $summary = implode("\n", $lines);
+        return $summary !== '' ? mb_substr($summary, 0, 3000) : '(Belum ada riwayat percakapan.)';
     }
 
     /**
@@ -758,6 +784,23 @@ abstract class WaDeskController extends BaseController
         return !empty($row);
     }
 
+    protected function teamTemplateCategory(int $tenantId, int $teamId): string
+    {
+        $row = $this->db($this->db_index)->query(
+            'SELECT template_category FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1',
+            [$teamId, $tenantId]
+        )->row_array();
+        $category = strtoupper(trim((string) ($row['template_category'] ?? 'UTILITY')));
+        return in_array($category, ['UTILITY', 'MARKETING'], true) ? $category : 'UTILITY';
+    }
+
+    protected function templateMatchesTeamCategory(array $templateRow, int $tenantId, int $teamId): bool
+    {
+        $templateCategory = strtoupper(trim((string) ($templateRow['meta_category'] ?? 'UTILITY')));
+        if (!in_array($templateCategory, ['UTILITY', 'MARKETING'], true)) $templateCategory = 'UTILITY';
+        return $templateCategory === $this->teamTemplateCategory($tenantId, $teamId);
+    }
+
     protected function assertTemplateTeamAssignment(
         int $templateId,
         array $channel,
@@ -765,15 +808,24 @@ abstract class WaDeskController extends BaseController
         int $teamId,
         ?array $templateRow = null
     ): void {
-        if (!$this->templateTeamsTableExists() || $teamId <= 0) {
+        if ($teamId <= 0) {
             return;
         }
+
+        $templateRow = $templateRow ?? $this->findTemplateForTenant($templateId, $tenantId);
+        if ($templateRow && !$this->templateMatchesTeamCategory($templateRow, $tenantId, $teamId)) {
+            $this->error(
+                'Kategori template tidak sesuai dengan kategori team Anda (' . $this->teamTemplateCategory($tenantId, $teamId) . ').',
+                422,
+                ['code' => 'template_category_not_allowed']
+            );
+        }
+        if (!$this->templateTeamsTableExists()) return;
 
         if ($this->isTemplateAssignedToTeam($templateId, $teamId)) {
             return;
         }
 
-        $templateRow = $templateRow ?? $this->findTemplateForTenant($templateId, $tenantId);
         $name = trim((string) ($templateRow['template_name'] ?? 'template'));
         $this->error(
             'Template "' . $name . '" belum di-assign ke team Anda. '

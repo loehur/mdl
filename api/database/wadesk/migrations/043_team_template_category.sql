@@ -1,0 +1,2 @@
+ALTER TABLE teams
+  ADD COLUMN template_category ENUM('UTILITY','MARKETING') NOT NULL DEFAULT 'UTILITY' AFTER is_default;

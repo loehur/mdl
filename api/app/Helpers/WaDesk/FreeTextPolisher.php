@@ -9,9 +9,13 @@ namespace App\Helpers\WaDesk;
 class FreeTextPolisher
 {
     private const SYSTEM_PROMPT = <<<'PROMPT'
-Anda asisten penulisan pesan WhatsApp CS/layanan pelanggan Indonesia.
+Anda asisten penulisan pesan WhatsApp bisnis Indonesia.
 
-Tugas: terima draf pesan dari agent, pahami maksud dan tujuannya, lalu susun ulang menjadi pesan WA yang rapi dan siap kirim.
+Tugas: terima RINGKASAN PERCAKAPAN dan draf pesan dari agent. Sebelum menulis, WAJIB tentukan satu peran yang paling sesuai berdasarkan kedua konteks itu:
+- "collection_agent": pembahasan tagihan, pembayaran, tunggakan, pelunasan, atau penagihan.
+- "promotor": seluruh konteks bisnis lain, termasuk promosi, informasi produk/layanan, tindak lanjut, dan layanan pelanggan.
+
+Setelah menentukan peran, susun ulang draf menjadi pesan WA yang rapi dan siap kirim. Jangan menyebut nama peran kepada pelanggan.
 
 ATURAN INTI (WAJIB, urutan prioritas):
 1. JANGAN menambah maupun mengurangi maksud dan tujuan utama draf. Isi informasi, janji, permintaan, dan batasan harus sama — hanya cara penyampaiannya yang dirapikan.
@@ -23,6 +27,8 @@ ATURAN INTI (WAJIB, urutan prioritas):
 
 GAYA BAHASA:
 - Formal-sopan ala CS WA: jelas, hangat, profesional
+- Bila perannya collection_agent: tegas tetapi tetap empatik, tidak mengintimidasi atau mempermalukan pelanggan.
+- Bila perannya promotor: hangat dan meyakinkan, tetapi jangan mengarang promo, harga, manfaat, atau janji baru.
 - Boleh pakai "kak" / "ya" jika sudah ada nada serupa di draf; jangan paksa gaya santai berlebihan
 - Hindari bahasa kantor kaku: "dengan hormat", "kami informasikan", "berikut kami sampaikan", "mohon kesediaannya", "terima kasih atas perhatiannya", "perkenankan", "disampaikan", "hormat kami"
 - Hindari juga gaya terlalu santai/colloquial: "udah", "nggak", "gimana", "nih" — kecuali memang sudah ada di draf dan menghapusnya mengubah nada
@@ -58,17 +64,17 @@ Tolak (status=false) juga jika:
 Jika ditolak karena ancaman penyebaran/pengalihan data, reason harus singkat dan jelas: "Pesan mengandung ancaman penyebaran atau pengalihan data — tidak dapat dikirim." Untuk bahaya lain, gunakan alasan singkat yang sesuai.
 
 Balas HANYA JSON valid, tanpa markdown:
-{"status":true,"new_words":"kalimat siap kirim WA"}
+{"status":true,"role":"collection_agent","new_words":"kalimat siap kirim WA"}
 atau
-{"status":false,"reason":"penjelasan singkat Bahasa Indonesia"}
+{"status":false,"role":"promotor","reason":"penjelasan singkat Bahasa Indonesia"}
 
 new_words: satu pesan siap kirim, formal-sopan tapi natural, tanpa emoji berlebihan, maksud & tujuan sama persis dengan draf.
 PROMPT;
 
     /**
-     * @return array{status:bool,new_words:string,reason:string}
+     * @return array{status:bool,new_words:string,reason:string,role:string}
      */
-    public function polish(string $apiKey, string $message): array
+    public function polish(string $apiKey, string $message, string $conversationSummary = ''): array
     {
         $message = trim($message);
         if ($message === '') {
@@ -76,6 +82,7 @@ PROMPT;
                 'status' => false,
                 'new_words' => '',
                 'reason' => 'Pesan kosong.',
+                'role' => 'promotor',
             ];
         }
 
@@ -84,10 +91,14 @@ PROMPT;
                 'status' => true,
                 'new_words' => $message,
                 'reason' => '',
+                'role' => 'promotor',
             ];
         }
 
-        $userPayload = json_encode(['draft_message' => $message], JSON_UNESCAPED_UNICODE);
+        $userPayload = json_encode([
+            'conversation_summary' => trim($conversationSummary) ?: '(Belum ada riwayat percakapan.)',
+            'draft_message' => $message,
+        ], JSON_UNESCAPED_UNICODE);
         $client = new OpenAi($apiKey);
         $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload, 'gpt-4o-mini', 0.35);
 
@@ -96,6 +107,7 @@ PROMPT;
                 'status' => false,
                 'new_words' => '',
                 'reason' => 'AI gagal memproses pesan: ' . ($res['error'] ?: 'unknown'),
+                'role' => 'promotor',
             ];
         }
 
@@ -103,6 +115,10 @@ PROMPT;
         $status = !empty($data['status']);
         $newWords = trim((string) ($data['new_words'] ?? ''));
         $reason = trim((string) ($data['reason'] ?? ''));
+        $role = strtolower(trim((string) ($data['role'] ?? '')));
+        if (!in_array($role, ['collection_agent', 'promotor'], true)) {
+            $role = $this->looksLikeCollectionContext($message, $conversationSummary) ? 'collection_agent' : 'promotor';
+        }
 
         if ($status) {
             if ($newWords === '') {
@@ -110,12 +126,14 @@ PROMPT;
                     'status' => false,
                     'new_words' => '',
                     'reason' => 'AI tidak menghasilkan pesan yang valid.',
+                    'role' => $role,
                 ];
             }
             return [
                 'status' => true,
                 'new_words' => $newWords,
                 'reason' => '',
+                'role' => $role,
             ];
         }
 
@@ -131,6 +149,7 @@ PROMPT;
                 'status' => true,
                 'new_words' => $this->friendlyPaymentReminder($message),
                 'reason' => '',
+                'role' => 'collection_agent',
             ];
         }
 
@@ -138,7 +157,13 @@ PROMPT;
             'status' => false,
             'new_words' => '',
             'reason' => $reason,
+            'role' => $role,
         ];
+    }
+
+    private function looksLikeCollectionContext(string $message, string $summary): bool
+    {
+        return preg_match('/\b(bayar|pembayaran|tagihan|hutang|utang|lunasi|pelunasan|jatuh tempo|tunggakan)\b/iu', $message . ' ' . $summary) === 1;
     }
 
     private function isSafePaymentReminder(string $message): bool

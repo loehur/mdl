@@ -72,6 +72,18 @@ class TemplateSender
                     'error' => 'Blast tanpa team tujuan',
                 ];
             }
+            $teamRow = $this->db->query(
+                'SELECT template_category FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1',
+                [$teamId, $tenantId]
+            )->row_array();
+            $teamCategory = strtoupper(trim((string) ($teamRow['template_category'] ?? 'UTILITY')));
+            $templateCategory = strtoupper(trim((string) ($tpl['meta_category'] ?? 'UTILITY')));
+            if (!in_array($teamCategory, ['UTILITY', 'MARKETING'], true)) $teamCategory = 'UTILITY';
+            if (!in_array($templateCategory, ['UTILITY', 'MARKETING'], true)) $templateCategory = 'UTILITY';
+            if ($teamCategory !== $templateCategory) {
+                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0,
+                    'error' => 'Kategori template tidak sesuai dengan kategori team (' . $teamCategory . ').'];
+            }
             $teamQuota = new TemplateQuota($this->db);
             $teamQuota->ensureRow($teamId, $tenantId);
             if (!$teamQuota->canConsume($teamId, 1)) {

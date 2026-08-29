@@ -524,7 +524,8 @@ class Chat extends WaDeskController
         }
 
         $originalMessage = $message;
-        $polish = $this->polishFreeMessageText((int) $user['tenant_id'], $message);
+        $conversationSummary = $this->freeTextConversationSummary((int) $conv['id']);
+        $polish = $this->polishFreeMessageText((int) $user['tenant_id'], $message, $conversationSummary);
         if (!$polish['status']) {
             $this->error($polish['reason'] ?: 'Pesan ditolak AI', 422, [
                 'status' => false,
@@ -593,6 +594,7 @@ class Chat extends WaDeskController
             'conversation_id' => (int) $conv['id'],
             'mode' => 'free',
             'csw_open' => true,
+            'ai_role' => $polish['role'] ?? 'promotor',
             'kirimin' => $result['data'],
             'ai_polished' => $message !== $originalMessage,
             'sent_message' => $message,

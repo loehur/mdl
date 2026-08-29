@@ -74,7 +74,8 @@ class Templates extends WaDeskController
         )->result_array();
 
         $rows = array_values(array_filter($rows, fn (array $row) =>
-            !$this->templateTeamsTableExists() || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)
+            $this->templateMatchesTeamCategory($row, $tenantId, $teamId)
+            && (!$this->templateTeamsTableExists() || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId))
         ));
 
         $total = count($rows);
@@ -134,8 +135,9 @@ class Templates extends WaDeskController
             if ($channelId > 0 && $this->templateTeamsTableExists()) {
                 $teamId = (int) ($user['team_id'] ?? 0);
                 if ($teamId > 0) {
-                    $rows = array_values(array_filter($rows, function (array $row) use ($teamId) {
-                        return $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId);
+                    $rows = array_values(array_filter($rows, function (array $row) use ($teamId, $tenantId) {
+                        return $this->templateMatchesTeamCategory($row, $tenantId, $teamId)
+                            && $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId);
                     }));
                 }
             }
@@ -177,9 +179,10 @@ class Templates extends WaDeskController
             }
             $sql .= ' ORDER BY t.template_name ASC, t.id ASC';
             $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
-            if ($teamId > 0 && $this->templateTeamsTableExists()) {
+            if ($teamId > 0) {
                 $rows = array_values(array_filter($rows, fn (array $row) =>
-                    $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)
+                    $this->templateMatchesTeamCategory($row, $tenantId, $teamId)
+                    && (!$this->templateTeamsTableExists() || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId))
                 ));
             }
         }
@@ -865,6 +868,10 @@ class Templates extends WaDeskController
         $paramNames = array_values(array_unique(array_filter(array_map('trim', $matches[1] ?? []))));
         if (!preg_match('/^[a-z][a-z0-9_]{0,511}$/', $name) || $text === '') $this->error('Nama template (huruf kecil/angka/underscore) dan isi template wajib.', 422);
         if (!in_array($category, ['UTILITY', 'MARKETING'], true)) $this->error('Kategori template tidak valid.', 422);
+        $teamCategory = $this->teamTemplateCategory($tenantId, $teamId);
+        if ($category !== $teamCategory) {
+            $this->error('Team ' . $teamCategory . ' hanya dapat membuat template ' . $teamCategory . '.', 422, ['code' => 'template_category_not_allowed']);
+        }
         foreach ($paramNames as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
         if (preg_match('/\{\{\s*\d+\s*\}\}/', $text)) $this->error('Parameter indeks seperti {{1}} tidak diizinkan. Gunakan nama enum seperti {{customer_name}}.', 422);
         $metaBody = preg_replace_callback('/\{\{\s*([^}]+?)\s*\}\}/', static function (array $match) use ($paramNames): string {

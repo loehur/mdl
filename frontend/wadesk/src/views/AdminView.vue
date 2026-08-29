@@ -26,6 +26,10 @@
 
         <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
           <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team baru" />
+          <select v-model="teamForm.template_category" class="field sm:w-36">
+            <option value="UTILITY">Utility</option>
+            <option value="MARKETING">Marketing</option>
+          </select>
           <button class="btn shrink-0">Tambah</button>
         </form>
 
@@ -80,6 +84,10 @@
                       placeholder="Nama team"
                       @keydown.esc.prevent="cancelEditTeam"
                     />
+                    <select v-model="editingTeamCategory" class="field sm:w-36">
+                      <option value="UTILITY">Utility</option>
+                      <option value="MARKETING">Marketing</option>
+                    </select>
                     <div class="flex gap-2 shrink-0">
                       <button type="submit" class="btn" :disabled="savingTeam">
                         {{ savingTeam ? "Menyimpan..." : "Simpan" }}
@@ -98,6 +106,9 @@
                       class="shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent/15 text-accent"
                     >
                       Default
+                    </span>
+                    <span class="shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+                      {{ t.template_category || 'UTILITY' }}
                     </span>
                   </div>
                   <p class="text-xs text-slate-500 mt-0.5">
@@ -1621,9 +1632,10 @@ async function onDialogConfirm() {
     await action();
   }
 }
-const teamForm = reactive({ name: "" });
+const teamForm = reactive({ name: "", template_category: "UTILITY" });
 const editingTeamId = ref(null);
 const editingTeamName = ref("");
+const editingTeamCategory = ref("UTILITY");
 const savingTeam = ref(false);
 const savingTeamMaskId = ref(null);
 const defaultTeamDraft = ref("");
@@ -2553,9 +2565,10 @@ watch(teamBrowseSentinel, () => {
 
 async function createTeam() {
   try {
-    await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name } });
+    await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name, template_category: teamForm.template_category } });
     flash(true, "Team dibuat");
     teamForm.name = "";
+    teamForm.template_category = "UTILITY";
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -2565,11 +2578,13 @@ async function createTeam() {
 function startEditTeam(t) {
   editingTeamId.value = t.id;
   editingTeamName.value = t.name || "";
+  editingTeamCategory.value = t.template_category || "UTILITY";
 }
 
 function cancelEditTeam() {
   editingTeamId.value = null;
   editingTeamName.value = "";
+  editingTeamCategory.value = "UTILITY";
   savingTeam.value = false;
 }
 
@@ -2579,7 +2594,8 @@ async function saveTeamName(t) {
     flash(false, "Nama team wajib diisi");
     return;
   }
-  if (name === t.name) {
+  const category = String(editingTeamCategory.value || "UTILITY").toUpperCase();
+  if (name === t.name && category === String(t.template_category || "UTILITY").toUpperCase()) {
     cancelEditTeam();
     return;
   }
@@ -2587,9 +2603,9 @@ async function saveTeamName(t) {
   try {
     await api("/WaDesk/Teams/update", {
       method: "POST",
-      body: { id: t.id, name },
+      body: { id: t.id, name, template_category: category },
     });
-    flash(true, "Nama team diubah");
+    flash(true, "Team diubah");
     cancelEditTeam();
     await reloadTeamsTab();
   } catch (e) {

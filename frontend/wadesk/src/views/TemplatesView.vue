@@ -42,7 +42,13 @@
               <div class="flex flex-wrap items-center gap-2">
                 <h3 class="font-semibold text-slate-100 break-all">{{ template.template_name }}</h3>
                 <span v-if="template.language" class="badge">{{ template.language }}</span>
+                <span v-if="template.meta_category" class="badge bg-violet-500/15 text-violet-300">{{ template.meta_category }}</span>
                 <span v-if="template.meta_status" class="badge" :class="String(template.meta_status).toUpperCase() === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'">{{ template.meta_status }}</span>
+                <span
+                  v-if="template.meta_quality_rating"
+                  class="badge"
+                  :class="String(template.meta_quality_rating).toUpperCase() === 'GREEN' ? 'bg-emerald-500/15 text-emerald-300' : String(template.meta_quality_rating).toUpperCase() === 'YELLOW' ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300'"
+                >Quality: {{ template.meta_quality_rating }}</span>
               </div>
               <p v-if="template.waba_label || template.waba_id" class="mt-1 text-xs text-slate-500 truncate">
                 {{ template.waba_label || template.waba_id }}

@@ -77,7 +77,7 @@ class Teams extends WaDeskController
         $admin = $this->requireAdmin();
 
         $rows = $this->db($this->db_index)->query(
-            "SELECT t.id, t.name, t.is_default, t.team_leader_user_id,
+            "SELECT t.id, t.name, t.is_default, t.template_category, t.team_leader_user_id,
                     u.name AS leader_name,
                     (SELECT COUNT(*) FROM users a WHERE a.team_id = t.id AND a.role = 'agent') AS agent_count
              FROM teams t
@@ -111,10 +111,12 @@ class Teams extends WaDeskController
 
         $body = $this->getBody();
         $this->validate($body, ['name']);
+        $category = $this->templateCategory($body['template_category'] ?? 'UTILITY');
 
         $id = (int) $this->db($this->db_index)->insert('teams', [
             'tenant_id' => (int) $admin['tenant_id'],
             'name' => trim($body['name']),
+            'template_category' => $category,
         ]);
 
         $this->success(['id' => $id], 'Team dibuat');
@@ -151,11 +153,13 @@ class Teams extends WaDeskController
             $this->error('Nama team sudah dipakai', 400);
         }
 
+        $category = $this->templateCategory($body['template_category'] ?? ($this->getTenantTeam($id, (int) $admin['tenant_id'])['template_category'] ?? 'UTILITY'));
         $this->db($this->db_index)->update('teams', [
             'name' => $name,
+            'template_category' => $category,
         ], ['id' => $id]);
 
-        $this->success(['id' => $id, 'name' => $name], 'Nama team diubah');
+        $this->success(['id' => $id, 'name' => $name, 'template_category' => $category], 'Team diubah');
     }
 
     /** Tetapkan satu default team untuk tenant (customer baru masuk ke team ini). */
@@ -256,6 +260,15 @@ class Teams extends WaDeskController
             "SELECT * FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
             [$id, $tenantId]
         )->row_array() ?: null;
+    }
+
+    private function templateCategory($value): string
+    {
+        $category = strtoupper(trim((string) $value));
+        if (!in_array($category, ['UTILITY', 'MARKETING'], true)) {
+            $this->error('Kategori team harus UTILITY atau MARKETING.', 422);
+        }
+        return $category;
     }
 
     /** @return array<int, list<array{id:int,label:string,phone_number:string}>> */
