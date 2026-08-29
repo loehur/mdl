@@ -49,7 +49,7 @@ class Templates extends WaDeskController
             return;
         }
 
-        if ($teamId <= 0 || !$this->templateDevicesTableExists()) {
+        if ($teamId <= 0) {
             $this->success(['templates' => [], 'total' => 0, 'page' => $page, 'limit' => $limit]);
             return;
         }
@@ -66,36 +66,15 @@ class Templates extends WaDeskController
         $rows = $this->db($this->db_index)->query(
             "SELECT DISTINCT t.*
              FROM wa_templates t
-             INNER JOIN wa_template_devices td ON td.template_id = t.id
-             INNER JOIN {$channels} c ON c.device_id = td.device_id AND c.tenant_id = t.tenant_id
+             INNER JOIN {$channels} c ON c.waba_id = t.meta_waba_id AND c.tenant_id = t.tenant_id
              WHERE {$where}
              ORDER BY t.template_name ASC, t.id ASC",
             $binds
         )->result_array();
 
-        // Apply the identical availability rule used before sending a template:
-        // it must exist on at least one channel usable by this team, and—when
-        // that channel's WABA is shared—must be explicitly assigned to it.
-        $teamChannels = $this->db($this->db_index)->query(
-                "SELECT c.device_id, c.waba_id
-                 FROM {$channels} c
-                 WHERE c.tenant_id = ? AND c.status = 'active'
-                   AND " . $this->channelTeamSql('c', $teamId),
-                [$tenantId]
-            )->result_array();
-        $rows = array_values(array_filter($rows, function (array $row) use ($tenantId, $teamId, $teamChannels) {
-            $templateId = (int) ($row['id'] ?? 0);
-            foreach ($teamChannels as $channel) {
-                if (!$this->isTemplateAvailableOnDevice($templateId, (string) ($channel['device_id'] ?? ''))) {
-                    continue;
-                }
-                if (!$this->templateTeamsTableExists()
-                    || $this->isTemplateAssignedToTeam($templateId, $teamId)) {
-                    return true;
-                }
-            }
-            return false;
-        }));
+        $rows = array_values(array_filter($rows, fn (array $row) =>
+            !$this->templateTeamsTableExists() || $this->isTemplateAssignedToTeam((int) ($row['id'] ?? 0), $teamId)
+        ));
 
         $total = count($rows);
         $rows = array_slice($rows, ($page - 1) * $limit, $limit);
@@ -142,13 +121,13 @@ class Templates extends WaDeskController
             }
         }
 
-        if ($deviceId !== null && $deviceId !== '' && $this->templateDevicesTableExists()) {
+        if ($channelId > 0) {
             $rows = $this->db($this->db_index)->query(
                 "SELECT DISTINCT t.* FROM wa_templates t
-                 INNER JOIN wa_template_devices td ON td.template_id = t.id AND td.device_id = ?
-                 WHERE t.tenant_id = ?
+                 INNER JOIN {$this->channelsTable()} c ON c.waba_id = t.meta_waba_id
+                 WHERE t.tenant_id = ? AND c.id = ?
                  ORDER BY t.template_name ASC, t.id ASC",
-                [$deviceId, $tenantId]
+                [$tenantId, $channelId]
             )->result_array();
 
             if ($channelId > 0 && $this->templateTeamsTableExists()) {

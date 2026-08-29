@@ -223,9 +223,8 @@ class Quota extends WaDeskController
 
         $tbl = $this->channelsTable();
         $channel = $this->db($this->db_index)->query(
-            "SELECT k.id, k.team_id, k.label, k.tenant_id, k.waba_id, t.name AS team_name
+            "SELECT k.id, k.label, k.tenant_id, k.waba_id, NULL AS team_name
              FROM {$tbl} k
-             LEFT JOIN teams t ON t.id = k.team_id
              WHERE k.id = ? AND k.tenant_id = ? LIMIT 1",
             [$channelId, (int) $user['tenant_id']]
         )->row_array();
@@ -250,10 +249,7 @@ class Quota extends WaDeskController
         }
 
         // Kuota & tagihan pakai team user (yang mengirim), bukan team utama channel
-        $billingTeamId = (int) ($user['team_id'] ?? $channel['team_id'] ?? 0);
-        if ($billingTeamId <= 0) {
-            $billingTeamId = (int) $channel['team_id'];
-        }
+        $billingTeamId = (int) ($user['team_id'] ?? 0);
         $quota = new WaDeskTemplateQuota($this->db($this->db_index));
         $quota->ensureRow($billingTeamId, (int) $user['tenant_id']);
 

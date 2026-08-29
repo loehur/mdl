@@ -16,9 +16,9 @@ class Channels extends WaDeskController
         $tbl = $this->channelsTable();
         $scope = trim((string) $this->query('scope', 'operational'));
 
-        $select = "SELECT k.id, k.tenant_id, k.team_id, k.label, k.phone_number, k.device_id,
+        $select = "SELECT k.id, k.tenant_id, k.label, k.phone_number, k.device_id,
                           k.waba_id, k.meta_phone_number_id, k.meta_verification_status, k.meta_quality_rating, k.provider, k.channel_type, k.status, k.template_sending_enabled,
-                          k.created_at, t.name AS team_name";
+                          k.created_at, NULL AS team_name";
 
         if ($user['role'] === 'admin' && $scope === 'all') {
             $pageRaw = $this->query('page');
@@ -43,7 +43,6 @@ class Channels extends WaDeskController
                 $rows = $this->db($this->db_index)->query(
                     "{$select}
                      FROM {$tbl} k
-                     LEFT JOIN teams t ON t.id = k.team_id
                      WHERE {$where}
                      ORDER BY k.label ASC, k.id DESC
                      LIMIT {$limit} OFFSET {$offset}",
@@ -64,7 +63,6 @@ class Channels extends WaDeskController
             $rows = $this->db($this->db_index)->query(
                 "{$select}
                  FROM {$tbl} k
-                 LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ?
                  ORDER BY k.id DESC",
                 [$tenantId]
@@ -73,7 +71,6 @@ class Channels extends WaDeskController
             $rows = $this->db($this->db_index)->query(
                 "{$select}
                  FROM {$tbl} k
-                 LEFT JOIN teams t ON t.id = k.team_id
                  WHERE k.tenant_id = ? AND k.status = 'active'
                    AND {$this->channelTeamSql($tbl, (int) $user['team_id'])}
                  ORDER BY k.id DESC",

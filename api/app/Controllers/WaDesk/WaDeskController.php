@@ -679,21 +679,14 @@ abstract class WaDeskController extends BaseController
             return [];
         }
 
-        $tbl = $this->channelsTable();
         return $this->db($this->db_index)->query(
             "SELECT DISTINCT t.id, t.name
              FROM teams t
-             WHERE t.tenant_id = ?
-               AND t.id IN (
-                 SELECT k.team_id FROM {$tbl} k
-                 WHERE k.tenant_id = ? AND TRIM(k.waba_id) = ? AND k.team_id IS NOT NULL
-                 UNION
-                 SELECT ct.team_id FROM wa_channel_teams ct
-                 INNER JOIN {$tbl} k ON k.id = ct.channel_id
-                 WHERE k.tenant_id = ? AND TRIM(k.waba_id) = ?
-               )
+             INNER JOIN wa_waba_teams wt ON wt.team_id = t.id
+             INNER JOIN wa_wabas w ON w.id = wt.waba_id
+             WHERE t.tenant_id = ? AND wt.tenant_id = ? AND TRIM(w.meta_waba_id) = ?
              ORDER BY t.name ASC",
-            [$tenantId, $tenantId, $wabaId, $tenantId, $wabaId]
+            [$tenantId, $tenantId, $wabaId]
         )->result_array();
     }
 
@@ -710,28 +703,15 @@ abstract class WaDeskController extends BaseController
     /** @return list<string> */
     protected function templateWabaIds(int $templateId, int $tenantId): array
     {
-        if ($templateId <= 0 || !$this->templateDevicesTableExists()) {
+        if ($templateId <= 0) {
             return [];
         }
-
-        $tbl = $this->channelsTable();
-        $rows = $this->db($this->db_index)->query(
-            "SELECT DISTINCT NULLIF(TRIM(c.waba_id), '') AS waba_id
-             FROM wa_template_devices td
-             INNER JOIN {$tbl} c ON c.device_id = td.device_id AND c.tenant_id = ?
-             WHERE td.template_id = ? AND NULLIF(TRIM(c.waba_id), '') IS NOT NULL",
-            [$tenantId, $templateId]
-        )->result_array();
-
-        $out = [];
-        foreach ($rows as $row) {
-            $wabaId = trim((string) ($row['waba_id'] ?? ''));
-            if ($wabaId !== '') {
-                $out[$wabaId] = true;
-            }
-        }
-
-        return array_keys($out);
+        $row = $this->db($this->db_index)->query(
+            'SELECT meta_waba_id FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1',
+            [$templateId, $tenantId]
+        )->row_array();
+        $wabaId = trim((string) ($row['meta_waba_id'] ?? ''));
+        return $wabaId === '' ? [] : [$wabaId];
     }
 
     /**
@@ -803,37 +783,18 @@ abstract class WaDeskController extends BaseController
         );
     }
 
-    protected function isTemplateAvailableOnDevice(int $templateId, string $deviceId): bool
-    {
-        $deviceId = trim($deviceId);
-        if ($templateId <= 0 || $deviceId === '') {
-            return false;
-        }
-        if (!$this->templateDevicesTableExists()) {
-            return true;
-        }
-        $row = $this->db($this->db_index)->query(
-            "SELECT 1 AS ok FROM wa_template_devices WHERE template_id = ? AND device_id = ? LIMIT 1",
-            [$templateId, $deviceId]
-        )->row_array();
-        return !empty($row);
-    }
-
     protected function assertTemplateOnChannel(int $templateId, array $channel, int $tenantId, ?int $teamId = null): void
     {
         $tpl = $this->findTemplateForTenant($templateId, $tenantId);
         if (!$tpl) {
             $this->error('Template tidak ditemukan', 404);
         }
-        $deviceId = trim((string) ($channel['device_id'] ?? ''));
-        if ($deviceId === '') {
-            $this->error('Channel belum punya device_id Kirimin', 400);
-        }
-        if (!$this->isTemplateAvailableOnDevice($templateId, $deviceId)) {
+        $templateWaba = trim((string) ($tpl['meta_waba_id'] ?? ''));
+        $channelWaba = trim((string) ($channel['waba_id'] ?? ''));
+        if ($templateWaba === '' || $channelWaba === '' || $templateWaba !== $channelWaba) {
             $label = trim((string) ($channel['label'] ?? $channel['phone_number'] ?? 'channel ini'));
             $this->error(
-                'Template "' . ($tpl['template_name'] ?? '') . '" tidak tersedia di nomor WA '
-                . $label . '. Pilih template lain atau sync ulang di Admin.',
+                'Template "' . ($tpl['template_name'] ?? '') . '" bukan milik WABA nomor WA ' . $label . '.',
                 422
             );
         }
@@ -947,9 +908,9 @@ abstract class WaDeskController extends BaseController
             "SELECT * FROM {$tbl} k
              WHERE k.tenant_id = ? AND k.status = 'active'
                AND {$this->channelTeamSql($tbl, $teamId)}
-             ORDER BY (k.team_id = ?) DESC, k.id DESC
+             ORDER BY k.id DESC
              LIMIT 1",
-            [$tenantId, $teamId]
+            [$tenantId]
         )->row_array() ?: null;
     }
 
@@ -961,11 +922,10 @@ abstract class WaDeskController extends BaseController
     protected function channelTeamSql(string $table, int $teamId): string
     {
         $alias = $this->channelTeamAlias($table);
-        return "({$alias}.team_id = {$teamId}
-                 OR EXISTS (
-                   SELECT 1 FROM wa_channel_teams ct
-                   WHERE ct.channel_id = {$alias}.id AND ct.team_id = {$teamId}
-                 ))";
+        return "EXISTS (
+                  SELECT 1 FROM wa_channel_teams ct
+                  WHERE ct.channel_id = {$alias}.id AND ct.team_id = {$teamId}
+                )";
     }
 
     /** Alias aman untuk channelTeamSql: nama tabel polos -> 'k', selain itu dipakai apa adanya. */
@@ -987,30 +947,6 @@ abstract class WaDeskController extends BaseController
             [$channelId, $tenantId]
         )->result_array();
 
-        // Pastikan team utama selalu ada walau join table belum sinkron
-        $main = $this->db($this->db_index)->query(
-            "SELECT team_id FROM {$this->channelsTable()} WHERE id = ? LIMIT 1",
-            [$channelId]
-        )->row_array();
-        $mainId = (int) ($main['team_id'] ?? 0);
-        if ($mainId > 0) {
-            $found = false;
-            foreach ($rows as $r) {
-                if ((int) $r['id'] === $mainId) {
-                    $found = true;
-                    break;
-                }
-            }
-            if (!$found) {
-                $t = $this->db($this->db_index)->query(
-                    "SELECT id, name FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1",
-                    [$mainId, $tenantId]
-                )->row_array();
-                if ($t) {
-                    $rows[] = $t;
-                }
-            }
-        }
         return $rows;
     }
 

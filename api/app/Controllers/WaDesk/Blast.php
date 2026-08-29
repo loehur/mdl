@@ -174,7 +174,7 @@ class Blast extends WaDeskController
         }
 
         $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
-        $teamId = (int) $user['team_id'] ?: (int) $channel['team_id'];
+        $teamId = (int) ($user['team_id'] ?? 0);
         $teamQuota->ensureRow($teamId, (int) $user['tenant_id']);
         $rowCount = count($rows);
         if (!$teamQuota->canConsume($teamId, $rowCount)) {
@@ -451,7 +451,7 @@ class Blast extends WaDeskController
         if (($user['role'] ?? '') === 'admin') {
             return [' AND 1=0', []];
         }
-        return [' AND k.team_id = ?', [(int) ($user['team_id'] ?? 0)]];
+        return [' AND 1=0', []];
     }
 
     private function loadParamDefs(int $templateId): array

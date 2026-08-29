@@ -172,7 +172,7 @@ class Wabas extends WaDeskController
         $channelStatus = in_array($status, ['connected', 'verified', 'active'], true) ? 'active' : 'inactive';
         $db = $this->db($this->db_index);
         $existing = $db->query(
-            'SELECT id, team_id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1',
+            'SELECT id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1',
             [$tenantId, $phoneId]
         )->row_array();
         $data = [
@@ -189,7 +189,7 @@ class Wabas extends WaDeskController
             $data['device_id'] = $phoneId; // Compatibility for existing template/team linkage.
             $db->update('wa_channels', $data, ['id' => (int) $existing['id']]);
         } else {
-            $data += ['tenant_id' => $tenantId, 'meta_phone_number_id' => $phoneId, 'device_id' => $phoneId, 'team_id' => null];
+            $data += ['tenant_id' => $tenantId, 'meta_phone_number_id' => $phoneId, 'device_id' => $phoneId];
             $db->insert('wa_channels', $data);
         }
         return true;
@@ -224,23 +224,8 @@ class Wabas extends WaDeskController
         }
         if ($templateId > 0) {
             $this->syncTemplateParams($templateId, $components);
-            $this->linkTemplateToWabaChannels($templateId, $tenantId, $wabaId);
         }
         return true;
-    }
-
-    private function linkTemplateToWabaChannels(int $templateId, int $tenantId, string $wabaId): void
-    {
-        $rows = $this->db($this->db_index)->query(
-            "SELECT device_id FROM wa_channels WHERE tenant_id = ? AND waba_id = ? AND provider = 'meta' AND device_id IS NOT NULL",
-            [$tenantId, $wabaId]
-        )->result_array();
-        foreach ($rows as $row) {
-            $deviceId = trim((string) ($row['device_id'] ?? ''));
-            if ($deviceId !== '') {
-                $this->db($this->db_index)->insertIgnore('wa_template_devices', ['template_id' => $templateId, 'device_id' => $deviceId]);
-            }
-        }
     }
 
     private function syncTemplateParams(int $templateId, array $components): void
@@ -354,7 +339,6 @@ class Wabas extends WaDeskController
             foreach ($teamIds as $teamId) {
                 $db->insert('wa_channel_teams', ['channel_id' => $channelId, 'team_id' => (int) $teamId]);
             }
-            $db->update('wa_channels', ['team_id' => null], ['id' => $channelId]);
         }
     }
 

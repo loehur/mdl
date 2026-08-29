@@ -60,7 +60,6 @@ CREATE TABLE IF NOT EXISTS wadesk_tokens (
 CREATE TABLE IF NOT EXISTS wa_channels (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id INT UNSIGNED NOT NULL,
-  team_id INT UNSIGNED NULL,
   label VARCHAR(150) NOT NULL,
   device_id VARCHAR(64) NULL,
   waba_id VARCHAR(64) NULL,
@@ -77,11 +76,9 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   UNIQUE KEY uq_channel_device (device_id),
   UNIQUE KEY uq_channel_tenant_meta_phone (tenant_id, meta_phone_number_id),
   INDEX idx_channels_tenant (tenant_id),
-  INDEX idx_channels_team (team_id),
   INDEX idx_channels_phone (phone_number),
   INDEX idx_channels_waba (waba_id),
-  CONSTRAINT fk_channels_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  CONSTRAINT fk_channels_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  CONSTRAINT fk_channels_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_templates (
@@ -126,16 +123,6 @@ CREATE TABLE IF NOT EXISTS wa_waba_teams (
   CONSTRAINT fk_waba_team_waba FOREIGN KEY (waba_id) REFERENCES wa_wabas(id) ON DELETE CASCADE,
   CONSTRAINT fk_waba_team_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
   CONSTRAINT fk_waba_team_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS wa_template_devices (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  template_id INT UNSIGNED NOT NULL,
-  device_id VARCHAR(64) NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_tpl_device (template_id, device_id),
-  INDEX idx_tpl_dev_device (device_id),
-  CONSTRAINT fk_tpl_dev_template FOREIGN KEY (template_id) REFERENCES wa_templates(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wa_template_teams (
