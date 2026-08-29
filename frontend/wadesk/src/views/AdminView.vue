@@ -370,6 +370,7 @@
                 <span class="px-2 py-1 rounded bg-white/5 text-slate-300">{{ number.status || 'unknown' }}</span>
                 <span v-if="number.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ number.meta_verification_status }}</span>
                 <span v-if="number.meta_quality_rating" class="px-2 py-1 rounded bg-amber-500/10 text-amber-300">Quality: {{ number.meta_quality_rating }}</span>
+                <button type="button" class="px-2 py-1 rounded bg-rose-500/10 text-rose-300 hover:bg-rose-500/20" @click="deleteNumber(number)">Hapus</button>
               </div>
             </div>
           </div>
@@ -3127,6 +3128,20 @@ async function registerNumber() {
     addingNumber.value = false;
     await syncWabas();
   } catch (e) { flash(false, e.message || "Gagal register nomor"); } finally { numberFlow.loading = false; }
+}
+
+function deleteNumber(number) {
+  askConfirm({
+    title: "Hapus nomor WhatsApp",
+    message: `Nomor +${number.phone_number} akan dihapus dari Meta dan dari WaDesk. Percakapan pada nomor ini juga ikut terhapus. Lanjutkan?`,
+    action: async () => {
+      try {
+        await api("/WaDesk/Wabas/deleteNumber", { method: "POST", body: { channel_id: number.id } });
+        flash(true, "Nomor berhasil dihapus");
+        await Promise.all([loadNumbers(), loadWabas(), loadTemplateBrowse(true)]);
+      } catch (e) { flash(false, e.message || "Gagal menghapus nomor"); }
+    },
+  });
 }
 
 function openWabaTeamEditor(waba) {

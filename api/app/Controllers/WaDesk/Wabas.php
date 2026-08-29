@@ -72,6 +72,23 @@ class Wabas extends WaDeskController
         $this->success(['meta' => $res['data']], 'Nomor berhasil diregistrasikan. Sync WABA untuk memunculkannya di daftar.');
     }
 
+    public function deleteNumber()
+    {
+        [$admin, $meta] = $this->metaForAdmin();
+        $body = $this->getBody();
+        $channelId = (int) ($body['channel_id'] ?? 0);
+        $tenantId = (int) $admin['tenant_id'];
+        $channel = $this->db($this->db_index)->query(
+            "SELECT id, meta_phone_number_id FROM wa_channels WHERE id = ? AND tenant_id = ? AND provider = 'meta' LIMIT 1",
+            [$channelId, $tenantId]
+        )->row_array();
+        if (!$channel || empty($channel['meta_phone_number_id'])) $this->error('Nomor Meta tidak ditemukan', 404);
+        $res = $meta->deletePhoneNumber((string) $channel['meta_phone_number_id']);
+        if (!$res['success']) $this->error('Gagal menghapus nomor di Meta: ' . $res['error'], 502, $res['data']);
+        $this->db($this->db_index)->delete('wa_channels', ['id' => $channelId]);
+        $this->success(['meta' => $res['data']], 'Nomor berhasil dihapus.');
+    }
+
     public function list()
     {
         $this->verifyAuth();

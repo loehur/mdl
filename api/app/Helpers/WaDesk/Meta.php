@@ -144,6 +144,11 @@ class Meta
         ]);
     }
 
+    public function deletePhoneNumber(string $phoneNumberId): array
+    {
+        return $this->delete('/' . rawurlencode($phoneNumberId));
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int,paging?:array} */
     private function get(string $path, array $query = []): array
     {
@@ -228,6 +233,20 @@ class Meta
         }
         $message = is_array($decoded['messages'][0] ?? null) ? $decoded['messages'][0] : [];
         return ['success' => true, 'data' => array_merge($decoded, ['id' => $message['id'] ?? null, 'message_id' => $message['id'] ?? null, 'wamid' => $message['id'] ?? null]), 'error' => '', 'http_code' => $httpCode];
+    }
+
+    private function delete(string $path): array
+    {
+        if (!$this->configured()) return ['success' => false, 'data' => [], 'error' => 'META_WA_ACCESS_TOKEN belum diatur.', 'http_code' => 0];
+        $ch = curl_init('https://graph.facebook.com/' . rawurlencode($this->graphVersion) . $path);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => 'DELETE', CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->accessToken], CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 30]);
+        $raw = curl_exec($ch); $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); $curlError = curl_error($ch); curl_close($ch);
+        $decoded = json_decode((string) $raw, true);
+        if (!is_array($decoded) || $httpCode < 200 || $httpCode >= 300 || isset($decoded['error'])) {
+            $error = is_array($decoded) ? (string) ($decoded['error']['message'] ?? '') : '';
+            return ['success' => false, 'data' => is_array($decoded) ? $decoded : [], 'error' => $error ?: ($curlError ?: 'Meta request gagal.'), 'http_code' => $httpCode];
+        }
+        return ['success' => true, 'data' => $decoded, 'error' => '', 'http_code' => $httpCode];
     }
 
     private function templateComponents(array $params): array
