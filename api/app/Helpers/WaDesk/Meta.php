@@ -116,9 +116,10 @@ class Meta
 
     public function addPhoneNumber(string $wabaId, string $countryCode, string $phoneNumber, string $verifiedName): array
     {
+        $phoneNumber = $this->indonesianLocalNumber($phoneNumber);
         return $this->post('/' . rawurlencode($wabaId) . '/phone_numbers', [
             'cc' => preg_replace('/\D+/', '', $countryCode) ?: '62',
-            'phone_number' => preg_replace('/\D+/', '', $phoneNumber) ?: '',
+            'phone_number' => $phoneNumber,
             'verified_name' => trim($verifiedName),
         ]);
     }
@@ -276,6 +277,14 @@ class Meta
         $phone = preg_replace('/\D+/', '', $phone) ?? '';
         if (str_starts_with($phone, '0')) $phone = '62' . substr($phone, 1);
         if (str_starts_with($phone, '8')) $phone = '62' . $phone;
+        return $phone;
+    }
+
+    private function indonesianLocalNumber(string $phone): string
+    {
+        $phone = preg_replace('/\D+/', '', $phone) ?? '';
+        if (str_starts_with($phone, '628')) return substr($phone, 2);
+        if (str_starts_with($phone, '08')) return substr($phone, 1);
         return $phone;
     }
 
