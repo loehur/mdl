@@ -380,7 +380,6 @@
           <template v-if="numberFlow.step === 'add'">
             <select v-model="numberForm.waba_id" class="field"><option v-for="waba in wabas" :key="`add-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option></select>
             <div class="flex gap-2"><input value="62" readonly tabindex="-1" class="field bg-ink-950/50 text-slate-400 cursor-not-allowed" style="width:4rem;flex:0 0 4rem" aria-label="Country code Indonesia" /><input v-model="numberForm.phone_number" class="field flex-1" style="min-width:0" placeholder="8xxxxxxxxxx" @input="normalizeAddPhone" /></div>
-            <input v-model="numberForm.verified_name" class="field" placeholder="Verified name" />
             <button type="button" class="btn" :disabled="numberFlow.loading" @click="addNumber">{{ numberFlow.loading ? 'Memproses...' : 'Tambah nomor' }}</button>
           </template>
           <template v-else>
@@ -3088,7 +3087,8 @@ async function loadNumbers() {
 }
 
 function openAddNumber() {
-  Object.assign(numberForm, { waba_id: numberWabaFilter.value || wabas.value[0]?.meta_waba_id || "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
+  const wabaId = numberWabaFilter.value || wabas.value[0]?.meta_waba_id || "";
+  Object.assign(numberForm, { waba_id: wabaId, country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
   Object.assign(numberFlow, { step: "add", phone_number_id: "", loading: false });
   addingNumber.value = true;
 }

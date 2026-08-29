@@ -27,12 +27,11 @@ class Wabas extends WaDeskController
         [$admin, $meta] = $this->metaForAdmin();
         $body = $this->getBody();
         $wabaId = trim((string) ($body['waba_id'] ?? ''));
-        $cc = trim((string) ($body['country_code'] ?? '62'));
+        $cc = '62';
         $phone = trim((string) ($body['phone_number'] ?? ''));
-        $name = trim((string) ($body['verified_name'] ?? ''));
-        $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
-        if ($phone === '' || $name === '') $this->error('Nomor dan verified name wajib diisi', 422);
-        $res = $meta->addPhoneNumber($wabaId, $cc, $phone, $name);
+        $waba = $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
+        if ($phone === '') $this->error('Nomor wajib diisi', 422);
+        $res = $meta->addPhoneNumber($wabaId, $cc, $phone, (string) $waba['name']);
         if (!$res['success']) $this->error('Gagal menambah nomor: ' . $res['error'], 502, $res['data']);
         $phoneId = (string) ($res['data']['id'] ?? $res['data']['phone_number_id'] ?? '');
         $this->success(['phone_number_id' => $phoneId, 'meta' => $res['data']], 'Nomor ditambahkan. Minta OTP untuk melanjutkan.');
@@ -433,12 +432,13 @@ class Wabas extends WaDeskController
         }
     }
 
-    private function assertTenantWaba(int $tenantId, string $metaWabaId): void
+    private function assertTenantWaba(int $tenantId, string $metaWabaId): array
     {
         $row = $this->db($this->db_index)->query(
-            'SELECT id FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
+            'SELECT id, name FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
             [$tenantId, $metaWabaId]
         )->row_array();
         if (!$row) $this->error('WABA tidak ditemukan. Lakukan Sync WABA terlebih dahulu.', 404);
+        return $row;
     }
 }
