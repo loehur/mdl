@@ -102,7 +102,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -142,6 +142,7 @@ class Wabas extends WaDeskController
         // Template lama (termasuk template legacy tanpa WABA) tidak boleh muncul
         // atau terkirim dari WaDesk setelah migrasi ke Meta.
         $stats['templates_removed'] = $this->removeTemplatesOutsideWabas($tenantId, $activeWabaIds);
+        $stats['channels_removed'] = $this->removeChannelsOutsideWabas($tenantId, $activeWabaIds);
 
         $this->success($stats, 'Sinkronisasi WABA selesai');
     }
@@ -302,6 +303,27 @@ class Wabas extends WaDeskController
         )->result_array();
         foreach ($rows as $row) {
             $db->delete('wa_templates', ['id' => (int) $row['id']]);
+        }
+        return count($rows);
+    }
+
+    /** Remove legacy channels and channels from WABAs not configured in META_WA_WABA_IDS. */
+    private function removeChannelsOutsideWabas(int $tenantId, array $wabaIds): int
+    {
+        $db = $this->db($this->db_index);
+        if ($wabaIds === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($wabaIds), '?'));
+        $rows = $db->query(
+            "SELECT id FROM wa_channels
+             WHERE tenant_id = ?
+               AND (waba_id IS NULL OR waba_id = '' OR waba_id NOT IN ({$placeholders}))",
+            array_merge([$tenantId], $wabaIds)
+        )->result_array();
+        foreach ($rows as $row) {
+            // Foreign-key cascades remove channel-team mappings and conversations safely.
+            $db->delete('wa_channels', ['id' => (int) $row['id']]);
         }
         return count($rows);
     }

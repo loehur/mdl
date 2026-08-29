@@ -3088,7 +3088,9 @@ async function syncWabas() {
     const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join("; ")}` : "";
     const removed = Number(d.templates_removed || 0);
     const removedText = removed ? `, ${removed} template lama dihapus` : "";
-    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${removedText}${suffix}`);
+    const channelsRemoved = Number(d.channels_removed || 0);
+    const channelsRemovedText = channelsRemoved ? `, ${channelsRemoved} channel lama dihapus` : "";
+    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${removedText}${channelsRemovedText}${suffix}`);
     await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true), loadNumbers()]);
   } catch (e) {
     flash(false, e.message || "Gagal sinkron WABA");
