@@ -142,7 +142,7 @@ class Env
     const TOKOPAY_SECRET_KEY = 'change-me-tokopay-secret';
     const TOKOPAY_API_URL = 'https://api.tokopay.id';
 
-    // Status TokoPay → lunas / gagal (CleanKas, webhook, dll.)
+    // Status TokoPay → lunas / gagal (webhook QRIS, dll.)
     const QRIS_STATUS_SUCCESS = ['success', 'completed', 'paid'];
     const QRIS_STATUS_EXPIRED = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'];
 

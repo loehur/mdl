@@ -33,14 +33,6 @@ module.exports = [
     enabled: true,
   },
   {
-    id: 'clean-kas-qris',
-    description: 'Cleanup QRIS)',
-    schedule: '*/11 * * * *', // setiap 11 menit
-    method: 'GET',
-    url: '/Cron/CleanKas/index',
-    enabled: true,
-  },
-  {
     id: 'bca-kas-confirm',
     description: 'Konfirmasi kas BCA pending jika mutasi CR cocok (on-demand scrape)',
     schedule: '*/10 * * * *', // setiap 10 menit; skip jika tidak ada pending BCA
