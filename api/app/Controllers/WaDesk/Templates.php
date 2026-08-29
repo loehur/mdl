@@ -248,7 +248,7 @@ class Templates extends WaDeskController
         $total = (int) ($totalRow['c'] ?? 0);
 
         $rows = $this->db($this->db_index)->query(
-            "SELECT t.*, '' AS waba_id
+            "SELECT t.*, COALESCE(NULLIF(TRIM(t.meta_waba_id), ''), '') AS waba_id
              FROM wa_templates t
              WHERE {$where}
              ORDER BY t.template_name ASC, t.id ASC
