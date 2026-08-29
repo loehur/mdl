@@ -601,14 +601,19 @@ class Wabas extends WaDeskController
     /** Resolve a Team Leader's only permitted WABA on the server. */
     private function managedWabaId(array $user, string $requestedWabaId = ''): string
     {
-        if (($user['role'] ?? '') === 'admin') return trim($requestedWabaId);
+        $requestedWabaId = trim($requestedWabaId);
+        $isAdmin = (($user['role'] ?? '') === 'admin');
+        if ($requestedWabaId !== '' && $isAdmin) return $requestedWabaId;
+
         $row = $this->db($this->db_index)->query(
             'SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1',
-            [(int) $user['tenant_id'], (int) $user['team_id']]
+            [(int) $user['tenant_id'], (int) ($user['team_id'] ?? 0)]
         )->row_array();
         $wabaId = trim((string) ($row['meta_waba_id'] ?? ''));
-        if ($wabaId === '') $this->error('Team belum di-assign ke WABA.', 422);
-        if (trim($requestedWabaId) !== '' && trim($requestedWabaId) !== $wabaId) $this->error('WABA tidak dapat diubah oleh Team Leader.', 403);
+        if ($wabaId === '') {
+            $this->error($isAdmin ? 'Admin harus masuk team yang terhubung WABA terlebih dahulu.' : 'Team belum di-assign ke WABA.', 422);
+        }
+        if ($requestedWabaId !== '' && $requestedWabaId !== $wabaId) $this->error('WABA tidak dapat diubah oleh Team Leader.', 403);
         return $wabaId;
     }
 
