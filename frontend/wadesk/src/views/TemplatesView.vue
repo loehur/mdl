@@ -72,6 +72,22 @@
         <p v-if="loading && templates.length" class="text-center text-sm text-slate-500">Loading more templates...</p>
         <p v-else-if="templates.length < total" class="text-center text-sm text-slate-500">Scroll to load more templates.</p>
       </div>
+
+      <div v-if="templateToDelete" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-template-title" @click.self="cancelDelete">
+        <section class="w-full max-w-md rounded-2xl border border-rose-500/30 bg-ink-900 p-5 shadow-2xl">
+          <h2 id="delete-template-title" class="text-lg font-semibold text-slate-100">Hapus template?</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-300">
+            Template <strong class="break-all text-slate-100">{{ templateToDelete.template_name }}</strong> akan dihapus dari Meta dan WaDesk. Tindakan ini tidak dapat dibatalkan.
+          </p>
+          <p v-if="deleteError" class="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{{ deleteError }}</p>
+          <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" class="detail-button" :disabled="deleting" @click="cancelDelete">Batal</button>
+            <button type="button" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60" :disabled="deleting" @click="confirmDelete">
+              {{ deleting ? 'Menghapus...' : 'Ya, hapus template' }}
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
   </AppHeader>
 </template>
@@ -96,6 +112,9 @@ const loadMoreTarget = ref(null);
 const showCreate = ref(false);
 const creating = ref(false);
 const syncing = ref(false);
+const templateToDelete = ref(null);
+const deleting = ref(false);
+const deleteError = ref("");
 const createForm = reactive({ template_name: "", category: "UTILITY", body: "" });
 const namedParams = computed(() => [...new Set([...String(createForm.body || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
 let observer;
@@ -152,10 +171,34 @@ async function syncTemplates() {
   finally { syncing.value = false; }
 }
 
-async function deleteTemplate(template) {
-  if (!window.confirm(`Hapus template "${template.template_name}" dari Meta dan WaDesk? Tindakan ini tidak dapat dibatalkan.`)) return;
-  try { await api("/WaDesk/Templates/deleteForTeam", { method: "POST", body: { template_id: template.id } }); await loadTemplates({ reset: true }); }
-  catch (e) { error.value = e.message || "Gagal menghapus template."; }
+function deleteTemplate(template) {
+  deleteError.value = "";
+  templateToDelete.value = template;
+}
+
+function cancelDelete() {
+  if (!deleting.value) {
+    templateToDelete.value = null;
+    deleteError.value = "";
+  }
+}
+
+async function confirmDelete() {
+  if (!templateToDelete.value || deleting.value) return;
+  deleting.value = true;
+  deleteError.value = "";
+  error.value = "";
+  try {
+    await api("/WaDesk/Templates/deleteForTeam", { method: "POST", body: { template_id: templateToDelete.value.id } });
+    templateToDelete.value = null;
+    await loadTemplates({ reset: true });
+  }
+  catch (e) {
+    const message = e.message || "Gagal menghapus template.";
+    deleteError.value = message;
+    error.value = message;
+  }
+  finally { deleting.value = false; }
 }
 
 async function onLogout() {
