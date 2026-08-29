@@ -215,7 +215,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'phones' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -256,6 +256,9 @@ class Wabas extends WaDeskController
         // atau terkirim dari WaDesk setelah migrasi ke Meta.
         $stats['templates_removed'] = $this->removeTemplatesOutsideWabas($tenantId, $activeWabaIds);
         $stats['channels_removed'] = $this->removeChannelsOutsideWabas($tenantId, $activeWabaIds);
+        // Remove the WABA record last. Its WABA-team assignments are cascaded,
+        // while its templates and numbers have already been removed above.
+        $stats['wabas_removed'] = $this->removeWabasOutsideConfiguredList($tenantId, $activeWabaIds);
 
         $this->success($stats, 'Sinkronisasi WABA selesai');
     }
@@ -446,6 +449,25 @@ class Wabas extends WaDeskController
         foreach ($rows as $row) {
             // Foreign-key cascades remove channel-team mappings and conversations safely.
             $db->delete('wa_channels', ['id' => (int) $row['id']]);
+        }
+        return count($rows);
+    }
+
+    /** Remove local WABA records absent from META_WA_WABA_IDS after dependent data is removed. */
+    private function removeWabasOutsideConfiguredList(int $tenantId, array $wabaIds): int
+    {
+        $db = $this->db($this->db_index);
+        if ($wabaIds === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($wabaIds), '?'));
+        $rows = $db->query(
+            "SELECT id FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id NOT IN ({$placeholders})",
+            array_merge([$tenantId], $wabaIds)
+        )->result_array();
+        foreach ($rows as $row) {
+            // wa_waba_teams is removed by its foreign-key cascade.
+            $db->delete('wa_wabas', ['id' => (int) $row['id']]);
         }
         return count($rows);
     }
