@@ -256,13 +256,9 @@ class Wabas extends WaDeskController
         $codeStatus = strtoupper(trim((string) ($phone['code_verification_status'] ?? '')));
         $nameStatus = strtoupper(trim((string) ($phone['name_status'] ?? $phone['new_name_status'] ?? '')));
         $providerStatus = strtoupper(trim((string) ($phone['status'] ?? '')));
-        // OTP may already be VERIFIED while Meta is still reviewing the display name.
-        // Keep the channel inactive until that review is no longer pending/rejected.
-        $nameBlocked = in_array($nameStatus, ['PENDING', 'REJECTED', 'DECLINED'], true);
-        $channelStatus = !$nameBlocked && (
-            in_array($providerStatus, ['CONNECTED', 'ACTIVE'], true)
-            || ($codeStatus === 'VERIFIED' && $nameStatus !== '')
-        ) ? 'active' : 'inactive';
+        // OTP/display-name verification is not phone registration. A number is
+        // usable only after Meta reports it CONNECTED/ACTIVE (after /register + PIN).
+        $channelStatus = in_array($providerStatus, ['CONNECTED', 'ACTIVE'], true) ? 'active' : 'inactive';
         $db = $this->db($this->db_index);
         $existing = $db->query(
             'SELECT id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1',
