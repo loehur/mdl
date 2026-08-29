@@ -22,7 +22,28 @@ class Meta
     /** @return array{success:bool,data:array,error:string,http_code:int} */
     public function listWabas(): array
     {
-        return $this->get('/me/whatsapp_business_accounts', ['fields' => 'id,name']);
+        $configuredIds = array_values(array_filter(array_map(
+            'trim',
+            explode(',', self::env('META_WA_WABA_IDS'))
+        )));
+        if ($configuredIds !== []) {
+            $wabas = [];
+            foreach ($configuredIds as $wabaId) {
+                $res = $this->get('/' . rawurlencode($wabaId), ['fields' => 'id,name']);
+                if (!$res['success']) {
+                    return $res;
+                }
+                $row = $res['data'][0] ?? [];
+                // Graph object reads return a top-level object, retained by get() as data only when paged.
+                if ($row === [] && isset($res['object']) && is_array($res['object'])) {
+                    $row = $res['object'];
+                }
+                $wabas[] = is_array($row) && $row !== [] ? $row : ['id' => $wabaId, 'name' => 'WABA ' . $wabaId];
+            }
+            return ['success' => true, 'data' => $wabas, 'error' => '', 'http_code' => 200];
+        }
+
+        return $this->get('/me', ['fields' => 'whatsapp_business_accounts{id,name}']);
     }
 
     /** @return array{success:bool,data:array,error:string,http_code:int} */
@@ -132,13 +153,20 @@ class Meta
             ];
         }
 
-        return [
+        $result = [
             'success' => true,
             'data' => is_array($decoded['data'] ?? null) ? $decoded['data'] : [],
             'error' => '',
             'http_code' => $httpCode,
             'paging' => is_array($decoded['paging'] ?? null) ? $decoded['paging'] : [],
         ];
+        if (!isset($decoded['data'])) {
+            $result['object'] = $decoded;
+            if (isset($decoded['whatsapp_business_accounts']['data']) && is_array($decoded['whatsapp_business_accounts']['data'])) {
+                $result['data'] = $decoded['whatsapp_business_accounts']['data'];
+            }
+        }
+        return $result;
     }
 
     /** @return array{success:bool,data:array,error:string,http_code:int} */

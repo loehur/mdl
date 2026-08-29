@@ -62,6 +62,7 @@ class Env
     // Isi dengan Verify Token yang sama di Meta Developers.
     const META_WA_VERIFY_TOKEN = 'change-me-meta-wa-verify-token';
     const META_WA_ACCESS_TOKEN = 'change-me-meta-wa-access-token';
+    const META_WA_WABA_IDS = '1071227122388305'; // Pisahkan dengan koma jika lebih dari satu WABA
     const META_WA_APP_SECRET = 'change-me-meta-app-secret'; // App Dashboard → Settings → Basic
     const META_WA_SEND_API_KEY = 'change-me-meta-wa-send-api-key'; // Header X-Meta-Wa-Send-Key
     const META_WA_ADMIN_API_KEY = 'change-me-meta-wa-admin-api-key'; // Header X-Meta-Wa-Admin-Key
