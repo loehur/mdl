@@ -173,6 +173,63 @@ class WhatsApp extends Controller
         ], 'Permintaan tambah nomor ke WABA berhasil dikirim ke Meta.');
     }
 
+    /**
+     * Registrasikan nomor WABA yang berstatus Pending ke WhatsApp Cloud API.
+     *
+     * POST /Meta/WhatsApp/register-phone-number
+     */
+    public function register_phone_number()
+    {
+        if (!$this->isPost()) {
+            $this->error('Method not allowed. Use POST.', 405);
+        }
+
+        $this->authorize('META_WA_ADMIN_API_KEY', 'HTTP_X_META_WA_ADMIN_KEY');
+        $body = $this->getBody();
+        $this->validate($body, ['phone_number_id', 'pin']);
+
+        $accessToken = $this->config('META_WA_ACCESS_TOKEN');
+        if ($accessToken === '') {
+            $this->error('Meta WhatsApp belum dikonfigurasi. Isi META_WA_ACCESS_TOKEN.', 503);
+        }
+
+        $phoneNumberId = $this->strFromBody($body, 'phone_number_id');
+        $pin = $this->strFromBody($body, 'pin');
+        if (!preg_match('/^\d{5,32}$/', $phoneNumberId)) {
+            $this->error('phone_number_id tidak valid.', 400);
+        }
+        if (!preg_match('/^\d{6}$/', $pin)) {
+            $this->error('pin harus terdiri dari tepat 6 digit.', 400);
+        }
+
+        $version = $this->config('META_WA_GRAPH_VERSION', 'v23.0');
+        $url = 'https://graph.facebook.com/' . rawurlencode($version) . '/'
+            . rawurlencode($phoneNumberId) . '/register';
+        $result = $this->postJson($url, $accessToken, [
+            'messaging_product' => 'whatsapp',
+            'pin' => $pin,
+        ]);
+
+        \Log::write(
+            'Register WABA phone number: phone_number_id=' . $phoneNumberId
+                . ', http=' . $result['http_code']
+                . ', response=' . $result['body'],
+            'wa_meta',
+            'register_phone_number'
+        );
+
+        if ($result['http_code'] < 200 || $result['http_code'] >= 300) {
+            $this->error('Meta menolak registrasi nomor WhatsApp.', 502, [
+                'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+            ]);
+        }
+
+        $this->success([
+            'phone_number_id' => $phoneNumberId,
+            'meta_response' => $result['json'] ?? ['raw' => $result['body']],
+        ], 'Registrasi nomor WhatsApp telah dikirim ke Meta.');
+    }
+
     private function authorize(
         string $configName = 'META_WA_SEND_API_KEY',
         string $headerName = 'HTTP_X_META_WA_SEND_KEY'
