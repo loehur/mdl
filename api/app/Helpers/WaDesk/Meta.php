@@ -50,7 +50,7 @@ class Meta
     public function listPhoneNumbers(string $wabaId): array
     {
         return $this->get('/' . rawurlencode($wabaId) . '/phone_numbers', [
-            'fields' => 'id,display_phone_number,verified_name,code_verification_status,quality_rating,status',
+            'fields' => 'id,display_phone_number,verified_name,code_verification_status,quality_rating,status,name_status,new_name_status',
         ]);
     }
 

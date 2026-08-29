@@ -253,8 +253,16 @@ class Wabas extends WaDeskController
         }
         $number = preg_replace('/\D+/', '', (string) ($phone['display_phone_number'] ?? '')) ?? '';
         $label = trim((string) ($phone['verified_name'] ?? $phone['display_phone_number'] ?? $phoneId));
-        $status = strtolower(trim((string) ($phone['code_verification_status'] ?? $phone['status'] ?? 'active')));
-        $channelStatus = in_array($status, ['connected', 'verified', 'active'], true) ? 'active' : 'inactive';
+        $codeStatus = strtoupper(trim((string) ($phone['code_verification_status'] ?? '')));
+        $nameStatus = strtoupper(trim((string) ($phone['name_status'] ?? $phone['new_name_status'] ?? '')));
+        $providerStatus = strtoupper(trim((string) ($phone['status'] ?? '')));
+        // OTP may already be VERIFIED while Meta is still reviewing the display name.
+        // Keep the channel inactive until that review is no longer pending/rejected.
+        $nameBlocked = in_array($nameStatus, ['PENDING', 'REJECTED', 'DECLINED'], true);
+        $channelStatus = !$nameBlocked && (
+            in_array($providerStatus, ['CONNECTED', 'ACTIVE'], true)
+            || ($codeStatus === 'VERIFIED' && $nameStatus !== '')
+        ) ? 'active' : 'inactive';
         $db = $this->db($this->db_index);
         $existing = $db->query(
             'SELECT id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1',
@@ -264,7 +272,7 @@ class Wabas extends WaDeskController
             'waba_id' => $wabaId,
             'phone_number' => $number !== '' ? $number : $phoneId,
             'label' => $label,
-            'meta_verification_status' => strtoupper(trim((string) ($phone['code_verification_status'] ?? $phone['status'] ?? ''))),
+            'meta_verification_status' => trim($codeStatus . ($nameStatus !== '' ? ' · NAME_' . $nameStatus : '')),
             'meta_quality_rating' => strtoupper(trim((string) ($phone['quality_rating'] ?? ''))),
             'channel_type' => 'waba',
             'provider' => 'meta',
