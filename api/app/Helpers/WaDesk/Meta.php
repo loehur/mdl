@@ -230,7 +230,10 @@ class Meta
             return ['success' => false, 'data' => [], 'error' => $curlError ?: 'Respons Meta tidak valid.', 'http_code' => $httpCode];
         }
         if ($httpCode < 200 || $httpCode >= 300 || isset($decoded['error'])) {
-            return ['success' => false, 'data' => $decoded, 'error' => (string) ($decoded['error']['message'] ?? 'Meta request gagal.'), 'http_code' => $httpCode];
+            $metaError = is_array($decoded['error'] ?? null) ? $decoded['error'] : [];
+            $detail = trim((string) ($metaError['error_user_msg'] ?? $metaError['error_data']['details'] ?? ''));
+            $code = isset($metaError['code']) ? ' (#' . $metaError['code'] . ')' : '';
+            return ['success' => false, 'data' => $decoded, 'error' => (string) ($metaError['message'] ?? 'Meta request gagal.') . $code . ($detail !== '' ? ': ' . $detail : ''), 'http_code' => $httpCode];
         }
         $message = is_array($decoded['messages'][0] ?? null) ? $decoded['messages'][0] : [];
         return ['success' => true, 'data' => array_merge($decoded, ['id' => $message['id'] ?? null, 'message_id' => $message['id'] ?? null, 'wamid' => $message['id'] ?? null]), 'error' => '', 'http_code' => $httpCode];

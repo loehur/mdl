@@ -31,7 +31,11 @@ class Wabas extends WaDeskController
         $phone = trim((string) ($body['phone_number'] ?? ''));
         $waba = $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
         if ($phone === '') $this->error('Nomor wajib diisi', 422);
-        $res = $meta->addPhoneNumber($wabaId, $cc, $phone, (string) $waba['name']);
+        $normalizedPhone = preg_replace('/\D+/', '', $phone) ?? '';
+        if (str_starts_with($normalizedPhone, '628')) $normalizedPhone = substr($normalizedPhone, 2);
+        elseif (str_starts_with($normalizedPhone, '08')) $normalizedPhone = substr($normalizedPhone, 1);
+        if (!preg_match('/^8\d{7,14}$/', $normalizedPhone)) $this->error('Nomor harus diawali 8 dan berisi 8–15 digit.', 422);
+        $res = $meta->addPhoneNumber($wabaId, $cc, $normalizedPhone, (string) $waba['name']);
         if (!$res['success']) $this->error('Gagal menambah nomor: ' . $res['error'], 502, $res['data']);
         $phoneId = (string) ($res['data']['id'] ?? $res['data']['phone_number_id'] ?? '');
         $this->success(['phone_number_id' => $phoneId, 'meta' => $res['data']], 'Nomor ditambahkan. Minta OTP untuk melanjutkan.');
