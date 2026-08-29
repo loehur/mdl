@@ -915,6 +915,7 @@ class Templates extends WaDeskController
         $body = $this->getBody(); $templateId = (int) ($body['template_id'] ?? 0); $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $tpl = $this->db($this->db_index)->query('SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1', [$templateId, $tenantId])->row_array();
         if (!$tpl) $this->error('Template tidak ditemukan', 404);
+        if (strtoupper((string) ($tpl['meta_status'] ?? '')) !== 'REJECTED') $this->error('Template hanya dapat dihapus jika status REJECTED.', 422);
         $waba = $this->db($this->db_index)->query('SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1', [$tenantId, $teamId])->row_array();
         if (!$waba || (string) $waba['meta_waba_id'] !== (string) $tpl['meta_waba_id']) $this->error('Template bukan milik WABA team aktif.', 403);
         $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);

@@ -57,7 +57,7 @@
                 <span v-for="team in template.assigned_teams" :key="team.id" class="team-chip">{{ team.name }}</span>
               </div>
             </div>
-            <div class="flex gap-2 shrink-0"><button type="button" class="detail-button" @click="toggleDetail(template.id)">{{ expandedId === template.id ? "Close" : "Detail" }}</button><button v-if="auth.canManageTeam" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20" @click="deleteTemplate(template)">Hapus</button></div>
+            <div class="flex gap-2 shrink-0"><button type="button" class="detail-button" @click="toggleDetail(template.id)">{{ expandedId === template.id ? "Close" : "Detail" }}</button><button v-if="auth.canManageTeam && String(template.meta_status).toUpperCase() === 'REJECTED'" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20" @click="deleteTemplate(template)">Hapus</button></div>
 
             <div v-if="expandedId === template.id" class="template-detail">
               <p v-if="template.body_preview" class="whitespace-pre-wrap break-words text-sm text-slate-300">{{ template.body_preview }}</p>
