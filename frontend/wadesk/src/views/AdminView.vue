@@ -24,13 +24,13 @@
           </p>
         </div>
 
-        <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="createTeam">
-          <input v-model="teamForm.name" required class="field flex-1" placeholder="Nama team baru" />
-          <select v-model="teamForm.template_category" class="field sm:w-36">
+        <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto]" @submit.prevent="createTeam">
+          <input v-model="teamForm.name" required class="field min-w-0" placeholder="Nama team baru" />
+          <select v-model="teamForm.template_category" class="field w-full sm:w-36">
             <option value="UTILITY">Utility</option>
             <option value="MARKETING">Marketing</option>
           </select>
-          <button class="btn shrink-0">Tambah</button>
+          <button class="btn">Tambah</button>
         </form>
 
         <div class="relative">
@@ -75,20 +75,20 @@
             >
               <div class="min-w-0 flex-1">
                 <template v-if="editingTeamId === t.id">
-                  <form class="flex flex-col sm:flex-row gap-2" @submit.prevent="saveTeamName(t)">
+                  <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto]" @submit.prevent="saveTeamName(t)">
                     <input
                       v-model="editingTeamName"
                       required
                       maxlength="100"
-                      class="field flex-1 min-w-0"
+                      class="field min-w-0"
                       placeholder="Nama team"
                       @keydown.esc.prevent="cancelEditTeam"
                     />
-                    <select v-model="editingTeamCategory" class="field sm:w-36 shrink-0">
+                    <select v-model="editingTeamCategory" class="field w-full sm:w-36">
                       <option value="UTILITY">Utility</option>
                       <option value="MARKETING">Marketing</option>
                     </select>
-                    <div class="flex gap-2 shrink-0">
+                    <div class="flex gap-2 justify-end">
                       <button type="submit" class="btn" :disabled="savingTeam">
                         {{ savingTeam ? "Menyimpan..." : "Simpan" }}
                       </button>
