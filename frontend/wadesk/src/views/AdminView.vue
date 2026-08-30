@@ -410,7 +410,7 @@
                 <span :title="'Status: ' + (number.status || 'unknown')" class="px-2 py-1 rounded" :class="String(number.status || '').toLowerCase() === 'active' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-slate-300'">{{ number.meta_provider_status || number.status || 'unknown' }}</span>
                 <span v-if="number.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ number.meta_verification_status }}</span>
                 <span v-if="number.meta_display_name_status" class="px-2 py-1 rounded bg-violet-500/10 text-violet-300">Display: {{ number.meta_display_name_status }}</span>
-                <span v-if="number.meta_quality_rating" :title="'Quality: ' + number.meta_quality_rating" class="inline-block w-2.5 h-2.5 rounded-full" :class="qualityDotClass(number.meta_quality_rating)"></span>
+                <span v-if="number.meta_quality_rating" class="px-2 py-1 rounded" :class="qualityBadgeClass(number.meta_quality_rating)">Quality: {{ number.meta_quality_rating }}</span>
                 <span v-if="Number(number.is_coexistence) === 1" class="px-2 py-1 rounded bg-violet-500/10 text-violet-300">Coex</span>
                 <button v-if="String(number.status || '').toLowerCase() !== 'active'" type="button" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20" @click="continueNumberRegistration(number)">{{ String(number.meta_verification_status || '').toUpperCase().startsWith('VERIFIED') ? 'Register Number' : 'Request OTP' }}</button>
               </div>
@@ -1531,7 +1531,7 @@ const numberStats = computed(() => {
   const active = numbers.value.filter((number) => String(number.status || "").toLowerCase() === "active").length;
   return { total, active, inactive: total - active };
 });
-const qualityDotClass = (q) => ({ GREEN: "bg-emerald-500", YELLOW: "bg-amber-500", RED: "bg-rose-500" }[String(q || "").toUpperCase()] || "bg-slate-400");
+const qualityBadgeClass = (q) => ({ GREEN: "bg-emerald-500/15 text-emerald-300", YELLOW: "bg-amber-500/15 text-amber-300", RED: "bg-rose-500/15 text-rose-300" }[String(q || "").toUpperCase()] || "bg-white/5 text-slate-300");
 const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
 const addingNumber = ref(false);

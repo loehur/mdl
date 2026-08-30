@@ -73,7 +73,7 @@
                 <div class="flex flex-wrap gap-1.5 justify-end text-xs">
                   <span :title="'Status: ' + (n.status || 'unknown')" class="px-2 py-1 rounded" :class="String(n.status || '').toLowerCase() === 'active' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-slate-300'">{{ n.meta_provider_status || n.status || 'unknown' }}</span>
                   <span v-if="n.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ n.meta_verification_status }}</span>
-                  <span v-if="n.meta_quality_rating" :title="'Quality: ' + n.meta_quality_rating" class="inline-block w-2.5 h-2.5 rounded-full" :class="qualityClass(n.meta_quality_rating)"></span>
+                  <span v-if="n.meta_quality_rating" class="px-2 py-1 rounded" :class="qualityClass(n.meta_quality_rating)">Quality: {{ n.meta_quality_rating }}</span>
                   <button v-if="String(n.status).toLowerCase() !== 'active'" type="button" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20" @click="continueFlow(n)">{{ String(n.meta_verification_status || '').startsWith('VERIFIED') ? 'Register' : 'Request OTP' }}</button>
                 </div>
               </div>
@@ -94,7 +94,7 @@ const auth=useAuthStore(), router=useRouter(), numbers=ref([]), wabas=ref([]), w
 const form=reactive({phone:'',method:'SMS',otp:''}), flow=reactive({step:'add',phoneId:'',loading:false,error:''});
 const otp=reactive({cooldown:0,locked:0,verifyFails:0,requested:false}); let otpTimer=null;
 const numberStats=computed(()=>{const total=numbers.value.length,active=numbers.value.filter(n=>String(n.status||'').toLowerCase()==='active').length;return {total,active,inactive:total-active}});
-const logout=async()=>{await auth.logout();router.push({name:'login'})}; const qualityClass=q=>({GREEN:'bg-emerald-500',YELLOW:'bg-amber-500',RED:'bg-rose-500'}[String(q).toUpperCase()]||'bg-slate-400');
+const logout=async()=>{await auth.logout();router.push({name:'login'})}; const qualityClass=q=>({GREEN:'bg-emerald-500/15 text-emerald-300',YELLOW:'bg-amber-500/15 text-amber-300',RED:'bg-rose-500/15 text-rose-300'}[String(q).toUpperCase()]||'bg-white/5 text-slate-300');
 const requestLabel=computed(()=>otp.cooldown>0?`Minta ulang (${otp.cooldown}s)`:(otp.requested?'Minta ulang OTP':'Request OTP'));
 const timeLabel=s=>{const seconds=Math.max(0,Number(s)||0),minutes=Math.floor(seconds/60),remainder=seconds%60;return minutes>0?`${minutes} menit ${remainder} detik`:`${remainder} detik`};
 function resetOtp(){Object.assign(otp,{cooldown:0,locked:0,verifyFails:0,requested:false})} function startTimer(){if(otpTimer)return;otpTimer=setInterval(()=>{if(otp.cooldown>0)otp.cooldown--;if(otp.locked>0)otp.locked--;if(!otp.cooldown&&!otp.locked){clearInterval(otpTimer);otpTimer=null}},1000)} function applyRetry(e){const seconds=Number(e?.data?.retry_after||0);if(seconds){if(String(e?.data?.code||'').includes('request'))otp.cooldown=Math.max(otp.cooldown,seconds);else otp.locked=Math.max(otp.locked,seconds);startTimer()}}
