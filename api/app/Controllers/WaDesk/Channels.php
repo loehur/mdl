@@ -17,7 +17,7 @@ class Channels extends WaDeskController
         $scope = trim((string) $this->query('scope', 'operational'));
 
         $select = "SELECT k.id, k.tenant_id, k.label, k.phone_number, k.device_id,
-                          k.waba_id, k.meta_phone_number_id, k.meta_verification_status, k.meta_quality_rating, k.provider, k.channel_type, k.status, k.template_sending_enabled,
+                          k.waba_id, k.meta_phone_number_id, k.meta_verification_status, k.meta_display_name_status, k.meta_quality_rating, k.provider, k.channel_type, k.status, k.template_sending_enabled,
                           k.created_at, NULL AS team_name";
 
         if ($user['role'] === 'admin' && $scope === 'all') {
