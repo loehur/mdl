@@ -1987,12 +1987,76 @@ class J extends Controller
       }
 
       $label = $jenis === 'antar' ? 'Antar' : 'Jemput';
+      $notifSent = $this->notifyKurirGroupFonnte([
+         'jenis' => $jenis,
+         'id_request' => $idRequest,
+         'nama' => (string) ($this->pelanggan_p['nama_pelanggan'] ?? ''),
+         'kode_cabang' => (string) ($this->dCabangPublic['kode_cabang'] ?? ''),
+         'catatan' => $catatanKurir['value'],
+         'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+      ]);
       echo json_encode([
          'ok' => true,
          'message' => "Permintaan $label Sameday dikirim. Driver akan memproses.",
          'id_request' => $idRequest,
          'surcas' => $surcasInfo,
+         'notif_sent' => $notifSent,
       ], JSON_UNESCAPED_UNICODE);
+   }
+
+   /**
+    * Notif grup driver Fonnte saat order kurir Sameday dibuat dari Portal J.
+    * Group: id_group_fonnte cabang (jika valid) → fallback group driver global.
+    * Format meniru alur CRM/WhatsApp KURIR.
+    *
+    * @param array{jenis:string,id_request:int,nama:string,kode_cabang:string,catatan:string,lokasi_detail:string} $input
+    */
+   private function notifyKurirGroupFonnte(array $input): bool
+   {
+      try {
+         $jenis = (string) ($input['jenis'] ?? '');
+         $nama = mb_strtoupper(trim((string) ($input['nama'] ?? '')), 'UTF-8');
+         if ($nama === '') {
+            $nama = 'PELANGGAN';
+         }
+         $kode = mb_strtoupper(trim((string) ($input['kode_cabang'] ?? '')), 'UTF-8');
+         if ($kode === '') {
+            $kode = (string) ((int) $this->id_cabang_p ?: '-');
+         }
+         $jenisUpper = $jenis === 'antar' ? 'ANTAR' : 'JEMPUT';
+         $lines = [
+            "*{$nama}*",
+            "-{$kode} -{$jenisUpper}",
+         ];
+         $catatan = trim((string) ($input['catatan'] ?? ''));
+         if ($catatan !== '') {
+            $lines[] = $catatan;
+         }
+         $lines[] = '';
+         $lines[] = 'Lokasi:';
+         $lokasiDetail = trim((string) ($input['lokasi_detail'] ?? ''));
+         $lines[] = $lokasiDetail !== '' ? $lokasiDetail : '-';
+         $text = implode("\n", $lines);
+
+         $this->helper('FonnteService');
+         $groupId = FonnteService::driverGroupId();
+         if (is_array($this->dCabangPublic)) {
+            $fromCabang = trim((string) ($this->dCabangPublic['id_group_fonnte'] ?? ''));
+            if ($fromCabang !== '' && preg_match('/@g\.us$/i', $fromCabang)) {
+               $groupId = $fromCabang;
+            }
+         }
+         if ($groupId === '') {
+            return false;
+         }
+         $send = FonnteService::sendToGroup($groupId, $text);
+         return !empty($send['success']);
+      } catch (\Throwable $e) {
+         if (class_exists('\Log')) {
+            \Log::write('J kurirSamedaySubmit notif: ' . $e->getMessage(), 'wa_error', 'J');
+         }
+         return false;
+      }
    }
 
    /**

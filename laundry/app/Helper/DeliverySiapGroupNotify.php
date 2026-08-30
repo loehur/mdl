@@ -115,7 +115,7 @@ class DeliverySiapGroupNotify
             }
         }
 
-        $text = '*' . $nama . '* - ' . $kode . "\nSELESAI";
+        $text = '*' . $nama . '* - ' . $kode . "\n*SELESAI*\n-ANTAR (Konfirmasi dahulu)";
 
         if (!class_exists('FonnteService')) {
             // Dipanggil dari controller yang sudah load helper
