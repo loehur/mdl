@@ -48,7 +48,11 @@ export const useChatStore = defineStore("chat", {
       // Loading hanya saat buka/ganti thread, bukan refresh WS di thread yang sama
       const showLoading =
         !silent && (Number(prevId) !== Number(id) || this.messages.length === 0);
-      if (showLoading) this.loadingMessages = true;
+      if (showLoading) {
+        this.loadingMessages = true;
+        // Kosongkan pesan lama supaya skeleton tampil & tidak ada chat keliru saat pindah thread
+        if (Number(prevId) !== Number(id)) this.messages = [];
+      }
       try {
         const res = await api(`/WaDesk/Chat/getMessages?conversation_id=${id}`);
         this.messages = res.data.messages || [];

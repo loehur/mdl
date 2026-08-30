@@ -175,7 +175,31 @@
           </div>
 
           <div ref="scrollEl" class="flex-1 overflow-y-auto p-4 space-y-3">
-            <div v-if="chat.loadingMessages && !chat.messages.length" class="text-sm text-slate-500">Loading messages...</div>
+            <div v-if="chat.loadingMessages && !chat.messages.length" class="space-y-3 py-2">
+              <!-- Skeleton: bubble masuk -->
+              <div class="flex justify-start">
+                <div class="max-w-[70%] rounded-2xl px-4 py-3 bg-ink-800 space-y-2">
+                  <div class="h-3 w-40 rounded bg-white/10 animate-pulse"></div>
+                  <div class="h-3 w-56 rounded bg-white/10 animate-pulse"></div>
+                  <div class="h-3 w-32 rounded bg-white/5 animate-pulse"></div>
+                </div>
+              </div>
+              <!-- Skeleton: bubble keluar -->
+              <div class="flex justify-end">
+                <div class="max-w-[70%] rounded-2xl px-4 py-3 bg-ink-800 space-y-2">
+                  <div class="h-3 w-48 rounded bg-white/10 animate-pulse"></div>
+                  <div class="h-3 w-36 rounded bg-white/5 animate-pulse"></div>
+                </div>
+              </div>
+              <!-- Skeleton: bubble masuk -->
+              <div class="flex justify-start">
+                <div class="max-w-[60%] rounded-2xl px-4 py-3 bg-ink-800 space-y-2">
+                  <div class="h-3 w-28 rounded bg-white/10 animate-pulse"></div>
+                  <div class="h-3 w-44 rounded bg-white/5 animate-pulse"></div>
+                </div>
+              </div>
+              <p class="text-center text-[11px] text-slate-500 pt-1">Memuat percakapan…</p>
+            </div>
             <div
               v-for="m in chat.messages"
               :key="m.id"
