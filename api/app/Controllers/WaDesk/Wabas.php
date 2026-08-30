@@ -56,6 +56,11 @@ class Wabas extends WaDeskController
         $this->assertManagedPhone($this->requireChatUser(), $phoneId);
         $method = (string) ($body['method'] ?? 'SMS');
         $attempt = $this->otpAttempt((int) $admin['tenant_id'], $phoneId);
+        $verifyRetryAfter = $this->secondsUntil($attempt['verify_locked_until'] ?? null);
+        if ($verifyRetryAfter > 0) {
+            \Log::write("OTP request BLOCKED BY VERIFY LOCK: phone={$phoneId} retry_after={$verifyRetryAfter} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
+            $this->error('Terlalu banyak permintaan atau percobaan OTP. Tunggu hingga waktu lock selesai sebelum meminta OTP lagi.', 429, ['retry_after' => $verifyRetryAfter, 'code' => 'otp_verify_locked']);
+        }
         $requestRetryAfter = $this->secondsUntil($attempt['last_request_at'] ?? null, 60);
         if ($requestRetryAfter > 0) {
             \Log::write("OTP request RATE LIMITED: phone={$phoneId} retry_after={$requestRetryAfter} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
@@ -663,7 +668,7 @@ class Wabas extends WaDeskController
     private function lockOtpVerification(int $tenantId, string $phoneId, int $seconds): void
     {
         $this->db($this->db_index)->query(
-            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, verify_locked_until) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND)) ON DUPLICATE KEY UPDATE verify_locked_until = DATE_ADD(NOW(), INTERVAL ? SECOND)',
+            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, verify_locked_until) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND)) ON DUPLICATE KEY UPDATE verify_locked_until = CASE WHEN verify_locked_until IS NULL OR verify_locked_until < NOW() THEN DATE_ADD(NOW(), INTERVAL ? SECOND) ELSE verify_locked_until END',
             [$tenantId, $phoneId, $seconds, $seconds]
         );
     }
