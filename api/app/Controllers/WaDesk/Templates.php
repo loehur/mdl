@@ -847,6 +847,7 @@ class Templates extends WaDeskController
     /** Create a Meta template from the operational Templates menu. */
     public function createForTeam()
     {
+        @set_time_limit(90);
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
@@ -894,8 +895,18 @@ class Templates extends WaDeskController
         $buttons = json_decode((string) ($approval['buttons_json'] ?? '[]'), true);
         if (!is_array($buttons)) $buttons = [];
         $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
-        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $metaBody, $paramNames, $buttons);
-        if (!$res['success']) $this->error('Meta menolak template: ' . $res['error'], 502, $res['data']);
+        \Log::write("createForTeam REQUEST: name={$name} lang={$language} cat={$category} waba={$waba['meta_waba_id']} params=" . json_encode($paramNames, JSON_UNESCAPED_UNICODE) . " buttons=" . json_encode($buttons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . " user={$user['id']} tenant={$tenantId} team={$teamId}", 'wadesk', 'template_create');
+        try {
+            $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $metaBody, $paramNames, $buttons);
+        } catch (\Throwable $e) {
+            \Log::write('createForTeam EXCEPTION: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString(), 'wadesk', 'template_create');
+            $this->error('Gagal menghubungi Meta: ' . $e->getMessage(), 502);
+        }
+        if (!$res['success']) {
+            \Log::write('createForTeam META REJECT: http=' . (int) ($res['http_code'] ?? 0) . ' err=' . $res['error'] . ' resp=' . json_encode($res['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'wadesk', 'template_create');
+            $this->error('Meta menolak template: ' . $res['error'], 502, $res['data']);
+        }
+        \Log::write('createForTeam META OK: http=' . (int) ($res['http_code'] ?? 0) . ' resp=' . json_encode($res['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 'wadesk', 'template_create');
         $data = $res['data'];
         $templateId = (int) $this->db($this->db_index)->insert('wa_templates', ['tenant_id' => $tenantId, 'meta_waba_id' => $waba['meta_waba_id'], 'template_name' => $name, 'language' => $language, 'body_preview' => $text, 'meta_template_id' => (string) ($data['id'] ?? ''), 'meta_status' => strtoupper((string) ($data['status'] ?? 'PENDING')), 'meta_category' => $category]);
         $params = []; foreach ($paramNames as $i => $param) $params[] = ['component' => 'body', 'param_index' => $i + 1, 'param_name' => $param, 'label' => $param, 'is_required' => 1];
