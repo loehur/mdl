@@ -163,7 +163,7 @@ class Wabas extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
-        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) $this->error('Admin/Team Leader harus masuk team untuk sync template.', 403);
+        if (($user['role'] ?? '') !== 'admin' || !$this->hasOperationalTeam($user)) $this->error('Hanya Admin yang sudah masuk team dapat sync template.', 403);
         $this->requireWabaTable();
         $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $waba = $this->db($this->db_index)->query('SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1', [$tenantId, $teamId])->row_array();

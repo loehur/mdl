@@ -16,7 +16,7 @@
             placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
-          <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" :disabled="templateActionBusy" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
+          <div v-if="auth.isAdmin" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" :disabled="templateActionBusy" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
           <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="create-template-title" @click.self="closeCreateModal">
           <form class="template-create-card relative max-h-[calc(100vh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-accent/30 p-5 shadow-2xl" @submit.prevent="createTemplate">
             <div v-if="templateActionBusy" class="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-ink-900/85 p-6 backdrop-blur-sm" role="status" aria-live="polite">
@@ -71,7 +71,7 @@
                 <span v-for="team in template.assigned_teams" :key="team.id" class="team-chip">{{ team.name }}</span>
               </div>
             </div>
-            <div class="flex gap-2 shrink-0"><button type="button" class="detail-button" @click="toggleDetail(template.id)">{{ expandedId === template.id ? "Close" : "Detail" }}</button><button v-if="auth.canManageTeam && String(template.meta_status).toUpperCase() === 'REJECTED'" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20" @click="deleteTemplate(template)">Hapus</button></div>
+            <div class="flex gap-2 shrink-0"><button type="button" class="detail-button" @click="toggleDetail(template.id)">{{ expandedId === template.id ? "Close" : "Detail" }}</button><button v-if="auth.isAdmin && String(template.meta_status).toUpperCase() === 'REJECTED'" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20" @click="deleteTemplate(template)">Hapus</button></div>
 
             <div v-if="expandedId === template.id" class="template-detail">
               <p v-if="template.body_preview" class="whitespace-pre-wrap break-words text-sm text-slate-300">{{ template.body_preview }}</p>

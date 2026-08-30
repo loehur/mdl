@@ -806,8 +806,8 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
-        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
-            $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
+        if (($user['role'] ?? '') !== 'admin' || !$this->hasOperationalTeam($user)) {
+            $this->error('Hanya Admin yang sudah masuk team dapat membuat template.', 403);
         }
         if (!$this->templateAiApprovalsTableExists()) {
             $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
@@ -892,8 +892,8 @@ class Templates extends WaDeskController
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
-        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) {
-            $this->error('Hanya Admin atau Team Leader yang sudah masuk team dapat membuat template.', 403);
+        if (($user['role'] ?? '') !== 'admin' || !$this->hasOperationalTeam($user)) {
+            $this->error('Hanya Admin yang sudah masuk team dapat membuat template.', 403);
         }
         if (!$this->templateAiApprovalsTableExists()) {
             $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
@@ -1015,7 +1015,7 @@ class Templates extends WaDeskController
     {
         $this->verifyAuth(); $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
-        if (!in_array((string) ($user['role'] ?? ''), ['admin', 'team_leader'], true) || !$this->hasOperationalTeam($user)) $this->error('Hanya Admin/Team Leader pada team aktif yang dapat menghapus template.', 403);
+        if (($user['role'] ?? '') !== 'admin' || !$this->hasOperationalTeam($user)) $this->error('Hanya Admin pada team aktif yang dapat menghapus template.', 403);
         $body = $this->getBody(); $templateId = (int) ($body['template_id'] ?? 0); $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $tpl = $this->db($this->db_index)->query('SELECT * FROM wa_templates WHERE id = ? AND tenant_id = ? LIMIT 1', [$templateId, $tenantId])->row_array();
         if (!$tpl) $this->error('Template tidak ditemukan', 404);
