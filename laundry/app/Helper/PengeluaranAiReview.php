@@ -90,17 +90,23 @@ class PengeluaranAiReview
             foreach ($dayRows as $row) {
                 $amt = (int) round((float) ($row['jumlah'] ?? 0));
                 $ket = trim((string) ($row['keterangan'] ?? ''));
-                $metaParts = [];
+
+                $rowHtml = '';
                 if ($showBranch) {
-                    $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
+                    $rowHtml .= '<div style="display:inline-block;background:#7c3aed;color:#fff;font-size:.7rem;font-weight:800;padding:1px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">'
+                        . $esc((string) ($row['kode_cabang'] ?? '-')) . '</div>';
                 }
+
+                $metaParts = [];
                 $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
                 if ($ket !== '' && $ket !== '-') {
                     $metaParts[] = $esc($ket);
                 }
 
-                $html[] = '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px">'
+                $rowHtml .= '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px">'
                     . implode(' · ', $metaParts) . '</div>';
+
+                $html[] = $rowHtml;
             }
 
             $html[] = '</div>';

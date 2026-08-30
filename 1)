@@ -1,5 +1,0 @@
-ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 't' at line 1
-has_table
-0
-has_team_col
-0
