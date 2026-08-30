@@ -1,0 +1,1 @@
+{"name":"Chip","short_name":"Chip","description":"Transfer chip antar pemain secara real-time.","start_url":"./","display":"standalone","background_color":"#070708","theme_color":"#6366f1","lang":"id","scope":"./","orientation":"portrait","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}

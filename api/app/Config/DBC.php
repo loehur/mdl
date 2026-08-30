@@ -21,6 +21,7 @@ class DBC
                 6 => ['db' => 'mdl_invoice', 'user' => 'root', 'pass' => ''],
                 7 => ['db' => 'mdl_wadesk', 'user' => 'root', 'pass' => ''],
                 8 => ['db' => 'mdl_jaggu_school', 'user' => 'root', 'pass' => ''],
+                9 => ['db' => 'chip', 'user' => 'root', 'pass' => ''],
             ],
             'pro' => [
                 0 => ['db' => 'mdl_main', 'user' => 'mdl_main', 'pass' => 'wB5KjfjRYfPXBtFF'],
@@ -32,6 +33,7 @@ class DBC
                 6 => ['db' => 'mdl_invoice', 'user' => 'mdl_invoice', 'pass' => ''],
                 7 => ['db' => 'mdl_wadesk', 'user' => 'mdl_wadesk', 'pass' => ''],
                 8 => ['db' => 'mdl_jaggu_school', 'user' => 'mdl_jaggu_school', 'pass' => ''],
+                9 => ['db' => 'chip', 'user' => 'chip', 'pass' => ''],
             ],
         ];
     }

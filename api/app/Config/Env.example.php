@@ -17,7 +17,7 @@ class Env
     // -------------------------------------------------------------------------
     const DB_HOST = 'localhost';
 
-    // Index: 0 main … 7 wadesk, 8 jaggu_school
+    // Index: 0 main … 7 wadesk, 8 jaggu_school, 9 chip
     // Digabung (merge) dengan default di DBC.php — index baru di DBC tidak hilang.
     const DB_CREDENTIALS = [
         'dev' => [
@@ -30,6 +30,7 @@ class Env
             6 => ['db' => 'mdl_invoice', 'user' => 'root', 'pass' => ''],
             7 => ['db' => 'mdl_wadesk', 'user' => 'root', 'pass' => ''],
             8 => ['db' => 'mdl_jaggu_school', 'user' => 'root', 'pass' => ''],
+            9 => ['db' => 'chip', 'user' => 'root', 'pass' => ''],
         ],
         'pro' => [
             0 => ['db' => 'mdl_main', 'user' => 'mdl_main', 'pass' => 'YOUR_PASSWORD_HERE'],
@@ -41,6 +42,7 @@ class Env
             6 => ['db' => 'mdl_invoice', 'user' => 'mdl_invoice', 'pass' => 'YOUR_PASSWORD_HERE'],
             7 => ['db' => 'mdl_wadesk', 'user' => 'mdl_wadesk', 'pass' => 'YOUR_PASSWORD_HERE'],
             8 => ['db' => 'mdl_jaggu_school', 'user' => 'mdl_jaggu_school', 'pass' => 'YOUR_PASSWORD_HERE'],
+            9 => ['db' => 'chip', 'user' => 'chip', 'pass' => 'YOUR_PASSWORD_HERE'],
         ],
     ];
 
