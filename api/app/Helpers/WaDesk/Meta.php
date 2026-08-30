@@ -169,7 +169,7 @@ class Meta
             'language' => $language,
             'category' => $category,
             'components' => $components,
-        ]);
+        ], 60);
     }
 
     public function deleteTemplate(string $wabaId, string $name, string $templateId = ''): array

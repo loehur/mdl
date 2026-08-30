@@ -48,7 +48,7 @@ class OpenAi
                 'Content-Type: application/json',
             ],
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-            CURLOPT_TIMEOUT => 45,
+            CURLOPT_TIMEOUT => 60,
         ]);
 
         $raw = curl_exec($ch);

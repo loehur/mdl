@@ -16,9 +16,12 @@
             placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
-          <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
-          <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="create-template-title" @click.self="showCreate = false">
-          <form class="template-create-card max-h-[calc(100vh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-accent/30 p-5 shadow-2xl" @submit.prevent="createTemplate">
+          <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" :disabled="templateActionBusy" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
+          <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="create-template-title" @click.self="closeCreateModal">
+          <form class="template-create-card relative max-h-[calc(100vh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-accent/30 p-5 shadow-2xl" @submit.prevent="createTemplate">
+            <div v-if="templateActionBusy" class="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-ink-900/85 p-6 backdrop-blur-sm" role="status" aria-live="polite">
+              <div class="max-w-sm text-center"><svg class="mx-auto h-9 w-9 animate-spin text-accent" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-90" fill="currentColor" d="M12 2a10 10 0 0 1 10 10h-4a6 6 0 0 0-6-6V2z"/></svg><p class="mt-3 text-sm font-semibold text-slate-100">{{ templateActionTitle }}</p><p class="mt-1 text-xs leading-5 text-slate-300">{{ templateActionHint }}</p></div>
+            </div>
             <div class="flex items-start justify-between gap-4"><div><p id="create-template-title" class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis. Isi yang dikirim ke Meta wajib berasal dari AI.</p></div><button type="button" class="detail-button shrink-0" :disabled="creating || generating" @click="showCreate = false">Tutup</button></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
@@ -139,6 +142,11 @@ const templateButtons = ref([]);
 const generatedBody = ref("");
 const approvalToken = ref("");
 const generating = ref(false);
+const templateActionBusy = computed(() => generating.value || creating.value);
+const templateActionTitle = computed(() => generating.value ? "AI sedang merapikan draf template" : "Template sedang dikirim ke Meta");
+const templateActionHint = computed(() => generating.value
+  ? "Biasanya selesai dalam beberapa detik. Jangan tutup halaman ini dahulu."
+  : "Meta sedang menerima template. Biasanya selesai dalam beberapa detik.");
 const namedParams = computed(() => [...new Set([...String(generatedBody.value || createForm.draft || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
 const hasQuickReplyButtons = computed(() => templateButtons.value.some((button) => button.type === "QUICK_REPLY"));
 const hasCtaButtons = computed(() => templateButtons.value.some((button) => ["URL", "PHONE_NUMBER"].includes(button.type)));
@@ -183,7 +191,7 @@ function toggleDetail(id) {
 async function createTemplate() {
   creating.value = true; error.value = "";
   try {
-    await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", approval_token: approvalToken.value } });
+    await api("/WaDesk/Templates/createForTeam", { method: "POST", timeout: 90000, body: { template_name: createForm.template_name, category: createForm.category, language: "id", approval_token: approvalToken.value } });
     Object.assign(createForm, { template_name: "", category: "UTILITY", draft: "" });
     templateButtons.value = [];
     generatedBody.value = ""; approvalToken.value = "";
@@ -201,12 +209,16 @@ async function generateTemplate() {
   generating.value = true; error.value = "";
   clearAiApproval();
   try {
-    const res = await api("/WaDesk/Templates/generateForTeam", { method: "POST", body: { draft: createForm.draft, buttons: templateButtons.value } });
+    const res = await api("/WaDesk/Templates/generateForTeam", { method: "POST", timeout: 90000, body: { draft: createForm.draft, buttons: templateButtons.value } });
     generatedBody.value = res.data?.body || "";
     approvalToken.value = res.data?.approval_token || "";
     if (!generatedBody.value || !approvalToken.value) throw new Error("AI tidak menghasilkan persetujuan template yang valid.");
   } catch (e) { error.value = e.message || "Gagal membuat draf dengan AI."; }
   finally { generating.value = false; }
+}
+
+function closeCreateModal() {
+  if (!templateActionBusy.value) showCreate.value = false;
 }
 
 function addTemplateButton() {

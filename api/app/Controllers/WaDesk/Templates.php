@@ -802,6 +802,7 @@ class Templates extends WaDeskController
     /** Generate the only server-approved content that may be submitted to Meta. */
     public function generateForTeam()
     {
+        @set_time_limit(75);
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
@@ -826,13 +827,53 @@ class Templates extends WaDeskController
         if (preg_match('/\{\{\s*\d+\s*\}\}/', $draft)) $this->error('Gunakan nama parameter seperti {{customer_name}}, bukan angka.', 422);
 
         $tenantId = (int) $user['tenant_id'];
-        $result = $this->polishFreeMessageText($tenantId, $draft);
-        if (empty($result['status'])) $this->error($result['reason'] ?: 'AI menolak draf template.', 422);
+        $startedAt = microtime(true);
+        \Log::write(
+            'Template AI generate START: tenant=' . $tenantId
+            . ' user=' . (int) $user['id']
+            . ' team=' . (int) $user['team_id']
+            . ' draft_chars=' . mb_strlen($draft)
+            . ' params=' . count($sourceParams)
+            . ' buttons=' . count($buttons),
+            'wadesk',
+            'template_ai'
+        );
+        try {
+            $result = $this->polishFreeMessageText($tenantId, $draft);
+        } catch (\Throwable $e) {
+            $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+            \Log::write(
+                'Template AI generate EXCEPTION: tenant=' . $tenantId
+                . ' user=' . (int) $user['id']
+                . ' duration_ms=' . $elapsedMs
+                . ' error=' . $e->getMessage(),
+                'wadesk',
+                'template_ai'
+            );
+            throw $e;
+        }
+        $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+        if (empty($result['status'])) {
+            \Log::write(
+                'Template AI generate FAILED: tenant=' . $tenantId
+                . ' user=' . (int) $user['id']
+                . ' duration_ms=' . $elapsedMs
+                . ' reason=' . trim((string) ($result['reason'] ?? 'unknown')),
+                'wadesk',
+                'template_ai'
+            );
+            $this->error($result['reason'] ?: 'AI menolak draf template.', 422);
+        }
         $generated = trim((string) ($result['new_words'] ?? ''));
-        if ($generated === '') $this->error('AI tidak menghasilkan isi template.', 422);
+        if ($generated === '') {
+            \Log::write('Template AI generate FAILED: tenant=' . $tenantId . ' user=' . (int) $user['id'] . ' duration_ms=' . $elapsedMs . ' reason=empty_result', 'wadesk', 'template_ai');
+            $this->error('AI tidak menghasilkan isi template.', 422);
+        }
         if ($this->templateParamSequence($generated) !== $sourceSequence) {
+            \Log::write('Template AI generate FAILED: tenant=' . $tenantId . ' user=' . (int) $user['id'] . ' duration_ms=' . $elapsedMs . ' reason=parameter_sequence_changed', 'wadesk', 'template_ai');
             $this->error('AI mengubah parameter template. Generate ulang agar placeholder tetap sama.', 422);
         }
+        \Log::write('Template AI generate OK: tenant=' . $tenantId . ' user=' . (int) $user['id'] . ' duration_ms=' . $elapsedMs . ' output_chars=' . mb_strlen($generated), 'wadesk', 'template_ai');
 
         $rawToken = bin2hex(random_bytes(32));
         $this->db($this->db_index)->query('DELETE FROM wa_template_ai_approvals WHERE expires_at < NOW() OR used_at IS NOT NULL');
@@ -847,7 +888,7 @@ class Templates extends WaDeskController
     /** Create a Meta template from the operational Templates menu. */
     public function createForTeam()
     {
-        @set_time_limit(90);
+        @set_time_limit(75);
         $this->verifyAuth();
         $user = $this->requireChatUser();
         if (!$this->isPost()) $this->error('Method not allowed', 405);
