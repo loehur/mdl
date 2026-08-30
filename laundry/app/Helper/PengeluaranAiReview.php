@@ -35,13 +35,13 @@ class PengeluaranAiReview
         if ($this->isMinyakKendaraan($jenis)) {
             $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
 
-            return $this->renderTimelineByDates($dateGroups, true);
+            return $this->renderTimelineByDates($dateGroups, true, $kode);
         }
 
         if ($this->isGasLpg($jenis)) {
             $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
 
-            return $this->renderTimelineByDates($dateGroups, true);
+            return $this->renderTimelineByDates($dateGroups, true, $kode);
         }
 
         $branchRows = $this->filterHistorySameBranch($historyRows, $kode);
@@ -58,7 +58,7 @@ class PengeluaranAiReview
     /**
      * @param array<string, list<array<string,mixed>>> $dateGroups
      */
-    private function renderTimelineByDates(array $dateGroups, bool $showBranch): string
+    private function renderTimelineByDates(array $dateGroups, bool $showBranch, ?string $highlightKode = null): string
     {
         $fmt = static fn(int $n): string => number_format($n, 0, ',', '.');
         $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
@@ -76,6 +76,20 @@ class PengeluaranAiReview
             $dateLabel = $esc($this->formatDateKeyId($dateKey));
             $isLast = $i === $lastIdx;
 
+            // Baris cabang yang sedang dicek naik ke paling atas.
+            if ($highlightKode !== null && $highlightKode !== '') {
+                $rows = [];
+                $others = [];
+                foreach ($dayRows as $row) {
+                    if ((string) ($row['kode_cabang'] ?? '-') === $highlightKode) {
+                        $rows[] = $row;
+                    } else {
+                        $others[] = $row;
+                    }
+                }
+                $dayRows = array_merge($rows, $others);
+            }
+
             $html[] = '<div class="pg-exp-timeline__item" style="display:flex;gap:10px;margin:0;padding:0 0 '
                 . ($isLast ? '0' : '14px') . '">';
             $html[] = '<div style="flex:0 0 auto;width:12px;display:flex;flex-direction:column;align-items:center">';
@@ -90,23 +104,23 @@ class PengeluaranAiReview
             foreach ($dayRows as $row) {
                 $amt = (int) round((float) ($row['jumlah'] ?? 0));
                 $ket = trim((string) ($row['keterangan'] ?? ''));
-
-                $rowHtml = '';
-                if ($showBranch) {
-                    $rowHtml .= '<div style="display:inline-block;background:#7c3aed;color:#fff;font-size:.7rem;font-weight:800;padding:1px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">'
-                        . $esc((string) ($row['kode_cabang'] ?? '-')) . '</div>';
-                }
+                $isHighlight = $highlightKode !== null && $highlightKode !== ''
+                    && (string) ($row['kode_cabang'] ?? '-') === $highlightKode;
 
                 $metaParts = [];
+                if ($showBranch) {
+                    $metaParts[] = '<strong style="color:#1e3a8a">' . $esc((string) ($row['kode_cabang'] ?? '-')) . '</strong>';
+                }
                 $metaParts[] = '<strong style="color:#0f172a">Rp ' . $fmt($amt) . '</strong>';
                 if ($ket !== '' && $ket !== '-') {
                     $metaParts[] = $esc($ket);
                 }
 
-                $rowHtml .= '<div style="font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px">'
-                    . implode(' · ', $metaParts) . '</div>';
+                $rowStyle = $isHighlight
+                    ? 'font-size:.9rem;font-weight:800;color:#0f172a;line-height:1.5;margin-bottom:6px;padding:6px 8px;border-left:4px solid #7c3aed;background:#ede9fe;border-radius:6px'
+                    : 'font-size:.88rem;font-weight:750;color:#0f172a;line-height:1.45;margin-bottom:5px;padding-left:2px';
 
-                $html[] = $rowHtml;
+                $html[] = '<div style="' . $rowStyle . '">' . implode(' · ', $metaParts) . '</div>';
             }
 
             $html[] = '</div>';
