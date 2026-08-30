@@ -3301,7 +3301,8 @@ async function syncNumbers() {
     const res = await api('/WaDesk/Wabas/syncNumbers', { method: 'POST', body: { waba_id: wabaId } });
     const d = res.data || {};
     const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join('; ')}` : '';
-    flash(true, `Sync Number: ${d.phones || 0} nomor${suffix}`);
+    const removed = Number(d.phones_removed || 0);
+    flash(true, `Sync Number: ${d.phones || 0} nomor${removed ? ` · ${removed} nomor lokal lama dihapus` : ''}${suffix}`);
     await loadNumbers();
   } catch (e) { flash(false, e.message || 'Gagal sync nomor'); } finally { syncingNumbers.value = false; }
 }

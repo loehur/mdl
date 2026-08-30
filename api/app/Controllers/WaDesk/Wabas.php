@@ -344,10 +344,10 @@ class Wabas extends WaDeskController
         $db->insert('wa_wabas', $data);
     }
 
-    /** @return array{phones:int,coex_phones:int,coex_subscriptions:int,coex_subscriptions_skipped:int,errors:array} */
+    /** @return array{phones:int,phones_removed:int,coex_phones:int,coex_subscriptions:int,coex_subscriptions_skipped:int,errors:array} */
     private function syncNumbersForWaba(int $tenantId, string $wabaId, Meta $meta): array
     {
-        $stats = ['phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'errors' => []];
+        $stats = ['phones' => 0, 'phones_removed' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'errors' => []];
         \Log::write("Number sync START: tenant={$tenantId} waba={$wabaId}", 'wadesk', 'number-sync');
         $phones = $meta->listPhoneNumbers($wabaId);
         if (!$phones['success']) {
@@ -357,8 +357,12 @@ class Wabas extends WaDeskController
         }
         \Log::write("Number sync META OK: tenant={$tenantId} waba={$wabaId} received=" . count($phones['data']), 'wadesk', 'number-sync');
         $hasCoex = false;
+        $metaPhoneIds = [];
         foreach ($phones['data'] as $phone) {
             if (!is_array($phone)) continue;
+            $phoneId = trim((string) ($phone['id'] ?? ''));
+            if ($phoneId === '') continue;
+            $metaPhoneIds[] = $phoneId;
             if ($this->upsertPhone($tenantId, $wabaId, $phone)) $stats['phones']++;
             $phoneLog = [
                 'id' => (string) ($phone['id'] ?? ''),
@@ -372,6 +376,16 @@ class Wabas extends WaDeskController
             ];
             \Log::write('Number sync PHONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' data=' . json_encode($phoneLog, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
             if (!empty($phone['is_on_biz_app'])) { $hasCoex = true; $stats['coex_phones']++; }
+        }
+        if ($phones['data'] !== [] && $metaPhoneIds === []) {
+            $stats['errors'][] = 'Meta mengembalikan data nomor tanpa Phone Number ID; cleanup lokal dilewati untuk keamanan.';
+            \Log::write("Number sync CLEANUP SKIPPED: tenant={$tenantId} waba={$wabaId} reason=no_valid_phone_ids", 'wadesk', 'number-sync');
+        } else {
+            $removedIds = $this->removeMissingPhonesForWaba($tenantId, $wabaId, $metaPhoneIds);
+            $stats['phones_removed'] = count($removedIds);
+            if ($removedIds !== []) {
+                \Log::write('Number sync CLEANUP: tenant=' . $tenantId . ' waba=' . $wabaId . ' removed_phone_ids=' . json_encode($removedIds, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
+            }
         }
         $this->syncWabaTeamsToChannels($tenantId, $wabaId, $this->wabaTeamIds($tenantId, $wabaId));
         if (!$hasCoex) {
@@ -399,6 +413,25 @@ class Wabas extends WaDeskController
         \Log::write('Number sync COEX ' . strtoupper($newStatus) . ': tenant=' . $tenantId . ' waba=' . $wabaId . ($subscription['success'] ? '' : ' err=' . $subscription['error']), 'wadesk', 'number-sync');
         \Log::write('Number sync DONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' stats=' . json_encode($stats, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
         return $stats;
+    }
+
+    /** Remove local Meta channels absent from the authoritative phone_numbers response. */
+    private function removeMissingPhonesForWaba(int $tenantId, string $wabaId, array $metaPhoneIds): array
+    {
+        $db = $this->db($this->db_index);
+        $rows = $db->query(
+            "SELECT id, meta_phone_number_id FROM wa_channels WHERE tenant_id = ? AND waba_id = ? AND provider = 'meta'",
+            [$tenantId, $wabaId]
+        )->result_array();
+        $knownIds = array_fill_keys(array_map('strval', $metaPhoneIds), true);
+        $removedIds = [];
+        foreach ($rows as $row) {
+            $phoneId = (string) ($row['meta_phone_number_id'] ?? '');
+            if ($phoneId !== '' && isset($knownIds[$phoneId])) continue;
+            $db->delete('wa_channels', ['id' => (int) $row['id']]);
+            $removedIds[] = $phoneId !== '' ? $phoneId : ('local:' . (int) $row['id']);
+        }
+        return $removedIds;
     }
 
     /** @return array{templates:int,errors:array} */
