@@ -49,35 +49,66 @@ class Wabas extends WaDeskController
     public function requestOtp()
     {
         [$admin, $meta] = $this->metaForAdmin();
+        $this->requireOtpAttemptTable();
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         if ($phoneId === '') $this->error('phone_number_id wajib', 422);
         $this->assertManagedPhone($this->requireChatUser(), $phoneId);
         $method = (string) ($body['method'] ?? 'SMS');
+        $attempt = $this->otpAttempt((int) $admin['tenant_id'], $phoneId);
+        $requestRetryAfter = $this->secondsUntil($attempt['last_request_at'] ?? null, 60);
+        if ($requestRetryAfter > 0) {
+            \Log::write("OTP request RATE LIMITED: phone={$phoneId} retry_after={$requestRetryAfter} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
+            $this->error("OTP baru saja diminta. Tunggu {$requestRetryAfter} detik sebelum meminta ulang.", 429, ['retry_after' => $requestRetryAfter, 'code' => 'otp_request_cooldown']);
+        }
         \Log::write("OTP request: phone={$phoneId} method={$method} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
         $res = $meta->requestVerificationCode($phoneId, $method);
         if (!$res['success']) {
             \Log::write("OTP request FAILED: phone={$phoneId} method={$method} http={$res['http_code']} err={$res['error']} resp=" . json_encode($res['data'], JSON_UNESCAPED_SLASHES), 'wadesk', 'otp');
+            if ($this->isMetaOtpRateLimit($res)) {
+                $this->lockOtpVerification((int) $admin['tenant_id'], $phoneId, 600);
+                $this->error('Terlalu banyak permintaan atau percobaan OTP di Meta. Tunggu beberapa menit sebelum mencoba lagi.', 429, ['retry_after' => 600, 'code' => 'meta_otp_rate_limit']);
+            }
             $this->error('Gagal meminta OTP: ' . $res['error'], 502, $res['data']);
         }
+        $this->touchOtpRequest((int) $admin['tenant_id'], $phoneId);
         \Log::write("OTP request OK: phone={$phoneId} method={$method} http={$res['http_code']}", 'wadesk', 'otp');
-        $this->success(['meta' => $res['data']], 'OTP dikirim.');
+        $this->success(['meta' => $res['data'], 'retry_after' => 60], 'OTP dikirim.');
     }
 
     public function verifyOtp()
     {
         [$admin, $meta] = $this->metaForAdmin();
+        $this->requireOtpAttemptTable();
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         $code = trim((string) ($body['code'] ?? ''));
         if ($phoneId === '' || $code === '') $this->error('Phone Number ID dan OTP wajib diisi', 422);
         $this->assertManagedPhone($this->requireChatUser(), $phoneId);
+        $attempt = $this->otpAttempt((int) $admin['tenant_id'], $phoneId);
+        $verifyRetryAfter = $this->secondsUntil($attempt['verify_locked_until'] ?? null);
+        if ($verifyRetryAfter > 0) {
+            \Log::write("OTP verify RATE LIMITED: phone={$phoneId} retry_after={$verifyRetryAfter} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
+            $this->error('Terlalu banyak percobaan verify. Tunggu beberapa menit sebelum mencoba lagi.', 429, ['retry_after' => $verifyRetryAfter, 'code' => 'otp_verify_locked']);
+        }
         \Log::write("OTP verify: phone={$phoneId} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
         $res = $meta->verifyCode($phoneId, $code);
         if (!$res['success']) {
             \Log::write("OTP verify FAILED: phone={$phoneId} http={$res['http_code']} err={$res['error']} resp=" . json_encode($res['data'], JSON_UNESCAPED_SLASHES), 'wadesk', 'otp');
-            $this->error('OTP tidak valid: ' . $res['error'], 502, $res['data']);
+            if ($this->isMetaOtpRateLimit($res)) {
+                $this->lockOtpVerification((int) $admin['tenant_id'], $phoneId, 600);
+                \Log::write("OTP verify META RATE LIMITED: phone={$phoneId} locked_for=600", 'wadesk', 'otp');
+                $this->error('Terlalu banyak percobaan verify di Meta. Tunggu beberapa menit sebelum mencoba lagi.', 429, ['retry_after' => 600, 'code' => 'meta_otp_rate_limit']);
+            }
+            $fails = $this->recordOtpVerifyFailure((int) $admin['tenant_id'], $phoneId);
+            if ($fails >= 3) {
+                \Log::write("OTP verify LOCKED: phone={$phoneId} fails={$fails} locked_for=600", 'wadesk', 'otp');
+                $this->error('Terlalu banyak percobaan verify. Tunggu 10 menit sebelum mencoba lagi.', 429, ['retry_after' => 600, 'code' => 'otp_verify_locked']);
+            }
+            $remaining = 3 - $fails;
+            $this->error("OTP tidak valid. Sisa {$remaining} percobaan.", 422, ['verify_attempts_remaining' => $remaining, 'code' => 'otp_invalid']);
         }
+        $this->clearOtpVerifyFailures((int) $admin['tenant_id'], $phoneId);
         \Log::write("OTP verify OK: phone={$phoneId} http={$res['http_code']}", 'wadesk', 'otp');
         $this->success(['meta' => $res['data']], 'OTP terverifikasi. Nomor siap diregistrasikan.');
     }
@@ -603,6 +634,70 @@ class Wabas extends WaDeskController
         if (!$waba || !$teams) {
             $this->error('Migration WABA belum lengkap. Jalankan 032_meta_waba_sync.sql lalu 033_waba_team_access.sql.', 503);
         }
+    }
+
+    private function requireOtpAttemptTable(): void
+    {
+        $table = $this->db($this->db_index)->query("SHOW TABLES LIKE 'wa_otp_attempts'")->row_array();
+        if (!$table) $this->error('Migration OTP belum dijalankan. Jalankan 044_otp_attempts.sql.', 503);
+    }
+
+    private function otpAttempt(int $tenantId, string $phoneId): array
+    {
+        return $this->db($this->db_index)->query(
+            'SELECT last_request_at, verify_fail_count, verify_locked_until FROM wa_otp_attempts WHERE tenant_id = ? AND phone_number_id = ? LIMIT 1',
+            [$tenantId, $phoneId]
+        )->row_array() ?: [];
+    }
+
+    private function secondsUntil(?string $timestamp, int $minimumSeconds = 0): int
+    {
+        if (!$timestamp) return 0;
+        $until = strtotime($timestamp) + $minimumSeconds;
+        return max(0, $until - time());
+    }
+
+    private function touchOtpRequest(int $tenantId, string $phoneId): void
+    {
+        $this->db($this->db_index)->query(
+            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, last_request_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE last_request_at = NOW()',
+            [$tenantId, $phoneId]
+        );
+    }
+
+    private function recordOtpVerifyFailure(int $tenantId, string $phoneId): int
+    {
+        $db = $this->db($this->db_index);
+        $db->query(
+            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, verify_fail_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE verify_fail_count = verify_fail_count + 1',
+            [$tenantId, $phoneId]
+        );
+        $row = $this->otpAttempt($tenantId, $phoneId);
+        $fails = (int) ($row['verify_fail_count'] ?? 0);
+        if ($fails >= 3) $this->lockOtpVerification($tenantId, $phoneId, 600);
+        return $fails;
+    }
+
+    private function lockOtpVerification(int $tenantId, string $phoneId, int $seconds): void
+    {
+        $this->db($this->db_index)->query(
+            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, verify_locked_until) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND)) ON DUPLICATE KEY UPDATE verify_locked_until = DATE_ADD(NOW(), INTERVAL ? SECOND)',
+            [$tenantId, $phoneId, $seconds, $seconds]
+        );
+    }
+
+    private function clearOtpVerifyFailures(int $tenantId, string $phoneId): void
+    {
+        $this->db($this->db_index)->query(
+            'INSERT INTO wa_otp_attempts (tenant_id, phone_number_id, verify_fail_count, verify_locked_until) VALUES (?, ?, 0, NULL) ON DUPLICATE KEY UPDATE verify_fail_count = 0, verify_locked_until = NULL',
+            [$tenantId, $phoneId]
+        );
+    }
+
+    private function isMetaOtpRateLimit(array $res): bool
+    {
+        $text = strtolower((string) ($res['error'] ?? '') . ' ' . json_encode($res['data'] ?? [], JSON_UNESCAPED_SLASHES));
+        return str_contains($text, '136025') || str_contains($text, 'too many times');
     }
 
     private function assertTenantWaba(int $tenantId, string $metaWabaId): array

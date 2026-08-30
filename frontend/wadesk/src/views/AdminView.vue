@@ -401,11 +401,17 @@
             <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
             <template v-if="numberFlow.step === 'request'">
               <select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select>
-              <button type="button" class="btn" :disabled="numberFlow.loading" @click="requestOtp">Request OTP</button>
+              <button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button>
             </template>
             <template v-else-if="numberFlow.step === 'verify'">
-              <input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" />
-              <button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button>
+              <p v-if="numberFlow.otpLocked > 0" class="text-sm text-amber-300">Terlalu banyak percobaan verify. Tunggu {{ otpTimeLabel(numberFlow.otpLocked) }} sebelum mencoba lagi.</p>
+              <template v-else>
+                <input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" />
+                <button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button>
+                <p class="text-xs text-slate-500">Sisa percobaan sesi ini: {{ Math.max(0, 3 - numberFlow.otpVerifyFails) }}.</p>
+              </template>
+              <button type="button" class="detail-button" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button>
+              <p v-if="numberFlow.otpCooldown > 0" class="text-xs text-slate-500">Jangan minta ulang sebelum countdown selesai; OTP sebelumnya akan hangus.</p>
             </template>
             <template v-else-if="numberFlow.step === 'register'">
               <p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p>
@@ -1531,7 +1537,9 @@ const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
 const addingNumber = ref(false);
 const numberForm = reactive({ waba_id: "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
-const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false });
+const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false, otpCooldown: 0, otpLocked: 0, otpVerifyFails: 0, otpRequested: false });
+let numberOtpTimer = null;
+const numberRequestLabel = computed(() => numberFlow.otpCooldown > 0 ? `Minta ulang (${numberFlow.otpCooldown}s)` : (numberFlow.otpRequested ? "Minta ulang OTP" : "Request OTP"));
 const editingWabaTeamId = ref(null);
 const wabaTeamDraft = ref([]);
 const savingWabaTeamId = ref(null);
@@ -3125,6 +3133,7 @@ async function loadNumbers() {
 function openAddNumber() {
   const wabaId = numberWabaFilter.value || wabas.value[0]?.meta_waba_id || "";
   Object.assign(numberForm, { waba_id: wabaId, country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
+  resetNumberOtp();
   Object.assign(numberFlow, { step: "add", phone_number_id: "", loading: false });
   addingNumber.value = true;
 }
@@ -3139,6 +3148,7 @@ function normalizeAddPhone() {
 function continueNumberRegistration(number) {
   Object.assign(numberForm, { waba_id: number.waba_id || "", country_code: "62", phone_number: number.phone_number || "", verified_name: "", method: "SMS", otp: "" });
   const verified = String(number.meta_verification_status || "").toUpperCase().startsWith("VERIFIED");
+  resetNumberOtp();
   Object.assign(numberFlow, { step: verified ? "register" : "request", phone_number_id: number.meta_phone_number_id || number.device_id, loading: false });
   addingNumber.value = true;
 }
@@ -3156,21 +3166,72 @@ async function addNumber() {
 }
 
 async function requestOtp() {
+  if (numberFlow.otpCooldown > 0) return;
+  if (numberFlow.otpRequested && !window.confirm("OTP sebelumnya akan hangus. Lanjutkan meminta OTP baru?")) return;
   numberFlow.loading = true;
   try {
-    await api("/WaDesk/Wabas/requestOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, method: numberForm.method } });
+    const res = await api("/WaDesk/Wabas/requestOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, method: numberForm.method } });
+    numberFlow.otpCooldown = Number(res.data?.retry_after || 60);
+    numberFlow.otpRequested = true;
+    startNumberOtpTimer();
     numberFlow.step = "verify";
     flash(true, "OTP dikirim.");
-  } catch (e) { flash(false, e.message || "Gagal meminta OTP"); } finally { numberFlow.loading = false; }
+  } catch (e) { applyNumberOtpRetry(e); flash(false, otpErrorMessage(e)); } finally { numberFlow.loading = false; }
 }
 
 async function verifyOtp() {
+  if (numberFlow.otpLocked > 0) return;
   numberFlow.loading = true;
   try {
     await api("/WaDesk/Wabas/verifyOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, code: numberForm.otp } });
     numberFlow.step = "register";
+    numberFlow.otpVerifyFails = 0;
     flash(true, "OTP terverifikasi.");
-  } catch (e) { flash(false, e.message || "OTP tidak valid"); } finally { numberFlow.loading = false; }
+  } catch (e) {
+    applyNumberOtpRetry(e);
+    numberFlow.otpVerifyFails = Math.min(3, numberFlow.otpVerifyFails + 1);
+    if (numberFlow.otpVerifyFails >= 3 && !numberFlow.otpLocked) {
+      numberFlow.otpLocked = 600;
+      startNumberOtpTimer();
+    }
+    flash(false, otpErrorMessage(e));
+  } finally { numberFlow.loading = false; }
+}
+
+function resetNumberOtp() {
+  Object.assign(numberFlow, { otpCooldown: 0, otpLocked: 0, otpVerifyFails: 0, otpRequested: false });
+}
+
+function startNumberOtpTimer() {
+  if (numberOtpTimer) return;
+  numberOtpTimer = setInterval(() => {
+    if (numberFlow.otpCooldown > 0) numberFlow.otpCooldown--;
+    if (numberFlow.otpLocked > 0) numberFlow.otpLocked--;
+    if (!numberFlow.otpCooldown && !numberFlow.otpLocked) {
+      clearInterval(numberOtpTimer);
+      numberOtpTimer = null;
+    }
+  }, 1000);
+}
+
+function applyNumberOtpRetry(e) {
+  const seconds = Number(e?.data?.retry_after || 0);
+  if (!seconds) return;
+  if (String(e?.data?.code || "").includes("request")) numberFlow.otpCooldown = Math.max(numberFlow.otpCooldown, seconds);
+  else numberFlow.otpLocked = Math.max(numberFlow.otpLocked, seconds);
+  startNumberOtpTimer();
+}
+
+function otpErrorMessage(e) {
+  const raw = String(e?.message || "").toLowerCase();
+  if (raw.includes("136025") || raw.includes("too many times") || raw.includes("terlalu banyak percobaan")) {
+    return "Terlalu banyak percobaan verify — tunggu beberapa menit sebelum mencoba lagi.";
+  }
+  return e?.message || "OTP tidak valid";
+}
+
+function otpTimeLabel(seconds) {
+  return seconds >= 60 ? `${Math.ceil(seconds / 60)} menit` : `${seconds} detik`;
 }
 
 async function registerNumber() {
@@ -3328,6 +3389,7 @@ onUnmounted(() => {
   clearTimeout(userSearchTimer);
   clearTimeout(quotaSearchTimer);
   clearTimeout(templateSearchTimer);
+  clearInterval(numberOtpTimer);
 });
 </script>
 
