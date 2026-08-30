@@ -24,6 +24,18 @@
   box-sizing: border-box;
 }
 
+/* Hilangkan spinner up/down pada semua input angka */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 html {
   height: 100%;
 }

@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuth } from "./stores/auth";
 import Login from "./views/Login.vue";
 import Room from "./views/Room.vue";
+import History from "./views/History.vue";
 import Watch from "./views/Watch.vue";
 import AdminLogin from "./views/AdminLogin.vue";
 import AdminMenu from "./views/AdminMenu.vue";
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: "/", redirect: "/room" },
     { path: "/login", component: Login, meta: { public: true } },
     { path: "/room", component: Room },
+    { path: "/history", component: History },
     { path: "/watch", component: Watch },
     { path: "/admin", component: AdminLogin, meta: { public: true } },
     { path: "/admin/menu", component: AdminMenu, meta: { admin: true } },

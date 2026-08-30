@@ -91,9 +91,9 @@ onUnmounted(() => {
     </header>
 
     <nav v-if="showNav" class="chip-tabs">
-      <RouterLink to="/room" class="chip-tab">Saldo</RouterLink>
-      <RouterLink to="/watch" class="chip-tab">Watch</RouterLink>
-      <RouterLink to="/admin/menu" class="chip-tab">Admin</RouterLink>
+      <RouterLink to="/room" class="chip-tab">Chip</RouterLink>
+      <RouterLink to="/history" class="chip-tab">Riwayat</RouterLink>
+      <RouterLink to="/watch" class="chip-tab">Leaderboard</RouterLink>
     </nav>
 
     <main class="chip-main">

@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS wa_channels (
   device_id VARCHAR(64) NULL,
   waba_id VARCHAR(64) NULL,
   meta_phone_number_id VARCHAR(64) NULL,
+  meta_provider_status VARCHAR(32) NULL,
   meta_verification_status VARCHAR(32) NULL,
   meta_quality_rating VARCHAR(32) NULL,
   meta_platform_type VARCHAR(32) NULL,

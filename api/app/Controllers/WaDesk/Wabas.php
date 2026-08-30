@@ -456,8 +456,8 @@ class Wabas extends WaDeskController
         $nameStatus = strtoupper(trim((string) ($phone['name_status'] ?? $phone['new_name_status'] ?? '')));
         $providerStatus = strtoupper(trim((string) ($phone['status'] ?? '')));
         // OTP/display-name verification is not phone registration. A number is
-        // usable only after Meta reports it CONNECTED/ACTIVE (after /register + PIN).
-        $channelStatus = in_array($providerStatus, ['CONNECTED', 'ACTIVE'], true) ? 'active' : 'inactive';
+        // usable only after Meta reports it CONNECTED (after /register + PIN).
+        $channelStatus = $providerStatus === 'CONNECTED' ? 'active' : 'inactive';
         $db = $this->db($this->db_index);
         $existing = $db->query(
             'SELECT id FROM wa_channels WHERE tenant_id = ? AND meta_phone_number_id = ? LIMIT 1',
@@ -467,6 +467,8 @@ class Wabas extends WaDeskController
             'waba_id' => $wabaId,
             'phone_number' => $number !== '' ? $number : $phoneId,
             'label' => $label,
+            // Kolom ini menyimpan status asli dari Meta; `status` menyimpan active/inactive.
+            'meta_provider_status' => $providerStatus !== '' ? $providerStatus : null,
             // Kolom ini menyimpan status OTP saja; status koneksi disimpan pada `status`.
             'meta_verification_status' => $codeStatus,
             'meta_display_name_status' => $nameStatus,
