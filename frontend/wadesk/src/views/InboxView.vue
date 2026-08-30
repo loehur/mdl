@@ -218,7 +218,7 @@
                 >
                   Buka lampiran
                 </a>
-                <div v-if="showMessageText(m)" class="whitespace-pre-wrap break-words min-w-0">{{ formatMessageBody(m) }}</div>
+                <div v-if="showMessageText(m)" class="bubble-text whitespace-pre-wrap break-words min-w-0" v-html="linkifyText(formatMessageBody(m))"></div>
                 <p
                   v-if="m.body_raw && m.body_raw !== m.body"
                   class="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] opacity-70 whitespace-pre-wrap break-words min-w-0"
@@ -498,6 +498,40 @@ function formatMessageBody(m) {
     }
   }
   return out;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** WhatsApp formatter: *bold*, _italic_, ~strikethrough~, ```monospace``` */
+function applyWhatsAppFormatting(text) {
+  let out = text.replace(/```([^`\n]+)```/g, (_, c) => `<code>${c}</code>`);
+  out = out.replace(/(?<![A-Za-z0-9])\*([^*\n]+)\*(?![A-Za-z0-9])/g, (_, c) => `<strong>${c}</strong>`);
+  out = out.replace(/(?<![A-Za-z0-9])_([^_\n]+)_(?![A-Za-z0-9])/g, (_, c) => `<em>${c}</em>`);
+  out = out.replace(/(?<![A-Za-z0-9])~([^~\n]+)~(?![A-Za-z0-9])/g, (_, c) => `<s>${c}</s>`);
+  return out;
+}
+
+/** Escape dulu, ubah URL jadi anchor (buka tab baru), lalu terapkan format WhatsApp. */
+function linkifyText(text) {
+  const escaped = escapeHtml(text);
+  const parts = escaped.split(/(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/g);
+  return parts
+    .map((part, i) => {
+      // Bagian genap (non-URL) → format WhatsApp; bagian ganjil → anchor link.
+      if (i % 2 === 1) {
+        const href = /^www\./i.test(part) ? "https://" + part : part;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="underline text-sky-300 hover:text-sky-200 break-all">${part}</a>`;
+      }
+      return applyWhatsAppFormatting(part);
+    })
+    .join("");
 }
 
 function normStatus(s) {
