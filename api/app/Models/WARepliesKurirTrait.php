@@ -4445,7 +4445,6 @@ trait WARepliesKurirTrait
                 'transaksi_jenis' => 1,
                 'id_jenis_surcas' => $jenis,
                 'jumlah' => $jumlah,
-                'id_user' => 0,
                 'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
                 'dari_delivery' => 1,
             ];

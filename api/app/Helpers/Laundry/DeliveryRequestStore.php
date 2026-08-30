@@ -564,7 +564,6 @@ class DeliveryRequestStore
             'transaksi_jenis' => 1,
             'id_jenis_surcas' => $jenis,
             'jumlah' => $tarif,
-            'id_user' => 0,
             'no_ref' => is_numeric($noRef) ? (0 + $noRef) : $noRef,
             'dari_delivery' => 1,
             'id_delivery_request' => $idRequest,
