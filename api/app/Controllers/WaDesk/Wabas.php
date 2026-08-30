@@ -138,7 +138,14 @@ class Wabas extends WaDeskController
         if (!$channel || empty($channel['meta_phone_number_id'])) $this->error('Nomor Meta tidak ditemukan', 404);
         $this->managedWabaId($admin, (string) ($channel['waba_id'] ?? ''));
         $res = $meta->deletePhoneNumber((string) $channel['meta_phone_number_id']);
-        if (!$res['success']) $this->error('Gagal menghapus nomor di Meta: ' . $res['error'], 502, $res['data']);
+        if (!$res['success']) {
+            $rawError = strtolower((string) ($res['error'] ?? ''));
+            if (str_contains($rawError, 'unsupported delete request') || str_contains($rawError, 'missing permissions')) {
+                \Log::write("Meta phone delete denied: phone={$channel['meta_phone_number_id']} waba={$channel['waba_id']} user={$admin['id']} tenant={$tenantId} err={$res['error']}", 'wadesk', 'meta');
+                $this->error('Meta menolak penghapusan nomor ini. Token server harus memiliki izin whatsapp_business_management dan System User harus diberi akses ke WABA pemilik nomor. Nomor tidak dihapus dari WaDesk.', 403, $res['data']);
+            }
+            $this->error('Gagal menghapus nomor di Meta: ' . $res['error'], 502, $res['data']);
+        }
         $this->db($this->db_index)->delete('wa_channels', ['id' => $channelId]);
         $this->success(['meta' => $res['data']], 'Nomor berhasil dihapus.');
     }

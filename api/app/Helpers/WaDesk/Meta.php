@@ -284,8 +284,11 @@ class Meta
         $raw = curl_exec($ch); $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); $curlError = curl_error($ch); curl_close($ch);
         $decoded = json_decode((string) $raw, true);
         if (!is_array($decoded) || $httpCode < 200 || $httpCode >= 300 || isset($decoded['error'])) {
-            $error = is_array($decoded) ? (string) ($decoded['error']['message'] ?? '') : '';
-            return ['success' => false, 'data' => is_array($decoded) ? $decoded : [], 'error' => $error ?: ($curlError ?: 'Meta request gagal.'), 'http_code' => $httpCode];
+            $metaError = is_array($decoded['error'] ?? null) ? $decoded['error'] : [];
+            $detail = trim((string) ($metaError['error_user_msg'] ?? $metaError['error_data']['details'] ?? ''));
+            $code = isset($metaError['code']) ? ' (#' . $metaError['code'] . ')' : '';
+            $error = (string) ($metaError['message'] ?? '');
+            return ['success' => false, 'data' => is_array($decoded) ? $decoded : [], 'error' => ($error ?: ($curlError ?: 'Meta request gagal.')) . $code . ($detail !== '' ? ': ' . $detail : ''), 'http_code' => $httpCode];
         }
         return ['success' => true, 'data' => $decoded, 'error' => '', 'http_code' => $httpCode];
     }

@@ -12,7 +12,7 @@
         <p class="text-sm text-slate-300 whitespace-pre-wrap">{{ message }}</p>
         <div v-if="requiredText" class="space-y-2">
           <p class="text-xs text-amber-300">Ketik <span class="font-mono select-all">{{ requiredText }}</span> untuk mengonfirmasi.</p>
-          <input v-model="typedText" class="field" :placeholder="requiredText" autocomplete="off" />
+          <input v-model="typedText" class="field w-full text-center font-mono tracking-wide" :placeholder="requiredText" autocomplete="off" />
         </div>
         <div class="flex gap-2 justify-end">
           <button
