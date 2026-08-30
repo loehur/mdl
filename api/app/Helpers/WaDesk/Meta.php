@@ -299,8 +299,13 @@ class Meta
             $row = is_array($value) ? $value : ['component' => 'body', 'text' => (string) $value];
             $component = strtolower((string) ($row['component'] ?? 'body'));
             $parameter = ['type' => 'text', 'text' => (string) ($row['text'] ?? '')];
-            // Meta Cloud API templates use positional parameters. WaDesk's friendly
-            // param_name is only for the form/preview and must not be sent to Meta.
+            // Meta accepts either positional parameters ({{1}}) or named parameters
+            // ({{customer_name}}). Keep the friendly enum name only when it is a
+            // genuine named parameter; numeric names must remain positional.
+            $paramName = trim((string) ($row['param_name'] ?? ''));
+            if ($component !== 'button' && $paramName !== '' && !preg_match('/^\d+$/', $paramName)) {
+                $parameter['parameter_name'] = $paramName;
+            }
             if ($component === 'button') {
                 $key = 'button:' . (string) ($row['button_sub_type'] ?? 'url') . ':' . (int) ($row['button_index'] ?? 0);
                 $groups[$key] ??= ['type' => 'button', 'sub_type' => $row['button_sub_type'] ?? 'url', 'index' => (int) ($row['button_index'] ?? 0), 'parameters' => []];

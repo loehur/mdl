@@ -17,8 +17,9 @@
             @input="onSearch"
           />
           <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
-          <form v-if="showCreate" class="template-create-card space-y-4 rounded-xl border border-accent/20 p-4 shadow-sm" @submit.prevent="createTemplate">
-            <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis. Isi yang dikirim ke Meta wajib berasal dari AI.</p></div>
+          <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="create-template-title" @click.self="showCreate = false">
+          <form class="template-create-card max-h-[calc(100vh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-accent/30 p-5 shadow-2xl" @submit.prevent="createTemplate">
+            <div class="flex items-start justify-between gap-4"><div><p id="create-template-title" class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis. Isi yang dikirim ke Meta wajib berasal dari AI.</p></div><button type="button" class="detail-button shrink-0" :disabled="creating || generating" @click="showCreate = false">Tutup</button></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
             <section class="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-3">
@@ -36,6 +37,7 @@
             <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di draf bila diperlukan.</p></div>
             <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60" style="background:#0f766e" :disabled="creating || !approvalToken">{{ creating ? 'Mengirim ke Meta...' : 'Kirim hasil AI ke Meta' }}</button>
           </form>
+          </div>
         </section>
 
         <p v-if="error" class="alert alert-error">{{ error }}</p>
