@@ -145,11 +145,6 @@ class Meta
         ]);
     }
 
-    public function deletePhoneNumber(string $phoneNumberId): array
-    {
-        return $this->delete('/' . rawurlencode($phoneNumberId));
-    }
-
     /** Subscribe the Meta app associated with this system-user token to a WABA. */
     public function subscribeCurrentAppToWaba(string $wabaId): array
     {
