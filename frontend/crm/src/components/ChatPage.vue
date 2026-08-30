@@ -1025,6 +1025,25 @@ const openMessageImageLightbox = (msg) => {
     if (!src || src === BROKEN_MEDIA_URL) return;
     openImageLightbox(src);
 };
+
+const documentName = (msg) => {
+    const explicitName = String(msg?.filename || msg?.file_name || msg?.document_filename || "").trim();
+    if (explicitName) return explicitName;
+    try {
+        const path = new URL(resolveMediaSrc(msg), window.location.origin).pathname;
+        const name = decodeURIComponent(path.split("/").pop() || "").trim();
+        if (name && !/^\d+$/.test(name)) return name;
+    } catch (_) {
+        // Use the generic label below when the URL has no usable filename.
+    }
+    return "Dokumen WhatsApp";
+};
+
+const openDocument = (msg) => {
+    const src = resolveMediaSrc(msg);
+    if (!src || src === BROKEN_MEDIA_URL) return;
+    emit("open-internal-browser", src);
+};
 // Check if message is plain text (no media type)
 const isPlainTextMessage = (msg) => {
     return !msg.type || msg.type === 'text' || msg.type === '' || msg.type === 'template' || msg.type === 'button' || msg.type === 'reaction';
@@ -1602,6 +1621,40 @@ onUnmounted(() => {
                                       </div>
                                   </div>
 
+                                  <!-- Document -->
+                                  <div v-else-if="msg.type === 'document'" class="relative min-w-[220px] max-w-sm">
+                                      <div class="rounded-lg border border-[var(--wa-border)] bg-black/5 dark:bg-black/15 p-3">
+                                          <div class="flex items-start gap-3">
+                                              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-600 dark:text-red-300">
+                                                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
+                                                      <path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M8 13h8M8 17h5" />
+                                                  </svg>
+                                              </div>
+                                              <div class="min-w-0 flex-1">
+                                                  <p class="truncate text-sm font-medium text-[var(--wa-text-primary)]">{{ documentName(msg) }}</p>
+                                                  <p v-if="mediaCaptionText(msg)" class="mt-0.5 whitespace-pre-wrap break-words text-xs text-[var(--wa-text-secondary)]">{{ mediaCaptionText(msg) }}</p>
+                                                  <p v-if="shouldHideMessage(msg)" class="mt-1 text-xs italic text-[var(--wa-text-tertiary)]">🔒 Dokumen private</p>
+                                                  <button
+                                                    v-else-if="resolveMediaSrc(msg)"
+                                                    type="button"
+                                                    class="mt-1.5 text-xs font-medium text-[var(--wa-accent-green)] hover:underline"
+                                                    @click="openDocument(msg)"
+                                                  >
+                                                    Buka dokumen
+                                                  </button>
+                                                  <p v-else class="mt-1 text-xs italic text-[var(--wa-text-tertiary)]">Dokumen tidak tersedia</p>
+                                              </div>
+                                          </div>
+                                          <div v-if="msg.time || msg.sender_code || providerTag(msg) || msg.sender === 'me'" class="mt-2 flex items-center justify-end gap-1 border-t border-[var(--wa-border)] pt-1.5 text-[10px] text-[var(--wa-text-tertiary)]">
+                                              <span v-if="providerTag(msg)" class="opacity-80">~{{ providerTag(msg) }}</span>
+                                              <span v-if="msg.sender_code">~{{ msg.sender_code }}</span>
+                                              <span>{{ msg.time }}</span>
+                                              <MessageStatusIcon v-if="msg.sender === 'me'" :status="msg.status" />
+                                          </div>
+                                      </div>
+                                  </div>
+
                                   <!-- Location -->
                                   <div v-else-if="msg.type === 'location'" class="relative max-w-sm" :class="{ 'cursor-pointer': msg.media_url }" @click="msg.media_url && openLocation(msg.media_url)">
                                       <div class="bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-lg p-1" :class="{ 'hover:bg-gradient-to-br hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/30 dark:hover:to-blue-900/30 transition-colors': msg.media_url }">
@@ -1867,6 +1920,10 @@ onUnmounted(() => {
                       alt="Sticker"
                       @error="(e) => handleImageError(quotedMessageToShow, e)"
                     />
+                </div>
+                <div v-else-if="quotedMessageToShow.type === 'document'" class="flex items-center gap-3 rounded-lg border border-[var(--wa-border)] p-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6" /></svg>
+                    <div class="min-w-0"><p class="truncate text-sm text-[var(--wa-text-primary)]">{{ documentName(quotedMessageToShow) }}</p><button v-if="resolveMediaSrc(quotedMessageToShow)" type="button" class="mt-1 text-xs font-medium text-[var(--wa-accent-green)] hover:underline" @click="openDocument(quotedMessageToShow)">Buka dokumen</button></div>
                 </div>
                 <p v-else class="text-sm text-[var(--wa-text-primary)] whitespace-pre-wrap break-words" v-html="parseWhatsAppFormatting(quotedMessageToShow.text)"></p>
             </div>
