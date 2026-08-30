@@ -54,6 +54,7 @@ export default {
           500: "rgb(var(--text-red-500) / <alpha-value>)",
         },
         rose: {
+          300: "rgb(var(--text-rose-300) / <alpha-value>)",
           400: "rgb(var(--text-rose-400) / <alpha-value>)",
         },
         sky: {
