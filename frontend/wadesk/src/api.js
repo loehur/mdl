@@ -18,7 +18,7 @@ export function wsUrl(user) {
   return `${base}?${params.toString()}`;
 }
 
-export async function api(path, { method = "GET", body, token, cache } = {}) {
+export async function api(path, { method = "GET", body, token, cache, timeout = 60000 } = {}) {
   const headers = {
     Accept: "application/json",
   };
@@ -30,22 +30,38 @@ export async function api(path, { method = "GET", body, token, cache } = {}) {
     headers["X-Wadesk-Token"] = authToken;
   }
 
-  const res = await fetch(apiUrl(path), {
-    method,
-    headers,
-    credentials: "include",
-    cache: cache ?? "default",
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.status === false) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.data = data.data;
-    throw err;
+  try {
+    const res = await fetch(apiUrl(path), {
+      method,
+      headers,
+      credentials: "include",
+      cache: cache ?? "default",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.status === false) {
+      const err = new Error(data.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.data = data.data;
+      throw err;
+    }
+    return data;
+  } catch (e) {
+    if (e.name === "AbortError") {
+      const err = new Error("Request timeout — server tidak merespons. Coba lagi.");
+      err.status = 0;
+      err.timeout = true;
+      throw err;
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return data;
 }
 
 /** Eligible templates for a channel — always fresh (no browser cache). */
