@@ -299,6 +299,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.field { @apply w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/30; }
 .template-card { @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start rounded-2xl border border-white/10 bg-ink-900 p-4 shadow-sm; }
 .template-detail { @apply col-span-2 rounded-xl border border-white/10 bg-white/[0.03] p-3; }
 .team-chip { @apply rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent-soft; }
