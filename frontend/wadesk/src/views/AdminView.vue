@@ -348,7 +348,7 @@
       </section>
 
       <!-- Numbers -->
-      <section v-if="tab === 'numbers'" class="card space-y-4">
+      <section v-if="tab === 'numbers'" class="card flex flex-col space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2 class="font-display font-semibold text-lg">Number</h2>
@@ -364,6 +364,21 @@
           <button type="button" class="btn shrink-0" :disabled="syncingNumbers || !numberWabaFilter" @click="syncNumbers">
             {{ syncingNumbers ? 'Sinkron...' : 'Sync Number' }}
           </button>
+        </div>
+        <div v-if="addingNumber" class="order-first rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3">
+          <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="addingNumber = false">Tutup</button></div>
+          <template v-if="numberFlow.step === 'add'">
+            <select v-model="numberForm.waba_id" class="field"><option v-for="waba in wabas" :key="`add-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option></select>
+            <div class="flex gap-2"><input value="62" readonly tabindex="-1" class="field bg-ink-950/50 text-slate-400 cursor-not-allowed" style="width:4rem;flex:0 0 4rem" aria-label="Country code Indonesia" /><input v-model="numberForm.phone_number" class="field flex-1" style="min-width:0" placeholder="8xxxxxxxxxx" @input="normalizeAddPhone" /></div>
+            <button type="button" class="btn" :disabled="numberFlow.loading" @click="addNumber">{{ numberFlow.loading ? 'Memproses...' : 'Tambah nomor' }}</button>
+          </template>
+          <template v-else>
+            <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
+            <template v-if="numberFlow.step === 'request'"><select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select><button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button></template>
+            <template v-else-if="numberFlow.step === 'verify'"><p v-if="numberFlow.otpLocked > 0" class="text-sm text-amber-300">Terlalu banyak percobaan verify. Tunggu {{ otpTimeLabel(numberFlow.otpLocked) }} sebelum mencoba lagi.</p><template v-else><input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" /><button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button><p class="text-xs text-slate-500">Sisa percobaan sesi ini: {{ Math.max(0, 3 - numberFlow.otpVerifyFails) }}.</p></template><button type="button" class="detail-button" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button><p v-if="numberFlow.otpCooldown > 0" class="text-xs text-slate-500">Jangan minta ulang sebelum countdown selesai; OTP sebelumnya akan hangus.</p></template>
+            <template v-else-if="numberFlow.step === 'register'"><p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p><button type="button" class="btn" :disabled="numberFlow.loading" @click="registerNumber">Register Number</button></template>
+            <template v-else-if="numberFlow.step === 'done'"><p class="text-sm text-emerald-400">Registrasi berhasil dikirim ke Meta.</p><p class="text-xs text-slate-400">Sinkronkan WABA untuk memuat status terbaru nomor ini.</p><button type="button" class="btn" :disabled="syncingNumbers" @click="syncAfterRegistration">{{ syncingNumbers ? 'Sinkron...' : 'Sync nomor sekarang' }}</button></template>
+          </template>
         </div>
         <p v-if="!numberWabaFilter" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
           Sync WABA terlebih dahulu.
@@ -389,40 +404,6 @@
               </div>
             </div>
           </div>
-        </div>
-        <div v-if="addingNumber" class="rounded-xl border border-white/10 bg-ink-950/40 p-4 space-y-3">
-          <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="addingNumber = false">Tutup</button></div>
-          <template v-if="numberFlow.step === 'add'">
-            <select v-model="numberForm.waba_id" class="field"><option v-for="waba in wabas" :key="`add-${waba.id}`" :value="waba.meta_waba_id">{{ waba.name }}</option></select>
-            <div class="flex gap-2"><input value="62" readonly tabindex="-1" class="field bg-ink-950/50 text-slate-400 cursor-not-allowed" style="width:4rem;flex:0 0 4rem" aria-label="Country code Indonesia" /><input v-model="numberForm.phone_number" class="field flex-1" style="min-width:0" placeholder="8xxxxxxxxxx" @input="normalizeAddPhone" /></div>
-            <button type="button" class="btn" :disabled="numberFlow.loading" @click="addNumber">{{ numberFlow.loading ? 'Memproses...' : 'Tambah nomor' }}</button>
-          </template>
-          <template v-else>
-            <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
-            <template v-if="numberFlow.step === 'request'">
-              <select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select>
-              <button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button>
-            </template>
-            <template v-else-if="numberFlow.step === 'verify'">
-              <p v-if="numberFlow.otpLocked > 0" class="text-sm text-amber-300">Terlalu banyak percobaan verify. Tunggu {{ otpTimeLabel(numberFlow.otpLocked) }} sebelum mencoba lagi.</p>
-              <template v-else>
-                <input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" />
-                <button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button>
-                <p class="text-xs text-slate-500">Sisa percobaan sesi ini: {{ Math.max(0, 3 - numberFlow.otpVerifyFails) }}.</p>
-              </template>
-              <button type="button" class="detail-button" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button>
-              <p v-if="numberFlow.otpCooldown > 0" class="text-xs text-slate-500">Jangan minta ulang sebelum countdown selesai; OTP sebelumnya akan hangus.</p>
-            </template>
-            <template v-else-if="numberFlow.step === 'register'">
-              <p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p>
-              <button type="button" class="btn" :disabled="numberFlow.loading" @click="registerNumber">Register Number</button>
-            </template>
-            <template v-else-if="numberFlow.step === 'done'">
-              <p class="text-sm text-emerald-400">Registrasi berhasil dikirim ke Meta.</p>
-              <p class="text-xs text-slate-400">Sinkronkan WABA untuk memuat status terbaru nomor ini.</p>
-              <button type="button" class="btn" :disabled="syncingNumbers" @click="syncAfterRegistration">{{ syncingNumbers ? 'Sinkron...' : 'Sync nomor sekarang' }}</button>
-            </template>
-          </template>
         </div>
       </section>
 
