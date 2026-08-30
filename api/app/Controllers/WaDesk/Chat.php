@@ -543,10 +543,10 @@ class Chat extends WaDeskController
         }
 
         $pendingOutbound = $this->findLastUnansweredOutboundText((int) $conv['id']);
-        // Anti-spam AI baru dijalankan saat akan mengirim free-text keempat
-        // berturut-turut tanpa balasan pelanggan. Tiga pesan pertama bebas.
+        // Setelah satu free-text belum dibalas, periksa pesan berikutnya agar
+        // follow-up duplikat tidak terkirim ke pelanggan.
         $unansweredTextCount = $this->countUnansweredOutboundTexts((int) $conv['id']);
-        if ($pendingOutbound !== null && $unansweredTextCount >= 3) {
+        if ($pendingOutbound !== null && $unansweredTextCount >= 1) {
             $spam = $this->checkFreeTextDuplicateSpam(
                 (int) $user['tenant_id'],
                 (string) ($pendingOutbound['body'] ?? ''),
