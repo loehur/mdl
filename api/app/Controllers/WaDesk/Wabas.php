@@ -434,14 +434,55 @@ class Wabas extends WaDeskController
         return $removedIds;
     }
 
-    /** @return array{templates:int,errors:array} */
+    /** @return array{templates:int,removed:int,errors:array} */
     private function syncTemplatesForWaba(int $tenantId, string $wabaId, Meta $meta): array
     {
-        $stats = ['templates' => 0, 'errors' => []];
+        $stats = ['templates' => 0, 'removed' => 0, 'errors' => []];
         $templates = $meta->listTemplates($wabaId);
         if (!$templates['success']) { $stats['errors'][] = $templates['error']; return $stats; }
-        foreach ($templates['data'] as $template) if (is_array($template) && $this->upsertTemplate($tenantId, $wabaId, $template)) $stats['templates']++;
+        $metaTemplateIds = [];
+        $metaTemplateNames = [];
+        foreach ($templates['data'] as $template) {
+            if (!is_array($template)) continue;
+            $metaId = trim((string) ($template['id'] ?? ''));
+            if ($metaId !== '') $metaTemplateIds[$metaId] = true;
+            $name = trim((string) ($template['name'] ?? ''));
+            $language = trim((string) ($template['language'] ?? 'id')) ?: 'id';
+            if ($name !== '') $metaTemplateNames[$name . "\0" . $language] = true;
+            if ($this->upsertTemplate($tenantId, $wabaId, $template)) $stats['templates']++;
+        }
+        // This runs only after listTemplates() has completed every Meta page
+        // successfully. Match by Meta ID first, then name+language for a newly
+        // created row whose API create response did not contain an ID.
+        $stats['removed'] = $this->removeTemplatesMissingFromMeta($tenantId, $wabaId, $metaTemplateIds, $metaTemplateNames);
+        \Log::write('Template sync DONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' stats=' . json_encode($stats, JSON_UNESCAPED_SLASHES), 'wadesk', 'template_sync');
         return $stats;
+    }
+
+    /**
+     * Remove only template rows of the selected WABA that Meta did not return.
+     * @param array<string,true> $metaTemplateIds
+     * @param array<string,true> $metaTemplateNames
+     */
+    private function removeTemplatesMissingFromMeta(int $tenantId, string $wabaId, array $metaTemplateIds, array $metaTemplateNames): int
+    {
+        $db = $this->db($this->db_index);
+        $rows = $db->query(
+            'SELECT id, meta_template_id, template_name, language FROM wa_templates WHERE tenant_id = ? AND meta_waba_id = ?',
+            [$tenantId, $wabaId]
+        )->result_array();
+        $removed = 0;
+        foreach ($rows as $row) {
+            $metaId = trim((string) ($row['meta_template_id'] ?? ''));
+            $name = trim((string) ($row['template_name'] ?? ''));
+            $language = trim((string) ($row['language'] ?? 'id')) ?: 'id';
+            $existsInMeta = ($metaId !== '' && isset($metaTemplateIds[$metaId]))
+                || ($name !== '' && isset($metaTemplateNames[$name . "\0" . $language]));
+            if ($existsInMeta) continue;
+            $db->delete('wa_templates', ['id' => (int) $row['id']]);
+            $removed++;
+        }
+        return $removed;
     }
 
     private function upsertPhone(int $tenantId, string $wabaId, array $phone): bool

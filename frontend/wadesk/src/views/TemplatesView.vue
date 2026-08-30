@@ -24,7 +24,7 @@
             <section class="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-3">
               <div class="flex items-center justify-between gap-3"><div><p class="text-sm font-medium text-slate-200">Tombol</p><p class="mt-0.5 text-[11px] text-slate-500">Opsional: maksimal 3 Quick Reply, atau 2 CTA (URL/Call). Konfigurasi dikunci saat Generate AI.</p></div><button type="button" class="detail-button" :disabled="!canAddTemplateButton" @click="addTemplateButton">Tambah tombol</button></div>
               <div v-for="(button, index) in templateButtons" :key="index" class="rounded-lg border border-white/10 p-3 space-y-2">
-                <div class="flex gap-2"><select v-model="button.type" class="field flex-1" @change="onButtonTypeChange(index)"><option value="QUICK_REPLY" :disabled="hasCtaButtons">Quick Reply</option><option value="URL" :disabled="hasQuickReplyButtons">Buka URL</option><option value="PHONE_NUMBER" :disabled="hasQuickReplyButtons">Call</option></select><button type="button" class="rounded-lg px-3 text-sm text-rose-300 hover:bg-rose-500/10" @click="removeTemplateButton(index)">Hapus</button></div>
+                <div class="flex gap-2"><select v-model="button.type" class="field flex-1" @change="onButtonTypeChange(index)"><option value="QUICK_REPLY" :disabled="isButtonTypeDisabled(index, 'QUICK_REPLY')">Quick Reply</option><option value="URL" :disabled="isButtonTypeDisabled(index, 'URL')">Buka URL</option><option value="PHONE_NUMBER" :disabled="isButtonTypeDisabled(index, 'PHONE_NUMBER')">Call</option></select><button type="button" class="rounded-lg px-3 text-sm text-rose-300 hover:bg-rose-500/10" @click="removeTemplateButton(index)">Hapus</button></div>
                 <input v-model="button.text" class="field" maxlength="25" placeholder="Teks tombol, maksimal 25 karakter" @input="clearAiApproval" />
                 <input v-if="button.type === 'URL'" v-model="button.url" class="field" placeholder="https://contoh.com" @input="clearAiApproval" />
                 <input v-if="button.type === 'PHONE_NUMBER'" v-model="button.phone_number" class="field" placeholder="+628123456789" @input="clearAiApproval" />
@@ -216,6 +216,15 @@ function addTemplateButton() {
 function removeTemplateButton(index) {
   templateButtons.value.splice(index, 1);
   clearAiApproval();
+}
+
+function isButtonTypeDisabled(index, type) {
+  const others = templateButtons.value.filter((_, otherIndex) => otherIndex !== index);
+  if (type === "QUICK_REPLY") return others.some((button) => ["URL", "PHONE_NUMBER"].includes(button.type));
+  if (["URL", "PHONE_NUMBER"].includes(type)) {
+    return others.some((button) => button.type === "QUICK_REPLY" || button.type === type);
+  }
+  return false;
 }
 
 function onButtonTypeChange(index) {
