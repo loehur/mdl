@@ -21,9 +21,18 @@
             <div><p class="font-medium text-slate-100">Buat template baru</p><p class="mt-1 text-xs text-slate-400">Target WABA dan team mengikuti team aktif Anda secara otomatis. Isi yang dikirim ke Meta wajib berasal dari AI.</p></div>
             <div><label class="label block mb-1">Nama template</label><input v-model="createForm.template_name" class="field block w-full" placeholder="Contoh: pengingat_tagihan" /><p class="mt-1 text-[11px] text-slate-500">Gunakan huruf kecil, angka, dan underscore.</p></div>
             <div><label class="label block mb-1">Kategori</label><select v-model="createForm.category" class="field block w-full"><option value="UTILITY">Utility — notifikasi/transaksi</option><option value="MARKETING">Marketing — promosi</option></select></div>
+            <section class="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-3">
+              <div class="flex items-center justify-between gap-3"><div><p class="text-sm font-medium text-slate-200">Tombol</p><p class="mt-0.5 text-[11px] text-slate-500">Opsional: maksimal 3 Quick Reply, atau 2 CTA (URL/Call). Konfigurasi dikunci saat Generate AI.</p></div><button type="button" class="detail-button" :disabled="!canAddTemplateButton" @click="addTemplateButton">Tambah tombol</button></div>
+              <div v-for="(button, index) in templateButtons" :key="index" class="rounded-lg border border-white/10 p-3 space-y-2">
+                <div class="flex gap-2"><select v-model="button.type" class="field flex-1" @change="onButtonTypeChange(index)"><option value="QUICK_REPLY" :disabled="hasCtaButtons">Quick Reply</option><option value="URL" :disabled="hasQuickReplyButtons">Buka URL</option><option value="PHONE_NUMBER" :disabled="hasQuickReplyButtons">Call</option></select><button type="button" class="rounded-lg px-3 text-sm text-rose-300 hover:bg-rose-500/10" @click="removeTemplateButton(index)">Hapus</button></div>
+                <input v-model="button.text" class="field" maxlength="25" placeholder="Teks tombol, maksimal 25 karakter" @input="clearAiApproval" />
+                <input v-if="button.type === 'URL'" v-model="button.url" class="field" placeholder="https://contoh.com" @input="clearAiApproval" />
+                <input v-if="button.type === 'PHONE_NUMBER'" v-model="button.phone_number" class="field" placeholder="+628123456789" @input="clearAiApproval" />
+              </div>
+            </section>
             <div><label class="label block mb-1">Draf untuk AI</label><textarea v-model="createForm.draft" class="field block w-full p-3" style="min-height:8rem;resize:vertical" placeholder="Halo {{customer_name}}, kami dari {{company_name}} mengingatkan tagihan Anda..." @input="clearAiApproval" /><p class="mt-1 text-[11px] text-slate-500">Gunakan nama ramah seperti <code v-pre>{{customer_name}}</code>. AI wajib mempertahankan parameter tersebut.</p></div>
             <button type="button" class="detail-button" :disabled="generating" @click="generateTemplate">{{ generating ? 'AI sedang menyusun...' : approvalToken ? 'Generate ulang dengan AI' : 'Generate dengan AI' }}</button>
-            <div v-if="generatedBody" class="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3"><p class="text-xs font-medium text-emerald-300">Hasil AI — siap diajukan ke Meta</p><p class="mt-2 whitespace-pre-wrap text-sm text-slate-200">{{ generatedBody }}</p><p class="mt-2 text-[11px] text-slate-500">Hasil ini tidak dapat diedit. Ubah draf lalu generate ulang bila diperlukan.</p></div>
+            <div v-if="generatedBody" class="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-3"><p class="text-xs font-medium text-emerald-300">Hasil AI — siap diajukan ke Meta</p><p class="mt-2 whitespace-pre-wrap text-sm text-slate-200">{{ generatedBody }}</p><div v-if="templateButtons.length" class="mt-3 flex flex-wrap gap-1.5"><span v-for="(button, index) in templateButtons" :key="index" class="team-chip">{{ button.type }} · {{ button.text || 'Tombol' }}</span></div><p class="mt-2 text-[11px] text-slate-500">Hasil dan tombol ini tidak dapat diedit setelah Generate. Ubah draf/tombol lalu generate ulang bila diperlukan.</p></div>
             <div class="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p class="text-xs font-medium text-slate-300">Parameter terdeteksi</p><div v-if="namedParams.length" class="mt-2 flex flex-wrap gap-1.5"><span v-for="param in namedParams" :key="param" class="team-chip">{{ param }}</span></div><p v-else class="mt-1 text-xs text-slate-500">Tidak ada parameter. Tulis <code v-pre>{{nama_parameter}}</code> di draf bila diperlukan.</p></div>
             <button class="w-full sm:w-auto rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60" style="background:#0f766e" :disabled="creating || !approvalToken">{{ creating ? 'Mengirim ke Meta...' : 'Kirim hasil AI ke Meta' }}</button>
           </form>
@@ -124,10 +133,14 @@ const templateToDelete = ref(null);
 const deleting = ref(false);
 const deleteError = ref("");
 const createForm = reactive({ template_name: "", category: "UTILITY", draft: "" });
+const templateButtons = ref([]);
 const generatedBody = ref("");
 const approvalToken = ref("");
 const generating = ref(false);
 const namedParams = computed(() => [...new Set([...String(generatedBody.value || createForm.draft || "").matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1].trim()).filter(Boolean))]);
+const hasQuickReplyButtons = computed(() => templateButtons.value.some((button) => button.type === "QUICK_REPLY"));
+const hasCtaButtons = computed(() => templateButtons.value.some((button) => ["URL", "PHONE_NUMBER"].includes(button.type)));
+const canAddTemplateButton = computed(() => templateButtons.value.length < (hasCtaButtons.value ? 2 : 3));
 let observer;
 let searchTimer;
 
@@ -170,6 +183,7 @@ async function createTemplate() {
   try {
     await api("/WaDesk/Templates/createForTeam", { method: "POST", body: { template_name: createForm.template_name, category: createForm.category, language: "id", approval_token: approvalToken.value } });
     Object.assign(createForm, { template_name: "", category: "UTILITY", draft: "" });
+    templateButtons.value = [];
     generatedBody.value = ""; approvalToken.value = "";
     showCreate.value = false;
     await loadTemplates({ reset: true });
@@ -185,12 +199,37 @@ async function generateTemplate() {
   generating.value = true; error.value = "";
   clearAiApproval();
   try {
-    const res = await api("/WaDesk/Templates/generateForTeam", { method: "POST", body: { draft: createForm.draft } });
+    const res = await api("/WaDesk/Templates/generateForTeam", { method: "POST", body: { draft: createForm.draft, buttons: templateButtons.value } });
     generatedBody.value = res.data?.body || "";
     approvalToken.value = res.data?.approval_token || "";
     if (!generatedBody.value || !approvalToken.value) throw new Error("AI tidak menghasilkan persetujuan template yang valid.");
   } catch (e) { error.value = e.message || "Gagal membuat draf dengan AI."; }
   finally { generating.value = false; }
+}
+
+function addTemplateButton() {
+  if (!canAddTemplateButton.value) return;
+  templateButtons.value.push({ type: hasCtaButtons.value ? (templateButtons.value.some((button) => button.type === "URL") ? "PHONE_NUMBER" : "URL") : "QUICK_REPLY", text: "", url: "", phone_number: "" });
+  clearAiApproval();
+}
+
+function removeTemplateButton(index) {
+  templateButtons.value.splice(index, 1);
+  clearAiApproval();
+}
+
+function onButtonTypeChange(index) {
+  const button = templateButtons.value[index];
+  if (!button) return;
+  const otherButtons = templateButtons.value.filter((_, otherIndex) => otherIndex !== index);
+  const conflictsWithQuickReply = button.type === "QUICK_REPLY" && otherButtons.some((item) => ["URL", "PHONE_NUMBER"].includes(item.type));
+  const conflictsWithCta = ["URL", "PHONE_NUMBER"].includes(button.type) && otherButtons.some((item) => item.type === "QUICK_REPLY");
+  const duplicatesCta = ["URL", "PHONE_NUMBER"].includes(button.type) && otherButtons.some((item) => item.type === button.type);
+  if (conflictsWithQuickReply || conflictsWithCta || duplicatesCta) {
+    button.type = otherButtons[0]?.type || "QUICK_REPLY";
+    error.value = "Quick Reply tidak dapat dicampur dengan CTA; tombol URL dan Call masing-masing hanya satu.";
+  }
+  clearAiApproval();
 }
 
 async function syncTemplates() {

@@ -153,7 +153,7 @@ class Meta
     }
 
     /** Create a Meta template using the positional body parameters required by Cloud API. */
-    public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramLabels): array
+    public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramLabels, array $buttons = []): array
     {
         $component = ['type' => 'BODY', 'text' => $body];
         if ($paramLabels !== []) {
@@ -161,11 +161,15 @@ class Meta
             // local to WaDesk and are never exposed to the Meta template schema.
             $component['example'] = ['body_text' => [array_fill(0, count($paramLabels), 'contoh')]];
         }
+        $components = [$component];
+        if ($buttons !== []) {
+            $components[] = ['type' => 'BUTTONS', 'buttons' => $buttons];
+        }
         return $this->post('/' . rawurlencode($wabaId) . '/message_templates', [
             'name' => $name,
             'language' => $language,
             'category' => $category,
-            'components' => [$component],
+            'components' => $components,
         ]);
     }
 

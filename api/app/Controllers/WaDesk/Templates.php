@@ -811,10 +811,15 @@ class Templates extends WaDeskController
         if (!$this->templateAiApprovalsTableExists()) {
             $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
         }
-        $draft = trim((string) (($this->getBody())['draft'] ?? ''));
+        if (!$this->columnExists('wa_template_ai_approvals', 'buttons_json')) {
+            $this->error('Database belum siap: jalankan migration 046_template_ai_approval_buttons.sql.', 503);
+        }
+        $request = $this->getBody();
+        $draft = trim((string) ($request['draft'] ?? ''));
         if ($draft === '') $this->error('Tulis draf template untuk diproses AI.', 422);
         if (mb_strlen($draft) > 1024) $this->error('Draf template maksimal 1024 karakter.', 422);
 
+        $buttons = $this->normalizeTemplateButtons($request['buttons'] ?? []);
         $sourceSequence = $this->templateParamSequence($draft);
         $sourceParams = array_values(array_unique($sourceSequence));
         foreach ($sourceParams as $param) if (!preg_match('/^[a-zA-Z][a-zA-Z0-9_]*$/', $param)) $this->error('Nama parameter harus enum, misalnya customer_name.', 422);
@@ -833,7 +838,7 @@ class Templates extends WaDeskController
         $this->db($this->db_index)->query('DELETE FROM wa_template_ai_approvals WHERE expires_at < NOW() OR used_at IS NOT NULL');
         $this->db($this->db_index)->insert('wa_template_ai_approvals', [
             'tenant_id' => $tenantId, 'team_id' => (int) $user['team_id'], 'user_id' => (int) $user['id'],
-            'token_hash' => hash('sha256', $rawToken), 'body' => $generated,
+            'token_hash' => hash('sha256', $rawToken), 'body' => $generated, 'buttons_json' => json_encode($buttons, JSON_UNESCAPED_SLASHES),
             'expires_at' => date('Y-m-d H:i:s', time() + 900),
         ]);
         $this->success(['body' => $generated, 'approval_token' => $rawToken, 'expires_in' => 900], 'Draf sudah dirapikan AI dan siap diajukan ke Meta.');
@@ -851,6 +856,9 @@ class Templates extends WaDeskController
         if (!$this->templateAiApprovalsTableExists()) {
             $this->error('Database belum siap: jalankan migration 037_template_ai_approvals.sql.', 503);
         }
+        if (!$this->columnExists('wa_template_ai_approvals', 'buttons_json')) {
+            $this->error('Database belum siap: jalankan migration 046_template_ai_approval_buttons.sql.', 503);
+        }
         $body = $this->getBody();
         $name = strtolower(trim((string) ($body['template_name'] ?? '')));
         $language = trim((string) ($body['language'] ?? 'id')) ?: 'id';
@@ -858,7 +866,7 @@ class Templates extends WaDeskController
         $approvalToken = trim((string) ($body['approval_token'] ?? ''));
         $tenantId = (int) $user['tenant_id']; $teamId = (int) $user['team_id'];
         $approval = $approvalToken === '' ? null : $this->db($this->db_index)->query(
-            'SELECT id, body FROM wa_template_ai_approvals WHERE token_hash = ? AND tenant_id = ? AND team_id = ? AND user_id = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1',
+            'SELECT id, body, buttons_json FROM wa_template_ai_approvals WHERE token_hash = ? AND tenant_id = ? AND team_id = ? AND user_id = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1',
             [hash('sha256', $approvalToken), $tenantId, $teamId, (int) $user['id']]
         )->row_array();
         if (!$approval) $this->error('Isi template harus digenerate AI terlebih dahulu. Generate ulang bila persetujuan AI sudah kedaluwarsa.', 422);
@@ -883,8 +891,10 @@ class Templates extends WaDeskController
             [$tenantId, $teamId]
         )->row_array();
         if (!$waba) $this->error('Team Anda belum di-assign ke WABA.', 422);
+        $buttons = json_decode((string) ($approval['buttons_json'] ?? '[]'), true);
+        if (!is_array($buttons)) $buttons = [];
         $meta = new WaDeskMeta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
-        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $metaBody, $paramNames);
+        $res = $meta->createTemplate((string) $waba['meta_waba_id'], $name, $language, $category, $metaBody, $paramNames, $buttons);
         if (!$res['success']) $this->error('Meta menolak template: ' . $res['error'], 502, $res['data']);
         $data = $res['data'];
         $templateId = (int) $this->db($this->db_index)->insert('wa_templates', ['tenant_id' => $tenantId, 'meta_waba_id' => $waba['meta_waba_id'], 'template_name' => $name, 'language' => $language, 'body_preview' => $text, 'meta_template_id' => (string) ($data['id'] ?? ''), 'meta_status' => strtoupper((string) ($data['status'] ?? 'PENDING')), 'meta_category' => $category]);
@@ -900,6 +910,48 @@ class Templates extends WaDeskController
     {
         preg_match_all('/\{\{\s*([^}]+?)\s*\}\}/', $text, $matches);
         return array_values(array_map('trim', $matches[1] ?? []));
+    }
+
+    /** @return list<array{type:string,text:string,url?:string,phone_number?:string}> */
+    private function normalizeTemplateButtons(mixed $rawButtons): array
+    {
+        if (!is_array($rawButtons)) $this->error('Format tombol template tidak valid.', 422);
+        if (count($rawButtons) > 3) $this->error('Template Meta maksimal memiliki 3 tombol.', 422);
+        $buttons = [];
+        foreach ($rawButtons as $raw) {
+            if (!is_array($raw)) $this->error('Format tombol template tidak valid.', 422);
+            $type = strtoupper(trim((string) ($raw['type'] ?? '')));
+            $text = trim((string) ($raw['text'] ?? ''));
+            if (!in_array($type, ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'], true)) $this->error('Tipe tombol tidak valid.', 422);
+            if ($text === '' || mb_strlen($text) > 25) $this->error('Teks tombol wajib diisi dan maksimal 25 karakter.', 422);
+            $button = ['type' => $type, 'text' => $text];
+            if ($type === 'URL') {
+                $url = trim((string) ($raw['url'] ?? ''));
+                if (!preg_match('#^https?://#i', $url) || mb_strlen($url) > 2000) $this->error('URL tombol harus berupa http/https yang valid.', 422);
+                $button['url'] = $url;
+            }
+            if ($type === 'PHONE_NUMBER') {
+                $phone = preg_replace('/[^0-9+]/', '', (string) ($raw['phone_number'] ?? '')) ?? '';
+                if (!preg_match('/^\+[1-9][0-9]{7,14}$/', $phone)) $this->error('Nomor tombol Call harus format internasional, misalnya +628123456789.', 422);
+                $button['phone_number'] = $phone;
+            }
+            $buttons[] = $button;
+        }
+        $quickReplyCount = count(array_filter($buttons, static fn (array $button): bool => $button['type'] === 'QUICK_REPLY'));
+        $ctaButtons = array_values(array_filter($buttons, static fn (array $button): bool => in_array($button['type'], ['URL', 'PHONE_NUMBER'], true)));
+        if ($quickReplyCount > 0 && $ctaButtons !== []) {
+            $this->error('Tombol Quick Reply tidak dapat digabung dengan tombol URL atau Call dalam satu template.', 422);
+        }
+        if (count($ctaButtons) > 2) $this->error('Template Meta maksimal memiliki 2 tombol CTA (URL/Call).', 422);
+        $ctaTypes = array_column($ctaButtons, 'type');
+        if (count($ctaTypes) !== count(array_unique($ctaTypes))) {
+            $this->error('Dalam satu template hanya boleh ada satu tombol URL dan satu tombol Call.', 422);
+        }
+        $buttonTexts = array_map(static fn (array $button): string => mb_strtolower($button['text']), $buttons);
+        if (count($buttonTexts) !== count(array_unique($buttonTexts))) {
+            $this->error('Teks setiap tombol harus berbeda.', 422);
+        }
+        return $buttons;
     }
 
     private function templateAiApprovalsTableExists(): bool
