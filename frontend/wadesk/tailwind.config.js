@@ -36,6 +36,7 @@ export default {
           soft: "rgb(var(--text-accent-soft) / <alpha-value>)",
         },
         emerald: {
+          200: "rgb(var(--text-emerald-200) / <alpha-value>)",
           300: "rgb(var(--text-emerald-300) / <alpha-value>)",
           400: "rgb(var(--text-emerald-400) / <alpha-value>)",
           500: "rgb(var(--text-emerald-500) / <alpha-value>)",
@@ -54,6 +55,15 @@ export default {
         },
         rose: {
           400: "rgb(var(--text-rose-400) / <alpha-value>)",
+        },
+        sky: {
+          100: "rgb(var(--text-sky-100) / <alpha-value>)",
+          200: "rgb(var(--text-sky-200) / <alpha-value>)",
+          300: "rgb(var(--text-sky-300) / <alpha-value>)",
+          400: "rgb(var(--text-sky-400) / <alpha-value>)",
+        },
+        violet: {
+          300: "rgb(var(--text-violet-300) / <alpha-value>)",
         },
       },
     },
