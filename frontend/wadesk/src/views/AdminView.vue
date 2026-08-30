@@ -376,7 +376,8 @@
           </template>
           <template v-else>
             <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
-            <template v-if="numberFlow.step === 'request'"><select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select><button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button></template>
+            <p v-if="numberFlow.error" class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{{ numberFlow.error }}</p>
+            <template v-if="numberFlow.step === 'request'"><select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select><button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberFlow.loading ? 'Meminta OTP...' : numberRequestLabel }}</button></template>
             <template v-else-if="numberFlow.step === 'verify'"><p v-if="numberFlow.otpLocked > 0" class="text-sm text-amber-300">Terlalu banyak percobaan verify. Tunggu {{ otpTimeLabel(numberFlow.otpLocked) }} sebelum mencoba lagi.</p><template v-else><input v-model="numberForm.otp" class="field" inputmode="numeric" placeholder="Masukkan kode OTP" /><button type="button" class="btn" :disabled="numberFlow.loading || !numberForm.otp" @click="verifyOtp">Verify OTP</button><p class="text-xs text-slate-500">Sisa percobaan sesi ini: {{ Math.max(0, 3 - numberFlow.otpVerifyFails) }}.</p></template><button type="button" class="detail-button" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberRequestLabel }}</button><p v-if="numberFlow.otpCooldown > 0" class="text-xs text-slate-500">Jangan minta ulang sebelum countdown selesai; OTP sebelumnya akan hangus.</p></template>
             <template v-else-if="numberFlow.step === 'register'"><p class="text-xs text-emerald-400">OTP terverifikasi. Nomor siap diregistrasikan.</p><button type="button" class="btn" :disabled="numberFlow.loading" @click="registerNumber">Register Number</button></template>
             <template v-else-if="numberFlow.step === 'done'"><p class="text-sm text-emerald-400">Registrasi berhasil dikirim ke Meta.</p><p class="text-xs text-slate-400">Sinkronkan WABA untuk memuat status terbaru nomor ini.</p><button type="button" class="btn" :disabled="syncingNumbers" @click="syncAfterRegistration">{{ syncingNumbers ? 'Sinkron...' : 'Sync nomor sekarang' }}</button></template>
@@ -1531,7 +1532,7 @@ const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
 const addingNumber = ref(false);
 const numberForm = reactive({ waba_id: "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
-const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false, otpCooldown: 0, otpLocked: 0, otpVerifyFails: 0, otpRequested: false });
+const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false, error: "", otpCooldown: 0, otpLocked: 0, otpVerifyFails: 0, otpRequested: false });
 let numberOtpTimer = null;
 const numberRequestLabel = computed(() => numberFlow.otpCooldown > 0 ? `Minta ulang (${numberFlow.otpCooldown}s)` : (numberFlow.otpRequested ? "Minta ulang OTP" : "Request OTP"));
 const editingWabaTeamId = ref(null);
@@ -3128,7 +3129,7 @@ function openAddNumber() {
   const wabaId = numberWabaFilter.value || wabas.value[0]?.meta_waba_id || "";
   Object.assign(numberForm, { waba_id: wabaId, country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
   resetNumberOtp();
-  Object.assign(numberFlow, { step: "add", phone_number_id: "", loading: false });
+  Object.assign(numberFlow, { step: "add", phone_number_id: "", loading: false, error: "" });
   addingNumber.value = true;
 }
 
@@ -3143,7 +3144,7 @@ function continueNumberRegistration(number) {
   Object.assign(numberForm, { waba_id: number.waba_id || "", country_code: "62", phone_number: number.phone_number || "", verified_name: "", method: "SMS", otp: "" });
   const verified = String(number.meta_verification_status || "").toUpperCase().startsWith("VERIFIED");
   resetNumberOtp();
-  Object.assign(numberFlow, { step: verified ? "register" : "request", phone_number_id: number.meta_phone_number_id || number.device_id, loading: false });
+  Object.assign(numberFlow, { step: verified ? "register" : "request", phone_number_id: number.meta_phone_number_id || number.device_id, loading: false, error: "" });
   addingNumber.value = true;
 }
 
@@ -3163,6 +3164,7 @@ async function requestOtp() {
   if (numberFlow.otpCooldown > 0) return;
   if (numberFlow.otpRequested && !window.confirm("OTP sebelumnya akan hangus. Lanjutkan meminta OTP baru?")) return;
   numberFlow.loading = true;
+  numberFlow.error = "";
   try {
     const res = await api("/WaDesk/Wabas/requestOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, method: numberForm.method } });
     numberFlow.otpCooldown = Number(res.data?.retry_after || 60);
@@ -3170,12 +3172,13 @@ async function requestOtp() {
     startNumberOtpTimer();
     numberFlow.step = "verify";
     flash(true, "OTP dikirim.");
-  } catch (e) { applyNumberOtpRetry(e); flash(false, otpErrorMessage(e)); } finally { numberFlow.loading = false; }
+  } catch (e) { applyNumberOtpRetry(e); numberFlow.error = otpErrorMessage(e); } finally { numberFlow.loading = false; }
 }
 
 async function verifyOtp() {
   if (numberFlow.otpLocked > 0) return;
   numberFlow.loading = true;
+  numberFlow.error = "";
   try {
     await api("/WaDesk/Wabas/verifyOtp", { method: "POST", body: { phone_number_id: numberFlow.phone_number_id, code: numberForm.otp } });
     numberFlow.step = "register";
@@ -3188,7 +3191,7 @@ async function verifyOtp() {
       numberFlow.otpLocked = 600;
       startNumberOtpTimer();
     }
-    flash(false, otpErrorMessage(e));
+    numberFlow.error = otpErrorMessage(e);
   } finally { numberFlow.loading = false; }
 }
 
