@@ -73,6 +73,7 @@
                 <div class="flex flex-wrap gap-1.5 justify-end text-xs">
                   <span :title="'Status: ' + (n.status || 'unknown')" class="px-2 py-1 rounded" :class="String(n.status || '').toLowerCase() === 'active' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-slate-300'">{{ n.meta_provider_status || n.status || 'unknown' }}</span>
                   <span v-if="n.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ n.meta_verification_status }}</span>
+                  <span v-if="n.meta_display_name_status" class="px-2 py-1 rounded bg-violet-500/10 text-violet-300">Display: {{ n.meta_display_name_status }}</span>
                   <span v-if="n.meta_quality_rating" class="px-2 py-1 rounded" :class="qualityClass(n.meta_quality_rating)">Quality: {{ n.meta_quality_rating }}</span>
                   <button v-if="String(n.status).toLowerCase() !== 'active'" type="button" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20" @click="continueFlow(n)">{{ String(n.meta_verification_status || '').startsWith('VERIFIED') ? 'Register' : 'Request OTP' }}</button>
                 </div>

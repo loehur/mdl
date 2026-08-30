@@ -218,10 +218,10 @@
                 >
                   Buka lampiran
                 </a>
-                <div v-if="showMessageText(m)" class="whitespace-pre-wrap">{{ formatMessageBody(m) }}</div>
+                <div v-if="showMessageText(m)" class="whitespace-pre-wrap break-words min-w-0">{{ formatMessageBody(m) }}</div>
                 <p
                   v-if="m.body_raw && m.body_raw !== m.body"
-                  class="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] opacity-70 whitespace-pre-wrap"
+                  class="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] opacity-70 whitespace-pre-wrap break-words min-w-0"
                   title="Draf asli sebelum AI rapikan"
                 >
                   Draf: {{ m.body_raw }}
