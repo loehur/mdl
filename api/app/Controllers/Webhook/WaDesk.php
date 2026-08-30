@@ -77,10 +77,6 @@ class WaDesk extends Controller
             return true;
         }
 
-        if ($this->looksLikeCoexistenceWebhook($data)) {
-            return $this->handleCoexistenceWebhook($data);
-        }
-
         if ($this->looksLikeKiriminIdWebhook($data)) {
             return $this->handleKiriminIdWebhook($data);
         }
@@ -264,90 +260,6 @@ class WaDesk extends Controller
             return;
         }
         $db->query('UPDATE wa_channels SET meta_quality_rating = ? WHERE ' . $where, array_merge([$quality], $binds));
-    }
-
-    /** Handle WhatsApp Coexistence events sent through /Webhook/WhatsAppMeta. */
-    private function handleCoexistenceWebhook(array $data): bool
-    {
-        $changes = $data['entry'][0]['changes'] ?? [];
-        if (!is_array($changes)) return false;
-
-        foreach ($changes as $change) {
-            if (!is_array($change)) continue;
-            $field = strtolower((string) ($change['field'] ?? ''));
-            $value = is_array($change['value'] ?? null) ? $change['value'] : [];
-            if ($field === 'smb_message_echoes') {
-                $this->handleCoexistenceMessageEchoes($value);
-                continue;
-            }
-            if ($field === 'smb_app_state_sync') {
-                // Contact-only sync. It must not create messages or change inbound_count.
-                $this->logWebhook('COEX contact sync records=' . count($value['state_sync'] ?? []));
-                continue;
-            }
-            if ($field === 'history') {
-                $this->logWebhook('COEX history webhook received');
-            }
-        }
-        return true;
-    }
-
-    /** Store messages typed in the WhatsApp Business app as WaDesk outbound echoes. */
-    private function handleCoexistenceMessageEchoes(array $value): void
-    {
-        $metadata = is_array($value['metadata'] ?? null) ? $value['metadata'] : [];
-        $rows = $value['message_echoes'] ?? ($value['messages'] ?? ($value['echoes'] ?? []));
-        if (!is_array($rows)) return;
-        if (isset($rows['id']) || isset($rows['type'])) $rows = [$rows];
-
-        foreach ($rows as $echo) {
-            if (!is_array($echo)) continue;
-            $recipient = $this->normalizePhone((string) ($echo['to'] ?? $echo['recipient_id'] ?? $echo['recipient'] ?? ''));
-            if ($recipient === '') {
-                $this->logWebhook('COEX echo skipped: recipient missing');
-                continue;
-            }
-            $resolved = $this->resolveInboundRoute(
-                $recipient,
-                (string) ($metadata['display_phone_number'] ?? ''),
-                $metadata['phone_number_id'] ?? null,
-                null
-            );
-            if (!$resolved) {
-                $this->logWebhook('COEX echo channel not found recipient=' . $recipient);
-                continue;
-            }
-            $channel = $resolved['channel'];
-            $db = $this->db($this->dbIndex);
-            $wamid = (string) ($echo['id'] ?? $echo['message_id'] ?? '');
-            if ($wamid !== '' && $db->query('SELECT id FROM messages WHERE provider_msg_id = ? LIMIT 1', [$wamid])->row_array()) continue;
-
-            $conv = $resolved['conversation'];
-            $teamId = (int) ($conv['team_id'] ?? $this->getTenantDefaultTeamId((int) $channel['tenant_id']));
-            if ($teamId <= 0) {
-                $this->logWebhook('COEX echo skipped: no default team channel=' . (int) $channel['id']);
-                continue;
-            }
-            $now = date('Y-m-d H:i:s');
-            if (!$conv) {
-                $convId = (int) $db->insert('conversations', [
-                    'tenant_id' => (int) $channel['tenant_id'], 'team_id' => $teamId,
-                    'channel_id' => (int) $channel['id'], 'phone' => $recipient,
-                    'last_message' => mb_substr($this->extractBody($echo) ?: '[' . ($echo['type'] ?? 'text') . ']', 0, 500),
-                    'last_out_at' => $now, 'last_message_at' => $now,
-                ]);
-            } else {
-                $convId = (int) $conv['id'];
-            }
-            $body = $this->extractBody($echo) ?: '[' . (string) ($echo['type'] ?? 'text') . ']';
-            $msgId = (int) $db->insert('messages', [
-                'conversation_id' => $convId, 'direction' => 'out', 'type' => (string) ($echo['type'] ?? 'text'),
-                'body' => $body, 'provider_msg_id' => $wamid ?: null, 'status' => 'sent',
-            ]);
-            $db->update('conversations', ['last_message' => mb_substr($body, 0, 500), 'last_out_at' => $now, 'last_message_at' => $now], ['id' => $convId]);
-            $this->logWebhook('COEX echo saved conv=' . $convId . ' msg=' . $msgId . ' channel=' . (int) $channel['id']);
-            WaDeskServer::push(['type' => 'message_out', 'tenant_id' => (int) $channel['tenant_id'], 'team_id' => $teamId, 'conversation_id' => $convId, 'message_id' => $msgId]);
-        }
     }
 
     /** @return array{event:string,source:string,delivery:string} */
@@ -1108,12 +1020,6 @@ class WaDesk extends Controller
     private function looksLikeMetaStatus(array $data): bool
     {
         return isset($data['entry'][0]['changes'][0]['value']['statuses']);
-    }
-
-    private function looksLikeCoexistenceWebhook(array $data): bool
-    {
-        $field = strtolower((string) ($data['entry'][0]['changes'][0]['field'] ?? ''));
-        return in_array($field, ['smb_message_echoes', 'smb_app_state_sync', 'history'], true);
     }
 
     private function looksLikeKirimNativeEnvelope(array $data): bool

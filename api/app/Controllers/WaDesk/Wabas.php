@@ -305,7 +305,7 @@ class Wabas extends WaDeskController
         $this->success($stats, 'Sinkronisasi WABA selesai');
     }
 
-    /** Sync numbers and coexistence subscription for one selected WABA. */
+    /** Sync numbers for one selected WABA. */
     public function syncNumbers()
     {
         $this->verifyAuth(); $admin = $this->requireAdmin();
@@ -344,10 +344,10 @@ class Wabas extends WaDeskController
         $db->insert('wa_wabas', $data);
     }
 
-    /** @return array{phones:int,phones_removed:int,coex_phones:int,coex_subscriptions:int,coex_subscriptions_skipped:int,errors:array} */
+    /** @return array{phones:int,phones_removed:int,errors:array} */
     private function syncNumbersForWaba(int $tenantId, string $wabaId, Meta $meta): array
     {
-        $stats = ['phones' => 0, 'phones_removed' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'errors' => []];
+        $stats = ['phones' => 0, 'phones_removed' => 0, 'errors' => []];
         \Log::write("Number sync START: tenant={$tenantId} waba={$wabaId}", 'wadesk', 'number-sync');
         $phones = $meta->listPhoneNumbers($wabaId);
         if (!$phones['success']) {
@@ -356,7 +356,6 @@ class Wabas extends WaDeskController
             return $stats;
         }
         \Log::write("Number sync META OK: tenant={$tenantId} waba={$wabaId} received=" . count($phones['data']), 'wadesk', 'number-sync');
-        $hasCoex = false;
         $metaPhoneIds = [];
         foreach ($phones['data'] as $phone) {
             if (!is_array($phone)) continue;
@@ -375,7 +374,6 @@ class Wabas extends WaDeskController
                 'is_coexistence' => !empty($phone['is_on_biz_app']),
             ];
             \Log::write('Number sync PHONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' data=' . json_encode($phoneLog, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
-            if (!empty($phone['is_on_biz_app'])) { $hasCoex = true; $stats['coex_phones']++; }
         }
         if ($phones['data'] !== [] && $metaPhoneIds === []) {
             $stats['errors'][] = 'Meta mengembalikan data nomor tanpa Phone Number ID; cleanup lokal dilewati untuk keamanan.';
@@ -388,29 +386,6 @@ class Wabas extends WaDeskController
             }
         }
         $this->syncWabaTeamsToChannels($tenantId, $wabaId, $this->wabaTeamIds($tenantId, $wabaId));
-        if (!$hasCoex) {
-            \Log::write('Number sync DONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' stats=' . json_encode($stats, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
-            return $stats;
-        }
-
-        $row = $this->db($this->db_index)->query(
-            'SELECT id, coex_subscription_status, coex_subscription_checked_at FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
-            [$tenantId, $wabaId]
-        )->row_array();
-        $status = (string) ($row['coex_subscription_status'] ?? '');
-        $checkedAt = strtotime((string) ($row['coex_subscription_checked_at'] ?? ''));
-        $recentFailure = $status === 'failed' && $checkedAt !== false && $checkedAt > time() - 3600;
-        if ($status === 'subscribed' || $recentFailure) {
-            $stats['coex_subscriptions_skipped']++;
-            \Log::write("Number sync COEX SKIPPED: tenant={$tenantId} waba={$wabaId} cached_status={$status}", 'wadesk', 'number-sync');
-            \Log::write('Number sync DONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' stats=' . json_encode($stats, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
-            return $stats;
-        }
-        $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
-        $newStatus = $subscription['success'] ? 'subscribed' : 'failed';
-        if ($row) $this->db($this->db_index)->update('wa_wabas', ['coex_subscription_status' => $newStatus, 'coex_subscription_checked_at' => date('Y-m-d H:i:s')], ['id' => (int) $row['id']]);
-        if ($subscription['success']) $stats['coex_subscriptions']++; else $stats['errors'][] = 'Subscribe Coex: ' . $subscription['error'];
-        \Log::write('Number sync COEX ' . strtoupper($newStatus) . ': tenant=' . $tenantId . ' waba=' . $wabaId . ($subscription['success'] ? '' : ' err=' . $subscription['error']), 'wadesk', 'number-sync');
         \Log::write('Number sync DONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' stats=' . json_encode($stats, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
         return $stats;
     }

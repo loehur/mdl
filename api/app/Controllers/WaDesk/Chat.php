@@ -289,6 +289,14 @@ class Chat extends WaDeskController
         if ($isMeta && $metaPhoneNumberId === '') {
             $this->error('Channel Meta belum punya Phone Number ID.', 400);
         }
+        if ($isMeta && (
+            !empty($channel['is_coexistence'])
+            || strtoupper(trim((string) ($channel['meta_provider_status'] ?? ''))) !== 'CONNECTED'
+        )) {
+            $this->error('Nomor Meta belum CONNECTED atau masih Coexistence; nomor ini tidak dapat dipakai mengirim langsung lewat Cloud API.', 422, [
+                'code' => 'meta_channel_not_sendable',
+            ]);
+        }
         if (!$isMeta && $deviceId === '') {
             $this->error('Channel belum punya device ID', 400);
         }

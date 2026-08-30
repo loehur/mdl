@@ -145,13 +145,6 @@ class Meta
         ]);
     }
 
-    /** Subscribe the Meta app associated with this system-user token to a WABA. */
-    public function subscribeCurrentAppToWaba(string $wabaId): array
-    {
-        // Sync should never be held up by a slow subscription handshake.
-        return $this->post('/' . rawurlencode($wabaId) . '/subscribed_apps', [], 10);
-    }
-
     /** Create a Meta template using the positional body parameters required by Cloud API. */
     public function createTemplate(string $wabaId, string $name, string $language, string $category, string $body, array $paramLabels, array $buttons = []): array
     {
