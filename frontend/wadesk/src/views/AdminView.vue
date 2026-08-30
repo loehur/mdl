@@ -354,8 +354,8 @@
             <h2 class="font-display font-semibold text-lg">Number</h2>
             <p class="text-xs text-slate-500 mt-1">Nomor WhatsApp Meta yang tersinkron per WABA.</p>
           </div>
-          <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
-            {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
+          <button type="button" class="btn shrink-0" :disabled="syncingNumbers || !numberWabaFilter" @click="syncNumbers">
+            {{ syncingNumbers ? 'Sinkron...' : 'Sync Number' }}
           </button>
           <button type="button" class="btn shrink-0" @click="openAddNumber">Add Number</button>
         </div>
@@ -412,7 +412,7 @@
             <template v-else-if="numberFlow.step === 'done'">
               <p class="text-sm text-emerald-400">Registrasi berhasil dikirim ke Meta.</p>
               <p class="text-xs text-slate-400">Sinkronkan WABA untuk memuat status terbaru nomor ini.</p>
-              <button type="button" class="btn" :disabled="syncingWabas" @click="syncAfterRegistration">{{ syncingWabas ? 'Sinkron...' : 'Sync WABA sekarang' }}</button>
+              <button type="button" class="btn" :disabled="syncingNumbers" @click="syncAfterRegistration">{{ syncingNumbers ? 'Sinkron...' : 'Sync nomor sekarang' }}</button>
             </template>
           </template>
         </div>
@@ -764,11 +764,11 @@
             <button
               type="button"
               class="btn shrink-0 inline-flex items-center justify-center gap-2 min-w-[9rem]"
-              :disabled="syncingWabas"
-              @click="syncWabas"
+              :disabled="syncingTemplates || !templateWabaFilter"
+              @click="syncTemplates"
             >
               <svg
-                v-if="syncingWabas"
+                v-if="syncingTemplates"
                 class="h-4 w-4 animate-spin"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -782,7 +782,7 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              {{ syncingWabas ? "Sinkron..." : "Sync WABA" }}
+              {{ syncingTemplates ? "Sinkron..." : "Sync Template" }}
             </button>
           </div>
         </div>
@@ -1547,6 +1547,8 @@ const editingWabaTeamId = ref(null);
 const wabaTeamDraft = ref([]);
 const savingWabaTeamId = ref(null);
 const syncingWabas = ref(false);
+const syncingNumbers = ref(false);
+const syncingTemplates = ref(false);
 const deviceQuery = ref("");
 const CHANNEL_BROWSE_LIMIT = 20;
 const channelBrowseRows = ref([]);
@@ -3192,7 +3194,7 @@ async function registerNumber() {
 }
 
 async function syncAfterRegistration() {
-  await syncWabas();
+  await syncNumbers();
   addingNumber.value = false;
 }
 
@@ -3245,13 +3247,39 @@ async function syncWabas() {
     const removedText = removed ? `, ${removed} template lama dihapus` : "";
     const channelsRemoved = Number(d.channels_removed || 0);
     const channelsRemovedText = channelsRemoved ? `, ${channelsRemoved} channel lama dihapus` : "";
-    flash(true, `Sync WABA: ${d.wabas || 0} WABA, ${d.phones || 0} nomor, ${d.templates || 0} template${removedText}${channelsRemovedText}${suffix}`);
+    flash(true, `Sync WABA: ${d.wabas || 0} WABA${removedText}${channelsRemovedText}${suffix}`);
     await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true), loadNumbers()]);
   } catch (e) {
     flash(false, e.message || "Gagal sinkron WABA");
   } finally {
     syncingWabas.value = false;
   }
+}
+
+async function syncNumbers() {
+  const wabaId = numberWabaFilter.value.trim();
+  if (!wabaId || syncingNumbers.value) return;
+  syncingNumbers.value = true;
+  try {
+    const res = await api('/WaDesk/Wabas/syncNumbers', { method: 'POST', body: { waba_id: wabaId } });
+    const d = res.data || {};
+    const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join('; ')}` : '';
+    flash(true, `Sync Number: ${d.phones || 0} nomor${suffix}`);
+    await loadNumbers();
+  } catch (e) { flash(false, e.message || 'Gagal sync nomor'); } finally { syncingNumbers.value = false; }
+}
+
+async function syncTemplates() {
+  const wabaId = templateWabaFilter.value.trim();
+  if (!wabaId || syncingTemplates.value) return;
+  syncingTemplates.value = true;
+  try {
+    const res = await api('/WaDesk/Wabas/syncTemplates', { method: 'POST', body: { waba_id: wabaId } });
+    const d = res.data || {};
+    const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join('; ')}` : '';
+    flash(true, `Sync Template: ${d.templates || 0} template${suffix}`);
+    await loadTemplateBrowse(true);
+  } catch (e) { flash(false, e.message || 'Gagal sync template'); } finally { syncingTemplates.value = false; }
 }
 
 async function syncTemplatesFromKirimin() {

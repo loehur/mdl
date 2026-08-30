@@ -48,26 +48,37 @@ class Wabas extends WaDeskController
 
     public function requestOtp()
     {
-        [, $meta] = $this->metaForAdmin();
+        [$admin, $meta] = $this->metaForAdmin();
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         if ($phoneId === '') $this->error('phone_number_id wajib', 422);
         $this->assertManagedPhone($this->requireChatUser(), $phoneId);
-        $res = $meta->requestVerificationCode($phoneId, (string) ($body['method'] ?? 'SMS'));
-        if (!$res['success']) $this->error('Gagal meminta OTP: ' . $res['error'], 502, $res['data']);
+        $method = (string) ($body['method'] ?? 'SMS');
+        \Log::write("OTP request: phone={$phoneId} method={$method} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
+        $res = $meta->requestVerificationCode($phoneId, $method);
+        if (!$res['success']) {
+            \Log::write("OTP request FAILED: phone={$phoneId} method={$method} http={$res['http_code']} err={$res['error']} resp=" . json_encode($res['data'], JSON_UNESCAPED_SLASHES), 'wadesk', 'otp');
+            $this->error('Gagal meminta OTP: ' . $res['error'], 502, $res['data']);
+        }
+        \Log::write("OTP request OK: phone={$phoneId} method={$method} http={$res['http_code']}", 'wadesk', 'otp');
         $this->success(['meta' => $res['data']], 'OTP dikirim.');
     }
 
     public function verifyOtp()
     {
-        [, $meta] = $this->metaForAdmin();
+        [$admin, $meta] = $this->metaForAdmin();
         $body = $this->getBody();
         $phoneId = trim((string) ($body['phone_number_id'] ?? ''));
         $code = trim((string) ($body['code'] ?? ''));
         if ($phoneId === '' || $code === '') $this->error('Phone Number ID dan OTP wajib diisi', 422);
         $this->assertManagedPhone($this->requireChatUser(), $phoneId);
+        \Log::write("OTP verify: phone={$phoneId} user={$admin['id']} tenant={$admin['tenant_id']}", 'wadesk', 'otp');
         $res = $meta->verifyCode($phoneId, $code);
-        if (!$res['success']) $this->error('OTP tidak valid: ' . $res['error'], 502, $res['data']);
+        if (!$res['success']) {
+            \Log::write("OTP verify FAILED: phone={$phoneId} http={$res['http_code']} err={$res['error']} resp=" . json_encode($res['data'], JSON_UNESCAPED_SLASHES), 'wadesk', 'otp');
+            $this->error('OTP tidak valid: ' . $res['error'], 502, $res['data']);
+        }
+        \Log::write("OTP verify OK: phone={$phoneId} http={$res['http_code']}", 'wadesk', 'otp');
         $this->success(['meta' => $res['data']], 'OTP terverifikasi. Nomor siap diregistrasikan.');
     }
 
@@ -123,16 +134,9 @@ class Wabas extends WaDeskController
         $this->requireWabaTable();
         $wabaId = $this->managedWabaId($user);
         $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
-        $res = $meta->listPhoneNumbers($wabaId);
-        if (!$res['success']) $this->error('Gagal sync nomor: ' . $res['error'], 502, $res['data']);
-        $count = 0;
-        foreach ($res['data'] as $phone) if (is_array($phone) && $this->upsertPhone((int) $user['tenant_id'], $wabaId, $phone)) $count++;
-        if (($user['role'] ?? '') === 'admin') {
-            $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, $this->wabaTeamIds((int) $user['tenant_id'], $wabaId));
-        } else {
-            $this->syncWabaTeamsToChannels((int) $user['tenant_id'], $wabaId, [(int) $user['team_id']]);
-        }
-        $this->success(['numbers' => $count], 'Nomor WABA berhasil disinkronkan.');
+        $stats = $this->syncNumbersForWaba((int) $user['tenant_id'], $wabaId, $meta);
+        if ($stats['errors'] !== []) $this->error('Gagal sync nomor: ' . implode('; ', $stats['errors']), 502);
+        $this->success($stats, 'Nomor WABA berhasil disinkronkan.');
     }
 
     /** Sync templates for the caller's active team WABA without changing channels. */
@@ -147,10 +151,9 @@ class Wabas extends WaDeskController
         $waba = $this->db($this->db_index)->query('SELECT w.meta_waba_id FROM wa_wabas w INNER JOIN wa_waba_teams wt ON wt.waba_id = w.id WHERE wt.tenant_id = ? AND wt.team_id = ? LIMIT 1', [$tenantId, $teamId])->row_array();
         if (!$waba) $this->error('Team belum di-assign ke WABA.', 422);
         $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
-        $res = $meta->listTemplates((string) $waba['meta_waba_id']);
-        if (!$res['success']) $this->error('Gagal sync template: ' . $res['error'], 502, $res['data']);
-        $count = 0; foreach ($res['data'] as $template) if (is_array($template) && $this->upsertTemplate($tenantId, (string) $waba['meta_waba_id'], $template)) $count++;
-        $this->success(['templates' => $count], 'Template berhasil disinkronkan.');
+        $stats = $this->syncTemplatesForWaba($tenantId, (string) $waba['meta_waba_id'], $meta);
+        if ($stats['errors'] !== []) $this->error('Gagal sync template: ' . implode('; ', $stats['errors']), 502);
+        $this->success($stats, 'Template berhasil disinkronkan.');
     }
 
     public function list()
@@ -227,7 +230,7 @@ class Wabas extends WaDeskController
         $this->success(['waba_id' => $wabaId, 'team_ids' => $teamIds], 'Team WABA disimpan');
     }
 
-    /** Discover accessible WABAs and sync all their numbers and templates. */
+    /** Sync only configured WABAs and remove local records no longer in Env. */
     public function sync()
     {
         try {
@@ -258,7 +261,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'templates' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -270,61 +273,6 @@ class Wabas extends WaDeskController
             $this->upsertWaba($tenantId, $wabaId, $name);
             $stats['wabas']++;
 
-            $phones = $meta->listPhoneNumbers($wabaId);
-            if ($phones['success']) {
-                $hasCoexistencePhone = false;
-                foreach ($phones['data'] as $phone) {
-                    if (is_array($phone) && $this->upsertPhone($tenantId, $wabaId, $phone)) {
-                        $stats['phones']++;
-                    }
-                    if (is_array($phone) && !empty($phone['is_on_biz_app'])) {
-                        $hasCoexistencePhone = true;
-                        $stats['coex_phones']++;
-                    }
-                }
-                if ($hasCoexistencePhone) {
-                    $wabaRow = $this->db($this->db_index)->query(
-                        'SELECT id, coex_subscription_status, coex_subscription_checked_at FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
-                        [$tenantId, $wabaId]
-                    )->row_array();
-                    $subscriptionStatus = (string) ($wabaRow['coex_subscription_status'] ?? '');
-                    $checkedAt = strtotime((string) ($wabaRow['coex_subscription_checked_at'] ?? ''));
-                    $recentFailure = $subscriptionStatus === 'failed'
-                        && $checkedAt !== false
-                        && $checkedAt > (time() - 3600);
-                    if ($subscriptionStatus === 'subscribed' || $recentFailure) {
-                        $stats['coex_subscriptions_skipped']++;
-                    } else {
-                        $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
-                        $subscriptionStatus = $subscription['success'] ? 'subscribed' : 'failed';
-                        if ($wabaRow) {
-                            $this->db($this->db_index)->update('wa_wabas', [
-                                'coex_subscription_status' => $subscriptionStatus,
-                                'coex_subscription_checked_at' => date('Y-m-d H:i:s'),
-                            ], ['id' => (int) $wabaRow['id']]);
-                        }
-                        if ($subscription['success']) {
-                            $stats['coex_subscriptions']++;
-                        } else {
-                            $stats['errors'][] = "WABA {$wabaId} subscribe Coex: {$subscription['error']}";
-                        }
-                    }
-                }
-            } else {
-                $stats['errors'][] = "WABA {$wabaId} nomor: {$phones['error']}";
-            }
-            $this->syncWabaTeamsToChannels($tenantId, $wabaId, $this->wabaTeamIds($tenantId, $wabaId));
-
-            $templates = $meta->listTemplates($wabaId);
-            if ($templates['success']) {
-                foreach ($templates['data'] as $template) {
-                    if (is_array($template) && $this->upsertTemplate($tenantId, $wabaId, $template)) {
-                        $stats['templates']++;
-                    }
-                }
-            } else {
-                $stats['errors'][] = "WABA {$wabaId} template: {$templates['error']}";
-            }
         }
 
         // Meta WABA yang tercantum di environment adalah source of truth.
@@ -339,6 +287,32 @@ class Wabas extends WaDeskController
         $this->success($stats, 'Sinkronisasi WABA selesai');
     }
 
+    /** Sync numbers and coexistence subscription for one selected WABA. */
+    public function syncNumbers()
+    {
+        $this->verifyAuth(); $admin = $this->requireAdmin();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        $this->requireWabaTable();
+        $wabaId = trim((string) (($this->getBody())['waba_id'] ?? ''));
+        $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
+        $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $stats = $this->syncNumbersForWaba((int) $admin['tenant_id'], $wabaId, $meta);
+        $this->success($stats, 'Nomor WABA berhasil disinkronkan.');
+    }
+
+    /** Sync templates and params for one selected WABA. */
+    public function syncTemplates()
+    {
+        $this->verifyAuth(); $admin = $this->requireAdmin();
+        if (!$this->isPost()) $this->error('Method not allowed', 405);
+        $this->requireWabaTable();
+        $wabaId = trim((string) (($this->getBody())['waba_id'] ?? ''));
+        $this->assertTenantWaba((int) $admin['tenant_id'], $wabaId);
+        $meta = new Meta(); if (!$meta->configured()) $this->error('META_WA_ACCESS_TOKEN belum diatur.', 503);
+        $stats = $this->syncTemplatesForWaba((int) $admin['tenant_id'], $wabaId, $meta);
+        $this->success($stats, 'Template WABA berhasil disinkronkan.');
+    }
+
     private function upsertWaba(int $tenantId, string $wabaId, string $name): void
     {
         $db = $this->db($this->db_index);
@@ -350,6 +324,49 @@ class Wabas extends WaDeskController
         }
         $data += ['tenant_id' => $tenantId, 'meta_waba_id' => $wabaId];
         $db->insert('wa_wabas', $data);
+    }
+
+    /** @return array{phones:int,coex_phones:int,coex_subscriptions:int,coex_subscriptions_skipped:int,errors:array} */
+    private function syncNumbersForWaba(int $tenantId, string $wabaId, Meta $meta): array
+    {
+        $stats = ['phones' => 0, 'coex_phones' => 0, 'coex_subscriptions' => 0, 'coex_subscriptions_skipped' => 0, 'errors' => []];
+        $phones = $meta->listPhoneNumbers($wabaId);
+        if (!$phones['success']) {
+            $stats['errors'][] = $phones['error'];
+            return $stats;
+        }
+        $hasCoex = false;
+        foreach ($phones['data'] as $phone) {
+            if (!is_array($phone)) continue;
+            if ($this->upsertPhone($tenantId, $wabaId, $phone)) $stats['phones']++;
+            if (!empty($phone['is_on_biz_app'])) { $hasCoex = true; $stats['coex_phones']++; }
+        }
+        $this->syncWabaTeamsToChannels($tenantId, $wabaId, $this->wabaTeamIds($tenantId, $wabaId));
+        if (!$hasCoex) return $stats;
+
+        $row = $this->db($this->db_index)->query(
+            'SELECT id, coex_subscription_status, coex_subscription_checked_at FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
+            [$tenantId, $wabaId]
+        )->row_array();
+        $status = (string) ($row['coex_subscription_status'] ?? '');
+        $checkedAt = strtotime((string) ($row['coex_subscription_checked_at'] ?? ''));
+        $recentFailure = $status === 'failed' && $checkedAt !== false && $checkedAt > time() - 3600;
+        if ($status === 'subscribed' || $recentFailure) { $stats['coex_subscriptions_skipped']++; return $stats; }
+        $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
+        $newStatus = $subscription['success'] ? 'subscribed' : 'failed';
+        if ($row) $this->db($this->db_index)->update('wa_wabas', ['coex_subscription_status' => $newStatus, 'coex_subscription_checked_at' => date('Y-m-d H:i:s')], ['id' => (int) $row['id']]);
+        if ($subscription['success']) $stats['coex_subscriptions']++; else $stats['errors'][] = 'Subscribe Coex: ' . $subscription['error'];
+        return $stats;
+    }
+
+    /** @return array{templates:int,errors:array} */
+    private function syncTemplatesForWaba(int $tenantId, string $wabaId, Meta $meta): array
+    {
+        $stats = ['templates' => 0, 'errors' => []];
+        $templates = $meta->listTemplates($wabaId);
+        if (!$templates['success']) { $stats['errors'][] = $templates['error']; return $stats; }
+        foreach ($templates['data'] as $template) if (is_array($template) && $this->upsertTemplate($tenantId, $wabaId, $template)) $stats['templates']++;
+        return $stats;
     }
 
     private function upsertPhone(int $tenantId, string $wabaId, array $phone): bool

@@ -43,7 +43,7 @@ class Meta
             return ['success' => true, 'data' => $wabas, 'error' => '', 'http_code' => 200];
         }
 
-        return $this->get('/me', ['fields' => 'whatsapp_business_accounts{id,name}']);
+        return ['success' => false, 'data' => [], 'error' => 'META_WA_WABA_IDS belum diatur.', 'http_code' => 0];
     }
 
     /** @return array{success:bool,data:array,error:string,http_code:int} */
