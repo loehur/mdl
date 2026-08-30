@@ -54,6 +54,12 @@ class Meta
         ]);
     }
 
+    /** Ensure this Meta app is subscribed to the selected Cloud API WABA. */
+    public function subscribeCurrentAppToWaba(string $wabaId): array
+    {
+        return $this->post('/' . rawurlencode($wabaId) . '/subscribed_apps', []);
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int} */
     public function listTemplates(string $wabaId): array
     {

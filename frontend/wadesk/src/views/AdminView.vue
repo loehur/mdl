@@ -411,7 +411,6 @@
                 <span v-if="number.meta_verification_status" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300">{{ number.meta_verification_status }}</span>
                 <span v-if="number.meta_display_name_status" class="px-2 py-1 rounded bg-violet-500/10 text-violet-300">Display: {{ number.meta_display_name_status }}</span>
                 <span v-if="number.meta_quality_rating" class="px-2 py-1 rounded" :class="qualityBadgeClass(number.meta_quality_rating)">Quality: {{ number.meta_quality_rating }}</span>
-                <span v-if="Number(number.is_coexistence) === 1" class="px-2 py-1 rounded bg-violet-500/10 text-violet-300">Coex</span>
                 <button v-if="String(number.status || '').toLowerCase() !== 'active'" type="button" class="px-2 py-1 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20" @click="continueNumberRegistration(number)">{{ String(number.meta_verification_status || '').toUpperCase().startsWith('VERIFIED') ? 'Register Number' : 'Request OTP' }}</button>
               </div>
             </div>
@@ -3281,11 +3280,16 @@ async function syncWabas() {
     const res = await api("/WaDesk/Wabas/sync", { method: "POST", body: {} });
     const d = res.data || {};
     const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join("; ")}` : "";
+    const subscriptions = Number(d.subscriptions || 0);
+    const subscriptionsSkipped = Number(d.subscriptions_skipped || 0);
+    const subscriptionText = subscriptions
+      ? `, ${subscriptions} subscription aplikasi baru aktif`
+      : (subscriptionsSkipped ? `, ${subscriptionsSkipped} subscription sudah aktif` : "");
     const removed = Number(d.templates_removed || 0);
     const removedText = removed ? `, ${removed} template lama dihapus` : "";
     const channelsRemoved = Number(d.channels_removed || 0);
     const channelsRemovedText = channelsRemoved ? `, ${channelsRemoved} channel lama dihapus` : "";
-    flash(true, `Sync WABA: ${d.wabas || 0} WABA${removedText}${channelsRemovedText}${suffix}`);
+    flash(true, `Sync WABA: ${d.wabas || 0} WABA${subscriptionText}${removedText}${channelsRemovedText}${suffix}`);
     await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true), loadNumbers()]);
   } catch (e) {
     flash(false, e.message || "Gagal sinkron WABA");

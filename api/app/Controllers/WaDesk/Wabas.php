@@ -279,7 +279,7 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
+        $stats = ['wabas' => 0, 'subscriptions' => 0, 'subscriptions_skipped' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -290,7 +290,21 @@ class Wabas extends WaDeskController
             $name = trim((string) ($waba['name'] ?? $wabaId));
             $this->upsertWaba($tenantId, $wabaId, $name);
             $stats['wabas']++;
-
+            if ($this->isAppSubscribedToWaba($tenantId, $wabaId)) {
+                $stats['subscriptions_skipped']++;
+                continue;
+            }
+            // Persist success locally. A failed subscription remains unmarked
+            // and will be retried by the next WABA sync.
+            $subscription = $meta->subscribeCurrentAppToWaba($wabaId);
+            if ($subscription['success']) {
+                $stats['subscriptions']++;
+                $this->markAppSubscribedToWaba($tenantId, $wabaId);
+                \Log::write("WABA subscription OK: tenant={$tenantId} waba={$wabaId}", 'wadesk', 'waba_sync');
+            } else {
+                $stats['errors'][] = "Subscription WABA {$wabaId} gagal: {$subscription['error']}";
+                \Log::write("WABA subscription FAILED: tenant={$tenantId} waba={$wabaId} http={$subscription['http_code']} err={$subscription['error']}", 'wadesk', 'waba_sync');
+            }
         }
 
         // Meta WABA yang tercantum di environment adalah source of truth.
@@ -344,6 +358,23 @@ class Wabas extends WaDeskController
         $db->insert('wa_wabas', $data);
     }
 
+    private function isAppSubscribedToWaba(int $tenantId, string $wabaId): bool
+    {
+        $row = $this->db($this->db_index)->query(
+            'SELECT meta_app_subscribed_at FROM wa_wabas WHERE tenant_id = ? AND meta_waba_id = ? LIMIT 1',
+            [$tenantId, $wabaId]
+        )->row_array();
+        return trim((string) ($row['meta_app_subscribed_at'] ?? '')) !== '';
+    }
+
+    private function markAppSubscribedToWaba(int $tenantId, string $wabaId): void
+    {
+        $this->db($this->db_index)->update('wa_wabas', ['meta_app_subscribed_at' => date('Y-m-d H:i:s')], [
+            'tenant_id' => $tenantId,
+            'meta_waba_id' => $wabaId,
+        ]);
+    }
+
     /** @return array{phones:int,phones_removed:int,errors:array} */
     private function syncNumbersForWaba(int $tenantId, string $wabaId, Meta $meta): array
     {
@@ -371,7 +402,6 @@ class Wabas extends WaDeskController
                 'otp_status' => (string) ($phone['code_verification_status'] ?? ''),
                 'display_name_status' => (string) ($phone['name_status'] ?? $phone['new_name_status'] ?? ''),
                 'quality' => (string) ($phone['quality_rating'] ?? ''),
-                'is_coexistence' => !empty($phone['is_on_biz_app']),
             ];
             \Log::write('Number sync PHONE: tenant=' . $tenantId . ' waba=' . $wabaId . ' data=' . json_encode($phoneLog, JSON_UNESCAPED_SLASHES), 'wadesk', 'number-sync');
         }
@@ -490,7 +520,6 @@ class Wabas extends WaDeskController
             'meta_display_name_status' => $nameStatus,
             'meta_quality_rating' => strtoupper(trim((string) ($phone['quality_rating'] ?? ''))),
             'meta_platform_type' => strtoupper(trim((string) ($phone['platform_type'] ?? ''))),
-            'is_coexistence' => !empty($phone['is_on_biz_app']) ? 1 : 0,
             'channel_type' => 'waba',
             'provider' => 'meta',
             'status' => $channelStatus,

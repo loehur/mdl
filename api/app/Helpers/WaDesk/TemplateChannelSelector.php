@@ -18,7 +18,6 @@ class TemplateChannelSelector
                AND k.provider = 'meta' AND k.status = 'active'
                AND k.template_sending_enabled = 1
                AND UPPER(COALESCE(k.meta_provider_status, '')) = 'CONNECTED'
-               AND COALESCE(k.is_coexistence, 0) = 0
                AND COALESCE(k.meta_phone_number_id, k.device_id, '') <> ''
                AND UPPER(COALESCE(k.meta_quality_rating, '')) IN ('GREEN', 'YELLOW')
                AND EXISTS (SELECT 1 FROM wa_channel_teams ct WHERE ct.channel_id = k.id AND ct.team_id = ?)
