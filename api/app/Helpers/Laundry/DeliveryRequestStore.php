@@ -98,11 +98,17 @@ class DeliveryRequestStore
 
         $eligibleIds = [];
         if ($jenis === 'antar') {
+            // Request tidak wajib punya item — ambil yang eligible kalau ada.
             $eligibleIds = self::eligibleSaleIds($idPelanggan);
-            if ($eligibleIds === []) {
+        }
+
+        // Tolak jika sudah ada request antar aktif (berjalan / menunggu pembayaran).
+        if ($jenis === 'antar') {
+            $existingId = self::findActiveAntar($idPelanggan);
+            if ($existingId > 0) {
                 return [
                     'ok' => false,
-                    'message' => 'Belum ada item laundry yang bisa diantar saat ini.',
+                    'message' => 'Sudah ada request antar berjalan. Selesaikan atau batalkan dulu.',
                 ];
             }
         }
@@ -110,59 +116,34 @@ class DeliveryRequestStore
         $calc = AntarTarifHelper::tarifFromCoordsForPelanggan($cabLat, $cabLon, $locLat, $locLon, $idPelanggan);
         $tarif = (int) ($calc['tarif'] ?? 0);
         $now = date('Y-m-d H:i:s');
-        $existingId = $jenis === 'antar' ? self::findPendingAntar($idPelanggan) : 0;
 
         try {
-            if ($existingId > 0) {
-                $set = [
-                    'jenis' => $jenis,
-                    'sekalian_jemput' => $sekalianJemput,
-                    'id_cabang' => $idCabang,
-                    'id_lokasi' => $idLokasi,
-                    'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
-                    'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
-                    'lokasi_latt' => $locLat,
-                    'lokasi_longt' => $locLon,
-                    'tarif_surcas' => $tarif,
-                    'delivery_status' => 'berjalan',
-                ];
-                if ($catatanKurir !== '') {
-                    $set['catatan_kurir'] = $catatanKurir;
-                }
-                $ok = $db->update('delivery_request', $set, ['id_request' => $existingId]);
-                if ($ok === false) {
-                    return ['ok' => false, 'message' => 'Gagal memperbarui permintaan'];
-                }
-                $idRequest = $existingId;
-                self::ensureRequestItems($db, $idRequest, $eligibleIds);
-            } else {
-                $insData = [
-                    'sumber' => 'customer',
-                    'jenis' => $jenis,
-                    'sekalian_jemput' => $sekalianJemput,
-                    'layanan' => 'sameday',
-                    'delivery_status' => 'berjalan',
-                    'id_pelanggan' => $idPelanggan,
-                    'phone_tail' => $phoneTail,
-                    'id_cabang' => $idCabang,
-                    'id_lokasi' => $idLokasi,
-                    'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
-                    'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
-                    'lokasi_latt' => $locLat,
-                    'lokasi_longt' => $locLon,
-                    'insertTime' => $now,
-                    'tarif_surcas' => $tarif,
-                ];
-                if ($catatanKurir !== '') {
-                    $insData['catatan_kurir'] = $catatanKurir;
-                }
-                $idRequest = $db->insert('delivery_request', $insData);
-                $idRequest = $idRequest ? (int) $idRequest : 0;
-                if ($idRequest <= 0) {
-                    return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
-                }
-                self::ensureRequestItems($db, $idRequest, $eligibleIds);
+            $insData = [
+                'sumber' => 'customer',
+                'jenis' => $jenis,
+                'sekalian_jemput' => $sekalianJemput,
+                'layanan' => 'sameday',
+                'delivery_status' => 'berjalan',
+                'id_pelanggan' => $idPelanggan,
+                'phone_tail' => $phoneTail,
+                'id_cabang' => $idCabang,
+                'id_lokasi' => $idLokasi,
+                'lokasi_nama' => (string) ($lokasi['nama'] ?? ''),
+                'lokasi_detail' => (string) ($lokasi['detail'] ?? ''),
+                'lokasi_latt' => $locLat,
+                'lokasi_longt' => $locLon,
+                'insertTime' => $now,
+                'tarif_surcas' => $tarif,
+            ];
+            if ($catatanKurir !== '') {
+                $insData['catatan_kurir'] = $catatanKurir;
             }
+            $idRequest = $db->insert('delivery_request', $insData);
+            $idRequest = $idRequest ? (int) $idRequest : 0;
+            if ($idRequest <= 0) {
+                return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
+            }
+            self::ensureRequestItems($db, $idRequest, $eligibleIds);
 
             if ($jenis === 'antar' && $tarif > 0 && $eligibleIds !== []) {
                 self::tryAttachSurcasPengantaran($db, $idPelanggan, $idCabang, $eligibleIds, $tarif, $idRequest);
@@ -175,7 +156,7 @@ class DeliveryRequestStore
                 $sekalianJemput,
                 $catatanKurir,
                 (string) ($lokasi['detail'] ?? ''),
-                $existingId > 0
+                false
             );
 
             $label = $sekalianJemput ? 'Antar & Jemput' : ($jenis === 'antar' ? 'Antar' : 'Jemput');
@@ -428,13 +409,13 @@ class DeliveryRequestStore
         return WaSenderContext::key($waNumber);
     }
 
-    private static function findPendingAntar(int $idPelanggan): int
+    private static function findActiveAntar(int $idPelanggan): int
     {
         $row = PelangganLokasiStore::laundryDb()->query(
             "SELECT id_request FROM delivery_request
              WHERE id_pelanggan = ?
                AND jenis = 'antar'
-               AND delivery_status = 'pending'
+               AND delivery_status IN ('berjalan','menunggu_pembayaran')
                AND layanan = 'sameday'
              ORDER BY id_request DESC
              LIMIT 1",

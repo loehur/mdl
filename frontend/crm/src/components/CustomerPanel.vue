@@ -36,6 +36,7 @@ const deliveryJenis = ref("");
 const deliveryLokasiId = ref(0);
 const deliveryCatatan = ref("");
 const deliveryFormMsg = ref("");
+const deliveryBlocked = ref([]);
 const deliveryResultMsg = ref("");
 const deliveryResultOk = ref(false);
 const submittingDelivery = ref(false);
