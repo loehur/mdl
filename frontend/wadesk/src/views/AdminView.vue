@@ -376,7 +376,7 @@
           </template>
           <template v-else>
             <p class="text-xs text-slate-400">Phone Number ID: <span class="font-mono text-accent">{{ numberFlow.phone_number_id }}</span></p>
-            <p v-if="numberFlow.error" class="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+            <p v-if="numberFlow.error" class="rounded-xl border-2 border-rose-500 bg-rose-100 px-3 py-2 text-sm font-semibold !text-rose-950">
               {{ numberFlow.error }}<span v-if="numberFlow.otpLocked > 0"> Sisa waktu tunggu: {{ otpTimeLabel(numberFlow.otpLocked) }}.</span>
             </p>
             <template v-if="numberFlow.step === 'request'"><select v-model="numberForm.method" class="field"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select><button type="button" class="btn" :disabled="numberFlow.loading || numberFlow.otpCooldown > 0" @click="requestOtp">{{ numberFlow.loading ? 'Meminta OTP...' : numberRequestLabel }}</button></template>
