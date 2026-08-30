@@ -365,6 +365,7 @@
             {{ syncingNumbers ? 'Sinkron...' : 'Sync Number' }}
           </button>
         </div>
+        <Teleport to="body">
         <div v-if="addingNumber" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm" @click.self="addingNumber = false">
           <div class="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-white/10 bg-ink-900 p-4 space-y-3 shadow-2xl">
           <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="addingNumber = false">Tutup</button></div>
@@ -382,10 +383,16 @@
           </template>
           </div>
         </div>
+        </Teleport>
         <p v-if="!numberWabaFilter" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
           Sync WABA terlebih dahulu.
         </p>
-        <div v-else class="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+        <div v-else class="grid grid-cols-3 gap-2">
+          <div class="rounded-xl border border-white/10 bg-ink-950/40 px-3 py-2"><p class="text-[11px] text-slate-500">Total</p><p class="text-lg font-semibold">{{ numberStats.total }}</p></div>
+          <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2"><p class="text-[11px] text-emerald-300">Active</p><p class="text-lg font-semibold text-emerald-200">{{ numberStats.active }}</p></div>
+          <div class="rounded-xl border border-slate-500/20 bg-slate-500/5 px-3 py-2"><p class="text-[11px] text-slate-400">Inactive</p><p class="text-lg font-semibold text-slate-200">{{ numberStats.inactive }}</p></div>
+        </div>
+        <div v-if="numberWabaFilter" class="h-[34rem] max-h-[60vh] overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/5">
           <p v-if="loadingNumbers" class="py-10 text-center text-sm text-slate-500">Memuat nomor...</p>
           <p v-else-if="!numbers.length" class="py-10 text-center text-sm text-slate-500">Belum ada nomor pada WABA ini.</p>
           <div v-for="number in numbers" :key="number.id" class="px-4 py-3">
@@ -1516,6 +1523,11 @@ let quotaSearchTimer = null;
 const availableDevices = ref([]);
 const wabas = ref([]);
 const numbers = ref([]);
+const numberStats = computed(() => {
+  const total = numbers.value.length;
+  const active = numbers.value.filter((number) => String(number.status || "").toLowerCase() === "active").length;
+  return { total, active, inactive: total - active };
+});
 const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
 const addingNumber = ref(false);
