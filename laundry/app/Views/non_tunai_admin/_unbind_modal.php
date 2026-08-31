@@ -49,10 +49,6 @@ $unbindUrl = (string) ($data['unbindUrl'] ?? '');
     font-weight: 700;
     white-space: nowrap;
   }
-  #nta-root table.nta-table th:nth-child(6),
-  #nta-root table.nta-table td:nth-child(6) {
-    text-align: center;
-  }
 </style>
 
 <script>

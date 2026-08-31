@@ -38,12 +38,13 @@ $this->view('non_tunai_admin/_filter', [
         <table class="table table-sm table-bordered table-hover nta-table mb-0">
           <thead>
             <tr>
-              <th>ID Link</th>
+              <th class="text-end">ID Link</th>
               <th>Tanggal</th>
-              <th>DB / CR</th>
-              <th>Nominal</th>
-              <th>Payer</th>
-              <th>Aksi</th>
+              <th class="text-center">DB / CR</th>
+              <th class="text-end">Nominal</th>
+              <th class="text-end">Bill</th>
+              <th class="text-start">Payer</th>
+              <th class="text-center">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -122,17 +123,15 @@ $this->view('non_tunai_admin/_filter', [
               }
             ?>
             <tr>
-              <td><?php $this->view('non_tunai_admin/_link_id_cell', [
+              <td class="text-end"><?php $this->view('non_tunai_admin/_link_id_cell', [
                   'linkId' => (int) ($row['link_id'] ?? 0),
                   'detailJson' => $detailJson,
               ]); ?></td>
               <td><?= htmlspecialchars($tanggalLabel) ?></td>
-              <td><?php $this->view('non_tunai_admin/_db_cr_cell', ['dbCr' => $dbCr]); ?></td>
-              <td><?php $this->view('non_tunai_admin/_nominal_bind_cell', [
-                  'nominal' => $nominal,
-                  'billNominal' => $billNominal,
-              ]); ?></td>
-              <td><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
+              <td class="text-center"><?php $this->view('non_tunai_admin/_db_cr_cell', ['dbCr' => $dbCr]); ?></td>
+              <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
+              <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($billNominal) ?></span></td>
+              <td class="text-start"><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
               <td class="text-center">
                 <button type="button"
                   class="btn btn-outline-danger btn-sm nta-unbind-btn"

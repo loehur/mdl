@@ -66,20 +66,6 @@ $fmtRp = static function ($value): string {
       border-color: var(--nta-line);
       vertical-align: middle;
     }
-    #nta-root table.nta-table th:nth-child(1),
-    #nta-root table.nta-table td:nth-child(1),
-    #nta-root table.nta-table th:nth-child(4),
-    #nta-root table.nta-table td:nth-child(4) {
-      text-align: right;
-    }
-    #nta-root table.nta-table td:nth-child(4) .nta-nominal-pair {
-      justify-content: flex-end;
-      width: 100%;
-    }
-    #nta-root table.nta-table th:nth-child(3),
-    #nta-root table.nta-table td:nth-child(3) {
-      text-align: center;
-    }
     #nta-root .nta-empty {
       text-align: center;
       padding: 36px 16px;
@@ -151,17 +137,6 @@ $fmtRp = static function ($value): string {
     }
     #nta-root .nta-plg-link:hover {
       text-decoration: underline;
-    }
-    #nta-root .nta-nominal-pair {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    #nta-root .nta-nominal-pair__bind {
-      color: var(--nta-muted);
-      font-size: 0.72rem;
     }
     #nta-root .nta-detail-btn {
       font-size: 0.78rem;
