@@ -564,7 +564,10 @@ trait WARepliesLokasiTrait
         string $msg,
         int $idPelanggan
     ): bool {
-        $inferred = $this->lokasiInferNamaDetailFromReply($msg);
+        // Jangan simpan bubble terakhir secara mentah. Customer sering menjawab
+        // "gang ini ya kak" atau "yang situ"; maknanya hanya bisa dinilai dari
+        // konteks chat, dan bukan petunjuk alamat yang layak disimpan.
+        $inferred = $this->lokasiInferNamaDetailFromChat($waNumber, $msg);
         $nama = $inferred['nama'];
         $detail = $inferred['detail'];
 
@@ -610,6 +613,90 @@ trait WARepliesLokasiTrait
             );
         }
         return true;
+    }
+
+    /**
+     * Ambil nama tempat dan petunjuk lokasi yang benar-benar berguna dari
+     * percakapan terbaru. AI boleh memakai konteks, tetapi tidak boleh menebak.
+     *
+     * @return array{nama:string,detail:?string}
+     */
+    private function lokasiInferNamaDetailFromChat(string $waNumber, string $msg): array
+    {
+        $fallback = $this->lokasiInferNamaDetailFromReply($msg);
+        $chat = $this->kurirFetchRecentChatTurns($waNumber, 10);
+        $lines = [];
+        foreach ($chat as $turn) {
+            $at = strtotime((string) ($turn['at'] ?? ''));
+            // Session lokasi sendiri hanya hidup satu jam; jangan campurkan
+            // petunjuk alamat dari percakapan lama ke alamat yang baru.
+            if ($at !== false && $at < (time() - 90 * 60)) {
+                continue;
+            }
+            $body = trim((string) ($turn['body'] ?? ''));
+            if ($body === '') {
+                continue;
+            }
+            $role = ($turn['dir'] ?? '') === 'out' ? 'BOT' : 'CUSTOMER';
+            $lines[] = $role . ': ' . mb_substr($body, 0, 220);
+        }
+        $lines[] = 'CUSTOMER_TERBARU: ' . mb_substr(trim($msg), 0, 300);
+
+        try {
+            $system = "Kamu mengekstrak detail lokasi pelanggan dari chat WhatsApp laundry. "
+                . "Jawab HANYA JSON valid dengan bentuk {\"nama\":string,\"detail\":string}.\n"
+                . "detail hanya boleh memuat informasi yang nyata dan dapat dipakai kurir: nama jalan/gang, nomor, blok, RT/RW, nama kos/gedung/toko, patokan, warna/ciri fisik, atau posisi relatif terhadap patokan bernama.\n"
+                . "Gabungkan konteks semua chat bila pelanggan menambahkan detail sedikit demi sedikit. Hapus sapaan dan filler seperti kak, ya, dong, ini, itu, di sini, di situ, sana.\n"
+                . "JANGAN mengarang. Bila tidak ada detail spesifik yang dapat berdiri sendiri, isi detail dengan string kosong. "
+                . "Contoh: 'gang ini ya kak' tanpa nama gang => detail kosong. 'gang mawar, rumah pagar kuning' => detail 'Gang Mawar, rumah pagar kuning'. "
+                . "nama adalah jenis tempat paling tepat (Rumah, Kos, Toko, Kantor, Mess, Asrama, Penginapan); gunakan Rumah bila jenisnya tidak disebut.";
+            $user = "CHAT TERBARU (lama ke baru):\n" . implode("\n", $lines);
+            $raw = $this->executeOpenAIRequestWithMessages([
+                ['role' => 'system', 'content' => $system],
+                ['role' => 'user', 'content' => $user],
+            ], 120, $waNumber);
+            $json = trim((string) $raw);
+            $json = preg_replace('/^```(?:json)?\s*|\s*```$/iu', '', $json) ?? $json;
+            $parsed = json_decode($json, true);
+            if (is_array($parsed)) {
+                $nama = trim((string) ($parsed['nama'] ?? '')) ?: (string) ($fallback['nama'] ?? 'Rumah');
+                $detail = $this->lokasiNormalizeExtractedDetail((string) ($parsed['detail'] ?? ''));
+                return ['nama' => mb_substr($nama, 0, 80), 'detail' => $detail];
+            }
+        } catch (\Throwable $e) {
+            $this->logAutoreplyTrace($waNumber, 'LOKASI', 'ai_detail_fail: ' . mb_substr($e->getMessage(), 0, 120));
+        }
+
+        return [
+            'nama' => (string) ($fallback['nama'] ?? 'Rumah'),
+            'detail' => $this->lokasiNormalizeExtractedDetail((string) ($fallback['detail'] ?? '')),
+        ];
+    }
+
+    /**
+     * Validasi akhir agar kata tunjuk/filler tidak menjadi alamat pelanggan.
+     */
+    private function lokasiNormalizeExtractedDetail(string $detail): ?string
+    {
+        $detail = trim(preg_replace('/\s+/u', ' ', $detail) ?? $detail);
+        $detail = trim($detail, " \t\n\r\0\x0B,.;:-\"'");
+        $detail = preg_replace('/^(?:iya|ya|yg|yang|itu|ini|di\s+sini|disini|di\s+situ|disitu|di\s+sana|disana)[,\s-]*/iu', '', $detail) ?? $detail;
+        $detail = preg_replace('/[,\s-]*(?:ya|yah|kak|kk|gan|bang|pak|bu|dong|deh|aja|nih|nya)\.?$/iu', '', $detail) ?? $detail;
+        $detail = trim($detail, " \t\n\r\0\x0B,.;:-");
+        if ($detail === '' || mb_strlen($detail) < 3) {
+            return null;
+        }
+
+        // Kalimat deiktik tanpa nama/ciri tidak punya nilai operasional.
+        $bareDeictic = '/^(?:di\s+)?(?:sini|situ|sana|ini|itu|yang\s+ini|yang\s+itu|gang\s+(?:ini|itu)|jalan\s+(?:ini|itu)|rumah\s+(?:ini|itu))$/iu';
+        if (preg_match($bareDeictic, $detail)) {
+            return null;
+        }
+        if (!preg_match('/[\p{L}\d]/u', $detail)) {
+            return null;
+        }
+
+        return mb_substr($detail, 0, 255);
     }
 
     /**
