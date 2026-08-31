@@ -279,7 +279,9 @@ class Wabas extends WaDeskController
         }
 
         $tenantId = (int) $admin['tenant_id'];
-        $stats = ['wabas' => 0, 'subscriptions' => 0, 'subscriptions_skipped' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
+        $body = $this->isPost() ? $this->getBody() : [];
+        $forceResubscribe = !empty($body['force_resubscribe']);
+        $stats = ['wabas' => 0, 'subscriptions' => 0, 'subscriptions_skipped' => 0, 'subscriptions_reset' => 0, 'templates_removed' => 0, 'channels_removed' => 0, 'wabas_removed' => 0, 'errors' => []];
         $activeWabaIds = [];
         foreach ($fetched['data'] as $waba) {
             $wabaId = trim((string) ($waba['id'] ?? ''));
@@ -290,7 +292,7 @@ class Wabas extends WaDeskController
             $name = trim((string) ($waba['name'] ?? $wabaId));
             $this->upsertWaba($tenantId, $wabaId, $name);
             $stats['wabas']++;
-            if ($this->isAppSubscribedToWaba($tenantId, $wabaId)) {
+            if (!$forceResubscribe && $this->isAppSubscribedToWaba($tenantId, $wabaId)) {
                 $stats['subscriptions_skipped']++;
                 continue;
             }
@@ -300,7 +302,7 @@ class Wabas extends WaDeskController
             if ($subscription['success']) {
                 $stats['subscriptions']++;
                 $this->markAppSubscribedToWaba($tenantId, $wabaId);
-                \Log::write("WABA subscription OK: tenant={$tenantId} waba={$wabaId}", 'wadesk', 'waba_sync');
+                \Log::write("WABA subscription OK: tenant={$tenantId} waba={$wabaId}" . ($forceResubscribe ? ' (forced reset)' : ''), 'wadesk', 'waba_sync');
             } else {
                 $stats['errors'][] = "Subscription WABA {$wabaId} gagal: {$subscription['error']}";
                 \Log::write("WABA subscription FAILED: tenant={$tenantId} waba={$wabaId} http={$subscription['http_code']} err={$subscription['error']}", 'wadesk', 'waba_sync');

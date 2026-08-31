@@ -425,9 +425,14 @@
             <h2 class="font-display font-semibold text-lg">WABA</h2>
             <p class="text-xs text-slate-500 mt-1">Daftar koneksi WhatsApp Business Account Meta.</p>
           </div>
-          <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
-            {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
-          </button>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
+              {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
+            </button>
+            <button type="button" class="detail-button shrink-0" :disabled="syncingWabas || resubscribing" @click="resetSubscription">
+              {{ resubscribing ? 'Reset...' : 'Reset sub' }}
+            </button>
+          </div>
         </div>
         <p v-if="!wabas.length" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
           Belum ada WABA. Klik Sync WABA untuk mengambil data dari Meta.
@@ -1542,6 +1547,7 @@ const editingWabaTeamId = ref(null);
 const wabaTeamDraft = ref([]);
 const savingWabaTeamId = ref(null);
 const syncingWabas = ref(false);
+const resubscribing = ref(false);
 const syncingNumbers = ref(false);
 const syncingTemplates = ref(false);
 const deviceQuery = ref("");
@@ -3295,6 +3301,23 @@ async function syncWabas() {
     flash(false, e.message || "Gagal sinkron WABA");
   } finally {
     syncingWabas.value = false;
+  }
+}
+
+/** Force re-subscribe the Meta app to the WABA even if already marked subscribed. */
+async function resetSubscription() {
+  if (resubscribing.value || syncingWabas.value) return;
+  resubscribing.value = true;
+  try {
+    const res = await api("/WaDesk/Wabas/sync", { method: "POST", body: { force_resubscribe: true } });
+    const d = res.data || {};
+    const suffix = Array.isArray(d.errors) && d.errors.length ? ` · ${d.errors.join("; ")}` : "";
+    flash(true, `Reset sub WABA: ${d.subscriptions || 0} subscription diaktifkan ulang${suffix}`);
+    await Promise.all([loadWabas(), loadChannelBrowse(true), loadTemplateBrowse(true), loadNumbers()]);
+  } catch (e) {
+    flash(false, e.message || "Gagal reset subscription WABA");
+  } finally {
+    resubscribing.value = false;
   }
 }
 
