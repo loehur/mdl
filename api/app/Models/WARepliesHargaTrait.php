@@ -194,7 +194,7 @@ trait WARepliesHargaTrait
         }
 
         // item keyword (reuse token extraction logic)
-        $specialItemPattern = '/\b(gorden|gor?d?en|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
+        $specialItemPattern = '/\b(gorden|gordyn|gorder|gor?d?en|tenda|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
         if (preg_match($specialItemPattern, $t, $m)) {
             $params['item'] = mb_strtolower($m[1], 'UTF-8');
         }
@@ -403,7 +403,7 @@ trait WARepliesHargaTrait
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nSAPAAN: Mulai jawaban dengan sapa \"{$sapaan}\" (natural, tidak kaku).\n\nFILTER AKTIF:\n- Layanan: {$serviceLabel}\n- Durasi: {$durasiLabel}\n- {$deliveryNote}\n\nPENTING - URUTAN: Data SUDAH diurutkan by sort. JANGAN ubah urutan, JANGAN sort ulang by harga.\n- Pertanyaan spesifik → jawab fokus.\n- Pertanyaan umum → tampilkan 3 baris pertama sesuai urutan data.\n\nFORMAT WA: *bold*, _italic_, emoji secukupnya, line break antar item.\nWAKTU: tampilkan persis seperti di data.\nTutup ramah, ajak tanya lagi.",
+                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nSAPAAN: Mulai jawaban dengan sapa \"{$sapaan}\" (natural, tidak kaku).\n\nFILTER AKTIF:\n- Layanan: {$serviceLabel}\n- Durasi: {$durasiLabel}\n- {$deliveryNote}\n\nATURAN KATEGORI: Untuk layanan kiloan, *tenda*, *bedcover*, dan *selimut* termasuk kategori *Kain Tebal/Panjang*, bukan Pakaian Harian. Gorden adalah pengecualian dan ikuti kategori gorden pada data. Pakaian Harian hanya untuk pertanyaan kiloan yang tidak menyebut kategori kain/item khusus.\n\nPENTING - URUTAN: Data SUDAH diurutkan by sort. JANGAN ubah urutan, JANGAN sort ulang by harga.\n- Pertanyaan spesifik → jawab fokus.\n- Pertanyaan umum → tampilkan 3 baris pertama sesuai urutan data.\n\nFORMAT WA: *bold*, _italic_, emoji secukupnya, line break antar item.\nWAKTU: tampilkan persis seperti di data.\nTutup ramah, ajak tanya lagi.",
                 ],
                 [
                     'role' => 'user',
@@ -632,8 +632,13 @@ trait WARepliesHargaTrait
         }
         $keywords = array_values(array_unique($keywords));
 
-        $specialItemPattern = '/\b(gorden|gor?d?en|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
-        $mentionsSpecialItem = (bool) preg_match($specialItemPattern, $questionLower);
+        $classificationText = trim($questionLower . ' ' . mb_strtolower((string) $itemKeyword, 'UTF-8'));
+        $specialItemPattern = '/\b(gorden|gordyn|gorder|gor?d?en|tenda|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
+        $mentionsSpecialItem = (bool) preg_match($specialItemPattern, $classificationText);
+        // Tenda, bedcover, dan selimut selalu memakai tarif Kain Tebal/Panjang.
+        // Gorden sengaja dikecualikan karena punya kategori/tarifnya sendiri.
+        $mentionsKainTebal = !preg_match('/\b(gorden|gordyn|gorder|gor?d?en)\b/iu', $classificationText)
+            && (bool) preg_match('/\b(tenda|bed\s*cover|bedcover|selimut)\b/iu', $classificationText);
 
         $enrichedRows = [];
         foreach ($rows as $r) {
@@ -712,7 +717,16 @@ trait WARepliesHargaTrait
         }
 
         $defaultRows = $enrichedRows;
-        if (!$mentionsSpecialItem && ($itemKeyword === null || $itemKeyword === '')) {
+        if ($mentionsKainTebal) {
+            $kainTebalRows = array_values(array_filter($enrichedRows, function ($row) {
+                $kategori = mb_strtolower((string) ($row['kategori'] ?? ''), 'UTF-8');
+                return mb_strpos($kategori, 'kain') !== false
+                    && (mb_strpos($kategori, 'tebal') !== false || mb_strpos($kategori, 'panjang') !== false);
+            }));
+            if (!empty($kainTebalRows)) {
+                $defaultRows = $kainTebalRows;
+            }
+        } elseif (!$mentionsSpecialItem && ($itemKeyword === null || $itemKeyword === '')) {
             $pakaianHarianRows = array_values(array_filter($enrichedRows, function ($row) {
                 $kategori = mb_strtolower((string) ($row['kategori'] ?? ''), 'UTF-8');
                 return mb_strpos($kategori, 'pakaian') !== false && mb_strpos($kategori, 'harian') !== false;
