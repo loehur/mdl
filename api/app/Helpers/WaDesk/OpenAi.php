@@ -41,8 +41,14 @@ class OpenAi
                 ['role' => 'user', 'content' => $userPrompt],
             ],
             'response_format' => ['type' => 'json_object'],
-            'temperature' => $temperature,
         ];
+
+        // GPT-5 family (termasuk gpt-5-luna) hanya menerima temperature
+        // default. Mengirim nilai eksplisit seperti 0.35 membuat request
+        // ditolak oleh API, jadi biarkan OpenAI memakai default-nya.
+        if (!preg_match('/^gpt-5(?:[.-]|$)/i', $model)) {
+            $payload['temperature'] = $temperature;
+        }
 
         $ch = curl_init($this->baseUrl . '/chat/completions');
         curl_setopt_array($ch, [

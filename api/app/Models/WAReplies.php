@@ -8078,15 +8078,20 @@ class WAReplies
 
         $lastError = null;
         foreach ($providers as $i => $p) {
+            $modelName = $p['id'] === 'openai' && is_string($model) && $model !== ''
+                ? $model
+                : $p['model'];
             $data = [
-                'model' => $p['id'] === 'openai' && is_string($model) && $model !== ''
-                    ? $model
-                    : $p['model'],
+                'model' => $modelName,
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
                 ],
-                'temperature' => $temperature,
             ];
+            // GPT-5 only accepts its default temperature. Omitting it keeps
+            // autoreply compatible with models such as gpt-5-luna.
+            if ($p['id'] !== 'openai' || !preg_match('/^gpt-5(?:[.-]|$)/i', $modelName)) {
+                $data['temperature'] = $temperature;
+            }
             $maxTokens = (int) \App\Config\AI::getMaxTokens();
             if ($maxTokens < 80) {
                 $maxTokens = 180;
@@ -8164,12 +8169,18 @@ class WAReplies
 
         $lastError = null;
         foreach ($providers as $i => $p) {
+            $isGpt5 = $p['id'] === 'openai' && preg_match('/^gpt-5(?:[.-]|$)/i', (string) $p['model']);
             $data = [
                 'model' => $p['model'],
                 'messages' => $messages,
-                'temperature' => $temperature,
-                'max_tokens' => $maxTokens,
             ];
+            if (!$isGpt5) {
+                $data['temperature'] = $temperature;
+                $data['max_tokens'] = $maxTokens;
+            } else {
+                // GPT-5 Chat Completions uses max_completion_tokens.
+                $data['max_completion_tokens'] = $maxTokens;
+            }
             try {
                 return $this->executeOpenAiCompatibleChat(
                     $p['url'],
