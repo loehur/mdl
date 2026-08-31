@@ -37,6 +37,22 @@ class Wabas extends WaDeskController
         if (str_starts_with($normalizedPhone, '628')) $normalizedPhone = substr($normalizedPhone, 2);
         elseif (str_starts_with($normalizedPhone, '08')) $normalizedPhone = substr($normalizedPhone, 1);
         if (!preg_match('/^8\d{7,14}$/', $normalizedPhone)) $this->error('Nomor harus diawali 8 dan berisi 8–15 digit.', 422);
+
+        // Batas 20 nomor per WABA.
+        $MAX_WABA_NUMBERS = 20;
+        $countRow = $this->db($this->db_index)->query(
+            "SELECT COUNT(*) AS c FROM wa_channels WHERE tenant_id = ? AND waba_id = ? AND provider = 'meta'",
+            [(int) $admin['tenant_id'], $wabaId]
+        )->row_array();
+        $currentCount = (int) ($countRow['c'] ?? 0);
+        if ($currentCount >= $MAX_WABA_NUMBERS) {
+            $this->error(
+                'Batas 20 nomor per WABA sudah tercapai (' . $currentCount . '/' . $MAX_WABA_NUMBERS . '). Hapus nomor yang tidak dipakai atau gunakan WABA lain.',
+                422,
+                ['code' => 'number_limit_reached', 'limit' => $MAX_WABA_NUMBERS, 'current_count' => $currentCount]
+            );
+        }
+
         $res = $meta->addPhoneNumber($wabaId, $cc, $normalizedPhone, (string) $waba['name']);
         if (!$res['success']) $this->error('Gagal menambah nomor: ' . $res['error'], 502, $res['data']);
         $phoneId = (string) ($res['data']['id'] ?? $res['data']['phone_number_id'] ?? '');

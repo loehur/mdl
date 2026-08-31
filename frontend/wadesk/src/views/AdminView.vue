@@ -387,6 +387,36 @@
           </div>
         </div>
         </Teleport>
+        <Teleport to="body">
+          <div v-if="numberLimitModal.open" class="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" @click.self="numberLimitModal.open=false">
+            <div class="w-full max-w-md overflow-hidden rounded-3xl border border-amber-400/30 bg-ink-900 shadow-2xl shadow-amber-950/40">
+              <div class="h-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500" />
+              <div class="p-6 text-center">
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/25">
+                  <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636M12 8v4m0 4h.01" />
+                  </svg>
+                </div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Batas WABA tercapai</p>
+                <h2 class="mt-2 font-display text-xl font-semibold text-white">Maksimal 20 nomor per WABA</h2>
+                <p class="mt-3 text-sm leading-6 text-slate-300">
+                  WABA <strong class="text-slate-100">{{ numberLimitModal.wabaName }}</strong> sudah memiliki
+                  <strong class="text-amber-300">{{ numberLimitModal.current }} nomor</strong>.
+                  Tambahkan nomor baru setelah menghapus nomor yang tidak terpakai, atau gunakan WABA lain.
+                </p>
+                <div class="mt-5 flex justify-center">
+                  <div class="w-full max-w-xs">
+                    <div class="flex justify-between text-[11px] text-slate-500"><span>Terpakai</span><span>{{ numberLimitModal.current }} / 20</span></div>
+                    <div class="mt-1 h-2.5 overflow-hidden rounded-full bg-white/5">
+                      <div class="h-full rounded-full bg-gradient-to-r from-amber-400 to-rose-500" :style="{ width: Math.min(100, (numberLimitModal.current / 20) * 100) + '%' }" />
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="btn mt-6 w-full" @click="numberLimitModal.open=false">Mengerti</button>
+              </div>
+            </div>
+          </div>
+        </Teleport>
         <p v-if="!numberWabaFilter" class="rounded-xl border border-white/10 py-10 text-center text-sm text-slate-500">
           Sync WABA terlebih dahulu.
         </p>
@@ -1539,6 +1569,7 @@ const qualityBadgeClass = (q) => ({ GREEN: "bg-emerald-500/15 text-emerald-300",
 const loadingNumbers = ref(false);
 const numberWabaFilter = ref("");
 const addingNumber = ref(false);
+const numberLimitModal = reactive({ open: false, current: 0, wabaName: "" });
 const numberForm = reactive({ waba_id: "", country_code: "62", phone_number: "", verified_name: "", method: "SMS", otp: "" });
 const numberFlow = reactive({ step: "add", phone_number_id: "", loading: false, error: "", otpCooldown: 0, otpLocked: 0, otpVerifyFails: 0, otpRequested: false });
 let numberOtpTimer = null;
@@ -3166,7 +3197,17 @@ async function addNumber() {
     numberFlow.phone_number_id = phoneId;
     numberFlow.step = "request";
     flash(true, "Nomor ditambahkan. Request OTP untuk melanjutkan.");
-  } catch (e) { flash(false, e.message || "Gagal menambah nomor"); } finally { numberFlow.loading = false; }
+  } catch (e) {
+    if (e.data?.code === "number_limit_reached") {
+      numberLimitModal.current = Number(e.data.current_count || numberStats.value.total || 0);
+      const hit = wabas.value.find((w) => String(w.meta_waba_id) === String(numberForm.waba_id));
+      numberLimitModal.wabaName = hit?.name || numberForm.waba_id;
+      numberLimitModal.open = true;
+      addingNumber.value = false;
+    } else {
+      flash(false, e.message || "Gagal menambah nomor");
+    }
+  } finally { numberFlow.loading = false; }
 }
 
 async function requestOtp() {

@@ -20,7 +20,37 @@
 
         <div class="flex flex-col gap-4">
           <Teleport to="body">
-            <div v-if="showAdd" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm" @click.self="showAdd=false">
+            <div v-if="limitModal.open" class="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" @click.self="limitModal.open=false">
+              <div class="w-full max-w-md overflow-hidden rounded-3xl border border-amber-400/30 bg-ink-900 shadow-2xl shadow-amber-950/40">
+                <div class="h-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500" />
+                <div class="p-6 text-center">
+                  <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/25">
+                    <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636M12 8v4m0 4h.01" />
+                    </svg>
+                  </div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Batas WABA tercapai</p>
+                  <h2 class="mt-2 font-display text-xl font-semibold text-white">Maksimal 20 nomor per WABA</h2>
+                  <p class="mt-3 text-sm leading-6 text-slate-300">
+                    WABA <strong class="text-slate-100">{{ waba.name || waba.id }}</strong> sudah memiliki
+                    <strong class="text-amber-300">{{ limitModal.current }} nomor</strong>.
+                    Tambahkan nomor baru setelah menghapus nomor yang tidak terpakai, atau gunakan WABA lain.
+                  </p>
+                  <div class="mt-5 flex justify-center">
+                    <div class="w-full max-w-xs">
+                      <div class="flex justify-between text-[11px] text-slate-500"><span>Terpakai</span><span>{{ limitModal.current }} / 20</span></div>
+                      <div class="mt-1 h-2.5 overflow-hidden rounded-full bg-white/5">
+                        <div class="h-full rounded-full bg-gradient-to-r from-amber-400 to-rose-500" :style="{ width: Math.min(100, (limitModal.current / 20) * 100) + '%' }" />
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn mt-6 w-full" @click="limitModal.open=false">Mengerti</button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
+          <Teleport to="body">
+          <div v-if="showAdd" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm" @click.self="showAdd=false">
               <div class="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-white/10 bg-ink-900 p-4 space-y-3 shadow-2xl">
                 <div class="flex items-center justify-between gap-3"><p class="font-medium">Add Number</p><button type="button" class="text-xs text-slate-400" @click="showAdd=false">Tutup</button></div>
                 <template v-if="flow.step==='add'">
@@ -92,6 +122,7 @@ import { useAuthStore } from '../stores/auth';
 import { api } from '../api';
 import AppHeader from '../components/AppHeader.vue';
 const auth=useAuthStore(), router=useRouter(), numbers=ref([]), wabas=ref([]), waba=reactive({id:'',name:''}), loading=ref(false), syncing=ref(false), error=ref(''), showAdd=ref(false);
+const limitModal=reactive({open:false,current:0});
 const form=reactive({phone:'',method:'SMS',otp:''}), flow=reactive({step:'add',phoneId:'',loading:false,error:''});
 const otp=reactive({cooldown:0,locked:0,verifyFails:0,requested:false}); let otpTimer=null;
 const numberStats=computed(()=>{const total=numbers.value.length,active=numbers.value.filter(n=>String(n.status||'').toLowerCase()==='active').length;return {total,active,inactive:total-active}});
@@ -103,7 +134,7 @@ function rateMessage(e){const raw=String(e?.message||'').toLowerCase();return ra
 async function load(){if(auth.user?.role==='agent')return;loading.value=true;error.value='';try{if(auth.isAdmin){const r=await api('/WaDesk/Wabas/list',{cache:'no-store'});wabas.value=r.data?.wabas||[];if(!waba.id&&wabas.value[0]){waba.id=wabas.value[0].meta_waba_id;waba.name=wabas.value[0].name}const c=await api('/WaDesk/Channels/list?scope=all',{cache:'no-store'});numbers.value=(c.data?.channels||[]).filter(n=>String(n.provider).toLowerCase()==='meta'&&String(n.waba_id)===String(waba.id))}else{const r=await api('/WaDesk/Wabas/teamNumbers',{cache:'no-store'});numbers.value=r.data?.numbers||[];Object.assign(waba,r.data?.waba||{})}}catch(e){error.value=e.message}finally{loading.value=false}}
 function selectAdminWaba(){const hit=wabas.value.find(x=>String(x.meta_waba_id)===String(waba.id));waba.name=hit?.name||'';load()} async function sync(){if(!waba.id)return;syncing.value=true;error.value='';try{if(auth.isAdmin)await api('/WaDesk/Wabas/syncNumbers',{method:'POST',body:{waba_id:waba.id}});else await api('/WaDesk/Wabas/syncNumbersForTeam',{method:'POST',body:{}});await load()}catch(e){error.value=e.message}finally{syncing.value=false}}
 function openAdd(){Object.assign(form,{phone:'',method:'SMS',otp:''});Object.assign(flow,{step:'add',phoneId:'',loading:false,error:''});resetOtp();showAdd.value=true} function normalize(){let v=String(form.phone).replace(/\D/g,'');if(v.startsWith('628'))v=v.slice(2);else if(v.startsWith('08'))v=v.slice(1);form.phone=v} function continueFlow(n){flow.phoneId=n.meta_phone_number_id;flow.step=String(n.meta_verification_status||'').toUpperCase().startsWith('VERIFIED')?'register':'request';form.otp='';flow.error='';resetOtp();showAdd.value=true}
-async function add(){flow.loading=true;try{const r=await api('/WaDesk/Wabas/addNumber',{method:'POST',body:{phone_number:form.phone,waba_id:waba.id}});flow.phoneId=String(r.data?.phone_number_id||'');if(!flow.phoneId)throw new Error('Meta tidak mengembalikan Phone Number ID');flow.step='request'}catch(e){error.value=e.message}finally{flow.loading=false}}
+async function add(){flow.loading=true;try{const r=await api('/WaDesk/Wabas/addNumber',{method:'POST',body:{phone_number:form.phone,waba_id:waba.id}});flow.phoneId=String(r.data?.phone_number_id||'');if(!flow.phoneId)throw new Error('Meta tidak mengembalikan Phone Number ID');flow.step='request'}catch(e){if(e.data?.code==='number_limit_reached'){limitModal.current=Number(e.data.current_count||numbers.value.length||0);limitModal.open=true;showAdd.value=false}else error.value=e.message}finally{flow.loading=false}}
 async function requestOtp(){if(otp.cooldown>0||otp.locked>0)return;if(otp.requested&&!window.confirm('OTP sebelumnya akan hangus. Lanjutkan meminta OTP baru?'))return;flow.loading=true;flow.error='';try{const r=await api('/WaDesk/Wabas/requestOtp',{method:'POST',body:{phone_number_id:flow.phoneId,method:form.method}});otp.cooldown=Number(r.data?.retry_after||60);otp.requested=true;startTimer();flow.step='verify'}catch(e){applyRetry(e);flow.error=rateMessage(e)}finally{flow.loading=false}}
 async function verify(){if(otp.locked>0)return;flow.loading=true;flow.error='';try{await api('/WaDesk/Wabas/verifyOtp',{method:'POST',body:{phone_number_id:flow.phoneId,code:form.otp}});flow.step='register';otp.verifyFails=0}catch(e){applyRetry(e);otp.verifyFails=Math.min(3,otp.verifyFails+1);if(otp.verifyFails>=3&&!otp.locked){otp.locked=600;startTimer()}flow.error=rateMessage(e)}finally{flow.loading=false}}
 async function register(){flow.loading=true;try{await api('/WaDesk/Wabas/registerNumber',{method:'POST',body:{phone_number_id:flow.phoneId}});flow.step='done'}catch(e){error.value=e.message}finally{flow.loading=false}} onMounted(load);onUnmounted(()=>clearInterval(otpTimer));
