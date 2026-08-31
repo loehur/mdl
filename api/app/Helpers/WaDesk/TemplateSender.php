@@ -194,6 +194,7 @@ class TemplateSender
                     'UPDATE wa_channels SET template_sent_count = template_sent_count + 1 WHERE id = ?',
                     [(int) $channel['id']]
                 );
+                ChannelDailyStats::recordTemplateSent($this->db, (int) $channel['id']);
             }
 
             $conv = $this->getOrCreateConversation($channel, $phone, null, $teamId);
