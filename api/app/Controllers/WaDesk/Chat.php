@@ -6,6 +6,7 @@ use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\ChannelDailyStats;
 use App\Helpers\WaDesk\ChannelQualityRefresh;
 use App\Helpers\WaDesk\TeamDailyTemplateLimit;
+use App\Helpers\WaDesk\TeamTemplateAccess;
 use App\Helpers\WaDesk\FreeTextSpamGuard;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
@@ -363,6 +364,9 @@ class Chat extends WaDeskController
             $teamId = (int) ($conv['team_id'] ?? $user['team_id'] ?? 0)
                 ?: $this->getTenantDefaultTeamId((int) $channel['tenant_id']);
             $teamQuota->ensureRow($teamId, (int) $channel['tenant_id']);
+            if (!(new TeamTemplateAccess($this->db($this->db_index)))->allowed($teamId, $tenantId)) {
+                $this->error('Akses template untuk team ini sudah kadaluarsa.', 403, ['code' => 'team_template_access_expired']);
+            }
             if (!$teamQuota->canConsume($teamId, 1)) {
                 $this->error('Kuota template team habis', 422, [
                     'team_id' => $teamId,

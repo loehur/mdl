@@ -113,12 +113,14 @@ class Teams extends WaDeskController
         $this->validate($body, ['name']);
         $category = $this->templateCategory($body['template_category'] ?? 'UTILITY');
         $dailyLimit = $this->dailyTemplateLimit($body['daily_template_limit'] ?? 250);
+        $expiresAt = $this->templateAccessExpiry($body['template_access_expires_at'] ?? null);
 
         $id = (int) $this->db($this->db_index)->insert('teams', [
             'tenant_id' => (int) $admin['tenant_id'],
             'name' => trim($body['name']),
             'template_category' => $category,
             'daily_template_limit' => $dailyLimit,
+            'template_access_expires_at' => $expiresAt,
         ]);
 
         $this->success(['id' => $id], 'Team dibuat');
@@ -158,13 +160,15 @@ class Teams extends WaDeskController
         $team = $this->getTenantTeam($id, (int) $admin['tenant_id']);
         $category = $this->templateCategory($body['template_category'] ?? ($team['template_category'] ?? 'UTILITY'));
         $dailyLimit = $this->dailyTemplateLimit($body['daily_template_limit'] ?? ($team['daily_template_limit'] ?? 250));
+        $expiresAt = $this->templateAccessExpiry($body['template_access_expires_at'] ?? ($team['template_access_expires_at'] ?? null));
         $this->db($this->db_index)->update('teams', [
             'name' => $name,
             'template_category' => $category,
             'daily_template_limit' => $dailyLimit,
+            'template_access_expires_at' => $expiresAt,
         ], ['id' => $id]);
 
-        $this->success(['id' => $id, 'name' => $name, 'template_category' => $category, 'daily_template_limit' => $dailyLimit], 'Team diubah');
+        $this->success(['id' => $id, 'name' => $name, 'template_category' => $category, 'daily_template_limit' => $dailyLimit, 'template_access_expires_at' => $expiresAt], 'Team diubah');
     }
 
     /** Tetapkan satu default team untuk tenant (customer baru masuk ke team ini). */
@@ -281,6 +285,23 @@ class Teams extends WaDeskController
         $limit = (int) $value;
         if ($limit < 1 || $limit > 1000000) $this->error('Limit template harian harus antara 1 dan 1.000.000.', 422);
         return $limit;
+    }
+
+    private function templateAccessExpiry($value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') return null;
+        $tz = new \DateTimeZone('Asia/Jakarta');
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $raw, $tz);
+        $errors = \DateTimeImmutable::getLastErrors();
+        if (!$date || ($errors !== false && ($errors['warning_count'] || $errors['error_count'])) || $date->format('Y-m-d') !== $raw) {
+            $this->error('Tanggal kadaluarsa template tidak valid.', 422);
+        }
+        $today = new \DateTimeImmutable('today', $tz);
+        if ($date < $today || $date > $today->modify('+1 year')) {
+            $this->error('Tanggal kadaluarsa template harus antara hari ini dan maksimal satu tahun ke depan.', 422);
+        }
+        return $raw;
     }
 
     /** @return array<int, list<array{id:int,label:string,phone_number:string}>> */

@@ -72,6 +72,10 @@ class TemplateSender
                     'error' => 'Blast tanpa team tujuan',
                 ];
             }
+            if (!(new TeamTemplateAccess($this->db))->allowed($teamId, $tenantId)) {
+                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0,
+                    'error' => 'Akses template untuk team ini sudah kadaluarsa.'];
+            }
             $teamRow = $this->db->query(
                 'SELECT template_category FROM teams WHERE id = ? AND tenant_id = ? LIMIT 1',
                 [$teamId, $tenantId]

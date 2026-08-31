@@ -24,13 +24,14 @@
           </p>
         </div>
 
-        <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]" @submit.prevent="createTeam">
+        <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto]" @submit.prevent="createTeam">
           <input v-model="teamForm.name" required class="field min-w-0" placeholder="Nama team baru" />
           <select v-model="teamForm.template_category" class="field w-full sm:w-36">
             <option value="UTILITY">Utility</option>
             <option value="MARKETING">Marketing</option>
           </select>
           <input v-model.number="teamForm.daily_template_limit" type="number" min="1" max="1000000" class="field w-full sm:w-28" title="Limit template per hari" placeholder="Limit/hari" aria-label="Limit template per hari" />
+          <input v-model="teamForm.template_access_expires_at" type="date" :min="teamExpiryMin" :max="teamExpiryMax" class="field w-full sm:w-40" title="Kadaluarsa akses template (opsional)" aria-label="Kadaluarsa akses template" />
           <button class="btn">Tambah</button>
         </form>
 
@@ -76,7 +77,7 @@
             >
               <div class="min-w-0 flex-1">
                 <template v-if="editingTeamId === t.id">
-                  <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]" @submit.prevent="saveTeamName(t)">
+                  <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto]" @submit.prevent="saveTeamName(t)">
                     <input
                       v-model="editingTeamName"
                       required
@@ -90,6 +91,7 @@
                       <option value="MARKETING">Marketing</option>
                     </select>
                     <input v-model.number="editingTeamDailyLimit" type="number" min="1" max="1000000" class="field w-full sm:w-28" title="Limit template per hari" placeholder="Limit/hari" aria-label="Limit template per hari" />
+                    <input v-model="editingTeamExpiry" type="date" :min="teamExpiryMin" :max="teamExpiryMax" class="field w-full sm:w-40" title="Kadaluarsa akses template (kosong = tanpa kadaluarsa)" aria-label="Kadaluarsa akses template" />
                     <div class="flex gap-2 justify-end">
                       <button type="submit" class="btn" :disabled="savingTeam">
                         {{ savingTeam ? "Menyimpan..." : "Simpan" }}
@@ -117,6 +119,7 @@
                     Leader: {{ t.leader_name || "—" }} · Agents: {{ t.agent_count }}
                   </p>
                   <p class="text-xs text-slate-500 mt-0.5">Limit template: {{ t.daily_template_limit || 250 }} / hari</p>
+                  <p class="text-xs mt-0.5" :class="teamExpired(t) ? 'text-rose-400' : 'text-slate-500'">Akses template: {{ t.template_access_expires_at || 'Tanpa kadaluarsa' }}<template v-if="teamExpired(t)"> · Kadaluarsa</template></p>
                   <p class="text-xs text-slate-500 mt-0.5">
                     <template v-if="Number(t.channel_count) > 0">
                       {{ t.channel_count }} nomor
@@ -1669,11 +1672,14 @@ async function onDialogConfirm() {
     await action();
   }
 }
-const teamForm = reactive({ name: "", template_category: "UTILITY", daily_template_limit: 250 });
+const teamForm = reactive({ name: "", template_category: "UTILITY", daily_template_limit: 250, template_access_expires_at: "" });
 const editingTeamId = ref(null);
 const editingTeamName = ref("");
 const editingTeamCategory = ref("UTILITY");
 const editingTeamDailyLimit = ref(250);
+const editingTeamExpiry = ref("");
+const teamExpiryMin = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+const teamExpiryMax = (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" }); })();
 const savingTeam = ref(false);
 const savingTeamMaskId = ref(null);
 const defaultTeamDraft = ref("");
@@ -2603,11 +2609,12 @@ watch(teamBrowseSentinel, () => {
 
 async function createTeam() {
   try {
-    await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name, template_category: teamForm.template_category, daily_template_limit: teamForm.daily_template_limit } });
+    await api("/WaDesk/Teams/create", { method: "POST", body: { name: teamForm.name, template_category: teamForm.template_category, daily_template_limit: teamForm.daily_template_limit, template_access_expires_at: teamForm.template_access_expires_at || null } });
     flash(true, "Team dibuat");
     teamForm.name = "";
     teamForm.template_category = "UTILITY";
     teamForm.daily_template_limit = 250;
+    teamForm.template_access_expires_at = "";
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -2619,6 +2626,7 @@ function startEditTeam(t) {
   editingTeamName.value = t.name || "";
   editingTeamCategory.value = t.template_category || "UTILITY";
   editingTeamDailyLimit.value = Number(t.daily_template_limit || 250);
+  editingTeamExpiry.value = t.template_access_expires_at || "";
 }
 
 function cancelEditTeam() {
@@ -2626,6 +2634,7 @@ function cancelEditTeam() {
   editingTeamName.value = "";
   editingTeamCategory.value = "UTILITY";
   editingTeamDailyLimit.value = 250;
+  editingTeamExpiry.value = "";
   savingTeam.value = false;
 }
 
@@ -2637,7 +2646,7 @@ async function saveTeamName(t) {
   }
   const category = String(editingTeamCategory.value || "UTILITY").toUpperCase();
   const dailyLimit = Number(editingTeamDailyLimit.value || 0);
-  if (name === t.name && category === String(t.template_category || "UTILITY").toUpperCase() && dailyLimit === Number(t.daily_template_limit || 250)) {
+  if (name === t.name && category === String(t.template_category || "UTILITY").toUpperCase() && dailyLimit === Number(t.daily_template_limit || 250) && String(editingTeamExpiry.value || "") === String(t.template_access_expires_at || "")) {
     cancelEditTeam();
     return;
   }
@@ -2645,7 +2654,7 @@ async function saveTeamName(t) {
   try {
     await api("/WaDesk/Teams/update", {
       method: "POST",
-      body: { id: t.id, name, template_category: category, daily_template_limit: dailyLimit },
+      body: { id: t.id, name, template_category: category, daily_template_limit: dailyLimit, template_access_expires_at: editingTeamExpiry.value || null },
     });
     flash(true, "Team diubah");
     cancelEditTeam();
@@ -2655,6 +2664,10 @@ async function saveTeamName(t) {
   } finally {
     savingTeam.value = false;
   }
+}
+
+function teamExpired(team) {
+  return Boolean(team?.template_access_expires_at) && String(team.template_access_expires_at) < teamExpiryMin;
 }
 
 async function setTeamPhoneMasking(team, enabled) {

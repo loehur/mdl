@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS teams (
   is_default TINYINT(1) NOT NULL DEFAULT 0,
   template_category ENUM('UTILITY','MARKETING') NOT NULL DEFAULT 'UTILITY',
   daily_template_limit INT UNSIGNED NOT NULL DEFAULT 250,
+  template_access_expires_at DATE NULL,
   mask_phone_numbers TINYINT(1) NOT NULL DEFAULT 0,
   team_leader_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -163,6 +163,9 @@ class Blast extends WaDeskController
 
         $teamQuota = new WaDeskTemplateQuota($this->db($this->db_index));
         $teamId = (int) ($user['team_id'] ?? 0);
+        if (!(new \App\Helpers\WaDesk\TeamTemplateAccess($this->db($this->db_index)))->allowed($teamId, $tenantId)) {
+            $this->error('Akses template untuk team ini sudah kadaluarsa.', 403, ['code' => 'team_template_access_expired']);
+        }
         $teamQuota->ensureRow($teamId, (int) $user['tenant_id']);
         $rowCount = count($rows);
         if (!$teamQuota->canConsume($teamId, $rowCount)) {
