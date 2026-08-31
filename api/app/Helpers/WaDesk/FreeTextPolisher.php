@@ -101,7 +101,10 @@ PROMPT;
             'draft_message' => $message,
         ], JSON_UNESCAPED_UNICODE);
         $client = new OpenAi($apiKey);
-        $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload, 'gpt-4o-mini', 0.35);
+        $model = \defined('Env::OPENAI_MODEL') && (string) \Env::OPENAI_MODEL !== ''
+            ? (string) \Env::OPENAI_MODEL
+            : 'gpt-4o-mini';
+        $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload, $model, 0.35);
 
         if (!$res['success']) {
             return [

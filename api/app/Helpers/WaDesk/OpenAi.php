@@ -22,9 +22,14 @@ class OpenAi
     public function chatJson(
         string $systemPrompt,
         string $userPrompt,
-        string $model = 'gpt-4o-mini',
+        ?string $model = null,
         float $temperature = 0
     ): array {
+        if ($model === null || $model === '') {
+            $model = \defined('Env::OPENAI_MODEL') && (string) \Env::OPENAI_MODEL !== ''
+                ? (string) \Env::OPENAI_MODEL
+                : 'gpt-4o-mini';
+        }
         if ($this->apiKey === '') {
             return ['success' => false, 'http_code' => 0, 'data' => [], 'error' => 'OpenAI API key kosong'];
         }
