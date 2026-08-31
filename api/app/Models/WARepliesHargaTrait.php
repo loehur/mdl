@@ -403,7 +403,7 @@ trait WARepliesHargaTrait
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nSAPAAN: Mulai jawaban dengan sapa \"{$sapaan}\" (natural, tidak kaku).\n\nFILTER AKTIF:\n- Layanan: {$serviceLabel}\n- Durasi: {$durasiLabel}\n- {$deliveryNote}\n\nATURAN KATEGORI: Untuk layanan kiloan, *tenda*, *bedcover*, dan *selimut* termasuk kategori *Kain Tebal/Panjang*, bukan Pakaian Harian. Gorden adalah pengecualian dan ikuti kategori gorden pada data. Pakaian Harian hanya untuk pertanyaan kiloan yang tidak menyebut kategori kain/item khusus.\n\nPENTING - URUTAN: Data SUDAH diurutkan by sort. JANGAN ubah urutan, JANGAN sort ulang by harga.\n- Pertanyaan spesifik → jawab fokus.\n- Pertanyaan umum → tampilkan 3 baris pertama sesuai urutan data.\n\nFORMAT WA: *bold*, _italic_, emoji secukupnya, line break antar item.\nWAKTU: tampilkan persis seperti di data.\nTutup ramah, ajak tanya lagi.",
+                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden; Pakaian Harian hanya bila tidak ada item/kategori khusus.\n\nWAJIB SANGAT RINGKAS (maks. 55 kata):\n- Sapa {$sapaan} dalam 1 frasa pendek.\n- Pertanyaan spesifik: tampilkan hanya tarif yang relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- Jangan jelaskan proses cek, jangan ulang kategori/item, jangan bilang pilihan satu-satunya, jangan pakai paragraf penutup panjang.\n- Boleh tutup paling banyak 1 frasa singkat, misalnya: _Mau cek yang lain?_\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
                 ],
                 [
                     'role' => 'user',
@@ -411,11 +411,11 @@ trait WARepliesHargaTrait
                         . $priceDataText
                         . "\n\n---\n\nPertanyaan customer: "
                         . $textBody
-                        . "\n\nJawab untuk {$sapaan}. Jika tidak spesifik item, tampilkan 3 baris pertama.",
+                        . "\n\nJawab ringkas untuk {$sapaan}. Jika tidak spesifik item, tampilkan maks. 3 baris pertama.",
                 ],
             ];
 
-            $answer = $this->executeOpenAIRequestWithMessages($messages, 400);
+            $answer = $this->executeOpenAIRequestWithMessages($messages, 180);
             $text = trim((string) $answer);
             if ($text === '') {
                 $text = "Mohon maaf {$sapaan}, saya belum bisa menampilkan harga saat ini.\nBoleh sebutkan itemnya agar saya bantu cek?";
