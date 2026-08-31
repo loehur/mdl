@@ -6838,11 +6838,15 @@ class WAReplies
                 ],
             ];
             $lines = ['*Kesehatan AI*'];
+            $priority = \App\Config\AI::getPriority();
             foreach ($tests as $test) {
                 if ($test['key'] === '') {
                     $lines[] = '⚪ ' . $test['label'] . ': API key belum diisi';
                     continue;
                 }
+                $role = $test['id'] === $priority
+                    ? 'PRIORITAS'
+                    : 'FALLBACK';
                 $payload = [
                     'model' => $test['model'],
                     'messages' => [['role' => 'user', 'content' => 'Reply exactly: OK']],
@@ -6865,12 +6869,13 @@ class WAReplies
                         min(20, max(5, (int) \App\Config\AI::getTimeout()))
                     );
                     $elapsed = number_format(microtime(true) - $startedAt, 1, ',', '.');
-                    $lines[] = '✅ ' . $test['label'] . ': aktif (' . $elapsed . ' dtk)';
+                    $lines[] = '✅ ' . $test['label'] . ' (' . $role . '): aktif (' . $elapsed . ' dtk)';
                 } catch (\Throwable $e) {
                     $reason = preg_replace('/\s+/u', ' ', trim($e->getMessage())) ?: 'request gagal';
-                    $lines[] = '❌ ' . $test['label'] . ': gagal — ' . mb_substr($reason, 0, 160);
+                    $lines[] = '❌ ' . $test['label'] . ' (' . $role . '): gagal — ' . mb_substr($reason, 0, 160);
                 }
             }
+            $lines[] = 'Prioritas: ' . \App\Config\AI::describePriority();
             $lines[] = 'Cek: ' . $this->saldoCheckedAtLabel();
             $this->sendSaldoAdminText($waNumber, implode("\n", $lines));
         } catch (\Throwable $e) {
