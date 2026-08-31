@@ -4344,7 +4344,13 @@ class WAReplies
             $sisa = max(0, $subTotal - $bayar);
             $totalTagihan += $sisa;
 
-            $block = "📋 *" . $noRef . "*\n" . implode("\n", $itemLines) . "\n_Subtotal: Rp " . number_format($subTotal, 0, ',', '.') . "_";
+            $tanggalTagihan = $this->formatTagihanTanggalIndonesia((string) ($items[0]['insertTime'] ?? ''));
+            $refDisplay = preg_replace('/^ref[\s_-]*/iu', '', (string) $noRef) ?: (string) $noRef;
+            $refLine = "📋 *#" . $refDisplay . "*";
+            if ($tanggalTagihan !== '') {
+                $refLine .= " — _" . $tanggalTagihan . "_";
+            }
+            $block = $refLine . "\n" . implode("\n", $itemLines) . "\n_Subtotal: Rp " . number_format($subTotal, 0, ',', '.') . "_";
             if ($bayar > 0) {
                 $block .= "\nSudah bayar: Rp " . number_format($bayar, 0, ',', '.');
             }
@@ -4403,6 +4409,16 @@ class WAReplies
         } elseif ($crmManual) {
             $this->tagihanSendOutcome = 'skipped';
         }
+    }
+
+    /** Format tanggal order untuk rincian tagihan, mis. 31/08/2026. */
+    private function formatTagihanTanggalIndonesia(string $value): string
+    {
+        $timestamp = strtotime($value);
+        if ($value === '' || $timestamp === false) {
+            return '';
+        }
+        return date('d/m/Y', $timestamp);
     }
 
     private function loadTagihanLookups($db)

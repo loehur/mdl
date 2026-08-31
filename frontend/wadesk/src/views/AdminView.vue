@@ -440,7 +440,6 @@
                 <p class="font-medium">{{ number.label || number.phone_number }}</p>
                 <p class="font-mono text-xs text-accent mt-1">+{{ number.phone_number || '—' }}</p>
                 <p class="text-[11px] text-slate-500 mt-1">Phone Number ID: {{ number.meta_phone_number_id || number.device_id }}</p>
-                <p class="text-xs text-slate-400 mt-2">Team: {{ number.team_names || 'Belum di-assign ke WABA' }}</p>
               </div>
               <div class="flex flex-wrap gap-1.5 justify-end text-xs">
                 <span :title="'Status: ' + (number.status || 'unknown')" class="px-2 py-1 rounded" :class="String(number.status || '').toLowerCase() === 'active' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-slate-300'">{{ number.meta_provider_status || number.status || 'unknown' }}</span>
