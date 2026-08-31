@@ -177,11 +177,25 @@ class Blast extends WaDeskController
             );
         }
 
+        $dailyTeamLimit = new \App\Helpers\WaDesk\TeamDailyTemplateLimit($this->db($this->db_index));
+        $dailyTeamSummary = $dailyTeamLimit->summary($teamId, $tenantId);
+        if ($rowCount > $dailyTeamSummary['remaining']) {
+            $this->error(
+                'Limit template harian team tidak cukup. Sisa: ' . $dailyTeamSummary['remaining'] . ', dibutuhkan: ' . $rowCount . '.',
+                422,
+                [
+                    'team_id' => $teamId,
+                    'daily_limit' => $dailyTeamSummary['limit'],
+                    'used_today' => $dailyTeamSummary['used'],
+                    'remaining_today' => $dailyTeamSummary['remaining'],
+                    'needed' => $rowCount,
+                ]
+            );
+        }
+
         $devFee = new WaDeskTenantDevFee($this->db($this->db_index));
         if (!$devFee->canConsume($tenantId, $rowCount)) {
-            $this->error('WA_Desk is temporarily unavailable for scheduled maintenance.', 503, [
-                'code' => 'dev_fee_maintenance',
-            ]);
+            $this->error('Kuota Dev Fee tenant tidak cukup untuk seluruh blast.', 422, ['code' => 'dev_fee_quota_insufficient', 'needed' => $rowCount]);
         }
 
         // Insert blast job

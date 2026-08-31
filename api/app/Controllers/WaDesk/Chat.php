@@ -5,6 +5,7 @@ namespace App\Controllers\WaDesk;
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\ChannelDailyStats;
 use App\Helpers\WaDesk\ChannelQualityRefresh;
+use App\Helpers\WaDesk\TeamDailyTemplateLimit;
 use App\Helpers\WaDesk\FreeTextSpamGuard;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
@@ -413,6 +414,16 @@ class Chat extends WaDeskController
                 'send_params'    => $sendParams,
             ], JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_req');
 
+            $dailyTeamLimit = new TeamDailyTemplateLimit($this->db($this->db_index));
+            $dailyReservation = $dailyTeamLimit->reserve($teamId, $tenantId);
+            if (!$dailyReservation['ok']) {
+                $this->error('Limit template harian team habis (' . $dailyReservation['used'] . '/' . $dailyReservation['limit'] . ').', 422, [
+                    'team_id' => $teamId,
+                    'used_today' => $dailyReservation['used'],
+                    'daily_limit' => $dailyReservation['limit'],
+                ]);
+            }
+
             $result = $isMeta
                 ? $client->sendTemplate($metaPhoneNumberId, $phone, $templateName, $language, $sendParams)
                 : $client->sendTemplate($deviceId, $phone, $templateName, $language, $sendParams);
@@ -420,6 +431,7 @@ class Chat extends WaDeskController
             \Log::write('RESULT: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'wadesk', 'send_template_res');
 
             if (!$result['success']) {
+                $dailyTeamLimit->release($teamId);
                 $provErr = \App\Helpers\WaDesk\TemplateFailLogger::extractProviderError($result);
                 $this->logTemplateSendFailure([
                     'tenant_id' => (int) $channel['tenant_id'],

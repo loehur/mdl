@@ -3,6 +3,7 @@
 namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
+use App\Helpers\WaDesk\TeamDailyTemplateLimit as WaDeskTeamDailyTemplateLimit;
 
 /**
  * Quota — admin top-up of per-team template balances; shared by TL + agents.
@@ -181,6 +182,7 @@ class Quota extends WaDeskController
                 'team_id' => null,
                 'balance' => null,
                 'team_name' => null,
+                'team_daily_limit' => null,
                 'daily_limit' => $this->dailyLimitStatusForTenant((int) $user['tenant_id']),
             ]);
             return;
@@ -195,12 +197,14 @@ class Quota extends WaDeskController
         $quota->ensureRow($teamId, (int) $user['tenant_id']);
 
         $channel = $this->findTeamChannel($teamId, (int) $user['tenant_id']);
+        $teamDaily = (new WaDeskTeamDailyTemplateLimit($this->db($this->db_index)))->summary($teamId, (int) $user['tenant_id']);
 
         $this->success([
             'role' => $user['role'],
             'team_id' => $teamId,
             'team_name' => $team['name'] ?? null,
             'balance' => $quota->getBalance($teamId),
+            'team_daily_limit' => $teamDaily,
             'daily_limit' => $this->dailyLimitStatusForTenant((int) $user['tenant_id']),
         ]);
     }

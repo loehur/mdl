@@ -156,6 +156,13 @@ class TemplateSender
             }
             $preview = Kirimin::buildFilledPreview($previewSource, $paramDefs, $named, $indexed);
 
+            $dailyTeamLimit = new TeamDailyTemplateLimit($this->db);
+            $dailyReservation = $dailyTeamLimit->reserve($teamId, $tenantId);
+            if (!$dailyReservation['ok']) {
+                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0,
+                    'error' => 'Limit template harian team habis (' . $dailyReservation['used'] . '/' . $dailyReservation['limit'] . ').'];
+            }
+
             $result = $client->sendTemplate(
                 $deviceId,
                 $phone,
@@ -165,6 +172,7 @@ class TemplateSender
             );
 
             if (!$result['success']) {
+                $dailyTeamLimit->release($teamId);
                 $provErr = TemplateFailLogger::extractProviderError($result);
                 $this->logProviderFailure(
                     $channel,

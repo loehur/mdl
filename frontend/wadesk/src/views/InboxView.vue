@@ -9,11 +9,19 @@
         Quota: <span class="font-semibold text-accent">{{ templateQuotaBalance }}</span>
       </span>
       <span
+        v-if="teamDailyRemaining !== null"
+        class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
+        :title="teamDailyTitle"
+      >
+        Team Daily Left:
+        <span class="font-semibold" :class="teamDailyRemaining <= 0 ? 'text-rose-400' : teamDailyRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'">{{ teamDailyRemaining }}</span>
+      </span>
+      <span
         v-if="dailyLimitRemaining !== null"
         class="text-xs px-2 py-1 rounded-lg bg-white/5 text-slate-300 whitespace-nowrap"
         :title="dailyLimitTitle"
       >
-        Daily Left:
+        Tenant Daily Left:
         <span
           class="font-semibold"
           :class="dailyLimitRemaining <= 0 ? 'text-rose-400' : dailyLimitRemaining <= 20 ? 'text-amber-300' : 'text-emerald-400'"
@@ -410,6 +418,10 @@ const dailyLimitTitle = computed(() => {
   if (dailyLimitMax.value === null) return "";
   return `Unique recipients sent today: ${dailyLimitUsed.value ?? 0} / ${dailyLimitMax.value}`;
 });
+const teamDailyRemaining = ref(null);
+const teamDailyUsed = ref(null);
+const teamDailyMax = ref(null);
+const teamDailyTitle = computed(() => teamDailyMax.value === null ? "" : `Template team hari ini: ${teamDailyUsed.value ?? 0} / ${teamDailyMax.value}`);
 const freeReject = reactive({ open: false, message: "" });
 const devFeeMaintenanceOpen = ref(false);
 let pollTimer = null;
@@ -686,6 +698,9 @@ async function loadTemplateQuota() {
     dailyLimitRemaining.value = null;
     dailyLimitUsed.value = null;
     dailyLimitMax.value = null;
+    teamDailyRemaining.value = null;
+    teamDailyUsed.value = null;
+    teamDailyMax.value = null;
     return;
   }
   try {
@@ -695,6 +710,16 @@ async function loadTemplateQuota() {
         ? null
         : Number(res.data.balance);
     const dl = res.data?.daily_limit;
+    const tdl = res.data?.team_daily_limit;
+    if (tdl) {
+      teamDailyRemaining.value = Number(tdl.remaining ?? 0);
+      teamDailyUsed.value = Number(tdl.used ?? 0);
+      teamDailyMax.value = Number(tdl.limit ?? 0);
+    } else {
+      teamDailyRemaining.value = null;
+      teamDailyUsed.value = null;
+      teamDailyMax.value = null;
+    }
     if (dl?.configured) {
       dailyLimitRemaining.value = Number(dl.remaining_today ?? 0);
       dailyLimitUsed.value = Number(dl.used_today ?? 0);
@@ -709,6 +734,9 @@ async function loadTemplateQuota() {
     dailyLimitRemaining.value = null;
     dailyLimitUsed.value = null;
     dailyLimitMax.value = null;
+    teamDailyRemaining.value = null;
+    teamDailyUsed.value = null;
+    teamDailyMax.value = null;
   }
 }
 

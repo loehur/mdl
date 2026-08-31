@@ -21,12 +21,22 @@ CREATE TABLE IF NOT EXISTS teams (
   name VARCHAR(150) NOT NULL,
   is_default TINYINT(1) NOT NULL DEFAULT 0,
   template_category ENUM('UTILITY','MARKETING') NOT NULL DEFAULT 'UTILITY',
+  daily_template_limit INT UNSIGNED NOT NULL DEFAULT 250,
   mask_phone_numbers TINYINT(1) NOT NULL DEFAULT 0,
   team_leader_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_teams_tenant (tenant_id),
   CONSTRAINT fk_teams_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wa_team_daily_template_stats (
+  team_id INT UNSIGNED NOT NULL,
+  stat_date DATE NOT NULL,
+  template_sent_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (team_id, stat_date),
+  INDEX idx_team_daily_template_stats_date (stat_date),
+  CONSTRAINT fk_team_daily_template_stats_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS users (

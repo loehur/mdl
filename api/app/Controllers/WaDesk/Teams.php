@@ -112,11 +112,13 @@ class Teams extends WaDeskController
         $body = $this->getBody();
         $this->validate($body, ['name']);
         $category = $this->templateCategory($body['template_category'] ?? 'UTILITY');
+        $dailyLimit = $this->dailyTemplateLimit($body['daily_template_limit'] ?? 250);
 
         $id = (int) $this->db($this->db_index)->insert('teams', [
             'tenant_id' => (int) $admin['tenant_id'],
             'name' => trim($body['name']),
             'template_category' => $category,
+            'daily_template_limit' => $dailyLimit,
         ]);
 
         $this->success(['id' => $id], 'Team dibuat');
@@ -153,13 +155,16 @@ class Teams extends WaDeskController
             $this->error('Nama team sudah dipakai', 400);
         }
 
-        $category = $this->templateCategory($body['template_category'] ?? ($this->getTenantTeam($id, (int) $admin['tenant_id'])['template_category'] ?? 'UTILITY'));
+        $team = $this->getTenantTeam($id, (int) $admin['tenant_id']);
+        $category = $this->templateCategory($body['template_category'] ?? ($team['template_category'] ?? 'UTILITY'));
+        $dailyLimit = $this->dailyTemplateLimit($body['daily_template_limit'] ?? ($team['daily_template_limit'] ?? 250));
         $this->db($this->db_index)->update('teams', [
             'name' => $name,
             'template_category' => $category,
+            'daily_template_limit' => $dailyLimit,
         ], ['id' => $id]);
 
-        $this->success(['id' => $id, 'name' => $name, 'template_category' => $category], 'Team diubah');
+        $this->success(['id' => $id, 'name' => $name, 'template_category' => $category, 'daily_template_limit' => $dailyLimit], 'Team diubah');
     }
 
     /** Tetapkan satu default team untuk tenant (customer baru masuk ke team ini). */
@@ -269,6 +274,13 @@ class Teams extends WaDeskController
             $this->error('Kategori team harus UTILITY atau MARKETING.', 422);
         }
         return $category;
+    }
+
+    private function dailyTemplateLimit($value): int
+    {
+        $limit = (int) $value;
+        if ($limit < 1 || $limit > 1000000) $this->error('Limit template harian harus antara 1 dan 1.000.000.', 422);
+        return $limit;
     }
 
     /** @return array<int, list<array{id:int,label:string,phone_number:string}>> */
