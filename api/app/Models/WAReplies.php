@@ -645,7 +645,7 @@ class WAReplies
     private function intentIsStaffTarget(string $handler): bool
     {
         $h = strtoupper($handler);
-        if (in_array($h, ['SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE'], true)) {
+        if (in_array($h, ['SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'INFO_AI'], true)) {
             return true;
         }
         if ($this->autoreplyKeywordConfig === null) {
@@ -6486,7 +6486,7 @@ class WAReplies
             $this->logAutoreplyTrace($waNumber, 'SALDO', 'need_provider');
             $this->sendSaldoAdminText(
                 $waNumber,
-                "Format:\nsaldo iak\nsaldo tokopay\nsaldo ycloud\nsaldo deepseek\nsaldo fonnte"
+                "Format:\nsaldo iak\nsaldo tokopay\nsaldo ycloud\nsaldo deepseek\nsaldo fonnte\ninfo ai"
             );
             return;
         }
@@ -6507,6 +6507,10 @@ class WAReplies
             $this->replySaldoDeepseek($waNumber);
             return;
         }
+        if ($which === 'ai') {
+            $this->replyInfoAiHealth($waNumber);
+            return;
+        }
         if ($which === 'fonnte') {
             $this->replySaldoFonnte($waNumber);
             return;
@@ -6514,7 +6518,7 @@ class WAReplies
         $this->replySaldoYcloud($waNumber);
     }
 
-    /** @return 'iak'|'tokopay'|'ycloud'|'deepseek'|'fonnte'|null */
+    /** @return 'iak'|'tokopay'|'ycloud'|'deepseek'|'fonnte'|'ai'|null */
     private function saldoProviderFromText(?string $text): ?string
     {
         $t = strtolower(trim((string) $text));
@@ -6529,6 +6533,9 @@ class WAReplies
         }
         if (preg_match('/\bdeep\s*seek\b/u', $t)) {
             return 'deepseek';
+        }
+        if (preg_match('/\b(?:info|cek|saldo)\s+ai\b|\bai\s+(?:info|health|status)\b/u', $t)) {
+            return 'ai';
         }
         if (preg_match('/\bfonnte\b/u', $t)) {
             return 'fonnte';
@@ -6792,6 +6799,80 @@ class WAReplies
         } catch (\Throwable $e) {
             \Log::write("handleSaldo_ycloud ERROR: " . $e->getMessage(), 'wa_error', 'YCloud');
             $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
+        }
+    }
+
+    /** Alias intent admin: "info ai" / "cek ai". */
+    function handleInfo_ai($phoneIn, $waNumber, $textBody = '')
+    {
+        $this->handleSaldo($phoneIn, $waNumber, 'info ai');
+    }
+
+    /**
+     * Uji OpenAI dan DeepSeek secara terpisah. Jangan gunakan fallback agar
+     * status setiap provider mencerminkan request aktual ke provider tersebut.
+     */
+    private function replyInfoAiHealth($waNumber): void
+    {
+        try {
+            if (!class_exists('\\App\\Config\\AI')) {
+                require_once __DIR__ . '/../Config/AI.php';
+            }
+            $tests = [
+                [
+                    'id' => 'openai',
+                    'label' => 'OpenAI',
+                    'url' => 'https://api.openai.com/v1/chat/completions',
+                    'key' => trim((string) \App\Config\AI::getOpenAIApiKey()),
+                    'model' => (string) \App\Config\AI::getOpenAIModel(),
+                ],
+                [
+                    'id' => 'deepseek',
+                    'label' => 'DeepSeek',
+                    'url' => 'https://api.deepseek.com/chat/completions',
+                    'key' => trim((string) \App\Config\AI::getDeepseekApiKey()),
+                    'model' => (string) \App\Config\AI::getDeepseekModel(),
+                ],
+            ];
+            $lines = ['*Kesehatan AI*'];
+            foreach ($tests as $test) {
+                if ($test['key'] === '') {
+                    $lines[] = '⚪ ' . $test['label'] . ': API key belum diisi';
+                    continue;
+                }
+                $payload = [
+                    'model' => $test['model'],
+                    'messages' => [['role' => 'user', 'content' => 'Reply exactly: OK']],
+                ];
+                $isGpt5 = $test['id'] === 'openai' && preg_match('/^gpt-5(?:[.-]|$)/i', $test['model']);
+                if ($isGpt5) {
+                    $payload['max_completion_tokens'] = 16;
+                } else {
+                    $payload['max_tokens'] = 16;
+                    $payload['temperature'] = 0;
+                }
+
+                $startedAt = microtime(true);
+                try {
+                    $reply = $this->executeOpenAiCompatibleChat(
+                        $test['url'],
+                        $test['key'],
+                        $payload,
+                        $test['label'],
+                        min(20, max(5, (int) \App\Config\AI::getTimeout()))
+                    );
+                    $elapsed = number_format(microtime(true) - $startedAt, 1, ',', '.');
+                    $lines[] = '✅ ' . $test['label'] . ': aktif (' . $elapsed . ' dtk)';
+                } catch (\Throwable $e) {
+                    $reason = preg_replace('/\s+/u', ' ', trim($e->getMessage())) ?: 'request gagal';
+                    $lines[] = '❌ ' . $test['label'] . ': gagal — ' . mb_substr($reason, 0, 160);
+                }
+            }
+            $lines[] = 'Cek: ' . $this->saldoCheckedAtLabel();
+            $this->sendSaldoAdminText($waNumber, implode("\n", $lines));
+        } catch (\Throwable $e) {
+            \Log::write('replyInfoAiHealth ERROR: ' . $e->getMessage(), 'wa_error', 'AI');
+            $this->sendSaldoAdminText($waNumber, 'Gagal cek kesehatan AI.');
         }
     }
 
@@ -7812,7 +7893,7 @@ class WAReplies
                 $reason = $falseOverride['reason'];
             }
 
-            if (in_array($intent, ['SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE'], true)
+            if (in_array($intent, ['SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'INFO_AI'], true)
                 && isset($keywordConfig['SALDO'])) {
                 $intent = 'SALDO';
                 $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap ' . $aiIntentRaw . ' → SALDO';
