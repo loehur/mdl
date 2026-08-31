@@ -193,9 +193,14 @@ trait WARepliesHargaTrait
             $params['service_ambiguous'] = true;
         }
 
+        // Penyebutan kategori eksplisit harus mengalahkan item dari session sebelumnya.
+        if (preg_match('/\b(pakaian\s+harian|harian)\b/iu', $t)) {
+            $params['item'] = 'pakaian_harian';
+        }
+
         // item keyword (reuse token extraction logic)
         $specialItemPattern = '/\b(gorden|gordyn|gorder|gor?d?en|tenda|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
-        if (preg_match($specialItemPattern, $t, $m)) {
+        if ($params['item'] !== 'pakaian_harian' && preg_match($specialItemPattern, $t, $m)) {
             $params['item'] = mb_strtolower($m[1], 'UTF-8');
         }
 
@@ -403,7 +408,7 @@ trait WARepliesHargaTrait
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden; Pakaian Harian hanya bila tidak ada item/kategori khusus.\n\nWAJIB SANGAT RINGKAS (maks. 55 kata):\n- Sapa {$sapaan} dalam 1 frasa pendek.\n- Pertanyaan spesifik: tampilkan hanya tarif yang relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- Jangan jelaskan proses cek, jangan ulang kategori/item, jangan bilang pilihan satu-satunya, jangan pakai paragraf penutup panjang.\n- Boleh tutup paling banyak 1 frasa singkat, misalnya: _Mau cek yang lain?_\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
+                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden. Jika customer menyebut *Pakaian Harian* secara eksplisit, WAJIB gunakan Pakaian Harian walau chat sebelumnya membahas item lain.\n\nWAJIB SANGAT RINGKAS (maks. 55 kata):\n- Sapa {$sapaan} dalam 1 frasa pendek.\n- Pertanyaan spesifik: tampilkan hanya tarif yang relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- Jangan jelaskan proses cek, jangan ulang kategori/item, jangan bilang pilihan satu-satunya, jangan pakai paragraf penutup panjang.\n- Boleh tutup paling banyak 1 frasa singkat, misalnya: _Mau cek yang lain?_\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
                 ],
                 [
                     'role' => 'user',
@@ -635,6 +640,7 @@ trait WARepliesHargaTrait
         $classificationText = trim($questionLower . ' ' . mb_strtolower((string) $itemKeyword, 'UTF-8'));
         $specialItemPattern = '/\b(gorden|gordyn|gorder|gor?d?en|tenda|bed\s*cover|bedcover|selimut|karpet|sepatu|tas|boneka|jaket|sprei|kemeja|gaun|jas|hoodie|sweater|mukena|jilbab|kerudung)\b/iu';
         $mentionsSpecialItem = (bool) preg_match($specialItemPattern, $classificationText);
+        $mentionsPakaianHarian = (bool) preg_match('/\b(pakaian\s+harian|harian)\b/iu', $classificationText);
         // Tenda, bedcover, dan selimut selalu memakai tarif Kain Tebal/Panjang.
         // Gorden sengaja dikecualikan karena punya kategori/tarifnya sendiri.
         $mentionsKainTebal = !preg_match('/\b(gorden|gordyn|gorder|gor?d?en)\b/iu', $classificationText)
@@ -717,7 +723,15 @@ trait WARepliesHargaTrait
         }
 
         $defaultRows = $enrichedRows;
-        if ($mentionsKainTebal) {
+        if ($mentionsPakaianHarian) {
+            $pakaianHarianRows = array_values(array_filter($enrichedRows, function ($row) {
+                $kategori = mb_strtolower((string) ($row['kategori'] ?? ''), 'UTF-8');
+                return mb_strpos($kategori, 'pakaian') !== false && mb_strpos($kategori, 'harian') !== false;
+            }));
+            if (!empty($pakaianHarianRows)) {
+                $defaultRows = $pakaianHarianRows;
+            }
+        } elseif ($mentionsKainTebal) {
             $kainTebalRows = array_values(array_filter($enrichedRows, function ($row) {
                 $kategori = mb_strtolower((string) ($row['kategori'] ?? ''), 'UTF-8');
                 return mb_strpos($kategori, 'kain') !== false
