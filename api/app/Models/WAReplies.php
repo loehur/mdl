@@ -6486,7 +6486,7 @@ class WAReplies
             $this->logAutoreplyTrace($waNumber, 'INFO', 'need_provider');
             $this->sendSaldoAdminText(
                 $waNumber,
-                "Format:\ninfo iak\ninfo tokopay\ninfo ycloud\ninfo deepseek\ninfo fonnte\ninfo ai"
+                "Format:\ninfo iak\ninfo tokopay\ninfo ycloud\ninfo fonnte\ninfo ai"
             );
             return;
         }
@@ -6501,10 +6501,6 @@ class WAReplies
         }
         if ($which === 'tokopay') {
             $this->replySaldoTokopay($waNumber);
-            return;
-        }
-        if ($which === 'deepseek') {
-            $this->replySaldoDeepseek($waNumber);
             return;
         }
         if ($which === 'ai') {
@@ -6533,9 +6529,6 @@ class WAReplies
         }
         if (preg_match('/\btoko\s*pay\b|\btokopay\b/u', $t)) {
             return 'tokopay';
-        }
-        if (preg_match('/\bdeep\s*seek\b/u', $t)) {
-            return 'deepseek';
         }
         if (preg_match('/\bai\b/u', $t)) {
             return 'ai';
@@ -6876,6 +6869,7 @@ class WAReplies
                 }
             }
             $lines[] = 'Prioritas: ' . \App\Config\AI::describePriority();
+            $lines[] = $this->deepseekBalanceLine();
             $lines[] = 'Cek: ' . $this->saldoCheckedAtLabel();
             $this->sendSaldoAdminText($waNumber, implode("\n", $lines));
         } catch (\Throwable $e) {
@@ -6884,7 +6878,8 @@ class WAReplies
         }
     }
 
-    private function replySaldoDeepseek($waNumber): void
+    /** Saldo DeepSeek — disertakan dalam info ai. */
+    private function deepseekBalanceLine(): string
     {
         try {
             if (!class_exists('\\App\\Config\\AI')) {
@@ -6892,8 +6887,7 @@ class WAReplies
             }
             $apiKey = trim(\App\Config\AI::getDeepseekApiKey());
             if ($apiKey === '') {
-                $this->sendSaldoAdminText($waNumber, 'DeepSeek API key belum diisi.');
-                return;
+                return '⚪ DeepSeek: API key belum diisi';
             }
 
             $curl = curl_init();
@@ -6921,47 +6915,45 @@ class WAReplies
             curl_close($curl);
 
             if ($curlError) {
-                $this->sendSaldoAdminText($waNumber, 'Error: Gagal menghubungi API DeepSeek. ' . $curlError);
-                return;
+                return '❌ DeepSeek: gagal hubungi API — ' . $curlError;
             }
 
             $data = json_decode((string) $response, true);
             $infos = is_array($data) ? ($data['balance_infos'] ?? null) : null;
             if ($httpCode === 200 && is_array($infos) && $infos !== []) {
-                $lines = [];
+                $parts = [];
                 foreach ($infos as $row) {
                     if (!is_array($row)) {
                         continue;
                     }
                     $currency = trim((string) ($row['currency'] ?? 'USD'));
                     $total = (float) ($row['total_balance'] ?? 0);
+                    $line = '💰 DeepSeek: ' . number_format($total, 2, ',', '.') . ' ' . $currency;
                     $granted = (float) ($row['granted_balance'] ?? 0);
                     $topup = (float) ($row['topped_up_balance'] ?? 0);
-                    $line = number_format($total, 2, ',', '.') . ' ' . $currency;
                     if ($granted > 0 || $topup > 0) {
-                        $line .= "\nGranted " . number_format($granted, 2, ',', '.')
-                            . ' · Topup ' . number_format($topup, 2, ',', '.');
+                        $line .= ' (Granted ' . number_format($granted, 2, ',', '.')
+                            . ' · Topup ' . number_format($topup, 2, ',', '.') . ')';
                     }
-                    $lines[] = $line;
+                    $parts[] = $line;
                 }
-                $text = $lines !== [] ? implode("\n\n", $lines) : 'Saldo DeepSeek: data kosong.';
+                $text = $parts !== [] ? implode("\n", $parts) : '💰 DeepSeek: data kosong';
                 if (isset($data['is_available']) && $data['is_available'] === false) {
                     $text .= "\n(tidak cukup untuk API call)";
                 }
-            } else {
-                $message = is_array($data)
-                    ? ($data['message'] ?? ($data['error']['message'] ?? ($data['error'] ?? 'Unknown error')))
-                    : 'Unknown error';
-                if (is_array($message)) {
-                    $message = json_encode($message);
-                }
-                $text = 'Gagal mengambil saldo DeepSeek (HTTP ' . $httpCode . '): ' . $message;
+                return $text;
             }
 
-            $this->sendSaldoAdminText($waNumber, $text);
+            $message = is_array($data)
+                ? ($data['message'] ?? ($data['error']['message'] ?? ($data['error'] ?? 'Unknown error')))
+                : 'Unknown error';
+            if (is_array($message)) {
+                $message = json_encode($message);
+            }
+            return '❌ DeepSeek: gagal ambil saldo (HTTP ' . $httpCode . '): ' . $message;
         } catch (\Throwable $e) {
-            \Log::write('handleInfo_deepseek ERROR: ' . $e->getMessage(), 'wa_error', 'DeepSeek');
-            $this->sendSaldoAdminText($waNumber, 'Error: ' . $e->getMessage());
+            \Log::write('deepseekBalanceLine ERROR: ' . $e->getMessage(), 'wa_error', 'DeepSeek');
+            return '❌ DeepSeek: ' . $e->getMessage();
         }
     }
 
