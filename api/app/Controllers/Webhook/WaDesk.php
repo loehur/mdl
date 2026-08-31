@@ -366,6 +366,12 @@ class WaDesk extends Controller
             ?? ($kirim['device_id'] ?? null)
             ?? ($data['device_id'] ?? null);
 
+        // Meta media URLs (lookaside.fbsbx.com) require the same Bearer token.
+        $meta = new \App\Helpers\WaDesk\Meta();
+        $authHeader = $meta->accessToken() !== ''
+            ? 'Authorization: Bearer ' . $meta->accessToken()
+            : null;
+
         $this->persistInbound(
             (string) ($messages['from'] ?? ''),
             (string) ($metadata['display_phone_number'] ?? ''),
@@ -375,7 +381,8 @@ class WaDesk extends Controller
             (string) ($messages['type'] ?? 'text'),
             $this->extractBody($messages),
             $entry['contacts'][0]['profile']['name'] ?? null,
-            $this->extractRemoteMediaUrl($messages)
+            $this->extractRemoteMediaUrl($messages),
+            $authHeader
         );
     }
 
@@ -559,7 +566,8 @@ class WaDesk extends Controller
         string $type,
         string $bodyText,
         $profileName,
-        ?string $remoteMediaUrl = null
+        ?string $remoteMediaUrl = null,
+        ?string $authHeader = null
     ): void {
         $customerPhone = $this->normalizePhone($fromRaw);
         $businessPhone = $this->normalizePhone($businessRaw);
@@ -599,7 +607,9 @@ class WaDesk extends Controller
         if ($remoteMediaUrl !== null && trim($remoteMediaUrl) !== '') {
             $localMediaUrl = WaMediaHelper::downloadAndSave(
                 $remoteMediaUrl,
-                $wamid !== null ? (string) $wamid : null
+                $wamid !== null ? (string) $wamid : null,
+                null,
+                $authHeader
             );
             if ($localMediaUrl === null) {
                 $this->logWebhook(

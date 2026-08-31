@@ -19,6 +19,11 @@ class Meta
         return $this->accessToken !== '';
     }
 
+    public function accessToken(): string
+    {
+        return $this->accessToken;
+    }
+
     /** @return array{success:bool,data:array,error:string,http_code:int} */
     public function listWabas(): array
     {

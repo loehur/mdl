@@ -7,7 +7,7 @@ namespace App\Helpers\WaDesk;
  */
 class WaMediaHelper
 {
-    public static function downloadAndSave(?string $remoteUrl, ?string $messageId = null, ?string $mimeHint = null): ?string
+    public static function downloadAndSave(?string $remoteUrl, ?string $messageId = null, ?string $mimeHint = null, ?string $authHeader = null): ?string
     {
         if ($remoteUrl === null || trim($remoteUrl) === '') {
             return null;
@@ -18,7 +18,7 @@ class WaMediaHelper
             return null;
         }
 
-        $mediaData = self::fetchUrl($remoteUrl);
+        $mediaData = self::fetchUrl($remoteUrl, $authHeader);
         if ($mediaData === null || $mediaData === '') {
             if (class_exists('\Log')) {
                 \Log::write('WaDesk media download failed url=' . $remoteUrl, 'wadesk', 'Media');
@@ -59,11 +59,18 @@ class WaMediaHelper
         return self::baseUrl() . $relativePath . '/' . $filename;
     }
 
-    private static function fetchUrl(string $url): ?string
+    private static function fetchUrl(string $url, ?string $authHeader = null): ?string
     {
-        $data = @file_get_contents($url);
-        if ($data !== false && $data !== '') {
-            return $data;
+        $headers = [];
+        if ($authHeader !== null && trim($authHeader) !== '') {
+            $headers[] = trim($authHeader);
+        }
+
+        if ($headers === []) {
+            $data = @file_get_contents($url);
+            if ($data !== false && $data !== '') {
+                return $data;
+            }
         }
 
         if (!function_exists('curl_init')) {
@@ -71,14 +78,18 @@ class WaMediaHelper
         }
 
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_TIMEOUT => 60,
             CURLOPT_USERAGENT => 'MdL-WaDesk/1.0',
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-        ]);
+        ];
+        if ($headers !== []) {
+            $opts[CURLOPT_HTTPHEADER] = $headers;
+        }
+        curl_setopt_array($ch, $opts);
         $data = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
