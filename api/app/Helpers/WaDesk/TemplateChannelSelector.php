@@ -41,8 +41,9 @@ class TemplateChannelSelector
                AND COALESCE(k.meta_phone_number_id, k.device_id, '') <> ''
                AND " . self::qualitySql('k') . "
                AND EXISTS (SELECT 1 FROM wa_channel_teams ct WHERE ct.channel_id = k.id AND ct.team_id = ?)
-             ORDER BY COALESCE(d.template_sent_count, 0) ASC, k.inbound_count DESC,
-               CASE UPPER(k.meta_quality_rating) WHEN 'GREEN' THEN 0 WHEN 'YELLOW' THEN 1 ELSE 2 END ASC, k.id ASC",
+             ORDER BY
+               CASE UPPER(k.meta_quality_rating) WHEN 'UNKNOWN' THEN 0 WHEN 'GREEN' THEN 1 WHEN 'YELLOW' THEN 2 ELSE 3 END ASC,
+               COALESCE(d.template_sent_count, 0) ASC, k.inbound_count DESC, k.id ASC",
             [$today, $tenantId, trim($wabaId), $teamId]
         )->result_array();
         if ($rows === []) return null;
