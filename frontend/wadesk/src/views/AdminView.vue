@@ -19,21 +19,13 @@
       <section v-if="tab === 'teams'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h2 class="font-display font-semibold text-lg">Teams</h2>
-          <p v-if="teamBrowseTotal" class="text-xs text-slate-500">
-            {{ teamBrowseRows.length }} / {{ teamBrowseTotal }} team
-          </p>
+          <div class="flex items-center gap-3">
+            <p v-if="teamBrowseTotal" class="text-xs text-slate-500">
+              {{ teamBrowseRows.length }} / {{ teamBrowseTotal }} team
+            </p>
+            <button type="button" class="btn shrink-0" @click="addTeamModal = true">Tambah team</button>
+          </div>
         </div>
-
-        <form class="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto_auto]" @submit.prevent="createTeam">
-          <input v-model="teamForm.name" required class="field min-w-0" placeholder="Nama team baru" />
-          <select v-model="teamForm.template_category" class="field w-full sm:w-36">
-            <option value="UTILITY">Utility</option>
-            <option value="MARKETING">Marketing</option>
-          </select>
-          <input v-model.number="teamForm.daily_template_limit" type="number" min="1" max="1000000" class="field w-full sm:w-28" title="Limit template per hari" placeholder="Limit/hari" aria-label="Limit template per hari" />
-          <input v-model="teamForm.template_access_expires_at" type="date" :min="teamExpiryMin" :max="teamExpiryMax" class="field w-full sm:w-40" title="Kadaluarsa akses template (opsional)" aria-label="Kadaluarsa akses template" />
-          <button class="btn">Tambah</button>
-        </form>
 
         <div class="relative">
           <input
@@ -174,53 +166,13 @@
       <section v-if="tab === 'users'" class="card space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h2 class="font-display font-semibold text-lg">Team Leader & Agent</h2>
-          <p v-if="userBrowseTotal" class="text-xs text-slate-500">
-            {{ userBrowseRows.length }} / {{ userBrowseTotal }} user
-          </p>
+          <div class="flex items-center gap-3">
+            <p v-if="userBrowseTotal" class="text-xs text-slate-500">
+              {{ userBrowseRows.length }} / {{ userBrowseTotal }} user
+            </p>
+            <button type="button" class="btn shrink-0" @click="addUserModal = true">Tambah user</button>
+          </div>
         </div>
-        <form class="grid sm:grid-cols-2 gap-3" @submit.prevent="createUser">
-          <input v-model="userForm.name" required class="field" placeholder="Nama" />
-          <input v-model="userForm.email" type="email" required class="field" placeholder="Email" />
-          <input v-model="userForm.password" type="password" required minlength="6" class="field" placeholder="Password" />
-          <select v-model="userForm.role" required class="field" @change="onRoleChange">
-            <option value="team_leader">Team Leader</option>
-            <option value="agent">Agent</option>
-          </select>
-
-          <!-- Team Leader: pilih team -->
-          <template v-if="userForm.role === 'team_leader'">
-            <select
-              v-model="userForm.team_id"
-              required
-              class="field sm:col-span-2"
-            >
-              <option disabled value="">Pilih team</option>
-              <option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option>
-            </select>
-            <p v-if="!teamsWithoutLeader.length" class="sm:col-span-2 text-xs text-amber-300">
-              Semua team sudah punya Team Leader. Buat team baru dulu.
-            </p>
-          </template>
-
-          <!-- Agent: wajib pilih team leader -->
-          <template v-else>
-            <select
-              v-model="userForm.team_leader_user_id"
-              required
-              class="field sm:col-span-2"
-            >
-              <option disabled value="">Pilih Team Leader</option>
-              <option v-for="l in userLeaders" :key="l.id" :value="l.id">
-                {{ l.name }} ({{ l.team_name || "tanpa team" }})
-              </option>
-            </select>
-            <p v-if="!userLeaders.length" class="sm:col-span-2 text-xs text-amber-300">
-              Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.
-            </p>
-          </template>
-
-          <button class="btn sm:col-span-2" :disabled="!canSubmitUser">Tambah user</button>
-        </form>
 
         <div class="relative">
           <input
@@ -1474,6 +1426,42 @@
       @close="closeDialog"
     />
 
+    <Teleport to="body">
+      <div v-if="addTeamModal" class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-sm" @click.self="addTeamModal = false">
+        <form class="w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-2xl space-y-4" @submit.prevent="createTeam">
+          <div class="flex items-center justify-between gap-3">
+            <div><h3 class="font-display text-lg font-semibold">Tambah team</h3><p class="mt-1 text-xs text-slate-400">Atur kategori, limit harian, dan masa akses template.</p></div>
+            <button type="button" class="text-sm text-slate-400 hover:text-slate-200" @click="addTeamModal = false">Tutup</button>
+          </div>
+          <input v-model="teamForm.name" required class="field" placeholder="Nama team baru" />
+          <div class="grid gap-3 sm:grid-cols-2">
+            <select v-model="teamForm.template_category" class="field"><option value="UTILITY">Utility</option><option value="MARKETING">Marketing</option></select>
+            <input v-model.number="teamForm.daily_template_limit" type="number" min="1" max="1000000" class="field" placeholder="Limit template per hari" aria-label="Limit template per hari" />
+          </div>
+          <div><label class="label">Kadaluarsa akses template (opsional)</label><input v-model="teamForm.template_access_expires_at" type="date" :min="teamExpiryMin" :max="teamExpiryMax" class="field" /></div>
+          <div class="flex justify-end gap-2"><button type="button" class="btn-sm" @click="addTeamModal = false">Batal</button><button class="btn">Tambah team</button></div>
+        </form>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="addUserModal" class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-sm" @click.self="addUserModal = false">
+        <form class="w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-2xl space-y-4" @submit.prevent="createUser">
+          <div class="flex items-center justify-between gap-3"><div><h3 class="font-display text-lg font-semibold">Tambah user</h3><p class="mt-1 text-xs text-slate-400">Buat akun Team Leader atau Agent.</p></div><button type="button" class="text-sm text-slate-400 hover:text-slate-200" @click="addUserModal = false">Tutup</button></div>
+          <div class="grid gap-3 sm:grid-cols-2"><input v-model="userForm.name" required class="field" placeholder="Nama" /><input v-model="userForm.email" type="email" required class="field" placeholder="Email" /><input v-model="userForm.password" type="password" required minlength="6" class="field" placeholder="Password (min. 6 karakter)" /><select v-model="userForm.role" required class="field" @change="onRoleChange"><option value="team_leader">Team Leader</option><option value="agent">Agent</option></select></div>
+          <template v-if="userForm.role === 'team_leader'">
+            <select v-model="userForm.team_id" required class="field"><option disabled value="">Pilih team</option><option v-for="t in teamsWithoutLeader" :key="t.id" :value="t.id">{{ t.name }}</option></select>
+            <p v-if="!teamsWithoutLeader.length" class="text-xs text-amber-300">Semua team sudah punya Team Leader. Buat team baru dulu.</p>
+          </template>
+          <template v-else>
+            <select v-model="userForm.team_leader_user_id" required class="field"><option disabled value="">Pilih Team Leader</option><option v-for="l in userLeaders" :key="l.id" :value="l.id">{{ l.name }} ({{ l.team_name || "tanpa team" }})</option></select>
+            <p v-if="!userLeaders.length" class="text-xs text-amber-300">Belum ada Team Leader. Buat Team Leader dulu sebelum menambah Agent.</p>
+          </template>
+          <div class="flex justify-end gap-2"><button type="button" class="btn-sm" @click="addUserModal = false">Batal</button><button class="btn" :disabled="!canSubmitUser">Tambah user</button></div>
+        </form>
+      </div>
+    </Teleport>
+
     <div v-if="devFeePaymentModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-ink-950/80 p-4 backdrop-blur-sm">
       <div class="w-full max-w-md rounded-3xl border border-white/10 bg-ink-900 p-6 shadow-2xl">
         <template v-if="devFeePaymentModal === 'check'">
@@ -1672,6 +1660,7 @@ async function onDialogConfirm() {
   }
 }
 const teamForm = reactive({ name: "", template_category: "UTILITY", daily_template_limit: 250, template_access_expires_at: "" });
+const addTeamModal = ref(false);
 const editingTeamId = ref(null);
 const editingTeamName = ref("");
 const editingTeamCategory = ref("UTILITY");
@@ -1691,6 +1680,7 @@ const userForm = reactive({
   team_id: "",
   team_leader_user_id: "",
 });
+const addUserModal = ref(false);
 const editingUserId = ref(null);
 const editUserForm = reactive({
   name: "",
@@ -2614,6 +2604,7 @@ async function createTeam() {
     teamForm.template_category = "UTILITY";
     teamForm.daily_template_limit = 250;
     teamForm.template_access_expires_at = "";
+    addTeamModal.value = false;
     await refresh();
   } catch (e) {
     flash(false, e.message);
@@ -2763,6 +2754,7 @@ async function createUser() {
       team_id: "",
       team_leader_user_id: "",
     });
+    addUserModal.value = false;
     flash(true, "User dibuat");
     await loadUsersTab();
   } catch (e) {
