@@ -355,14 +355,16 @@ class NonTunaiAdmin extends Controller
 
         $out = [];
 
+        // Gunakan union (+) bukan array_merge: ref_finance numerik menjadi int key,
+        // dan array_merge me-reset kunci integer → lookup entity_ref di view jadi MISS.
         if ($kasRefs !== []) {
-            $out = array_merge($out, $this->loadKasPayerByRef($kasRefs));
+            $out = $out + $this->loadKasPayerByRef($kasRefs);
         }
         if ($invoiceRefs !== []) {
-            $out = array_merge($out, $this->loadInvoicePayerByRef($invoiceRefs));
+            $out = $out + $this->loadInvoicePayerByRef($invoiceRefs);
         }
         if ($salonRefs !== []) {
-            $out = array_merge($out, $this->loadSalonPayerByRef($salonRefs));
+            $out = $out + $this->loadSalonPayerByRef($salonRefs);
         }
 
         return $out;
@@ -444,7 +446,9 @@ class NonTunaiAdmin extends Controller
             }
             $payer = $this->resolvePayerFromKasRow($kasRow, $pelangganMap, $userMap);
             if ($payer !== null) {
-                $out[$ref] = $payer;
+                // ref_finance numerik bisa dikembalikan MySQL sebagai int → paksa string
+                // agar lookup di view dengan entity_ref (string) selalu cocok.
+                $out[(string) $ref] = $payer;
             }
         }
 

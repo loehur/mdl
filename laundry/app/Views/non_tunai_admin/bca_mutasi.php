@@ -54,7 +54,7 @@ $this->view('non_tunai_admin/_filter', [
               $entityType = (string) ($row['entity_type'] ?? '');
               $entityRef = (string) ($row['entity_ref'] ?? '');
               $linkId = (int) ($row['link_id'] ?? 0);
-              $payerRow = isset($payerByRef[$entityRef]) ? $payerByRef[$entityRef] : null;
+              $payerRow = isset($payerByRef[(string) $entityRef]) ? $payerByRef[(string) $entityRef] : null;
 
               $entityLabels = [
                   'kas_laundry' => 'Laundry',

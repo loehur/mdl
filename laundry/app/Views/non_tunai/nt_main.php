@@ -90,13 +90,12 @@ if (count($data['cek']) == 0) { ?>
 
     $metodeLabel = strtoupper(trim((string) $f2));
     $isBca = $metodeLabel === 'BCA';
-    $isQrisStatic = $metodeLabel === 'QRIS'
-      && trim((string) ($a['payment_trx_id'] ?? '')) === '';
-    $needsBind = $isBca || $isQrisStatic;
-    $bindMode = $isBca ? 'bca' : ($isQrisStatic ? 'qris' : '');
+    $isQris = $metodeLabel === 'QRIS';
+    $needsBind = $isBca || $isQris;
+    $bindMode = $isBca ? 'bca' : ($isQris ? 'qris' : '');
     $bindListUrl = $isBca
       ? (URL::BASE_URL . 'NonTunai/mutasiList')
-      : ($isQrisStatic ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
+      : ($isQris ? (URL::BASE_URL . 'NonTunai/qrisList') : '');
     $idAttr = htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8');
     $isPenarikan = ((int) $jenisT === 2);
     $showKasir = !$isPenarikan && in_array((int) $jenisT, [1, 3, 6], true) && (int) $f17 > 0;

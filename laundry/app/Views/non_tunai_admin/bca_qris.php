@@ -48,7 +48,7 @@ $this->view('non_tunai_admin/_filter', [
               $entityType = (string) ($row['entity_type'] ?? '');
               $entityRef = (string) ($row['entity_ref'] ?? '');
               $isKasLaundry = ($entityType === 'kas_laundry');
-              $payerRow = ($isKasLaundry && isset($payerByRef[$entityRef])) ? $payerByRef[$entityRef] : null;
+              $payerRow = ($isKasLaundry && isset($payerByRef[(string) $entityRef])) ? $payerByRef[(string) $entityRef] : null;
 
               $tanggal = (string) ($row['tanggal'] ?? '');
               $waktu = trim((string) ($row['waktu'] ?? ''));

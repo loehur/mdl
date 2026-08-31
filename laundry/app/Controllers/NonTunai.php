@@ -176,7 +176,7 @@ class NonTunai extends Controller
 
    /**
     * JSON: daftar transaksi QRIS merchant belum ter-link (6 hari terakhir).
-    * Hanya untuk QRIS static (tanpa payment_trx_id / TokoPay).
+    * Berlaku untuk QRIS static merchant BCA maupun QRIS gateway (TokoPay).
     */
    public function qrisList()
    {
@@ -203,11 +203,6 @@ class NonTunai extends Controller
 
       if (strtoupper(trim((string) ($kas['note'] ?? ''))) !== 'QRIS') {
          echo json_encode(['ok' => false, 'message' => 'Bukan pembayaran QRIS']);
-         return;
-      }
-
-      if (trim((string) ($kas['payment_trx_id'] ?? '')) !== '') {
-         echo json_encode(['ok' => false, 'message' => 'QRIS gateway — tidak perlu bind manual']);
          return;
       }
 
@@ -321,26 +316,15 @@ class NonTunai extends Controller
 
       $note = strtoupper(trim((string) ($kas['note'] ?? '')));
       $isBca = ($note === 'BCA');
-      $isQrisStatic = ($note === 'QRIS' && trim((string) ($kas['payment_trx_id'] ?? '')) === '');
+      $isQris = ($note === 'QRIS');
 
       if ($isBca && $tipe === 3) {
          $this->operasiBcaTerima($id, $where);
          return;
       }
 
-      if ($isQrisStatic && $tipe === 3) {
+      if ($isQris && $tipe === 3) {
          $this->operasiQrisTerima($id, $where);
-         return;
-      }
-
-      $isQrisGateway = ($note === 'QRIS' && trim((string) ($kas['payment_trx_id'] ?? '')) !== '');
-      if ($tipe === 3 && $isQrisGateway) {
-         if (!$this->applyQrisPaidToKas($kas, $id, false)) {
-            echo 'Gagal mengkonfirmasi pembayaran QRIS';
-            return;
-         }
-         $this->runPostConfirmSideEffects($where);
-         echo 0;
          return;
       }
 
@@ -423,49 +407,50 @@ class NonTunai extends Controller
    }
 
    /**
-    * Terima QRIS static (merchant BCA): wajib bind transaksi QRMS dulu.
+    * Terima QRIS: wajib bind transaksi QRIS dulu.
+    * Berlaku untuk QRIS static merchant BCA maupun QRIS gateway (TokoPay).
     */
    private function operasiQrisTerima(string $refFinance, string $where): void
    {
-      $qrisId = (int) ($_POST['qris_id'] ?? 0);
-      $this->helper('BcaQrisBind');
-      $this->helper('KasBcaConfirm');
+     $qrisId = (int) ($_POST['qris_id'] ?? 0);
+     $this->helper('BcaQrisBind');
+     $this->helper('KasBcaConfirm');
 
-      $cols = "SUM(jumlah) AS total";
-      $agg = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
-      $kasTotal = is_array($agg) && isset($agg[0]['total']) ? (float) $agg[0]['total'] : 0;
-      $kasNominal = BcaQrisBind::formatNominal($kasTotal);
+     $cols = "SUM(jumlah) AS total";
+     $agg = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
+     $kasTotal = is_array($agg) && isset($agg[0]['total']) ? (float) $agg[0]['total'] : 0;
+     $kasNominal = BcaQrisBind::formatNominal($kasTotal);
 
-      $dbMain = $this->db(100);
+     $dbMain = $this->db(100);
 
-      $existingLink = $dbMain->get_where_row(
-         'bca_qris_link',
-         "entity_type = '" . $dbMain->escape(BcaQrisBind::ENTITY_KAS_LAUNDRY) . "'"
-         . " AND entity_ref = '" . $dbMain->escape($refFinance) . "'"
-      );
+     $existingLink = $dbMain->get_where_row(
+        'bca_qris_link',
+        "entity_type = '" . $dbMain->escape(BcaQrisBind::ENTITY_KAS_LAUNDRY) . "'"
+        . " AND entity_ref = '" . $dbMain->escape($refFinance) . "'"
+     );
 
-      if (!empty($existingLink['bca_qris_id'])) {
-         $linkedId = (int) $existingLink['bca_qris_id'];
-         if ($qrisId > 0 && $qrisId !== $linkedId) {
-            echo 'Transaksi sudah ter-bind ke QRIS lain';
-            return;
-         }
-         $qrisId = $linkedId;
-      } elseif ($qrisId < 1) {
-         echo 'Wajib pilih transaksi QRIS terlebih dahulu';
-         return;
-      } else {
-         if (!BcaQrisBind::bindQris($dbMain, $qrisId, $refFinance, $kasNominal)) {
-            $qrisRow = BcaQrisBind::getQrisRow($dbMain, $qrisId);
-            if ($qrisRow && !BcaQrisBind::isNominalWithinTolerance($kasNominal, $qrisRow['nominal'] ?? 0)) {
-               echo 'Selisih nominal QRIS melebihi toleransi Rp '
-                  . number_format(BcaQrisBind::NOMINAL_TOLERANCE, 0, ',', '.');
-               return;
-            }
-            echo 'Gagal bind QRIS (tidak valid atau sudah terpakai)';
-            return;
-         }
-      }
+     if (!empty($existingLink['bca_qris_id'])) {
+        $linkedId = (int) $existingLink['bca_qris_id'];
+        if ($qrisId > 0 && $qrisId !== $linkedId) {
+           echo 'Transaksi sudah ter-bind ke QRIS lain';
+           return;
+        }
+        $qrisId = $linkedId;
+     } elseif ($qrisId < 1) {
+        echo 'Wajib pilih transaksi QRIS terlebih dahulu';
+        return;
+     } else {
+        if (!BcaQrisBind::bindQris($dbMain, $qrisId, $refFinance, $kasNominal)) {
+           $qrisRow = BcaQrisBind::getQrisRow($dbMain, $qrisId);
+           if ($qrisRow && !BcaQrisBind::isNominalWithinTolerance($kasNominal, $qrisRow['nominal'] ?? 0)) {
+              echo 'Selisih nominal QRIS melebihi toleransi Rp '
+                 . number_format(BcaQrisBind::NOMINAL_TOLERANCE, 0, ',', '.');
+              return;
+           }
+           echo 'Gagal bind QRIS (tidak valid atau sudah terpakai)';
+           return;
+        }
+     }
 
       $up = $this->db(0)->update('kas', ['status_mutasi' => 3], $where . " AND status_mutasi = 2");
       if ($up['errno'] <> 0) {
