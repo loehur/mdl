@@ -178,6 +178,7 @@ class WaDesk extends Controller
                     'message_template_quality_update',
                     'template_category_update',
                     'phone_number_quality_update',
+                    'phone_number_name_update',
                 ], true)) continue;
 
                 $value = is_array($change['value'] ?? null) ? $change['value'] : [];
@@ -190,6 +191,8 @@ class WaDesk extends Controller
 
                 if ($field === 'phone_number_quality_update') {
                     $this->applyMetaPhoneQualityUpdate($db, $wabaId, $value);
+                } elseif ($field === 'phone_number_name_update') {
+                    $this->applyMetaPhoneNameUpdate($db, $wabaId, $value);
                 } else {
                     $this->applyMetaTemplateUpdate($db, $wabaId, $field, $value);
                 }
@@ -242,10 +245,25 @@ class WaDesk extends Controller
 
     private function applyMetaPhoneQualityUpdate($db, string $wabaId, array $value): void
     {
-        $phoneId = trim((string) ($value['phone_number_id'] ?? $value['id'] ?? ''));
-        $displayNumber = preg_replace('/\D+/', '', (string) ($value['display_phone_number'] ?? $value['phone_number'] ?? ''));
-        $quality = strtoupper(trim((string) ($value['quality_rating'] ?? $value['new_quality_rating'] ?? $value['quality'] ?? $value['event'] ?? '')));
-        if (!in_array($quality, ['GREEN', 'YELLOW', 'RED', 'UNKNOWN', 'NA'], true)) return;
+        $metadata = is_array($value['metadata'] ?? null) ? $value['metadata'] : [];
+        $phoneId = trim((string) ($value['phone_number_id'] ?? $metadata['phone_number_id'] ?? $value['id'] ?? ''));
+        $displayNumber = preg_replace('/\D+/', '', (string) ($value['display_phone_number'] ?? $metadata['display_phone_number'] ?? $value['phone_number'] ?? ''));
+        // Meta's phone_number_quality_update uses current_quality_rating.
+        // Keep older aliases as fallback for API-version compatibility.
+        $quality = strtoupper(trim((string) (
+            $value['current_quality_rating']
+            ?? $value['quality_rating']
+            ?? $value['new_quality_rating']
+            ?? $value['quality']
+            ?? ''
+        )));
+        if (!in_array($quality, ['GREEN', 'YELLOW', 'RED', 'UNKNOWN', 'NA'], true)) {
+            $this->logWebhook('SKIP Meta phone quality invalid value waba=' . $wabaId
+                . ' phone_id=' . ($phoneId ?: '-')
+                . ' quality=' . ($quality ?: '-')
+                . ' keys=' . implode(',', array_keys($value)));
+            return;
+        }
 
         $where = 'waba_id = ? AND provider = \'meta\'';
         $binds = [$wabaId];
@@ -260,6 +278,64 @@ class WaDesk extends Controller
             return;
         }
         $db->query('UPDATE wa_channels SET meta_quality_rating = ? WHERE ' . $where, array_merge([$quality], $binds));
+        $this->logWebhook('META_PHONE_QUALITY_UPDATED waba=' . $wabaId
+            . ' phone_id=' . ($phoneId ?: '-')
+            . ' quality=' . $quality
+            . ' affected=' . (int) $db->affected_rows());
+    }
+
+    /** Apply display-name approval/rejection changes pushed by Meta. */
+    private function applyMetaPhoneNameUpdate($db, string $wabaId, array $value): void
+    {
+        $metadata = is_array($value['metadata'] ?? null) ? $value['metadata'] : [];
+        $phoneId = trim((string) ($value['phone_number_id'] ?? $metadata['phone_number_id'] ?? $value['id'] ?? ''));
+        $displayNumber = preg_replace('/\D+/', '', (string) ($value['display_phone_number'] ?? $metadata['display_phone_number'] ?? $value['phone_number'] ?? ''));
+        $nameStatus = strtoupper(trim((string) ($value['new_name_status'] ?? $value['name_status'] ?? $value['status'] ?? '')));
+        $newName = trim((string) ($value['new_name'] ?? $value['verified_name'] ?? $value['display_name'] ?? ''));
+
+        if ($phoneId === '' && $displayNumber === '') {
+            $this->logWebhook('SKIP Meta phone name update without phone identifier waba=' . $wabaId);
+            return;
+        }
+        if ($nameStatus === '' && $newName === '') {
+            $this->logWebhook('SKIP Meta phone name update without status/name waba=' . $wabaId
+                . ' phone_id=' . ($phoneId ?: '-')
+                . ' keys=' . implode(',', array_keys($value)));
+            return;
+        }
+
+        $sets = [];
+        $binds = [];
+        if ($nameStatus !== '') {
+            $sets[] = 'meta_display_name_status = ?';
+            $binds[] = $nameStatus;
+        }
+        // Before approval, Meta's current display name remains authoritative.
+        // Only change the local label once the requested name is approved.
+        if ($newName !== '' && $nameStatus === 'APPROVED') {
+            $sets[] = 'label = ?';
+            $binds[] = $newName;
+        }
+        if ($sets === []) {
+            $this->logWebhook('SKIP Meta phone name update awaiting status waba=' . $wabaId . ' phone_id=' . ($phoneId ?: '-'));
+            return;
+        }
+
+        $where = 'waba_id = ? AND provider = \'meta\'';
+        $whereBinds = [$wabaId];
+        if ($phoneId !== '') {
+            $where .= ' AND meta_phone_number_id = ?';
+            $whereBinds[] = $phoneId;
+        } else {
+            $where .= ' AND REPLACE(REPLACE(REPLACE(phone_number, \'+\', \'\'), \'-\', \'\'), \' \', \'\') = ?';
+            $whereBinds[] = $displayNumber;
+        }
+        $db->query('UPDATE wa_channels SET ' . implode(', ', $sets) . ' WHERE ' . $where, array_merge($binds, $whereBinds));
+        $this->logWebhook('META_PHONE_NAME_UPDATED waba=' . $wabaId
+            . ' phone_id=' . ($phoneId ?: '-')
+            . ' status=' . ($nameStatus ?: '-')
+            . ' label_changed=' . (($newName !== '' && $nameStatus === 'APPROVED') ? 'yes' : 'no')
+            . ' affected=' . (int) $db->affected_rows());
     }
 
     /** @return array{event:string,source:string,delivery:string} */

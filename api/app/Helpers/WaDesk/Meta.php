@@ -59,6 +59,16 @@ class Meta
         ]);
     }
 
+    /** Read the current quality rating of one Cloud API phone number. */
+    public function getPhoneQuality(string $phoneNumberId): array
+    {
+        $res = $this->get('/' . rawurlencode($phoneNumberId), ['fields' => 'quality_rating']);
+        if ($res['success'] && isset($res['object']) && is_array($res['object'])) {
+            $res['data'] = $res['object'];
+        }
+        return $res;
+    }
+
     /** Ensure this Meta app is subscribed to the selected Cloud API WABA. */
     public function subscribeCurrentAppToWaba(string $wabaId): array
     {

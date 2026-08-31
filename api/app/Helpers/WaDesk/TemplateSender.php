@@ -195,6 +195,7 @@ class TemplateSender
                     [(int) $channel['id']]
                 );
                 ChannelDailyStats::recordTemplateSent($this->db, (int) $channel['id']);
+                ChannelQualityRefresh::scheduleAfterUnknownTemplateSend($this->db, $channel);
             }
 
             $conv = $this->getOrCreateConversation($channel, $phone, null, $teamId);

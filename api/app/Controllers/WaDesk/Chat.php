@@ -4,6 +4,7 @@ namespace App\Controllers\WaDesk;
 
 use App\Helpers\WaDesk\DailyKeyLimit as WaDeskDailyKeyLimit;
 use App\Helpers\WaDesk\ChannelDailyStats;
+use App\Helpers\WaDesk\ChannelQualityRefresh;
 use App\Helpers\WaDesk\FreeTextSpamGuard;
 use App\Helpers\WaDesk\Server as WaDeskServer;
 use App\Helpers\WaDesk\TemplateQuota as WaDeskTemplateQuota;
@@ -459,6 +460,7 @@ class Chat extends WaDeskController
                 [(int) $channel['id']]
             );
             ChannelDailyStats::recordTemplateSent($this->db($this->db_index), (int) $channel['id']);
+            ChannelQualityRefresh::scheduleAfterUnknownTemplateSend($this->db($this->db_index), $channel);
 
             $msgId = $this->storeOutbound($conv, $user, 'template', $preview, $templateName, $paramsForStore, $result);
             $this->touchConversationOut($conv['id'], $preview);
