@@ -244,7 +244,7 @@ trait WARepliesKurirTrait
             'TAGIHAN', 'NOTA', 'STATUS', 'HARGA',
             'REMINDER', 'KEY', 'JAM_OPERASIONAL',
             'KARYAWAN', 'KAS_LAUNDRY', 'CEK_TOKEN',
-            'CEK_QRIS', 'SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'TARIK_TOKOPAY',
+            'CEK_QRIS', 'INFO', 'INFO_IAK', 'INFO_TOKOPAY', 'INFO_YCLOUD', 'INFO_FONNTE', 'TARIK_TOKOPAY',
             'SLIP_GAJI', 'GAJI_CASH', 'GAJI_TF',
         ];
         if ($hasActiveSaleForEstimasi) {

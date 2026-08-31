@@ -641,11 +641,11 @@ class WAReplies
         return !empty($ctx['is_admin']) || !empty($ctx['is_karyawan']);
     }
 
-    /** Intent gerbang admin/karyawan di DB (SALDO, slip gaji, dll.). */
+    /** Intent gerbang admin/karyawan di DB (INFO, slip gaji, dll.). */
     private function intentIsStaffTarget(string $handler): bool
     {
         $h = strtoupper($handler);
-        if (in_array($h, ['SALDO', 'SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'INFO_AI'], true)) {
+        if (in_array($h, ['INFO', 'INFO_IAK', 'INFO_TOKOPAY', 'INFO_YCLOUD', 'INFO_FONNTE', 'INFO_AI'], true)) {
             return true;
         }
         if ($this->autoreplyKeywordConfig === null) {
@@ -2970,8 +2970,8 @@ class WAReplies
                     if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
                         continue;
                     }
-                    // "tarik saldo ..." = TARIK_TOKOPAY, bukan cek SALDO
-                    if ($handler === 'SALDO' && preg_match('/\btarik\b/i', $textBodyToCheck)) {
+                    // "tarik saldo ..." = TARIK_TOKOPAY, bukan INFO
+                    if ($handler === 'INFO' && preg_match('/\btarik\b/i', $textBodyToCheck)) {
                         continue;
                     }
                     // HARGA laundry: bukan harga parfum/plastik/pewangi/dll (nanti intent terpisah)
@@ -6476,23 +6476,23 @@ class WAReplies
         }
     }
 
-    function handleSaldo($phoneIn, $waNumber, $textBody = '')
+    function handleInfo($phoneIn, $waNumber, $textBody = '')
     {
-        if (!$this->requireAdminSender($waNumber, 'SALDO')) {
+        if (!$this->requireAdminSender($waNumber, 'INFO')) {
             return;
         }
         $which = $this->saldoProviderFromText($textBody);
         if ($which === null) {
-            $this->logAutoreplyTrace($waNumber, 'SALDO', 'need_provider');
+            $this->logAutoreplyTrace($waNumber, 'INFO', 'need_provider');
             $this->sendSaldoAdminText(
                 $waNumber,
-                "Format:\nsaldo iak\nsaldo tokopay\nsaldo ycloud\nsaldo deepseek\nsaldo fonnte\ninfo ai"
+                "Format:\ninfo iak\ninfo tokopay\ninfo ycloud\ninfo deepseek\ninfo fonnte\ninfo ai"
             );
             return;
         }
-        $this->logAutoreplyTrace($waNumber, 'SALDO', 'provider=' . $which);
+        $this->logAutoreplyTrace($waNumber, 'INFO', 'provider=' . $which);
         if ($this->intentLabMode) {
-            $this->sendSaldoAdminText($waNumber, '[lab] saldo ' . $which);
+            $this->sendSaldoAdminText($waNumber, '[lab] info ' . $which);
             return;
         }
         if ($which === 'iak') {
@@ -6518,11 +6518,14 @@ class WAReplies
         $this->replySaldoYcloud($waNumber);
     }
 
-    /** @return 'iak'|'tokopay'|'ycloud'|'deepseek'|'fonnte'|'ai'|null */
+    /** Hanya terima "info <provider>" di awal pesan. Kata "cek"/"saldo" tidak lagi dipakai. */
     private function saldoProviderFromText(?string $text): ?string
     {
         $t = strtolower(trim((string) $text));
         if ($t === '' || preg_match('/\btarik\b/u', $t)) {
+            return null;
+        }
+        if (!preg_match('/^info(?:\s+|$)/u', $t)) {
             return null;
         }
         if (preg_match('/\biak\b/u', $t)) {
@@ -6534,7 +6537,7 @@ class WAReplies
         if (preg_match('/\bdeep\s*seek\b/u', $t)) {
             return 'deepseek';
         }
-        if (preg_match('/\b(?:info|cek|saldo)\s+ai\b|\bai\s+(?:info|health|status)\b/u', $t)) {
+        if (preg_match('/\bai\b/u', $t)) {
             return 'ai';
         }
         if (preg_match('/\bfonnte\b/u', $t)) {
@@ -6565,10 +6568,10 @@ class WAReplies
         }
     }
 
-    function handleSaldo_iak($phoneIn, $waNumber, $textBody = '')
+    function handleInfo_iak($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
-        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo iak');
+        $this->handleInfo($phoneIn, $waNumber, $msg !== '' ? $msg : 'info iak');
     }
 
     private function replySaldoIak($waNumber): void
@@ -6589,7 +6592,7 @@ class WAReplies
 
             $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
-            \Log::write("handleSaldo_iak ERROR: " . $e->getMessage(), 'wa_error', 'IAK');
+            \Log::write("handleInfo_iak ERROR: " . $e->getMessage(), 'wa_error', 'IAK');
             $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
@@ -6669,10 +6672,10 @@ class WAReplies
         }
     }
 
-    function handleSaldo_tokopay($phoneIn, $waNumber, $textBody = '')
+    function handleInfo_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
-        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo tokopay');
+        $this->handleInfo($phoneIn, $waNumber, $msg !== '' ? $msg : 'info tokopay');
     }
 
     private function replySaldoTokopay($waNumber): void
@@ -6737,15 +6740,15 @@ class WAReplies
 
             $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
-            \Log::write("handleSaldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
+            \Log::write("handleInfo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
             $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
-    function handleSaldo_ycloud($phoneIn, $waNumber, $textBody = '')
+    function handleInfo_ycloud($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
-        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo ycloud');
+        $this->handleInfo($phoneIn, $waNumber, $msg !== '' ? $msg : 'info ycloud');
     }
 
     private function replySaldoYcloud($waNumber): void
@@ -6797,15 +6800,15 @@ class WAReplies
 
             $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
-            \Log::write("handleSaldo_ycloud ERROR: " . $e->getMessage(), 'wa_error', 'YCloud');
+            \Log::write("handleInfo_ycloud ERROR: " . $e->getMessage(), 'wa_error', 'YCloud');
             $this->sendSaldoAdminText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
-    /** Alias intent admin: "info ai" / "cek ai". */
+    /** Alias intent admin: "info ai". */
     function handleInfo_ai($phoneIn, $waNumber, $textBody = '')
     {
-        $this->handleSaldo($phoneIn, $waNumber, 'info ai');
+        $this->handleInfo($phoneIn, $waNumber, 'info ai');
     }
 
     /**
@@ -6952,7 +6955,7 @@ class WAReplies
 
             $this->sendSaldoAdminText($waNumber, $text);
         } catch (\Throwable $e) {
-            \Log::write('handleSaldo_deepseek ERROR: ' . $e->getMessage(), 'wa_error', 'DeepSeek');
+            \Log::write('handleInfo_deepseek ERROR: ' . $e->getMessage(), 'wa_error', 'DeepSeek');
             $this->sendSaldoAdminText($waNumber, 'Error: ' . $e->getMessage());
         }
     }
@@ -6960,7 +6963,7 @@ class WAReplies
     function handleInfo_fonnte($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
-        $this->handleSaldo($phoneIn, $waNumber, $msg !== '' ? $msg : 'saldo fonnte');
+        $this->handleInfo($phoneIn, $waNumber, $msg !== '' ? $msg : 'info fonnte');
     }
 
     private function replySaldoFonnte($waNumber): void
@@ -7894,14 +7897,14 @@ class WAReplies
             }
 
             if (in_array($intent, ['SALDO_IAK', 'SALDO_TOKOPAY', 'SALDO_YCLOUD', 'INFO_FONNTE', 'INFO_AI'], true)
-                && isset($keywordConfig['SALDO'])) {
-                $intent = 'SALDO';
-                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap ' . $aiIntentRaw . ' → SALDO';
+                && isset($keywordConfig['INFO'])) {
+                $intent = 'INFO';
+                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap ' . $aiIntentRaw . ' → INFO';
             }
-            if ($intent === 'SALDO' && preg_match('/\btarik\b/i', $textBody)
+            if ($intent === 'INFO' && preg_match('/\btarik\b/i', $textBody)
                 && isset($keywordConfig['TARIK_TOKOPAY'])) {
                 $intent = 'TARIK_TOKOPAY';
-                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap SALDO+tarik → TARIK_TOKOPAY';
+                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap INFO+tarik → TARIK_TOKOPAY';
             }
 
             // Model kadang mengembalikan label bukan daftar (mis. PERTANYAAN) — sering dari teks prompt. Samakan ke STATUS jika jelas tanya siap laundry/cucian.

@@ -165,10 +165,10 @@ trait WARepliesPermintaanTrait
             'KURIR',
             'PERMINTAAN',
             'JAM_OPERASIONAL',
-            'SALDO',
-            'SALDO_IAK',
-            'SALDO_TOKOPAY',
-            'SALDO_YCLOUD',
+            'INFO',
+            'INFO_IAK',
+            'INFO_TOKOPAY',
+            'INFO_YCLOUD',
             'INFO_FONNTE',
         ];
         foreach ($breakout as $code) {
