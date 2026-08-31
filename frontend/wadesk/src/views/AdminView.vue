@@ -429,8 +429,8 @@
             <button type="button" class="btn shrink-0" :disabled="syncingWabas" @click="syncWabas">
               {{ syncingWabas ? 'Sinkron...' : 'Sync WABA' }}
             </button>
-            <button type="button" class="detail-button shrink-0" :disabled="syncingWabas || resubscribing" @click="resetSubscription">
-              {{ resubscribing ? 'Reset...' : 'Reset sub' }}
+            <button type="button" class="btn-danger shrink-0" :disabled="syncingWabas || resubscribing" @click="resetSubscription">
+              {{ resubscribing ? 'Resubscribe...' : 'Resubscribe' }}
             </button>
           </div>
         </div>
@@ -3421,6 +3421,9 @@ onUnmounted(() => {
 }
 .btn {
   @apply px-4 py-2.5 rounded-xl bg-accent font-medium text-sm hover:bg-accent-soft transition disabled:opacity-50;
+}
+.btn-danger {
+  @apply px-4 py-2.5 rounded-xl bg-rose-600 font-medium text-sm text-white hover:bg-rose-500 transition disabled:opacity-50;
 }
 .btn-sm {
   @apply px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-sm transition disabled:opacity-50;
