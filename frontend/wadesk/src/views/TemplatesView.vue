@@ -16,7 +16,7 @@
             placeholder="Search template name, language, or content..."
             @input="onSearch"
           />
-          <div v-if="auth.isAdmin" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" :disabled="templateActionBusy" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
+          <div v-if="auth.canManageTeam" class="flex flex-wrap gap-2"><button type="button" class="detail-button" :disabled="syncing" @click="syncTemplates">{{ syncing ? 'Sync...' : 'Sync template' }}</button><button type="button" class="detail-button" :disabled="templateActionBusy" @click="showCreate = !showCreate">{{ showCreate ? 'Tutup' : 'Tambah template' }}</button></div>
           <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="create-template-title" @click.self="closeCreateModal">
           <form class="template-create-card relative max-h-[calc(100vh-2rem)] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-accent/30 p-5 shadow-2xl" @submit.prevent="createTemplate">
             <div v-if="templateActionBusy" class="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-ink-900/85 p-6 backdrop-blur-sm" role="status" aria-live="polite">
