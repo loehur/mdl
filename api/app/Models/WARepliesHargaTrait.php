@@ -408,7 +408,7 @@ trait WARepliesHargaTrait
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden. Jika customer menyebut *Pakaian Harian* secara eksplisit, WAJIB gunakan Pakaian Harian walau chat sebelumnya membahas item lain.\n\nWAJIB SANGAT RINGKAS (maks. 55 kata):\n- Sapa {$sapaan} dalam 1 frasa pendek.\n- Pertanyaan spesifik: tampilkan hanya tarif yang relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- Jangan jelaskan proses cek, jangan ulang kategori/item, jangan bilang pilihan satu-satunya, jangan pakai paragraf penutup panjang.\n- Boleh tutup paling banyak 1 frasa singkat, misalnya: _Mau cek yang lain?_\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
+                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden. Jika customer menyebut *Pakaian Harian* secara eksplisit, WAJIB gunakan Pakaian Harian walau chat sebelumnya membahas item lain.\n\nWAJIB SANGAT RINGKAS (maks. 40 kata):\n- LANGSUNG mulai dari baris tarif, TANPA sapaan, pembuka, atau judul.\n- Pertanyaan spesifik: hanya tarif relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- TANPA tawaran, pertanyaan lanjutan, atau penutup (mis. 'mau cek yang lain?').\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
                 ],
                 [
                     'role' => 'user',
@@ -421,7 +421,7 @@ trait WARepliesHargaTrait
             ];
 
             $answer = $this->executeOpenAIRequestWithMessages($messages, 180);
-            $text = trim((string) $answer);
+            $text = $this->compactHargaAiReply((string) $answer);
             if ($text === '') {
                 $text = "Mohon maaf {$sapaan}, saya belum bisa menampilkan harga saat ini.\nBoleh sebutkan itemnya agar saya bantu cek?";
             }
@@ -530,6 +530,30 @@ trait WARepliesHargaTrait
             return $text;
         }
         return $text . "\n\n_Catatan:_ Harga di atas tidak termasuk Antar/Jemput";
+    }
+
+    /** Hapus sapaan/pembuka dan tawaran follow-up yang tidak diperlukan dari jawaban harga AI. */
+    private function compactHargaAiReply(string $text): string
+    {
+        $lines = preg_split('/\r?\n/', trim($text)) ?: [];
+        $kept = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            // Jangan kirim sapaan pembuka atau pertanyaan/tawaran cek lanjutan.
+            $line = preg_replace('/^(?:hai|halo|hi|bang|kak|kk|pak|bu|mas|mbak)[,!\s]+/iu', '', $line) ?? $line;
+            $line = preg_replace('/\s*(?:[.!]?\s*)?(?:mau|ingin|ada|kalau\s+mau)\s+(?:cek|tanya)(?:\s+yang\s+lain)?\??\s*$/iu', '', $line) ?? $line;
+            $line = trim($line);
+            // Heading seperti "ini tarif ...:" tidak menambah informasi tarif.
+            if ($line === '' || (!preg_match('/(?:rp\s*\d|\d[\d.,]*\s*(?:kg|pcs|item))/iu', $line)
+                && preg_match('/\b(?:tarif|harga|layanan)\b.*:?$/iu', $line))) {
+                continue;
+            }
+            $kept[] = $line;
+        }
+        return trim(implode("\n", $kept));
     }
 
     // ─── Data loaders ──────────────────────────────────────────────────────────
