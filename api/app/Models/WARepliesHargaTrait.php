@@ -529,7 +529,7 @@ trait WARepliesHargaTrait
         if (stripos($text, 'tidak termasuk antar') !== false) {
             return $text;
         }
-        return $text . "\n\n_Catatan:_ Harga di atas tidak termasuk Antar/Jemput";
+        return $text . "\n\n_Harga di atas tidak termasuk Antar/Jemput_";
     }
 
     /** Hapus sapaan/pembuka dan tawaran follow-up yang tidak diperlukan dari jawaban harga AI. */
