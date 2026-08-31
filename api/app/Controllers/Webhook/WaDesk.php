@@ -245,7 +245,7 @@ class WaDesk extends Controller
         $phoneId = trim((string) ($value['phone_number_id'] ?? $value['id'] ?? ''));
         $displayNumber = preg_replace('/\D+/', '', (string) ($value['display_phone_number'] ?? $value['phone_number'] ?? ''));
         $quality = strtoupper(trim((string) ($value['quality_rating'] ?? $value['new_quality_rating'] ?? $value['quality'] ?? $value['event'] ?? '')));
-        if (!in_array($quality, ['GREEN', 'YELLOW', 'RED'], true)) return;
+        if (!in_array($quality, ['GREEN', 'YELLOW', 'RED', 'UNKNOWN', 'NA'], true)) return;
 
         $where = 'waba_id = ? AND provider = \'meta\'';
         $binds = [$wabaId];

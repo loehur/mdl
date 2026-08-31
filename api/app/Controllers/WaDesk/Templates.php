@@ -167,7 +167,7 @@ class Templates extends WaDeskController
                           ON c.tenant_id = t.tenant_id AND c.waba_id = t.meta_waba_id
                         WHERE t.tenant_id = ? AND c.provider = 'meta' AND c.status = 'active'
                           AND c.template_sending_enabled = 1
-                          AND UPPER(COALESCE(c.meta_quality_rating, '')) IN ('GREEN', 'YELLOW')
+                          AND ' . \App\Helpers\WaDesk\TemplateChannelSelector::qualitySql('c') . '
                           AND {$this->channelTeamSql('c', $teamId)}";
             } else {
                 $sql = "SELECT t.* FROM wa_templates t WHERE t.tenant_id = ?";
