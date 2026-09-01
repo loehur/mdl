@@ -641,7 +641,6 @@ class Delivery extends Controller
             if (empty($ids)) {
                throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
             }
-            $this->rejectBoundToOtherSurcas($ids, 'antar', $preferSurcasId);
             $tarifSurcas = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
             $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
             if ($lockedAntar !== null) {
@@ -658,9 +657,10 @@ class Delivery extends Controller
                   $deliveredCount++;
                }
             }
-            if ($deliveredCount > 0 && $deliveredCount < count($ids)) {
-               throw new Exception('Jangan campur item sudah Delivered dengan yang belum. Pilih terpisah.');
-            }
+            // Saat menyelesaikan antar, item yang sudah memiliki riwayat Delivered
+            // tidak perlu diproses lagi. Tetap tampil di Operasi agar surcas lama
+            // yang belum masuk nota dapat dibackfill melalui aksi tersendiri.
+            $mixedDelivered = $deliveredCount > 0 && $deliveredCount < count($ids);
 
             if ($idKaryawan > 0) {
                // ===== Antar: selesai (penyelesai terisi) — prioritas, tidak tambah surcas jika sudah ada =====
@@ -682,6 +682,10 @@ class Delivery extends Controller
                      $freshIds[] = $idSale;
                   }
                }
+               // Untuk pilihan campuran, surcas penyelesaian hanya milik item baru.
+               // Item Delivered tidak boleh ikut tersentuh atau mendapat surcas kedua.
+               $surcasIds = !empty($freshIds) ? $freshIds : $ids;
+               $this->rejectBoundToOtherSurcas($surcasIds, 'antar', $preferSurcasId);
 
                $inserted = 0;
                if (!empty($freshIds)) {
@@ -703,10 +707,10 @@ class Delivery extends Controller
                }
 
                $surcasAntar = null;
-               if (!$this->allSaleIdsBoundSurcasPengantaran($ids)) {
+               if (!$this->allSaleIdsBoundSurcasPengantaran($surcasIds)) {
                   $surcasAntar = $this->upsertSurcasPengantaran(
                      $idCabang,
-                     $ids,
+                     $surcasIds,
                      $tarifSurcas,
                      $idReqAntar,
                      $preferSurcasId
@@ -714,13 +718,13 @@ class Delivery extends Controller
                } else {
                   $this->helper('SurcasKurir');
                   $this->helper('AntarTarif');
-                  $noRefDone = SurcasKurir::pickRefForIds($this->db(0), $ids);
+                  $noRefDone = SurcasKurir::pickRefForIds($this->db(0), $surcasIds);
                   $surcasAntar = [
                      'no_ref' => $noRefDone ?? '',
                      'jumlah' => $tarifSurcas,
                      'updated' => false,
                      'skipped' => true,
-                     'bound_ids' => $ids,
+                     'bound_ids' => $surcasIds,
                   ];
                }
 
@@ -733,6 +737,9 @@ class Delivery extends Controller
                   : 'Antar sudah tercatat — petugas antar diperbarui';
                if ($idReqAntar > 0) {
                   $msg .= " · Request antar #$idReqAntar ditutup";
+               }
+               if ($mixedDelivered) {
+                  $msg .= " · $deliveredCount item sudah Delivered dilewati";
                }
                if (is_array($surcasAntar) && empty($surcasAntar['skipped'])) {
                   $msg .= !empty($surcasAntar['updated'])
@@ -754,6 +761,7 @@ class Delivery extends Controller
                ];
             } elseif ($deliveredCount === count($ids)) {
                // Legacy: item sudah Delivered (WA/manual lama) tapi surcas pengantaran belum masuk nota
+               $this->rejectBoundToOtherSurcas($ids, 'antar', $preferSurcasId);
                $reqAntar = $this->findActiveDeliveryRequest($idPelanggan, 'antar');
                $idReqAntar = (int) ($reqAntar['id_request'] ?? 0);
                $surcasAntar = $this->upsertSurcasPengantaran(
@@ -778,6 +786,7 @@ class Delivery extends Controller
                ];
             } else {
             // ===== Antar: request (buat atau ikat) + surcas ke nota — tanpa penyelesai =====
+            $this->rejectBoundToOtherSurcas($ids, 'antar', $preferSurcasId);
             $this->helper('SurcasKurir');
             $this->helper('AntarTarif');
             $noRefAntar = SurcasKurir::pickRefForIds($this->db(0), $ids);

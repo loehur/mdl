@@ -179,6 +179,7 @@ class WaDesk extends Controller
                     'template_category_update',
                     'phone_number_quality_update',
                     'phone_number_name_update',
+                    'business_capability_update',
                 ], true)) continue;
 
                 $value = is_array($change['value'] ?? null) ? $change['value'] : [];
@@ -193,6 +194,8 @@ class WaDesk extends Controller
                     $this->applyMetaPhoneQualityUpdate($db, $wabaId, $value);
                 } elseif ($field === 'phone_number_name_update') {
                     $this->applyMetaPhoneNameUpdate($db, $wabaId, $value);
+                } elseif ($field === 'business_capability_update') {
+                    $this->applyMetaBusinessCapabilityUpdate($wabaId, $value);
                 } else {
                     $this->applyMetaTemplateUpdate($db, $wabaId, $field, $value);
                 }
@@ -336,6 +339,31 @@ class WaDesk extends Controller
             . ' status=' . ($nameStatus ?: '-')
             . ' label_changed=' . (($newName !== '' && $nameStatus === 'APPROVED') ? 'yes' : 'no')
             . ' affected=' . (int) $db->affected_rows());
+    }
+
+    /**
+     * Meta sends this callback when a WABA capability changes, for example
+     * messaging/conversation limits or business-account capability state.
+     * It is WABA-level (not tied to one phone), so retain the normalized
+     * detail in the webhook log for operations without guessing a channel
+     * status or overwriting unrelated local fields.
+     */
+    private function applyMetaBusinessCapabilityUpdate(string $wabaId, array $value): void
+    {
+        $detail = [
+            'event' => strtoupper(trim((string) ($value['event'] ?? ''))),
+            'current_limit' => (string) ($value['current_limit'] ?? ''),
+            'old_limit' => (string) ($value['old_limit'] ?? ''),
+            'max_daily_conversations_per_business' => (string) (
+                $value['max_daily_conversations_per_business']
+                ?? $value['max_daily_conversations_per_business_account']
+                ?? ''
+            ),
+            'business_compliance_status' => (string) ($value['business_compliance_status'] ?? ''),
+        ];
+        $detail = array_filter($detail, static fn ($item) => $item !== '');
+        $this->logWebhook('META_BUSINESS_CAPABILITY_UPDATED waba=' . $wabaId
+            . ' data=' . json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /** @return array{event:string,source:string,delivery:string} */

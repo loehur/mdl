@@ -2242,6 +2242,21 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     return found;
   }
 
+  // Saat ada petugas Antar, pilihan ini adalah penyelesaian. Item yang sudah
+  // Delivered hanya untuk backfill surcas, jadi jangan ikut dikirim di batch ini.
+  function skipDeliveredForCompletion() {
+    var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
+    if (jenis !== 'antar' || currentPenyelesai() <= 0) return 0;
+    var skipped = 0;
+    root.querySelectorAll('input[name="kurir_ids"]:checked').forEach(function (cb) {
+      if (cb.getAttribute('data-sudah-delivered') === '1') {
+        cb.checked = false;
+        skipped++;
+      }
+    });
+    return skipped;
+  }
+
   /** Antar: penyelesai dikunci jika ada item terpilih yang belum selesai laundry. Jemput tidak terpengaruh. */
   function syncPenyelesaiLock() {
     var jenis = String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase();
@@ -2532,6 +2547,12 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
           cb.checked = true;
           return;
         }
+        if (cb.checked && cb.getAttribute('data-sudah-delivered') === '1'
+            && String((document.getElementById('kurirJenis') || {}).value || '').toLowerCase() === 'antar'
+            && currentPenyelesai() > 0) {
+          cb.checked = false;
+          toast('Item sudah Delivered dilewati saat menyelesaikan antar. Kosongkan petugas untuk tambah surcas saja.', 'warn');
+        }
         syncPenyelesaiLock();
         syncSurcasLock();
       });
@@ -2656,6 +2677,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
         if (karySel) karySel.value = '';
       }
       toast('Item belum selesai laundry — petugas antar tidak bisa diisi', 'warn');
+    }
+    var skippedDelivered = skipDeliveredForCompletion();
+    if (skippedDelivered > 0) {
+      toast(skippedDelivered + ' item sudah Delivered dilewati. Pilih tanpa petugas bila hanya ingin tambah surcas.', 'warn');
     }
     syncPenyelesaiLock();
   }
