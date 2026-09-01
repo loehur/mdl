@@ -8,7 +8,6 @@ use App\Helpers\BcaMutasiMatcher;
 use App\Helpers\BcaScrapper;
 use App\Helpers\Invoice\InvoiceBcaConfirm;
 use App\Helpers\WaDesk\DevFeeBcaConfirm;
-use App\Helpers\Laundry\KasMismatchNotify;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\BcaMutasiUnbind;
 use App\Helpers\Payment\BcaUniqueNominal;
@@ -125,10 +124,7 @@ class BcaKasConfirm extends Controller
                     SUM(jumlah) AS total,
                     MIN(insertTime) AS insertTime,
                     MAX(note) AS note,
-                    MAX(jenis_transaksi) AS jenis_transaksi,
-                    MAX(id_client) AS id_client,
-                    MAX(id_user) AS id_user,
-                    MAX(id_cabang) AS id_cabang
+                    MAX(jenis_transaksi) AS jenis_transaksi
              FROM kas
              WHERE metode_mutasi = 2
                AND status_mutasi = 2
@@ -171,7 +167,6 @@ class BcaKasConfirm extends Controller
                     echo " ({$match['range_start']}..{$match['range_end']})";
                 }
                 echo "\n";
-                KasMismatchNotify::send($dbLaundry, $row, 'BCA');
                 continue;
             }
 
