@@ -1,4 +1,4 @@
-const running = new Map();
+let running = false;
 
 function joinUrl(base, path) {
   if (/^https?:\/\//i.test(path)) return path;
@@ -18,12 +18,12 @@ function withSecret(url, secret) {
  * @param {{ apiBase: string, cronSecret: string }} env
  */
 async function runJob(job, env) {
-  if (running.get(job.id)) {
-    console.warn(`[cron] SKIP ${job.id} — still running`);
+  if (running) {
+    console.warn(`[cron] SKIP ${job.id} — another job is still running`);
     return { skipped: true };
   }
 
-  running.set(job.id, true);
+  running = true;
   const started = Date.now();
   const method = (job.method || 'GET').toUpperCase();
   let url = joinUrl(env.apiBase, job.url);
@@ -55,7 +55,7 @@ async function runJob(job, env) {
     console.error(`[cron] ERROR ${job.id} ${ms}ms ::`, err.message || err);
     return { ok: false, error: String(err.message || err) };
   } finally {
-    running.set(job.id, false);
+    running = false;
   }
 }
 
