@@ -661,9 +661,9 @@ class Rekap extends Controller
       $jenisEsc = $this->db(0)->escape($jenis);
       $summaryOnly = !empty($period['show_cabang']);
       $rows = $this->db(0)->query_array($summaryOnly
-         ? "SELECT id_cabang, SUM(jumlah) AS jumlah FROM kas WHERE {$whereCabang}status_mutasi <> 4
+         ? "SELECT id_cabang, note_primary, SUM(jumlah) AS jumlah FROM kas WHERE {$whereCabang}status_mutasi <> 4
               AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
-              GROUP BY id_cabang ORDER BY jumlah DESC, id_cabang ASC"
+              GROUP BY id_cabang, note_primary ORDER BY jumlah DESC, id_cabang ASC"
          : "SELECT id_cabang, note_primary, jumlah, insertTime, jenis_transaksi FROM kas WHERE {$whereCabang}status_mutasi <> 4
               AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
               ORDER BY insertTime DESC, id_kas DESC"
@@ -673,7 +673,7 @@ class Rekap extends Controller
       $total = 0; $out = [];
       foreach ($rows as $r) {
          $amount = (int) ($r['jumlah'] ?? 0); $total += $amount;
-         $out[] = ['tanggal' => (string) ($r['insertTime'] ?? ''), 'jumlah' => $amount, 'cabang' => $this->rekapCabangLabel((int) ($r['id_cabang'] ?? 0), $cabangMap)];
+         $out[] = ['tanggal' => (string) ($r['insertTime'] ?? ''), 'note' => (string) ($r['note_primary'] ?? $jenis), 'jumlah' => $amount, 'cabang' => $this->rekapCabangLabel((int) ($r['id_cabang'] ?? 0), $cabangMap)];
       }
       header('Content-Type: application/json; charset=utf-8');
       echo json_encode(['ok' => true, 'jenis' => $jenis, 'rows' => $out, 'total' => $total, 'show_cabang' => !empty($period['show_cabang']), 'summary_only' => $summaryOnly, 'period_label' => $period['period_label']]);

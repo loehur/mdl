@@ -423,7 +423,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
 <div class="modal fade" id="modalKasKeluarDetail" tabindex="-1" aria-labelledby="modalKasKeluarDetailLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable modal-lg"><div class="modal-content">
     <div class="modal-header py-2"><h6 class="modal-title" id="modalKasKeluarDetailLabel">Rincian Pengeluaran</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
-    <div class="modal-body py-2"><p class="small text-muted mb-2" id="modalKasKeluarPeriod"></p><div id="modalKasKeluarLoading" class="text-center py-3 d-none">Memuat…</div><div id="modalKasKeluarError" class="alert alert-danger py-2 small d-none"></div><div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr><th id="modalKasKeluarHeadPrimary">Tanggal</th><th class="modalKasKeluarCabang">Cabang</th><th class="text-end">Jumlah</th></tr></thead><tbody id="modalKasKeluarTbody"></tbody><tfoot class="table-secondary fw-bold d-none" id="modalKasKeluarFoot"><tr><td class="modalKasKeluarCabang" colspan="2">Total</td><td class="text-end" id="modalKasKeluarTotal"></td></tr></tfoot></table></div></div>
+    <div class="modal-body py-2"><p class="small text-muted mb-2" id="modalKasKeluarPeriod"></p><div id="modalKasKeluarLoading" class="text-center py-3 d-none">Memuat…</div><div id="modalKasKeluarError" class="alert alert-danger py-2 small d-none"></div><div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr><th id="modalKasKeluarHeadPrimary">Tanggal</th><th class="modalKasKeluarCabang">Cabang</th><th class="text-end">Jumlah</th></tr></thead><tbody id="modalKasKeluarTbody"></tbody><tfoot class="table-secondary fw-bold d-none" id="modalKasKeluarFoot"><tr><td id="modalKasKeluarFootLabel" colspan="2">Total</td><td class="text-end" id="modalKasKeluarTotal"></td></tr></tfoot></table></div></div>
     <div class="modal-footer py-1"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button></div>
   </div></div>
 </div>
@@ -470,10 +470,11 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         document.getElementById('modalKasKeluarPeriod').textContent = 'Periode: ' + (data.period_label || '');
         cabangEls.forEach(function (el) { el.classList.toggle('d-none', !data.show_cabang); });
         var primaryHead = document.getElementById('modalKasKeluarHeadPrimary');
-        primaryHead.textContent = data.summary_only ? 'Cabang' : 'Tanggal';
-        primaryHead.colSpan = data.summary_only ? 2 : 1;
-        modal.querySelector('thead .modalKasKeluarCabang').classList.toggle('d-none', !data.show_cabang || !!data.summary_only);
-        (data.rows || []).forEach(function (r) { var tr = document.createElement('tr'); tr.innerHTML = data.summary_only ? '<td colspan="2">' + (r.cabang || '-') + '</td><td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>' : '<td>' + String(r.tanggal || '-').replace(' ', ' · ') + '</td><td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>'; body.appendChild(tr); });
+        primaryHead.textContent = data.summary_only ? 'Note' : 'Tanggal';
+        primaryHead.colSpan = 1;
+        document.getElementById('modalKasKeluarFootLabel').colSpan = data.show_cabang ? 2 : 1;
+        modal.querySelector('thead .modalKasKeluarCabang').classList.toggle('d-none', !data.show_cabang);
+        (data.rows || []).forEach(function (r) { var tr = document.createElement('tr'); tr.innerHTML = data.summary_only ? '<td>' + (r.note || '-') + '</td><td>' + (r.cabang || '-') + '</td><td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>' : '<td>' + String(r.tanggal || '-').replace(' ', ' · ') + '</td>' + (data.show_cabang ? '<td>' + (r.cabang || '-') + '</td>' : '') + '<td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>'; body.appendChild(tr); });
         if (!data.rows || !data.rows.length) body.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Tidak ada transaksi.</td></tr>';
         document.getElementById('modalKasKeluarTotal').textContent = 'Rp' + fmt(data.total || 0); foot.classList.remove('d-none');
       }).catch(function (err) { loading.classList.add('d-none'); error.textContent = err.message || 'Gagal memuat data.'; error.classList.remove('d-none'); });
