@@ -5610,8 +5610,16 @@ class WAReplies
                 'Kembali: ' . $rupiah($globalRef[2]) . '/nota',
                 '', '*TUNJANGAN BULANAN*',
                 $rupiah($feeKaryawan[4]) . '/bulan',
-                '', '*FEE ABSENSI*',
-                'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari',
+            ]);
+
+            // Fee Absensi Harian 0 → jangan cantumkan blok absensi
+            if ((int) ($feeKaryawan[3] ?? 0) > 0) {
+                $lines[] = '';
+                $lines[] = '*FEE ABSENSI*';
+                $lines[] = 'Harian: ' . $rupiah($feeKaryawan[3]) . '/hari';
+            }
+
+            $lines = array_merge($lines, [
                 '', '*Cuci*',
                 'Ketik: _Fee Cuci {KODE_CABANG}_',
                 '', '*Jaga Malam*',
