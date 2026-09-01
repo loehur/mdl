@@ -92,22 +92,44 @@ class NonTunaiAdmin extends Controller
     {
         $this->session_cek(1);
         $keyword = trim((string) ($_POST['keyword'] ?? ''));
-        if ($keyword !== '') {
-            $this->db(100)->query('INSERT IGNORE INTO bca_mutasi_bypass_rules (keyword) VALUES (?)', [$keyword]);
-            $this->refreshMutasiBypass();
+        header('Content-Type: application/json; charset=utf-8');
+        if ($keyword === '') {
+            echo json_encode(['ok' => false, 'message' => 'Teks bypass wajib diisi'], JSON_UNESCAPED_UNICODE);
+            return;
         }
-        header('Location: ' . URL::BASE_URL . 'NonTunaiAdmin/mutasiBypass');
+        try {
+            $insert = $this->db(100)->insert('bca_mutasi_bypass_rules', ['keyword' => $keyword]);
+            if (($insert['errno'] ?? 1) !== 0) {
+                echo json_encode(['ok' => false, 'message' => $insert['error'] ?? 'Gagal menyimpan teks bypass'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $this->refreshMutasiBypass();
+            echo json_encode(['ok' => true, 'message' => 'Teks bypass berhasil ditambahkan'], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode(['ok' => false, 'message' => 'Gagal menyimpan: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     public function deleteMutasiBypass($id = 0)
     {
         $this->session_cek(1);
         $id = (int) ($id ?: ($_POST['id'] ?? 0));
-        if ($id > 0) {
-            $this->db(100)->delete('bca_mutasi_bypass_rules', ['id' => $id]);
-            $this->refreshMutasiBypass();
+        header('Content-Type: application/json; charset=utf-8');
+        if ($id < 1) {
+            echo json_encode(['ok' => false, 'message' => 'Aturan bypass tidak valid'], JSON_UNESCAPED_UNICODE);
+            return;
         }
-        header('Location: ' . URL::BASE_URL . 'NonTunaiAdmin/mutasiBypass');
+        try {
+            $delete = $this->db(100)->delete('bca_mutasi_bypass_rules', ['id' => $id]);
+            if (($delete['errno'] ?? 1) !== 0) {
+                echo json_encode(['ok' => false, 'message' => $delete['error'] ?? 'Gagal menghapus aturan bypass'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $this->refreshMutasiBypass();
+            echo json_encode(['ok' => true, 'message' => 'Aturan bypass dihapus'], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            echo json_encode(['ok' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
     }
 
     private function refreshMutasiBypass(): void
