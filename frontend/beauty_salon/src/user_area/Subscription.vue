@@ -230,7 +230,7 @@
                 <div v-if="paymentData?.qr_string && !paymentExpired" class="p-2 bg-white border-2 border-pink-200 rounded-xl flex justify-center">
                   <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
                 </div>
-                <p v-if="paymentData?.qr_string && !paymentExpired" class="mt-3 text-center text-xs text-gray-500">Pembayaran QRIS akan dikonfirmasi otomatis dalam pembaruan berkala, maksimal 10 menit.</p>
+                <p v-if="paymentData?.qr_string && !paymentExpired" class="mt-3 text-center text-xs text-gray-500">Pembayaran QRIS akan dikonfirmasi otomatis berkala, maksimal 10 menit.</p>
                 <div v-else-if="paymentExpired" class="w-48 h-48 bg-red-50 rounded-xl flex flex-col items-center justify-center text-center px-3">
                   <svg class="w-8 h-8 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -123,7 +123,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
       </div>
       <div class="j-sheet-body j-sheet-center">
         <div id="jQrcode" class="j-qr-box"></div>
-        <p class="j-sheet-note">Pembayaran QRIS akan dikonfirmasi otomatis dalam pembaruan berkala, maksimal 10 menit.</p>
+        <p class="j-sheet-note">Pembayaran QRIS akan dikonfirmasi otomatis berkala, maksimal 10 menit.</p>
         <p class="j-qr-total" id="jQrTotal"></p>
         <p class="j-qr-nama" id="jQrNama"></p>
       </div>

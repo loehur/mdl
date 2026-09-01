@@ -1491,7 +1491,7 @@
     </div>
     <div class="op-modal__body" style="text-align:center;">
       <div id="qrcode" class="op-qr-wrap"></div>
-      <p class="text-muted text-center small mt-3 mb-0">Pembayaran QRIS akan dikonfirmasi otomatis dalam pembaruan berkala, maksimal 10 menit.</p>
+      <p class="text-muted text-center small mt-3 mb-0">Pembayaran QRIS akan dikonfirmasi otomatis berkala, maksimal 10 menit.</p>
       <p style="margin:0;font-weight:900;" id="qrTotal"></p>
       <p style="margin:4px 0 0;" id="qrNama"></p>
       <div id="devModeLabel" class="d-none" style="margin-top:10px;">
