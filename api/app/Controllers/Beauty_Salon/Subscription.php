@@ -334,6 +334,9 @@ class Subscription extends Controller
                 $this->error($order['message'] ?? 'Gagal membuat QRIS. Silakan coba lagi.', 500);
             }
 
+            $amount = (int) ($order['amount'] ?? $amount);
+            $this->db($this->db_index)->update('subscription_payments', ['amount' => $amount], ['payment_ref' => $payment_ref]);
+
             $this->json([
                 'success' => true,
                 'data' => [
@@ -1016,12 +1019,15 @@ class Subscription extends Controller
             ];
         }
 
+        $newAmount = (int) ($order['amount'] ?? $amount_int);
+        $this->db($this->db_index)->update('subscription_payments', ['amount' => $newAmount], ['id' => $payment['id']]);
+
         return [
             'qr_string' => $order['qr_string'],
             'refreshed' => true,
             'data' => [
                 'payment_ref' => $new_ref,
-                'amount' => $payment['amount'],
+                'amount' => $newAmount,
                 'period_start' => $payment['period_start'],
                 'period_end' => $payment['period_end'],
                 'qr_string' => $order['qr_string'],
@@ -1040,6 +1046,7 @@ class Subscription extends Controller
             return [
                 'ok' => true,
                 'qr_string' => $order['qr_string'],
+                'amount' => (int) ($order['amount'] ?? $amount_int),
                 'gateway' => $order['gateway'],
                 'raw' => isset($order['raw']) ? json_encode($order['raw']) : '',
             ];

@@ -427,8 +427,10 @@ class PublicView extends InvoiceController
         }
 
         $qrString = $order['qr_string'];
+        $amount = (int) ($order['amount'] ?? $baseAmount);
 
         $this->db($this->db_index)->update('invoice_payments', [
+            'amount' => $amount,
             'qr_string' => $qrString,
             'trx_id' => $order['trx_id'],
         ], ['payment_ref' => $paymentRef]);
@@ -436,11 +438,11 @@ class PublicView extends InvoiceController
         $this->success([
             'payment_ref' => $paymentRef,
             'payment_method' => 'qris',
-            'amount' => $baseAmount,
+            'amount' => $amount,
             'base_amount' => $baseAmount,
             'qr_string' => $qrString,
             'invoice_number' => $invoice['invoice_number'],
-        ], 'Scan QRIS untuk membayar Rp ' . number_format($baseAmount, 0, ',', '.'));
+        ], 'Scan QRIS untuk membayar Rp ' . number_format($amount, 0, ',', '.'));
     }
 
     /**

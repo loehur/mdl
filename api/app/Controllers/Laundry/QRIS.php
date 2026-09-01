@@ -4,7 +4,6 @@ namespace App\Controllers\Laundry;
 
 use App\Core\Controller;
 use App\Helpers\Payment\QrisService;
-use App\Models\Tokopay;
 
 /**
  * QRIS Controller — endpoint HTTP untuk generate/cek QRIS.
@@ -69,6 +68,7 @@ class QRIS extends Controller
                 'trx_id' => $result['trx_id'],
                 'ref_id' => $result['ref_id'],
                 'qr_string' => $result['qr_string'],
+                'amount' => (int) ($result['amount'] ?? $nominal),
                 'gateway' => $result['gateway'],
             ]);
             exit;
@@ -129,7 +129,7 @@ class QRIS extends Controller
     }
 
     /**
-     * Check merchant balance
+     * Endpoint lama Tokopay tidak dipakai oleh QRIS lokal.
      * GET /Laundry/QRIS/balance
      */
     public function balance()
@@ -140,20 +140,7 @@ class QRIS extends Controller
             $this->error('Method not allowed. Use GET', 405);
         }
 
-        try {
-            $tokopay = new Tokopay();
-            $response = $tokopay->getMerchantBalance();
-            $data = json_decode($response, true);
-
-            if (isset($data['status']) && $data['status'] === false) {
-                $errorMsg = isset($data['message']) ? $data['message'] : 'Gagal mengambil saldo dari TokoPay';
-                $this->error($errorMsg, 500, $data);
-            }
-
-            $this->success($data, 'Saldo berhasil diambil');
-        } catch (\Exception $e) {
-            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
-        }
+        $this->error('Saldo tidak tersedia: QRIS lokal dikonfirmasi melalui mutasi BCA', 410);
     }
 
     /**
@@ -168,26 +155,7 @@ class QRIS extends Controller
             $this->error('Method not allowed. Use POST', 405);
         }
 
-        try {
-            $body = $this->getBody();
-            $nominal = isset($body['nominal']) ? (int) $body['nominal'] : 0;
-
-            if ($nominal < 10000) {
-                $this->error('Minimal penarikan Rp 10.000', 400);
-            }
-
-            $tokopay = new Tokopay();
-            $response = $tokopay->tarikSaldo($nominal);
-            $data = json_decode($response, true);
-
-            if (isset($data['status']) && $data['status'] === false && isset($data['message'])) {
-                $this->error('Gagal tarik saldo ke TokoPay: ' . $data['message'], 500);
-            }
-
-            $this->success($data, 'Permintaan penarikan saldo berhasil dikirim');
-        } catch (\Exception $e) {
-            $this->error('Internal Server Error: ' . $e->getMessage(), 500);
-        }
+        $this->error('Penarikan Tokopay tidak tersedia pada QRIS lokal', 410);
     }
 
     private function jsonError(string $message, int $code): void

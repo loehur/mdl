@@ -731,8 +731,8 @@ trait Attributes
 
    public function payment_gateway_logic($ref_finance, $is_public = false)
    {
-      $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'tokopay';
-      if ($is_public) $gateway = 'tokopay'; 
+      $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'bca_qris_local';
+      if ($is_public) $gateway = 'bca_qris_local';
 
       // PENTING: Bersihkan ref_finance dari timestamp jika ada (untuk menghindari double)
       // ref_finance seharusnya hanya ID transaksi, bukan dengan timestamp
@@ -972,7 +972,7 @@ trait Attributes
 
       $ref_id = $ref_finance;
 
-      if ($gateway == 'tokopay') {
+      if (in_array($gateway, ['tokopay', 'bca_qris_local'], true)) {
          // Panggil API QRIS untuk generate QR
          // API menerima ref_id (bersih), API akan generate unique_order_id internally
          $this->helper('QRISApi');
@@ -984,6 +984,7 @@ trait Attributes
             // Response format baru API: {status, trx_id, ref_id, qr_string} di root level
             $trx_id = isset($data['trx_id']) ? $data['trx_id'] : $ref_finance . '_' . time();
             $qr_string = isset($data['qr_string']) ? trim($data['qr_string']) : '';
+            $qris_amount = isset($data['amount']) ? intval($data['amount']) : $nominal;
             
             if (empty($qr_string)) {
                if (!$is_public) $this->model('Log')->write("[payment_gateway_order] QR String not found in response");
@@ -991,9 +992,16 @@ trait Attributes
                exit();
             }
 
-            // Update kas dengan payment info (langsung ke tabel kas, tidak ke wh_tokopay)
+            // Simpan selisih nominal unik pada satu baris kas. Total ref_finance
+            // harus sama persis dengan nominal QRIS agar cron BCA dapat mencocokkan.
+            if ($qris_amount > 0 && $qris_amount !== $nominal) {
+               $delta = $qris_amount - $nominal;
+               $this->db(0)->query("UPDATE kas SET jumlah = jumlah + ($delta) WHERE ref_finance = '$ref_finance' LIMIT 1");
+            }
+
+            // Update kas dengan payment info (langsung ke tabel kas)
             $payment_data = [
-               'payment_gateway' => $gateway,
+               'payment_gateway' => isset($data['gateway']) ? $data['gateway'] : 'bca_qris_local',
                'payment_trx_id' => $trx_id,
                'payment_qr_string' => $qr_string,
                'payment_state' => 'pending',
@@ -1015,7 +1023,8 @@ trait Attributes
             echo json_encode([
                'status' => 'pending',
                'qr_string' => $qr_string,
-               'trx_id' => $trx_id
+               'trx_id' => $trx_id,
+               'amount' => $qris_amount
             ]);
             exit();
          } else {
