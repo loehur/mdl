@@ -10,7 +10,9 @@ use App\Helpers\Laundry\KasUnmatchedNotification;
 
 class KasUnmatchedNotify extends Controller
 {
-    private const MIN_PENDING_MINUTES = 15;
+    // Tunggu 45 menit sebelum anggap kas pending "tidak ditemukan" & kirim notifikasi.
+    // Mutasi BCA/QRIS sering muncul 20-30 menit setelah kas dibuat; 15 menit terlalu cepat.
+    private const MIN_PENDING_MINUTES = 45;
     private const STALE_CLAIM_MINUTES = 15;
     private const LIMIT = 50;
 
