@@ -152,7 +152,7 @@ class Pengeluaran extends Controller
 
 
 
-         $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, $id);
+          $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, $id, (int) ($pending['id_cabang'] ?? 0));
 
          PengeluaranAiLog::info('HISTORY', ['req' => $reqId, 'jenis' => $jenis, 'count' => count($history)]);
 

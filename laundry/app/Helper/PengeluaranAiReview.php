@@ -334,7 +334,7 @@ class PengeluaranAiReview
      * @param callable(int):string $kodeFn
      * @return list<array<string,mixed>>
      */
-    public function fetchHistoryForAnalysis($db, string $wCabangAll, array $pending, callable $kodeFn, string $excludeIdKas = ''): array
+    public function fetchHistoryForAnalysis($db, string $wCabangAll, array $pending, callable $kodeFn, string $excludeIdKas = '', int $activeBranchId = 0): array
     {
         $jenis = trim((string) ($pending['note_primary'] ?? ''));
         $ket = trim((string) ($pending['note'] ?? ''));
@@ -345,7 +345,14 @@ class PengeluaranAiReview
             return $this->filterHistorySimilarJenisKeterangan($pool, $jenis, $ket);
         }
 
-        return $this->fetchHistory30Days($db, $wCabangAll, $jenis, $kodeFn, $excludeIdKas);
+        return $this->fetchHistory30Days(
+            $db,
+            $wCabangAll,
+            $jenis,
+            $kodeFn,
+            $excludeIdKas,
+            $this->isGasLpg($jenis) ? $activeBranchId : 0
+        );
     }
 
     /**
@@ -384,7 +391,7 @@ class PengeluaranAiReview
      * @param callable(int):string $kodeFn
      * @return list<array<string,mixed>>
      */
-    public function fetchHistory30Days($db, string $wCabangAll, string $jenisPengeluaran, callable $kodeFn, string $excludeIdKas = ''): array
+    public function fetchHistory30Days($db, string $wCabangAll, string $jenisPengeluaran, callable $kodeFn, string $excludeIdKas = '', int $activeBranchId = 0): array
     {
         require_once dirname(__DIR__) . '/Helper/PengeluaranAiLog.php';
 
@@ -399,6 +406,10 @@ class PengeluaranAiReview
             . " AND status_mutasi = 3"
             . " AND UPPER(TRIM(note_primary)) = UPPER(TRIM('" . $jenisEsc . "'))"
             . " AND insertTime >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+
+        if ($activeBranchId > 0 && $this->isGasLpg($jenisPengeluaran)) {
+            $where .= ' AND id_cabang = ' . (int) $activeBranchId;
+        }
 
         if ($excludeIdKas !== '') {
             $where .= " AND id_kas <> '" . $db->escape($excludeIdKas) . "'";
