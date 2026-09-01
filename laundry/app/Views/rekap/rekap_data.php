@@ -150,7 +150,7 @@ $target_page_rekap = (int) ($data['rekap_mode'] ?? 1);
           $totalKeluarJenis = (int) ($a['total'] ?? 0);
           echo "<tr>";
           echo "<td class=''>" . htmlspecialchars($jenisKeluar, ENT_QUOTES, 'UTF-8') . "</td>";
-          echo "<td class='text-right'><button type='button' class='btn btn-link btn-sm p-0 text-decoration-none rekapKasKeluarDetail' data-bs-toggle='modal' data-bs-target='#rekapKasKeluarModal' data-jenis='" . htmlspecialchars($jenisKeluar, ENT_QUOTES, 'UTF-8') . "' data-total='" . $totalKeluarJenis . "' title='Lihat jenis pengeluaran'>Rp" . number_format($totalKeluarJenis) . " <i class='fas fa-list-ul small ms-1' aria-hidden='true'></i></button></td>";
+          echo "<td class='text-right'><button type='button' class='btn btn-link btn-sm p-0 text-decoration-none rekapKasKeluarDetail' data-bs-toggle='modal' data-bs-target='#rekapKasKeluarModal' data-jenis='" . htmlspecialchars($jenisKeluar, ENT_QUOTES, 'UTF-8') . "' data-total='" . $totalKeluarJenis . "' title='Klik untuk detail jenis pengeluaran'>Rp" . number_format($totalKeluarJenis) . "</button></td>";
           echo "</tr>";
           $total_keluar += $totalKeluarJenis;
         }
