@@ -1007,7 +1007,7 @@
         var tot = document.getElementById('jQrTotal');
         if (tot) tot.textContent = 'Rp' + Number(total || 0).toLocaleString('id-ID');
         var nm = document.getElementById('jQrNama');
-        if (nm) nm.textContent = nama || 'Ongkir Instant';
+        if (nm) nm.textContent = String(nama || 'Ongkir Instant').toLocaleUpperCase('id-ID');
         var cek = document.getElementById('jBtnCekStatusQR');
         if (cek) cek.setAttribute('data-ref', ref);
         showModal('jModalQR');
