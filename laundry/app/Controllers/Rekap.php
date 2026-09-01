@@ -659,11 +659,14 @@ class Rekap extends Controller
          ? 'id_cabang = ' . (int) $period['source_id'] . ' AND '
          : $this->sqlExcludeTrainingCabang('id_cabang');
       $jenisEsc = $this->db(0)->escape($jenis);
-      $rows = $this->db(0)->query_array(
-         "SELECT id_cabang, note_primary, jumlah, insertTime, jenis_transaksi
-          FROM kas WHERE {$whereCabang}status_mutasi <> 4
-            AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
-          ORDER BY insertTime DESC, id_kas DESC"
+      $summaryOnly = !empty($period['show_cabang']);
+      $rows = $this->db(0)->query_array($summaryOnly
+         ? "SELECT id_cabang, SUM(jumlah) AS jumlah FROM kas WHERE {$whereCabang}status_mutasi <> 4
+              AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
+              GROUP BY id_cabang ORDER BY jumlah DESC, id_cabang ASC"
+         : "SELECT id_cabang, note_primary, jumlah, insertTime, jenis_transaksi FROM kas WHERE {$whereCabang}status_mutasi <> 4
+              AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
+              ORDER BY insertTime DESC, id_kas DESC"
       );
       if (!is_array($rows)) { $rows = []; }
       $cabangMap = $this->rekapCabangMap();
@@ -673,7 +676,7 @@ class Rekap extends Controller
          $out[] = ['tanggal' => (string) ($r['insertTime'] ?? ''), 'jumlah' => $amount, 'cabang' => $this->rekapCabangLabel((int) ($r['id_cabang'] ?? 0), $cabangMap)];
       }
       header('Content-Type: application/json; charset=utf-8');
-      echo json_encode(['ok' => true, 'jenis' => $jenis, 'rows' => $out, 'total' => $total, 'show_cabang' => !empty($period['show_cabang']), 'period_label' => $period['period_label']]);
+      echo json_encode(['ok' => true, 'jenis' => $jenis, 'rows' => $out, 'total' => $total, 'show_cabang' => !empty($period['show_cabang']), 'summary_only' => $summaryOnly, 'period_label' => $period['period_label']]);
    }
 
    /**
