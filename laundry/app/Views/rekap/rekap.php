@@ -468,13 +468,19 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
         loading.classList.add('d-none');
         if (!data || !data.ok) throw new Error((data && data.msg) || 'Gagal memuat data.');
         document.getElementById('modalKasKeluarPeriod').textContent = 'Periode: ' + (data.period_label || '');
-        cabangEls.forEach(function (el) { el.classList.toggle('d-none', !data.show_cabang); });
-        var primaryHead = document.getElementById('modalKasKeluarHeadPrimary');
-        primaryHead.textContent = data.summary_only ? 'Note' : 'Tanggal';
-        primaryHead.colSpan = 1;
-        document.getElementById('modalKasKeluarFootLabel').colSpan = data.show_cabang ? 2 : 1;
-        modal.querySelector('thead .modalKasKeluarCabang').classList.toggle('d-none', !data.show_cabang);
-        (data.rows || []).forEach(function (r) { var tr = document.createElement('tr'); tr.innerHTML = data.summary_only ? '<td>' + (r.note || '-') + '</td><td>' + (r.cabang || '-') + '</td><td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>' : '<td>' + String(r.tanggal || '-').replace(' ', ' · ') + '</td>' + (data.show_cabang ? '<td>' + (r.cabang || '-') + '</td>' : '') + '<td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>'; body.appendChild(tr); });
+        var headRow = modal.querySelector('thead tr');
+        var footLabel = document.getElementById('modalKasKeluarFootLabel');
+        if (data.summary_only) {
+          headRow.innerHTML = '<th>Cabang</th><th class="text-end">Jumlah</th>';
+          footLabel.colSpan = 1;
+        } else if (data.show_cabang) {
+          headRow.innerHTML = '<th>Tanggal</th><th>Note</th><th>Cabang</th><th class="text-end">Jumlah</th>';
+          footLabel.colSpan = 3;
+        } else {
+          headRow.innerHTML = '<th>Tanggal</th><th>Note</th><th class="text-end">Jumlah</th>';
+          footLabel.colSpan = 2;
+        }
+        (data.rows || []).forEach(function (r) { var tr = document.createElement('tr'); tr.innerHTML = data.summary_only ? '<td>' + (r.cabang || '-') + '</td><td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>' : '<td>' + String(r.tanggal || '-').replace(' ', ' · ') + '</td><td>' + (r.note || '-') + '</td>' + (data.show_cabang ? '<td>' + (r.cabang || '-') + '</td>' : '') + '<td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>'; body.appendChild(tr); });
         if (!data.rows || !data.rows.length) body.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Tidak ada transaksi.</td></tr>';
         document.getElementById('modalKasKeluarTotal').textContent = 'Rp' + fmt(data.total || 0); foot.classList.remove('d-none');
       }).catch(function (err) { loading.classList.add('d-none'); error.textContent = err.message || 'Gagal memuat data.'; error.classList.remove('d-none'); });
