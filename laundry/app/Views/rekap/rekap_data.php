@@ -161,7 +161,7 @@ $target_page_rekap = (int) ($data['rekap_mode'] ?? 1);
         if ($gaji > 0) {
           echo "<tr>";
           echo "<td class=''>Gaji Karyawan</td>";
-          echo "<td class='text-right'>Rp" . number_format($gaji) . "</td>";
+          echo "<td class='text-right'><button type='button' class='btn btn-link btn-sm p-0 text-decoration-none rekapGajiDetail' data-rekap-mode='" . (int) $target_page_rekap . "' data-y='" . htmlspecialchars((string) $currentYear, ENT_QUOTES, 'UTF-8') . "' data-m='" . htmlspecialchars((string) $currentMonth, ENT_QUOTES, 'UTF-8') . "' data-d='" . htmlspecialchars((string) $currentDay, ENT_QUOTES, 'UTF-8') . "' title='Klik untuk rincian gaji'>Rp" . number_format($gaji) . "</button></td>";
           echo "</tr>";
           $total_keluar += $gaji;
         }

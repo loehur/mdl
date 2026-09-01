@@ -420,6 +420,8 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
   </div>
 </div>
 
+<div class="modal fade" id="modalGajiDetail" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header py-2"><h6 class="modal-title">Rincian Gaji Karyawan</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body py-2"><p class="small text-muted mb-2" id="modalGajiPeriod"></p><div id="modalGajiLoading" class="text-center py-3 d-none">Memuat…</div><div id="modalGajiError" class="alert alert-danger py-2 small d-none"></div><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr id="modalGajiHead"></tr></thead><tbody id="modalGajiBody"></tbody><tfoot class="table-secondary fw-bold d-none" id="modalGajiFoot"><tr><td id="modalGajiFootLabel">Total</td><td class="text-end" id="modalGajiTotal"></td></tr></tfoot></table></div><div class="modal-footer py-1"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button></div></div></div></div>
+
 <div class="modal fade" id="modalKasKeluarDetail" tabindex="-1" aria-labelledby="modalKasKeluarDetailLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable modal-lg"><div class="modal-content">
     <div class="modal-header py-2"><h6 class="modal-title" id="modalKasKeluarDetailLabel">Rincian Pengeluaran</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
@@ -450,6 +452,14 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
   };
 
   document.addEventListener('click', function (ev) {
+    var gajiBtn = ev.target.closest('.rekapGajiDetail');
+    if (gajiBtn) {
+      var gm = document.getElementById('modalGajiDetail'), gb = document.getElementById('modalGajiBody'), ge = document.getElementById('modalGajiError'), gl = document.getElementById('modalGajiLoading');
+      gb.innerHTML = ''; ge.classList.add('d-none'); gl.classList.remove('d-none'); document.getElementById('modalGajiFoot').classList.add('d-none'); bootstrap.Modal.getOrCreateInstance(gm).show();
+      var gq = new URLSearchParams({ y: gajiBtn.getAttribute('data-y') || '', m: gajiBtn.getAttribute('data-m') || '', d: gajiBtn.getAttribute('data-d') || '' });
+      fetch('<?= URL::BASE_URL ?>Rekap/gaji_detail/' + encodeURIComponent(gajiBtn.getAttribute('data-rekap-mode') || '1') + '?' + gq.toString(), { credentials: 'same-origin' }).then(function(r){return r.json();}).then(function(data){ gl.classList.add('d-none'); if(!data || !data.ok) throw new Error((data&&data.msg)||'Gagal memuat data.'); document.getElementById('modalGajiPeriod').textContent='Periode: '+(data.period_label||''); document.getElementById('modalGajiHead').innerHTML=data.summary_only?'<th>Cabang</th><th class="text-end">Jumlah</th>':'<th>Karyawan</th><th class="text-end">Jumlah</th>'; document.getElementById('modalGajiFootLabel').colSpan=1; (data.rows||[]).forEach(function(r){var tr=document.createElement('tr');tr.innerHTML='<td>'+(data.summary_only?(r.cabang||'-'):(r.nama||'-'))+'</td><td class="text-end">Rp'+fmt(r.jumlah||0)+'</td>';gb.appendChild(tr);}); if(!data.rows||!data.rows.length)gb.innerHTML='<tr><td colspan="2" class="text-center text-muted">Tidak ada data gaji.</td></tr>';document.getElementById('modalGajiTotal').textContent='Rp'+fmt(data.total||0);document.getElementById('modalGajiFoot').classList.remove('d-none'); }).catch(function(err){gl.classList.add('d-none');ge.textContent=err.message||'Gagal memuat data.';ge.classList.remove('d-none');});
+      return;
+    }
     var btn = ev.target.closest('.rekapKasKeluarDetail');
     if (!btn) return;
     var modal = document.getElementById('modalKasKeluarDetail');

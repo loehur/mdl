@@ -679,6 +679,26 @@ class Rekap extends Controller
       echo json_encode(['ok' => true, 'jenis' => $jenis, 'rows' => $out, 'total' => $total, 'show_cabang' => !empty($period['show_cabang']), 'summary_only' => $summaryOnly, 'period_label' => $period['period_label']]);
    }
 
+   /** JSON rincian Gaji Karyawan di Rekap. */
+   public function gaji_detail($mode = 1)
+   {
+      $this->session_cek(1); $this->operating_data();
+      $period = $this->rekapPeriodFromMode($mode);
+      if (!$period['ok']) { $this->jsonRekapDetailError($period['msg']); return; }
+      $whereCabang = $period['source_id'] !== null
+         ? 'u.id_cabang = ' . (int) $period['source_id'] . ' AND '
+         : $this->sqlExcludeTrainingCabang('u.id_cabang');
+      $summaryOnly = !empty($period['show_cabang']);
+      $sql = $summaryOnly
+         ? "SELECT u.id_cabang, SUM(gr.jumlah) AS jumlah FROM gaji_result gr INNER JOIN user u ON u.id_user = gr.id_karyawan WHERE {$whereCabang}gr.tipe = 1 AND gr.tgl = '" . $this->db(0)->escape($period['today']) . "' GROUP BY u.id_cabang ORDER BY jumlah DESC"
+         : "SELECT u.id_cabang, u.nama_user, SUM(gr.jumlah) AS jumlah FROM gaji_result gr INNER JOIN user u ON u.id_user = gr.id_karyawan WHERE {$whereCabang}gr.tipe = 1 AND gr.tgl = '" . $this->db(0)->escape($period['today']) . "' GROUP BY u.id_user, u.id_cabang, u.nama_user ORDER BY u.nama_user ASC";
+      $rows = $this->db(0)->query_array($sql); if (!is_array($rows)) { $rows = []; }
+      $map = $this->rekapCabangMap(); $out = []; $total = 0;
+      foreach ($rows as $r) { $amount = (int) ($r['jumlah'] ?? 0); $total += $amount; $out[] = ['nama' => (string) ($r['nama_user'] ?? ''), 'cabang' => $this->rekapCabangLabel((int) ($r['id_cabang'] ?? 0), $map), 'jumlah' => $amount]; }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok' => true, 'rows' => $out, 'total' => $total, 'summary_only' => $summaryOnly, 'period_label' => $period['period_label']]);
+   }
+
    /**
     * JSON: rincian Margin Penjualan Barang (barang_mutasi type=1, state=1).
     */
