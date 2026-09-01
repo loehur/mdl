@@ -19,14 +19,15 @@ class ManualBindService
         if (!self::isAmountAvailable($method, $amount, $db)) return ['ok'=>false,'message'=>'Nominal Rp'.number_format($amount,0,',','.').' tidak tersedia'];
         $code = 'BND-'.strtoupper(substr(bin2hex(random_bytes(5)), 0, 8));
         $insert = $db->insert('payment_manual_binds', ['bind_code'=>$code,'payment_method'=>$method,'amount'=>$amount,'status'=>'pending','requested_by_phone'=>$phone,'expires_at'=>date('Y-m-d H:i:s',strtotime('+'.self::DAYS.' days'))]);
-        if (($insert['errno'] ?? 1) !== 0) return ['ok'=>false,'message'=>$insert['error'] ?? 'Gagal membuat bind'];
+        // DB::insert() returns the new numeric ID, or false on failure (not an errno array).
+        if ($insert === false) return ['ok'=>false,'message'=>'Gagal membuat bind'];
         return ['ok'=>true,'code'=>$code,'amount'=>$amount,'method'=>$method,'expires_at'=>date('d/m/Y H:i',strtotime('+'.self::DAYS.' days'))];
     }
     public static function list(string $method, string $phone): array
     {
         $db=DB::getInstance(0); self::expire($db); $rows=$db->query('SELECT bind_code, amount, created_at, expires_at FROM payment_manual_binds WHERE requested_by_phone = ? AND payment_method = ? AND status = ? ORDER BY created_at DESC',[$phone,strtolower($method),'pending'])->result_array(); return is_array($rows)?$rows:[];
     }
-    public static function cancel(string $code, string $phone): bool { $db=DB::getInstance(0); $r=$db->update('payment_manual_binds',['status'=>'cancelled','cancelled_at'=>date('Y-m-d H:i:s')],['bind_code'=>strtoupper($code),'requested_by_phone'=>$phone,'status'=>'pending']); return ($r['errno']??1)===0 && ($db->conn()->affected_rows??0)>0; }
+    public static function cancel(string $code, string $phone): bool { $db=DB::getInstance(0); $r=$db->update('payment_manual_binds',['status'=>'cancelled','cancelled_at'=>date('Y-m-d H:i:s')],['bind_code'=>strtoupper($code),'requested_by_phone'=>$phone,'status'=>'pending']); return $r === true && $db->affected_rows() > 0; }
     public static function status(string $code, string $phone): ?array { $db=DB::getInstance(0); self::expire($db); $r=$db->query('SELECT bind_code, payment_method, amount, status, created_at, expires_at, paid_at FROM payment_manual_binds WHERE bind_code=? AND requested_by_phone=? LIMIT 1',[strtoupper($code),$phone])->row_array(); return is_array($r)?$r:null; }
     public static function confirmPendingBca($db): int
     {
