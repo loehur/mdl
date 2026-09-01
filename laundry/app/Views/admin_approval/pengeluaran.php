@@ -71,13 +71,11 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
       <div class="modal-body py-3">
-        <div id="pgAiPending" class="border p-2 mb-3 small" style="background:#f8fafc;border-color:#cbd5e1 !important;"></div>
         <div id="pgAiLoading" class="text-center text-muted py-4">
           <i class="fas fa-spinner fa-spin fa-lg d-block mb-2"></i>
           Memuat riwayat 30 hari…
         </div>
         <div id="pgAiResult" class="d-none">
-          <div class="fw-bold mb-2" style="font-size:.82rem;color:#1e40af;"><i class="fas fa-stream"></i> 2 timeline terakhir</div>
           <div id="pgAiAnalysis" style="font-size:.88rem;line-height:1.55;color:#0f172a;"></div>
         </div>
         <div id="pgAiError" class="d-none alert alert-warning mb-0 py-2 small"></div>
@@ -157,17 +155,6 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     };
   }
 
-  function pgAiShowPending(p) {
-    if (!p) return;
-    $('#pgAiPending').html(pgPendingHtml(p));
-    var sub = 'Riwayat 30 hari · cabang ini + cabang lain';
-    $('#pgAiSub').text(sub);
-  }
-
-  function pgAiShowPendingFromBtn($btn) {
-    pgAiShowPending(pgPendingFromBtn($btn));
-  }
-
   function pgAiSetAnalysis(text) {
     var raw = String(text == null ? '' : text);
     if (/<[a-z][\s\S]*>/i.test(raw)) {
@@ -179,9 +166,6 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
 
   function pgAiRenderResult(res) {
     $('#pgAiLoading').addClass('d-none');
-    if (res && res.pending) {
-      pgAiShowPending(res.pending);
-    }
     if (res && res.analysis) {
       $('#pgAiResult').removeClass('d-none');
       pgAiSetAnalysis(res.analysis);
@@ -204,8 +188,7 @@ $pending = is_array($data['list'] ?? null) ? $data['list'] : [];
     }
 
     pgAiResetModal();
-    pgAiShowPendingFromBtn($btn);
-    $('#pgAiSub').text('Memuat riwayat…');
+    $('#pgAiSub').text('Memuat timeline…');
 
     var modalEl = document.getElementById('modalPengeluaranAi');
     if (modalEl && window.bootstrap && bootstrap.Modal) {

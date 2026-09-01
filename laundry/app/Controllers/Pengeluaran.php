@@ -224,7 +224,7 @@ class Pengeluaran extends Controller
 
                $jenis = trim((string) ($pending['note_primary'] ?? ''));
 
-               $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, (string) ($pending['id_kas'] ?? ''));
+                $history = $review->fetchHistoryForAnalysis($this->db(0), $this->wCabangAll(), $pending, $kodeFn, (string) ($pending['id_kas'] ?? ''), (int) ($pending['id_cabang'] ?? 0));
 
                $fallbackPayload = $review->pendingPayload($pending, $kodeFn);
 

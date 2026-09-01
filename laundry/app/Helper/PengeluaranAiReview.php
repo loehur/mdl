@@ -31,21 +31,30 @@ class PengeluaranAiReview
     {
         $jenis = (string) ($pending['jenis_pengeluaran'] ?? '');
         $kode = (string) ($pending['kode_cabang'] ?? '-');
+        $pendingRow = [
+            'kode_cabang' => $kode,
+            'jenis_pengeluaran' => $jenis,
+            'keterangan' => (string) ($pending['keterangan'] ?? '-'),
+            'jumlah' => (float) ($pending['jumlah'] ?? 0),
+            'insertTime' => (string) ($pending['insertTime'] ?? ''),
+            'status_mutasi' => 2,
+            'id_kas' => (string) ($pending['id_kas'] ?? ''),
+        ];
 
         if ($this->isMinyakKendaraan($jenis)) {
-            $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
+            $dateGroups = $this->takeLastNDates(array_merge([$pendingRow], $historyRows), 3);
 
             return $this->renderTimelineByDates($dateGroups, true, $kode);
         }
 
         if ($this->isGasLpg($jenis)) {
-            $dateGroups = $this->takeLastNDates($historyRows, self::TIMELINE_DATES);
+            $dateGroups = $this->takeLastNDates(array_merge([$pendingRow], $historyRows), 3);
 
             return $this->renderTimelineByDates($dateGroups, true, $kode);
         }
 
         $branchRows = $this->filterHistorySameBranch($historyRows, $kode);
-        $dateGroups = $this->takeLastNDates($branchRows, self::TIMELINE_DATES);
+        $dateGroups = $this->takeLastNDates(array_merge([$pendingRow], $branchRows), 3);
 
         return $this->renderTimelineByDates($dateGroups, false);
     }
