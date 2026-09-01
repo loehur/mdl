@@ -40,11 +40,11 @@ class Absen extends Controller
          echo json_encode(['code' => 0, 'msg' => 'Parameter perbaikan absen tidak valid']);
          return;
       }
-      $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
       $rows = $this->db(0)->query_array(
-         "SELECT a.id, a.id_karyawan, a.jenis, a.tanggal, a.jam, u.nama_user
+         "SELECT a.id, a.id_karyawan, a.id_cabang, a.jenis, a.tanggal, a.jam, u.nama_user, c.kode_cabang
           FROM absen a INNER JOIN user u ON u.id_user = a.id_karyawan
-          WHERE a.id_cabang = $idCabang AND a.id_karyawan = $idKaryawan
+          LEFT JOIN cabang c ON c.id_cabang = a.id_cabang
+          WHERE a.id_karyawan = $idKaryawan
             AND a.jenis = $jenis AND a.tanggal LIKE '" . $this->db(0)->escape($periode) . "%'
           ORDER BY a.tanggal DESC, a.jam DESC, a.id DESC"
       );
@@ -58,14 +58,18 @@ class Absen extends Controller
       $id = (int) ($_POST['id'] ?? 0);
       $jenis = (int) ($_POST['jenis'] ?? -1);
       $accessKey = (string) ($_POST['access_key'] ?? '');
+      $dariGaji = in_array((string) ($_POST['gaji_koreksi'] ?? '0'), ['1', 'true'], true);
       $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
-      $row = $id > 0 ? $this->db(0)->get_where_row('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang) : null;
+      $rowWhere = 'id = ' . $id . ($dariGaji ? '' : ' AND id_cabang = ' . $idCabang);
+      $row = $id > 0 ? $this->db(0)->get_where_row('absen', $rowWhere) : null;
       if (!$row || !in_array($jenis, [0, 1, 2, 3], true)) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - DATA ABSEN ATAU JENIS TUGAS TIDAK VALID']); return;
       }
       $tgl = substr((string) ($row['tanggal'] ?? ''), 0, 10);
-      if (!in_array($tgl, [date('Y-m-d'), date('Y-m-d', strtotime('-1 day'))], true) || substr($tgl, 0, 7) !== date('Y-m')) {
-         echo json_encode(['code' => 0, 'msg' => 'GAGAL - PERBAIKAN HANYA UNTUK ABSEN HARI INI ATAU KEMARIN DI BULAN INI']); return;
+      $idCabang = (int) ($row['id_cabang'] ?? $idCabang);
+      $batas = date('Y-m-d', strtotime('-31 days'));
+      if (($dariGaji && ($tgl < $batas || $tgl > date('Y-m-d'))) || (!$dariGaji && (!in_array($tgl, [date('Y-m-d'), date('Y-m-d', strtotime('-1 day'))], true) || substr($tgl, 0, 7) !== date('Y-m')))) {
+         echo json_encode(['code' => 0, 'msg' => $dariGaji ? 'GAGAL - KOREKSI GAJI MAKSIMAL 31 HARI KE BELAKANG' : 'GAGAL - PERBAIKAN HANYA UNTUK ABSEN HARI INI ATAU KEMARIN DI BULAN INI']); return;
       }
       $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
       $ok = (bool) $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
@@ -77,7 +81,8 @@ class Absen extends Controller
       $duplicate = $this->db(0)->count_where('absen', "id <> $id AND id_karyawan = $idKaryawan AND $sameGroup AND tanggal = '" . $this->db(0)->escape($tgl) . "'");
       if ($duplicate > 0) { echo json_encode(['code' => 0, 'msg' => 'GAGAL - SUDAH ADA ABSEN PADA GRUP TUGAS TERSEBUT']); return; }
       if ($jenis === 0 || $jenis === 1) {
-         $max = (int) ($_SESSION[URL::SESSID]['data']['cabang'][$jenis . '_max'] ?? 0);
+         $cabang = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
+         $max = (int) ($cabang[$jenis . '_max'] ?? 0);
          $used = $this->db(0)->count_where('absen', "id <> $id AND id_cabang = $idCabang AND jenis = $jenis AND tanggal = '" . $this->db(0)->escape($tgl) . "'");
       } else {
          $max = 1;
@@ -99,8 +104,9 @@ class Absen extends Controller
          exit;
       }
 
+      $dariGaji = in_array((string) ($_POST['gaji_koreksi'] ?? '0'), ['1', 'true'], true);
       $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
-      $row = $this->db(0)->get_where_row('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang);
+      $row = $this->db(0)->get_where_row('absen', 'id = ' . $id . ($dariGaji ? '' : ' AND id_cabang = ' . $idCabang));
       if (!$row || empty($row['id'])) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - DATA ABSEN TIDAK DITEMUKAN']);
          exit;
@@ -109,11 +115,17 @@ class Absen extends Controller
       $tglAbsen = substr(trim((string) ($row['tanggal'] ?? '')), 0, 10);
       $hariIni = date('Y-m-d');
       $kemarin = date('Y-m-d', strtotime('-1 day'));
-      if ($tglAbsen !== $hariIni && $tglAbsen !== $kemarin) {
+      $idCabang = (int) ($row['id_cabang'] ?? $idCabang);
+      $batasKoreksi = date('Y-m-d', strtotime('-31 days'));
+      if (!$dariGaji && $tglAbsen !== $hariIni && $tglAbsen !== $kemarin) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - HANYA ABSEN HARI INI ATAU KEMARIN YANG BOLEH DIHAPUS']);
          exit;
       }
-      if (date('Y-m', strtotime($tglAbsen)) !== date('Y-m')) {
+      if ($dariGaji && ($tglAbsen < $batasKoreksi || $tglAbsen > $hariIni)) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - KOREKSI GAJI MAKSIMAL 31 HARI KE BELAKANG']);
+         exit;
+      }
+      if (!$dariGaji && date('Y-m', strtotime($tglAbsen)) !== date('Y-m')) {
          echo json_encode(['code' => 0, 'msg' => 'GAGAL - HAPUS ABSEN HANYA UNTUK BULAN INI']);
          exit;
       }
@@ -150,11 +162,28 @@ class Absen extends Controller
       $id_karyawan = (int) $_POST['karyawan'];
       $jenis = (int) $_POST['jenis'];
       $tgl_post = $_POST['tgl'];
+      $dariGaji = in_array((string) ($_POST['gaji_koreksi'] ?? '0'), ['1', 'true'], true);
+      $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
+      if ($dariGaji && isset($_POST['id_cabang'])) {
+         $targetCabang = (int) $_POST['id_cabang'];
+         if ($targetCabang > 0 && $this->db(0)->count_where('cabang', 'id_cabang = ' . $targetCabang) > 0) {
+            $idCabang = $targetCabang;
+         }
+      }
+      $cabangAbsen = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
 
       $user_absen = $this->db(0)->get_where_row('user', "id_user = " . $id_karyawan . " AND en = 1");
 
       $tgl = date('Y-m-d');
-      if ($tgl_post == 1) {
+      if ($dariGaji) {
+         $tglKoreksi = trim((string) ($_POST['tanggal_koreksi'] ?? ''));
+         $batasKoreksi = date('Y-m-d', strtotime('-31 days'));
+         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglKoreksi) || $tglKoreksi < $batasKoreksi || $tglKoreksi > $tgl) {
+            print_r(json_encode(['code' => 0, 'msg' => 'GAGAL - KOREKSI GAJI MAKSIMAL 31 HARI KE BELAKANG']));
+            exit();
+         }
+         $tgl = $tglKoreksi;
+      } elseif ($tgl_post == 1) {
          $tgl = date('Y-m-d', strtotime("-1 days"));
       }
 
@@ -197,11 +226,11 @@ class Absen extends Controller
 
          //CEK MAX PER CABANG
          if ($jenis == 0) {
-            $where = "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " AND jenis = " . $jenis . " AND tanggal = '" . $tgl . "'";
-            $max = $_SESSION[URL::SESSID]['data']['cabang'][$jenis . '_max'];
+            $where = "id_cabang = " . $idCabang . " AND jenis = " . $jenis . " AND tanggal = '" . $tgl . "'";
+            $max = $cabangAbsen[$jenis . '_max'] ?? 0;
          } else if ($jenis == 1) {
-            $where = "id_cabang = " . $_SESSION[URL::SESSID]['user']['id_cabang'] . " AND jenis = " . $jenis . " AND tanggal = '" . $tgl . "'";
-            $max = $_SESSION[URL::SESSID]['data']['cabang'][$jenis . '_max'];
+            $where = "id_cabang = " . $idCabang . " AND jenis = " . $jenis . " AND tanggal = '" . $tgl . "'";
+            $max = $cabangAbsen[$jenis . '_max'] ?? 0;
          } else if ($jenis == 2 || $jenis == 3) {
             $where = "jenis = " . $jenis . " AND tanggal = '" . $tgl . "'";
             $max = 1;
@@ -214,7 +243,7 @@ class Absen extends Controller
                'jenis' => $jenis,
                'tanggal' => $tgl,
                'jam' => $jam,
-               'id_cabang' => $_SESSION[URL::SESSID]['user']['id_cabang']
+               'id_cabang' => $idCabang
             ];
             $in = $this->db(0)->insert('absen', $data);
             if ($in['errno'] == 0) {
