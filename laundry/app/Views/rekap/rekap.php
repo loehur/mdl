@@ -420,6 +420,14 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
   </div>
 </div>
 
+<div class="modal fade" id="modalKasKeluarDetail" tabindex="-1" aria-labelledby="modalKasKeluarDetailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title" id="modalKasKeluarDetailLabel">Rincian Pengeluaran</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button></div>
+    <div class="modal-body py-2"><p class="small text-muted mb-2" id="modalKasKeluarPeriod"></p><div id="modalKasKeluarLoading" class="text-center py-3 d-none">Memuat…</div><div id="modalKasKeluarError" class="alert alert-danger py-2 small d-none"></div><div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead class="table-light"><tr><th>Tanggal</th><th class="modalKasKeluarCabang">Cabang</th><th class="text-end">Jumlah</th></tr></thead><tbody id="modalKasKeluarTbody"></tbody><tfoot class="table-secondary fw-bold d-none" id="modalKasKeluarFoot"><tr><td class="modalKasKeluarCabang" colspan="2">Total</td><td class="text-end" id="modalKasKeluarTotal"></td></tr></tfoot></table></div></div>
+    <div class="modal-footer py-1"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button></div>
+  </div></div>
+</div>
+
 <script>
 (function () {
   if (typeof bootstrap === 'undefined') return;
@@ -440,6 +448,32 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     }
     return String(n);
   };
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.rekapKasKeluarDetail');
+    if (!btn) return;
+    var modal = document.getElementById('modalKasKeluarDetail');
+    var loading = document.getElementById('modalKasKeluarLoading');
+    var error = document.getElementById('modalKasKeluarError');
+    var body = document.getElementById('modalKasKeluarTbody');
+    var foot = document.getElementById('modalKasKeluarFoot');
+    var cabangEls = modal.querySelectorAll('.modalKasKeluarCabang');
+    document.getElementById('modalKasKeluarDetailLabel').textContent = 'Rincian: ' + (btn.getAttribute('data-jenis') || 'Pengeluaran');
+    document.getElementById('modalKasKeluarPeriod').textContent = '';
+    body.innerHTML = ''; error.classList.add('d-none'); foot.classList.add('d-none'); loading.classList.remove('d-none');
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+    var qs = new URLSearchParams({ jenis: btn.getAttribute('data-jenis') || '', y: btn.getAttribute('data-y') || '', m: btn.getAttribute('data-m') || '', d: btn.getAttribute('data-d') || '' });
+    fetch('<?= URL::BASE_URL ?>Rekap/pengeluaran_detail/' + encodeURIComponent(btn.getAttribute('data-rekap-mode') || '1') + '?' + qs.toString(), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (data) {
+        loading.classList.add('d-none');
+        if (!data || !data.ok) throw new Error((data && data.msg) || 'Gagal memuat data.');
+        document.getElementById('modalKasKeluarPeriod').textContent = 'Periode: ' + (data.period_label || '');
+        cabangEls.forEach(function (el) { el.classList.toggle('d-none', !data.show_cabang); });
+        (data.rows || []).forEach(function (r) { var tr = document.createElement('tr'); tr.innerHTML = '<td>' + String(r.tanggal || '-').replace(' ', ' · ') + '</td>' + (data.show_cabang ? '<td>' + (r.cabang || '-') + '</td>' : '') + '<td class="text-end">Rp' + fmt(r.jumlah || 0) + '</td>'; body.appendChild(tr); });
+        if (!data.rows || !data.rows.length) body.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Tidak ada transaksi.</td></tr>';
+        document.getElementById('modalKasKeluarTotal').textContent = 'Rp' + fmt(data.total || 0); foot.classList.remove('d-none');
+      }).catch(function (err) { loading.classList.add('d-none'); error.textContent = err.message || 'Gagal memuat data.'; error.classList.remove('d-none'); });
+  });
 
   var periodParams = function (row) {
     return '?y=' + encodeURIComponent(row.getAttribute('data-y') || '')

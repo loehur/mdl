@@ -645,6 +645,37 @@ class Rekap extends Controller
       ]);
    }
 
+   /** JSON rincian transaksi untuk satu jenis pengeluaran kas di Rekap. */
+   public function pengeluaran_detail($mode = 1)
+   {
+      $this->session_cek(1);
+      $this->operating_data();
+      $period = $this->rekapPeriodFromMode($mode);
+      if (!$period['ok']) { $this->jsonRekapDetailError($period['msg']); return; }
+      $jenis = trim((string) ($_GET['jenis'] ?? ''));
+      if ($jenis === '') { $this->jsonRekapDetailError('Jenis pengeluaran tidak valid'); return; }
+      $dateCondition = $period['isDaily'] ? "DATE(insertTime) = '{$period['today']}'" : "DATE_FORMAT(insertTime, '%Y-%m') = '{$period['today']}'";
+      $whereCabang = $period['source_id'] !== null
+         ? 'id_cabang = ' . (int) $period['source_id'] . ' AND '
+         : $this->sqlExcludeTrainingCabang('id_cabang');
+      $jenisEsc = $this->db(0)->escape($jenis);
+      $rows = $this->db(0)->query_array(
+         "SELECT id_cabang, note_primary, jumlah, insertTime, jenis_transaksi
+          FROM kas WHERE {$whereCabang}status_mutasi <> 4
+            AND jenis_transaksi IN (4,8) AND note_primary = '$jenisEsc' AND {$dateCondition}
+          ORDER BY insertTime DESC, id_kas DESC"
+      );
+      if (!is_array($rows)) { $rows = []; }
+      $cabangMap = $this->rekapCabangMap();
+      $total = 0; $out = [];
+      foreach ($rows as $r) {
+         $amount = (int) ($r['jumlah'] ?? 0); $total += $amount;
+         $out[] = ['tanggal' => (string) ($r['insertTime'] ?? ''), 'jumlah' => $amount, 'cabang' => $this->rekapCabangLabel((int) ($r['id_cabang'] ?? 0), $cabangMap)];
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['ok' => true, 'jenis' => $jenis, 'rows' => $out, 'total' => $total, 'show_cabang' => !empty($period['show_cabang']), 'period_label' => $period['period_label']]);
+   }
+
    /**
     * JSON: rincian Margin Penjualan Barang (barang_mutasi type=1, state=1).
     */
