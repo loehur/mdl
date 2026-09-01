@@ -12,14 +12,14 @@ use App\Helpers\WaDesk\TemplateChannelSelector;
  * URL: /Cron/WaDeskBlast/index?limit=30
  * Schedule every 1-2 minutes on the server cron.
  *
- * Random interval: 3–7 seconds between template sends.
+ * Random interval: 1–3 seconds between template sends.
  */
 class WaDeskBlast extends Controller
 {
     private const DB_INDEX   = 7;
-    /** Random 3–7 sec pause between blast template sends. */
-    private const SLEEP_MIN_US = 3000000;
-    private const SLEEP_MAX_US = 7000000;
+    /** Random 1–3 sec pause between blast template sends. */
+    private const SLEEP_MIN_US = 1000000;
+    private const SLEEP_MAX_US = 3000000;
 
     public function index()
     {
@@ -41,7 +41,7 @@ class WaDeskBlast extends Controller
              INNER JOIN wa_templates t ON t.id = b.template_id
              WHERE b.status IN ('pending','processing')
              ORDER BY b.id ASC
-             LIMIT 10"
+             LIMIT 2"
         )->result_array();
 
         if (!$blasts) {
@@ -153,7 +153,7 @@ class WaDeskBlast extends Controller
                 $processed++;
                 $output .= "recip#{$recipId} phone={$phone} " . ($result['success'] ? 'OK' : 'FAIL: ' . $result['error']) . "\n";
 
-                // Random interval 3–7 seconds per template send.
+                // Random interval 1–3 seconds per template send.
                 usleep(random_int(self::SLEEP_MIN_US, self::SLEEP_MAX_US));
             }
 
