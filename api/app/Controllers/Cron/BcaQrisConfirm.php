@@ -83,7 +83,6 @@ class BcaQrisConfirm extends Controller
              WHERE metode_mutasi = 2
                AND status_mutasi = 2
                AND UPPER(IFNULL(note, '')) = 'QRIS'
-               AND (payment_trx_id IS NULL OR payment_trx_id = '')
                AND ref_finance <> ''
              GROUP BY ref_finance
              ORDER BY insertTime ASC

@@ -12,8 +12,8 @@ class NonTunai extends Controller
    {
       $limit = 30;
       $view = 'non_tunai/nt_main';
-      $cols = "id_cabang, ref_finance, MAX(ref_transaksi) AS ref_transaksi, note, id_user, id_client, status_mutasi, jenis_transaksi, SUM(jumlah) AS total, MIN(insertTime) AS insertTime, MAX(IFNULL(payment_trx_id, '')) AS payment_trx_id";
-      $where = $this->wCabangAll() . " AND metode_mutasi = 2 AND status_mutasi = 2 AND ref_finance <> '' GROUP BY id_cabang, ref_finance ORDER BY insertTime DESC LIMIT $limit";
+      $cols = "id_cabang, ref_finance, MAX(ref_transaksi) AS ref_transaksi, note, id_user, id_client, status_mutasi, jenis_transaksi, SUM(jumlah) AS total, MIN(insertTime) AS insertTime";
+      $where = $this->wCabangAll('id_cabang', true) . " AND metode_mutasi = 2 AND status_mutasi = 2 AND ref_finance <> '' GROUP BY id_cabang, ref_finance ORDER BY insertTime DESC LIMIT $limit";
       $cek = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
       if (!is_array($cek)) {
          $cek = [];
@@ -72,7 +72,7 @@ class NonTunai extends Controller
       }
 
       $idEsc = $this->db(0)->escape($refFinance);
-      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', $refFinance);
+      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', $refFinance, [], true);
       if ($wc === null) {
          echo json_encode(['ok' => false, 'message' => 'Transaksi tidak ditemukan']);
          return;
@@ -189,7 +189,7 @@ class NonTunai extends Controller
       }
 
       $idEsc = $this->db(0)->escape($refFinance);
-      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', $refFinance);
+      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', $refFinance, [], true);
       if ($wc === null) {
          echo json_encode(['ok' => false, 'message' => 'Transaksi tidak ditemukan']);
          return;
@@ -296,7 +296,7 @@ class NonTunai extends Controller
       $id = $_POST['id'];
       $tipe = (int) $tipe;
       $idEsc = $this->db(0)->escape((string) $id);
-      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', (string) $id);
+      $wc = $this->wCabangForApprovalAction('kas', 'ref_finance', (string) $id, [], true);
       if ($wc === null) {
          echo 'Transaksi tidak ditemukan';
          return;

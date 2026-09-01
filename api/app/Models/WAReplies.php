@@ -6681,6 +6681,8 @@ class WAReplies
 
     private function replySaldoTokopay($waNumber): void
     {
+        $this->sendSaldoAdminText($waNumber, 'Saldo TokoPay sudah tidak tersedia. QRIS dikonfirmasi melalui mutasi BCA.');
+        return;
         try {
             $apiUrl = 'https://api.nalju.com/Laundry/QRIS/balance';
 
@@ -7041,6 +7043,8 @@ class WAReplies
 
      function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
     {
+        $this->sendQuotedFreeText($waNumber, 'Penarikan TokoPay sudah tidak tersedia.');
+        return;
         if (!$this->requireAdminSender($waNumber, 'TARIK_TOKOPAY')) {
             return;
         }

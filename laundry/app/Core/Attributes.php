@@ -273,12 +273,25 @@ trait Attributes
         if (isset($map[$idCabang])) {
             return $this->cabangKode($map[$idCabang]);
         }
+        $all = $this->db(0)->get_where_row('cabang', 'id_cabang = ' . $idCabang);
+        if (is_array($all) && !empty($all)) {
+            return $this->cabangKode($all);
+        }
         return 'C' . $idCabang;
     }
 
-    public function wCabangAll($column = 'id_cabang')
+    public function wCabangAll($column = 'id_cabang', bool $includeTraining = false)
     {
-        $ids = array_keys($this->cabangOperasionalMap());
+        if ($includeTraining) {
+            $rows = $this->db(0)->get('cabang');
+            $ids = [];
+            foreach ((array) $rows as $row) {
+                $id = (int) ($row['id_cabang'] ?? 0);
+                if ($id > 0) $ids[] = $id;
+            }
+        } else {
+            $ids = array_keys($this->cabangOperasionalMap());
+        }
         if (count($ids) === 0) {
             return isset($this->wCabang) ? $this->wCabang : ($column . ' = 0');
         }
@@ -291,17 +304,23 @@ trait Attributes
     /**
      * WHERE id_cabang untuk aksi approval multi-cabang (POST id_cabang atau lookup tunggal).
      */
-    public function wCabangForApprovalAction(string $table, string $idColumn, string $idValue, array $and = []): ?string
+    public function wCabangForApprovalAction(string $table, string $idColumn, string $idValue, array $and = [], bool $includeTraining = false): ?string
     {
         $idCabang = (int) ($_POST['id_cabang'] ?? 0);
-        $map = $this->cabangOperasionalMap();
+        $map = $includeTraining ? [] : $this->cabangOperasionalMap();
+        if ($includeTraining) {
+            foreach ((array) $this->db(0)->get('cabang') as $row) {
+                $id = (int) ($row['id_cabang'] ?? 0);
+                if ($id > 0) $map[$id] = $row;
+            }
+        }
         if ($idCabang > 0 && isset($map[$idCabang])) {
             return 'id_cabang = ' . $idCabang;
         }
 
         $db = $this->db(0);
         $idEsc = $db->escape($idValue);
-        $where = $this->wCabangAll() . " AND {$idColumn} = '" . $idEsc . "'";
+        $where = $this->wCabangAll('id_cabang', $includeTraining) . " AND {$idColumn} = '" . $idEsc . "'";
         foreach ($and as $col => $val) {
             if (is_int($val)) {
                 $where .= " AND {$col} = {$val}";
@@ -1000,13 +1019,7 @@ trait Attributes
             }
 
             // Update kas dengan payment info (langsung ke tabel kas)
-            $payment_data = [
-               'payment_gateway' => isset($data['gateway']) ? $data['gateway'] : 'bca_qris_local',
-               'payment_trx_id' => $trx_id,
-               'payment_qr_string' => $qr_string,
-               'payment_state' => 'pending',
-               'payment_created_at' => date('Y-m-d H:i:s')
-            ];
+            $payment_data = ['payment_qr_string' => $qr_string];
             
             $up_kas = $this->db(0)->update('kas', $payment_data, "ref_finance = '$ref_finance'");
             if ($up_kas['errno'] <> 0) {
@@ -1104,6 +1117,11 @@ trait Attributes
 
       if ($kas['status_mutasi'] == 3) {
          echo json_encode(['status' => 'PAID']);
+         exit();
+      }
+
+      if ((defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'bca_qris_local') === 'bca_qris_local') {
+         echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
          exit();
       }
 
@@ -1576,7 +1594,12 @@ trait Attributes
          }
       }
 
-      $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'midtrans';
+      $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'bca_qris_local';
+
+      if ($gateway === 'bca_qris_local') {
+         echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
+         exit();
+      }
 
       if ($gateway == 'tokopay') {
          // PENTING: Untuk QRIS, cek status HANYA jika QR pernah digenerate (ada payment_trx_id).

@@ -139,14 +139,7 @@ class Env
     // openai   = OpenAI dulu, DeepSeek cadangan (jika DEEPSEEK_API_KEY terisi)
     const AI_PRIORITY = 'deepseek';
 
-    // -------------------------------------------------------------------------
-    // Payment — TokoPay (QRIS laundry / invoice / salon)
-    // -------------------------------------------------------------------------
-    const TOKOPAY_MERCHANT_ID = 'M........';
-    const TOKOPAY_SECRET_KEY = 'change-me-tokopay-secret';
-    const TOKOPAY_API_URL = 'https://api.tokopay.id';
-
-    // Status TokoPay → lunas / gagal (webhook QRIS, dll.)
+    // Status QRIS lokal → lunas / gagal (cron mutasi BCA).
     const QRIS_STATUS_SUCCESS = ['success', 'completed', 'paid'];
     const QRIS_STATUS_EXPIRED = ['expired', 'cancelled', 'cancel', 'timeout', 'failed', 'fail', 'failure'];
 

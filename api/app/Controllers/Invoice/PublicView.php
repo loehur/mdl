@@ -353,10 +353,8 @@ class PublicView extends InvoiceController
             return false;
         }
 
-        $trxId = trim((string) ($payment['trx_id'] ?? ''));
         $qrString = trim((string) ($payment['qr_string'] ?? ''));
-        if ($trxId === '' && $qrString === '') {
-            // Transfer BCA / non-QRIS — tidak ada order di Tokopay
+        if ($qrString === '') {
             return false;
         }
 
@@ -432,7 +430,6 @@ class PublicView extends InvoiceController
         $this->db($this->db_index)->update('invoice_payments', [
             'amount' => $amount,
             'qr_string' => $qrString,
-            'trx_id' => $order['trx_id'],
         ], ['payment_ref' => $paymentRef]);
 
         $this->success([

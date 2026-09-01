@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS invoice_payments (
     payment_ref VARCHAR(100) NOT NULL,
     payment_status ENUM('pending','success','failed','expired') NOT NULL DEFAULT 'pending',
     qr_string TEXT DEFAULT NULL,
-    trx_id VARCHAR(100) DEFAULT NULL,
     paid_at DATETIME DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_payment_ref (payment_ref),

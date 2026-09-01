@@ -13,7 +13,7 @@ class AdminApproval extends Controller
    {
       $data_operasi = ['title' => 'Approval'];
       $db = $this->db(0);
-      $wc = $this->wCabangAll();
+      $wc = $this->wCabangAll('id_cabang', true);
 
       // Badge hanya butuh count — hindari SELECT * (data isi dimuat AJAX di controller masing-masing)
       $kasAgg = $db->query_array(

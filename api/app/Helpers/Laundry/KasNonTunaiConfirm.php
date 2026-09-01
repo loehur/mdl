@@ -64,7 +64,6 @@ class KasNonTunaiConfirm
                AND status_mutasi = 2
                AND metode_mutasi = 2
                AND UPPER(IFNULL(note, \'\')) = ?
-               AND (payment_trx_id IS NULL OR payment_trx_id = \'\')
              LIMIT 20',
             [$refFinance, 'QRIS']
         )->result_array();
