@@ -49,6 +49,14 @@ module.exports = [
     enabled: true,
   },
   {
+    id: 'kas-unmatched-notify',
+    description: 'Notify branch group for unmatched laundry kas BCA/QRIS',
+    schedule: '*/11 * * * *', // setiap 11 menit
+    method: 'GET',
+    url: '/Cron/KasUnmatchedNotify/index',
+    enabled: true,
+  },
+  {
     id: 'rekap-snapshot-bulanan',
     description: 'Snapshot rekap laundry bulan lalu per cabang operasional (untuk fee jaga malam)',
     schedule: '15 3 1 * *', // tanggal 1 tiap bulan jam 03:15 (hindari 01:00, 08:00, dan */11)
