@@ -5754,7 +5754,7 @@ class WAReplies
                 '',
                 '*FEE BERLAKU: ' . $rp($feeBerlaku) . '/' . $satuan . '*',
                 '',
-                '_Crew dapat mengajukan kenaikan fee di cabang tertentu untuk keperluan transportasi._',
+                '_Crew dapat mengajukan kompensasi transportasi di cabang tertentu._',
             ];
             $this->sendQuotedFreeText($waNumber, implode("\n", $lines));
         } catch (\Throwable $e) {
