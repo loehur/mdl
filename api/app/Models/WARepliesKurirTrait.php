@@ -271,9 +271,18 @@ trait WARepliesKurirTrait
      */
     private function handleKurir($phoneIn, $waNumber, $textBody = '')
     {
-        // Di luar jam operasional: flow sameday tetap jalan; instant ditolak / tidak ditawarkan
+        // Kurir hanya memakai sameday; layanan instant sudah dihentikan.
         $msg = trim((string) $textBody);
         $session = $this->getKurirSession($waNumber);
+        // Sesi yang dibuat sebelum penghentian instant dilanjutkan sebagai sameday;
+        // tidak membuat ataupun mengubah order instant yang sudah tersimpan di DB.
+        if ($session !== null && (($session['layanan'] ?? '') === 'instant'
+            || in_array((string) ($session['step'] ?? ''), ['instant_confirm', 'instant_pick'], true))) {
+            $nextStep = !empty($session['id_lokasi']) ? 'confirm_lokasi' : 'lokasi_check';
+            $this->saveKurirSession($waNumber, ['layanan' => 'sameday', 'step' => $nextStep]);
+            $session = $this->getKurirSession($waNumber) ?: $session;
+            $this->logAutoreplyTrace($waNumber, 'KURIR', 'legacy_instant_session→sameday');
+        }
         $idPelanggan = $session['id_pelanggan'] ?? null;
         if (!$idPelanggan) {
             $idPelanggan = $this->resolveIdPelangganForKurirLink($phoneIn, $waNumber);
@@ -283,8 +292,6 @@ trait WARepliesKurirTrait
         }
         $idPelanggan = (int) $idPelanggan;
         $idCabang = $this->resolveKurirIdCabang($idPelanggan, $session);
-        $outsideHours = !$this->isOperatingHours();
-
         if ($session === null) {
             $resolved = $this->kurirResolveJenisState($msg, null);
             $jenis = $resolved['jenis'];
@@ -310,10 +317,8 @@ trait WARepliesKurirTrait
                 }
             }
             $layananPref = $this->detectKurirLayanan($msg);
-            // Luar jam: jangan simpan prefer instant — anggap sameday; chat grab/gosend ditolak di route
-            if ($outsideHours && $layananPref === 'instant') {
-                $layananPref = null;
-            }
+            // Semua permintaan kurir, termasuk sebut Grab/Gojek/Gosend, masuk antrian sameday.
+            $layananPref = 'sameday';
             $summary = '[pesan] ' . mb_substr($msg, 0, 200);
             if ($layananPref) {
                 $summary .= ' | prefer_layanan=' . $layananPref;
@@ -331,19 +336,12 @@ trait WARepliesKurirTrait
                 'step' => 'lokasi_check',
                 'summary' => $summary,
             ]);
-            if ($layananPref === 'instant') {
-                $this->saveKurirSession($waNumber, ['layanan' => 'instant']);
-            } elseif ($layananPref === 'sameday') {
+            if ($layananPref === 'sameday') {
                 $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
             }
             $session = $this->getKurirSession($waNumber) ?: [];
 
             $sapaan = $this->getSapaanForGreeting($waNumber);
-            // Chat langsung minta grab/gosend di luar jam → tolak sekali, lanjut sameday
-            if ($outsideHours && $this->kurirLooksWantFast($msg)) {
-                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-            }
-
             $this->kurirLokasiCheck($waNumber, $sapaan, $session);
             return true;
         }
@@ -1280,7 +1278,7 @@ trait WARepliesKurirTrait
 
     /**
      * Deteksi pilihan kurir dari teks bebas (bukan hanya 1/2).
-     * @return 'sameday'|'instant'|null
+     * @return 'sameday'|null
      */
     private function detectKurirLayanan(string $msg): ?string
     {
@@ -1292,12 +1290,12 @@ trait WARepliesKurirTrait
         if (preg_match('/^\s*1\s*[.)]?\s*$/u', $t) || preg_match('/^\s*satu\s*$/iu', $t)) {
             return 'sameday';
         }
+        // Pilihan lama "2" dan sebut Grab/Gojek/Gosend tetap diarahkan ke sameday.
         if (preg_match('/^\s*2\s*[.)]?\s*$/u', $t) || preg_match('/^\s*dua\s*$/iu', $t)) {
-            return 'instant';
+            return 'sameday';
         }
-        // Instant hanya jika sebut Gosend / Gojek / Grab (bukan "sekarang/cepat")
         if ($this->kurirLooksWantFast($msg)) {
-            return 'instant';
+            return 'sameday';
         }
         // Sameday
         if (preg_match(
@@ -1312,17 +1310,14 @@ trait WARepliesKurirTrait
             return 'sameday';
         }
         if (preg_match('/\b(pilih\s*)?2\b/u', $t) && $this->kurirLooksWantFast($t)) {
-            return 'instant';
+            return 'sameday';
         }
         return null;
     }
 
     private function kurirAskLayananPrompt(string $sapaan): string
     {
-        return "Pilih jenis kurir ya {$sapaan}:\n"
-            . "1. Kurir *sameday* (hari ini/besok)\n"
-            . "2. Kurir *instant* (Grab/Gojek)\n"
-            . "Balas *1* atau *2* (boleh juga ketik sameday / grab).";
+        return "Kurir yang tersedia adalah *sameday* (hari ini/besok) ya {$sapaan}.";
     }
 
     /**
@@ -1507,17 +1502,8 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        // Request sudah jadi: jangan telan semua chat sebagai perkiraan jam driver.
-        // Hanya jam kunjungan kurir / instant; alamat masih bisa di-update; selain itu lepas ke intent lain.
+        // Request sudah jadi: alamat masih bisa di-update; selain itu lepas ke intent lain.
         if (in_array($step, ['request_aktif'], true)) {
-            if ($this->kurirLooksWantFast($msg)) {
-                if (!$this->isOperatingHours()) {
-                    $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                    return true;
-                }
-                $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
-                return true;
-            }
             if ($this->kurirLooksLikeLokasiDetailClarification($msg, $session)) {
                 $this->kurirApplyLokasiDetailClarification($waNumber, $sapaan, $session, $msg);
                 return true;
@@ -1586,30 +1572,6 @@ trait WARepliesKurirTrait
         if ($step === 'ask_layanan') {
             $this->kurirHandleAskLayanan($waNumber, $sapaan, $session, $msg);
             return;
-        }
-
-        if ($this->kurirLooksWantFast($msg) && in_array($step, ['confirm_lokasi', 'request_aktif', 'lokasi_check', 'pick_lokasi', 'ask_layanan'], true)) {
-            if (!$this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                if ($step === 'request_aktif') {
-                    return;
-                }
-                if (!empty($session['id_lokasi']) && in_array($step, ['confirm_lokasi', 'ask_layanan'], true)) {
-                    $lok = [
-                        'id_lokasi' => (int) $session['id_lokasi'],
-                        'nama' => (string) ($session['lokasi_nama'] ?? ''),
-                        'detail' => (string) ($session['lokasi_detail'] ?? ''),
-                        'latt' => (float) ($session['latt'] ?? 0),
-                        'longt' => (float) ($session['longt'] ?? 0),
-                    ];
-                    $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
-                    return;
-                }
-                // lokasi_check / pick_lokasi: lanjut switch di bawah (sameday)
-            } else {
-                $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
-                return;
-            }
         }
 
         switch ($step) {
@@ -2335,26 +2297,8 @@ trait WARepliesKurirTrait
             'tarif' => (int) $calc['tarif'],
         ]);
 
-        $pref = $this->kurirResolvePreferredLayanan($session, $hintMsg);
-        $wantInstant = ($pref === 'instant') || $this->kurirLooksWantFast($hintMsg);
-
-        // Di luar jam: tidak tawarkan instant → langsung sameday
-        if (!$this->isOperatingHours()) {
-            if ($wantInstant) {
-                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-            }
-            $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
-            return;
-        }
-
-        if ($wantInstant) {
-            $this->saveKurirSession($waNumber, ['layanan' => 'instant']);
-            $session['layanan'] = 'instant';
-            $this->kurirStartInstant($waNumber, $sapaan, $session, $hintMsg);
-            return;
-        }
-
-        // Default sameday — tanpa ask_layanan
+        // Sameday adalah satu-satunya layanan — tanpa ask_layanan.
+        $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
         $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
     }
 
@@ -3862,15 +3806,6 @@ trait WARepliesKurirTrait
             return;
         }
 
-        if ($this->kurirLooksWantFast($msg)) {
-            if (!$this->isOperatingHours()) {
-                $this->sendAutoreplyText($waNumber, $this->kurirRejectInstantOutsideHoursAck($sapaan));
-                return;
-            }
-            $this->kurirStartInstant($waNumber, $sapaan, $session, $msg);
-            return;
-        }
-
         // Request sudah dikonfirmasi — jangan kirim ack berulang.
         $this->logAutoreplyTrace($waNumber, 'KURIR', 'request_aktif_silent');
     }
@@ -5021,17 +4956,10 @@ trait WARepliesKurirTrait
                 break;
         }
 
-        // Di luar jam: jangan biarkan AI pilih instant / ask layanan
-        if (!$this->isOperatingHours()) {
-            $actions = array_values(array_filter(
-                $actions,
-                static function ($a) {
-                    return !in_array($a, ['want_instant', 'pick_layanan'], true);
-                }
-            ));
-        }
-
-        return $actions;
+        // Instant sudah dihentikan: jangan tawarkan sebagai aksi AI pada state apa pun.
+        return array_values(array_filter($actions, static function ($a) {
+            return !in_array($a, ['want_instant', 'pick_layanan', 'agree_alt', 'refuse_alt'], true);
+        }));
     }
 
     private function kurirBuildAiContext(string $waNumber, array $session, string $msg): string
@@ -5179,14 +5107,11 @@ trait WARepliesKurirTrait
             . "Jika batal/gak jadi/gk jd/cancel/gak usah → cancel. "
             . "PENTING: 'ya sudah gak pa2' / 'gpp' / 'gapapa' / 'gak apa-apa' / 'yaudah' = SETUJU lanjut (confirm), BUKAN cancel. "
             . "Jangan tangani permintaan jam / estimasi waktu kurir (kapan diantar, jam berapa jemput). Itu unrelated. "
-            . "want_instant HANYA jika customer sebut Gosend / Gojek / Grab (ojek online). "
-            . "Minta antar/jemput SEKARANG / cepat / segera / kilat / hari ini = tetap sameday, BUKAN want_instant. "
-            . "Layanan default selalu sameday; jangan tawarkan pilihan 1/2 kecuali customer minta gosend/gojek/grab. "
+            . "Layanan kurir hanya sameday. Sebutan Gosend / Gojek / Grab tidak diproses sebagai layanan lain dan jangan ditawarkan. "
             . "Typo anter/antr/dianter/diantr = antar. Ambil kain kotor = jemput. Bawakan kain yang siap = antar. "
             . "Jika customer minta antar sekaligus jemput (atau 'jemput juga' / ambil kotor + bawakan siap) → jenis antar, action confirm / lanjut flow, jangan clarify. "
             . "Batal HANYA jika jelas: batal / cancel / gak jadi / gk jd / gak usah / saya jemput sendiri / antar sendiri. "
-            . "Di step ask_layanan (legacy): customer pilih sameday atau instant — action pick_layanan, isi slots.layanan = sameday|instant. "
-            . "Jawaban bebas seperti 'sameday', 'grab', 'gosend', 'yang biasa' tetap pick_layanan di step itu. "
+            . "Sesi ask_layanan lama harus diteruskan sebagai sameday tanpa menawarkan pilihan layanan. "
             . "Jika typo/kurang jelas → action unrelated atau diam (jangan clarify / jangan minta diketik ulang). "
             . "Di step ask_lokasi_nama / ask_lokasi_detail: customer jelaskan detail dalam satu jawaban (tidak dipilihkan kategori dulu). "
             . "Sistem infer kategori: Rumah/Kos/Mess/Asrama/Kantor/Penginapan/Toko (default Rumah jika tidak jelas). "
@@ -5285,6 +5210,25 @@ trait WARepliesKurirTrait
         $aiReply = $decision['reply'];
         $slots = $decision['slots'] ?? [];
         $note = $decision['summary_note'] ?: ($action . ': ' . mb_substr($msg, 0, 60));
+
+        // Perlindungan untuk model/sesi lama yang masih mengeluarkan aksi instant.
+        if (in_array($action, ['want_instant', 'pick_layanan'], true)) {
+            $this->saveKurirSession($waNumber, ['layanan' => 'sameday']);
+            if (!empty($session['id_lokasi'])) {
+                $lok = [
+                    'id_lokasi' => (int) $session['id_lokasi'],
+                    'nama' => (string) ($session['lokasi_nama'] ?? ''),
+                    'detail' => (string) ($session['lokasi_detail'] ?? ''),
+                    'latt' => (float) ($session['latt'] ?? 0),
+                    'longt' => (float) ($session['longt'] ?? 0),
+                ];
+                $this->kurirPrepareConfirm($waNumber, $sapaan, $session, $lok);
+            } else {
+                $this->kurirLokasiCheck($waNumber, $sapaan, $session);
+            }
+            $this->logAutoreplyTrace($waNumber, 'KURIR_AI', $action . '→sameday');
+            return;
+        }
 
         // Side-effects + reply policy
         switch ($action) {

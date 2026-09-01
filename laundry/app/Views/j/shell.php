@@ -207,24 +207,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
   </div>
 </div>
 
-<!-- Modal Batalkan Kurir Instant -->
-<div class="modal fade" id="jModalCancelKurirInstant" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content j-sheet">
-      <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
-        <div class="j-alert-ico"><i class="fas fa-times-circle"></i></div>
-        <h5 class="j-sheet-title" style="margin:0 0 6px">Batalkan order Instant?</h5>
-        <p class="j-sheet-desc" id="jCancelKurirInstantInfo">Permintaan yang belum dibayar akan dibatalkan.</p>
-        <p class="j-sheet-warn">Aksi ini tidak bisa dibatalkan.</p>
-      </div>
-      <div class="j-sheet-foot">
-        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Tidak</button>
-        <button type="button" class="j-sheet-btn danger" id="jBtnConfirmCancelKurirInstant"><i class="fas fa-trash-alt"></i> Ya, batalkan</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Modal Topup Saldo Tunai -->
 <div class="modal fade" id="jModalSaldoTopup" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
@@ -261,7 +243,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-head">
         <div>
-          <p class="j-sheet-kicker" id="jKurirLokasiKicker">Sameday</p>
+          <p class="j-sheet-kicker" id="jKurirLokasiKicker">Kurir Laundry</p>
           <h5 class="j-sheet-title" id="jKurirLokasiTitle">Pilih lokasi</h5>
         </div>
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
@@ -330,7 +312,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-head">
         <div>
-          <p class="j-sheet-kicker" id="jKurirAntarKicker">Sameday</p>
+          <p class="j-sheet-kicker" id="jKurirAntarKicker">Kurir Laundry</p>
           <h5 class="j-sheet-title">Antar laundry</h5>
         </div>
         <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
@@ -363,7 +345,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
     <div class="modal-content j-sheet">
       <div class="j-sheet-body j-sheet-center" style="padding-top:22px">
         <div class="j-sheet-ico"><i class="fas fa-hand-holding"></i></div>
-        <p class="j-sheet-kicker" id="jKurirJemputKicker" style="margin:0 0 4px">Sameday</p>
+        <p class="j-sheet-kicker" id="jKurirJemputKicker" style="margin:0 0 4px">Kurir Laundry</p>
         <h5 class="j-sheet-title" style="margin:0 0 6px">Jemput laundry?</h5>
         <p class="j-sheet-desc">Menjemput Pakaian dari Lokasi Anda dan dikirimkan ke Laundry. Item dipilih petugas saat selesai.</p>
         <div class="j-kurir-lokasi-chosen" id="jKurirJemputLokasi"></div>
@@ -377,47 +359,6 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
         <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
         <button type="button" class="j-sheet-btn primary" id="jBtnConfirmKurirJemput">
           <i class="fas fa-check"></i> <span id="jBtnConfirmKurirJemputLabel">Ya, jemput</span>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Kurir Instant: pilih kurir -->
-<div class="modal fade" id="jModalKurirCourier" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content j-sheet">
-      <div class="j-sheet-head">
-        <div>
-          <p class="j-sheet-kicker">Instant</p>
-          <h5 class="j-sheet-title">Pilih kurir</h5>
-        </div>
-        <button type="button" class="j-sheet-close" data-bs-dismiss="modal" aria-label="Close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="j-sheet-body">
-        <p class="j-sheet-desc" style="margin-top:0">Ongkir sesuai tarif Gojek/Grab. Bayar dulu sebelum order jalan.</p>
-        <p class="j-kurir-kapasitas" id="jKurirCourierKapasitas">Pastikan berat laundry yang ingin di-antar/jemput &lt;10kg sesuai kapasitas kurir instant.</p>
-        <div class="j-kurir-lokasi-chosen" id="jKurirCourierLokasi"></div>
-        <div class="j-kurir-sales" id="jKurirCourierBox">
-          <div class="j-kurir-sales-empty">Memuat kurir…</div>
-        </div>
-        <div class="j-field" id="jKurirCourierPayWrap" style="margin-top:12px;display:none">
-          <label class="j-field-label" for="jKurirCourierMetode">Metode pembayaran</label>
-          <select id="jKurirCourierMetode" class="j-select">
-            <option value="QRIS">QRIS</option>
-          </select>
-          <p class="j-sheet-desc" id="jKurirCourierSaldoHint" style="margin:6px 0 0"></p>
-        </div>
-        <div class="j-field" style="margin-top:12px">
-          <label class="j-field-label" for="jKurirCatatanCourier">Catatan untuk kurir <span style="font-weight:500;opacity:.7">(opsional)</span></label>
-          <textarea id="jKurirCatatanCourier" class="j-select" rows="2" maxlength="150" placeholder="Contoh: pagar hitam, lantai 2, telepon dulu"></textarea>
-          <p class="j-sheet-desc" style="margin:4px 0 0"><span id="jKurirCatatanCourierCount">0</span>/150</p>
-        </div>
-      </div>
-      <div class="j-sheet-foot">
-        <button type="button" class="j-sheet-btn ghost" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="j-sheet-btn primary" id="jBtnSubmitKurirCourier" disabled>
-          <i class="fas fa-wallet"></i> <span id="jBtnSubmitKurirCourierLabel">Bayar ongkir</span>
         </button>
       </div>
     </div>
@@ -451,7 +392,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= $assets ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=35"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=36"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <?php require_once __DIR__ . '/../pwa_register.php'; ?>
 </body>

@@ -436,7 +436,6 @@ class J extends Controller
             $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
             $payload['riwayatKurir'] = $this->getKurirRiwayat($pelanggan);
             $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
-            $payload['instantWindow'] = $this->helper('OperatingHours')->instantOrderStatus();
             $this->view('j/partials/kurir', $payload);
             break;
 
@@ -1634,19 +1633,15 @@ class J extends Controller
       ];
    }
 
-   /** GET JSON: item sale eligible untuk Antar (Sameday / Instant) */
+   /** GET JSON: item sale eligible untuk Antar dengan kurir laundry. */
    public function kurirSalesOptions($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
       $this->ensureKurirLookups();
-      $layanan = strtolower(trim((string) ($_GET['layanan'] ?? $_POST['layanan'] ?? 'sameday')));
-      if ($layanan !== 'instant') {
-         $layanan = 'sameday';
-      }
-      // Instant Antar: hanya item yang sudah selesai (ada notif tipe=2)
-      $requireSelesai = ($layanan === 'instant');
-      $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar', $requireSelesai);
+      $layanan = 'sameday';
+      $requireSelesai = false;
+      $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar', false);
       echo json_encode([
          'ok' => true,
          'orders' => $orders,
@@ -1798,7 +1793,7 @@ class J extends Controller
       ], JSON_UNESCAPED_UNICODE);
    }
 
-   /** POST: buat request Sameday (antar|jemput) */
+   /** POST: buat request kurir laundry (antar|jemput). */
    public function kurirSamedaySubmit($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
@@ -1997,7 +1992,7 @@ class J extends Controller
       ]);
       echo json_encode([
          'ok' => true,
-         'message' => "Permintaan $label Sameday dikirim. Driver akan memproses.",
+         'message' => "Permintaan $label dikirim. Pengantaran/Penjemputan diproses 1×24 jam menyesuaikan rute kurir.",
          'id_request' => $idRequest,
          'surcas' => $surcasInfo,
          'notif_sent' => $notifSent,
@@ -2065,6 +2060,11 @@ class J extends Controller
    public function kurirInstantRates($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => false,
+         'message' => 'Layanan ini sudah tidak tersedia. Gunakan Kurir Laundry untuk Antar atau Jemput.',
+      ], JSON_UNESCAPED_UNICODE);
+      return;
       $pelanggan = $this->bootCustomer($pelanggan);
 
       $window = $this->helper('OperatingHours')->instantOrderStatus();
@@ -2153,6 +2153,11 @@ class J extends Controller
    public function kurirInstantSubmit($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => false,
+         'message' => 'Layanan ini sudah tidak tersedia. Gunakan Kurir Laundry untuk Antar atau Jemput.',
+      ], JSON_UNESCAPED_UNICODE);
+      return;
       $pelanggan = $this->bootCustomer($pelanggan);
 
       $window = $this->helper('OperatingHours')->instantOrderStatus();

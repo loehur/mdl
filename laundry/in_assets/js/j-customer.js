@@ -839,7 +839,7 @@
     }
   });
 
-  /* ===== Kurir Sameday ===== */
+  /* ===== Kurir Laundry ===== */
   var kurirBusy = false;
   var kurirPendingJenis = '';
   var kurirPendingLayanan = 'sameday';
@@ -908,7 +908,7 @@
   }
 
   function layananLabel() {
-    return kurirPendingLayanan === 'instant' ? 'Instant (Gojek/Grab)' : 'Sameday (Kurir Laundry)';
+    return 'Kurir Laundry';
   }
 
   function setKurirKickers() {
@@ -919,17 +919,15 @@
     });
     var antLbl = document.getElementById('jBtnSubmitKurirAntarLabel');
     if (antLbl) {
-      antLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Kirim permintaan';
+      antLbl.textContent = 'Kirim permintaan';
     }
     var jemLbl = document.getElementById('jBtnConfirmKurirJemputLabel');
     if (jemLbl) {
-      jemLbl.textContent = kurirPendingLayanan === 'instant' ? 'Lanjut pilih kurir' : 'Ya, jemput';
+      jemLbl.textContent = 'Ya, jemput';
     }
-    // Instant: catatan hanya di modal pilih kurir (hindari isi 2x).
-    // Sameday: catatan di modal antar/jemput.
     var antCatatanWrap = document.getElementById('jKurirCatatanAntarWrap');
     if (antCatatanWrap) {
-      antCatatanWrap.style.display = kurirPendingLayanan === 'instant' ? 'none' : '';
+      antCatatanWrap.style.display = '';
     }
   }
 
@@ -1821,21 +1819,7 @@
 
   function openKurirFlow(jenis, layanan) {
     kurirPendingJenis = jenis;
-    kurirPendingLayanan = layanan === 'instant' ? 'instant' : 'sameday';
-    if (kurirPendingLayanan === 'instant') {
-      var win = null;
-      try {
-        var cfgEl = document.getElementById('jKurirConfig');
-        if (cfgEl) {
-          var cfg = JSON.parse(cfgEl.textContent || '{}');
-          win = cfg && cfg.instantWindow ? cfg.instantWindow : null;
-        }
-      } catch (e) {}
-      if (win && win.ok === false) {
-        toast(win.message || 'Kurir Instant di luar jam operasional', 'warn');
-        return;
-      }
-    }
+    kurirPendingLayanan = 'sameday';
     kurirSelectedLokasi = null;
     kurirSelectedCourier = null;
     kurirPendingIds = [];
@@ -1875,10 +1859,6 @@
       return;
     }
     if (kurirPendingJenis === 'jemput') {
-      if (kurirPendingLayanan === 'instant') {
-        openKurirCourierModal();
-        return;
-      }
       var jemBox = document.getElementById('jKurirJemputLokasi');
       if (jemBox) jemBox.innerHTML = lokasiLabelHtml(kurirSelectedLokasi);
       setKurirKickers();
@@ -1892,9 +1872,7 @@
     if (!orders || !orders.length) {
       box.innerHTML =
         '<div class="j-kurir-sales-empty">' +
-        (kurirPendingLayanan === 'instant'
-          ? 'Belum ada item selesai yang bisa diantar Instant.'
-          : 'Tidak ada item yang bisa diantar saat ini.') +
+        'Tidak ada item yang bisa diantar saat ini.' +
         '</div>';
       return;
     }
@@ -2339,12 +2317,6 @@
     Array.prototype.forEach.call(checks, function (cb) {
       ids.push(cb.value);
     });
-    if (kurirPendingLayanan === 'instant') {
-      kurirPendingIds = ids;
-      hideModal('jModalKurirAntar');
-      openKurirCourierModal();
-      return;
-    }
     submitKurirSameday('antar', ids, btn);
   });
 
@@ -2352,11 +2324,6 @@
     var btn = e.target.closest('#jBtnConfirmKurirJemput');
     if (!btn) return;
     e.preventDefault();
-    if (kurirPendingLayanan === 'instant') {
-      hideModal('jModalKurirJemput');
-      openKurirCourierModal();
-      return;
-    }
     submitKurirSameday('jemput', [], btn);
   });
 
