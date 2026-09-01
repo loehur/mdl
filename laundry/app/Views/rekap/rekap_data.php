@@ -146,11 +146,13 @@ $target_page_rekap = (int) ($data['rekap_mode'] ?? 1);
         <?php
         $total_keluar = 0;
         foreach ($data['kas_keluar'] as $a) {
+          $jenisKeluar = (string) ($a['note_primary'] ?? 'Pengeluaran');
+          $totalKeluarJenis = (int) ($a['total'] ?? 0);
           echo "<tr>";
-          echo "<td class=''>" . $a['note_primary'] . "</td>";
-          echo "<td class='text-right'>Rp" . number_format($a['total']) . "</td>";
+          echo "<td class=''>" . htmlspecialchars($jenisKeluar, ENT_QUOTES, 'UTF-8') . "</td>";
+          echo "<td class='text-right'><button type='button' class='btn btn-link btn-sm p-0 text-decoration-none rekapKasKeluarDetail' data-bs-toggle='modal' data-bs-target='#rekapKasKeluarModal' data-jenis='" . htmlspecialchars($jenisKeluar, ENT_QUOTES, 'UTF-8') . "' data-total='" . $totalKeluarJenis . "' title='Lihat jenis pengeluaran'>Rp" . number_format($totalKeluarJenis) . " <i class='fas fa-list-ul small ms-1' aria-hidden='true'></i></button></td>";
           echo "</tr>";
-          $total_keluar += $a['total'];
+          $total_keluar += $totalKeluarJenis;
         }
 
         $gaji = $data['gaji'];
@@ -196,6 +198,31 @@ $target_page_rekap = (int) ($data['rekap_mode'] ?? 1);
     </table>
   </div>
 </div>
+
+<div class="modal fade" id="rekapKasKeluarModal" tabindex="-1" aria-labelledby="rekapKasKeluarModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rekapKasKeluarModalLabel">Detail Jenis Pengeluaran</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Jenis</dt><dd class="col-sm-7" id="rekapKasKeluarJenis">-</dd>
+          <dt class="col-sm-5">Jumlah</dt><dd class="col-sm-7 fw-bold" id="rekapKasKeluarTotal">Rp0</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.rekapKasKeluarDetail').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('rekapKasKeluarJenis').textContent = btn.getAttribute('data-jenis') || '-';
+      document.getElementById('rekapKasKeluarTotal').textContent = 'Rp' + Number(btn.getAttribute('data-total') || 0).toLocaleString('id-ID');
+    });
+  });
+</script>
 
 <div class="card">
   <div class="card-body m-0 p-0 table-responsive-sm">
