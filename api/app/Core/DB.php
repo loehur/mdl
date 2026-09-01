@@ -77,6 +77,10 @@ class DB extends \DBC
             throw new Exception("Execute failed: " . $stmt->error);
         }
 
+        // Keep the result of the statement that just ran. Several atomic
+        // guards (including WaDesk daily limits) rely on affected_rows() to
+        // tell whether a conditional UPDATE actually reserved a slot.
+        $this->last_affected_rows = (int) $stmt->affected_rows;
         $this->query_result = $stmt->get_result();
         // If query was INSERT/UPDATE/DELETE, get_result returns false, which is fine
         // We can capture affected_rows or insert_id here if needed but for now we focus on SELECT compatibility
