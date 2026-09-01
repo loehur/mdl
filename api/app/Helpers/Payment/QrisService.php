@@ -70,6 +70,7 @@ class QrisService
             $existing = $db->query('SELECT amount, state FROM qris_nominal_reservations WHERE entity_ref = ? AND active_key = 1 LIMIT 1 FOR UPDATE', [$refId])->row_array();
             if (is_array($existing)) { $db->commit(); return $existing; }
             for ($candidate = $baseAmount, $i = 0; $i < 10000; $candidate++, $i++) {
+                if (!ManualBindService::isAmountAvailable('qris', $candidate, $db)) continue;
                 try {
                     $db->insert('qris_nominal_reservations', ['entity_ref' => $refId, 'amount' => $candidate, 'state' => 'pending', 'active_key' => 1,
                         'expires_at' => date('Y-m-d H:i:s', strtotime('+' . self::RESERVATION_DAYS . ' days'))]);

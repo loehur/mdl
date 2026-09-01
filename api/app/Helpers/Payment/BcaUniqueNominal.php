@@ -18,16 +18,22 @@ class BcaUniqueNominal
     {
         $baseAmount = max(1, (int) round($baseAmount));
         $used = self::collectUsedAmounts($invoiceDb, $salonDb, $laundryDb, $wadeskDb);
-        $usedMap = array_fill_keys($used, true);
-
         $candidate = $baseAmount;
         $guard = 0;
-        while (isset($usedMap[$candidate]) && $guard < 10000) {
+        while (self::isWithinReservedTolerance($candidate, $used) && $guard < 10000) {
             $candidate++;
             $guard++;
         }
 
         return $candidate;
+    }
+
+    private static function isWithinReservedTolerance(int $candidate, array $used): bool
+    {
+        foreach ($used as $amount) {
+            if (abs($candidate - (int) $amount) <= 1000) return true;
+        }
+        return false;
     }
 
     /**
@@ -106,6 +112,15 @@ class BcaUniqueNominal
             } catch (\Throwable $e) {
                 // Dev Fee migration may not have run yet.
             }
+        }
+
+        try {
+            $mainDb = \App\Core\DB::getInstance(0);
+            $rows = $mainDb->query("SELECT amount FROM payment_manual_binds WHERE payment_method = 'bca' AND status = 'pending' AND expires_at >= NOW()")
+                ->result_array();
+            foreach ($rows ?: [] as $row) $amounts[] = (int) ($row['amount'] ?? 0);
+        } catch (\Throwable $e) {
+            // Migration bind manual belum tersedia.
         }
 
         $amounts = array_values(array_unique(array_filter($amounts, static function ($n) {

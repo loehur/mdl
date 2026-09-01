@@ -2591,6 +2591,41 @@ class WAReplies
      * @param string $waNumber The sender's WhatsApp number (e.g. +62...)
      * @return object { ai: bool, priority: int }
      */
+    /** Perintah bind manual khusus nomor admin WhatsApp. */
+    private function handleManualBindCommand(string $text, string $waNumber): ?string
+    {
+        $clean = strtoupper(trim(preg_replace('/\s+/', ' ', $text)));
+        if ($clean === 'BIND') {
+            if (!$this->requireAdminSender($waNumber, 'MANUAL_BIND')) return 'Perintah BIND hanya dapat digunakan oleh nomor admin.';
+            return "Panduan Bind Manual\n\nBIND CREATE BCA 100000\nBIND CREATE QRIS 100000\nBIND LIST BCA\nBIND LIST QRIS\nBIND STATUS BND-XXXXXXXX\nBIND CANCEL BND-XXXXXXXX\n\nBind aktif selama 6 hari dan hanya dikonfirmasi oleh Mutasi BCA atau Mutasi QRIS yang cocok.";
+        }
+        if (!preg_match('/^BIND\s+(CREATE|LIST|STATUS|CANCEL)\b/', $clean)) return null;
+        if (!$this->requireAdminSender($waNumber, 'MANUAL_BIND')) return 'Perintah BIND hanya dapat digunakan oleh nomor admin.';
+        $phone = (string) (($this->senderContext['nomor'] ?? '') ?: preg_replace('/\D+/', '', $waNumber));
+        try {
+            if (preg_match('/^BIND\s+CREATE\s+(BCA|QRIS)\s+(.+)$/', $clean, $m)) {
+                $amount = (int) preg_replace('/\D+/', '', $m[2]);
+                $r = \App\Helpers\Payment\ManualBindService::create(strtolower($m[1]), $amount, $phone);
+                if (empty($r['ok'])) return 'Bind tidak dibuat. ' . ($r['message'] ?? 'Nominal tidak tersedia.');
+                return "Bind {$m[1]} berhasil\nKode: {$r['code']}\nNominal: Rp" . number_format((int)$r['amount'],0,',','.') . "\nStatus: Menunggu Mutasi {$m[1]}\nBerlaku sampai: {$r['expires_at']}";
+            }
+            if (preg_match('/^BIND\s+LIST\s+(BCA|QRIS)$/', $clean, $m)) {
+                $rows = \App\Helpers\Payment\ManualBindService::list(strtolower($m[1]), $phone);
+                if (!$rows) return "Tidak ada bind {$m[1]} yang masih pending.";
+                $out = "Bind {$m[1]} pending:";
+                foreach ($rows as $row) $out .= "\n{$row['bind_code']} · Rp" . number_format((int)$row['amount'],0,',','.') . ' · dibuat ' . date('d/m H:i', strtotime((string)$row['created_at']));
+                return $out;
+            }
+            if (preg_match('/^BIND\s+STATUS\s+(BND-[A-Z0-9]+)$/', $clean, $m)) {
+                $row = \App\Helpers\Payment\ManualBindService::status($m[1], $phone);
+                if (!$row) return 'Bind tidak ditemukan.';
+                return "{$row['bind_code']}\nMetode: " . strtoupper((string)$row['payment_method']) . "\nNominal: Rp" . number_format((int)$row['amount'],0,',','.') . "\nStatus: " . strtoupper((string)$row['status']) . "\nDibuat: " . date('d/m/Y H:i',strtotime((string)$row['created_at']));
+            }
+            if (preg_match('/^BIND\s+CANCEL\s+(BND-[A-Z0-9]+)$/', $clean, $m)) return \App\Helpers\Payment\ManualBindService::cancel($m[1], $phone) ? 'Bind ' . $m[1] . ' dibatalkan.' : 'Bind tidak ditemukan atau tidak lagi pending.';
+            return "Format: BIND CREATE BCA 100000 | BIND CREATE QRIS 100000 | BIND LIST BCA | BIND LIST QRIS | BIND STATUS BND-XXXX | BIND CANCEL BND-XXXX";
+        } catch (\Throwable $e) { return 'Bind gagal diproses: ' . $e->getMessage(); }
+    }
+
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
         if ($contactName !== null) {
@@ -2642,6 +2677,13 @@ class WAReplies
         $textBodyToCheck = strtolower(trim($textBodyToCheck));
 
         $db = DB::getInstance(0);
+
+        $bindReply = $this->handleManualBindCommand((string) $textBody, (string) $waNumber);
+        if ($bindReply !== null) {
+            $this->sendAutoreplyText($waNumber, $bindReply);
+            $conversationId = $this->getOrCreateConversationWithCase($db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null);
+            return (object) ['case' => null, 'notify' => false, 'conversation_id' => $conversationId];
+        }
 
         // Pending klarifikasi typo (YCloud & Fonnte): "ya" → pakai teks yang disarankan AI
         $pendingRewrite = $this->consumePendingClarifyIfAny($waNumber, $textBodyToCheck);

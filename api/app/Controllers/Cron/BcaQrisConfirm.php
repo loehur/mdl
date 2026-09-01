@@ -7,6 +7,7 @@ use App\Helpers\BcaQrisMatcher;
 use App\Helpers\BcaScrapper;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\QrisLocalConfirm;
+use App\Helpers\Payment\ManualBindService;
 
 /**
  * Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS pending (exact, atau ± Rp 1.000).
@@ -51,6 +52,10 @@ class BcaQrisConfirm extends Controller
             $scrapeWindow['start'],
             $scrapeWindow['end']
         );
+        $manualConfirmed = ManualBindService::confirmPendingQris($dbMain);
+        if ($manualConfirmed > 0) {
+            echo "OK bind manual Mutasi QRIS: {$manualConfirmed}\n";
+        }
 
         if (empty($sync['ok'])) {
             echo 'WARN sync: ' . ($sync['message'] ?? $sync['error'] ?? 'sync_failed') . "\n";

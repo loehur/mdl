@@ -10,6 +10,7 @@ use App\Helpers\Invoice\InvoiceBcaConfirm;
 use App\Helpers\WaDesk\DevFeeBcaConfirm;
 use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\BcaMutasiUnbind;
+use App\Helpers\Payment\ManualBindService;
 use App\Helpers\Payment\BcaUniqueNominal;
 
 /**
@@ -69,6 +70,8 @@ class BcaKasConfirm extends Controller
         if ($bypassed > 0) {
             echo "REFRESH bypass mutasi: {$bypassed}\n";
         }
+        $manualConfirmed = ManualBindService::confirmPendingBca($dbMain);
+        if ($manualConfirmed > 0) echo "OK bind manual Mutasi BCA: {$manualConfirmed}\n";
 
         $kasStats = $this->processKasLaundry($dbMain, $dbLaundry, $crmDb);
         $invoiceStats = $this->processInvoiceBca($dbMain, $dbInvoice);
