@@ -393,7 +393,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 <script src="<?= URL::EX_ASSETS ?>plugins/bootstrap-5.3/js/bootstrap.bundle.min.js"></script>
 <script src="<?= URL::EX_ASSETS ?>js/qrcode.min.js"></script>
 <script src="<?= $assets ?>js/html2canvas.min.js"></script>
-<script src="<?= $assets ?>js/j-customer.js?v=36"></script>
+<script src="<?= $assets ?>js/j-customer.js?v=37"></script>
 <script src="<?= $assets ?>js/j-payment.js?v=5"></script>
 <?php require_once __DIR__ . '/../pwa_register.php'; ?>
 </body>

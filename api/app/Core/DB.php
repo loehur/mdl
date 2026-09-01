@@ -60,7 +60,7 @@ class DB extends \DBC
         $stmt = $this->mysqli->prepare($sql);
 
         if (!$stmt) {
-            throw new Exception("Prepare failed: " . $this->mysqli->error);
+            throw new \Exception("Prepare failed: " . $this->mysqli->error);
         }
 
         if (!empty($params)) {
@@ -74,7 +74,7 @@ class DB extends \DBC
         }
 
         if (!$stmt->execute()) {
-            throw new Exception("Execute failed: " . $stmt->error);
+            throw new \Exception("Execute failed: " . $stmt->error);
         }
 
         // Keep the result of the statement that just ran. Several atomic
@@ -197,7 +197,7 @@ class DB extends \DBC
         }
 
         $stmt = $this->mysqli->prepare($sql);
-        if (!$stmt) throw new Exception("DB Error: " . $this->mysqli->error);
+        if (!$stmt) throw new \Exception("DB Error: " . $this->mysqli->error);
 
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);

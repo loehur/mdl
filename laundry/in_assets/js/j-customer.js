@@ -842,6 +842,8 @@
   /* ===== Kurir Laundry ===== */
   var kurirBusy = false;
   var kurirPendingJenis = '';
+  // State UI internal; tidak terkait kolom layanan pada database.
+  var kurirPendingLayanan = 'kurir';
   var kurirSelectedLokasi = null;
   var kurirSelectedCourier = null;
   var kurirPendingIds = [];
