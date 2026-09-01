@@ -9,7 +9,7 @@ use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\QrisLocalConfirm;
 
 /**
- * Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS static pending (exact, atau ± Rp 1.000).
+ * Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS pending dengan nominal exact.
  *
  * URL:
  * /Cron/BcaQrisConfirm/index?secret=YOUR_CRON_SECRET
@@ -72,6 +72,9 @@ class BcaQrisConfirm extends Controller
 
         $local = QrisLocalConfirm::confirmPending($dbMain, $dbLaundry, $this->db(6), $this->db(4), $this->resolveCrmDb());
         echo sprintf("Local QRIS checked=%d matched=%d confirmed=%d errors=%d\n", $local['checked'], $local['matched'], $local['confirmed'], $local['errors']);
+        foreach ((array) ($local['details'] ?? []) as $detail) {
+            echo "Local QRIS {$detail}\n";
+        }
 
         $pendingRows = $dbLaundry->query(
             "SELECT ref_finance,
