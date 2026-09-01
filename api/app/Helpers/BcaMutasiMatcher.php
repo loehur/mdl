@@ -59,6 +59,7 @@ class BcaMutasiMatcher
                  LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
                  WHERE l.id IS NULL
                    AND m.mutasi = ?
+                   AND COALESCE(m.is_bypassed, 0) = 0
                    AND m.nominal = ?
                    AND (
                      (m.tanggal_iso IS NOT NULL AND m.tanggal_iso >= ? AND m.tanggal_iso <= ?)
@@ -91,6 +92,7 @@ class BcaMutasiMatcher
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
                AND m.mutasi = ?
+               AND COALESCE(m.is_bypassed, 0) = 0
                AND (
                  m.nominal = ?
                  OR (m.nominal >= ? AND m.nominal <= ?)
@@ -155,6 +157,7 @@ class BcaMutasiMatcher
 
         $rows = is_array($remote['mutasi'] ?? null) ? $remote['mutasi'] : [];
         $save = BcaScrapper::saveMutasiRows($mainDb, $rows);
+        BcaScrapper::refreshMutasiBypassFlags($mainDb);
 
         return [
             'ok' => true,

@@ -65,6 +65,10 @@ class BcaKasConfirm extends Controller
         }
 
         $crmDb = $this->resolveCrmDb();
+        $bypassed = BcaScrapper::refreshMutasiBypassFlags($dbMain);
+        if ($bypassed > 0) {
+            echo "REFRESH bypass mutasi: {$bypassed}\n";
+        }
 
         $kasStats = $this->processKasLaundry($dbMain, $dbLaundry, $crmDb);
         $invoiceStats = $this->processInvoiceBca($dbMain, $dbInvoice);

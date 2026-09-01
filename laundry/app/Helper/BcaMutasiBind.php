@@ -52,6 +52,7 @@ class BcaMutasiBind
              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
              WHERE l.id IS NULL
                AND m.mutasi = 'CR'
+               AND COALESCE(m.is_bypassed, 0) = 0
                AND (
                  (m.tanggal_iso IS NOT NULL
                   AND m.tanggal_iso >= '" . $dbMain->escape($start) . "'
@@ -82,7 +83,7 @@ class BcaMutasiBind
         }
 
         $row = $dbMain->get_where_row('bca_mutasi', "id = '" . (int) $mutasiId . "'");
-        if (!$row || strtoupper((string) ($row['mutasi'] ?? '')) !== 'CR') {
+        if (!$row || strtoupper((string) ($row['mutasi'] ?? '')) !== 'CR' || !empty($row['is_bypassed'])) {
             return null;
         }
 

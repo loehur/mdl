@@ -22,6 +22,11 @@ $menu[1] = [
                 'title' => 'Mutasi QRIS',
                 'txt' => 'Mutasi QRIS'
             ],
+            [
+                'c' => '@NonTunaiAdmin/mutasiBypass',
+                'title' => 'Bypass Mutasi BCA',
+                'txt' => 'Bypass Mutasi'
+            ],
         ]
     ],
     [

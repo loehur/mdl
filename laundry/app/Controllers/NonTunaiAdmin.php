@@ -74,6 +74,48 @@ class NonTunaiAdmin extends Controller
         ]);
     }
 
+    public function mutasiBypass()
+    {
+        $this->session_cek(1);
+        $dbMain = $this->db(100);
+        $rules = [];
+        try {
+            $rules = $dbMain->query_array('SELECT r.*, (SELECT COUNT(*) FROM bca_mutasi m WHERE m.bypass_rule_id = r.id AND m.is_bypassed = 1) AS matched_count FROM bca_mutasi_bypass_rules r ORDER BY r.id DESC');
+        } catch (\Throwable $e) {
+            $rules = [];
+        }
+        $this->view('layout', ['data_operasi' => ['title' => 'Bypass Mutasi BCA']]);
+        $this->view('non_tunai_admin/mutasi_bypass', ['rules' => is_array($rules) ? $rules : []]);
+    }
+
+    public function saveMutasiBypass()
+    {
+        $this->session_cek(1);
+        $keyword = trim((string) ($_POST['keyword'] ?? ''));
+        if ($keyword !== '') {
+            $this->db(100)->query('INSERT IGNORE INTO bca_mutasi_bypass_rules (keyword) VALUES (?)', [$keyword]);
+            $this->refreshMutasiBypass();
+        }
+        header('Location: ' . URL::BASE_URL . 'NonTunaiAdmin/mutasiBypass');
+    }
+
+    public function deleteMutasiBypass($id = 0)
+    {
+        $this->session_cek(1);
+        $id = (int) ($id ?: ($_POST['id'] ?? 0));
+        if ($id > 0) {
+            $this->db(100)->delete('bca_mutasi_bypass_rules', ['id' => $id]);
+            $this->refreshMutasiBypass();
+        }
+        header('Location: ' . URL::BASE_URL . 'NonTunaiAdmin/mutasiBypass');
+    }
+
+    private function refreshMutasiBypass(): void
+    {
+        $db = $this->db(100);
+        $db->query("UPDATE bca_mutasi m LEFT JOIN (SELECT m2.id AS mutasi_id, MIN(r.id) AS rule_id FROM bca_mutasi m2 INNER JOIN bca_mutasi_bypass_rules r ON r.is_active = 1 AND UPPER(m2.keterangan) LIKE CONCAT('%', UPPER(r.keyword), '%') WHERE m2.mutasi = 'CR' GROUP BY m2.id) x ON x.mutasi_id = m.id SET m.is_bypassed = IF(x.rule_id IS NULL, 0, 1), m.bypass_rule_id = x.rule_id WHERE m.mutasi = 'CR'");
+    }
+
     /**
      * POST — unbind mutasi BCA, blokir entity, kembalikan status pembayaran.
      */

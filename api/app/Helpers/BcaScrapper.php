@@ -89,6 +89,8 @@ class BcaScrapper
             }
         }
 
+        self::refreshMutasiBypassFlags($db);
+
         $stats['ok'] = empty($stats['errors']);
         if (!$stats['ok'] && $stats['chunks'] > 0) {
             $stats['ok'] = true;
@@ -96,6 +98,32 @@ class BcaScrapper
         }
 
         return $stats;
+    }
+
+    /** Tandai mutasi CR yang cocok dengan aturan bypass admin. */
+    public static function refreshMutasiBypassFlags($db): int
+    {
+        try {
+            $db->query(
+                "UPDATE bca_mutasi m
+                 LEFT JOIN (
+                   SELECT m2.id AS mutasi_id, MIN(r.id) AS rule_id
+                   FROM bca_mutasi m2
+                   INNER JOIN bca_mutasi_bypass_rules r
+                     ON r.is_active = 1
+                    AND UPPER(m2.keterangan) LIKE CONCAT('%', UPPER(r.keyword), '%')
+                   WHERE m2.mutasi = 'CR'
+                   GROUP BY m2.id
+                 ) x ON x.mutasi_id = m.id
+                 SET m.is_bypassed = IF(x.rule_id IS NULL, 0, 1),
+                     m.bypass_rule_id = x.rule_id
+                 WHERE m.mutasi = 'CR'"
+            );
+            return (int) ($db->conn()->affected_rows ?? 0);
+        } catch (\Throwable $e) {
+            error_log('[BcaScrapper] refresh bypass: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     /**
