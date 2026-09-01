@@ -27,13 +27,6 @@ class KasBcaConfirm
             }
         }
 
-        foreach ($kasRows as $kasRow) {
-            if ((int) ($kasRow['jenis_transaksi'] ?? 0) === 10) {
-                self::activateInstantKurir($refFinance);
-                break;
-            }
-        }
-
         self::resetWaPaymentPriority($dbLaundry, $dbMain, $kasRows[0]);
         self::pushWebSocketPriorityReset($dbLaundry, $kasRows[0]);
 
@@ -75,21 +68,6 @@ class KasBcaConfirm
 
         if ($totalTagihan > 0 && $allPaid && $totalBayar >= $totalTagihan) {
             $dbLaundry->update('barang_mutasi', ['state' => 1], "ref = '$refEsc'");
-        }
-    }
-
-    private static function activateInstantKurir(string $refFinance): void
-    {
-        try {
-            require_once 'app/Helper/BiteshipApi.php';
-            $api = new BiteshipApi();
-            $res = $api->activate(['ref_finance' => $refFinance]);
-            if (!is_array($res)) {
-                $res = ['ok' => false, 'message' => 'Respons aktivasi tidak valid'];
-            }
-            error_log('[KasBcaConfirm] Instant ' . $refFinance . ' ' . json_encode($res));
-        } catch (\Throwable $e) {
-            error_log('[KasBcaConfirm] Instant err ' . $refFinance . ' ' . $e->getMessage());
         }
     }
 

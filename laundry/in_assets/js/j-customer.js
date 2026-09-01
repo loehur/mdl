@@ -842,7 +842,6 @@
   /* ===== Kurir Laundry ===== */
   var kurirBusy = false;
   var kurirPendingJenis = '';
-  var kurirPendingLayanan = 'sameday';
   var kurirSelectedLokasi = null;
   var kurirSelectedCourier = null;
   var kurirPendingIds = [];
@@ -1254,7 +1253,6 @@
         kurirSelectedLokasi = null;
         kurirSelectedCourier = null;
         kurirPendingJenis = '';
-        kurirPendingLayanan = 'sameday';
         kurirPendingIds = [];
         if (!paid && data.pay && ref) {
           openInstantQr(ref, total);
@@ -1817,9 +1815,8 @@
       });
   }
 
-  function openKurirFlow(jenis, layanan) {
+  function openKurirFlow(jenis) {
     kurirPendingJenis = jenis;
-    kurirPendingLayanan = 'sameday';
     kurirSelectedLokasi = null;
     kurirSelectedCourier = null;
     kurirPendingIds = [];
@@ -1902,8 +1899,7 @@
   function loadKurirSalesOptions() {
     var box = document.getElementById('jKurirSalesBox');
     if (box) box.innerHTML = '<div class="j-kurir-sales-empty"><i class="fas fa-spinner fa-spin"></i> Memuat item…</div>';
-    var qs = 'layanan=' + encodeURIComponent(kurirPendingLayanan === 'instant' ? 'instant' : 'sameday');
-    return fetch(base + 'J/kurirSalesOptions/' + pelangganId + '?' + qs, {
+    return fetch(base + 'J/kurirSalesOptions/' + pelangganId, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'same-origin'
     })
@@ -2098,9 +2094,8 @@
     e.preventDefault();
     if (act.disabled) return;
     var jenis = (act.getAttribute('data-j-kurir-jenis') || '').toLowerCase();
-    var layanan = (act.getAttribute('data-j-kurir-layanan') || 'sameday').toLowerCase();
     if (jenis !== 'antar' && jenis !== 'jemput') return;
-    openKurirFlow(jenis, layanan);
+    openKurirFlow(jenis);
   });
 
   document.addEventListener('click', function (e) {

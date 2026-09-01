@@ -19,7 +19,6 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
       $lokNama = trim((string) ($pr['lokasi_nama'] ?? ''));
       $idReq = (int) ($pr['id_request'] ?? 0);
       $track = trim((string) ($pr['tracking_url'] ?? ''));
-      $bsStatus = trim((string) ($pr['biteship_status'] ?? ''));
       $courier = trim((string) ($pr['courier_name'] ?? ''));
       $catatanKurir = trim((string) ($pr['catatan_kurir'] ?? ''));
       $itemsSelesai = (int) ($pr['items_selesai_count'] ?? 0);
@@ -30,17 +29,11 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
         $meta = 'Menunggu konfirmasi';
       } elseif ($jenis === 'antar') {
         $meta = $itemsSelesai > 0 ? 'Dalam antrian delivery' : 'Menunggu laundry selesai';
-        if ($bsStatus !== '') {
-          $meta .= ' · ' . $bsStatus;
-        }
         if ($courier !== '') {
           $meta .= ' · ' . $courier;
         }
       } else {
         $meta = 'Menunggu driver';
-        if ($bsStatus !== '') {
-          $meta .= ' · ' . $bsStatus;
-        }
         if ($courier !== '') {
           $meta .= ' · ' . $courier;
         }
@@ -80,9 +73,6 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
     <div class="j-kurir-card__top">
       <div class="j-kurir-card__ico" aria-hidden="true"><i class="fas fa-sun"></i></div>
       <div class="j-kurir-card__title">
-        <div class="j-kurir-card__badges">
-          <span class="j-badge ok">Direkomendasikan</span>
-        </div>
         <strong>Kurir Laundry</strong>
         <small>Pengantaran dan penjemputan diproses 1×24 jam menyesuaikan rute kurir.</small>
       </div>
@@ -92,14 +82,12 @@ $pending = is_array($data['pendingKurir'] ?? null) ? $data['pendingKurir'] : [];
       <button type="button"
               class="j-btn j-btn-primary j-kurir-act"
               data-j-kurir-jenis="antar"
-              data-j-kurir-layanan="sameday">
         <i class="fas fa-truck"></i>
         Antar
       </button>
       <button type="button"
               class="j-btn j-btn-soft j-kurir-act"
               data-j-kurir-jenis="jemput"
-              data-j-kurir-layanan="sameday">
         <i class="fas fa-hand-holding"></i>
         Jemput
       </button>

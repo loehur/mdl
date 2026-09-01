@@ -822,7 +822,6 @@ class Delivery extends Controller
                $ins = $this->db(0)->insert('delivery_request', array_merge([
                   'sumber' => 'customer',
                   'jenis' => 'antar',
-                  'layanan' => 'sameday',
                   'delivery_status' => $statusTarget,
                   'id_pelanggan' => $idPelanggan,
                   'phone_tail' => $phoneTail,
@@ -1221,13 +1220,6 @@ class Delivery extends Controller
          }
          $namaKaryawan = (string) ($karyawan['nama_user'] ?? ('#' . $idKaryawan));
 
-         $layanan = strtolower((string) ($req['layanan'] ?? 'sameday'));
-         if ($layanan === 'instant') {
-            if ($jenis !== 'jemput') {
-               throw new Exception('Instant Antar selesai otomatis dari Biteship (tidak via Delivery)');
-            }
-         }
-
          $phoneTail = $this->phoneKey($req['phone_tail'] ?? '');
          if ($phoneTail === '') {
             throw new Exception('Nomor request tidak valid');
@@ -1270,7 +1262,7 @@ class Delivery extends Controller
          $surcasJemput = null;
          $surcasAntar = null;
 
-         if ($jenis === 'jemput' && $layanan !== 'instant') {
+         if ($jenis === 'jemput') {
             $jumlahSurcas = (int) ($_POST['jumlah_surcas_jemput'] ?? -1);
             if ($jumlahSurcas < 0) {
                $jumlahSurcas = (int) ($req['tarif_surcas'] ?? -1);
@@ -1284,7 +1276,7 @@ class Delivery extends Controller
             );
          }
 
-         if ($jenis === 'antar' && $layanan !== 'instant') {
+         if ($jenis === 'antar') {
             $jumlahAntar = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
             if ($jumlahAntar < 0) {
                $jumlahAntar = (int) ($req['tarif_surcas'] ?? -1);
@@ -1396,11 +1388,6 @@ class Delivery extends Controller
             throw new Exception('Request tidak ditemukan atau sudah selesai');
          }
 
-         $layananBatal = strtolower((string) ($req['layanan'] ?? 'sameday'));
-         if ($layananBatal === 'instant') {
-            throw new Exception('Request Instant tidak bisa dibatalkan dari Delivery');
-         }
-
          $boundSurcas = (int) ($this->db(0)->count_where(
             'surcas',
             'id_delivery_request = ' . $idRequest
@@ -1500,10 +1487,6 @@ class Delivery extends Controller
          if ($jenis !== 'antar') {
             throw new Exception('Pending hanya untuk request Antar');
          }
-         if (strtolower((string) ($req['layanan'] ?? 'sameday')) === 'instant') {
-            throw new Exception('Request Instant tidak bisa di-pending');
-         }
-
          $idUser = (int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0);
          $idCabang = (int) ($this->id_cabang ?? 0);
          $namaUser = strtoupper((string) ($_SESSION[URL::SESSID]['user']['nama_user'] ?? ''));
@@ -2169,7 +2152,6 @@ class Delivery extends Controller
             'phone_display' => $phoneDisplay,
             'id_pelanggan' => (int) ($row['id_pelanggan'] ?? 0),
             'jenis' => $jenis,
-            'layanan' => (string) ($row['layanan'] ?? 'sameday'),
             'kode_cabang' => $cabangMap[$idCabang] ?? ('#' . $idCabang),
             'insertTime' => $row['insertTime'] ?? '',
             'prefill_ids' => $prefillIds,
@@ -2184,7 +2166,6 @@ class Delivery extends Controller
                : null,
             'courier_name' => (string) ($row['courier_name'] ?? ''),
             'ongkir' => isset($row['ongkir']) ? (int) $row['ongkir'] : null,
-            'biteship_status' => (string) ($row['biteship_status'] ?? ''),
             'tracking_url' => (string) ($row['tracking_url'] ?? ''),
             'driver_name' => (string) ($row['driver_name'] ?? ''),
             'driver_phone' => (string) ($row['driver_phone'] ?? ''),
@@ -2290,7 +2271,7 @@ class Delivery extends Controller
    /**
     * Binding item ke delivery_request berjalan untuk jenis tertentu (request terbaru dulu).
     * @param int[] $idPenjualans
-    * @return array<int, array{id_request:int, tarif_surcas:?int, layanan:string}>
+    * @return array<int, array{id_request:int, tarif_surcas:?int}>
     */
    private function saleBindingsToRunningRequest(array $idPenjualans, string $jenis): array
    {
@@ -2306,7 +2287,7 @@ class Delivery extends Controller
       }
       $jenisEsc = $this->db(0)->escape($jenis);
       $rows = $this->db(0)->query_array(
-         "SELECT dri.id_penjualan, drq.id_request, drq.tarif_surcas, drq.layanan
+         "SELECT dri.id_penjualan, drq.id_request, drq.tarif_surcas
           FROM delivery_request_item dri
           INNER JOIN delivery_request drq ON drq.id_request = dri.id_request
           WHERE dri.id_penjualan IN (" . implode(',', $safe) . ")
@@ -2325,7 +2306,6 @@ class Delivery extends Controller
             $out[$sid] = [
                'id_request' => (int) ($r['id_request'] ?? 0),
                'tarif_surcas' => ($tarifRaw === null || $tarifRaw === '') ? null : (int) $tarifRaw,
-               'layanan' => strtolower((string) ($r['layanan'] ?? 'sameday')),
             ];
          }
       }
@@ -2333,8 +2313,7 @@ class Delivery extends Controller
    }
 
    /**
-    * Tarif sameday yang mengunci surcas (null = tidak terkunci). 0 = gratis.
-    * Instant diabaikan (pakai ongkir, bukan surcas nota).
+    * Tarif request yang mengunci surcas (null = tidak terkunci). 0 = gratis.
     * @param int[] $ids
     */
    private function lockedTarifSurcasForSaleIds(array $ids, string $jenis): ?int
@@ -2343,9 +2322,6 @@ class Delivery extends Controller
       foreach ($ids as $id) {
          $b = $map[(int) $id] ?? null;
          if (!$b) {
-            continue;
-         }
-         if (($b['layanan'] ?? '') === 'instant') {
             continue;
          }
          if (!array_key_exists('tarif_surcas', $b) || $b['tarif_surcas'] === null) {
@@ -2357,11 +2333,11 @@ class Delivery extends Controller
    }
 
    /**
-    * @param array{id_request?:int, tarif_surcas?:mixed, layanan?:string}|null $binding
+    * @param array{id_request?:int, tarif_surcas?:mixed}|null $binding
     */
    private function bindingLockTarif(?array $binding): ?int
    {
-      if (!$binding || (($binding['layanan'] ?? '') === 'instant')) {
+      if (!$binding) {
          return null;
       }
       if (!array_key_exists('tarif_surcas', $binding) || $binding['tarif_surcas'] === null) {
@@ -3453,7 +3429,6 @@ class Delivery extends Controller
          'id_pelanggan = ' . $idPelanggan
             . " AND jenis = '" . $this->db(0)->escape($jenis) . "'"
             . " AND delivery_status IN ('berjalan','menunggu_pembayaran')"
-            . " AND layanan = 'sameday'"
             . ' ORDER BY id_request DESC'
       );
       if (!is_array($row) || empty($row['id_request'])) {
@@ -3588,7 +3563,6 @@ class Delivery extends Controller
          'id_pelanggan = ' . $idPelanggan
             . " AND jenis = 'antar'"
             . " AND delivery_status = 'pending'"
-            . " AND layanan = 'sameday'"
             . ' ORDER BY id_request DESC'
       );
       if (!is_array($row) || empty($row['id_request'])) {
@@ -3682,7 +3656,6 @@ class Delivery extends Controller
       $data = [
          'sumber' => 'customer',
          'jenis' => 'antar',
-         'layanan' => 'sameday',
          'delivery_status' => $asPending ? 'pending' : 'berjalan',
          'id_pelanggan' => $idPelanggan,
          'phone_tail' => $phoneTail,

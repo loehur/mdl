@@ -8,7 +8,6 @@ $phoneShow = htmlspecialchars((string) ($rq['phone_display'] ?? $rq['phone_tail'
 $nama = htmlspecialchars(strtoupper((string) ($rq['nama'] ?? 'Customer')), ENT_QUOTES, 'UTF-8');
 $kode = htmlspecialchars((string) ($rq['kode_cabang'] ?? '00'), ENT_QUOTES, 'UTF-8');
 $jenis = strtolower((string) ($rq['jenis'] ?? ''));
-$layanan = strtolower((string) ($rq['layanan'] ?? 'sameday'));
 $jenisOk = ($jenis === 'antar' || $jenis === 'jemput');
 $jenisLbl = $jenis === 'antar' ? 'Antar' : ($jenis === 'jemput' ? 'Jemput' : '');
 $idReq = (int) ($rq['id_request'] ?? 0);
@@ -29,8 +28,7 @@ $hasLokasi = ($lokNama !== '' || $lokDetail !== '' || $mapsHref !== '');
 $tarifSurcas = isset($rq['tarif_surcas']) && $rq['tarif_surcas'] !== null
   ? (int) $rq['tarif_surcas']
   : '';
-$isInstant = $layanan === 'instant';
-$canSelesai = !$isInstant || $jenis === 'jemput';
+$canSelesai = true;
 $courierName = trim((string) ($rq['courier_name'] ?? ''));
 $bsStatus = trim((string) ($rq['biteship_status'] ?? ''));
 $trackUrl = trim((string) ($rq['tracking_url'] ?? ''));
@@ -58,12 +56,11 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
     </div>
   </div>
 
-  <div class="dlv-item dlv-item--customer dlv-item--request<?= $isInstant ? ' dlv-item--instant' : '' ?>"
+  <div class="dlv-item dlv-item--customer dlv-item--request"
        data-id-request="<?= $idReq ?>"
        data-id-pelanggan="<?= $idPelangganRq ?>"
        data-phone-tail="<?= $tail ?>"
        data-source="customer"
-       data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
        data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
        data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>">
     <div class="dlv-item__text">
@@ -74,32 +71,17 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
             <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>
           </span>
         <?php } ?>
-        <?php if ($isInstant) { ?>
-          <span class="dlv-jenis-pill" style="background:#fff3cd;color:#856404">Instant</span>
-        <?php } ?>
-        <?php if (!$hasLokasi && !$isInstant) { ?>
+        <?php if (!$hasLokasi) { ?>
           <span class="dlv-jenis-pill" style="background:#fef3c7;color:#92400e">Lokasi menyusul</span>
         <?php } ?>
         <span class="dlv-kode">#<?= $idReq ?></span>
       </p>
       <div class="dlv-item__meta">
         <?= htmlspecialchars($dateLblR, ENT_QUOTES, 'UTF-8') ?>
-        <?php if ($isInstant && $ongkir > 0) { ?>
-          · Ongkir Rp<?= number_format($ongkir, 0, ',', '.') ?>
-        <?php } elseif ($jenis === 'jemput' && $tarifSurcas !== '' && (int) $tarifSurcas > 0 && !$isInstant) { ?>
+        <?php if ($jenis === 'jemput' && $tarifSurcas !== '' && (int) $tarifSurcas > 0) { ?>
           · Tarif Rp<?= number_format((int) $tarifSurcas, 0, ',', '.') ?>
         <?php } ?>
       </div>
-      <?php if ($isInstant && ($courierName !== '' || $bsStatus !== '' || $driverName !== '')) { ?>
-        <div class="dlv-item__meta">
-          <?php if ($courierName !== '') { ?>
-            <i class="fas fa-motorcycle"></i> <?= htmlspecialchars($courierName, ENT_QUOTES, 'UTF-8') ?>
-          <?php } ?>
-          <?php if ($bsStatus !== '') { ?> · <?= htmlspecialchars($bsStatus, ENT_QUOTES, 'UTF-8') ?><?php } ?>
-          <?php if ($driverName !== '') { ?> · Driver <?= htmlspecialchars($driverName, ENT_QUOTES, 'UTF-8') ?><?php } ?>
-          <?php if ($trackUrl !== '') { ?> · <a href="<?= htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Track</a><?php } ?>
-        </div>
-      <?php } ?>
       <?php if ($hasLokasi) { ?>
         <div class="dlv-item__meta dlv-item__lokasi">
           <i class="fas fa-map-marker-alt"></i>
@@ -116,7 +98,7 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
             </button>
           <?php } ?>
         </div>
-      <?php } elseif (!$isInstant) { ?>
+      <?php } else { ?>
         <div class="dlv-item__meta dlv-item__lokasi">
           <i class="fas fa-map-marker-alt"></i>
           Lokasi belum lengkap
@@ -140,7 +122,7 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
       <?php } ?>
     </div>
     <div class="dlv-item__actions">
-      <?php if ($canSelesai && $jenis === 'antar' && !$isInstant) { ?>
+      <?php if ($canSelesai && $jenis === 'antar') { ?>
         <button type="button"
                 class="dlv-btn dlv-btn--pending"
                 data-dlv-pending-request="<?= $idReq ?>"
@@ -156,9 +138,8 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
                 data-phone-tail="<?= $tail ?>"
                 data-phone-display="<?= $phoneShow ?>"
                 data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
                 data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
+                data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
                 data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
                 data-nama="<?= $nama ?>"
                 title="Selesai <?= htmlspecialchars($jenisLbl, ENT_QUOTES, 'UTF-8') ?>"
@@ -173,9 +154,8 @@ $idPelangganRq = (int) ($rq['id_pelanggan'] ?? 0);
                 data-phone-tail="<?= $tail ?>"
                 data-phone-display="<?= $phoneShow ?>"
                 data-jenis="<?= htmlspecialchars($jenis, ENT_QUOTES, 'UTF-8') ?>"
-                data-layanan="<?= htmlspecialchars($layanan, ENT_QUOTES, 'UTF-8') ?>"
                 data-prefill="<?= htmlspecialchars($prefill, ENT_QUOTES, 'UTF-8') ?>"
-                data-tarif-surcas="<?= htmlspecialchars($isInstant ? '' : (string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
+                data-tarif-surcas="<?= htmlspecialchars((string) $tarifSurcas, ENT_QUOTES, 'UTF-8') ?>"
                 data-surcas-bound="<?= $surcasBound ? '1' : '0' ?>"
                 data-nama="<?= $nama ?>"
                 title="Selesai"

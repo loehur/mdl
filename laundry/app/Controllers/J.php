@@ -435,7 +435,6 @@ class J extends Controller
          case 'kurir':
             $payload['pendingKurir'] = $this->getPendingKurirRequests($pelanggan);
             $payload['riwayatKurir'] = $this->getKurirRiwayat($pelanggan);
-            $payload['saldoTunai'] = $this->getSaldoTunai($pelanggan);
             $this->view('j/partials/kurir', $payload);
             break;
 
@@ -1639,13 +1638,11 @@ class J extends Controller
       header('Content-Type: application/json; charset=utf-8');
       $pelanggan = $this->bootCustomer($pelanggan);
       $this->ensureKurirLookups();
-      $layanan = 'sameday';
       $requireSelesai = false;
       $orders = $this->buildKurirEligibleOrders($pelanggan, 'antar', false);
       echo json_encode([
          'ok' => true,
          'orders' => $orders,
-         'layanan' => $layanan,
          'require_selesai' => $requireSelesai,
       ], JSON_UNESCAPED_UNICODE);
    }
@@ -1919,7 +1916,6 @@ class J extends Controller
       $insData = [
          'sumber' => 'customer',
          'jenis' => $jenis,
-         'layanan' => 'sameday',
          'delivery_status' => 'berjalan',
          'id_pelanggan' => (int) $pelanggan,
          'phone_tail' => $phoneTail,
@@ -2514,6 +2510,11 @@ class J extends Controller
    public function kurirInstantPaySaldo($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => false,
+         'message' => 'Layanan ini sudah tidak tersedia. Gunakan Kurir Laundry untuk Antar atau Jemput.',
+      ], JSON_UNESCAPED_UNICODE);
+      return;
       $pelanggan = $this->bootCustomer($pelanggan);
       $idRequest = (int) ($_POST['id_request'] ?? 0);
       if ($idRequest <= 0) {
@@ -2620,6 +2621,11 @@ class J extends Controller
    public function kurirInstantBatal($pelanggan)
    {
       header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+         'ok' => false,
+         'message' => 'Layanan ini sudah tidak tersedia.',
+      ], JSON_UNESCAPED_UNICODE);
+      return;
       $pelanggan = $this->bootCustomer($pelanggan);
       $idRequest = (int) ($_POST['id_request'] ?? 0);
       if ($idRequest <= 0) {
@@ -2911,7 +2917,6 @@ class J extends Controller
          $out[] = [
             'id_request' => $idReq,
             'jenis' => $jenis,
-            'layanan' => (string) ($r['layanan'] ?? 'sameday'),
             'delivery_status' => (string) ($r['delivery_status'] ?? ''),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
             'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
@@ -2919,7 +2924,6 @@ class J extends Controller
             'catatan_kurir' => (string) ($r['catatan_kurir'] ?? ''),
             'ongkir' => isset($r['ongkir']) ? (int) $r['ongkir'] : null,
             'courier_name' => (string) ($r['courier_name'] ?? ''),
-            'biteship_status' => (string) ($r['biteship_status'] ?? ''),
             'tracking_url' => (string) ($r['tracking_url'] ?? ''),
             'payment_ref_finance' => (string) ($r['payment_ref_finance'] ?? ''),
             'driver_name' => (string) ($r['driver_name'] ?? ''),
@@ -2984,14 +2988,12 @@ class J extends Controller
          $out[] = [
             'id_request' => $idReq,
             'jenis' => (string) ($r['jenis'] ?? ''),
-            'layanan' => (string) ($r['layanan'] ?? 'sameday'),
             'delivery_status' => (string) ($r['delivery_status'] ?? ''),
             'insertTime' => (string) ($r['insertTime'] ?? ''),
             'selesaiTime' => (string) ($r['selesaiTime'] ?? ''),
             'lokasi_nama' => (string) ($r['lokasi_nama'] ?? ''),
             'ongkir' => isset($r['ongkir']) ? (int) $r['ongkir'] : null,
             'courier_name' => (string) ($r['courier_name'] ?? ''),
-            'biteship_status' => (string) ($r['biteship_status'] ?? ''),
             'tracking_url' => (string) ($r['tracking_url'] ?? ''),
             'catatan_batal' => $catatanBatal,
             'refunded' => $refunded,
