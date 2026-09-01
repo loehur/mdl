@@ -31,6 +31,7 @@ class KasUnmatchedNotify extends Controller
             return;
         }
 
+        $deleteStats = $this->deleteAnonymousUnmatched($dbLaundry, $dbMain);
         $checked = 0;
         $claimed = 0;
         $sent = 0;
@@ -39,7 +40,21 @@ class KasUnmatchedNotify extends Controller
         $rows = $this->loadCandidates($dbLaundry);
 
         echo 'KasUnmatchedNotify run at ' . date('Y-m-d H:i:s') . "\n";
+        echo sprintf(
+            "Anonymous delete: checked=%d deleted_refs=%d deleted_rows=%d skipped_linked=%d skipped_mixed=%d skipped_matched=%d errors=%d\n",
+            $deleteStats['checked'],
+            $deleteStats['deleted_refs'],
+            $deleteStats['deleted_rows'],
+            $deleteStats['skipped_linked'],
+            $deleteStats['skipped_mixed'],
+            $deleteStats['skipped_matched'],
+            $deleteStats['errors']
+        );
         echo 'Candidates: ' . count($rows) . "\n";
+
+        if ($deleteStats['deleted_refs'] > 0) {
+            $rows = $this->loadCandidates($dbLaundry);
+        }
 
         foreach ($rows as $row) {
             $checked++;
@@ -75,6 +90,84 @@ class KasUnmatchedNotify extends Controller
         }
 
         echo sprintf("Done. checked=%d claimed=%d sent=%d skipped=%d failed=%d\n", $checked, $claimed, $sent, $skipped, $failed);
+    }
+
+    private function deleteAnonymousUnmatched($dbLaundry, $dbMain): array
+    {
+        $stats = ['checked' => 0, 'deleted_refs' => 0, 'deleted_rows' => 0, 'skipped_linked' => 0, 'skipped_mixed' => 0, 'skipped_matched' => 0, 'errors' => 0];
+        $groups = $dbLaundry->query(
+            "SELECT ref_finance, UPPER(MAX(note)) AS method
+             FROM kas
+             WHERE metode_mutasi = 2 AND status_mutasi = 2 AND id_user = 0
+               AND UPPER(IFNULL(note, '')) IN ('BCA', 'QRIS')
+               AND ref_finance <> ''
+               AND insertTime <= DATE_SUB(NOW(), INTERVAL " . self::MIN_PENDING_MINUTES . " MINUTE)
+             GROUP BY ref_finance
+             ORDER BY MIN(insertTime) ASC
+             LIMIT " . self::LIMIT
+        )->result_array();
+
+        foreach ($groups as $group) {
+            $stats['checked']++;
+            $ref = trim((string) ($group['ref_finance'] ?? ''));
+            $method = strtoupper(trim((string) ($group['method'] ?? '')));
+            try {
+                $rows = $dbLaundry->query(
+                    "SELECT id_kas, id_user, metode_mutasi, status_mutasi, note, insertTime, jumlah
+                     FROM kas WHERE ref_finance = ?",
+                    [$ref]
+                )->result_array();
+                if (!$rows || !$this->anonymousGroupIsSafe($rows, $method)) {
+                    $stats['skipped_mixed']++;
+                    continue;
+                }
+                if ($this->hasKasPaymentLink($dbMain, $ref)) {
+                    $stats['skipped_linked']++;
+                    continue;
+                }
+                $candidate = [
+                    'method' => $method,
+                    'ref_finance' => $ref,
+                    'total' => array_sum(array_map(static fn(array $r): float => (float) ($r['jumlah'] ?? 0), $rows)),
+                    'insertTime' => $rows[0]['insertTime'] ?? '',
+                ];
+                if (!$this->stillUnmatched($dbMain, $candidate)) {
+                    $stats['skipped_matched']++;
+                    continue;
+                }
+                $where = ['ref_finance' => $ref, 'metode_mutasi' => 2, 'status_mutasi' => 2, 'id_user' => 0, 'note' => $method];
+                if (!$dbLaundry->delete('kas', $where)) {
+                    $stats['errors']++;
+                    continue;
+                }
+                $deleted = $dbLaundry->affected_rows();
+                if ($deleted > 0) {
+                    $dbMain->query('DELETE FROM wh_midtrans WHERE ref_id = ?', [$ref]);
+                    $stats['deleted_refs']++;
+                    $stats['deleted_rows'] += $deleted;
+                }
+            } catch (\Throwable $e) {
+                $stats['errors']++;
+            }
+        }
+        return $stats;
+    }
+
+    private function anonymousGroupIsSafe(array $rows, string $method): bool
+    {
+        if (!in_array($method, ['BCA', 'QRIS'], true) || $rows === []) return false;
+        foreach ($rows as $row) {
+            if ((int) ($row['id_user'] ?? -1) !== 0 || (int) ($row['metode_mutasi'] ?? 0) !== 2 || (int) ($row['status_mutasi'] ?? 0) !== 2 || strtoupper(trim((string) ($row['note'] ?? ''))) !== $method || strtotime((string) ($row['insertTime'] ?? '')) > time() - (self::MIN_PENDING_MINUTES * 60)) return false;
+        }
+        return true;
+    }
+
+    private function hasKasPaymentLink($dbMain, string $refFinance): bool
+    {
+        $bca = $dbMain->query('SELECT id FROM bca_mutasi_link WHERE entity_type = ? AND entity_ref = ? LIMIT 1', [BcaScrapper::ENTITY_KAS_LAUNDRY, $refFinance])->row_array();
+        if (!empty($bca['id'])) return true;
+        $qris = $dbMain->query('SELECT id FROM bca_qris_link WHERE entity_type = ? AND entity_ref = ? LIMIT 1', [BcaScrapper::ENTITY_KAS_LAUNDRY, $refFinance])->row_array();
+        return !empty($qris['id']);
     }
 
     private function loadCandidates($db): array

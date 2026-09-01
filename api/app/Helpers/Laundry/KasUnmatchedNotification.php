@@ -21,7 +21,7 @@ class KasUnmatchedNotification
             $name = self::resolveName($db, $row);
             $groupId = self::resolveGroup($db, (int) ($row['id_cabang'] ?? 0));
             $amount = number_format((float) ($row['total'] ?? 0), 0, ',', '.');
-            $message = implode("\n", [$method, $name, 'Rp ' . $amount, 'TIDAK DITEMUKAN']);
+            $message = implode("\n", ['*' . $method . '*', mb_strtoupper($name, 'UTF-8'), 'Rp ' . $amount, 'TIDAK DITEMUKAN']);
 
             $result = (new FonnteService())->sendToGroup($groupId, $message, ['delay' => '0']);
             if (empty($result['success'])) {
