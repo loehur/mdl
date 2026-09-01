@@ -11,11 +11,22 @@ class KasMismatchNotify
     {
         try {
             $clientId = (int) ($row['id_client'] ?? 0);
+            $userId = (int) ($row['id_user'] ?? 0);
+            if ($userId === 0) {
+                return false;
+            }
             $branchId = (int) ($row['id_cabang'] ?? 0);
-            $name = 'Pelanggan';
+            $transactionType = (int) ($row['jenis_transaksi'] ?? 0);
+            $name = $transactionType === 2 ? 'Karyawan' : 'Pelanggan';
             $groupId = Fonnte::getEstimasiGroupId();
 
-            if ($clientId > 0) {
+            if ($transactionType === 2 && $userId > 0) {
+                $employee = $dbLaundry->query(
+                    'SELECT nama_user FROM user WHERE id_user = ? LIMIT 1',
+                    [$userId]
+                )->row_array();
+                $name = trim((string) ($employee['nama_user'] ?? '')) ?: $name;
+            } elseif ($clientId > 0) {
                 $customer = $dbLaundry->query(
                     'SELECT nama_pelanggan FROM pelanggan WHERE id_pelanggan = ? LIMIT 1',
                     [$clientId]

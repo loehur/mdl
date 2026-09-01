@@ -84,6 +84,7 @@ class BcaQrisConfirm extends Controller
                     MAX(note) AS note,
                     MAX(jenis_transaksi) AS jenis_transaksi,
                     MAX(id_client) AS id_client,
+                    MAX(id_user) AS id_user,
                     MAX(id_cabang) AS id_cabang
              FROM kas
              WHERE metode_mutasi = 2
