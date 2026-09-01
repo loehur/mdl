@@ -5602,7 +5602,7 @@ class WAReplies
                 return 'Rp' . number_format((int) $amount, 0, ',', '.');
             };
             $nama = trim((string) ($user['nama_user'] ?? 'Karyawan'));
-            $lines = ['*SKEMA PENGGAJIAN*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*', 'Ketik: _Fee Layanan_'];
+            $lines = ['*SALARY SCHEME*', 'NAMA: *' . mb_strtoupper($nama, 'UTF-8') . '*', '', '*FEE LAYANAN*', 'Ketik: _Fee Layanan_'];
 
             $lines = array_merge($lines, [
                 '', '*FEE LAUNDRY*',
