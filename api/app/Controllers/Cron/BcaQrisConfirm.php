@@ -9,7 +9,7 @@ use App\Helpers\Laundry\KasNonTunaiConfirm;
 use App\Helpers\Payment\QrisLocalConfirm;
 
 /**
- * Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS pending dengan nominal exact.
+ * Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS pending (exact, atau ± Rp 1.000).
  *
  * URL:
  * /Cron/BcaQrisConfirm/index?secret=YOUR_CRON_SECRET

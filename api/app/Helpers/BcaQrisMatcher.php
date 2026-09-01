@@ -10,7 +10,7 @@ class BcaQrisMatcher
     private const MATCH_CANDIDATE_LIMIT = 100;
 
     /**
-     * Transaksi QRIS unlinked dengan nominal tepat hingga digit terakhir.
+     * Transaksi QRIS unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      *
      * Tie-break: nominal terdekat → waktu terdekat ke referenceTime → random.
      *
@@ -42,6 +42,7 @@ class BcaQrisMatcher
         string $startYmd,
         string $endYmd
     ): array {
+        $bounds = BcaScrapper::cronNominalBounds($nominal);
         $limit = self::MATCH_CANDIDATE_LIMIT;
 
         $rows = $mainDb->query(
@@ -49,11 +50,14 @@ class BcaQrisMatcher
              FROM bca_qris_transaksi t
              LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
              WHERE l.id IS NULL
-               AND t.nominal = ?
+               AND (
+                 t.nominal = ?
+                 OR (t.nominal >= ? AND t.nominal <= ?)
+               )
                AND t.tanggal >= ?
                AND t.tanggal <= ?
              LIMIT ' . (int) $limit,
-            [$nominal, $startYmd, $endYmd]
+            [$nominal, $bounds['min'], $bounds['max'], $startYmd, $endYmd]
         )->result_array();
 
         return is_array($rows) ? $rows : [];

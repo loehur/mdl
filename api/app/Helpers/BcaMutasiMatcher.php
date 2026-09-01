@@ -12,7 +12,7 @@ class BcaMutasiMatcher
     private const MATCH_CANDIDATE_LIMIT = 100;
 
     /**
-     * Cari mutasi CR unlinked; cron memilih nominal exact.
+     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      * Posted: tanggal_iso dalam 6 hari terakhir dari hari ini.
      * PEND: created_at dalam lookback 30 hari (tidak terikat rentang posted).
      *
@@ -261,7 +261,7 @@ class BcaMutasiMatcher
     }
 
     /**
-     * Cari mutasi CR unlinked dengan nominal exact.
+     * Cari mutasi CR unlinked — exact bill, atau ±CRON_NOMINAL_TOLERANCE.
      */
     public static function findUnlinkedMatchExact(
         $mainDb,
@@ -377,7 +377,7 @@ class BcaMutasiMatcher
             $kasRow,
             BcaScrapper::ENTITY_KAS_LAUNDRY,
             $refFinance,
-            true
+            false
         );
     }
 }
