@@ -627,7 +627,7 @@ abstract class WaDeskController extends BaseController
         return $row;
     }
 
-    protected const TEMPLATE_PARAM_DEFAULT_MAXLENGTH = 40;
+    protected const TEMPLATE_PARAM_DEFAULT_MAXLENGTH = 30;
 
     protected function effectiveParamMaxlength(array $def): int
     {

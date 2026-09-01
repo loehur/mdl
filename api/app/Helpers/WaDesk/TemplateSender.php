@@ -410,7 +410,7 @@ class TemplateSender
 
     private function validateParamLengths(array $defs, array $rawParams): string
     {
-        $defaultMax = 40;
+        $defaultMax = 30;
         $isList = $rawParams === [] || array_keys($rawParams) === range(0, count($rawParams) - 1);
         $listCursor = 0;
         $errors = [];
@@ -477,7 +477,7 @@ class TemplateSender
                 $listCursor++;
             }
             $maxLen = (int) ($def['maxlength'] ?? 0);
-            $maxLen = $maxLen > 0 ? $maxLen : 40;
+            $maxLen = $maxLen > 0 ? $maxLen : 30;
             $value = (string) $rawParams[$matchedKey];
             if (mb_strlen($value) > $maxLen) {
                 $rawParams[$matchedKey] = mb_substr($value, 0, $maxLen);
