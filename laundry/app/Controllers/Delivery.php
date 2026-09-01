@@ -642,10 +642,6 @@ class Delivery extends Controller
                throw new Exception('Pilih minimal satu item antar (untuk surcas ke nota)');
             }
             $tarifSurcas = (int) ($_POST['jumlah_surcas_antar'] ?? -1);
-            $lockedAntar = $this->lockedTarifSurcasForSaleIds($ids, 'antar');
-            if ($lockedAntar !== null) {
-               $tarifSurcas = $lockedAntar;
-            }
             if ($tarifSurcas < 0) {
                throw new Exception('Isi Surcas Pengantaran (isi 0 untuk gratis)');
             }
@@ -807,10 +803,9 @@ class Delivery extends Controller
                   'catatan_kurir' => mb_substr('Diikat dari Operasi (Kurir)', 0, 150),
                   'delivery_status' => $statusTarget,
                ];
-               $existingTarif = $reqAntar['tarif_surcas'] ?? null;
-               if ($existingTarif === null || $existingTarif === '') {
-                  $updSet['tarif_surcas'] = $tarifSurcas;
-               }
+               // Tarif yang diisi ulang dari Operasi adalah sumber tarif terbaru.
+               // Request Antar yang diikat harus mengikuti nilai surcas tersebut.
+               $updSet['tarif_surcas'] = $tarifSurcas;
                if ($this->requestLokasiIsEmpty($reqAntar)) {
                   $updSet = array_merge($updSet, $this->defaultLokasiFieldsForRequest($idPelanggan));
                }

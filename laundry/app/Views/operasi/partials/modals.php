@@ -2437,8 +2437,10 @@ $kurirPhoneTail = PelangganByPhone::key($no_pelanggan ?? '');
     var lockJemput = (isJemput || isCombo)
       ? lockedTarifFromChecked('data-tarif-surcas', 'data-terikat')
       : null;
+    // Antar yang terikat request tetap boleh mengubah tarif; saat disimpan
+    // tarif baru akan disinkronkan kembali ke delivery_request.
     var lockAntar = isAntar
-      ? lockedTarifFromChecked('data-tarif-surcas', 'data-terikat')
+      ? null
       : (isCombo ? lockedTarifFromChecked('data-tarif-surcas-antar', 'data-terikat-antar') : null);
 
     var existJ = (isJemput || isCombo) ? existingSurcasFromGroups('jemput') : { jumlah: null, user: 0 };
