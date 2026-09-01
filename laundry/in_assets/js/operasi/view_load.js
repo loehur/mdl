@@ -327,6 +327,7 @@
         customerName = ($optPel.attr("data-nama") || "").trim()
           || $optPel.text().split("|")[0].trim().replace(/\.{3}$/, "").trim();
       }
+      customerName = customerName.toLocaleUpperCase('id-ID');
       window.currentQRData = {
         qrString: text,
         total: fmtTotal,
@@ -362,6 +363,7 @@
         customerName = ($optPel2.attr("data-nama") || "").trim()
           || $optPel2.text().split("|")[0].trim().replace(/\.{3}$/, "").trim();
       }
+      customerName = customerName.toLocaleUpperCase('id-ID');
       $("#qrNama").text(customerName);
 
       // Dev Mode Handling

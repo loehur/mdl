@@ -206,7 +206,7 @@
       box.textContent = 'QR library gagal dimuat';
     }
     $('#jQrTotal').textContent = fmt(total);
-    $('#jQrNama').textContent = nama || '';
+    $('#jQrNama').textContent = String(nama || '').toLocaleUpperCase('id-ID');
     $('#jBtnCekStatusQR').setAttribute('data-ref', refId);
     modalShow('jModalQR');
     stopPoll();

@@ -190,6 +190,7 @@
                 <div v-if="paymentData?.qr_string" class="rounded-xl border-2 border-ledger/20 bg-white p-2">
                   <qrcode-vue :value="paymentData.qr_string" :size="180" level="H" />
                 </div>
+                <p v-if="paymentData?.qr_string" class="mt-3 text-center text-xs text-mist">Pembayaran QRIS akan dikonfirmasi otomatis dalam pembaruan berkala, maksimal 10 menit.</p>
                 <div v-else class="flex h-48 w-48 items-center justify-center rounded-xl bg-ink-100">
                   <PageLoader />
                 </div>

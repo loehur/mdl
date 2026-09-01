@@ -1384,6 +1384,7 @@
           <strong id="salesQRRef"></strong>
         </div>
         <div id="salesQRCode" class="d-flex justify-content-center mb-3"></div>
+        <p class="text-muted text-center small mb-0">Pembayaran QRIS akan dikonfirmasi otomatis dalam pembaruan berkala, maksimal 10 menit.</p>
         <p class="fw-bold fs-5 text-danger mb-0" id="salesQRTotal"></p>
       </div>
       <div class="modal-footer justify-content-center py-2">
