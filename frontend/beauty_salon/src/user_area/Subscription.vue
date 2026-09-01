@@ -361,7 +361,7 @@
 
       <!-- Message Modal (Custom Alert) -->
       <Teleport to="body">
-        <div v-if="showMessageModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div v-if="showMessageModal" class="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
           <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-100">
             <div class="text-center mb-4">
               <div v-if="messageType === 'error'" class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">

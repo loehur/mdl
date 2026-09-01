@@ -1119,7 +1119,11 @@ trait Attributes
          exit();
       }
 
-      echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
+      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
+      $pendingMessage = $note === 'QRIS'
+         ? 'Menunggu Mutasi QRIS'
+         : ($note === 'BCA' ? 'Menunggu Mutasi BCA' : 'Menunggu konfirmasi pembayaran');
+      echo json_encode(['status' => 'PENDING', 'msg' => $pendingMessage]);
       exit();
    }
 
@@ -1585,7 +1589,7 @@ trait Attributes
       $gateway = defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'bca_qris_local';
 
       if ($gateway === 'bca_qris_local') {
-         echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
+         echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu Mutasi QRIS']);
          exit();
       }
 

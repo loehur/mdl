@@ -32,7 +32,7 @@ class QrisService
     public function checkStatus(string $trxId, int $nominal): array
     {
         $trxId = trim($trxId);
-        $base = ['ok' => true, 'connection_error' => false, 'message' => 'Menunggu konfirmasi QRIS BCA',
+        $base = ['ok' => true, 'connection_error' => false, 'message' => 'Menunggu Mutasi QRIS',
             'gateway' => self::GATEWAY_LOCAL_BCA, 'trx_id' => $trxId, 'payment_status' => 'pending',
             'trx_status' => 'pending', 'raw' => null];
         try {

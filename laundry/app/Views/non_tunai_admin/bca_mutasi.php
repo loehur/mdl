@@ -20,7 +20,7 @@ $this->view('non_tunai_admin/_filter', [
     'endDate' => $data['endDate'] ?? date('Y-m-d'),
     'maxRangeDays' => $data['maxRangeDays'] ?? 7,
     'filterAction' => URL::BASE_URL . 'NonTunaiAdmin/bcaMutasi',
-    'filterTitle' => 'BCA Mutasi — Data Binding',
+    'filterTitle' => 'Mutasi BCA — Data Binding',
     'filterIcon' => 'fa-university',
     'rowCount' => count($rows),
     'unboundCount' => count($unboundRows),
@@ -31,7 +31,7 @@ $this->view('non_tunai_admin/_filter', [
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-        Tidak ada data binding mutasi BCA untuk periode ini
+        Tidak ada data binding Mutasi BCA untuk periode ini
       </div>
     <?php } else { ?>
       <div class="nta-table-wrap">
@@ -99,7 +99,7 @@ $this->view('non_tunai_admin/_filter', [
               }
 
               $detailPayload = [
-                  'title' => 'Detail BCA Mutasi #' . (int) ($row['link_id'] ?? 0),
+                  'title' => 'Detail Mutasi BCA #' . (int) ($row['link_id'] ?? 0),
                   'fields' => [
                       ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
                       ['label' => 'DB / CR', 'value' => $dbCr !== '' ? $dbCr : '—'],

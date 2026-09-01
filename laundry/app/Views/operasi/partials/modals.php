@@ -1457,7 +1457,7 @@
 </div>
 
 <!-- Modal Alert -->
-<div class="op-modal" id="modalAlert" aria-hidden="true" data-op-static="1">
+<div class="op-modal" id="modalAlert" aria-hidden="true" data-op-static="1" style="z-index: 10000;">
   <div class="op-modal__backdrop" data-op-close></div>
   <div class="op-modal__panel op-modal__panel--sm" role="dialog" aria-modal="true" aria-labelledby="modalAlertTitle">
     <div class="op-modal__head op-modal__head--blue" id="modalAlertHead">

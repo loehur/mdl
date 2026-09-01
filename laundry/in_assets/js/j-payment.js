@@ -238,7 +238,7 @@
           toast('Pembayaran berhasil', 'ok');
           reloadTagihan();
         } else if (!silent) {
-          toast(res.msg || 'Masih menunggu pembayaran', 'warn');
+          toast(res.msg || 'Menunggu Mutasi QRIS', 'warn');
         }
       })
       .catch(function () {

@@ -16,7 +16,7 @@ $this->view('non_tunai_admin/_filter', [
     'endDate' => $data['endDate'] ?? date('Y-m-d'),
     'maxRangeDays' => $data['maxRangeDays'] ?? 7,
     'filterAction' => URL::BASE_URL . 'NonTunaiAdmin/bcaQris',
-    'filterTitle' => 'BCA QRIS — Data Binding',
+    'filterTitle' => 'Mutasi QRIS — Data Binding',
     'filterIcon' => 'fa-qrcode',
     'rowCount' => count($rows),
     'unboundCount' => count($unboundRows),
@@ -27,7 +27,7 @@ $this->view('non_tunai_admin/_filter', [
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-        Tidak ada data binding QRIS BCA untuk periode ini
+        Tidak ada data binding Mutasi QRIS untuk periode ini
       </div>
     <?php } else { ?>
       <div class="nta-table-wrap">
@@ -86,7 +86,7 @@ $this->view('non_tunai_admin/_filter', [
               }
 
               $detailPayload = [
-                  'title' => 'Detail BCA QRIS #' . (int) ($row['link_id'] ?? 0),
+                  'title' => 'Detail Mutasi QRIS #' . (int) ($row['link_id'] ?? 0),
                   'fields' => [
                       ['label' => 'Tanggal', 'value' => $dateLabel],
                       ['label' => 'RRN', 'value' => (string) ($row['rrn'] ?? '')],
@@ -166,7 +166,7 @@ $this->view('non_tunai_admin/_filter', [
                 $ket = trim((string) ($row['keterangan'] ?? ''));
 
                 $detailPayload = [
-                    'title' => 'QRIS BCA Belum Bind #' . $qrisId,
+                    'title' => 'Mutasi QRIS Belum Bind #' . $qrisId,
                     'fields' => [
                         ['label' => 'Status Bind', 'value' => 'Belum bind'],
                         ['label' => 'Tanggal', 'value' => $dateLabel],

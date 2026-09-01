@@ -627,7 +627,7 @@ abstract class WaDeskController extends BaseController
         return $row;
     }
 
-    protected const TEMPLATE_PARAM_DEFAULT_MAXLENGTH = 20;
+    protected const TEMPLATE_PARAM_DEFAULT_MAXLENGTH = 30;
 
     protected function effectiveParamMaxlength(array $def): int
     {
@@ -687,6 +687,49 @@ abstract class WaDeskController extends BaseController
         }
 
         return $errors;
+    }
+
+    /**
+     * Keep template sends moving when a value exceeds the local display cap.
+     * The same trimmed value is used for Meta, preview, AI moderation, and
+     * message storage so the user never sees a value different from sent data.
+     */
+    protected function truncateTemplateParamValues(array $defs, array $rawParams): array
+    {
+        if ($defs === [] || $rawParams === []) {
+            return $rawParams;
+        }
+
+        $isList = array_keys($rawParams) === range(0, count($rawParams) - 1);
+        $listCursor = 0;
+        foreach ($defs as $def) {
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            $paramName = trim((string) ($def['param_name'] ?? ''));
+            $idx = (int) ($def['param_index'] ?? 0);
+            $keys = $isList
+                ? [$listCursor, $idx - 1]
+                : array_values(array_filter([$paramName, $component . '_' . $idx, (string) $idx], static fn ($key) => $key !== ''));
+            $matchedKey = null;
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $rawParams)) {
+                    $matchedKey = $key;
+                    break;
+                }
+            }
+            if ($matchedKey === null) {
+                continue;
+            }
+            if ($isList) {
+                $listCursor++;
+            }
+
+            $value = (string) $rawParams[$matchedKey];
+            $maxLen = $this->effectiveParamMaxlength($def);
+            if (mb_strlen($value) > $maxLen) {
+                $rawParams[$matchedKey] = mb_substr($value, 0, $maxLen);
+            }
+        }
+        return $rawParams;
     }
 
     /** Template usable by any team in tenant (tenant-wide sync). */

@@ -31,7 +31,7 @@ class NonTunaiAdmin extends Controller
 
         $payerByRef = $this->loadPayerByEntityRef($rows);
 
-        $this->view('layout', ['data_operasi' => ['title' => 'BCA Mutasi']]);
+        $this->view('layout', ['data_operasi' => ['title' => 'Mutasi BCA']]);
         $this->view('non_tunai_admin/bca_mutasi', [
             'rows' => $rows,
             'unboundRows' => $unboundRows,
@@ -62,7 +62,7 @@ class NonTunaiAdmin extends Controller
 
         $payerByRef = $this->loadPayerByEntityRef($rows);
 
-        $this->view('layout', ['data_operasi' => ['title' => 'BCA QRIS']]);
+        $this->view('layout', ['data_operasi' => ['title' => 'Mutasi QRIS']]);
         $this->view('non_tunai_admin/bca_qris', [
             'rows' => $rows,
             'unboundRows' => $unboundRows,

@@ -136,7 +136,7 @@ $kodeCabang = $cabang['kode_cabang'] ?? '00';
 </div>
 
 <!-- Modal Status Transfer -->
-<div class="modal fade" id="jModalStatus" tabindex="-1">
+<div class="modal fade" id="jModalStatus" tabindex="-1" style="z-index: 2000;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content j-sheet">
       <div class="j-sheet-head">

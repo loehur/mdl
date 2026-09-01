@@ -136,7 +136,7 @@ if (count($data['cek']) == 0) { ?>
     <div class="aa-card__title"><?= htmlspecialchars(strtoupper((string) $pelanggan), ENT_QUOTES, 'UTF-8') ?></div>
     <div class="aa-card__meta">
       <?= htmlspecialchars($jenis_bill, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($metodeLabel, ENT_QUOTES, 'UTF-8') ?>
-      <?php if ($needsBind) { ?> · <span class="nt-bind-hint">perlu bind <?= $isBca ? 'BCA' : 'QRIS' ?></span><?php } ?>
+      <?php if ($needsBind) { ?> · <span class="nt-bind-hint">perlu bind <?= $isBca ? 'Mutasi BCA' : 'Mutasi QRIS' ?></span><?php } ?>
     </div>
     <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
     <div class="aa-actions">
@@ -458,13 +458,13 @@ if (count($data['cek']) == 0) { ?>
   function ntBindLabels(mode) {
     if (mode === 'qris') {
       return {
-        offcanvasTitle: 'Pilih Transaksi QRIS',
+        offcanvasTitle: 'Pilih Mutasi QRIS',
         offcanvasSub: '6 hari terakhir',
-        bindLabel: 'transaksi QRIS',
-        emptyHint: 'Belum ada transaksi QRIS yang cocok.',
+        bindLabel: 'Mutasi QRIS',
+        emptyHint: 'Belum ada Mutasi QRIS yang cocok.',
         emptyTail: 'Pastikan data sudah di-sync ke bca_qris_transaksi.',
-        loadFail: 'Gagal memuat daftar transaksi QRIS',
-        okMsg: 'QRIS bind & dikonfirmasi',
+        loadFail: 'Gagal memuat daftar Mutasi QRIS',
+        okMsg: 'Mutasi QRIS berhasil di-bind dan dikonfirmasi',
         compareMutasi: 'QRIS'
       };
     }
@@ -475,7 +475,7 @@ if (count($data['cek']) == 0) { ?>
       emptyHint: 'Belum ada mutasi CR yang cocok.',
       emptyTail: 'Pastikan data sudah di-sync ke bca_mutasi (posted atau PEND).',
       loadFail: 'Gagal memuat daftar mutasi BCA',
-      okMsg: 'BCA bind & dikonfirmasi',
+      okMsg: 'Mutasi BCA berhasil di-bind dan dikonfirmasi',
       compareMutasi: 'Mutasi'
     };
   }

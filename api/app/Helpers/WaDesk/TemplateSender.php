@@ -125,12 +125,8 @@ class TemplateSender
                 $apiKey = $this->fetchTenantKiriminApiKey($tenantId);
                 $client = Kirimin::fromApiKey($apiKey);
             }
+            $rawParams = $this->truncateParamValues($paramDefs, $rawParams);
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams($paramDefs, $rawParams);
-
-            $lengthErr = $this->validateParamLengths($paramDefs, $rawParams);
-            if ($lengthErr !== '') {
-                return ['success' => false, 'message_id' => 0, 'conversation_id' => 0, 'error' => $lengthErr];
-            }
 
             if (!$skipParamModeration) {
                 $openAiKey = $this->fetchTenantOpenAiApiKey($tenantId);
@@ -414,7 +410,7 @@ class TemplateSender
 
     private function validateParamLengths(array $defs, array $rawParams): string
     {
-        $defaultMax = 20;
+        $defaultMax = 30;
         $isList = $rawParams === [] || array_keys($rawParams) === range(0, count($rawParams) - 1);
         $listCursor = 0;
         $errors = [];
@@ -450,6 +446,44 @@ class TemplateSender
         }
 
         return $errors !== [] ? implode('; ', $errors) : '';
+    }
+
+    /** Trim overlong parameter values instead of rejecting an otherwise valid blast. */
+    private function truncateParamValues(array $defs, array $rawParams): array
+    {
+        if ($defs === [] || $rawParams === []) {
+            return $rawParams;
+        }
+        $isList = array_keys($rawParams) === range(0, count($rawParams) - 1);
+        $listCursor = 0;
+        foreach ($defs as $def) {
+            $component = strtolower((string) ($def['component'] ?? 'body'));
+            $paramName = trim((string) ($def['param_name'] ?? ''));
+            $idx = (int) ($def['param_index'] ?? 0);
+            $keys = $isList
+                ? [$listCursor, $idx - 1]
+                : array_values(array_filter([$paramName, $component . '_' . $idx, (string) $idx], static fn ($key) => $key !== ''));
+            $matchedKey = null;
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $rawParams)) {
+                    $matchedKey = $key;
+                    break;
+                }
+            }
+            if ($matchedKey === null) {
+                continue;
+            }
+            if ($isList) {
+                $listCursor++;
+            }
+            $maxLen = (int) ($def['maxlength'] ?? 0);
+            $maxLen = $maxLen > 0 ? $maxLen : 30;
+            $value = (string) $rawParams[$matchedKey];
+            if (mb_strlen($value) > $maxLen) {
+                $rawParams[$matchedKey] = mb_substr($value, 0, $maxLen);
+            }
+        }
+        return $rawParams;
     }
 
     /** @param array<string,mixed> $logMeta */

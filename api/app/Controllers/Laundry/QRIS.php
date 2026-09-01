@@ -140,7 +140,7 @@ class QRIS extends Controller
             $this->error('Method not allowed. Use GET', 405);
         }
 
-        $this->error('Saldo tidak tersedia: QRIS lokal dikonfirmasi melalui mutasi BCA', 410);
+        $this->error('Saldo tidak tersedia: QRIS lokal dikonfirmasi melalui Mutasi QRIS', 410);
     }
 
     /**

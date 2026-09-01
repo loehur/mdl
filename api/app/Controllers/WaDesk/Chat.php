@@ -384,15 +384,11 @@ class Chat extends WaDeskController
                 ]);
             }
 
+            $rawParams = $this->truncateTemplateParamValues($tplParamDefs, $rawParams);
             [$sendParams, $named, $indexed, $paramsForStore] = $this->resolveTemplateParams(
                 $tplParamDefs,
                 $rawParams
             );
-
-            $lengthErrors = $this->validateTemplateParamValues($tplParamDefs, $rawParams);
-            if ($lengthErrors !== []) {
-                $this->error(implode('; ', $lengthErrors), 422);
-            }
 
             $this->requireTemplateParamsSafe((int) $user['tenant_id'], $tplParamDefs, $rawParams);
 

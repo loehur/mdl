@@ -670,10 +670,11 @@ class Subscription extends Controller
                 ]);
             }
 
+            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
             $this->json([
                 'success' => true,
                 'status' => 'pending',
-                'message' => 'Menunggu pembayaran'
+                'message' => $method === 'bca' ? 'Menunggu Mutasi BCA' : 'Menunggu Mutasi QRIS'
             ]);
         } catch (\Exception $e) {
             error_log('Poll payment error: ' . $e->getMessage());
@@ -725,10 +726,11 @@ class Subscription extends Controller
                 ]);
             }
 
+            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
             $this->json([
                 'success' => true,
                 'status' => 'pending',
-                'message' => 'Menunggu konfirmasi pembayaran...'
+                'message' => $method === 'bca' ? 'Menunggu Mutasi BCA' : 'Menunggu Mutasi QRIS'
             ]);
         } catch (\Exception $e) {
             error_log('Check payment error: ' . $e->getMessage());

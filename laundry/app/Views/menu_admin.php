@@ -14,13 +14,13 @@ $menu[1] = [
         'submenu' => [
             [
                 'c' => '@NonTunaiAdmin/bcaMutasi',
-                'title' => 'BCA Mutasi',
-                'txt' => 'BCA Mutasi'
+                'title' => 'Mutasi BCA',
+                'txt' => 'Mutasi BCA'
             ],
             [
                 'c' => '@NonTunaiAdmin/bcaQris',
-                'title' => 'BCA QRIS',
-                'txt' => 'BCA QRIS'
+                'title' => 'Mutasi QRIS',
+                'txt' => 'Mutasi QRIS'
             ],
         ]
     ],

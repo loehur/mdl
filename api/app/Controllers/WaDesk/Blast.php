@@ -128,14 +128,10 @@ class Blast extends WaDeskController
                     $errors[] = "Baris " . ($i + 1) . ": kolom '{$key2}' wajib diisi";
                 }
             }
-            $lengthErrors = $this->validateTemplateParamValues(
+            $rows[$i]['params'] = $this->truncateTemplateParamValues(
                 $paramDefs,
-                is_array($rowParams) ? $rowParams : [],
-                'Baris ' . ($i + 1)
+                is_array($rowParams) ? $rowParams : []
             );
-            foreach ($lengthErrors as $le) {
-                $errors[] = $le;
-            }
         }
         if ($errors !== []) {
             $this->error('Validasi gagal: ' . implode('; ', array_slice($errors, 0, 5)), 422, ['errors' => $errors]);

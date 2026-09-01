@@ -408,6 +408,9 @@
   .offcanvas-backdrop { z-index: 1090 !important; }
   .modal { z-index: 1200 !important; }
   .modal-backdrop { z-index: 1190 !important; }
+  /* Hasil cek status harus selalu berada di atas modal QRIS. */
+  #modalSalesQR { z-index: 10050 !important; }
+  #modalSalesAlert { z-index: 10100 !important; }
 </style>
 
 <script src="<?= URL::EX_ASSETS ?>js/jquery-3.6.0.min.js"></script>
@@ -1340,7 +1343,7 @@
 </div>
 
 <!-- Modal Alert Sales -->
-<div class="modal fade" id="modalSalesAlert" tabindex="-1" style="z-index: 10060;">
+<div class="modal fade" id="modalSalesAlert" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content border-0 shadow">
       <div class="modal-body text-center py-4">
@@ -1356,7 +1359,7 @@
 </div>
 
 <!-- Modal QR Code Sales -->
-<div class="modal fade" id="modalSalesQR" tabindex="-1" data-bs-backdrop="static" style="z-index: 10050;">
+<div class="modal fade" id="modalSalesQR" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content border-0 shadow">
       <div class="modal-header py-2">

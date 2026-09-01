@@ -197,9 +197,10 @@ class PublicView extends InvoiceController
                 return;
             }
 
+            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
             $this->success([
                 'payment_status' => 'pending',
-            ], 'Menunggu konfirmasi pembayaran');
+            ], $method === 'bca' ? 'Menunggu Mutasi BCA' : 'Menunggu Mutasi QRIS');
         } catch (\Throwable $e) {
             $this->error('Gagal cek pembayaran: ' . $e->getMessage(), 500);
         }

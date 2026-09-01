@@ -154,7 +154,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showPaymentModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div v-if="showPaymentModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
         <div class="w-full max-w-md rounded-2xl bg-ink-50 shadow-2xl">
           <div class="rounded-t-2xl bg-gradient-to-r from-ledger-dim via-ledger to-ledger-glow p-4">
             <h3 class="text-center text-lg font-bold text-white">
@@ -445,8 +445,8 @@ async function checkPayment(silent = false) {
       showPaymentModal.value = false;
     } else if (!silent) {
       message.value = isBcaPayment.value
-        ? "Transfer belum terdeteksi. Pastikan nominal exact, lalu coba lagi."
-        : "Pembayaran belum diterima. Coba lagi setelah scan.";
+        ? "Menunggu Mutasi BCA. Pastikan nominal exact, lalu coba lagi."
+        : "Menunggu Mutasi QRIS. Coba lagi beberapa saat lagi.";
       isError.value = true;
     }
   } catch {
