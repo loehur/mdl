@@ -29,6 +29,65 @@ class Absen extends Controller
       $this->view($viewData, $data);
    }
 
+   /** Riwayat absen untuk modal Perbaikan Absen di halaman Gaji (read-only untuk periode lama). */
+   public function gaji_list()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $idKaryawan = (int) ($_GET['id_karyawan'] ?? 0);
+      $periode = substr(trim((string) ($_GET['periode'] ?? '')), 0, 7);
+      $jenis = isset($_GET['jenis']) && $_GET['jenis'] !== '' ? (int) $_GET['jenis'] : -1;
+      if ($idKaryawan < 1 || !preg_match('/^\d{4}-\d{2}$/', $periode) || !in_array($jenis, [0, 1, 2, 3], true)) {
+         echo json_encode(['code' => 0, 'msg' => 'Parameter perbaikan absen tidak valid']);
+         return;
+      }
+      $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
+      $rows = $this->db(0)->query_array(
+         "SELECT a.id, a.id_karyawan, a.jenis, a.tanggal, a.jam, u.nama_user
+          FROM absen a INNER JOIN user u ON u.id_user = a.id_karyawan
+          WHERE a.id_cabang = $idCabang AND a.id_karyawan = $idKaryawan
+            AND a.jenis = $jenis AND a.tanggal LIKE '" . $this->db(0)->escape($periode) . "%'
+          ORDER BY a.tanggal DESC, a.jam DESC, a.id DESC"
+      );
+      echo json_encode(['code' => 1, 'data' => is_array($rows) ? $rows : []]);
+   }
+
+   /** Ubah jenis tugas absen dengan batas tanggal dan access key yang sama seperti hapus. */
+   public function ubah()
+   {
+      header('Content-Type: application/json; charset=utf-8');
+      $id = (int) ($_POST['id'] ?? 0);
+      $jenis = (int) ($_POST['jenis'] ?? -1);
+      $accessKey = (string) ($_POST['access_key'] ?? '');
+      $idCabang = (int) $_SESSION[URL::SESSID]['user']['id_cabang'];
+      $row = $id > 0 ? $this->db(0)->get_where_row('absen', 'id = ' . $id . ' AND id_cabang = ' . $idCabang) : null;
+      if (!$row || !in_array($jenis, [0, 1, 2, 3], true)) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - DATA ABSEN ATAU JENIS TUGAS TIDAK VALID']); return;
+      }
+      $tgl = substr((string) ($row['tanggal'] ?? ''), 0, 10);
+      if (!in_array($tgl, [date('Y-m-d'), date('Y-m-d', strtotime('-1 day'))], true) || substr($tgl, 0, 7) !== date('Y-m')) {
+         echo json_encode(['code' => 0, 'msg' => 'GAGAL - PERBAIKAN HANYA UNTUK ABSEN HARI INI ATAU KEMARIN DI BULAN INI']); return;
+      }
+      $idKaryawan = (int) ($row['id_karyawan'] ?? 0);
+      $ok = (bool) $this->helper('User')->by_id_access_key($idKaryawan, $accessKey);
+      if (!$ok && (int) ($this->id_privilege ?? 0) === 100) {
+         $ok = (bool) $this->helper('User')->by_id_access_key((int) ($_SESSION[URL::SESSID]['user']['id_user'] ?? 0), $accessKey);
+      }
+      if (!$ok) { echo json_encode(['code' => 0, 'msg' => 'GAGAL - ACCESS KEY TIDAK COCOK']); return; }
+      $sameGroup = $jenis === 1 ? 'jenis = 1' : 'jenis IN (0,2,3)';
+      $duplicate = $this->db(0)->count_where('absen', "id <> $id AND id_karyawan = $idKaryawan AND $sameGroup AND tanggal = '" . $this->db(0)->escape($tgl) . "'");
+      if ($duplicate > 0) { echo json_encode(['code' => 0, 'msg' => 'GAGAL - SUDAH ADA ABSEN PADA GRUP TUGAS TERSEBUT']); return; }
+      if ($jenis === 0 || $jenis === 1) {
+         $max = (int) ($_SESSION[URL::SESSID]['data']['cabang'][$jenis . '_max'] ?? 0);
+         $used = $this->db(0)->count_where('absen', "id <> $id AND id_cabang = $idCabang AND jenis = $jenis AND tanggal = '" . $this->db(0)->escape($tgl) . "'");
+      } else {
+         $max = 1;
+         $used = $this->db(0)->count_where('absen', "id <> $id AND jenis = $jenis AND tanggal = '" . $this->db(0)->escape($tgl) . "'");
+      }
+      if ($used >= $max) { echo json_encode(['code' => 0, 'msg' => 'GAGAL - MELEBIHI BATAS ABSEN HARIAN']); return; }
+      $up = $this->db(0)->update('absen', ['jenis' => $jenis], 'id = ' . $id . ' AND id_cabang = ' . $idCabang);
+      echo json_encode(['code' => empty($up['errno']) ? 1 : 0, 'msg' => empty($up['errno']) ? 'ABSEN BERHASIL DIPERBAIKI' : ($up['error'] ?? 'GAGAL MEMPERBAIKI ABSEN')]);
+   }
+
    function hapus()
    {
       header('Content-Type: application/json; charset=utf-8');

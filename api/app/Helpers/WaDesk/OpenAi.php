@@ -26,9 +26,9 @@ class OpenAi
         float $temperature = 0
     ): array {
         if ($model === null || $model === '') {
-            $model = \defined('Env::OPENAI_MODEL') && (string) \Env::OPENAI_MODEL !== ''
-                ? (string) \Env::OPENAI_MODEL
-                : 'gpt-4o-mini';
+            // WaDesk keeps its model independent from the application-wide
+            // autoreply/model configuration.
+            $model = 'gpt-4o';
         }
         if ($this->apiKey === '') {
             return ['success' => false, 'http_code' => 0, 'data' => [], 'error' => 'OpenAI API key kosong'];

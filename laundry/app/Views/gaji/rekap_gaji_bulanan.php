@@ -66,11 +66,13 @@ foreach ($this->user as $uc) {
           <?php if ($nama_user <> '') { ?>
             <div class="btn-group">
               <button type="button" class="btn btn-sm btn-warning dropdown-toggle" data-bs-toggle="dropdown">
-                Set Gaji
+                Perbaikan Absen
               </button>
               <div class="dropdown-menu">
-                <a class="dropdown-item" href="#exampleModal1" data-bs-toggle="modal">FEE Pengali</a>
-                <a class="dropdown-item" href="#exampleModal2" data-bs-toggle="modal">QTY Pengali</a>
+                <button type="button" class="dropdown-item btnPerbaikanAbsen" data-jenis="0">Cuci</button>
+                <button type="button" class="dropdown-item btnPerbaikanAbsen" data-jenis="1">Jaga Malam</button>
+                <button type="button" class="dropdown-item btnPerbaikanAbsen" data-jenis="2">Harian — Delivery</button>
+                <button type="button" class="dropdown-item btnPerbaikanAbsen" data-jenis="3">Harian — Maintenance</button>
               </div>
             </div>
           <?php } ?>
@@ -275,7 +277,7 @@ $totalTerima = 0;
                     if ($isPreview || $idPengaliData < 1) {
                       return (int) $qty . "<br><small class='text-muted'>preview</small>";
                     }
-                    return "<span class='edit' data-table='gaji_pengali_data' data-col='qty' data-id_edit='" . $idPengaliData . "'>" . (int) $qty . "</span>";
+                    return (int) $qty;
                   };
 
                   if ($idPengali === 5) {
@@ -461,7 +463,19 @@ $totalTerima = 0;
   <?php } ?>
 </div>
 
-<div class="modal" id="exampleModal1" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+<div class="modal fade" id="modalPerbaikanAbsen" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Perbaikan Absen — <span id="perbaikanJenis">-</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <p class="small text-muted">Periode mengikuti Gaji yang sedang dibuka. Bulan dan tahun tidak dapat diubah. Tambah, ubah, dan hapus tetap hanya dapat dilakukan untuk hari ini atau kemarin di bulan berjalan.</p>
+      <div class="row g-2 align-items-end mb-3"><div class="col-sm-4"><label class="form-label">Tanggal</label><select id="perbaikanTgl" class="form-control"><option value="0">Hari ini</option><option value="1">Kemarin</option></select></div><div class="col-sm-4"><label class="form-label">Jenis tugas</label><select id="perbaikanJenisEdit" class="form-control"><option value="0">Cuci</option><option value="1">Jaga Malam</option><option value="2">Harian — Delivery</option><option value="3">Harian — Maintenance</option></select></div><div class="col-sm-4"><button type="button" id="btnTambahPerbaikan" class="btn btn-primary w-100">Tambah Absen</button></div></div>
+      <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Tanggal</th><th>Jam</th><th>Tugas</th><th></th></tr></thead><tbody id="perbaikanAbsenRows"><tr><td colspan="4" class="text-muted">Pilih jenis absen.</td></tr></tbody></table></div>
+      <div class="mt-2"><label class="form-label">Access Key (wajib untuk ubah/hapus)</label><input id="perbaikanAccessKey" type="password" maxlength="4" class="form-control" inputmode="numeric" placeholder="4 digit"></div>
+    </div>
+  </div></div>
+</div>
+
+<div class="modal" id="exampleModal1" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" hidden>
   <div class="modal-dialog modal-sm">
     <div class="modal-content">
       <div class="modal-header">
@@ -580,6 +594,64 @@ $totalTerima = 0;
   $('#exampleModal2 select[name="pengali"]').on('change', syncQtyTunjanganLock);
   $('#exampleModal2').on('shown.bs.modal', syncQtyTunjanganLock);
   syncQtyTunjanganLock();
+
+  (function () {
+    var labels = { 0: 'Cuci', 1: 'Jaga Malam', 2: 'Harian — Delivery', 3: 'Harian — Maintenance' };
+    var jenisAktif = 0;
+    var idKaryawan = <?= (int) $id_user ?>;
+    var periode = '<?= htmlspecialchars($currentYear . '-' . $currentMonth, ENT_QUOTES, 'UTF-8') ?>';
+    var modalEl = document.getElementById('modalPerbaikanAbsen');
+    var modal = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+    function esc(v) { return $('<div>').text(v == null ? '' : String(v)).html(); }
+    function canChange(tanggal) {
+      var today = '<?= date('Y-m-d') ?>', yesterday = '<?= date('Y-m-d', strtotime('-1 day')) ?>';
+      return tanggal === today || tanggal === yesterday;
+    }
+    function loadPerbaikan() {
+      var rows = $('#perbaikanAbsenRows');
+      rows.html('<tr><td colspan="4" class="text-muted">Memuat…</td></tr>');
+      $.getJSON('<?= URL::BASE_URL ?>Absen/gaji_list', { id_karyawan: idKaryawan, periode: periode, jenis: jenisAktif })
+        .done(function (res) {
+          if (!res || res.code != 1) { rows.html('<tr><td colspan="4" class="text-danger">' + esc((res && res.msg) || 'Gagal memuat') + '</td></tr>'); return; }
+          if (!res.data.length) { rows.html('<tr><td colspan="4" class="text-muted">Belum ada absen ' + esc(labels[jenisAktif]) + ' pada periode ini.</td></tr>'); return; }
+          rows.html(res.data.map(function (r) {
+            var allowed = canChange(String(r.tanggal));
+            var actions = allowed
+              ? '<button class="btn btn-sm btn-outline-primary me-1 btnUbahPerbaikan" data-id="' + Number(r.id) + '">Ubah</button><button class="btn btn-sm btn-outline-danger btnHapusPerbaikan" data-id="' + Number(r.id) + '">Hapus</button>'
+              : '<small class="text-muted">Di luar batas koreksi</small>';
+            return '<tr><td>' + esc(r.tanggal) + '</td><td>' + esc(r.jam) + '</td><td>' + esc(labels[Number(r.jenis)] || '-') + '</td><td class="text-end">' + actions + '</td></tr>';
+          }).join(''));
+        }).fail(function () { rows.html('<tr><td colspan="4" class="text-danger">Gagal memuat data absen.</td></tr>'); });
+    }
+    $('.btnPerbaikanAbsen').on('click', function () {
+      jenisAktif = Number($(this).data('jenis'));
+      $('#perbaikanJenis').text(labels[jenisAktif]);
+      $('#perbaikanJenisEdit').val(jenisAktif);
+      $('#perbaikanAccessKey').val('');
+      if (modal) modal.show();
+      loadPerbaikan();
+    });
+    $('#btnTambahPerbaikan').on('click', function () {
+      $.post('<?= URL::BASE_URL ?>Absen/absen', { karyawan: idKaryawan, jenis: $('#perbaikanJenisEdit').val(), tgl: $('#perbaikanTgl').val() }, function (res) {
+        if (res && Number(res.code) === 1) { showToast(res.msg || 'ABSEN SUKSES', 'success'); loadPerbaikan(); }
+        else showToast((res && res.msg) || 'Gagal menambah absen', 'warning');
+      }, 'json').fail(function () { showToast('Gagal menambah absen', 'danger'); });
+    });
+    $('#perbaikanAbsenRows').on('click', '.btnUbahPerbaikan', function () {
+      var key = $('#perbaikanAccessKey').val();
+      if (!key) { showToast('Access Key wajib untuk ubah absen', 'warning'); return; }
+      $.post('<?= URL::BASE_URL ?>Absen/ubah', { id: $(this).data('id'), jenis: $('#perbaikanJenisEdit').val(), access_key: key }, function (res) {
+        if (res && Number(res.code) === 1) { showToast(res.msg, 'success'); loadPerbaikan(); } else showToast((res && res.msg) || 'Gagal memperbaiki absen', 'warning');
+      }, 'json');
+    }).on('click', '.btnHapusPerbaikan', function () {
+      var key = $('#perbaikanAccessKey').val();
+      if (!key) { showToast('Access Key wajib untuk hapus absen', 'warning'); return; }
+      if (!window.confirm('Hapus absen ini?')) return;
+      $.post('<?= URL::BASE_URL ?>Absen/hapus', { id: $(this).data('id'), access_key: key }, function (res) {
+        if (res && Number(res.code) === 1) { showToast(res.msg, 'success'); loadPerbaikan(); } else showToast((res && res.msg) || 'Gagal menghapus absen', 'warning');
+      }, 'json');
+    });
+  }());
 
   $("form.jq").on("submit", function(e) {
     e.preventDefault();

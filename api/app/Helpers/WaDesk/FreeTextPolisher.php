@@ -101,9 +101,9 @@ PROMPT;
             'draft_message' => $message,
         ], JSON_UNESCAPED_UNICODE);
         $client = new OpenAi($apiKey);
-        $model = \defined('Env::OPENAI_MODEL') && (string) \Env::OPENAI_MODEL !== ''
-            ? (string) \Env::OPENAI_MODEL
-            : 'gpt-4o-mini';
+        // WaDesk free-text polishing intentionally uses its own model and
+        // must not follow the global Env::OPENAI_MODEL setting.
+        $model = 'gpt-4o';
         $res = $client->chatJson(self::SYSTEM_PROMPT, $userPayload, $model, 0.35);
 
         if (!$res['success']) {
