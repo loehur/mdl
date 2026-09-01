@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sent_by_user_id INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_msg_conv (conversation_id, id),
+  INDEX idx_msg_agent_template_visibility (conversation_id, sent_by_user_id, type, direction),
   INDEX idx_msg_provider (provider_msg_id),
   INDEX idx_msg_external (external_id),
   CONSTRAINT fk_msg_conv FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,

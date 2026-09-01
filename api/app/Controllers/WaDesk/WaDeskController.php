@@ -373,6 +373,22 @@ abstract class WaDeskController extends BaseController
     protected function visibilitySql(string $alias = 'c'): array
     {
         $user = $this->currentUser();
+        // Agent owns a conversation only after they have successfully sent at
+        // least one template in it. Keep this predicate at the data layer so
+        // list, message detail, read state, and replies cannot bypass it.
+        if (($user['role'] ?? '') === 'agent') {
+            return [
+                "{$alias}.tenant_id = ? AND {$alias}.team_id = ?
+                 AND EXISTS (
+                    SELECT 1 FROM messages agent_template
+                    WHERE agent_template.conversation_id = {$alias}.id
+                      AND agent_template.direction = 'out'
+                      AND agent_template.type = 'template'
+                      AND agent_template.sent_by_user_id = ?
+                 )",
+                [(int) $user['tenant_id'], (int) $user['team_id'], (int) $user['id']],
+            ];
+        }
         if (($user['role'] ?? '') === 'admin' && !$this->hasOperationalTeam($user)) {
             return ['1=0', []];
         }

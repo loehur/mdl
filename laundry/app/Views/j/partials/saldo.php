@@ -57,6 +57,8 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
   <?php foreach ($finance as $fh) {
     $isQRIS = strtoupper($fh['note'] ?? '') === 'QRIS';
     $canManage = (int) ($fh['id_user'] ?? 0) === 0;
+    // QRIS lokal tetap boleh dipindai pelanggan walaupun kas dibuat staf.
+    $canScanQris = $isQRIS;
   ?>
   <div class="j-card">
     <div class="j-card-head">
@@ -66,7 +68,7 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
       </div>
       <span class="j-badge warn">Rp<?= number_format((float) $fh['total']) ?></span>
     </div>
-    <?php if ($canManage) { ?>
+    <?php if ($canManage || $canScanQris) { ?>
     <div class="j-chip-row" style="margin-top:4px">
       <button type="button" class="j-btn j-btn-primary j-tokopay"
         data-ref="<?= htmlspecialchars($fh['ref_finance']) ?>"
@@ -74,12 +76,14 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
         data-note="<?= htmlspecialchars($fh['note']) ?>">
         <?= $isQRIS ? 'Scan QR' : 'Cek Status' ?>
       </button>
+      <?php if ($canManage) { ?>
       <button type="button" class="j-btn j-btn-soft j-cancel-pay"
         data-ref="<?= htmlspecialchars($fh['ref_finance']) ?>"
         data-total="<?= number_format((float) $fh['total']) ?>"
         data-note="<?= htmlspecialchars($fh['note']) ?>">
         <i class="fas fa-trash-alt"></i> Batalkan
       </button>
+      <?php } ?>
     </div>
     <?php } else { ?>
       <small style="color:var(--j-muted)">Dibuat staff — hubungi outlet jika perlu dibatalkan.</small>

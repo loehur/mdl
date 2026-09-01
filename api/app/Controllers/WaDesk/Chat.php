@@ -269,6 +269,9 @@ class Chat extends WaDeskController
             if ($channelId <= 0 || $phone === '') {
                 $this->error('channel_id dan phone wajib untuk chat baru', 400);
             }
+            if (($user['role'] ?? '') === 'agent' && $mode !== 'template') {
+                $this->error('Agent hanya dapat membalas percakapan setelah mengirim template di percakapan tersebut.', 403);
+            }
             $conv = null;
         }
 
