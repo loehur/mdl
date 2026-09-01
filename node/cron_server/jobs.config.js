@@ -11,7 +11,7 @@ module.exports = [
   {
     id: 'wadesk-blast',
     description: 'Process WaDesk template blast queue',
-    schedule: '*/7 * * * *',
+    schedule: '2-59/7 * * * *', // setiap 7 menit, offset menit 02
     method: 'GET',
     url: '/Cron/WaDeskBlast/index?limit=20',
     enabled: true,
@@ -35,7 +35,7 @@ module.exports = [
   {
     id: 'bca-kas-confirm',
     description: 'Konfirmasi kas BCA pending jika mutasi CR cocok (on-demand scrape)',
-    schedule: '*/10 * * * *', // setiap 10 menit; skip jika tidak ada pending BCA
+    schedule: '3-59/10 * * * *', // setiap 10 menit, offset menit 03
     method: 'GET',
     url: '/Cron/BcaKasConfirm/index',
     enabled: true,
@@ -43,7 +43,7 @@ module.exports = [
   {
     id: 'bca-qris-confirm',
     description: 'Sync transaksi QRIS merchant BCA + konfirmasi kas QRIS static pending',
-    schedule: '*/14 * * * *', // setiap 14 menit
+    schedule: '4-59/14 * * * *', // setiap 14 menit, offset menit 04
     method: 'GET',
     url: '/Cron/BcaQrisConfirm/index',
     enabled: true,
@@ -51,7 +51,7 @@ module.exports = [
   {
     id: 'kas-unmatched-notify',
     description: 'Notify branch group for unmatched laundry kas BCA/QRIS',
-    schedule: '*/11 * * * *', // setiap 11 menit
+    schedule: '5-59/11 * * * *', // setiap 11 menit, offset menit 05
     method: 'GET',
     url: '/Cron/KasUnmatchedNotify/index',
     enabled: true,
@@ -75,7 +75,7 @@ module.exports = [
   {
     id: 'wa-queue',
     description: 'Resend / proses antrean WhatsApp (queue)',
-    schedule: '*/5 * * * *', // setiap 5 menit
+    schedule: '0-59/5 * * * *', // setiap 5 menit, offset menit 00
     method: 'GET',
     url: '/Cron/ResendWAQueue',
     enabled: true,
@@ -83,7 +83,7 @@ module.exports = [
   {
     id: 'send-pending-notif',
     description: 'Kirim notifikasi pending laundry',
-    schedule: '*/6 * * * *', // setiap 6 menit
+    schedule: '1-59/6 * * * *', // setiap 6 menit, offset menit 01
     method: 'GET',
     url: 'https://ml.nalju.com/Cron/send',
     enabled: true,
