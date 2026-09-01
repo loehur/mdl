@@ -2966,12 +2966,8 @@ class WAReplies
                         $this->logAutoreplyTrace($waNumber, 'REGEX_REMAP', $handler . '→PENUTUP thanks');
                         $handler = 'PENUTUP';
                     }
-                    // "cek qris ..." = intent admin CEK_QRIS, bukan minta rekening/QRIS pelanggan
+                    // Perintah cek QRIS sudah dipensiunkan; jangan salah arahkan ke REKENING.
                     if ($handler === 'REKENING' && preg_match('/^\s*cek\s+qris\b/i', $textBodyToCheck)) {
-                        continue;
-                    }
-                    // "tarik saldo ..." = TARIK_TOKOPAY, bukan INFO
-                    if ($handler === 'INFO' && preg_match('/\btarik\b/i', $textBodyToCheck)) {
                         continue;
                     }
                     // HARGA laundry: bukan harga parfum/plastik/pewangi/dll (nanti intent terpisah)
@@ -3931,9 +3927,13 @@ class WAReplies
         $qrisUrl = (class_exists('Env') && defined('Env::QRIS_PUBLIC_URL'))
             ? (string) \Env::QRIS_PUBLIC_URL
             : 'https://ml.nalju.com/I/q';
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'ml.nalju.com'));
-        $imageUrl = $scheme . '://' . $host . '/mdl/laundry/in_assets/img/qris/qris_1.jpeg';
+        // Jangan pakai HTTP_HOST request API di sini: pada produksi nilainya
+        // api.nalju.com, yang mengembalikan JSON untuk path aset ini. Aset QRIS
+        // dipublikasikan oleh host halaman QRIS, langsung di /in_assets/.
+        $qrisParts = parse_url($qrisUrl);
+        $scheme = strtolower((string) ($qrisParts['scheme'] ?? 'https'));
+        $host = trim((string) ($qrisParts['host'] ?? 'ml.nalju.com'));
+        $imageUrl = $scheme . '://' . $host . '/in_assets/img/qris/qris_1.jpeg';
 
         $payload = BankAccountGuide::publicPayload($qrisUrl, $imageUrl);
 
@@ -6598,81 +6598,6 @@ class WAReplies
         }
     }
 
-    private function cekQrisFormatHelpMessage()
-    {
-        return "Format cek QRIS:\n"
-            . "cek qris MM.YY jumlah\n\n"
-            . "• MM.YY = bulan.tahun (2 digit), contoh 06.26 = Juni 2026\n"
-            . "• jumlah = nominal total bayar dari Tokopay (angka), contoh 900\n\n"
-            . "Contoh benar:\ncek qris 06.26 900";
-    }
-
-    function handleCek_qris($phoneIn, $waNumber, $textBody = '')
-    {
-        if (!$this->requireAdminSender($waNumber, 'CEK_QRIS')) {
-            return;
-        }
-        try {
-            if (!preg_match('/^\s*cek\s+qris\s+(\d{2})\.(\d{2})\s+(\d+)\s*$/i', trim($textBody), $m)) {
-                $this->sendQuotedFreeText($waNumber, $this->cekQrisFormatHelpMessage());
-                return;
-            }
-
-            $period = $m[1] . '.' . $m[2];
-            $jumlah = (int) $m[3];
-            if ($jumlah <= 0) {
-                $this->sendQuotedFreeText($waNumber, "Nominal tidak valid.\n\n" . $this->cekQrisFormatHelpMessage());
-                return;
-            }
-
-            $bulan = (int) $m[1];
-            if ($bulan < 1 || $bulan > 12) {
-                $this->sendQuotedFreeText($waNumber, "Bulan tidak valid (gunakan 01–12).\n\n" . $this->cekQrisFormatHelpMessage());
-                return;
-            }
-
-            $db = DB::getInstance(1);
-            $rows = $db->query(
-                "SELECT ref_finance, state, jumlah, `date`, id_client
-                 FROM kas_qris_cleanup_log
-                 WHERE jumlah = ? AND DATE_FORMAT(`date`, '%m.%y') = ?
-                 ORDER BY `date` DESC
-                 LIMIT 30",
-                [$jumlah, $period]
-            )->result_array();
-
-            $waService = $this->getWaService();
-
-            if (empty($rows)) {
-                $this->sendQuotedFreeText(
-                    $waNumber,
-                    "Tidak ada data QRIS untuk periode {$period} dengan nominal Rp" . number_format($jumlah, 0, ',', '.') . "."
-                );
-                return;
-            }
-
-            $lines = [];
-            foreach ($rows as $row) {
-                $ref = $row['ref_finance'] ?? '';
-                $state = strtoupper($row['state'] ?? '-');
-                $tgl = !empty($row['date']) ? date('d/m/y H:i', strtotime($row['date'])) : '-';
-                $nominal = number_format((int) ($row['jumlah'] ?? 0), 0, ',', '.');
-                $link = 'https://api.nalju.com/Laundry/QRIS_State/' . rawurlencode($ref);
-                $lines[] = "{$tgl}\nRp{$nominal} ({$state})\n{$link}";
-            }
-
-            $this->sendQuotedFreeText($waNumber, implode("\n\n", $lines));
-
-        } catch (\Throwable $e) {
-            \Log::write("handleCek_qris ERROR: " . $e->getMessage(), 'wa_error', 'CekQris');
-            try {
-                $this->sendQuotedFreeText($waNumber, "Maaf, terjadi kesalahan saat mengambil data QRIS.");
-            } catch (\Throwable $e2) {
-                // ignore
-            }
-        }
-    }
-
     function handleInfo_tokopay($phoneIn, $waNumber, $textBody = '')
     {
         $msg = trim((string) $textBody);
@@ -7038,99 +6963,6 @@ class WAReplies
         } catch (\Throwable $e) {
             \Log::write('replySaldoFonnte ERROR: ' . $e->getMessage(), 'wa_error', 'Fonnte');
             $this->sendSaldoAdminText($waNumber, 'Error: ' . $e->getMessage());
-        }
-    }
-
-     function handleTarik_tokopay($phoneIn, $waNumber, $textBody = '')
-    {
-        $this->sendQuotedFreeText($waNumber, 'Penarikan TokoPay sudah tidak tersedia.');
-        return;
-        if (!$this->requireAdminSender($waNumber, 'TARIK_TOKOPAY')) {
-            return;
-        }
-        try {
-            $waService = $this->getWaService();
-            
-            // Extract amount from text body
-            // Format expected: "tarik tokopay 50000" or "wd tokopay 50000"
-            $parts = preg_split('/\s+/', $textBody);
-            $amount = isset($parts[2]) ? intval($parts[2]) : 0;
-            
-            // Validate amount
-            if ($amount < 10000) {
-                $text = "Gagal: Minimal penarikan Rp 10.000";
-                $this->sendQuotedFreeText($waNumber, $text);
-                return;
-            }
-
-            // Call QRIS withdraw endpoint
-            $apiUrl = 'https://api.nalju.com/Laundry/QRIS/withdraw';
-            
-            $curl = curl_init();
-            curl_setopt_array($curl, [
-                CURLOPT_URL => $apiUrl,
-                CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'POST',
-                CURLOPT_POSTFIELDS => json_encode(['nominal' => $amount]),
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json'
-                ],
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false,
-            ]);
-            
-            $response = curl_exec($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($curl);
-            curl_close($curl);
-
-            if ($curlError) {
-                $text = "Error: Gagal menghubungi API QRIS. " . $curlError;
-                $this->sendQuotedFreeText($waNumber, $text);
-                return;
-            }
-
-            $data = json_decode($response, true);
-
-            // Format Tokopay: Sukses = status 1, rc 200, "message". Gagal = status 0, "error_msg"
-            $isSuccess = isset($data['status']) && (int) $data['status'] === 1;
-            $replyText = '';
-
-            if ($data === null || $data === false) {
-                $replyText = "❌ *Gagal Penarikan Saldo*\n\nRespon API tidak valid.";
-            } elseif ($isSuccess) {
-                $amountFormatted = number_format($amount, 0, ',', '.');
-                $message = isset($data['message']) && trim((string) $data['message']) !== ''
-                    ? trim($data['message'])
-                    : 'Penarikan berhasil diproses. Silakan hubungi customer service jika perlu.';
-                $replyText = "✅ *Penarikan Saldo TokoPay*\n\n";
-                $replyText .= "Nominal: *Rp " . $amountFormatted . "*\n";
-                $replyText .= "Tujuan: *SEABANK*\n\n";
-                $replyText .= $message;
-            } else {
-                $errorMsg = null;
-                if (isset($data['error_msg']) && trim((string) $data['error_msg']) !== '') {
-                    $errorMsg = trim($data['error_msg']);
-                } elseif (isset($data['message']) && trim((string) $data['message']) !== '') {
-                    $errorMsg = trim($data['message']);
-                } elseif (isset($data['error']) && trim((string) $data['error']) !== '') {
-                    $errorMsg = trim($data['error']);
-                }
-                $replyText = "❌ *Gagal Penarikan Saldo*\n\n" . ($errorMsg ?: 'Terjadi kesalahan. Silakan coba lagi atau hubungi customer service.');
-            }
-
-            $this->sendQuotedFreeText($waNumber, $replyText);
-
-        } catch (\Throwable $e) {
-            \Log::write("handleTarik_saldo_tokopay ERROR: " . $e->getMessage(), 'wa_error', 'Tokopay');
-            $waService = $this->getWaService();
-            $this->sendQuotedFreeText($waNumber, "Error: " . $e->getMessage());
         }
     }
 
@@ -7910,12 +7742,6 @@ class WAReplies
                 $intent = 'INFO';
                 $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap ' . $aiIntentRaw . ' → INFO';
             }
-            if ($intent === 'INFO' && preg_match('/\btarik\b/i', $textBody)
-                && isset($keywordConfig['TARIK_TOKOPAY'])) {
-                $intent = 'TARIK_TOKOPAY';
-                $reason = ($reason !== '' ? $reason . '; ' : '') . 'remap INFO+tarik → TARIK_TOKOPAY';
-            }
-
             // Model kadang mengembalikan label bukan daftar (mis. PERTANYAAN) — sering dari teks prompt. Samakan ke STATUS jika jelas tanya siap laundry/cucian.
             if (!isset($keywordConfig[$intent]) && in_array($intent, ['PERTANYAAN', 'QUESTION', 'TANYA', 'PERTANYAAN_UMUM'], true)) {
                 if (preg_match('/\b(sudah|udah|sudh|udh|dah|dh)\s+siap\b.{0,120}?\b(laundry|loundry|laundri|londri|cucian)\b/iu', $textBody)
