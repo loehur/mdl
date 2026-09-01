@@ -12,14 +12,14 @@ use App\Helpers\WaDesk\TemplateChannelSelector;
  * URL: /Cron/WaDeskBlast/index?limit=30
  * Schedule every 1-2 minutes on the server cron.
  *
- * Rate limit: ~1 request/sec to YCloud (usleep between sends).
+ * Random interval: 3–7 seconds between template sends.
  */
 class WaDeskBlast extends Controller
 {
     private const DB_INDEX   = 7;
-    /** Conservative rate limit: ~2.5–4.0 sec between YCloud calls (jitter). */
-    private const SLEEP_MIN_US = 2500000;
-    private const SLEEP_MAX_US = 4000000;
+    /** Random 3–7 sec pause between blast template sends. */
+    private const SLEEP_MIN_US = 3000000;
+    private const SLEEP_MAX_US = 7000000;
 
     public function index()
     {
@@ -154,7 +154,7 @@ class WaDeskBlast extends Controller
                 $processed++;
                 $output .= "recip#{$recipId} phone={$phone} " . ($result['success'] ? 'OK' : 'FAIL: ' . $result['error']) . "\n";
 
-                // Conservative rate limit with jitter (~2.5–4.0 sec)
+                // Random interval 3–7 seconds per template send.
                 usleep(random_int(self::SLEEP_MIN_US, self::SLEEP_MAX_US));
             }
 

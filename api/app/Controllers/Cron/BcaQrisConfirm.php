@@ -119,6 +119,25 @@ class BcaQrisConfirm extends Controller
             $stats['checked']++;
             $refFinance = trim((string) ($row['ref_finance'] ?? ''));
 
+            // Jika admin sudah melakukan bind yang benar, konfirmasi kas tetap
+            // harus dilanjutkan. Matcher normal hanya mencari QRIS unlinked.
+            $existingLink = $dbMain->query(
+                'SELECT bca_qris_id FROM bca_qris_link WHERE entity_type = ? AND entity_ref = ? LIMIT 1',
+                [BcaScrapper::ENTITY_KAS_LAUNDRY, $refFinance]
+            )->row_array();
+            if (is_array($existingLink) && !empty($existingLink['bca_qris_id'])) {
+                $confirm = KasNonTunaiConfirm::approveQrisMerchant($dbLaundry, $refFinance, $crmDb);
+                if (empty($confirm['ok'])) {
+                    $stats['errors']++;
+                    echo "ERR {$refFinance}: bind QRIS sudah ada tetapi konfirmasi kas gagal — " . ($confirm['message'] ?? '') . "\n";
+                    continue;
+                }
+                $stats['matched']++;
+                $stats['confirmed']++;
+                echo "OK {$refFinance}: bind QRIS #{$existingLink['bca_qris_id']} yang sudah ada dikonfirmasi\n";
+                continue;
+            }
+
             $match = BcaQrisMatcher::matchAndBindForKas($dbMain, $row);
             if (empty($match['ok'])) {
                 $stats['errors']++;

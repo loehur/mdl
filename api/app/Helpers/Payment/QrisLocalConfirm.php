@@ -22,9 +22,21 @@ class QrisLocalConfirm
         foreach ((array) $rows as $row) {
             $stats['checked']++; $ref = trim((string) ($row['entity_ref'] ?? '')); $amount = (int) ($row['amount'] ?? 0);
             if ($ref === '' || $amount < 1) { $stats['errors']++; $stats['details'][] = 'ERROR reservasi tidak valid'; continue; }
+            $type = self::entityType($ref);
+            // Bind dapat dibuat lebih dahulu melalui Admin Approval. Tetap
+            // jalankan efek bisnisnya; jangan menunggu transaksi menjadi unlinked.
+            $existing = $mainDb->query(
+                'SELECT bca_qris_id FROM bca_qris_link WHERE entity_type = ? AND entity_ref = ? LIMIT 1',
+                [$type, $ref]
+            )->row_array();
+            if (is_array($existing) && !empty($existing['bca_qris_id'])) {
+                if (!self::applyBusinessPayment($ref, $laundryDb, $invoiceDb, $salonDb, $crmDb)) { $stats['errors']++; $stats['details'][] = "ERROR {$ref}: bind ada, tetapi kas/payment pending tidak dapat dikonfirmasi"; continue; }
+                $mainDb->update('qris_nominal_reservations', ['state' => 'paid', 'active_key' => null], ['entity_ref' => $ref, 'active_key' => 1]);
+                $stats['confirmed']++; $stats['details'][] = "OK {$ref}: bind QRIS #{$existing['bca_qris_id']} dikonfirmasi"; continue;
+            }
             $qris = $mainDb->query("SELECT t.id, t.nominal FROM bca_qris_transaksi t LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id WHERE l.id IS NULL AND t.nominal = ? ORDER BY t.tanggal ASC, t.waktu ASC LIMIT 1", [$amount])->row_array();
             if (!is_array($qris) || empty($qris['id'])) { $stats['details'][] = "WAIT {$ref}: mutasi QRIS exact Rp{$amount} belum tersedia/unlinked"; continue; }
-            $stats['matched']++; $type = self::entityType($ref);
+            $stats['matched']++;
             if (!BcaQrisMatcher::bindQris($mainDb, (int) $qris['id'], $type, $ref, $amount, $qris['nominal'])) { $stats['errors']++; $stats['details'][] = "ERROR {$ref}: gagal bind QRIS #{$qris['id']}"; continue; }
             if (!self::applyBusinessPayment($ref, $laundryDb, $invoiceDb, $salonDb, $crmDb)) { BcaQrisMatcher::unbindEntity($mainDb, $type, $ref); $stats['errors']++; $stats['details'][] = "ERROR {$ref}: kas/payment pending tidak dapat dikonfirmasi"; continue; }
             $mainDb->update('qris_nominal_reservations', ['state' => 'paid', 'active_key' => null], ['entity_ref' => $ref, 'active_key' => 1]); $stats['confirmed']++; $stats['details'][] = "OK {$ref}: QRIS #{$qris['id']} dikonfirmasi";
