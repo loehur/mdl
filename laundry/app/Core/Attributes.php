@@ -1097,9 +1097,8 @@ trait Attributes
    }
 
    /**
-    * Polling status: cek DB dulu.
-    * Sync ke QRIS/Tokopay hanya jika ?sync=1 (client kirim berkala) agar tidak flood API.
-    * Webhook tetap sumber utama; sync menutup celah webhook telat/gagal.
+    * Polling status pembayaran dari DB lokal saja.
+    * Konfirmasi QRIS dilakukan oleh cron BCA, kemudian cron memperbarui status_mutasi.
     */
    public function payment_gateway_status_db($ref_finance, $is_public = false)
    {
@@ -1120,22 +1119,7 @@ trait Attributes
          exit();
       }
 
-      if ((defined('URL::PAYMENT_GATEWAY') ? URL::PAYMENT_GATEWAY : 'bca_qris_local') === 'bca_qris_local') {
-         echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
-         exit();
-      }
-
-      $wantSync = isset($_GET['sync']) && (string) $_GET['sync'] === '1';
-      $note = strtoupper(trim((string) ($kas['note'] ?? '')));
-      $payment_trx_id = trim((string) ($kas['payment_trx_id'] ?? ''));
-      if ($wantSync && $note === 'QRIS' && $payment_trx_id !== '') {
-         if ($this->syncQrisPaidFromGateway($kas, $ref_finance, $is_public)) {
-            echo json_encode(['status' => 'PAID']);
-            exit();
-         }
-      }
-
-      echo json_encode(['status' => 'PENDING']);
+      echo json_encode(['status' => 'PENDING', 'msg' => 'Menunggu konfirmasi mutasi QRIS BCA']);
       exit();
    }
 
@@ -1565,6 +1549,10 @@ trait Attributes
 
    public function payment_gateway_status_logic($ref_finance, $is_public = false)
    {
+      // Kompatibilitas endpoint lama: status tidak lagi disinkronkan dari gateway.
+      $this->payment_gateway_status_db($ref_finance, $is_public);
+      return;
+
       $where = "ref_finance = '" . $ref_finance . "'";
       if (!$is_public && isset($this->wCabang) && !empty($this->wCabang)) {
          $where = $this->wCabang . " AND " . $where;

@@ -213,18 +213,17 @@
     var pollTick = 0;
     pollTimer = setInterval(function () {
       pollTick += 1;
-      pollStatus(refId, true, pollTick % 3 === 0);
+      pollStatus(refId, true);
     }, 3000);
   }
 
-  function pollStatus(refId, silent, syncGateway) {
+  function pollStatus(refId, silent) {
     var cfg = getConfig();
     if (!cfg) return;
     var url =
       cfg.base +
       'I/payment_gateway_status_poll/' +
-      encodeURIComponent(refId) +
-      (syncGateway ? '?sync=1' : '');
+      encodeURIComponent(refId);
     fetch(url, {
       credentials: 'same-origin',
     })

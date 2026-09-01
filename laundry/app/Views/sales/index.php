@@ -653,20 +653,6 @@
       }
     }
     
-    // Send to QR Display (Customer Display) - Optional, silently ignore if unavailable
-    if (typeof kodeCabang !== 'undefined' && kodeCabang && qrString) {
-      fetch("https://qrs.nalju.com/send-qr", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kasir_id: kodeCabang,
-            qr_string: qrString,
-            text: "Sales Order #" + ref + "<br>Rp" + fmtTotal
-          })
-        })
-        .then(res => { if (res.ok) console.log("QR Display: sent"); })
-        .catch(() => { /* Silently ignore - QR display server is optional */ });
-    }
     
     var modalEl = document.getElementById('modalSalesQR');
     var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -679,9 +665,8 @@
       }
     }
     var pollTick = 0;
-    function doPoll(syncGateway) {
+    function doPoll() {
       var url = '<?= URL::BASE_URL ?>Operasi/payment_gateway_status_poll/' + ref;
-      if (syncGateway) url += '?sync=1';
       $.getJSON(url).done(function(res) {
         if (res.status === 'PAID') {
           stopSalesQRPoll();
@@ -696,7 +681,7 @@
       pollTick = 0;
       salesQRPollInterval = setInterval(function() {
         pollTick += 1;
-        doPoll(pollTick % 3 === 0);
+        doPoll();
       }, 3000);
       doPoll(true); // Cek sekali langsung + sync gateway
     }, { once: true });

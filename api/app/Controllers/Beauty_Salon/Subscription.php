@@ -681,10 +681,7 @@ class Subscription extends Controller
         }
     }
 
-    /**
-     * GET - Check payment status from Tokopay (manual verify)
-     * Updates local status on paid / expired / failed
-     */
+    /** GET - Check payment status from local DB only. */
     public function checkPayment($payment_ref = null)
     {
         if (!$payment_ref && isset($_GET['payment_ref'])) {
@@ -728,52 +725,10 @@ class Subscription extends Controller
                 ]);
             }
 
-            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
-            if ($method === 'bca') {
-                $this->json([
-                    'success' => true,
-                    'status' => 'pending',
-                    'message' => 'Menunggu transfer BCA...'
-                ]);
-            }
-
-            $amount_int = (int)floatval($payment['amount']);
-            $qris = new \App\Helpers\Payment\QrisService();
-            $checked = $qris->checkStatus($payment_ref, $amount_int);
-            $parsed = $checked['connection_error']
-                ? ['connection_error' => true, 'message' => $checked['message'] ?? 'Gagal terhubung ke payment gateway']
-                : $this->parseTokopayStatus($checked['raw'] ?? []);
-
-            if (!empty($parsed['connection_error'])) {
-                $this->json([
-                    'success' => true,
-                    'status' => 'error',
-                    'message' => $parsed['message'] ?? 'Gagal terhubung ke payment gateway'
-                ]);
-            }
-
-            if (!empty($parsed['paid'])) {
-                $this->activatePayment($payment);
-                $this->json([
-                    'success' => true,
-                    'status' => 'paid',
-                    'message' => 'Pembayaran berhasil! Langganan aktif hingga ' . $payment['period_end']
-                ]);
-            }
-
-            if (!empty($parsed['expired'])) {
-                $this->markPaymentFailed($payment_ref);
-                $this->json([
-                    'success' => true,
-                    'status' => 'expired',
-                    'message' => 'QRIS sudah kadaluarsa. Silakan buat / perbarui pembayaran.'
-                ]);
-            }
-
             $this->json([
                 'success' => true,
                 'status' => 'pending',
-                'message' => 'Menunggu pembayaran...'
+                'message' => 'Menunggu konfirmasi pembayaran...'
             ]);
         } catch (\Exception $e) {
             error_log('Check payment error: ' . $e->getMessage());

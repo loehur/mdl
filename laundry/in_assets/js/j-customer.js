@@ -1015,12 +1015,10 @@
         var pollTick = 0;
         kurirInstantPoll = setInterval(function () {
           pollTick += 1;
-          var sync = pollTick % 3 === 0;
           var url =
             base +
             'I/payment_gateway_status_poll/' +
-            encodeURIComponent(ref) +
-            (sync ? '?sync=1' : '');
+            encodeURIComponent(ref);
           fetch(url, {
             credentials: 'same-origin',
           })

@@ -180,7 +180,7 @@ class PublicView extends InvoiceController
                 $this->error('Pembayaran tidak ditemukan', 404);
             }
 
-            if ($payment['payment_status'] === 'success') {
+            if (in_array($payment['payment_status'], ['success', 'paid'], true)) {
                 $this->success([
                     'payment_status' => 'paid',
                     'payment_method' => $payment['payment_method'] ?? 'qris',
@@ -190,48 +190,7 @@ class PublicView extends InvoiceController
                 return;
             }
 
-            $method = strtolower(trim((string) ($payment['payment_method'] ?? 'qris')));
-            if ($method === 'bca') {
-                if (in_array($payment['payment_status'], ['expired', 'failed'], true)) {
-                    $this->success(['payment_status' => 'expired'], 'Pembayaran kadaluarsa');
-                    return;
-                }
-
-                $this->success(['payment_status' => 'pending'], 'Menunggu transfer BCA');
-                return;
-            }
-
-            $amount = (int) round((float) $payment['amount']);
-            $qris = new QrisService();
-            $checked = $qris->checkStatus($paymentRef, $amount);
-
-            if ($checked['connection_error']) {
-                $this->error('Gagal cek pembayaran: ' . $checked['message'], 500);
-            }
-
-            $status = $checked['payment_status'];
-
-            if ($status === 'paid') {
-                $this->markInvoicePaid((int) $payment['invoice_id'], $paymentRef);
-
-                $this->success([
-                    'payment_status' => 'paid',
-                    'payment_method' => 'qris',
-                    'invoice_number' => $payment['invoice_number'],
-                    'amount' => (float) $payment['amount'],
-                ], 'Pembayaran berhasil');
-                return;
-            }
-
-            if ($status === 'expired') {
-                $this->db($this->db_index)->update('invoice_payments', [
-                    'payment_status' => 'expired',
-                ], ['payment_ref' => $paymentRef]);
-
-                $this->db($this->db_index)->update('invoices', [
-                    'payment_status' => 'unpaid',
-                ], ['id' => $payment['invoice_id']]);
-
+            if (in_array($payment['payment_status'], ['expired', 'failed', 'cancelled'], true)) {
                 $this->success([
                     'payment_status' => 'expired',
                 ], 'Pembayaran kadaluarsa');
@@ -240,7 +199,7 @@ class PublicView extends InvoiceController
 
             $this->success([
                 'payment_status' => 'pending',
-            ], 'Menunggu pembayaran');
+            ], 'Menunggu konfirmasi pembayaran');
         } catch (\Throwable $e) {
             $this->error('Gagal cek pembayaran: ' . $e->getMessage(), 500);
         }

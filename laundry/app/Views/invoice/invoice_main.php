@@ -1239,9 +1239,8 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             }
         }
         var pollTick = 0;
-        function doPoll(syncGateway) {
+        function doPoll() {
             var url = '<?= URL::BASE_URL ?>I/payment_gateway_status_poll/' + ref_id;
-            if (syncGateway) url += '?sync=1';
             $.getJSON(url).done(function(res) {
                 if (res.status === 'PAID') {
                     stopInvoiceQRPoll();
@@ -1257,7 +1256,7 @@ if (isset($data['dataTanggal']) && count($data['dataTanggal']) > 0) {
             pollTick = 0;
             invoiceQRPollInterval = setInterval(function() {
                 pollTick += 1;
-                doPoll(pollTick % 3 === 0);
+                doPoll();
             }, 3000);
             doPoll(true);
         }, { once: true });

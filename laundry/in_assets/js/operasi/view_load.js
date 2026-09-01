@@ -375,30 +375,6 @@
         $("#devModeLabel").addClass("d-none");
       }
 
-      // Send QR data to QR Client Server (only for real QR, not dev mode)
-      // This is optional - if server is unavailable, we silently ignore
-      var kodeCabang = config.kodeCabang || "";
-      if (!isDev && kodeCabang && text) {
-        fetch("https://qrs.nalju.com/send-qr", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            kasir_id: kodeCabang,
-            qr_string: text,
-            text: customerName + "<br>Rp" + fmtTotal
-          })
-        })
-          .then(function (res) {
-            if (res.ok) {
-              console.log("QR Display: sent");
-            }
-          })
-          .catch(function () {
-            // Silently ignore - QR display server is optional
-          });
-      }
 
       // Polling status dari DB setiap 3 detik (hanya untuk QRIS, bukan dev mode)
       function stopOperasiQRPoll() {
@@ -408,9 +384,8 @@
         }
       }
       var pollTick = 0;
-      function doPoll(syncGateway) {
+      function doPoll() {
         var url = BASE_URL + "Operasi/payment_gateway_status_poll/" + ref_id;
-        if (syncGateway) url += "?sync=1";
         $.getJSON(url).done(function (res) {
           if (res.status === "PAID") {
             stopOperasiQRPoll();
@@ -436,7 +411,7 @@
           pollTick = 0;
           operasiQRPollInterval = setInterval(function () {
             pollTick += 1;
-            doPoll(pollTick % 3 === 0);
+            doPoll();
           }, 3000);
           doPoll(true);
         }
