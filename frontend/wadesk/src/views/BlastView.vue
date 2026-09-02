@@ -23,24 +23,45 @@
         <!-- Template -->
         <div>
           <label class="label">Template</label>
-          <div class="relative mb-2">
+          <div class="relative">
             <input
               v-model="templateQuery"
               type="search"
-              class="field pl-9"
-              placeholder="Cari nama template atau bahasa..."
+              class="field pr-10"
+              placeholder="Cari dan pilih template..."
               autocomplete="off"
               :disabled="!auth.canSendWa"
+              role="combobox"
+              :aria-expanded="templatePickerOpen"
+              aria-controls="blast-template-options"
+              @focus="templatePickerOpen = true"
+              @keydown.esc="templatePickerOpen = false"
             />
-            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>
+            <svg class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7" /></svg>
+            <div
+              v-if="templatePickerOpen"
+              id="blast-template-options"
+              class="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-white/10 bg-ink-950 py-1 shadow-2xl"
+              role="listbox"
+            >
+              <button
+                v-for="t in filteredTemplates"
+                :key="t.id"
+                type="button"
+                class="template-option"
+                :class="Number(form.template_id) === Number(t.id) ? 'template-option-selected' : ''"
+                role="option"
+                :aria-selected="Number(form.template_id) === Number(t.id)"
+                @click="selectTemplate(t)"
+              >
+                <span class="block truncate">{{ t.template_name }}</span>
+                <span class="block text-xs text-slate-500">{{ t.language }}</span>
+              </button>
+              <p v-if="!filteredTemplates.length" class="px-3 py-2 text-sm text-slate-500">Template tidak ditemukan.</p>
+            </div>
           </div>
-          <select v-model="form.template_id" class="field" :disabled="!auth.canSendWa" @change="onTemplateChange">
-            <option disabled value="">Select a template</option>
-            <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
-              {{ t.template_name }} ({{ t.language }})
-            </option>
-          </select>
-          <p v-if="templateQuery.trim()" class="mt-1 text-xs text-slate-500">{{ filteredTemplates.length }} template ditemukan.</p>
+          <p v-if="form.template_id" class="mt-1 text-xs text-slate-500">{{ selectedTemplate?.template_name }} ({{ selectedTemplate?.language }})</p>
+
           <p v-if="!filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
             Tidak ada template dengan nomor Meta GREEN/YELLOW yang siap dipakai.
           </p>
@@ -400,6 +421,7 @@ async function onDialogConfirm() {
 // ---- state ----------------------------------------------------------------
 const templates = ref([]);
 const templateQuery = ref('');
+const templatePickerOpen = ref(false);
 
 const form = reactive({
   template_id: '',
@@ -536,6 +558,13 @@ async function onTemplateChange() {
   if (form.template_id) {
     await loadCsvHeaders(form.template_id);
   }
+}
+
+function selectTemplate(template) {
+  form.template_id = template.id;
+  templateQuery.value = `${template.template_name || ''} ${template.language || ''}`.trim();
+  templatePickerOpen.value = false;
+  onTemplateChange();
 }
 
 function downloadSample() {
@@ -740,6 +769,12 @@ function formatDate(dt) {
 }
 .field {
   @apply w-full rounded-xl bg-ink-950 border border-white/10 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-accent/50;
+}
+.template-option {
+  @apply block w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-white/10 focus:bg-white/10 focus:outline-none;
+}
+.template-option-selected {
+  @apply bg-accent/10 text-accent-soft;
 }
 .btn {
   @apply rounded-xl bg-accent text-white font-semibold text-sm disabled:opacity-40 cursor-pointer hover:bg-accent/90 transition;
