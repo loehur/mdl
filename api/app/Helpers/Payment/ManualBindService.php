@@ -15,6 +15,11 @@ class ManualBindService
     {
         $method = strtolower(trim($method)); $amount = (int) $amount;
         if (!in_array($method, ['bca','qris'], true) || $amount < 1) return ['ok'=>false,'message'=>'Metode atau nominal tidak valid'];
+        // Batas minimal: QRIS Rp1.000, BCA Rp10.000 — create ditolak di bawah itu.
+        $min = $method === 'qris' ? 1000 : 10000;
+        if ($amount < $min) {
+            return ['ok'=>false,'message'=>strtoupper($method).' minimal Rp'.number_format($min,0,',','.')];
+        }
         $db = DB::getInstance(0); self::expire($db);
         if (!self::isAmountAvailable($method, $amount, $db)) return ['ok'=>false,'message'=>'Nominal Rp'.number_format($amount,0,',','.').' tidak tersedia'];
         $code = 'BND-'.strtoupper(substr(bin2hex(random_bytes(5)), 0, 8));
