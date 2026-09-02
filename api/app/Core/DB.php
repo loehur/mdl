@@ -9,6 +9,7 @@ class DB extends \DBC
     private $mysqli;
     private $query_result;
     private $last_affected_rows = 0;
+    private $last_error = '';
 
     // Query Builder Props
     private $qb_table = "";
@@ -47,6 +48,12 @@ class DB extends \DBC
     public function affected_rows()
     {
         return $this->last_affected_rows;
+    }
+
+    /** Last non-throwing query-builder error (mainly INSERT/UPDATE failures). */
+    public function lastError(): string
+    {
+        return $this->last_error;
     }
 
     /**
@@ -228,6 +235,7 @@ class DB extends \DBC
 
     private function _doInsert($verb, $table, $data)
     {
+        $this->last_error = '';
         // $data must be associative array
         $cols = array_keys($data);
         $vals = array_values($data);
@@ -244,13 +252,17 @@ class DB extends \DBC
         }
 
         $stmt = $this->mysqli->prepare($sql);
-        if (!$stmt) return false;
+        if (!$stmt) {
+            $this->last_error = (string) $this->mysqli->error;
+            return false;
+        }
 
         $stmt->bind_param($types, ...$vals);
 
         if ($stmt->execute()) {
             return $this->mysqli->insert_id;
         } else {
+            $this->last_error = (string) $stmt->error;
             return false;
         }
     }

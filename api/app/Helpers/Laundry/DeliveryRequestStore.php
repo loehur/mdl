@@ -118,10 +118,23 @@ class DeliveryRequestStore
         $now = date('Y-m-d H:i:s');
 
         try {
+            $deliveryColumns = self::deliveryRequestColumns($db);
+            $requiredColumns = [
+                'sumber', 'jenis', 'layanan', 'delivery_status', 'id_pelanggan',
+                'phone_tail', 'id_cabang', 'id_lokasi', 'lokasi_nama',
+                'lokasi_detail', 'lokasi_latt', 'lokasi_longt', 'insertTime',
+            ];
+            $missingColumns = array_values(array_diff($requiredColumns, $deliveryColumns));
+            if ($missingColumns !== []) {
+                return [
+                    'ok' => false,
+                    'message' => 'Struktur database delivery belum lengkap (kolom ' . implode(', ', $missingColumns) . ' belum ada).',
+                ];
+            }
+
             $insData = [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
-                'sekalian_jemput' => $sekalianJemput,
                 'layanan' => 'sameday',
                 'delivery_status' => 'berjalan',
                 'id_pelanggan' => $idPelanggan,
@@ -135,13 +148,26 @@ class DeliveryRequestStore
                 'insertTime' => $now,
                 'tarif_surcas' => $tarif,
             ];
-            if ($catatanKurir !== '') {
+            // Kolom ini ditambahkan belakangan. Request Jemput biasa tetap
+            // harus bisa dibuat pada database yang migrasinya belum berjalan.
+            if (in_array('sekalian_jemput', $deliveryColumns, true)) {
+                $insData['sekalian_jemput'] = $sekalianJemput;
+            } elseif ($sekalianJemput === 1) {
+                return [
+                    'ok' => false,
+                    'message' => 'Database belum mendukung Antar & Jemput. Jalankan migrasi delivery_request_sekalian_jemput.sql.',
+                ];
+            }
+            if ($catatanKurir !== '' && in_array('catatan_kurir', $deliveryColumns, true)) {
                 $insData['catatan_kurir'] = $catatanKurir;
+            }
+            if (!in_array('tarif_surcas', $deliveryColumns, true)) {
+                unset($insData['tarif_surcas']);
             }
             $idRequest = $db->insert('delivery_request', $insData);
             $idRequest = $idRequest ? (int) $idRequest : 0;
             if ($idRequest <= 0) {
-                return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
+                return ['ok' => false, 'message' => self::deliveryInsertErrorMessage($db->lastError())];
             }
             self::ensureRequestItems($db, $idRequest, $eligibleIds);
 
@@ -176,6 +202,28 @@ class DeliveryRequestStore
             }
             return ['ok' => false, 'message' => 'Gagal membuat permintaan'];
         }
+    }
+
+    /** @return array<int,string> */
+    private static function deliveryRequestColumns(DB $db): array
+    {
+        $rows = $db->query('SHOW COLUMNS FROM delivery_request')->result_array();
+        return array_values(array_filter(array_map(
+            static fn (array $row): string => (string) ($row['Field'] ?? ''),
+            is_array($rows) ? $rows : []
+        )));
+    }
+
+    private static function deliveryInsertErrorMessage(string $error): string
+    {
+        $error = trim($error);
+        if (preg_match("/Unknown column '([^']+)'/i", $error, $m)) {
+            return 'Struktur database delivery belum lengkap (kolom ' . $m[1] . ' belum ada).';
+        }
+        if ($error !== '') {
+            return 'Database menolak pembuatan permintaan: ' . $error;
+        }
+        return 'Gagal membuat permintaan';
     }
 
     /**
