@@ -119,7 +119,7 @@ class WhatsAppService
         return $this->sendRequest('/whatsapp/messages', $payload, 'POST', null, $replyToMessageId, $senderCode, $lineKey, $senderId);
     }
     
-    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null, $lineKey = null, $queuePhoneRef = null)
+    public function sendTemplate($to, $templateName, $language = 'id', $parameters = [], $messageText = null, $lineKey = null, $queuePhoneRef = null, $fromPhone = null)
     {        
         $components = [];
         
@@ -147,7 +147,7 @@ class WhatsAppService
         }
         
         $payload = [
-            'from' => $this->formatPhoneNumber($this->resolveFromPhone($lineKey)),
+            'from' => $this->formatPhoneNumber($fromPhone ?: $this->resolveFromPhone($lineKey)),
             'to' => $this->formatPhoneNumber($to),
             'type' => 'template',
             'template' => [

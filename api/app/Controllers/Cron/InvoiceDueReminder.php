@@ -16,6 +16,9 @@ class InvoiceDueReminder extends InvoiceController
     private const TEMPLATE_NAME = 'template_utility_20260725132816';
     private const TEMPLATE_LANG = 'id';
     private const PUBLIC_BASE = 'https://invoice.nalju.com/#/i/';
+    // Sender YCloud terdaftar untuk reminder invoice. Jangan bergantung pada
+    // WA_PHONE_NUMBER default karena konfigurasi legacy dapat berbeda.
+    private const TEMPLATE_SENDER = '6281170706611';
 
     public function index()
     {
@@ -90,7 +93,11 @@ class InvoiceDueReminder extends InvoiceController
                     $phone,
                     self::TEMPLATE_NAME,
                     self::TEMPLATE_LANG,
-                    $params
+                    $params,
+                    null,
+                    null,
+                    null,
+                    self::TEMPLATE_SENDER
                 );
 
                 $ok = !empty($result['success']) && !empty($result['data']['id']);
