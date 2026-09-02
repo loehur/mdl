@@ -10,6 +10,8 @@ use App\Config\WhatsApp as WhatsAppConfig;
  */
 class WhatsAppService
 {
+    private const DEFAULT_SENDER_PHONE = '6281170706611';
+
     private $apiKey;
     private $baseUrl;
     private $whatsappNumber;
@@ -50,7 +52,10 @@ class WhatsAppService
             $this->baseUrl = 'https://api.ycloud.com/v2';
         }
         
-        $this->whatsappNumber = WhatsAppConfig::getWhatsAppNumber();
+        $configuredSender = WhatsAppConfig::getWhatsAppNumber();
+        $this->whatsappNumber = $this->isValidBusinessPhone($configuredSender)
+            ? $configuredSender
+            : self::DEFAULT_SENDER_PHONE;
     }
     
     public function getApiKeyPrefix()
@@ -564,12 +569,19 @@ class WhatsAppService
                 require_once __DIR__ . '/WaLineResolver.php';
             }
             $line = \App\Helpers\CRM\WaLineResolver::fromLineKey($lineKey);
-            if ($line && !empty($line['phone'])) {
+            if ($line && $this->isValidBusinessPhone($line['phone'] ?? '')) {
                 return $line['phone'];
             }
         }
 
         return $this->whatsappNumber;
+    }
+
+    /** Pastikan fallback tidak kalah oleh konfigurasi sender yang terpotong. */
+    private function isValidBusinessPhone($phone): bool
+    {
+        $digits = preg_replace('/\D/', '', trim((string) $phone));
+        return (bool) preg_match('/^62\d{8,14}$/', $digits);
     }
     
     /**
