@@ -23,7 +23,18 @@ class BcaQrisMatcher
         string $endYmd,
         string $referenceTime = ''
     ): ?array {
-        $candidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd);
+        // Nominal dinamis dialokasikan per Rp1. Coba nominal persis lebih dulu;
+        // toleransi cron tetap menjadi fallback untuk pembayaran yang berbeda.
+        $exactCandidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd, true);
+        $exactMatch = BcaScrapper::pickBestPaymentMatch(
+            $exactCandidates,
+            $nominal,
+            $referenceTime,
+            [BcaScrapper::class, 'qrisMatchTimestamp']
+        );
+        if ($exactMatch) return $exactMatch;
+
+        $candidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd, false);
 
         return BcaScrapper::pickBestPaymentMatch(
             $candidates,
@@ -40,24 +51,28 @@ class BcaQrisMatcher
         $mainDb,
         string $nominal,
         string $startYmd,
-        string $endYmd
+        string $endYmd,
+        bool $exact = false
     ): array {
         $bounds = BcaScrapper::cronNominalBounds($nominal);
         $limit = self::MATCH_CANDIDATE_LIMIT;
+        $nominalSql = $exact
+            ? 't.nominal = ?'
+            : '(t.nominal = ? OR (t.nominal >= ? AND t.nominal <= ?))';
+        $params = $exact
+            ? [$nominal, $startYmd, $endYmd]
+            : [$nominal, $bounds['min'], $bounds['max'], $startYmd, $endYmd];
 
         $rows = $mainDb->query(
             'SELECT t.id, t.tanggal, t.waktu, t.rrn, t.nominal, t.status, t.keterangan
              FROM bca_qris_transaksi t
              LEFT JOIN bca_qris_link l ON l.bca_qris_id = t.id
              WHERE l.id IS NULL
-               AND (
-                 t.nominal = ?
-                 OR (t.nominal >= ? AND t.nominal <= ?)
-               )
+               AND ' . $nominalSql . '
                AND t.tanggal >= ?
                AND t.tanggal <= ?
              LIMIT ' . (int) $limit,
-            [$nominal, $bounds['min'], $bounds['max'], $startYmd, $endYmd]
+            $params
         )->result_array();
 
         return is_array($rows) ? $rows : [];

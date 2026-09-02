@@ -20,20 +20,12 @@ class BcaUniqueNominal
         $used = self::collectUsedAmounts($invoiceDb, $salonDb, $laundryDb, $wadeskDb);
         $candidate = $baseAmount;
         $guard = 0;
-        while (self::isWithinReservedTolerance($candidate, $used) && $guard < 10000) {
+        while (in_array($candidate, $used, true) && $guard < 10000) {
             $candidate++;
             $guard++;
         }
 
         return $candidate;
-    }
-
-    private static function isWithinReservedTolerance(int $candidate, array $used): bool
-    {
-        foreach ($used as $amount) {
-            if (abs($candidate - (int) $amount) <= 1000) return true;
-        }
-        return false;
     }
 
     /**

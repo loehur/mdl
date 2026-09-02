@@ -28,6 +28,19 @@ class BcaMutasiMatcher
         bool $exact = false,
         string $referenceTime = ''
     ): ?array {
+        // Pembayaran dengan nominal QRIS/BCA dinamis dialokasikan per Rp1.
+        // Selalu prioritaskan nominal persis agar fallback toleransi tidak
+        // mengambil pembayaran milik transaksi berdekatan.
+        if (!$exact) {
+            $exactCandidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd, true);
+            $exactMatch = BcaScrapper::pickBestPaymentMatch(
+                $exactCandidates,
+                $nominal,
+                $referenceTime,
+                [BcaScrapper::class, 'mutasiMatchTimestamp']
+            );
+            if ($exactMatch) return $exactMatch;
+        }
         $candidates = self::findUnlinkedCandidates($mainDb, $nominal, $startYmd, $endYmd, $exact);
 
         return BcaScrapper::pickBestPaymentMatch(

@@ -23,12 +23,24 @@
         <!-- Template -->
         <div>
           <label class="label">Template</label>
+          <div class="relative mb-2">
+            <input
+              v-model="templateQuery"
+              type="search"
+              class="field pl-9"
+              placeholder="Cari nama template atau bahasa..."
+              autocomplete="off"
+              :disabled="!auth.canSendWa"
+            />
+            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>
+          </div>
           <select v-model="form.template_id" class="field" :disabled="!auth.canSendWa" @change="onTemplateChange">
             <option disabled value="">Select a template</option>
             <option v-for="t in filteredTemplates" :key="t.id" :value="t.id">
               {{ t.template_name }} ({{ t.language }})
             </option>
           </select>
+          <p v-if="templateQuery.trim()" class="mt-1 text-xs text-slate-500">{{ filteredTemplates.length }} template ditemukan.</p>
           <p v-if="!filteredTemplates.length" class="mt-1 text-xs text-amber-300/90">
             Tidak ada template dengan nomor Meta GREEN/YELLOW yang siap dipakai.
           </p>
@@ -176,11 +188,14 @@
         </div>
 
         <!-- Filter -->
-        <div class="flex gap-2 items-center">
-          <input v-model="filter.campaign" class="field flex-1 text-sm py-1.5" placeholder="Filter campaign..." @input="loadBlasts" />
-          <select v-model="filter.campaign" class="field text-sm py-1.5 w-48" @change="loadBlasts">
+        <div class="grid gap-2 sm:grid-cols-2">
+          <div class="relative">
+            <input v-model="campaignQuery" type="search" class="field pl-9 text-sm" placeholder="Cari campaign..." autocomplete="off" />
+            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>
+          </div>
+          <select v-model="filter.campaign" class="field text-sm" @change="loadBlasts">
             <option value="">All campaigns</option>
-            <option v-for="c in campaignOptions" :key="c" :value="c">{{ c }}</option>
+            <option v-for="c in filteredCampaignOptions" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
 
@@ -384,6 +399,7 @@ async function onDialogConfirm() {
 }
 // ---- state ----------------------------------------------------------------
 const templates = ref([]);
+const templateQuery = ref('');
 
 const form = reactive({
   template_id: '',
@@ -409,6 +425,7 @@ const blastsTotal = ref(0);
 const blastsPage = ref(1);
 const loadingBlasts = ref(false);
 const campaignOptions = ref([]);
+const campaignQuery = ref('');
 const filter = reactive({ campaign: '' });
 
 // detail modal
@@ -421,10 +438,20 @@ let detailPollTimer = null;
 let listPollTimer = null;
 
 // ---- computed -------------------------------------------------------------
-const filteredTemplates = computed(() => templates.value);
+const filteredTemplates = computed(() => {
+  const query = templateQuery.value.trim().toLowerCase();
+  if (!query) return templates.value;
+  return templates.value.filter((template) => `${template.template_name || ''} ${template.language || ''}`.toLowerCase().includes(query));
+});
+
+const filteredCampaignOptions = computed(() => {
+  const query = campaignQuery.value.trim().toLowerCase();
+  if (!query) return campaignOptions.value;
+  return campaignOptions.value.filter((campaign) => String(campaign).toLowerCase().includes(query));
+});
 
 const selectedTemplate = computed(() =>
-  filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id))
+  templates.value.find((t) => Number(t.id) === Number(form.template_id))
 );
 
 /** Template body with placeholders (no CSV values). */
@@ -512,7 +539,7 @@ async function onTemplateChange() {
 }
 
 function downloadSample() {
-  const tpl = filteredTemplates.value.find((t) => Number(t.id) === Number(form.template_id));
+  const tpl = templates.value.find((t) => Number(t.id) === Number(form.template_id));
   downloadSampleCsv(tpl?.template_name ?? 'template', csvParams.value);
 }
 
