@@ -22,7 +22,7 @@ class InvoiceBcaConfirm
             "SELECT * FROM invoice_payments
              WHERE payment_ref = ?
                AND payment_method = 'bca'
-               AND payment_status = 'pending'
+               AND payment_status IN ('pending', 'failed')
              LIMIT 1",
             [$paymentRef]
         )->row_array();
@@ -34,13 +34,12 @@ class InvoiceBcaConfirm
         $now = date('Y-m-d H:i:s');
         $invoiceId = (int) ($payment['invoice_id'] ?? 0);
 
-        $updated = $invoiceDb->update('invoice_payments', [
-            'payment_status' => 'success',
-            'paid_at' => $now,
-        ], [
-            'payment_ref' => $paymentRef,
-            'payment_status' => 'pending',
-        ]);
+        $updated = $invoiceDb->query(
+            "UPDATE invoice_payments
+             SET payment_status = 'success', paid_at = ?
+             WHERE payment_ref = ? AND payment_status IN ('pending', 'failed')",
+            [$now, $paymentRef]
+        );
 
         if (!$updated || $invoiceDb->affected_rows() < 1) {
             return ['ok' => false, 'message' => 'update payment gagal atau sudah diproses'];

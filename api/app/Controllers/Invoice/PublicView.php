@@ -117,7 +117,9 @@ class PublicView extends InvoiceController
                 $withinWindow = $ageSec >= 0 && $ageSec < (BcaUniqueNominal::LOOKBACK_DAYS * 86400);
 
                 if ($withinWindow && $pendingMethod === $paymentMethod) {
-                    if ($paymentMethod === 'qris' && $ageSec < 300 && !empty($pending['qr_string'])) {
+                    // QRIS lokal berlaku selama reservasi masih aktif (6 hari).
+                    // Jangan membuat nominal baru hanya karena halaman dibuka lagi.
+                    if ($paymentMethod === 'qris' && !empty($pending['qr_string'])) {
                         $this->success([
                             'payment_ref' => $pending['payment_ref'],
                             'payment_method' => 'qris',

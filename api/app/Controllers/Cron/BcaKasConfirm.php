@@ -241,7 +241,7 @@ class BcaKasConfirm extends Controller
                         created_at AS insertTime
                  FROM invoice_payments
                  WHERE payment_method = 'bca'
-                   AND payment_status = 'pending'
+                   AND payment_status IN ('pending', 'failed')
                  ORDER BY created_at ASC
                  LIMIT 30"
             )->result_array();
@@ -345,7 +345,7 @@ class BcaKasConfirm extends Controller
                         created_at AS insertTime
                  FROM subscription_payments
                  WHERE payment_method = 'bca'
-                   AND payment_status = 'pending'
+                   AND payment_status IN ('pending', 'failed')
                  ORDER BY created_at ASC
                  LIMIT 30"
             )->result_array();

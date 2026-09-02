@@ -22,7 +22,7 @@ class SalonBcaConfirm
             "SELECT * FROM subscription_payments
              WHERE payment_ref = ?
                AND payment_method = 'bca'
-               AND payment_status = 'pending'
+               AND payment_status IN ('pending', 'failed')
              LIMIT 1",
             [$paymentRef]
         )->row_array();

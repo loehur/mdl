@@ -43,7 +43,7 @@ class BcaUniqueNominal
                 $rows = $invoiceDb->query(
                     "SELECT amount FROM invoice_payments
                      WHERE payment_method = 'bca'
-                       AND payment_status = 'pending'
+                       AND payment_status IN ('pending', 'failed')
                        AND created_at >= ?",
                     [$since]
                 )->result_array();
@@ -60,7 +60,7 @@ class BcaUniqueNominal
                 $rows = $salonDb->query(
                     "SELECT amount FROM subscription_payments
                      WHERE payment_method = 'bca'
-                       AND payment_status = 'pending'
+                       AND payment_status IN ('pending', 'failed')
                        AND created_at >= ?",
                     [$since]
                 )->result_array();

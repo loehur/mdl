@@ -47,10 +47,21 @@ class QrisLocalConfirm
     private static function applyBusinessPayment(string $ref, $laundryDb, $invoiceDb, $salonDb, $crmDb): bool
     {
         if (strpos($ref, 'MDLINV_') === 0) {
-            $p = $invoiceDb->query("SELECT invoice_id FROM invoice_payments WHERE payment_ref = ? AND payment_status = 'pending' LIMIT 1", [$ref])->row_array(); if (!is_array($p)) return false;
+            // QR yang telah dibuat tetap dapat dibayar selama reservasi aktif.
+            // Status failed/expired dapat berasal dari pembatalan UI, bukan dari
+            // kegagalan pembayaran; transaksi QRIS exact yang sudah masuk tetap
+            // harus dicatat lunas.
+            $p = $invoiceDb->query("SELECT invoice_id FROM invoice_payments WHERE payment_ref = ? AND payment_status IN ('pending', 'failed', 'expired') LIMIT 1", [$ref])->row_array(); if (!is_array($p)) return false;
             $invoiceDb->update('invoice_payments', ['payment_status' => 'success', 'paid_at' => date('Y-m-d H:i:s')], ['payment_ref' => $ref]); $invoiceDb->update('invoices', ['payment_status' => 'paid', 'status' => 'paid'], ['id' => (int) $p['invoice_id']]); return true;
         }
-        if (strpos($ref, 'SALONSUB_') === 0) { $p = $salonDb->query("SELECT * FROM subscription_payments WHERE payment_ref = ? AND payment_status = 'pending' LIMIT 1", [$ref])->row_array(); if (!is_array($p)) return false; SalonBcaConfirm::activatePayment($salonDb, $p); return true; }
+        if (strpos($ref, 'SALONSUB_') === 0) {
+            // Sama seperti Invoice: pembatalan UI tidak membatalkan uang yang
+            // sudah benar-benar diterima oleh QRIS selama reservasi masih aktif.
+            $p = $salonDb->query("SELECT * FROM subscription_payments WHERE payment_ref = ? AND payment_status IN ('pending', 'failed', 'expired') LIMIT 1", [$ref])->row_array();
+            if (!is_array($p)) return false;
+            SalonBcaConfirm::activatePayment($salonDb, $p);
+            return true;
+        }
         return !empty(KasNonTunaiConfirm::approveQrisMerchant($laundryDb, $ref, $crmDb)['ok']);
     }
 }
