@@ -83,6 +83,10 @@ class PengeluaranAiReview
         foreach ($dateKeys as $i => $dateKey) {
             $dayRows = $dateGroups[$dateKey];
             $dateLabel = $esc($this->formatDateKeyId($dateKey));
+            $relLabel = $this->relativeDayLabel($dateKey);
+            if ($relLabel !== '') {
+                $dateLabel .= ' <span style="font-weight:700;color:#64748b">(' . $relLabel . ')</span>';
+            }
             $isLast = $i === $lastIdx;
 
             // Baris cabang yang sedang dicek naik ke paling atas.
@@ -201,6 +205,33 @@ class PengeluaranAiReview
         $ts = strtotime($dateKey . ' 00:00:00');
 
         return $ts === false ? $dateKey : date('d/m/Y', $ts);
+    }
+
+    /**
+     * Label relatif tanggal: Hari Ini, Kemarin, N Hari Lalu (kosong jika > 6 hari / tidak valid).
+     */
+    private function relativeDayLabel(string $dateKey): string
+    {
+        $ts = strtotime($dateKey . ' 00:00:00');
+        if ($ts === false) {
+            return '';
+        }
+
+        $days = (int) floor((strtotime(date('Y-m-d') . ' 00:00:00') - $ts) / 86400);
+        if ($days < 0) {
+            return '';
+        }
+        if ($days === 0) {
+            return 'Hari Ini';
+        }
+        if ($days === 1) {
+            return 'Kemarin';
+        }
+        if ($days <= 6) {
+            return $days . ' Hari Lalu';
+        }
+
+        return '';
     }
 
     private function isGasLpg(string $jenis): bool
