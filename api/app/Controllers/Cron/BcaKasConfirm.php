@@ -56,6 +56,21 @@ class BcaKasConfirm extends Controller
 
         echo 'BcaKasConfirm run at ' . date('Y-m-d H:i:s') . "\n";
 
+        // Bind manual tidak memiliki transaksi kas/invoice/salon yang dapat memicu
+        // scrape on-demand. Sinkronkan mutasi terlebih dahulu agar bind manual
+        // juga dapat menemukan mutasi BCA yang baru masuk.
+        $sync = BcaScrapper::syncMutasi($dbMain);
+        if (empty($sync['ok'])) {
+            echo 'WARN sync Mutasi BCA: ' . ($sync['message'] ?? $sync['error'] ?? 'sync_failed') . "\n";
+        } else {
+            echo sprintf(
+                "SYNC Mutasi BCA fetched=%d inserted=%d skipped=%d\n",
+                (int) ($sync['fetched'] ?? 0),
+                (int) ($sync['inserted'] ?? 0),
+                (int) ($sync['skipped_dup'] ?? 0)
+            );
+        }
+
         $expired = BcaUniqueNominal::expireStalePending($dbInvoice, $dbSalon);
         if (($expired['invoice'] ?? 0) > 0 || ($expired['salon'] ?? 0) > 0) {
             echo sprintf(
