@@ -35,7 +35,10 @@ export function buildApp(config: AppConfig) {
     try {
       const identity = await verifier.verify(parsed.data.idToken);
       const session = await auth.resolveOrProvision(identity);
-      const accessToken = app.jwt.sign({ sub: session.userId, tenantId: session.tenantId, role: session.role } satisfies SessionToken, { expiresIn: '15m' });
+      const accessToken = app.jwt.sign(
+        { sub: session.userId, tenantId: session.tenantId, role: session.role } satisfies SessionToken,
+        { expiresIn: config.JWT_EXPIRES_IN }
+      );
       return reply.code(200).send({ data: { ...session, accessToken } });
     } catch { return reply.code(401).send({ error: 'Invalid Google identity token' }); }
   });
@@ -46,11 +49,17 @@ export function buildApp(config: AppConfig) {
   app.get('/v1/memories', async (request, reply) => {
     try {
       const token = await request.jwtVerify<SessionToken>();
-      const query = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30) }).safeParse(request.query);
+      const query = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30), query: z.string().trim().min(2).max(200).optional() }).safeParse(request.query);
       if (!query.success) return reply.code(400).send({ error: 'Invalid query' });
-      return reply.send({ data: await memories.list(token.tenantId, query.data.limit) });
+      return reply.send({ data: query.data.query ? await memories.search(token.tenantId, query.data.query, query.data.limit) : await memories.list(token.tenantId, query.data.limit) });
     } catch { return reply.code(401).send({ error: 'Authentication required' }); }
   });
+  app.get('/v1/memories/count', async (request, reply) => {
+    try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: { total: await memories.count(token.tenantId) } }); }
+    catch { return reply.code(401).send({ error: 'Authentication required' }); }
+  });
+  app.get('/v1/plan', async (request, reply) => { try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: await memories.plan(token.tenantId) }); } catch { return reply.code(401).send({ error: 'Authentication required' }); } });
+  app.put('/v1/plan', async (request, reply) => { const body = z.object({ plan: z.enum(['free', 'personal', 'pro']) }).safeParse(request.body); if (!body.success) return reply.code(400).send({ error: 'Invalid plan' }); try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: await memories.setPlan(token.tenantId, body.data.plan) }); } catch { return reply.code(401).send({ error: 'Authentication required' }); } });
   app.get('/v1/memories/trash', async (request, reply) => {
     try {
       const token = await request.jwtVerify<SessionToken>();
@@ -58,6 +67,10 @@ export function buildApp(config: AppConfig) {
       if (!query.success) return reply.code(400).send({ error: 'Invalid query' });
       return reply.send({ data: await memories.trashList(token.tenantId, query.data.limit) });
     } catch { return reply.code(401).send({ error: 'Authentication required' }); }
+  });
+  app.delete('/v1/memories/trash', async (request, reply) => {
+    try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: { deleted: await memories.emptyTrash(token.tenantId) } }); }
+    catch { return reply.code(401).send({ error: 'Authentication required' }); }
   });
   app.delete('/v1/memories/:id', async (request, reply) => {
     try {
@@ -98,6 +111,8 @@ export function buildApp(config: AppConfig) {
       const memory = await memories.save({ tenantId: token.tenantId, userId: token.sub, content: body.data.content });
       return reply.code(201).send({ data: memory });
     } catch (error) {
+      if (error instanceof Error && error.message === 'Memory limit reached') return reply.code(409).send({ error: 'Batas memory untuk plan aktif sudah tercapai' });
+      if (error instanceof Error && error.message === 'Memory limit reached') return reply.code(409).send({ error: 'Batas memory plan aktif sudah tercapai' });
       if (error instanceof Error && error.message === 'Embedding provider is not configured') return reply.code(503).send({ error: 'Memory service is not configured' });
       throw error;
     }

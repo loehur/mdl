@@ -2,6 +2,7 @@ import { api, session } from './api';
 export type NemuSession = { userId: string; tenantId: string; role: string; email: string; displayName?: string; avatarUrl?: string; accessToken: string };
 const profileKey = 'nemu_profile';
 export function profile() { const raw = localStorage.getItem(profileKey); return raw ? JSON.parse(raw) as Pick<NemuSession, 'email' | 'displayName' | 'avatarUrl'> : undefined; }
+export function signOut() { session.clear(); localStorage.removeItem(profileKey); window.google?.accounts.id.disableAutoSelect(); }
 export async function loadProfile() { const result = await api<Pick<NemuSession, 'email' | 'displayName' | 'avatarUrl'>>('/v1/me'); localStorage.setItem(profileKey, JSON.stringify(result)); return result; }
 export async function signInWithGoogleIdToken(idToken: string) { const result = await api<NemuSession>('/v1/auth/session', { method: 'POST', body: JSON.stringify({ idToken }) }); session.set(result.accessToken); localStorage.setItem(profileKey, JSON.stringify({ email: result.email, displayName: result.displayName, avatarUrl: result.avatarUrl })); return result; }
 declare global {

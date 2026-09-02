@@ -8,6 +8,9 @@ const schema = z.object({
   GOOGLE_OAUTH_CLIENT_IDS: z.string().min(1),
   MEMORY_ENCRYPTION_KEY_BASE64: z.string().min(1),
   JWT_SECRET: z.string().min(32),
+  // Long-lived browser session. Keep the allowed values bounded so a leaked
+  // browser token cannot become a permanent credential.
+  JWT_EXPIRES_IN: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-5.6-luna'),
   DEEPSEEK_API_KEY: z.string().optional(),
