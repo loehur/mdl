@@ -443,10 +443,9 @@ class Blast extends WaDeskController
     private function blastTeamScope(array $user): array
     {
         if ($this->hasOperationalTeam($user)) {
-            $tbl = $this->channelsTable();
             return [
-                ' AND ' . $this->channelTeamSql($tbl, (int) $user['team_id']),
-                [],
+                ' AND b.team_id = ?',
+                [(int) $user['team_id']],
             ];
         }
         if (($user['role'] ?? '') === 'admin') {
