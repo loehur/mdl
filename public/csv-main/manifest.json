@@ -1,0 +1,16 @@
+{
+  "name": "CSV Studio",
+  "short_name": "CSV Studio",
+  "description": "Create or make quick edits to CSV files directly in your browser.",
+  "start_url": "/csv/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#328d35",
+  "icons": [
+    {
+      "src": "/csv/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
