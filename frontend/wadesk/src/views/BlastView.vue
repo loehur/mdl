@@ -214,10 +214,53 @@
             <input v-model="campaignQuery" type="search" class="field pl-9 text-sm" placeholder="Cari campaign..." autocomplete="off" />
             <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>
           </div>
-          <select v-model="filter.campaign" class="field text-sm" @change="loadBlasts">
-            <option value="">All campaigns</option>
-            <option v-for="c in filteredCampaignOptions" :key="c" :value="c">{{ c }}</option>
-          </select>
+          <div class="relative">
+            <input
+              v-model="campaignPickerQuery"
+              type="search"
+              class="field pr-10 text-sm"
+              placeholder="Pilih campaign..."
+              autocomplete="off"
+              role="combobox"
+              :aria-expanded="campaignPickerOpen"
+              aria-controls="blast-campaign-options"
+              @focus="openCampaignPicker"
+              @keydown.esc="campaignPickerOpen = false"
+            />
+            <svg class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7" /></svg>
+            <div
+              v-if="campaignPickerOpen"
+              id="blast-campaign-options"
+              class="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-white/10 bg-ink-950 py-1 shadow-2xl"
+              role="listbox"
+            >
+              <button
+                type="button"
+                class="template-option"
+                :class="filter.campaign === '' ? 'template-option-selected' : ''"
+                role="option"
+                :aria-selected="filter.campaign === ''"
+                @click="clearCampaignFilter"
+              >
+                <span class="block truncate text-slate-400">All campaigns</span>
+              </button>
+              <button
+                v-for="c in filteredCampaignOptions"
+                :key="c"
+                type="button"
+                class="template-option"
+                :class="filter.campaign === c ? 'template-option-selected' : ''"
+                role="option"
+                :aria-selected="filter.campaign === c"
+                @click="selectCampaign(c)"
+              >
+                <span class="block truncate">{{ c }}</span>
+              </button>
+              <p v-if="!filteredCampaignOptions.length && filter.campaign !== ''" class="px-3 py-2 text-sm text-slate-500">
+                {{ loadingCampaigns ? 'Memuat...' : 'Campaign tidak ditemukan.' }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div v-if="blasts.length === 0 && !loadingBlasts" class="text-sm text-slate-500 text-center py-4">No blasts yet</div>
@@ -360,7 +403,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { api, fetchEligibleTemplates } from '../api';
+import { api, fetchEligibleTemplates, fetchCampaigns } from '../api';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import AppHeader from '../components/AppHeader.vue';
 import {
@@ -448,6 +491,10 @@ const blastsPage = ref(1);
 const loadingBlasts = ref(false);
 const campaignOptions = ref([]);
 const campaignQuery = ref('');
+const campaignPickerOpen = ref(false);
+const campaignPickerQuery = ref('');
+const loadingCampaigns = ref(false);
+let campaignLoaded = false;
 const filter = reactive({ campaign: '' });
 
 // detail modal
@@ -467,10 +514,12 @@ const filteredTemplates = computed(() => {
 });
 
 const filteredCampaignOptions = computed(() => {
-  const query = campaignQuery.value.trim().toLowerCase();
+  const query = campaignPickerQuery.value.trim().toLowerCase();
   if (!query) return campaignOptions.value;
   return campaignOptions.value.filter((campaign) => String(campaign).toLowerCase().includes(query));
 });
+
+const campaignDisplayLabel = computed(() => filter.campaign || 'All campaigns');
 
 const selectedTemplate = computed(() =>
   templates.value.find((t) => Number(t.id) === Number(form.template_id))
@@ -537,9 +586,35 @@ async function loadBlasts() {
     const res = await api(`/WaDesk/Blast/list?${q}`);
     blasts.value = res.data?.blasts ?? [];
     blastsTotal.value = res.data?.total ?? 0;
-    campaignOptions.value = res.data?.campaigns ?? [];
   } catch (_) {}
   loadingBlasts.value = false;
+}
+
+async function openCampaignPicker() {
+  campaignPickerOpen.value = true;
+  if (campaignLoaded) return;
+  loadingCampaigns.value = true;
+  try {
+    campaignOptions.value = await fetchCampaigns();
+    campaignLoaded = true;
+  } catch (_) {
+    campaignOptions.value = [];
+  } finally {
+    loadingCampaigns.value = false;
+  }
+}
+
+function selectCampaign(campaign) {
+  filter.campaign = campaign;
+  campaignPickerQuery.value = campaign;
+  campaignPickerOpen.value = false;
+  loadBlasts();
+}
+
+function clearCampaignFilter() {
+  filter.campaign = '';
+  campaignPickerQuery.value = '';
+  loadBlasts();
 }
 
 async function loadDetail(blastId, page = 1) {

@@ -73,3 +73,12 @@ export async function fetchEligibleTemplates(channelId = null) {
   const res = await api(`/WaDesk/Templates/list?${params}`, { cache: "no-store" });
   return res.data?.templates ?? [];
 }
+
+/** Campaign names for blast filter — fetched lazily on open. */
+export async function fetchCampaigns(q = '') {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set('q', q.trim());
+  params.set('_', String(Date.now()));
+  const res = await api(`/WaDesk/Blast/campaigns?${params}`, { cache: 'no-store' });
+  return res.data?.campaigns ?? [];
+}

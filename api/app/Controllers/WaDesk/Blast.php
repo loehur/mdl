@@ -15,6 +15,7 @@ use App\Helpers\WaDesk\TemplateChannelSelector;
  *   POST /WaDesk/Blast/create
  *   POST /WaDesk/Blast/moderateRows
  *   GET  /WaDesk/Blast/list
+ *   GET  /WaDesk/Blast/campaigns?q=
  *   GET  /WaDesk/Blast/detail?id=
  *   POST /WaDesk/Blast/cancel
  */
@@ -315,20 +316,42 @@ class Blast extends WaDeskController
         }
         $total = (int) $this->db($this->db_index)->query($countSql, $countBinds)->row_array()['cnt'];
 
-        // Distinct campaign names for filter dropdown
-        $campaignSql = "SELECT DISTINCT b.campaign_name
-                        FROM wa_blasts b
-                        INNER JOIN {$tbl} k ON k.id = b.channel_id
-                        WHERE b.tenant_id = ?{$teamSql}";
-        $campaignBinds = array_merge([(int) $user['tenant_id']], $teamBinds);
-        $campaignSql .= ' ORDER BY b.campaign_name ASC';
-        $campaigns = $this->db($this->db_index)->query($campaignSql, $campaignBinds)->result_array();
+        $this->success([
+            'blasts' => $rows,
+            'total'  => $total,
+            'page'   => $page,
+        ]);
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /WaDesk/Blast/campaigns?q=
+    // Returns distinct campaign names for this team. Used by lazy-loaded filter.
+    // -------------------------------------------------------------------------
+    public function campaigns()
+    {
+        $this->verifyAuth();
+        $user = $this->requireChatUser();
+        [$teamSql, $teamBinds] = $this->blastTeamScope($user);
+
+        $q = trim((string) $this->query('q', ''));
+        $tbl = $this->channelsTable();
+
+        $sql = "SELECT DISTINCT b.campaign_name
+                FROM wa_blasts b
+                INNER JOIN {$tbl} k ON k.id = b.channel_id
+                WHERE b.tenant_id = ?{$teamSql}";
+        $binds = array_merge([(int) $user['tenant_id']], $teamBinds);
+
+        if ($q !== '') {
+            $sql .= ' AND b.campaign_name LIKE ?';
+            $binds[] = '%' . $q . '%';
+        }
+        $sql .= ' ORDER BY b.campaign_name ASC LIMIT 100';
+
+        $rows = $this->db($this->db_index)->query($sql, $binds)->result_array();
 
         $this->success([
-            'blasts'    => $rows,
-            'total'     => $total,
-            'page'      => $page,
-            'campaigns' => array_column($campaigns, 'campaign_name'),
+            'campaigns' => array_column($rows, 'campaign_name'),
         ]);
     }
 
