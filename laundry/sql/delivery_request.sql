@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS `delivery_request` (
   `id_request` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `sumber` ENUM('customer') NOT NULL DEFAULT 'customer',
   `jenis` ENUM('antar','jemput') NOT NULL,
-  `layanan` ENUM('sameday','instant') NOT NULL DEFAULT 'sameday',
   `delivery_status` ENUM('menunggu_pembayaran','berjalan','selesai','batal') NOT NULL DEFAULT 'berjalan',
   `id_pelanggan` INT NOT NULL,
   `phone_tail` VARCHAR(9) NOT NULL,

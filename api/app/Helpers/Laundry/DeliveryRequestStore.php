@@ -120,7 +120,7 @@ class DeliveryRequestStore
         try {
             $deliveryColumns = self::deliveryRequestColumns($db);
             $requiredColumns = [
-                'sumber', 'jenis', 'layanan', 'delivery_status', 'id_pelanggan',
+                'sumber', 'jenis', 'delivery_status', 'id_pelanggan',
                 'phone_tail', 'id_cabang', 'id_lokasi', 'lokasi_nama',
                 'lokasi_detail', 'lokasi_latt', 'lokasi_longt', 'insertTime',
             ];
@@ -135,7 +135,6 @@ class DeliveryRequestStore
             $insData = [
                 'sumber' => 'customer',
                 'jenis' => $jenis,
-                'layanan' => 'sameday',
                 'delivery_status' => 'berjalan',
                 'id_pelanggan' => $idPelanggan,
                 'phone_tail' => $phoneTail,
@@ -238,7 +237,7 @@ class DeliveryRequestStore
         }
 
         $rows = PelangganLokasiStore::laundryDb()->query(
-            "SELECT id_request, jenis, sekalian_jemput, layanan, delivery_status,
+            "SELECT id_request, jenis, sekalian_jemput, delivery_status,
                     id_lokasi, lokasi_nama, lokasi_detail, catatan_kurir, insertTime, tarif_surcas
              FROM delivery_request
              WHERE id_pelanggan = ?
@@ -279,7 +278,7 @@ class DeliveryRequestStore
 
         $db = PelangganLokasiStore::laundryDb();
         $req = $db->query(
-            "SELECT id_request, id_pelanggan, id_cabang, jenis, layanan, delivery_status, phone_tail, tarif_surcas
+            "SELECT id_request, id_pelanggan, id_cabang, jenis, delivery_status, phone_tail, tarif_surcas
              FROM delivery_request
              WHERE id_request = ? AND id_pelanggan = ?
              LIMIT 1",
@@ -293,11 +292,6 @@ class DeliveryRequestStore
         $status = strtolower((string) ($req['delivery_status'] ?? ''));
         if (!in_array($status, ['berjalan', 'menunggu_pembayaran'], true)) {
             return ['ok' => false, 'message' => 'Request sudah tidak aktif'];
-        }
-
-        $layanan = strtolower((string) ($req['layanan'] ?? 'sameday'));
-        if ($layanan === 'instant') {
-            return ['ok' => false, 'message' => 'Request Instant tidak bisa dibatalkan dari CRM'];
         }
 
         $idCabang = (int) ($req['id_cabang'] ?? 0);
@@ -409,7 +403,6 @@ class DeliveryRequestStore
         $jenis = strtolower((string) ($r['jenis'] ?? ''));
         $sekalian = !empty($r['sekalian_jemput']);
         $status = strtolower((string) ($r['delivery_status'] ?? ''));
-        $layanan = strtolower((string) ($r['layanan'] ?? 'sameday'));
         $jenisLabel = $sekalian ? 'Antar & Jemput' : ($jenis === 'antar' ? 'Antar' : 'Jemput');
         $statusLabel = $status === 'menunggu_pembayaran' ? 'Menunggu pembayaran' : 'Berjalan';
 
@@ -418,7 +411,6 @@ class DeliveryRequestStore
             'jenis' => $jenis,
             'sekalian_jemput' => $sekalian ? 1 : 0,
             'jenis_label' => $jenisLabel,
-            'layanan' => $layanan,
             'delivery_status' => $status,
             'status_label' => $statusLabel,
             'id_lokasi' => (int) ($r['id_lokasi'] ?? 0),
@@ -464,7 +456,6 @@ class DeliveryRequestStore
              WHERE id_pelanggan = ?
                AND jenis = 'antar'
                AND delivery_status IN ('berjalan','menunggu_pembayaran')
-               AND layanan = 'sameday'
              ORDER BY id_request DESC
              LIMIT 1",
             [$idPelanggan]

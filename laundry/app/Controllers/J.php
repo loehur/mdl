@@ -2330,7 +2330,7 @@ class J extends Controller
       $pendingInstant = (int) ($this->db(0)->count_where(
          'delivery_request',
          'id_pelanggan = ' . (int) $pelanggan
-            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+            . " AND delivery_status = 'menunggu_pembayaran'"
       ) ?? 0);
       if ($pendingInstant > 0) {
          echo json_encode([
@@ -2344,7 +2344,6 @@ class J extends Controller
       $insData = [
          'sumber' => 'customer',
          'jenis' => $jenis,
-         'layanan' => 'instant',
          'delivery_status' => 'menunggu_pembayaran',
          'id_pelanggan' => (int) $pelanggan,
          'phone_tail' => $phoneTail,
@@ -2526,7 +2525,7 @@ class J extends Controller
          'delivery_request',
          'id_request = ' . $idRequest
             . ' AND id_pelanggan = ' . (int) $pelanggan
-            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+            . " AND delivery_status = 'menunggu_pembayaran'"
       );
       if (!is_array($req) || empty($req['id_request'])) {
          echo json_encode(['ok' => false, 'message' => 'Request tidak ditemukan atau sudah dibayar']);
@@ -2637,7 +2636,7 @@ class J extends Controller
          'delivery_request',
          'id_request = ' . $idRequest
             . ' AND id_pelanggan = ' . (int) $pelanggan
-            . " AND layanan = 'instant' AND delivery_status = 'menunggu_pembayaran'"
+            . " AND delivery_status = 'menunggu_pembayaran'"
       );
       if (!is_array($req) || empty($req['id_request'])) {
          echo json_encode(['ok' => false, 'message' => 'Request tidak ditemukan atau sudah dibayar']);

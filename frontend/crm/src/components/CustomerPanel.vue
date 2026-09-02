@@ -887,8 +887,7 @@ const deliveryJenisLabel = (req) => req?.jenis_label || (req?.sekalian_jemput ? 
 
 const canCancelDelivery = (req) => {
   if (!req?.id_request) return false;
-  const layanan = String(req.layanan || "sameday").toLowerCase();
-  return layanan !== "instant";
+  return true;
 };
 
 const openCancelDelivery = (req) => {
@@ -1523,7 +1522,6 @@ onUnmounted(() => {
               </p>
               <p class="text-[11px] text-[var(--wa-text-tertiary)] mt-1">
                 #{{ req.id_request }}
-                <span v-if="req.layanan && req.layanan !== 'sameday'"> · {{ req.layanan }}</span>
                 <span v-if="req.insertTime"> · {{ formatRequestTime(req.insertTime) }}</span>
               </p>
               <div v-if="isAdmin && canCancelDelivery(req)" class="mt-2">

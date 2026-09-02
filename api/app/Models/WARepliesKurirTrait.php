@@ -81,7 +81,6 @@ trait WARepliesKurirTrait
             $merge('id_cabang'),
             $merge('jenis'),
             $sekalianJemput,
-            $merge('layanan', 'sameday'),
             $step,
             $merge('id_lokasi'),
             $merge('lokasi_nama'),
@@ -105,15 +104,15 @@ trait WARepliesKurirTrait
         try {
             DB::getInstance(0)->query(
                 'INSERT INTO wa_kurir_session
-                  (phone, id_pelanggan, id_cabang, jenis, sekalian_jemput, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
+                  (phone, id_pelanggan, id_cabang, jenis, sekalian_jemput, step, id_lokasi, lokasi_nama, lokasi_detail,
                    latt, longt, tarif, butuh_update_nama,
                    courier_company, courier_type, courier_name,
                    ongkir, rates_json, id_request, summary, group_notify_label, updated_at, expires_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON DUPLICATE KEY UPDATE
                    id_pelanggan=VALUES(id_pelanggan), id_cabang=VALUES(id_cabang), jenis=VALUES(jenis),
                    sekalian_jemput=VALUES(sekalian_jemput),
-                   layanan=VALUES(layanan), step=VALUES(step), id_lokasi=VALUES(id_lokasi),
+                   step=VALUES(step), id_lokasi=VALUES(id_lokasi),
                    lokasi_nama=VALUES(lokasi_nama), lokasi_detail=VALUES(lokasi_detail),
                    latt=VALUES(latt), longt=VALUES(longt), tarif=VALUES(tarif),
                    butuh_update_nama=VALUES(butuh_update_nama),
@@ -150,7 +149,6 @@ trait WARepliesKurirTrait
             $merge('id_pelanggan'),
             $merge('id_cabang'),
             $merge('jenis'),
-            $merge('layanan', 'sameday'),
             $step,
             $merge('id_lokasi'),
             $merge('lokasi_nama'),
@@ -171,13 +169,13 @@ trait WARepliesKurirTrait
         try {
             DB::getInstance(0)->query(
                 'INSERT INTO wa_kurir_session
-                  (phone, id_pelanggan, id_cabang, jenis, layanan, step, id_lokasi, lokasi_nama, lokasi_detail,
+                  (phone, id_pelanggan, id_cabang, jenis, step, id_lokasi, lokasi_nama, lokasi_detail,
                    latt, longt, tarif, courier_company, courier_type, courier_name,
                    ongkir, rates_json, id_request, summary, updated_at, expires_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON DUPLICATE KEY UPDATE
                    id_pelanggan=VALUES(id_pelanggan), id_cabang=VALUES(id_cabang), jenis=VALUES(jenis),
-                   layanan=VALUES(layanan), step=VALUES(step), id_lokasi=VALUES(id_lokasi),
+                   step=VALUES(step), id_lokasi=VALUES(id_lokasi),
                    lokasi_nama=VALUES(lokasi_nama), lokasi_detail=VALUES(lokasi_detail),
                    latt=VALUES(latt), longt=VALUES(longt), tarif=VALUES(tarif),
                    courier_company=VALUES(courier_company), courier_type=VALUES(courier_type),
@@ -2230,7 +2228,6 @@ trait WARepliesKurirTrait
                 "SELECT * FROM delivery_request
                  WHERE id_pelanggan = ?
                    AND delivery_status = 'selesai'
-                   AND layanan = 'sameday'
                  ORDER BY COALESCE(selesaiTime, insertTime) DESC, id_request DESC
                  LIMIT 1",
                 [$idPelanggan]
@@ -2332,7 +2329,6 @@ trait WARepliesKurirTrait
 
         if ($layanan === 'instant') {
             $this->saveKurirSession($waNumber, [
-                'layanan' => 'instant',
                 'summary' => mb_substr($summary, 0, 800),
             ]);
             $session = $this->getKurirSession($waNumber) ?: $session;
@@ -3860,7 +3856,6 @@ trait WARepliesKurirTrait
                      WHERE id_request = ?
                        AND jenis = 'antar'
                        AND delivery_status = 'pending'
-                       AND layanan = 'sameday'
                      LIMIT 1",
                     [$preferId]
                 )->row();
@@ -3871,7 +3866,6 @@ trait WARepliesKurirTrait
                      WHERE id_pelanggan = ?
                        AND jenis = 'antar'
                        AND delivery_status = 'pending'
-                       AND layanan = 'sameday'
                      ORDER BY id_request DESC
                      LIMIT 1",
                     [$idPelanggan]
@@ -3902,7 +3896,6 @@ trait WARepliesKurirTrait
                  WHERE id_pelanggan = ?
                    AND jenis = ?
                    AND id_lokasi = ?
-                   AND layanan = 'sameday'
                    AND delivery_status IN ('berjalan','menunggu_pembayaran')
                  ORDER BY id_request DESC
                  LIMIT 1",
@@ -3928,7 +3921,6 @@ trait WARepliesKurirTrait
                 "SELECT id_request FROM delivery_request
                  WHERE id_pelanggan = ?
                    AND jenis = ?
-                   AND layanan = 'sameday'
                    AND delivery_status IN ('berjalan','menunggu_pembayaran','pending')
                    AND (id_lokasi IS NULL OR id_lokasi = 0)
                  ORDER BY id_request DESC
@@ -4088,7 +4080,6 @@ trait WARepliesKurirTrait
                 'sumber' => 'customer',
                 'jenis' => $jenis,
                 'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
-                'layanan' => 'sameday',
                 'delivery_status' => 'berjalan',
                 'id_pelanggan' => $idPelanggan,
                 'phone_tail' => $phoneTail,
@@ -4542,7 +4533,6 @@ trait WARepliesKurirTrait
                 "SELECT id_request FROM delivery_request
                  WHERE id_pelanggan = ?
                    AND jenis = 'antar'
-                   AND layanan = 'sameday'
                    AND delivery_status IN ('berjalan','pending')
                  ORDER BY id_request DESC
                  LIMIT 20",
@@ -4584,7 +4574,6 @@ trait WARepliesKurirTrait
                     "SELECT id_request FROM delivery_request
                      WHERE id_request = ?
                        AND jenis = 'antar'
-                       AND layanan = 'sameday'
                        AND delivery_status IN ('berjalan','pending')
                      LIMIT 1",
                     [$rid]
@@ -4833,7 +4822,6 @@ trait WARepliesKurirTrait
                 'sumber' => 'customer',
                 'jenis' => $jenis,
                 'sekalian_jemput' => $this->kurirSekalianJemputVal($session),
-                'layanan' => 'instant',
                 'delivery_status' => 'menunggu_pembayaran',
                 'id_pelanggan' => $idPelanggan,
                 'phone_tail' => $phoneTail,
