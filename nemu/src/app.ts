@@ -59,7 +59,6 @@ export function buildApp(config: AppConfig) {
     catch { return reply.code(401).send({ error: 'Authentication required' }); }
   });
   app.get('/v1/plan', async (request, reply) => { try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: await memories.plan(token.tenantId) }); } catch { return reply.code(401).send({ error: 'Authentication required' }); } });
-  app.put('/v1/plan', async (request, reply) => { const body = z.object({ plan: z.enum(['free', 'personal', 'pro']) }).safeParse(request.body); if (!body.success) return reply.code(400).send({ error: 'Invalid plan' }); try { const token = await request.jwtVerify<SessionToken>(); return reply.send({ data: await memories.setPlan(token.tenantId, body.data.plan) }); } catch { return reply.code(401).send({ error: 'Authentication required' }); } });
   app.get('/v1/memories/trash', async (request, reply) => {
     try {
       const token = await request.jwtVerify<SessionToken>();

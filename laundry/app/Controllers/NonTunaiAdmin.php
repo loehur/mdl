@@ -575,7 +575,7 @@ class NonTunaiAdmin extends Controller
 
         $badgeMap = [
             1 => 'Laundry',
-            2 => 'Penarikan',
+            2 => 'Setoran',
             3 => 'Member',
             5 => 'Kasbon',
             6 => 'Deposit',
