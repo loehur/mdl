@@ -4,6 +4,10 @@ Env.php
 *copy*
 *.sql
 
+# NEMU database migrations are application source and must be deployed.
+!nemu/migrations/
+!nemu/migrations/*.sql
+
 # Schema & migrasi API (kecuali seed ber-kredensial)
 !api/database/
 !api/database/**/

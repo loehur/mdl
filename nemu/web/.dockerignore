@@ -1,4 +1,10 @@
 node_modules
 dist
 .env
+.env.*
+backups
+secrets
+*.dump
+*.pem
+*.key
 .git

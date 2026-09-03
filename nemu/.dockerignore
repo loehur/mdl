@@ -1,7 +1,15 @@
 node_modules
 dist
 .env
+.env.*
+!.env.example
+!.env.docker.example
 .env.docker
+backups
+secrets
+*.dump
+*.pem
+*.key
 coverage
 test
 web
