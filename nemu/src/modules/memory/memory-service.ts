@@ -3,7 +3,7 @@ import type { ChatProvider } from '../ai/chat-provider.js';
 import { MemoryEncryption } from '../security/encryption.js';
 import { MemoryRepository } from './memory-repository.js';
 
-export type MemoryView = { id: string; title: string; content: string; category: string; source: string; createdAt: string; updatedAt: string };
+export type MemoryView = { id: string; title: string; content: string; category: string; createdAt: string; updatedAt: string };
 export type MemoryAction = 'ask' | 'update' | 'delete';
 export const PLAN_LIMITS = { free: 100, personal: 1000, pro: 5000 } as const;
 export type Plan = keyof typeof PLAN_LIMITS;
@@ -13,7 +13,7 @@ type MemoryCandidate = { memory: MemoryView; similarity: number };
 function analyze(content: string) {
   const ip = content.match(/\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/)?.[0];
   const title = content.replace(/^\s*(simpan(?: bahwa)?\s+)?/i, '').split(/[.!?]/)[0]!.trim().slice(0, 100) || 'Memory baru';
-  return { title: title.charAt(0).toUpperCase() + title.slice(1), category: ip ? 'Network' : 'General', metadata: ip ? { exactIdentifiers: [ip], type: 'ip_address' } : {} };
+  return { title: title.charAt(0).toUpperCase() + title.slice(1), category: ip ? 'Network' : 'General' };
 }
 
 export class MemoryService {
@@ -28,7 +28,6 @@ export class MemoryService {
   async list(tenantId: string, limit: number): Promise<MemoryView[]> { return (await this.repository.list(tenantId, limit)).map((row) => this.toView(row)); }
   async count(tenantId: string): Promise<number> { return this.repository.count(tenantId); }
   async plan(tenantId: string) { const plan = await this.repository.getPlan(tenantId); return { plan, limit: PLAN_LIMITS[plan], used: await this.repository.count(tenantId) }; }
-  async setPlan(tenantId: string, plan: Plan) { await this.repository.setPlan(tenantId, plan); return this.plan(tenantId); }
   async search(tenantId: string, query: string, limit: number): Promise<MemoryView[]> { return (await this.repository.lexicalSearch(tenantId, query, limit)).map((row) => this.toView(row)); }
   async trashList(tenantId: string, limit: number): Promise<MemoryView[]> { return (await this.repository.trashList(tenantId, limit)).map((row) => this.toView(row)); }
   async emptyTrash(tenantId: string): Promise<number> { return this.repository.emptyTrash(tenantId); }
@@ -112,7 +111,7 @@ export class MemoryService {
   }
 
   private toView(row: Awaited<ReturnType<MemoryRepository['list']>>[number]): MemoryView {
-    return { id: row.id, title: row.title ?? 'Untitled memory', content: this.encryption.decrypt({ ciphertext: row.encrypted_content, iv: row.encryption_iv, tag: row.encryption_tag }), category: row.category ?? 'General', source: row.source, createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() };
+    return { id: row.id, title: row.title ?? 'Untitled memory', content: this.encryption.decrypt({ ciphertext: row.encrypted_content, iv: row.encryption_iv, tag: row.encryption_tag }), category: row.category ?? 'General', createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() };
   }
 }
 
