@@ -50,7 +50,7 @@ if (count($data['cek']) == 0) { ?>
         $jenis_bill = "Laundry";
         break;
       case 2:
-        $jenis_bill = "Penarikan";
+        $jenis_bill = "Setoran";
         $pelanggan = $karyawan !== '' ? $karyawan : 'Kasir';
         $pRow = null;
         break;
