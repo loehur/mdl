@@ -599,6 +599,11 @@ class WhatsApp extends Controller
                     $cust_id
                 );
 
+                // Pesan admin/karyawan dapat tetap di-autoreply, namun tidak boleh membawa case ke CRM/websocket.
+                if ($replies->senderMustUseNullCase()) {
+                    $autoReplyResult->case = null;
+                }
+
                 // DEFAULT fallback: no_handler dari process() = intent FALSE + ask true (atau jalur CS lain tanpa handler)
                 if (!empty($autoReplyResult->no_handler) && mb_strlen(trim((string) ($messageText ?? ''))) > 20) {
                     $replies->trySendDefaultFallbackAutoreply(

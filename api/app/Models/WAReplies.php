@@ -641,6 +641,12 @@ class WAReplies
         return !empty($ctx['is_admin']) || !empty($ctx['is_karyawan']);
     }
 
+    /** Case CRM tidak berlaku untuk pesan dari admin maupun karyawan. */
+    public function senderMustUseNullCase(): bool
+    {
+        return $this->senderIsStaff();
+    }
+
     /** Intent gerbang admin/karyawan di DB (INFO, slip gaji, dll.). */
     private function intentIsStaffTarget(string $handler): bool
     {
@@ -8220,6 +8226,11 @@ class WAReplies
     {
         if ($this->intentLabMode) {
             return 0;
+        }
+
+        // Autoreply untuk admin/karyawan tetap boleh jalan, tetapi jangan membuat/menambah case CRM.
+        if ($this->senderIsStaff()) {
+            $case = null;
         }
         if ($contactName !== null) {
             $contactName = trim((string) $contactName);
