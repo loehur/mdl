@@ -1136,7 +1136,9 @@ class WhatsApp extends Controller
             'type' => $messageType,
             'content' => $content,
             'media_url' => $mediaUrl,
-            'sender_code' => null,
+            // smb.message.echoes berasal dari WhatsApp Business app (HP), bukan autoreply.
+            // Kode ini menjadi penanda human-active agar DEFAULT fallback tidak terkirim.
+            'sender_code' => 'HP',
             'status' => $status,
             'private' => $isPrivate ? 1 : 0,
             'created_at' => $sendTime,
