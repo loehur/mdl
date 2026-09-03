@@ -21,7 +21,7 @@ export function buildApp(config: AppConfig) {
   const db = createPool(config.DATABASE_URL);
   const auth = new AuthService(db);
   const verifier = new GoogleTokenVerifier(config.GOOGLE_OAUTH_CLIENT_IDS.split(',').map((value) => value.trim()));
-  const memories = new MemoryService(new MemoryRepository(db), new MemoryEncryption(config.MEMORY_ENCRYPTION_KEY_BASE64), new OpenAiEmbeddingProvider(config.OPENAI_API_KEY, config.EMBEDDING_MODEL, config.EMBEDDING_DIMENSIONS), createChatProvider(config, () => app.log.warn('Primary chat provider unavailable; using fallback')));
+  const memories = new MemoryService(new MemoryRepository(db), new MemoryEncryption(config.MEMORY_ENCRYPTION_KEY_BASE64), new OpenAiEmbeddingProvider(config.OPENAI_API_KEY, config.EMBEDDING_MODEL, config.EMBEDDING_DIMENSIONS), createChatProvider(config, () => app.log.warn('Primary chat provider unavailable; using fallback')), config.NODE_ENV === 'development' ? (details) => app.log.debug(details, 'ASK retrieval diagnostics') : undefined);
   app.addHook('onClose', async () => db.end());
   app.register(helmet);
   app.register(cors, { origin: config.corsOrigins, credentials: true });

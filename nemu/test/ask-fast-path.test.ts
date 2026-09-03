@@ -17,6 +17,7 @@ function serviceWithRows(rows: Array<ReturnType<typeof rowFor>>, chat?: ChatProv
   const repository = {
     list: async () => rows,
     vectorSearch: async () => rows.map((row) => ({ ...row, distance: 0.15 })),
+    lexicalSearch: async () => rows.map((row, index) => ({ ...row, lexical_score: 1 - index / 10 })),
     softDelete: vi.fn(async () => true),
     update: vi.fn(async (input: { memoryId: string; title: string; encrypted: { ciphertext: Buffer; iv: Buffer; tag: Buffer } }) => ({ id: input.memoryId, title: input.title, category: 'General', encrypted_content: input.encrypted.ciphertext, encryption_iv: input.encrypted.iv, encryption_tag: input.encrypted.tag, searchable_metadata: {}, source: 'manual', created_at: new Date(), updated_at: new Date() }))
   };
