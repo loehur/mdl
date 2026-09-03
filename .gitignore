@@ -4,6 +4,17 @@ Env.php
 *copy*
 *.sql
 
+# Generated Android artifacts and distributable packages.
+android/**/build/
+android/**/*.apk
+android/**/*.aab
+
+# Runtime user uploads must live on server/object storage, never in Git.
+api/uploads/
+
+# Packaged application binaries are release artifacts, not source code.
+laundry/in_assets/files/*.apk
+
 # NEMU database migrations are application source and must be deployed.
 !nemu/migrations/
 !nemu/migrations/*.sql
