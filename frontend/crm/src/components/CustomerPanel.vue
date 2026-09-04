@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { showCustomerPanel, showAddLokasiModal, showDeleteLokasiModal, showDeliveryRequestModal, showEditPermintaanModal, showCreatePermintaanModal, showSendTagihanModal, showSendStatusModal, showSendQrisModal, showCancelDeliveryModal, enforceCaseFourExclusivity } from "../stores/chatStore.js";
 import { formatPermintaanSummary, normalizePermintaanItems } from "../utils/permintaanSummary.js";
 import LocationMapPicker from "./LocationMapPicker.vue";
+import { encodePlusCode } from "../utils/plusCode.js";
 
 const props = defineProps({
   conversation: { type: Object, default: null },
@@ -32,6 +33,11 @@ const formLongt = ref(null);
 const formMsg = ref("");
 const deleteTarget = ref(null);
 const deleteMsg = ref("");
+const placeCodeTarget = ref(null);
+const placeCodeValue = ref("");
+const placeCodeLoading = ref(false);
+const placeCodeError = ref("");
+const placeCodeCopied = ref(false);
 const deliveryJenis = ref("");
 const deliveryLokasiId = ref(0);
 const deliveryCatatan = ref("");
@@ -1087,8 +1093,62 @@ const confirmDeleteLokasi = async () => {
   }
 };
 
+const closePlaceCode = () => {
+  placeCodeTarget.value = null;
+  placeCodeValue.value = "";
+  placeCodeError.value = "";
+  placeCodeCopied.value = false;
+};
+
+const openPlaceCode = async (loc) => {
+  if (!loc || placeCodeLoading.value) return;
+  placeCodeTarget.value = loc;
+  placeCodeValue.value = "";
+  placeCodeError.value = "";
+  placeCodeCopied.value = false;
+  const lat = Number(loc.latt);
+  const lng = Number(loc.longt);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    placeCodeError.value = "Lokasi ini belum punya koordinat.";
+    return;
+  }
+  placeCodeLoading.value = true;
+  try {
+    // encode(lat, lng, 10) → akurasi ±14 m, format "8 digit + 2 digit",
+    // mis. "GG8R+R7R". Dihitung lokal on-demand, tanpa API.
+    placeCodeValue.value = encodePlusCode(lat, lng, 10);
+  } catch (_) {
+    placeCodeError.value = "Gagal menghitung Plus Code.";
+  } finally {
+    placeCodeLoading.value = false;
+  }
+};
+
+const copyPlaceCode = async () => {
+  if (!placeCodeValue.value) return;
+  try {
+    await navigator.clipboard.writeText(placeCodeValue.value);
+  } catch (_) {
+    const textArea = document.createElement("textarea");
+    textArea.value = placeCodeValue.value;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
+  }
+  placeCodeCopied.value = true;
+  setTimeout(() => {
+    placeCodeCopied.value = false;
+  }, 2000);
+};
+
 const onKeydown = (e) => {
   if (e.key !== "Escape") return;
+  if (placeCodeTarget.value) {
+    closePlaceCode();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (showDeleteLokasiModal.value) {
     closeDeleteLokasi();
     e.stopImmediatePropagation();
@@ -1568,15 +1628,24 @@ onUnmounted(() => {
             >
               <div class="flex items-start justify-between gap-2">
                 <p class="text-sm font-medium text-[var(--wa-text-primary)] truncate">{{ loc.nama }}</p>
-                <a
-                  v-if="loc.maps_url"
-                  :href="loc.maps_url"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-[11px] font-bold text-[var(--wa-accent-green)] flex-shrink-0"
-                >
-                  Maps
-                </a>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    v-if="loc.maps_url"
+                    :href="loc.maps_url"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-[11px] font-bold text-[var(--wa-accent-green)]"
+                  >
+                    Maps
+                  </a>
+                  <button
+                    type="button"
+                    class="text-[11px] font-bold text-[var(--wa-accent-blue)]"
+                    @click="openPlaceCode(loc)"
+                  >
+                    Place Code
+                  </button>
+                </div>
               </div>
               <p class="text-xs text-[var(--wa-text-tertiary)] mt-0.5 break-words">{{ loc.detail }}</p>
               <div v-if="isAdmin" class="flex items-center gap-3 mt-2">
@@ -1732,6 +1801,60 @@ onUnmounted(() => {
             {{ deletingLokasi ? "Menghapus…" : "Hapus" }}
           </button>
         </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="placeCodeTarget"
+      class="fixed inset-0 z-[720] flex items-center justify-center p-4"
+      @click="closePlaceCode"
+    >
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div
+        class="relative w-full max-w-sm bg-[var(--wa-bg-panel)] border border-[var(--wa-border)] rounded-2xl shadow-2xl p-5"
+        @click.stop
+      >
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-base font-semibold text-[var(--wa-text-primary)]">Place Code</h3>
+          <button
+            type="button"
+            class="p-1 text-[var(--wa-icon-default)] hover:text-[var(--wa-accent-green)]"
+            @click="closePlaceCode"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-[var(--wa-text-secondary)] mb-1 break-words">
+          {{ placeCodeTarget?.nama }}
+          <span v-if="placeCodeTarget?.detail" class="text-[var(--wa-text-tertiary)]"> · {{ placeCodeTarget.detail }}</span>
+        </p>
+        <div
+          v-if="placeCodeLoading"
+          class="py-6 text-center text-xs text-[var(--wa-text-tertiary)]"
+        >
+          Menghitung…
+        </div>
+        <p v-else-if="placeCodeError" class="py-4 text-center text-xs text-red-400">{{ placeCodeError }}</p>
+        <div v-else class="mt-1 flex items-stretch gap-2">
+          <code
+            class="flex-1 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg-secondary)] px-3 py-3 text-center font-mono text-base font-bold tracking-wide text-[var(--wa-text-primary)]"
+          >{{ placeCodeValue }}</code>
+          <button
+            type="button"
+            class="rounded-lg bg-[var(--wa-accent-green)] px-4 text-sm font-bold text-white disabled:opacity-50"
+            :disabled="!placeCodeValue"
+            @click="copyPlaceCode"
+          >
+            {{ placeCodeCopied ? "Copied!" : "Copy" }}
+          </button>
+        </div>
+        <p class="mt-3 text-[11px] text-[var(--wa-text-tertiary)]">
+          Plus Code dihitung dari koordinat lokasi (akurasi ±14 m). Bisa dipakai di Google Maps.
+        </p>
       </div>
     </div>
   </Teleport>
