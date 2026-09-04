@@ -128,7 +128,7 @@ class Controller
     }
     
     /**
-     * Check if origin is allowed (nalju.com or *.nalju.com)
+     * Check if origin is allowed (nalju.com, *.nalju.com, crm.pesanmeta.com)
      */
     private function isAllowedOrigin($origin)
     {
@@ -136,8 +136,13 @@ class Controller
         $parsedUrl = parse_url($origin);
         $host = isset($parsedUrl['host']) ? strtolower($parsedUrl['host']) : '';
         
-        // Izinkan nalju.com dan semua subdomain *.nalju.com
-        if ($host === 'nalju.com' || str_ends_with($host, '.nalju.com')) {
+        // Izinkan nalju.com dan semua subdomain *.nalju.com,
+        // serta khusus crm.pesanmeta.com
+        if (
+            $host === 'nalju.com'
+            || str_ends_with($host, '.nalju.com')
+            || $host === 'crm.pesanmeta.com'
+        ) {
             return true;
         }
         

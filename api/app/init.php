@@ -11,8 +11,12 @@ $allowed_origin = 'https://nalju.com'; // Default fallback
 $parsed_origin = parse_url($origin);
 $origin_host = $parsed_origin['host'] ?? '';
 
-// Allow nalju.com and any subdomain *.nalju.com
-if ($origin_host === 'nalju.com' || str_ends_with(strtolower($origin_host), '.nalju.com')) {
+// Allow nalju.com, *.nalju.com, crm.pesanmeta.com
+if (
+    $origin_host === 'nalju.com'
+    || str_ends_with(strtolower($origin_host), '.nalju.com')
+    || $origin_host === 'crm.pesanmeta.com'
+) {
     $allowed_origin = $origin;
 }
 
@@ -39,8 +43,12 @@ function setCorsHeadersForError() {
         $parsed_origin = parse_url($origin);
         $origin_host = $parsed_origin['host'] ?? '';
         
-        // Allow nalju.com and any subdomain *.nalju.com
-        if ($origin_host === 'nalju.com' || str_ends_with(strtolower($origin_host), '.nalju.com')) {
+        // Allow nalju.com, *.nalju.com, crm.pesanmeta.com
+        if (
+            $origin_host === 'nalju.com'
+            || str_ends_with(strtolower($origin_host), '.nalju.com')
+            || $origin_host === 'crm.pesanmeta.com'
+        ) {
             $allowed_origin = $origin;
         }
     }
