@@ -212,6 +212,38 @@ class KasModel extends Controller
             . ", input Rp" . number_format($jumlah) . ".";
     }
 
+    /**
+     * Deteksi ref rekap yang sudah tidak sinkron dengan DB: sisa tagihan
+     * (tagihan − pembayaran pending/paid status 2/3) sudah <= 0 padahal
+     * masih dikirim dari UI dengan nominal > 0.
+     *
+     * @param array<string,int|string> $data_rekap
+     * @return list<string> key rekap basi (contoh "U#123", "M#45")
+     */
+    public function rekapBasiKeys(array $data_rekap, int $id_cabang): array
+    {
+        $basi = [];
+        foreach ($data_rekap as $key => $value) {
+            $jumlah = (int) round((float) $value);
+            if ($jumlah <= 0) {
+                continue;
+            }
+            $keyStr = (string) $key;
+            $tipe = substr($keyStr, 0, 1);
+            $ref = substr($keyStr, 2);
+            if ($ref === '' || $ref === false) {
+                continue;
+            }
+            $jt = ($tipe === 'M') ? 3 : 1;
+            $tagihan = $this->getTagihanForBayar($ref, $jt, $id_cabang);
+            $sudah = $this->getSudahTercatatBayar($ref, $jt, $id_cabang);
+            if (($tagihan - $sudah) <= 0) {
+                $basi[] = $keyStr;
+            }
+        }
+        return $basi;
+    }
+
     private function getTagihanForBayar($ref, $jt, $id_cabang)
     {
         $db = $this->db(0);

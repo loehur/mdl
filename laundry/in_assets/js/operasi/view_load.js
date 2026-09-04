@@ -846,6 +846,12 @@
         $btn.prop("disabled", true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
       },
       success: function (res) {
+        if (res == "__REFRESH__") {
+          // Data rekap tidak sinkron dengan DB (ref sudah tertutup pending/paid).
+          // Tutup offcanvas lalu refresh view agar daftar tagihan dihitung ulang.
+          refreshOperasiAfterPay();
+          return;
+        }
         if (res == 0) {
           var reloadAfterPay = function () {
             if (window.OpModal) {
@@ -3588,6 +3594,19 @@
       },
     });
   };
+
+  // Tutup offcanvas payment & refresh area Operasi. Dipakai setelah bayar sukses
+  // maupun saat backend memberi sinyal data rekap basi (__REFRESH__).
+  function refreshOperasiAfterPay() {
+    if (window.OpModal) {
+      window.OpModal.closeAll();
+    }
+    try {
+      $(".offcanvas-backdrop").remove();
+      $("body").removeClass("offcanvas-open").css({ overflow: "auto", "padding-right": "0" });
+    } catch (e) { }
+    loadDiv();
+  }
 
   function loadDiv() {
     // Semua sumber refresh Operasi harus tunduk pada modal yang sedang dibuka.

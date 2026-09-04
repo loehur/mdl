@@ -1036,6 +1036,17 @@ class Operasi extends Controller
          );
       }
 
+      // Data rekap yang dikirim UI bisa basi (ref sudah tertutup pending/paid
+      // dari sumber lain). Cek dulu sebelum proses: kalau ada yang basi, suruh
+      // frontend refresh view (loadDiv) daripada memproses data usang.
+      if (is_array($rekap) && $rekap !== []) {
+         $basi = $this->model('KasModel')->rekapBasiKeys($rekap, (int) $this->id_cabang);
+         if ($basi !== []) {
+            echo '__REFRESH__';
+            return;
+         }
+      }
+
       $res = $this->model('KasModel')->bayarMulti(
          $rekap,
          $dibayar,
