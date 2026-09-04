@@ -668,11 +668,42 @@ class DeliveryRequestStore
 
             $groupId = FonnteConfig::getDriverGroupId();
             if ($groupId === '') {
+                if (class_exists('\Log')) {
+                    \Log::write('DeliveryRequestStore notify: driver group kosong (tidak kirim)', 'wa_error', 'DeliveryRequest');
+                }
                 return false;
             }
             $fonnte = new FonnteService();
-            $send = $fonnte->sendToGroup($groupId, implode("\n", $lines), ['delay' => '0']);
-            return !empty($send['success']);
+            $text = implode("\n", $lines);
+            $ok = false;
+            $lastError = '';
+            $attempts = 0;
+            // Baileys yang lama idle bisa gagal pada percobaan pertama (timeout/reconnect).
+            // Retry singkat agar notifikasi tidak hilang senyap.
+            for ($attempt = 1; $attempt <= 3; $attempt++) {
+                $attempts = $attempt;
+                $send = $fonnte->sendToGroup($groupId, $text, ['delay' => '0']);
+                if (!empty($send['success'])) {
+                    $ok = true;
+                    $lastError = '';
+                    break;
+                }
+                $lastError = (string) ($send['error'] ?? 'unknown error');
+                if ($attempt < 3) {
+                    usleep(random_int(1000000, 2000000));
+                }
+            }
+            if (class_exists('\Log')) {
+                $err = $ok ? '' : $lastError;
+                \Log::write(
+                    'DeliveryRequestStore notify ' . ($ok ? 'ok' : 'FAIL') . " group={$groupId} jenis={$jenis} sekalian_jemput={$sekalianJemput}"
+                    . ($attempts > 1 ? " attempts={$attempts}" : '')
+                    . ($err !== '' ? ' error=' . $err : ''),
+                    'wa_error',
+                    'DeliveryRequest'
+                );
+            }
+            return $ok;
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
                 \Log::write('DeliveryRequestStore notify: ' . $e->getMessage(), 'wa_error', 'DeliveryRequest');
