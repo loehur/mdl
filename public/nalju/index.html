@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Nalju Inovasi Nusantara menghadirkan solusi SaaS, aplikasi bisnis, dan digitalisasi untuk membantu operasional usaha menjadi lebih sederhana, cepat, dan terukur." />
+  <title>Nalju Inovasi Nusantara</title>
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%234f9cf9'/%3E%3Cpath d='M18 46V18h7l14 18V18h7v28h-7L25 28v18z' fill='%2307111f'/%3E%3C/svg%3E" />
+
+  <style>
+    :root{
+      --bg:#07111f;
+      --bg-soft:#0d1b2d;
+      --card:#10233a;
+      --text:#f5f7fb;
+      --muted:#9fb0c6;
+      --primary:#4f9cf9;
+      --primary-2:#79b8ff;
+      --border:rgba(255,255,255,.10);
+      --shadow:0 24px 60px rgba(0,0,0,.28);
+      --max:1160px;
+    }
+
+    *{
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+    }
+
+    html{
+      scroll-behavior:smooth;
+    }
+
+    body{
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 85% 15%, rgba(79,156,249,.18), transparent 28%),
+        radial-gradient(circle at 15% 75%, rgba(121,184,255,.08), transparent 25%),
+        var(--bg);
+      color:var(--text);
+      line-height:1.6;
+    }
+
+    a{
+      color:inherit;
+      text-decoration:none;
+    }
+
+    .container{
+      width:min(calc(100% - 40px), var(--max));
+      margin:auto;
+    }
+
+    nav{
+      height:78px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .brand{
+      font-weight:800;
+      letter-spacing:-.03em;
+      font-size:1.1rem;
+    }
+
+    .brand span{
+      color:var(--primary-2);
+    }
+
+    .nav-links{
+      display:flex;
+      gap:26px;
+      color:var(--muted);
+      font-size:.95rem;
+    }
+
+    .nav-links a:hover{
+      color:#fff;
+    }
+
+    .hero{
+      min-height:calc(100vh - 78px);
+      display:grid;
+      grid-template-columns:1.15fr .85fr;
+      align-items:center;
+      gap:60px;
+      padding:80px 0 100px;
+    }
+
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      color:var(--primary-2);
+      background:rgba(255,255,255,.035);
+      font-size:.86rem;
+      margin-bottom:22px;
+    }
+
+    h1{
+      font-size:clamp(2.8rem,7vw,5.8rem);
+      line-height:.98;
+      letter-spacing:-.06em;
+      max-width:850px;
+    }
+
+    .hero p{
+      max-width:720px;
+      color:var(--muted);
+      font-size:1.08rem;
+      margin:28px 0 34px;
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:14px;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      min-height:50px;
+      padding:0 20px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      font-weight:700;
+      transition:.2s ease;
+    }
+
+    .btn-primary{
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+      color:#07111f;
+      border-color:transparent;
+    }
+
+    .btn:hover{
+      transform:translateY(-2px);
+    }
+
+    .hero-card{
+      background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035));
+      border:1px solid var(--border);
+      border-radius:28px;
+      padding:28px;
+      box-shadow:var(--shadow);
+    }
+
+    .mini-label{
+      color:var(--primary-2);
+      font-size:.84rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+    }
+
+    .hero-card h3{
+      font-size:2rem;
+      margin:12px 0 10px;
+    }
+
+    .hero-card p{
+      font-size:.96rem;
+      margin:0 0 22px;
+    }
+
+    .status{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:#bfe4c8;
+      font-size:.92rem;
+      margin-bottom:22px;
+    }
+
+    .dot{
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:#5bd47d;
+      box-shadow:0 0 0 6px rgba(91,212,125,.12);
+    }
+
+    section{
+      padding:100px 0;
+    }
+
+    .section-head{
+      max-width:720px;
+      margin-bottom:42px;
+    }
+
+    .section-head h2{
+      font-size:clamp(2rem,4vw,3.5rem);
+      letter-spacing:-.045em;
+      line-height:1.08;
+      margin-top:8px;
+    }
+
+    .section-head p{
+      color:var(--muted);
+      margin-top:15px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:18px;
+    }
+
+    .card{
+      background:rgba(255,255,255,.035);
+      border:1px solid var(--border);
+      border-radius:22px;
+      padding:26px;
+    }
+
+    .card h3{
+      font-size:1.2rem;
+      margin-bottom:10px;
+    }
+
+    .card p{
+      color:var(--muted);
+      font-size:.95rem;
+    }
+
+    .product{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:32px;
+      align-items:center;
+      background:linear-gradient(135deg,rgba(79,156,249,.14),rgba(255,255,255,.03));
+      border:1px solid var(--border);
+      border-radius:28px;
+      padding:36px;
+    }
+
+    .product h3{
+      font-size:2.2rem;
+      letter-spacing:-.04em;
+      margin:8px 0 14px;
+    }
+
+    .product p{
+      color:var(--muted);
+      margin-bottom:24px;
+    }
+
+    .product-visual{
+      min-height:280px;
+      border-radius:22px;
+      background:
+        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg,rgba(255,255,255,.03) 1px, transparent 1px),
+        #0a1626;
+      background-size:28px 28px;
+      border:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:28px;
+      text-align:center;
+    }
+
+    .product-visual strong{
+      font-size:2.2rem;
+      letter-spacing:-.05em;
+    }
+
+    .contact{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:18px;
+    }
+
+    .contact-box{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.035);
+      border-radius:22px;
+      padding:26px;
+    }
+
+    .contact-box span{
+      display:block;
+      color:var(--muted);
+      font-size:.88rem;
+      margin-bottom:8px;
+    }
+
+    .contact-box strong{
+      font-size:1.05rem;
+    }
+
+    footer{
+      border-top:1px solid var(--border);
+      padding:28px 0 40px;
+      color:var(--muted);
+      font-size:.9rem;
+    }
+
+    .footer-row{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      flex-wrap:wrap;
+    }
+
+    @media (max-width:850px){
+      .nav-links{
+        display:none;
+      }
+
+      .hero,
+      .product,
+      .contact{
+        grid-template-columns:1fr;
+      }
+
+      .hero{
+        padding-top:50px;
+        gap:36px;
+      }
+
+      .grid{
+        grid-template-columns:1fr;
+      }
+
+      section{
+        padding:76px 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="container">
+    <nav>
+      <a href="#" class="brand">Nalju <span>Inovasi Nusantara</span></a>
+
+      <div class="nav-links">
+        <a href="#tentang">Tentang</a>
+        <a href="#solusi">Solusi</a>
+        <a href="#produk">Produk</a>
+        <a href="#kontak">Kontak</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero container">
+      <div>
+        <div class="eyebrow">Software • SaaS • Digitalisasi Bisnis</div>
+
+        <h1>Membangun solusi digital yang sederhana dan berguna.</h1>
+
+        <p>
+          Nalju Inovasi Nusantara mengembangkan aplikasi, layanan SaaS,
+          dan sistem digital untuk membantu bisnis bekerja lebih cepat,
+          efisien, dan terukur.
+        </p>
+
+        <div class="actions">
+          <a class="btn btn-primary" href="#produk">Lihat Produk</a>
+          <a class="btn" href="mailto:developer@najlu.com">Hubungi Kami</a>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="mini-label">What we build</div>
+        <h3>Software untuk bisnis nyata.</h3>
+        <p>
+          Dari aplikasi operasional hingga layanan berbasis cloud,
+          kami membangun teknologi yang menyelesaikan kebutuhan bisnis sehari-hari.
+        </p>
+
+        <div class="status">
+          <span class="dot"></span>
+          Produk aktif & terus dikembangkan
+        </div>
+
+        <a class="btn btn-primary" href="https://salon.nalju.com" target="_blank" rel="noopener">
+          Buka Kasir Salon ↗
+        </a>
+      </div>
+    </section>
+
+    <section id="tentang">
+      <div class="container">
+        <div class="section-head">
+          <div class="mini-label">Tentang Kami</div>
+          <h2>Teknologi untuk membantu bisnis tumbuh.</h2>
+          <p>
+            Kami berfokus pada pengembangan software dan layanan digital
+            yang praktis, mudah digunakan, dan dapat berkembang mengikuti kebutuhan usaha.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="solusi">
+      <div class="container">
+        <div class="section-head">
+          <div class="mini-label">Solusi</div>
+          <h2>Apa yang kami kerjakan.</h2>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>SaaS</h3>
+            <p>
+              Aplikasi berbasis langganan yang dapat digunakan langsung melalui web
+              untuk berbagai kebutuhan operasional bisnis.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Digitalisasi Bisnis</h3>
+            <p>
+              Mengubah proses manual menjadi sistem digital agar pekerjaan lebih cepat,
+              rapi, dan mudah dipantau.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Custom Application</h3>
+            <p>
+              Pengembangan aplikasi sesuai kebutuhan bisnis, mulai dari sistem internal
+              hingga aplikasi yang digunakan langsung oleh pelanggan.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="produk">
+      <div class="container">
+        <div class="section-head">
+          <div class="mini-label">Produk</div>
+          <h2>Aplikasi yang sudah digunakan.</h2>
+        </div>
+
+        <div class="product">
+          <div>
+            <div class="mini-label">Production</div>
+            <h3>Kasir Salon</h3>
+            <p>
+              Aplikasi kasir berbasis web untuk membantu pengelolaan transaksi
+              dan operasional salon dengan lebih praktis.
+            </p>
+
+            <a class="btn btn-primary" href="https://salon.nalju.com" target="_blank" rel="noopener">
+              Kunjungi salon.nalju.com ↗
+            </a>
+          </div>
+
+          <div class="product-visual">
+            <div>
+              <span class="mini-label">NALJU APP</span><br />
+              <strong>Kasir Salon</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="kontak">
+      <div class="container">
+        <div class="section-head">
+          <div class="mini-label">Kontak</div>
+          <h2>Mari membangun sesuatu yang berguna.</h2>
+          <p>
+            Untuk diskusi produk, kerja sama, atau pengembangan sistem digital,
+            silakan hubungi kami.
+          </p>
+        </div>
+
+        <div class="contact">
+          <a class="contact-box" href="mailto:developer@najlu.com">
+            <span>Email</span>
+            <strong>developer@najlu.com</strong>
+          </a>
+
+          <div class="contact-box">
+            <span>Office</span>
+            <strong>Jl. Mawar, No. 45A Kota Pekanbaru</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-row">
+      <div>© <span id="year"></span> Nalju Inovasi Nusantara.</div>
+      <div>Software • SaaS • Digitalisasi</div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

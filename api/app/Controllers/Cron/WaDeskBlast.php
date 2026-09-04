@@ -41,8 +41,9 @@ class WaDeskBlast extends Controller
         )->result_array();
 
         if (!$blasts) {
-            $output .= "WaDeskBlast: no active blasts\n";
-            echo $output;
+            // Tidak ada blast aktif — normal, bukan error. Response kosong (204)
+            // supaya cron_server tidak mencatat baris "no active blasts" tiap 20 detik.
+            http_response_code(204);
             return;
         }
 
@@ -77,8 +78,7 @@ class WaDeskBlast extends Controller
         if (!$recipients) {
             // Check if all done
             $this->finishIfComplete($db, $blast);
-            $output .= "WaDeskBlast blast#{$blastId}: no pending recipients\n";
-            echo $output;
+            http_response_code(204);
             return;
         }
 
