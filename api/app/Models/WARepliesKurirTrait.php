@@ -374,6 +374,24 @@ trait WARepliesKurirTrait
     }
 
     /**
+     * True jika pengirim adalah pelanggan dan punya minimal satu order belum
+     * tuntas miliknya (boleh diantar). Dipakai untuk memutuskan "antar + sekalian
+     * jemput" vs "jemput" saat pesan mengandung indikasi keduanya.
+     */
+    private function kurirSenderPelangganBisaAntar(): bool
+    {
+        if (empty($this->senderContext['is_pelanggan'])) {
+            return false;
+        }
+        foreach ($this->senderIdsPelanggan() as $id) {
+            if ($this->pelangganHasAntarableSale($id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Ada sale pelanggan yang boleh diantar: bin=0, tuntas=0, id_user_ambil=0.
      */
     private function pelangganHasAntarableSale(int $idPelanggan): bool
@@ -940,7 +958,13 @@ trait WARepliesKurirTrait
         $hasAntar = $hasAntarMsg || $prevJenis === 'antar';
 
         if ($hasJemput && $hasAntar) {
-            return ['jenis' => 'antar', 'sekalian_jemput' => 1];
+            // Antar + sekalian jemput hanya sah jika pengirim adalah pelanggan
+            // dan punya order belum tuntas miliknya (bin=0, tuntas=0, id_user_ambil=0).
+            // Selain itu (bukan pelanggan / tanpa order) → perlakukan sebagai jemput.
+            if ($this->kurirSenderPelangganBisaAntar()) {
+                return ['jenis' => 'antar', 'sekalian_jemput' => 1];
+            }
+            return ['jenis' => 'jemput', 'sekalian_jemput' => 0];
         }
         if ($hasAntar) {
             return ['jenis' => 'antar', 'sekalian_jemput' => $prevSekalian ? 1 : 0];
