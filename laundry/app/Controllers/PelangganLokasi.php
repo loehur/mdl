@@ -120,12 +120,23 @@ class PelangganLokasi extends Controller
         }
 
         $this->helper('PelangganLokasiApi');
-        echo json_encode(PelangganLokasiApi::add([
+        $payload = [
             'id_pelanggan' => $idPelanggan,
             'nama' => trim((string) ($_POST['nama'] ?? '')),
             'detail' => trim((string) ($_POST['detail'] ?? '')),
-            'gmaps_url' => trim((string) ($_POST['gmaps_url'] ?? $_POST['url'] ?? '')),
-        ]), JSON_UNESCAPED_UNICODE);
+        ];
+        // Titik dari peta lebih diutamakan; URL Maps jadi fallback bila ada.
+        $latt = (float) ($_POST['latt'] ?? 0);
+        $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
+        if ($latt != 0.0 || $longt != 0.0) {
+            $payload['latt'] = $latt;
+            $payload['longt'] = $longt;
+        }
+        $gmapsUrl = trim((string) ($_POST['gmaps_url'] ?? $_POST['url'] ?? ''));
+        if ($gmapsUrl !== '') {
+            $payload['gmaps_url'] = $gmapsUrl;
+        }
+        echo json_encode(PelangganLokasiApi::add($payload), JSON_UNESCAPED_UNICODE);
     }
 
     public function update()
@@ -140,13 +151,23 @@ class PelangganLokasi extends Controller
         }
 
         $this->helper('PelangganLokasiApi');
-        echo json_encode(PelangganLokasiApi::update([
+        $payload = [
             'id_pelanggan' => $idPelanggan,
             'id_lokasi' => $idLokasi,
             'nama' => trim((string) ($_POST['nama'] ?? '')),
             'detail' => trim((string) ($_POST['detail'] ?? '')),
-            'gmaps_url' => trim((string) ($_POST['gmaps_url'] ?? $_POST['url'] ?? '')),
-        ]), JSON_UNESCAPED_UNICODE);
+        ];
+        $latt = (float) ($_POST['latt'] ?? 0);
+        $longt = (float) ($_POST['longt'] ?? ($_POST['long'] ?? 0));
+        if ($latt != 0.0 || $longt != 0.0) {
+            $payload['latt'] = $latt;
+            $payload['longt'] = $longt;
+        }
+        $gmapsUrl = trim((string) ($_POST['gmaps_url'] ?? $_POST['url'] ?? ''));
+        if ($gmapsUrl !== '') {
+            $payload['gmaps_url'] = $gmapsUrl;
+        }
+        echo json_encode(PelangganLokasiApi::update($payload), JSON_UNESCAPED_UNICODE);
     }
 
     public function delete()
@@ -162,6 +183,82 @@ class PelangganLokasi extends Controller
 
         $this->helper('PelangganLokasiApi');
         echo json_encode(PelangganLokasiApi::delete($idPelanggan, $idLokasi), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** GET JSON: Google Maps browser API key (proxy ke api.nalju.com) */
+    public function mapsConfig()
+    {
+        $this->session_cek();
+        $this->jsonHeader();
+        $this->helper('MapsConfigApi');
+        echo json_encode(MapsConfigApi::get(), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** POST JSON: Places autocomplete (proxy ke api.nalju.com) */
+    public function mapsAutocomplete()
+    {
+        $this->session_cek();
+        $this->jsonHeader();
+        $idPelanggan = (int) ($_POST['id_pelanggan'] ?? $_GET['id_pelanggan'] ?? 0);
+        if ($this->requirePelangganCabang($idPelanggan) === null) {
+            return;
+        }
+
+        $body = json_decode((string) file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            $body = $_POST;
+        }
+        $body = $this->applyMapsSearchRestrict($body, $idPelanggan);
+        $this->helper('MapsConfigApi');
+        echo json_encode(MapsConfigApi::autocomplete($body), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** POST JSON: Places place details (proxy ke api.nalju.com) */
+    public function mapsPlaceDetails()
+    {
+        $this->session_cek();
+        $this->jsonHeader();
+        $idPelanggan = (int) ($_POST['id_pelanggan'] ?? $_GET['id_pelanggan'] ?? 0);
+        if ($this->requirePelangganCabang($idPelanggan) === null) {
+            return;
+        }
+
+        $body = json_decode((string) file_get_contents('php://input'), true);
+        if (!is_array($body)) {
+            $body = $_POST;
+        }
+        $body = $this->applyMapsSearchRestrict($body, $idPelanggan);
+        $this->helper('MapsConfigApi');
+        echo json_encode(MapsConfigApi::placeDetails($body), JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Terapkan bias/radius kota cabang pelanggan (sama dengan logika api
+     * PelangganLokasiStore::applyPelangganSearchRestrict) supaya hasil
+     * pencarian alamat konsisten antara laundry & CRM.
+     */
+    private function applyMapsSearchRestrict(array $body, int $idPelanggan): array
+    {
+        $this->helper('PelangganLokasiApi');
+        $lokasi = PelangganLokasiApi::list($idPelanggan);
+        $default = is_array($lokasi['default_map'] ?? null) ? $lokasi['default_map'] : [];
+        $lat = (float) ($default['latt'] ?? 0);
+        $lng = (float) ($default['longt'] ?? 0);
+        if ($lat == 0.0 && $lng == 0.0) {
+            return $body;
+        }
+
+        $body['lat'] = $lat;
+        $body['lng'] = $lng;
+        $body['hard_restrict'] = true;
+        $body['restrict_radius'] = 30000;
+        $body['restrict_lat'] = $lat;
+        $body['restrict_lng'] = $lng;
+        $cityName = trim((string) ($default['nama_kota'] ?? ''));
+        if ($cityName !== '') {
+            $body['city_name'] = $cityName;
+        }
+        return $body;
     }
 
     private function jsonHeader(): void
