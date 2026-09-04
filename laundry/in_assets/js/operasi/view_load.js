@@ -847,9 +847,22 @@
       },
       success: function (res) {
         if (res == "__REFRESH__") {
-          // Data rekap tidak sinkron dengan DB (ref sudah tertutup pending/paid).
-          // Tutup offcanvas lalu refresh view agar daftar tagihan dihitung ulang.
-          refreshOperasiAfterPay();
+          // Data rekap tidak sinkron dengan DB (ada tagihan yang sudah tertutup
+          // pending/paid dari sumber lain). Tutup offcanvas, beri tahu user lewat
+          // modal dulu; setelah OK, baru refresh view (loadDiv).
+          try {
+            var offEl = document.getElementById("offcanvasPayment");
+            if (offEl && window.bootstrap && bootstrap.Offcanvas) {
+              var inst = bootstrap.Offcanvas.getInstance(offEl) || bootstrap.Offcanvas.getOrCreateInstance(offEl);
+              inst.hide();
+            }
+          } catch (e) { }
+          window.__opDeferredLoadDiv = true;
+          window.__opReloadDiv = loadDiv;
+          showAlert(
+            "Data tagihan sudah berubah (ada yang sudah dibayar/diproses).\nKlik OK untuk memuat ulang data terbaru.",
+            "warning"
+          );
           return;
         }
         if (res == 0) {
@@ -3594,19 +3607,6 @@
       },
     });
   };
-
-  // Tutup offcanvas payment & refresh area Operasi. Dipakai setelah bayar sukses
-  // maupun saat backend memberi sinyal data rekap basi (__REFRESH__).
-  function refreshOperasiAfterPay() {
-    if (window.OpModal) {
-      window.OpModal.closeAll();
-    }
-    try {
-      $(".offcanvas-backdrop").remove();
-      $("body").removeClass("offcanvas-open").css({ overflow: "auto", "padding-right": "0" });
-    } catch (e) { }
-    loadDiv();
-  }
 
   function loadDiv() {
     // Semua sumber refresh Operasi harus tunduk pada modal yang sedang dibuka.
