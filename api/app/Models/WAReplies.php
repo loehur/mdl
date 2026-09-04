@@ -38,6 +38,13 @@ class WAReplies
      */
     private $inboundReplyToId = null;
 
+    /**
+     * Konteks pesan yang dibalas oleh customer. Dipakai untuk memahami jawaban state
+     * yang pendek/ambigu tanpa mengubah teks asli customer.
+     * @var array{id:?string,body:?string,from:?string}
+     */
+    private $inboundQuotedMessage = ['id' => null, 'body' => null, 'from' => null];
+
     /** Line YCloud penerima inbound (admin/cs) — autoreply harus from nomor yang sama. */
     private $inboundLineKey = null;
 
@@ -131,6 +138,44 @@ class WAReplies
             return;
         }
         $this->inboundReplyToId = $id;
+    }
+
+    /** Pasang isi quote inbound agar intent dan state dapat memahami jawaban customer. */
+    public function setInboundQuotedMessage($id, $body = null, $from = null): void
+    {
+        $quoteBody = trim((string) ($body ?? ''));
+        if ($quoteBody !== '') {
+            $quoteBody = mb_substr($quoteBody, 0, 1200);
+        }
+        $this->inboundQuotedMessage = [
+            'id' => ($id === null || trim((string) $id) === '') ? null : trim((string) $id),
+            'body' => $quoteBody !== '' ? $quoteBody : null,
+            'from' => ($from === null || trim((string) $from) === '') ? null : trim((string) $from),
+        ];
+    }
+
+    private function hasInboundQuotedMessage(): bool
+    {
+        return !empty($this->inboundQuotedMessage['body']);
+    }
+
+    /** Konteks eksplisit untuk AI; teks customer tetap menjadi bagian pertama. */
+    private function textWithQuotedReplyContext(string $text): string
+    {
+        $quote = trim((string) ($this->inboundQuotedMessage['body'] ?? ''));
+        if ($quote === '') {
+            return $text;
+        }
+
+        return trim($text) . "\n\n[KONTEKS: customer membalas pesan ini]\n" . $quote;
+    }
+
+    /** Hanya state percakapan yang menerima quote sebagai input handler. */
+    private function textForStateHandler(string $handler, string $text): string
+    {
+        return in_array(strtoupper($handler), ['HARGA', 'KURIR', 'LOKASI', 'PERMINTAAN'], true)
+            ? $this->textWithQuotedReplyContext($text)
+            : $text;
     }
 
     /**
@@ -2822,7 +2867,7 @@ class WAReplies
         ) {
             $this->logAutoreplyTrace($waNumber, 'BRANCH', 'permintaan_session_followup→PERMINTAAN case=3');
             $this->currentHandler = 'PERMINTAAN';
-            $this->handlePermintaan($phoneIn, $waNumber, $textBody);
+            $this->handlePermintaan($phoneIn, $waNumber, $this->textForStateHandler('PERMINTAAN', $textBody));
             $conversationId = $this->getOrCreateConversationWithCase(
                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 3
             );
@@ -2843,7 +2888,7 @@ class WAReplies
             ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_followup→HARGA');
                 $this->currentHandler = 'HARGA';
-                $this->handleHarga($phoneIn, $waNumber, $textBody);
+                $this->handleHarga($phoneIn, $waNumber, $this->textForStateHandler('HARGA', $textBody));
                 $conversationId = $this->getOrCreateConversationWithCase(
                     $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage,
                     $fullKeywordConfig['HARGA']['case'] ?? null
@@ -2868,7 +2913,7 @@ class WAReplies
             ) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_followup→LOKASI');
                 $this->currentHandler = 'LOKASI';
-                $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $textBody);
+                $lokasiOk = $this->handleLokasi($phoneIn, $waNumber, $this->textForStateHandler('LOKASI', $textBody));
                 if ($lokasiOk !== false) {
                     $conversationId = $this->getOrCreateConversationWithCase(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
@@ -2907,7 +2952,7 @@ class WAReplies
                     ) {
                         $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_wait_lokasi→LOKASI');
                         $this->currentHandler = 'LOKASI';
-                        if ($this->handleLokasi($phoneIn, $waNumber, $textBody) !== false) {
+                        if ($this->handleLokasi($phoneIn, $waNumber, $this->textForStateHandler('LOKASI', $textBody)) !== false) {
                             $conversationId = $this->getOrCreateConversationWithCase(
                                 $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, null
                             );
@@ -2941,7 +2986,7 @@ class WAReplies
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→KURIR case=2');
                 $this->currentHandler = 'KURIR';
                 // Bypass cooldown for active session
-                $kurirConsumed = $this->handleKurir($phoneIn, $waNumber, $textBody);
+                $kurirConsumed = $this->handleKurir($phoneIn, $waNumber, $this->textForStateHandler('KURIR', $textBody));
                 if ($kurirConsumed !== false) {
                     $conversationId = $this->getOrCreateConversationWithCase(
                         $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
@@ -3247,7 +3292,7 @@ class WAReplies
                             $this->sendGreetingReplyFirst($waNumber, $textBody);
                         }
                         $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'regex method=' . $methodName);
-                        $this->$methodName($phoneIn, $waNumber, $textBody);
+                        $this->$methodName($phoneIn, $waNumber, $this->textForStateHandler($handler, $textBody));
                         if (!$this->handlerSkipsAutoreplyRateLimit($handler)
                             && !$this->penutupLainnyaSkipsCooldown($handler, $textBody)
                             && !$this->pembukaSkippedGreetingCooldown($handler)) {
@@ -3278,6 +3323,7 @@ class WAReplies
         if ($messageLength >= 0 && $messageLength <= 7
             && !$this->messageLooksLikeThanksPenutup($textBodyToCheck)
             && !$this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
+            && !$this->hasInboundQuotedMessage()
         ) {
             $this->logAutoreplyTrace($waNumber, 'EXIT', 'short_message_no_regex len=' . $messageLength . ' (no AI)');
             $this->intentLabMark('NONE', 'short');
@@ -3293,7 +3339,12 @@ class WAReplies
         }
 
         $this->logAutoreplyTrace($waNumber, 'AI_PATH', 'no_regex_match len=' . $messageLength);
-        $aiResult = $this->handleWithAI($phoneIn, $textBody, $waNumber, $keywordConfig);
+        $aiResult = $this->handleWithAI(
+            $phoneIn,
+            $this->textWithQuotedReplyContext((string) $textBody),
+            $waNumber,
+            $keywordConfig
+        );
 
         if ($this->messageLooksLikePaymentConfirmationPenutup($textBodyToCheck)
             && $this->intentAllowedForMessageLength('PENUTUP', $fullKeywordConfig, $messageLength, $textBody)
@@ -3672,7 +3723,7 @@ class WAReplies
                     $this->sendGreetingReplyFirst($waNumber, $textBody);
                 }
                 $this->logAutoreplyTrace($waNumber, 'HANDLER_RUN', 'ai method=' . $methodName);
-                $this->$methodName($phoneIn, $waNumber, $textBody);
+                $this->$methodName($phoneIn, $waNumber, $this->textForStateHandler($aiIntent, $textBody));
                 if (!$this->handlerSkipsAutoreplyRateLimit($aiIntent)
                     && !$this->penutupLainnyaSkipsCooldown($aiIntent, $textBody)
                     && !$this->pembukaSkippedGreetingCooldown($aiIntent)) {

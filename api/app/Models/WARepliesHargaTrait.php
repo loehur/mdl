@@ -185,11 +185,11 @@ trait WARepliesHargaTrait
             $params['service'] = 'setrika_saja';
         } elseif (preg_match('/\b(cuci\s*(saja|aja)|cuci\s*&?\s*pack|pack\s*saja)\b/u', $t)) {
             $params['service'] = 'cuci_pack';
-        } elseif (preg_match('/\b(cuci\s*\+?\s*setrika|cuci\s*setrika|cuci\s*&?\s*strika)\b/u', $t)) {
+        } elseif (preg_match('/\b(cuci\s*\+?\s*(?:setrika|strika|gosok)|cuci\s*&?\s*(?:setrika|strika|gosok))\b/u', $t)) {
             $params['service'] = 'cuci_setrika';
         } elseif (preg_match('/\bcuci\b/u', $t)
             && preg_match('/\b(harga|berapa|biaya|tarif|brp|brpa|ongkos|ongkir)\b/u', $t)
-            && !preg_match('/\b(setrika|strika|pack|saja|aja)\b/u', $t)) {
+            && !preg_match('/\b(setrika|strika|gosok|pack|saja|aja)\b/u', $t)) {
             $params['service_ambiguous'] = true;
         }
 
@@ -324,9 +324,9 @@ trait WARepliesHargaTrait
         // Follow-up jawaban service ambigu
         if ($sessionRow !== null && ($sessionRow['step'] ?? '') === 'ask_service') {
             $t = mb_strtolower((string) $textBody, 'UTF-8');
-            if (preg_match('/\b(setrika|strika)\b/u', $t) && preg_match('/\b(saja|aja|aj)\b/u', $t)) {
+            if (preg_match('/\b(setrika|strika|gosok)\b/u', $t) && preg_match('/\b(saja|aja|aj)\b/u', $t)) {
                 $params['service'] = 'setrika_saja';
-            } elseif (preg_match('/\b(cuci\s*\+?\s*setrika|cuci\s*setrika)\b/u', $t)) {
+            } elseif (preg_match('/\b(cuci\s*\+?\s*(?:setrika|strika|gosok))\b/u', $t)) {
                 $params['service'] = 'cuci_setrika';
             } elseif (preg_match('/\b(cuci|pack)\b/u', $t)) {
                 $params['service'] = 'cuci_pack';
@@ -408,7 +408,7 @@ trait WARepliesHargaTrait
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden. Jika customer menyebut *Pakaian Harian* secara eksplisit, WAJIB gunakan Pakaian Harian walau chat sebelumnya membahas item lain.\n\nWAJIB SANGAT RINGKAS (maks. 40 kata):\n- LANGSUNG mulai dari baris tarif, TANPA sapaan, pembuka, atau judul.\n- Pertanyaan spesifik: hanya tarif relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- TANPA tawaran, pertanyaan lanjutan, atau penutup (mis. 'mau cek yang lain?').\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
+                    'content' => "Kamu asisten harga laundry Madinah. Jawab HANYA dari data.\n\nFILTER: {$serviceLabel}; {$durasiLabel}; {$deliveryNote}\nATURAN: 'gosok' = layanan Setrika (mis. 'gosok aja' = Setrika saja; 'cuci gosok' = Cuci + Setrika). Tenda, bedcover, dan selimut = Kain Tebal/Panjang; gorden mengikuti kategori gorden. Jika customer menyebut *Pakaian Harian* secara eksplisit, WAJIB gunakan Pakaian Harian walau chat sebelumnya membahas item lain.\n\nWAJIB SANGAT RINGKAS (maks. 40 kata):\n- LANGSUNG mulai dari baris tarif, TANPA sapaan, pembuka, atau judul.\n- Pertanyaan spesifik: hanya tarif relevan. Pertanyaan umum: maks. 3 tarif pertama sesuai urutan data.\n- Satu baris per tarif: *Kategori* — *harga/unit*; tambahkan min. order dan waktu hanya bila ada.\n- TANPA tawaran, pertanyaan lanjutan, atau penutup (mis. 'mau cek yang lain?').\n- Jangan menulis catatan Antar/Jemput; sistem akan menambahkannya.\n- Jangan mengubah urutan atau angka dari data.",
                 ],
                 [
                     'role' => 'user',

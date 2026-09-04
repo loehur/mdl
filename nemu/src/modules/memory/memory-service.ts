@@ -5,7 +5,7 @@ import { MemoryRepository } from './memory-repository.js';
 
 export type MemoryView = { id: string; title: string; content: string; category: string; createdAt: string; updatedAt: string };
 export type MemoryAction = 'ask' | 'update' | 'delete';
-export const PLAN_LIMITS = { free: 100, personal: 1000, pro: 5000 } as const;
+export const PLAN_LIMITS = { free: 20, personal: 1000, pro: 5000 } as const;
 export type Plan = keyof typeof PLAN_LIMITS;
 export type Evidence = { memoryId: string; score: number };
 export type ActionResult = { action: MemoryAction; ok: boolean; reply: string; memoryId: string | null; copyText?: string; evidence?: Evidence[] };

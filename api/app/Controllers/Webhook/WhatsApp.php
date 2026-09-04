@@ -560,6 +560,9 @@ class WhatsApp extends Controller
                     }
                 }
 
+                // Jawaban singkat seperti "yang ini"/"iya" harus dibaca sebagai respons atas quote.
+                $replies->setInboundQuotedMessage($quotedMessageId, $quotedMessageBody, $quotedMessageFrom);
+
                 if ($needsMediaDownload) {
                     try {
                         if (!class_exists('\\App\\Helpers\\WhatsAppService')) {

@@ -10,10 +10,10 @@
 module.exports = [
   {
     id: 'wadesk-blast',
-    description: 'Process WaDesk template blast queue',
-    schedule: '2-59/7 * * * *', // setiap 7 menit, offset menit 02
+    description: 'Process WaDesk template blast queue (1 pesan per run)',
+    schedule: '*/20 * * * * *', // tiap 20 detik
     method: 'GET',
-    url: '/Cron/WaDeskBlast/index?limit=20',
+    url: '/Cron/WaDeskBlast/index',
     enabled: true,
   },
   {
