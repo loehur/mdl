@@ -579,6 +579,29 @@ class WhatsApp extends Controller
                     }
                 }
 
+                // Bukti pembayaran hanya dianalisis untuk pelanggan yang belum memiliki transaksi aktif.
+                if ($messageType === 'image' && $isPelanggan && $mediaUrl) {
+                    if (!$this->customerHasPendingTransaction($phoneIn, $waNumber)) {
+                        $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
+                        if ($paymentResult !== null) {
+                            \Log::write(
+                                'Payment image result phone=' . $waNumber
+                                . ' message_id=' . ($messageId ?: '-')
+                                . ' result=' . json_encode($paymentResult, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                                'webhook',
+                                'Webhook'
+                            );
+                            $this->sendPaymentImageResult($waNumber, $paymentResult);
+                        }
+                    } else {
+                        \Log::write(
+                            'Skip payment image analysis: customer has pending transaction phone=' . $waNumber,
+                            'wa_info',
+                            'Webhook'
+                        );
+                    }
+                }
+
                 // 3) Intent detect + auto-reply (bisa lambat: OpenAI/DeepSeek)
                 // Caption/teks untuk intent; URL maps hanya untuk lokasi (bukan image/video — URL panjang memblokir PENUTUP maxlength)
                 $processText = trim((string) ($messageText !== '' ? $messageText : ($textBody ?? '')));
@@ -707,6 +730,134 @@ class WhatsApp extends Controller
         $raw = is_object($conv) ? ($conv->conv_case ?? null) : $conv;
 
         return \App\Helpers\CRM\CrmCaseHelper::extractOpenCaseIds($raw);
+    }
+
+    private function customerHasPendingTransaction(string $phoneIn, string $waNumber): bool
+    {
+        $db1 = \DB::getInstance(1);
+        $rows = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
+        if ($ids === []) {
+            return false;
+        }
+
+        $idsIn = implode(',', $ids);
+        $result = $db1->query(
+            "SELECT 1 FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($idsIn) LIMIT 1"
+        );
+
+        return $result && $result->num_rows() > 0;
+    }
+
+    private function analyzePaymentImage(string $mediaUrl, ?string $mimeType, string $waNumber): ?array
+    {
+        try {
+            if (!class_exists('\\App\\Models\\WAReplies')) {
+                require_once __DIR__ . '/../../Models/WAReplies.php';
+            }
+
+            $replies = new \App\Models\WAReplies();
+            $messages = [[
+                'role' => 'user',
+                'content' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Analisis gambar bukti pembayaran. Kembalikan HANYA JSON valid dengan format {"is_receipt":true|false,"type":"BCA"|"QRIS"|null,"nominal":number|null}. Tentukan type berdasarkan penerima/tujuan: gunakan "BCA" HANYA jika penerima/tujuan adalah "LUHUR GUNAWAN"; gunakan "QRIS" HANYA jika penerima/tujuan adalah "MADINAH LAUNDRY". Jika penerima/tujuan tidak terlihat, berbeda, atau tidak dapat dipastikan, gunakan is_receipt=false, type=null, nominal=null. Jangan menebak nominal.',
+                    ],
+                    [
+                        'type' => 'image_url',
+                        'image_url' => ['url' => $mediaUrl],
+                    ],
+                ],
+            ]];
+            $raw = $this->invokeVisionAi($messages, $waNumber);
+            $json = json_decode(trim((string) $raw), true);
+            if (!is_array($json)) {
+                return null;
+            }
+
+            $type = $json['type'] ?? null;
+            return [
+                'is_receipt' => (bool) ($json['is_receipt'] ?? false),
+                'type' => in_array($type, ['BCA', 'QRIS'], true) ? $type : null,
+                'nominal' => isset($json['nominal']) && is_numeric($json['nominal']) ? (float) $json['nominal'] : null,
+            ];
+        } catch (\Throwable $e) {
+            \Log::write('Payment image AI failed: ' . $e->getMessage(), 'wa_error', 'Webhook');
+            return null;
+        }
+    }
+
+    private function invokeVisionAi(array $messages, string $waNumber): string
+    {
+        $apiKey = trim((string) (defined('Env::AI_VISION_API_KEY') ? \Env::AI_VISION_API_KEY : ''));
+        $model = trim((string) (defined('Env::AI_VISION_MODEL') ? \Env::AI_VISION_MODEL : ''));
+        $url = trim((string) (defined('Env::AI_VISION_URL') ? \Env::AI_VISION_URL : 'https://api.openai.com/v1/chat/completions'));
+        if ($apiKey === '' || $model === '') {
+            throw new \RuntimeException('AI vision model/key is not configured');
+        }
+
+        $payload = [
+            'model' => $model,
+            'messages' => $messages,
+            'temperature' => 0,
+            'max_tokens' => 120,
+        ];
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $apiKey,
+            ],
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_NOSIGNAL => 1,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            throw new \RuntimeException('Vision API cURL error: ' . $curlError);
+        }
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new \RuntimeException('Vision API HTTP ' . $httpCode . ': ' . substr((string) $response, 0, 300));
+        }
+
+        $decoded = json_decode($response, true);
+        $content = $decoded['choices'][0]['message']['content'] ?? null;
+        if (!is_string($content) || trim($content) === '') {
+            throw new \RuntimeException('Vision API returned empty content');
+        }
+
+        return trim($content);
+    }
+
+    private function sendPaymentImageResult(string $waNumber, array $result): void
+    {
+        $text = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($text === false) {
+            return;
+        }
+
+        try {
+            if (!class_exists('\\App\\Models\\WAReplies')) {
+                require_once __DIR__ . '/../../Models/WAReplies.php';
+            }
+            $replies = new \App\Models\WAReplies();
+            $method = new \ReflectionMethod($replies, 'sendQuotedFreeText');
+            $method->setAccessible(true);
+            $method->invoke($replies, $waNumber, $text);
+        } catch (\Throwable $e) {
+            \Log::write('Payment image result send failed: ' . $e->getMessage(), 'wa_error', 'Webhook');
+        }
     }
 
     /**
