@@ -1358,12 +1358,14 @@ trait Attributes
          $where = $this->wCabang . " AND " . $where;
       }
 
-      $kas = $this->db(0)->get_where_row('kas', $where);
+       $kas = $this->db(0)->get_where_row('kas', $where);
 
-      if (!isset($kas['id_kas'])) {
-         echo json_encode(['status' => 'error', 'msg' => 'Transaksi tidak ditemukan']);
-         exit();
-      }
+       // The payment may already have been removed by a repeated click or a
+       // concurrent request. Treat that state as an idempotent success.
+       if (!isset($kas['id_kas'])) {
+          echo json_encode(['status' => 'success', 'msg' => 'Pembayaran sudah tidak ada']);
+          exit();
+       }
 
       if ((int) $kas['status_mutasi'] === 3) {
          echo json_encode(['status' => 'error', 'msg' => 'Transaksi sudah berhasil, tidak dapat dibatalkan']);
