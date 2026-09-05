@@ -580,6 +580,18 @@ class WhatsApp extends Controller
                 }
 
                 // Bukti pembayaran hanya dianalisis untuk pelanggan yang belum memiliki transaksi aktif.
+                \Log::write(
+                    'Vision image diagnostic phone=' . $waNumber
+                    . ' message_id=' . ($messageId ?: '-')
+                    . ' message_type=' . $messageType
+                    . ' is_pelanggan=' . ($isPelanggan ? 'true' : 'false')
+                    . ' media_id=' . ($mediaId ?: '-')
+                    . ' media_url=' . ($mediaUrl ? 'yes' : 'no')
+                    . ' mime=' . ($mediaMimeType ?: '-'),
+                    'vision_image',
+                    'Webhook'
+                );
+
                 if ($messageType === 'image' && $isPelanggan && $mediaUrl) {
                     if (!$this->customerHasPendingTransaction($phoneIn, $waNumber)) {
                         $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
@@ -588,7 +600,7 @@ class WhatsApp extends Controller
                                 'Payment image result phone=' . $waNumber
                                 . ' message_id=' . ($messageId ?: '-')
                                 . ' result=' . json_encode($paymentResult, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                                'webhook',
+                                'vision_image',
                                 'Webhook'
                             );
                             $this->sendPaymentImageResult($waNumber, $paymentResult);
