@@ -94,12 +94,12 @@ $this->view('non_tunai_admin/_filter', [
       <?php } ?>
     </div><?php } ?>
 
-    <?php if ($rows === []) { ?>
+    <?php if ($isBoundView && $rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
          Tidak ada data <?= $isBoundView ? 'BCA Terikat' : 'BCA Lepas' ?> untuk periode ini
       </div>
-    <?php } else { ?>
+    <?php } elseif ($isBoundView) { ?>
       <div class="nta-table-wrap">
         <table class="table table-sm table-bordered table-hover nta-table mb-0">
           <thead>
