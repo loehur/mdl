@@ -10,11 +10,6 @@ $fmtRp = static function ($value): string {
     }
     return 'Rp ' . number_format((float) $value, 0, ',', '.');
 };
-$resolveDbCr = static function (array $row): string {
-    $dbCr = strtoupper(trim((string) ($row['db_cr'] ?? $row['mutasi'] ?? '')));
-    return in_array($dbCr, ['CR', 'DB'], true) ? $dbCr : '';
-};
-
 $this->view('non_tunai_admin/_filter', [
     'startDate' => $data['startDate'] ?? date('Y-m-d', strtotime('-6 days')),
     'endDate' => $data['endDate'] ?? date('Y-m-d'),
@@ -40,7 +35,6 @@ $this->view('non_tunai_admin/_filter', [
             <tr>
               <th class="text-end">ID Link</th>
               <th>Tanggal</th>
-              <th class="text-center">DB / CR</th>
               <th class="text-end">Nominal</th>
               <th class="text-end">Bill</th>
               <th class="text-start">Payer</th>
@@ -92,8 +86,7 @@ $this->view('non_tunai_admin/_filter', [
               }
 
               $bindNominal = $row['bind_nominal'] ?? null;
-              $dbCr = $resolveDbCr($row);
-              $selisih = null;
+               $selisih = null;
               if ($billNominal !== null && $billNominal !== '') {
                   $selisih = (float) $billNominal - (float) ($bindNominal ?? $row['nominal'] ?? 0);
               }
@@ -102,8 +95,7 @@ $this->view('non_tunai_admin/_filter', [
                   'title' => 'Detail Mutasi BCA #' . (int) ($row['link_id'] ?? 0),
                   'fields' => [
                       ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
-                      ['label' => 'DB / CR', 'value' => $dbCr !== '' ? $dbCr : '—'],
-                      ['label' => 'Nominal Mutasi', 'value' => $fmtRp($row['nominal'] ?? null)],
+                       ['label' => 'Nominal Mutasi', 'value' => $fmtRp($row['nominal'] ?? null)],
                       ['label' => 'Bind Snapshot', 'value' => $fmtRp($bindNominal)],
                       ['label' => 'Bill Nominal', 'value' => $fmtRp($billNominal)],
                       ['label' => 'Selisih', 'value' => $selisih !== null ? $fmtRp($selisih) : '—'],
@@ -128,8 +120,7 @@ $this->view('non_tunai_admin/_filter', [
                   'detailJson' => $detailJson,
               ]); ?></td>
               <td><?= htmlspecialchars($tanggalLabel) ?></td>
-              <td class="text-center"><?php $this->view('non_tunai_admin/_db_cr_cell', ['dbCr' => $dbCr]); ?></td>
-              <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
+               <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
               <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($billNominal) ?></span></td>
               <td class="text-start"><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
               <td class="text-center">
@@ -167,7 +158,6 @@ $this->view('non_tunai_admin/_filter', [
               <tr>
                 <th>ID Mutasi</th>
                 <th>Tanggal</th>
-                <th>DB / CR</th>
                 <th>Nominal</th>
                 <th>Status</th>
               </tr>
@@ -186,16 +176,14 @@ $this->view('non_tunai_admin/_filter', [
 
                 $nominal = $row['nominal'] ?? null;
                 $ket = trim((string) ($row['keterangan'] ?? ''));
-                $dbCr = $resolveDbCr($row);
-                $mutasiCreated = !empty($row['mutasi_created_at']) ? date('d/m/Y H:i', strtotime((string) $row['mutasi_created_at'])) : '—';
+                 $mutasiCreated = !empty($row['mutasi_created_at']) ? date('d/m/Y H:i', strtotime((string) $row['mutasi_created_at'])) : '—';
 
                 $detailPayload = [
                     'title' => 'Mutasi BCA Belum Bind #' . $mutasiId,
                     'fields' => [
                         ['label' => 'Status', 'value' => 'Belum bind'],
                         ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
-                        ['label' => 'DB / CR', 'value' => $dbCr !== '' ? $dbCr : '—'],
-                        ['label' => 'Nominal', 'value' => $fmtRp($nominal)],
+                         ['label' => 'Nominal', 'value' => $fmtRp($nominal)],
                         ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
                         ['label' => 'Created Mutasi', 'value' => $mutasiCreated],
                         ['label' => 'ID Mutasi', 'value' => (string) $mutasiId],
@@ -212,7 +200,6 @@ $this->view('non_tunai_admin/_filter', [
                     'detailJson' => $detailJson,
                 ]); ?></td>
                 <td><?= htmlspecialchars($tanggalLabel) ?></td>
-                <td><?php $this->view('non_tunai_admin/_db_cr_cell', ['dbCr' => $dbCr]); ?></td>
                 <td><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
                 <td><span class="nta-badge nta-badge--unbound">Belum bind</span></td>
               </tr>
