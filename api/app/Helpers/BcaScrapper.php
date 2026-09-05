@@ -595,7 +595,7 @@ class BcaScrapper
     /**
      * Upgrade baris PEND → posted (tanggal pasti).
      * Keterangan BCA dapat berubah saat posting, jadi fallback memakai nominal,
-     * arah transaksi, dan PEND terbaru sebagai kandidat paling aman.
+     * arah transaksi, serta PEND yang dibuat maksimal H+1 dari tanggal posted.
      */
     private static function upgradePendingMutasi(
         $db,
@@ -622,10 +622,11 @@ class BcaScrapper
                  WHERE UPPER(tanggal) = ?
                    AND nominal = ?
                    AND mutasi = ?
-                   AND created_at <= NOW()
-                 ORDER BY id ASC
+                   AND created_at >= DATE_SUB(?, INTERVAL 1 DAY)
+                   AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+                 ORDER BY created_at DESC, id DESC
                  LIMIT 1',
-                ['PEND', $nominal, $mutasi]
+                ['PEND', $nominal, $mutasi, $tanggalIso, $tanggalIso]
             )->row_array();
         }
 
