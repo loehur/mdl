@@ -6,6 +6,7 @@
 class NonTunaiAdmin extends Controller
 {
     private const MAX_RANGE_DAYS = 7;
+    private const BOUND_MAX_RANGE_DAYS = 2;
 
     public function __construct()
     {
@@ -30,7 +31,7 @@ class NonTunaiAdmin extends Controller
     private function renderBcaMutasi(bool $bound): void
     {
         $this->session_cek(1);
-        $range = $this->parseDateRange();
+        $range = $this->parseDateRange($bound ? self::BOUND_MAX_RANGE_DAYS : self::MAX_RANGE_DAYS);
         $dbMain = $this->db(100);
 
         $rows = [];
@@ -52,7 +53,7 @@ class NonTunaiAdmin extends Controller
             'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
-            'maxRangeDays' => self::MAX_RANGE_DAYS,
+            'maxRangeDays' => $bound ? self::BOUND_MAX_RANGE_DAYS : self::MAX_RANGE_DAYS,
         ]);
     }
 
@@ -74,7 +75,7 @@ class NonTunaiAdmin extends Controller
     private function renderBcaQris(bool $bound): void
     {
         $this->session_cek(1);
-        $range = $this->parseDateRange();
+        $range = $this->parseDateRange($bound ? self::BOUND_MAX_RANGE_DAYS : self::MAX_RANGE_DAYS);
         $dbMain = $this->db(100);
 
         $rows = [];
@@ -96,7 +97,7 @@ class NonTunaiAdmin extends Controller
             'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
-            'maxRangeDays' => self::MAX_RANGE_DAYS,
+            'maxRangeDays' => $bound ? self::BOUND_MAX_RANGE_DAYS : self::MAX_RANGE_DAYS,
         ]);
     }
 
@@ -203,10 +204,11 @@ class NonTunaiAdmin extends Controller
     /**
      * @return array{start:string,end:string}
      */
-    private function parseDateRange(): array
+    private function parseDateRange(?int $maxRangeDays = null): array
     {
+        $maxRangeDays = $maxRangeDays ?: self::MAX_RANGE_DAYS;
         $today = date('Y-m-d');
-        $defaultStart = date('Y-m-d', strtotime('-' . (self::MAX_RANGE_DAYS - 1) . ' days'));
+        $defaultStart = date('Y-m-d', strtotime('-' . ($maxRangeDays - 1) . ' days'));
 
         $start = trim((string) ($_GET['start'] ?? $defaultStart));
         $end = trim((string) ($_GET['end'] ?? $today));
@@ -231,8 +233,8 @@ class NonTunaiAdmin extends Controller
         }
 
         $diffDays = (int) floor((strtotime($end) - strtotime($start)) / 86400);
-        if ($diffDays >= self::MAX_RANGE_DAYS) {
-            $end = date('Y-m-d', strtotime($start . ' +' . (self::MAX_RANGE_DAYS - 1) . ' days'));
+        if ($diffDays >= $maxRangeDays) {
+            $end = date('Y-m-d', strtotime($start . ' +' . ($maxRangeDays - 1) . ' days'));
             if ($end > $today) {
                 $end = $today;
             }
