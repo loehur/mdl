@@ -34,7 +34,7 @@ $this->view('non_tunai_admin/_filter', [
       <?php if ($unboundRows === []) { ?>
         <div class="nta-empty">
           <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
-          Semua mutasi periode ini sudah ter-bind
+          Tidak ada data BCA Terikat untuk periode ini
         </div>
       <?php } else { ?>
         <div class="nta-table-wrap">
