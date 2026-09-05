@@ -50,6 +50,7 @@ $fmtRp = static function ($value): string {
       background: #fff;
       border: 1px solid var(--nta-line);
       overflow-x: auto;
+      margin-top: 14px;
     }
     #nta-root table.nta-table {
       width: 100%;
