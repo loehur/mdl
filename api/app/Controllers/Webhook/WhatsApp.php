@@ -601,7 +601,6 @@ class WhatsApp extends Controller
                         . ' eligible_order=' . ($hasEligibleOrder ? 'true' : 'false')
                     );
                     if (!$hasPendingPayment && $hasEligibleOrder) {
-                        $this->sendVisionThanksReply($waNumber);
                         $this->logVisionImage('ai_start media_url=' . $mediaUrl . ' mime=' . ($mediaMimeType ?: '-'));
                         $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
                         $this->logVisionImage('ai_result parsed=' . ($paymentResult !== null ? 'true' : 'false'));
@@ -613,6 +612,9 @@ class WhatsApp extends Controller
                                 'vision_image',
                                 'Webhook'
                             );
+                            if (!empty($paymentResult['is_receipt'])) {
+                                $this->sendVisionThanksReply($waNumber);
+                            }
                             $allocation = $this->allocateVisionPayment(
                                 $waNumber,
                                 $paymentResult,
