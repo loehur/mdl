@@ -1,7 +1,9 @@
 <?php
 $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
-$unboundRows = is_array($data['unboundRows'] ?? null) ? $data['unboundRows'] : [];
-$unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
+$isBoundView = !empty($data['isBoundView']);
+$unboundRows = $isBoundView ? [] : $rows;
+$unboundTotalNominal = $isBoundView ? 0 : array_sum(array_map(static fn ($row) => (float) ($row['nominal'] ?? 0), $rows));
+if (!$isBoundView) { $rows = []; }
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
 $payerByRef = is_array($data['payerByRef'] ?? null) ? $data['payerByRef'] : $pelangganByRef;
 $fmtNominal = static function ($value): string {
@@ -15,11 +17,11 @@ $this->view('non_tunai_admin/_filter', [
     'startDate' => $data['startDate'] ?? date('Y-m-d', strtotime('-6 days')),
     'endDate' => $data['endDate'] ?? date('Y-m-d'),
     'maxRangeDays' => $data['maxRangeDays'] ?? 7,
-    'filterAction' => URL::BASE_URL . 'NonTunaiAdmin/bcaQris',
-    'filterTitle' => 'Mutasi QRIS — Data Binding',
+    'filterAction' => URL::BASE_URL . ($isBoundView ? 'NonTunaiAdmin/bcaQrisTerikat' : 'NonTunaiAdmin/bcaQrisLepas'),
+    'filterTitle' => $isBoundView ? 'QRIS Terikat' : 'QRIS Lepas',
     'filterIcon' => 'fa-qrcode',
     'rowCount' => count($rows),
-    'unboundCount' => count($unboundRows),
+    'unboundCount' => $isBoundView ? 0 : count($unboundRows),
     'unboundTotalNominal' => $unboundTotalNominal,
 ]);
 ?>

@@ -14,28 +14,41 @@ class NonTunaiAdmin extends Controller
 
     public function bcaMutasi()
     {
+        $this->renderBcaMutasi(false);
+    }
+
+    public function bcaMutasiTerikat()
+    {
+        $this->renderBcaMutasi(true);
+    }
+
+    public function bcaMutasiLepas()
+    {
+        $this->renderBcaMutasi(false);
+    }
+
+    private function renderBcaMutasi(bool $bound): void
+    {
         $this->session_cek(1);
         $range = $this->parseDateRange();
         $dbMain = $this->db(100);
 
         $rows = [];
-        $unboundRows = [];
         try {
             $dbMain->query('SELECT 1 FROM bca_mutasi_link LIMIT 1');
-            $rows = $this->fetchBoundMutasi($dbMain, $range['start'], $range['end']);
-            $unboundRows = $this->fetchUnboundMutasi($dbMain, $range['start'], $range['end']);
+            $rows = $bound
+                ? $this->fetchBoundMutasi($dbMain, $range['start'], $range['end'])
+                : $this->fetchUnboundMutasi($dbMain, $range['start'], $range['end']);
         } catch (\Throwable $e) {
             $rows = [];
-            $unboundRows = [];
         }
 
         $payerByRef = $this->loadPayerByEntityRef($rows);
 
-        $this->view('layout', ['data_operasi' => ['title' => 'Mutasi BCA']]);
+        $this->view('layout', ['data_operasi' => ['title' => $bound ? 'BCA Terikat' : 'BCA Lepas']]);
         $this->view('non_tunai_admin/bca_mutasi', [
             'rows' => $rows,
-            'unboundRows' => $unboundRows,
-            'unboundTotalNominal' => $this->sumNominal($unboundRows),
+            'isBoundView' => $bound,
             'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],
@@ -45,28 +58,41 @@ class NonTunaiAdmin extends Controller
 
     public function bcaQris()
     {
+        $this->renderBcaQris(false);
+    }
+
+    public function bcaQrisTerikat()
+    {
+        $this->renderBcaQris(true);
+    }
+
+    public function bcaQrisLepas()
+    {
+        $this->renderBcaQris(false);
+    }
+
+    private function renderBcaQris(bool $bound): void
+    {
         $this->session_cek(1);
         $range = $this->parseDateRange();
         $dbMain = $this->db(100);
 
         $rows = [];
-        $unboundRows = [];
         try {
             $dbMain->query('SELECT 1 FROM bca_qris_link LIMIT 1');
-            $rows = $this->fetchBoundQris($dbMain, $range['start'], $range['end']);
-            $unboundRows = $this->fetchUnboundQris($dbMain, $range['start'], $range['end']);
+            $rows = $bound
+                ? $this->fetchBoundQris($dbMain, $range['start'], $range['end'])
+                : $this->fetchUnboundQris($dbMain, $range['start'], $range['end']);
         } catch (\Throwable $e) {
             $rows = [];
-            $unboundRows = [];
         }
 
         $payerByRef = $this->loadPayerByEntityRef($rows);
 
-        $this->view('layout', ['data_operasi' => ['title' => 'Mutasi QRIS']]);
+        $this->view('layout', ['data_operasi' => ['title' => $bound ? 'QRIS Terikat' : 'QRIS Lepas']]);
         $this->view('non_tunai_admin/bca_qris', [
             'rows' => $rows,
-            'unboundRows' => $unboundRows,
-            'unboundTotalNominal' => $this->sumNominal($unboundRows),
+            'isBoundView' => $bound,
             'payerByRef' => $payerByRef,
             'startDate' => $range['start'],
             'endDate' => $range['end'],

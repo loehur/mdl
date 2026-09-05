@@ -13,14 +13,24 @@ $menu[1] = [
         'txt' => 'Non Tunai',
         'submenu' => [
             [
-                'c' => '@NonTunaiAdmin/bcaMutasi',
-                'title' => 'Mutasi BCA',
-                'txt' => 'Mutasi BCA'
+                'c' => '@NonTunaiAdmin/bcaMutasiLepas',
+                'title' => 'BCA Lepas',
+                'txt' => 'BCA Lepas'
             ],
             [
-                'c' => '@NonTunaiAdmin/bcaQris',
-                'title' => 'Mutasi QRIS',
-                'txt' => 'Mutasi QRIS'
+                'c' => '@NonTunaiAdmin/bcaQrisLepas',
+                'title' => 'QRIS Lepas',
+                'txt' => 'QRIS Lepas'
+            ],
+            [
+                'c' => '@NonTunaiAdmin/bcaQrisTerikat',
+                'title' => 'QRIS Terikat',
+                'txt' => 'QRIS Terikat'
+            ],
+            [
+                'c' => '@NonTunaiAdmin/bcaMutasiTerikat',
+                'title' => 'BCA Terikat',
+                'txt' => 'BCA Terikat'
             ],
             [
                 'c' => '@NonTunaiAdmin/mutasiBypass',
