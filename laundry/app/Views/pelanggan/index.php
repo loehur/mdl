@@ -206,6 +206,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     border: 1px solid #93c5fd;
     padding: 12px 12px 10px;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
   }
   #plg-root .plg-card:hover {
     border-color: #2563eb;
@@ -215,31 +218,32 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     border-color: #fcd34d;
     background: linear-gradient(180deg, #fffbeb, #fff);
   }
-  #plg-root .plg-card-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  #plg-root .plg-card-head strong {
-    display: inline-block;
+  #plg-root .plg-card-nama {
+    display: block;
     max-width: 100%;
     font-size: 0.95rem;
     font-weight: 900;
     letter-spacing: -0.01em;
     line-height: 1.3;
     color: var(--plg-ink);
+    overflow-wrap: anywhere;
   }
   #plg-root .plg-card-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    margin-top: 6px;
+    margin-top: 8px;
     font-size: 0.8rem;
     font-weight: 800;
     color: var(--plg-muted);
     line-height: 1.35;
+    min-width: 0;
+  }
+  #plg-root .plg-card-meta .plg-chip,
+  #plg-root .plg-card-meta .plg-badge {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   #plg-root .plg-badge {
     display: inline-flex;
@@ -284,9 +288,11 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 
   #plg-root .plg-card-actions {
     display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-    padding-top: 8px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 10px;
     border-top: 1px solid #dbeafe;
   }
   #plg-root .plg-btn {
@@ -631,19 +637,15 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $canChat = strlen($hpDigits) >= 8;
             ?>
               <article class="<?= $cardClass ?>" data-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>">
-                <div class="plg-card-head">
-                  <div style="min-width:0">
-                    <strong>
-                      <span class="plg-value plg-value--nama"><?= $f1Html ?></span>
-                    </strong>
-                    <span class="plg-card-meta">
-                      <span class="plg-badge">#<?= $id ?></span>
-                      <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
-                      <?php if ($f6 !== '') { ?>
-                        <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
-                      <?php } ?>
-                    </span>
-                  </div>
+                <strong class="plg-card-nama">
+                  <span class="plg-value plg-value--nama"><?= $f1Html ?></span>
+                </strong>
+                <div class="plg-card-meta">
+                  <span class="plg-badge">#<?= $id ?></span>
+                  <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
+                  <?php if ($f6 !== '') { ?>
+                    <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
+                  <?php } ?>
                   <span class="<?= $chipClass ?>">
                     <?php if ($canEditPartner) { ?>
                       Partner <?= $f5Attr ?>%
