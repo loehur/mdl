@@ -220,9 +220,9 @@ $menu[0] = [
     ],
     [
         'c' => '',
-        'title' => 'Download',
+        'title' => 'Setup',
         'icon' => 'fas fa-download',
-        'txt' => 'Download',
+        'txt' => 'Setup',
         'submenu' =>
         [
             [
