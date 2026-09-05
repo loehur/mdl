@@ -119,30 +119,6 @@ $menu[0] = [
         ]
     ],
     [
-        'c' => '',
-        'title' => 'Download',
-        'icon' => 'fas fa-download',
-        'txt' => 'Download',
-        'submenu' =>
-        [
-            [
-                'c' => 'Setting/printer',
-                'title' => 'Printer Setting',
-                'txt' => 'Printer',
-            ],
-            [
-                'c' => 'Setting/android',
-                'title' => 'Chat Android',
-                'txt' => 'Chat',
-            ],
-            [
-                'c' => 'Setting/tools',
-                'title' => 'Tools Perangkat',
-                'txt' => 'Tools',
-            ],
-        ]
-    ],
-    [
         'c' => '#',
         'title' => 'Tiket',
         'icon' => 'fas fa-ticket-alt',
@@ -239,6 +215,30 @@ $menu[0] = [
                 'c' => '@Prepaid',
                 'title' => 'Pre/Post Paid',
                 'txt' => 'Pre/Post Paid',
+            ],
+        ]
+    ],
+    [
+        'c' => '',
+        'title' => 'Download',
+        'icon' => 'fas fa-download',
+        'txt' => 'Download',
+        'submenu' =>
+        [
+            [
+                'c' => 'Setting/printer',
+                'title' => 'Printer Setting',
+                'txt' => 'Printer',
+            ],
+            [
+                'c' => 'Setting/android',
+                'title' => 'Android',
+                'txt' => 'Chat',
+            ],
+            [
+                'c' => 'Setting/tools',
+                'title' => 'Unduhan Tools',
+                'txt' => 'Tools',
             ],
         ]
     ],
