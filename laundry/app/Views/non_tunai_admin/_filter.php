@@ -9,7 +9,7 @@ $rowCount = (int) ($data['rowCount'] ?? 0);
 $unboundCount = (int) ($data['unboundCount'] ?? 0);
 $unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
 $fmtRp = static function ($value): string {
-    return 'Rp ' . number_format((float) $value, 0, ',', '.');
+    return number_format((float) $value, 0, ',', '.');
 };
 ?>
 <div class="content" id="nta-root">

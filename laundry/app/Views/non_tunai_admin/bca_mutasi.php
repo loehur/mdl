@@ -4,11 +4,11 @@ $unboundRows = is_array($data['unboundRows'] ?? null) ? $data['unboundRows'] : [
 $unboundTotalNominal = (float) ($data['unboundTotalNominal'] ?? 0);
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
 $payerByRef = is_array($data['payerByRef'] ?? null) ? $data['payerByRef'] : $pelangganByRef;
-$fmtRp = static function ($value): string {
+$fmtNominal = static function ($value): string {
     if ($value === null || $value === '') {
         return '—';
     }
-    return 'Rp ' . number_format((float) $value, 0, ',', '.');
+    return number_format((float) $value, 0, ',', '.');
 };
 $this->view('non_tunai_admin/_filter', [
     'startDate' => $data['startDate'] ?? date('Y-m-d', strtotime('-6 days')),
@@ -95,10 +95,10 @@ $this->view('non_tunai_admin/_filter', [
                   'title' => 'Detail Mutasi BCA #' . (int) ($row['link_id'] ?? 0),
                   'fields' => [
                       ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
-                       ['label' => 'Nominal Mutasi', 'value' => $fmtRp($row['nominal'] ?? null)],
-                      ['label' => 'Bind Snapshot', 'value' => $fmtRp($bindNominal)],
-                      ['label' => 'Bill Nominal', 'value' => $fmtRp($billNominal)],
-                      ['label' => 'Selisih', 'value' => $selisih !== null ? $fmtRp($selisih) : '—'],
+                       ['label' => 'Nominal Mutasi', 'value' => $fmtNominal($row['nominal'] ?? null)],
+                       ['label' => 'Bind Snapshot', 'value' => $fmtNominal($bindNominal)],
+                       ['label' => 'Bill Nominal', 'value' => $fmtNominal($billNominal)],
+                       ['label' => 'Selisih', 'value' => $selisih !== null ? $fmtNominal($selisih) : '—'],
                       ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
                       ['label' => 'Tipe Entity', 'value' => $entityLabel . ($entityType !== '' ? ' (' . $entityType . ')' : '')],
                       ['label' => 'Referensi', 'value' => $entityRef],
@@ -120,8 +120,8 @@ $this->view('non_tunai_admin/_filter', [
                   'detailJson' => $detailJson,
               ]); ?></td>
               <td><?= htmlspecialchars($tanggalLabel) ?></td>
-               <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
-              <td class="text-end"><span class="nta-nominal-single"><?= $fmtRp($billNominal) ?></span></td>
+               <td class="text-end"><span class="nta-nominal-single"><?= $fmtNominal($nominal) ?></span></td>
+               <td class="text-end"><span class="nta-nominal-single"><?= $fmtNominal($billNominal) ?></span></td>
               <td class="text-start"><?php $this->view('non_tunai_admin/_payer_cell', ['payer' => $payerRow]); ?></td>
               <td class="text-center">
                 <button type="button"
@@ -143,7 +143,7 @@ $this->view('non_tunai_admin/_filter', [
     <div class="nta-section">
       <h6 class="nta-section-title">
         <span><i class="fas fa-unlink me-1"></i>Belum Bind</span>
-        <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtRp($unboundTotalNominal) ?></span>
+         <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtNominal($unboundTotalNominal) ?></span>
       </h6>
 
       <?php if ($unboundRows === []) { ?>
@@ -183,7 +183,7 @@ $this->view('non_tunai_admin/_filter', [
                     'fields' => [
                         ['label' => 'Status', 'value' => 'Belum bind'],
                         ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
-                         ['label' => 'Nominal', 'value' => $fmtRp($nominal)],
+                         ['label' => 'Nominal', 'value' => $fmtNominal($nominal)],
                         ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
                         ['label' => 'Created Mutasi', 'value' => $mutasiCreated],
                         ['label' => 'ID Mutasi', 'value' => (string) $mutasiId],
@@ -200,7 +200,7 @@ $this->view('non_tunai_admin/_filter', [
                     'detailJson' => $detailJson,
                 ]); ?></td>
                 <td><?= htmlspecialchars($tanggalLabel) ?></td>
-                <td><span class="nta-nominal-single"><?= $fmtRp($nominal) ?></span></td>
+                <td class="text-end"><span class="nta-nominal-single"><?= $fmtNominal($nominal) ?></span></td>
                 <td><span class="nta-badge nta-badge--unbound">Belum bind</span></td>
               </tr>
               <?php } ?>
