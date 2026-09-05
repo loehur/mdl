@@ -593,8 +593,13 @@ class WhatsApp extends Controller
                 );
 
                 if ($messageType === 'image' && $isPelanggan && $mediaUrl) {
-                    if (!$this->customerHasPendingTransaction($phoneIn, $waNumber)) {
+                    $this->logVisionImage('guard_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
+                    $hasPendingPayment = $this->customerHasPendingTransaction($phoneIn, $waNumber, $messageId);
+                    $this->logVisionImage('guard_result pending_payment=' . ($hasPendingPayment ? 'true' : 'false'));
+                    if (!$hasPendingPayment) {
+                        $this->logVisionImage('ai_start media_url=' . $mediaUrl . ' mime=' . ($mediaMimeType ?: '-'));
                         $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
+                        $this->logVisionImage('ai_result parsed=' . ($paymentResult !== null ? 'true' : 'false'));
                         if ($paymentResult !== null) {
                             \Log::write(
                                 'Payment image result phone=' . $waNumber
@@ -606,6 +611,7 @@ class WhatsApp extends Controller
                             $this->sendPaymentImageResult($waNumber, $paymentResult);
                         }
                     } else {
+                        $this->logVisionImage('skip_pending_payment phone=' . $waNumber);
                         \Log::write(
                             'Skip payment image analysis: customer has pending transaction phone=' . $waNumber,
                             'wa_info',
@@ -744,12 +750,20 @@ class WhatsApp extends Controller
         return \App\Helpers\CRM\CrmCaseHelper::extractOpenCaseIds($raw);
     }
 
-    private function customerHasPendingTransaction(string $phoneIn, string $waNumber): bool
+    private function logVisionImage(string $message): void
     {
+        \Log::write($message, 'vision_image', 'Webhook');
+    }
+
+    private function customerHasPendingTransaction(string $phoneIn, string $waNumber, ?string $messageId = null): bool
+    {
+        $this->logVisionImage('pending_check_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
         $db1 = \DB::getInstance(1);
         $rows = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
         $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
+        $this->logVisionImage('pending_check_customer_ids=' . ($ids ? implode(',', $ids) : '-'));
         if ($ids === []) {
+            $this->logVisionImage('pending_check_no_customer_ids');
             return false;
         }
 
@@ -768,12 +782,21 @@ class WhatsApp extends Controller
              LIMIT 1"
         );
 
-        return $result && $result->num_rows() > 0;
+        if (!$result) {
+            $error = $db1->conn()->error ?? 'unknown database error';
+            $this->logVisionImage('pending_check_query_failed error=' . $error);
+            return false;
+        }
+
+        $pending = $result->num_rows() > 0;
+        $this->logVisionImage('pending_check_query_result rows=' . $result->num_rows() . ' pending=' . ($pending ? 'true' : 'false'));
+        return $pending;
     }
 
     private function analyzePaymentImage(string $mediaUrl, ?string $mimeType, string $waNumber): ?array
     {
         try {
+            $this->logVisionImage('ai_method_start phone=' . $waNumber);
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
@@ -793,8 +816,10 @@ class WhatsApp extends Controller
                 ],
             ]];
             $raw = $this->invokeVisionAi($messages, $waNumber);
+            $this->logVisionImage('ai_raw_response=' . substr((string) $raw, 0, 1000));
             $json = json_decode(trim((string) $raw), true);
             if (!is_array($json)) {
+                $this->logVisionImage('ai_json_decode_failed error=' . json_last_error_msg());
                 return null;
             }
 
@@ -805,6 +830,7 @@ class WhatsApp extends Controller
                 'nominal' => isset($json['nominal']) && is_numeric($json['nominal']) ? (float) $json['nominal'] : null,
             ];
         } catch (\Throwable $e) {
+            $this->logVisionImage('ai_exception class=' . get_class($e) . ' message=' . $e->getMessage());
             \Log::write('Payment image AI failed: ' . $e->getMessage(), 'wa_error', 'Webhook');
             return null;
         }
@@ -816,8 +842,10 @@ class WhatsApp extends Controller
         $model = trim((string) (defined('Env::AI_VISION_MODEL') ? \Env::AI_VISION_MODEL : ''));
         $url = trim((string) (defined('Env::AI_VISION_URL') ? \Env::AI_VISION_URL : 'https://api.openai.com/v1/chat/completions'));
         if ($apiKey === '' || $model === '') {
+            $this->logVisionImage('api_config_missing key=' . ($apiKey !== '' ? 'yes' : 'no') . ' model=' . ($model !== '' ? $model : '-'));
             throw new \RuntimeException('AI vision model/key is not configured');
         }
+        $this->logVisionImage('api_request_start model=' . $model . ' url=' . $url);
 
         $payload = [
             'model' => $model,
@@ -847,18 +875,22 @@ class WhatsApp extends Controller
         curl_close($ch);
 
         if ($response === false) {
+            $this->logVisionImage('api_request_curl_failed error=' . $curlError);
             throw new \RuntimeException('Vision API cURL error: ' . $curlError);
         }
         if ($httpCode < 200 || $httpCode >= 300) {
+            $this->logVisionImage('api_response_http_error code=' . $httpCode . ' body=' . substr((string) $response, 0, 500));
             throw new \RuntimeException('Vision API HTTP ' . $httpCode . ': ' . substr((string) $response, 0, 300));
         }
 
         $decoded = json_decode($response, true);
         $content = $decoded['choices'][0]['message']['content'] ?? null;
         if (!is_string($content) || trim($content) === '') {
+            $this->logVisionImage('api_response_empty_content http=' . $httpCode);
             throw new \RuntimeException('Vision API returned empty content');
         }
 
+        $this->logVisionImage('api_response_success http=' . $httpCode . ' content_length=' . strlen($content));
         return trim($content);
     }
 
