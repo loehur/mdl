@@ -229,8 +229,8 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     overflow-wrap: anywhere;
   }
   #plg-root .plg-card-meta {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: 6px;
     margin-top: 8px;
@@ -238,6 +238,13 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     font-weight: 800;
     color: var(--plg-muted);
     line-height: 1.35;
+    min-width: 0;
+  }
+  #plg-root .plg-card-meta .plg-meta-phone {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
   }
   #plg-root .plg-card-meta .plg-chip,
@@ -642,10 +649,12 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 </strong>
                 <div class="plg-card-meta">
                   <span class="plg-badge">#<?= $id ?></span>
-                  <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
-                  <?php if ($f6 !== '') { ?>
-                    <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
-                  <?php } ?>
+                  <span class="plg-meta-phone">
+                    <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
+                    <?php if ($f6 !== '') { ?>
+                      <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php } ?>
+                  </span>
                   <span class="<?= $chipClass ?>">
                     <?php if ($canEditPartner) { ?>
                       Partner <?= $f5Attr ?>%
