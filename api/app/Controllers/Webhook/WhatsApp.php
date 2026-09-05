@@ -759,7 +759,7 @@ class WhatsApp extends Controller
     {
         try {
             $this->logVisionImage('pending_check_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
-            $db1 = \DB::getInstance(1);
+            $db1 = \App\Core\DB::getInstance(1);
             $this->logVisionImage('pending_check_db_connected');
             $rows = $this->findCustomerRowsByWaNumber($db1, $waNumber);
             $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
@@ -882,8 +882,12 @@ class WhatsApp extends Controller
             'model' => $model,
             'messages' => $messages,
             'temperature' => 0,
-            'max_tokens' => 120,
         ];
+        if (preg_match('/^gpt-5(?:[.-]|$)/i', $model)) {
+            $payload['max_completion_tokens'] = 120;
+        } else {
+            $payload['max_tokens'] = 120;
+        }
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
