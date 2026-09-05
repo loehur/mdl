@@ -757,18 +757,21 @@ class WhatsApp extends Controller
 
     private function customerHasPendingTransaction(string $phoneIn, string $waNumber, ?string $messageId = null): bool
     {
-        $this->logVisionImage('pending_check_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
-        $db1 = \DB::getInstance(1);
-        $rows = $this->findCustomerRowsByWaNumber($db1, $waNumber);
-        $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
-        $this->logVisionImage('pending_check_customer_ids=' . ($ids ? implode(',', $ids) : '-'));
-        if ($ids === []) {
-            $this->logVisionImage('pending_check_no_customer_ids');
-            return false;
-        }
+        try {
+            $this->logVisionImage('pending_check_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
+            $db1 = \DB::getInstance(1);
+            $this->logVisionImage('pending_check_db_connected');
+            $rows = $this->findCustomerRowsByWaNumber($db1, $waNumber);
+            $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
+            $this->logVisionImage('pending_check_customer_ids=' . ($ids ? implode(',', $ids) : '-'));
+            if ($ids === []) {
+                $this->logVisionImage('pending_check_no_customer_ids');
+                return false;
+            }
 
-        $idsIn = implode(',', $ids);
-        $result = $db1->query(
+            $idsIn = implode(',', $ids);
+            $this->logVisionImage('pending_check_payment_query_start');
+            $result = $db1->query(
             "SELECT 1
              FROM kas k
              INNER JOIN sale s
@@ -780,26 +783,32 @@ class WhatsApp extends Controller
                AND k.jenis_mutasi = 1
                AND k.metode_mutasi IN (2, 3)
              LIMIT 1"
-        );
+            );
 
-        if (!$result) {
-            $error = $db1->conn()->error ?? 'unknown database error';
-            $this->logVisionImage('pending_check_query_failed error=' . $error);
+            if (!$result) {
+                $error = $db1->conn()->error ?? 'unknown database error';
+                $this->logVisionImage('pending_check_query_failed error=' . $error);
+                return false;
+            }
+
+            $pending = $result->num_rows() > 0;
+            $this->logVisionImage('pending_check_query_result rows=' . $result->num_rows() . ' pending=' . ($pending ? 'true' : 'false'));
+            return $pending;
+        } catch (\Throwable $e) {
+            $this->logVisionImage('pending_check_exception class=' . get_class($e) . ' message=' . $e->getMessage());
             return false;
         }
-
-        $pending = $result->num_rows() > 0;
-        $this->logVisionImage('pending_check_query_result rows=' . $result->num_rows() . ' pending=' . ($pending ? 'true' : 'false'));
-        return $pending;
     }
 
     private function findCustomerRowsByWaNumber($db, string $waNumber): array
     {
+        $this->logVisionImage('customer_lookup_start phone=' . $waNumber);
         if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
             require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
         }
 
         $number = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber);
+        $this->logVisionImage('customer_lookup_national_number=' . ($number ?: '-'));
         if ($number === null || strlen($number) < 8) {
             return [];
         }
@@ -810,6 +819,7 @@ class WhatsApp extends Controller
             'SELECT id_pelanggan FROM pelanggan WHERE ' . $digits . ' LIKE ? OR ' . $digits2 . ' LIKE ? ORDER BY id_pelanggan ASC',
             ['%' . $number, '%' . $number]
         );
+        $this->logVisionImage('customer_lookup_query_done rows=' . ($result ? $result->num_rows() : 0));
 
         return $result ? ($result->result_array() ?: []) : [];
     }
