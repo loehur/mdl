@@ -132,6 +132,9 @@ class Env
     // -------------------------------------------------------------------------
     const OPENAI_API_KEY = 'sk-...';           // platform.openai.com
     const OPENAI_MODEL = 'gpt-4o-mini';
+    const AI_VISION_API_KEY = '';              // Isi API key provider vision
+    const AI_VISION_MODEL = 'gpt-5.6-luna';
+    const AI_VISION_URL = 'https://api.openai.com/v1/chat/completions';
     const DEEPSEEK_API_KEY = 'change-me-deepseek-api-key'; // platform.deepseek.com
     const DEEPSEEK_MODEL = 'deepseek-chat';
     // Primary: 'deepseek' | 'openai'
