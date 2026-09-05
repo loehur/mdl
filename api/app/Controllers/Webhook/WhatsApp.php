@@ -759,7 +759,7 @@ class WhatsApp extends Controller
     {
         $this->logVisionImage('pending_check_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
         $db1 = \DB::getInstance(1);
-        $rows = $this->queryPelangganRowsByWaNumber($db1, $phoneIn, $waNumber, 'id_pelanggan');
+        $rows = $this->findCustomerRowsByWaNumber($db1, $waNumber);
         $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
         $this->logVisionImage('pending_check_customer_ids=' . ($ids ? implode(',', $ids) : '-'));
         if ($ids === []) {
@@ -791,6 +791,27 @@ class WhatsApp extends Controller
         $pending = $result->num_rows() > 0;
         $this->logVisionImage('pending_check_query_result rows=' . $result->num_rows() . ' pending=' . ($pending ? 'true' : 'false'));
         return $pending;
+    }
+
+    private function findCustomerRowsByWaNumber($db, string $waNumber): array
+    {
+        if (!class_exists('\\App\\Helpers\\CRM\\WaSenderContext')) {
+            require_once __DIR__ . '/../../Helpers/CRM/WaSenderContext.php';
+        }
+
+        $number = \App\Helpers\CRM\WaSenderContext::toNomorNasional($waNumber);
+        if ($number === null || strlen($number) < 8) {
+            return [];
+        }
+
+        $digits = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('nomor_pelanggan');
+        $digits2 = \App\Helpers\CRM\WaSenderContext::sqlDigitsExpr('nomor_pelanggan_2');
+        $result = $db->query(
+            'SELECT id_pelanggan FROM pelanggan WHERE ' . $digits . ' LIKE ? OR ' . $digits2 . ' LIKE ? ORDER BY id_pelanggan ASC',
+            ['%' . $number, '%' . $number]
+        );
+
+        return $result ? ($result->result_array() ?: []) : [];
     }
 
     private function analyzePaymentImage(string $mediaUrl, ?string $mimeType, string $waNumber): ?array
