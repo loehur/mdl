@@ -130,7 +130,7 @@ $this->view('non_tunai_admin/_filter', [
                   data-entity-type="<?= htmlspecialchars($entityLabel, ENT_QUOTES, 'UTF-8') ?>"
                   data-entity-ref="<?= htmlspecialchars($entityRef, ENT_QUOTES, 'UTF-8') ?>"
                   title="Unbind &amp; blokir entity">
-                  <i class="fas fa-unlink me-1"></i>Unbind
+                   <i class="fas fa-unlink"></i>
                 </button>
               </td>
             </tr>
