@@ -881,11 +881,11 @@ class WhatsApp extends Controller
         $payload = [
             'model' => $model,
             'messages' => $messages,
-            'temperature' => 0,
         ];
         if (preg_match('/^gpt-5(?:[.-]|$)/i', $model)) {
             $payload['max_completion_tokens'] = 120;
         } else {
+            $payload['temperature'] = 0;
             $payload['max_tokens'] = 120;
         }
         $ch = curl_init($url);
