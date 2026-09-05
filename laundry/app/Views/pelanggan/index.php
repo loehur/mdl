@@ -269,8 +269,12 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     max-width: 100%;
     overflow-wrap: anywhere;
   }
+  #plg-root .plg-card-meta > .plg-badge {
+    white-space: nowrap;
+  }
   #plg-root .plg-card-meta > .plg-chip {
     justify-self: end;
+    white-space: nowrap;
   }
   #plg-root .plg-badge {
     display: inline-flex;
