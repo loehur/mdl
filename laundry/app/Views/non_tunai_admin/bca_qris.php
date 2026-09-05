@@ -98,13 +98,6 @@ $this->view('non_tunai_admin/_filter', [
         </div>
       <?php } ?>
     </div><?php } ?>
-  </div>
-</div>
-
-<?php
-$this->view('non_tunai_admin/_detail_modal');
-$this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
-?>
 
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
@@ -207,3 +200,10 @@ $this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRange
         </table>
       </div>
     <?php } ?>
+  </div>
+</div>
+
+<?php
+$this->view('non_tunai_admin/_detail_modal');
+$this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
+?>
