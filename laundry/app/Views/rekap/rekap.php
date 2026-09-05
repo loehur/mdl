@@ -220,9 +220,8 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
             data-past="<?= $isPastMonth ? '1' : '0' ?>"
             data-has="<?= $hasSnapshot ? '1' : '0' ?>">
             <button type="button" id="btnSnapshotRekap"
-              class="btn btn-sm <?= $hasSnapshot ? 'btn-outline-secondary' : 'btn-outline-primary' ?>"
-              <?= ($isPastMonth && !$hasSnapshot) ? '' : 'disabled' ?>
-              <?= !$isPastMonth ? 'title="Hanya bulan yang telah berlalu"' : ($hasSnapshot ? 'title="Snapshot sudah ada"' : '') ?>>
+              class="btn btn-sm btn-outline-primary"
+              <?= !$isPastMonth ? 'disabled title="Hanya bulan yang telah berlalu"' : 'title="Simpan atau perbarui snapshot"' ?>>
               Snapshot
             </button>
             <small id="snapshotStatus" class="text-muted"><?= $statusHint ?></small>
@@ -830,9 +829,7 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
     var mode = bar.getAttribute('data-mode') || '2';
 
     btn.addEventListener('click', function () {
-      if (bar.getAttribute('data-has') === '1') return;
-
-      var form = bar.closest('.card').querySelector('form');
+       var form = bar.closest('.card').querySelector('form');
       var mEl = form ? form.querySelector('select[name="m"]') : null;
       var yEl = form ? form.querySelector('select[name="y"]') : null;
       var m = mEl ? mEl.value : '';
@@ -860,29 +857,12 @@ $target_page_rekap = $uri_segments[$uriCount - 1];
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (data && data.exists) {
-            btn.classList.remove('btn-outline-primary');
-            btn.classList.add('btn-outline-secondary');
-            btn.textContent = 'Snapshot';
-            btn.disabled = true;
-            bar.setAttribute('data-has', '1');
-            if (statusEl) statusEl.textContent = 'Tersimpan';
-            return;
-          }
-          if (!data || !data.ok) {
+           if (!data || !data.ok) {
             btn.disabled = false;
             btn.textContent = prevText;
             return;
           }
-          var allDone = data.complete !== false;
-          if (allDone) {
-            btn.classList.remove('btn-outline-primary');
-            btn.classList.add('btn-outline-secondary');
-            btn.disabled = true;
-            bar.setAttribute('data-has', '1');
-          } else {
-            btn.disabled = false;
-          }
+           btn.disabled = false;
           btn.textContent = 'Snapshot';
           if (statusEl) {
             statusEl.textContent = data.msg || ('Tersimpan' + (data.periode ? ': ' + data.periode : ''));
