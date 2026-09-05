@@ -241,7 +241,9 @@ class NonTunaiAdmin extends Controller
                 m.created_at AS mutasi_created_at
              FROM bca_mutasi_link l
              INNER JOIN bca_mutasi m ON m.id = l.bca_mutasi_id
-             WHERE (
+             WHERE m.mutasi = 'CR'
+               AND COALESCE(m.is_bypassed, 0) = 0
+               AND (
                 (m.tanggal_iso IS NOT NULL
                  AND m.tanggal_iso >= '" . $startEsc . "'
                  AND m.tanggal_iso <= '" . $endEsc . "')
@@ -250,7 +252,7 @@ class NonTunaiAdmin extends Controller
                   AND DATE(m.created_at) >= '" . $startEsc . "'
                   AND DATE(m.created_at) <= '" . $endEsc . "'
                 )
-             )
+               )
              ORDER BY
                COALESCE(m.tanggal_iso, DATE(m.created_at)) DESC,
                l.id DESC
@@ -315,8 +317,10 @@ class NonTunaiAdmin extends Controller
                 m.mutasi AS db_cr,
                 m.created_at AS mutasi_created_at
              FROM bca_mutasi m
-             LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
-             WHERE l.id IS NULL
+              LEFT JOIN bca_mutasi_link l ON l.bca_mutasi_id = m.id
+              WHERE l.id IS NULL
+               AND m.mutasi = 'CR'
+               AND COALESCE(m.is_bypassed, 0) = 0
                AND (
                 (m.tanggal_iso IS NOT NULL
                  AND m.tanggal_iso >= '" . $startEsc . "'
