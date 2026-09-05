@@ -433,13 +433,21 @@ class Kas extends Controller
 
 
 
-      $status_mutasi = 2;
+       $status_mutasi = 2;
 
-      if ($this->id_privilege == 100) {
+       if ($this->id_privilege == 100) {
 
-         $status_mutasi = 3;
+          $status_mutasi = 3;
 
-      }
+       } elseif ($this->isWajarPengeluaranGasLpg($id_jenis, $jumlah)
+          || $this->isWajarPengeluaranAirGalon($id_jenis, $jumlah)
+          || $this->isWajarPengeluaranMinyakKendaraan($id_jenis, $jumlah)
+          || $this->isWajarPengeluaranPungutan($id_jenis, $jumlah)
+       ) {
+
+          $status_mutasi = 3;
+
+       }
 
 
 
@@ -514,6 +522,230 @@ class Kas extends Controller
          echo json_encode(['error' => 'Transaksi sudah terinput. Jangan double-click.']);
 
       }
+    }
+
+   /**
+    * Gas LPG wajar jika rasio biaya per qty layanan setrika pada siklus
+    * sebelumnya tidak melebihi rasio cabang paling hemat + 15%.
+    */
+   private function isWajarPengeluaranGasLpg(int $idJenis, int $jumlah): bool
+   {
+      if ($idJenis !== 1 || $jumlah <= 0) {
+         return false;
+      }
+
+      $db = $this->db(0);
+      $today = date('Y-m-d H:i:s');
+      $cabang = (int) $this->id_cabang;
+      if ($cabang < 1) {
+         return false;
+      }
+
+      // Pembelian LPG sebelumnya menjadi awal siklus konsumsi yang akan dinilai.
+      $prev = $db->get_where_row(
+         'kas',
+         "id_cabang = {$cabang} AND jenis_transaksi = 4 AND jenis_mutasi = 2 "
+         . "AND status_mutasi <> 4 AND UPPER(note_primary) LIKE '%GAS LPG%' "
+         . "AND insertTime < '" . $db->escape($today) . "' ORDER BY insertTime DESC LIMIT 1"
+      );
+      if (!is_array($prev) || empty($prev['insertTime'])) {
+         return false;
+      }
+
+      $start = $db->escape((string) $prev['insertTime']);
+      $qty = $this->sumQtySetrika("id_cabang = {$cabang} AND bin = 0 AND insertTime > '{$start}' AND insertTime <= NOW()");
+      if ($qty <= 0) {
+         return false;
+      }
+
+      $cycleGas = (int) ($prev['jumlah'] ?? 0);
+      if ($cycleGas <= 0) {
+         return false;
+      }
+
+      $benchmark = $this->minimumGasLpgRatioFromSnapshots();
+      if ($benchmark === null) {
+         return false;
+      }
+
+      return (($cycleGas + $jumlah) / $qty) <= ($benchmark * 1.15);
+   }
+
+   /** Air Galon: bandingkan nominal siklus dengan rata-rata historis cabang sendiri + 15%. */
+   private function isWajarPengeluaranAirGalon(int $idJenis, int $jumlah): bool
+   {
+      if ($idJenis !== 3 || $jumlah <= 0) {
+         return false;
+      }
+
+      $db = $this->db(0);
+      $cabang = (int) $this->id_cabang;
+      if ($cabang < 1) {
+         return false;
+      }
+
+      $rows = $db->query_array(
+         "SELECT kas_keluar_json FROM rekap_snapshot "
+         . "WHERE mode = 2 AND id_cabang = {$cabang} ORDER BY periode ASC"
+      );
+      if (!is_array($rows) || $rows === []) {
+         return false;
+      }
+
+      $historicalTotals = [];
+      foreach ($rows as $row) {
+         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
+         $total = 0;
+         foreach ((array) $kas as $item) {
+            if (stripos((string) ($item['note_primary'] ?? ''), 'AIR GALON') !== false) {
+               $total += (int) ($item['total'] ?? 0);
+            }
+         }
+         if ($total > 0) {
+            $historicalTotals[] = $total;
+         }
+      }
+
+      if ($historicalTotals === []) {
+         return false;
+      }
+
+      $average = array_sum($historicalTotals) / count($historicalTotals);
+
+      return $jumlah <= ($average * 1.15);
+   }
+
+   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata seluruh cabang + 15%. */
+   private function isWajarPengeluaranMinyakKendaraan(int $idJenis, int $jumlah): bool
+   {
+      if ($idJenis !== 2 || $jumlah <= 0) {
+         return false;
+      }
+
+      $rows = $this->db(0)->query_array(
+         "SELECT kas_keluar_json FROM rekap_snapshot WHERE mode = 2 ORDER BY periode ASC"
+      );
+      if (!is_array($rows) || $rows === []) {
+         return false;
+      }
+
+      $historicalTotals = [];
+      foreach ($rows as $row) {
+         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
+         $total = 0;
+         foreach ((array) $kas as $item) {
+            if (PengeluaranKendaraan::isMinyakKendaraan((string) ($item['note_primary'] ?? ''))) {
+               $total += (int) ($item['total'] ?? 0);
+            }
+         }
+         if ($total > 0) {
+            $historicalTotals[] = $total;
+         }
+      }
+
+      if ($historicalTotals === []) {
+         return false;
+      }
+
+      $average = array_sum($historicalTotals) / count($historicalTotals);
+
+      return $jumlah <= ($average * 1.15);
+   }
+
+   /** Pungutan: bandingkan dengan total bulan kalender sebelumnya di cabang yang sama + 15%. */
+   private function isWajarPengeluaranPungutan(int $idJenis, int $jumlah): bool
+   {
+      if ($idJenis !== 5 || $jumlah <= 0) {
+         return false;
+      }
+
+      $db = $this->db(0);
+      $cabang = (int) $this->id_cabang;
+      if ($cabang < 1) {
+         return false;
+      }
+
+      $bulanLalu = date('Y-m', strtotime('first day of last month'));
+      $bulanEsc = $db->escape($bulanLalu);
+      $jenisEsc = $db->escape(trim($jenis));
+      $row = $db->query_array(
+         "SELECT COALESCE(SUM(jumlah), 0) AS total FROM kas "
+         . "WHERE id_cabang = {$cabang} AND jenis_transaksi = 4 AND jenis_mutasi = 2 "
+         . "AND status_mutasi <> 4 AND note_primary = '{$jenisEsc}' "
+         . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$bulanEsc}'"
+      );
+      $total = (int) (($row[0]['total'] ?? 0));
+      if ($total <= 0) {
+         return false;
+      }
+
+      return $jumlah <= ($total * 1.15);
+   }
+
+   private function minimumGasLpgRatioFromSnapshots(): ?float
+   {
+      $rows = $this->db(0)->query_array(
+         "SELECT kas_keluar_json, qty_json FROM rekap_snapshot "
+         . "WHERE mode = 2 AND id_cabang > 0 ORDER BY periode ASC"
+      );
+      if (!is_array($rows)) {
+         return null;
+      }
+
+      $byBranch = [];
+      foreach ($rows as $row) {
+         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
+         $qtyData = json_decode((string) ($row['qty_json'] ?? ''), true);
+         $gas = 0;
+         foreach ((array) $kas as $item) {
+            if (stripos((string) ($item['note_primary'] ?? ''), 'GAS LPG') !== false) {
+               $gas += (int) ($item['total'] ?? 0);
+            }
+         }
+         $qty = 0;
+         foreach ((array) ($qtyData['detail'] ?? []) as $item) {
+            if (stripos((string) ($item['layanan'] ?? ''), 'SETRIKA') !== false) {
+               $qty += (float) ($item['qty'] ?? 0);
+            }
+         }
+         $branch = (int) ($row['id_cabang'] ?? 0);
+         if ($branch > 0 && $gas > 0 && $qty > 0) {
+            $byBranch[$branch][] = $gas / $qty;
+         }
+      }
+
+      $averages = [];
+      foreach ($byBranch as $ratios) {
+         $averages[] = array_sum($ratios) / count($ratios);
+      }
+
+      return $averages === [] ? null : min($averages);
+   }
+
+   private function sumQtySetrika(string $where): float
+   {
+      $rows = $this->db(0)->get_where('sale', $where);
+      $total = 0.0;
+      foreach ((array) $rows as $sale) {
+         $ids = @unserialize((string) ($sale['list_layanan'] ?? ''), ['allowed_classes' => false]);
+         if (!is_array($ids)) {
+            continue;
+         }
+         $hasSetrika = false;
+         foreach ($ids as $id) {
+            foreach ((array) $this->dLayanan as $layanan) {
+               if ((int) ($layanan['id_layanan'] ?? 0) === (int) $id
+                  && stripos((string) ($layanan['layanan'] ?? ''), 'SETRIKA') !== false) {
+                  $hasSetrika = true;
+                  break 2;
+               }
+            }
+         }
+         if ($hasSetrika) {
+            $total += (float) ($sale['qty'] ?? 0);
+         }
+      }
+      return $total;
    }
 
    /**

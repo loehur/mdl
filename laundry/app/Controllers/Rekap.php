@@ -208,7 +208,11 @@ class Rekap extends Controller
                if ($ref4 > 0 && isset($nonExpenseIds[$ref4])) {
                   break;
                }
-               $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
+                $kas_keluar[] = [
+                   'id_item_pengeluaran' => $ref4,
+                   'note_primary' => $row['note_primary'],
+                   'total' => $row['total'],
+                ];
                break;
             case 8: // Pengeluaran Kas Besar (termasuk rent id 102)
             case '8': // MySQL bisa return string
@@ -219,7 +223,11 @@ class Rekap extends Controller
                if ($ref == 102) {
                   $rent_total += $row['total'];
                } else {
-                  $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => $row['total']];
+                   $kas_keluar[] = [
+                      'id_item_pengeluaran' => $ref,
+                      'note_primary' => $row['note_primary'],
+                      'total' => $row['total'],
+                   ];
                }
                break;
          }
@@ -229,7 +237,11 @@ class Rekap extends Controller
       if ($rent_total > 0) {
          $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
          $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
-         $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => $rent_total];
+          $kas_keluar[] = [
+             'id_item_pengeluaran' => 102,
+             'note_primary' => $rent_nama,
+             'total' => $rent_total,
+          ];
       }
 
       // Fallback: rent dari cabang jika belum ada (bulanan) - jamin tampil meski insert gagal
@@ -241,7 +253,11 @@ class Rekap extends Controller
          if ($total_rent > 0) {
             $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
             $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
-            $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => $total_rent];
+             $kas_keluar[] = [
+                'id_item_pengeluaran' => 102,
+                'note_primary' => $rent_nama,
+                'total' => $total_rent,
+             ];
          }
       }
 
@@ -410,12 +426,7 @@ class Rekap extends Controller
 
       foreach ($targets as $idCabang) {
          $existing = $this->getRekapSnapshotRowForCabang($idCabang, $periode);
-         if ($existing) {
-            $skipped++;
-            continue;
-         }
-
-         $agg = $this->hitungRekapBulananSnapshot($idCabang, $periode);
+          $agg = $this->hitungRekapBulananSnapshot($idCabang, $periode);
          if ($agg === null) {
             $errors++;
             continue;
@@ -439,13 +450,21 @@ class Rekap extends Controller
             'id_user' => $id_user,
          ];
 
-         $do = $this->db(0)->insert('rekap_snapshot', $payload);
-         if (($do['errno'] ?? 1) != 0) {
+          if ($existing) {
+             $do = $this->db(0)->update('rekap_snapshot', $payload, 'id = ' . (int) $existing['id']);
+          } else {
+             $do = $this->db(0)->insert('rekap_snapshot', $payload);
+          }
+          if (($do['errno'] ?? 1) != 0) {
             $this->model('Log')->write('[Rekap::snapshot] Insert error cabang ' . $idCabang . ': ' . ($do['error'] ?? ''));
             $errors++;
             continue;
          }
-         $created++;
+          if ($existing) {
+             $skipped++;
+          } else {
+             $created++;
+          }
       }
 
       $status = $this->getRekapSnapshotStatus($mode, $periode);
@@ -1213,7 +1232,11 @@ class Rekap extends Controller
                if ($ref4 > 0 && isset($nonExpenseIds[$ref4])) {
                   break;
                }
-               $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => (int) $row['total']];
+                $kas_keluar[] = [
+                   'id_item_pengeluaran' => $ref4,
+                   'note_primary' => $row['note_primary'],
+                   'total' => (int) $row['total'],
+                ];
                break;
             case 8:
             case '8':
@@ -1224,7 +1247,11 @@ class Rekap extends Controller
                if ($ref == 102) {
                   $rent_total += $row['total'];
                } else {
-                  $kas_keluar[] = ['note_primary' => $row['note_primary'], 'total' => (int) $row['total']];
+                   $kas_keluar[] = [
+                      'id_item_pengeluaran' => $ref,
+                      'note_primary' => $row['note_primary'],
+                      'total' => (int) $row['total'],
+                   ];
                }
                break;
          }
@@ -1233,7 +1260,11 @@ class Rekap extends Controller
       if ($rent_total > 0) {
          $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
          $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
-         $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => (int) $rent_total];
+          $kas_keluar[] = [
+             'id_item_pengeluaran' => 102,
+             'note_primary' => $rent_nama,
+             'total' => (int) $rent_total,
+          ];
       } elseif (!isset($nonExpenseIds[102])) {
          $total_rent = 0;
          foreach ($listCabang as $c) {
@@ -1242,7 +1273,11 @@ class Rekap extends Controller
          if ($total_rent > 0) {
             $itemRent = $this->db(0)->get_where_row('item_pengeluaran', "id_item_pengeluaran = '102'");
             $rent_nama = $itemRent['item_pengeluaran'] ?? 'Rekap Bulanan';
-            $kas_keluar[] = ['note_primary' => $rent_nama, 'total' => (int) $total_rent];
+             $kas_keluar[] = [
+                'id_item_pengeluaran' => 102,
+                'note_primary' => $rent_nama,
+                'total' => (int) $total_rent,
+             ];
          }
       }
 
