@@ -25,7 +25,7 @@ $this->view('non_tunai_admin/_filter', [
 ]);
 ?>
 
-    <div class="nta-section">
+    <?php if (!$isBoundView) { ?><div class="nta-section">
       <h6 class="nta-section-title">
         <span><i class="fas fa-unlink me-1"></i>Belum Bind</span>
          <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtNominal($unboundTotalNominal) ?></span>
@@ -93,7 +93,7 @@ $this->view('non_tunai_admin/_filter', [
           </table>
         </div>
       <?php } ?>
-    </div>
+    </div><?php } ?>
   </div>
 </div>
 
