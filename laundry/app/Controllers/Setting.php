@@ -84,6 +84,18 @@ class Setting extends Controller
       $this->view("Setting/android_content");
    }
 
+   /** Halaman Tools untuk perangkat cabang. */
+   public function tools()
+   {
+      $this->operating_data();
+      $this->view("layout", [
+         "content" => "Setting/tools_content",
+         "data_operasi" => ['title' => "Unduhan Tools"]
+      ]);
+
+      $this->view("Setting/tools_content");
+   }
+
    public function updatePrinterMargins()
    {
       header('Content-Type: application/json');

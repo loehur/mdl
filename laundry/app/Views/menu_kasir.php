@@ -116,6 +116,15 @@ $menu[0] = [
                 'show_if_multi_cabang' => true,
                 'hide_if_training' => true,
             ],
+        ]
+    ],
+    [
+        'c' => '',
+        'title' => 'Download',
+        'icon' => 'fas fa-download',
+        'txt' => 'Download',
+        'submenu' =>
+        [
             [
                 'c' => 'Setting/printer',
                 'title' => 'Printer Setting',
@@ -123,8 +132,13 @@ $menu[0] = [
             ],
             [
                 'c' => 'Setting/android',
-                'title' => 'Android',
-                'txt' => 'Android',
+                'title' => 'Chat Android',
+                'txt' => 'Chat',
+            ],
+            [
+                'c' => 'Setting/tools',
+                'title' => 'Tools Perangkat',
+                'txt' => 'Tools',
             ],
         ]
     ],
