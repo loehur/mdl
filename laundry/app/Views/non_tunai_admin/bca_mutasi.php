@@ -3,7 +3,6 @@ $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
 $isBoundView = !empty($data['isBoundView']);
 $unboundRows = $isBoundView ? [] : $rows;
 $unboundTotalNominal = $isBoundView ? 0 : array_sum(array_map(static fn ($row) => (float) ($row['nominal'] ?? 0), $rows));
-if (!$isBoundView) { $rows = []; }
 $pelangganByRef = is_array($data['pelangganByRef'] ?? null) ? $data['pelangganByRef'] : [];
 $payerByRef = is_array($data['payerByRef'] ?? null) ? $data['payerByRef'] : $pelangganByRef;
 $fmtNominal = static function ($value): string {
@@ -98,7 +97,7 @@ $this->view('non_tunai_admin/_filter', [
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-         Tidak ada data BCA Lepas untuk periode ini
+         Tidak ada data <?= $isBoundView ? 'BCA Terikat' : 'BCA Lepas' ?> untuk periode ini
       </div>
     <?php } else { ?>
       <div class="nta-table-wrap">
