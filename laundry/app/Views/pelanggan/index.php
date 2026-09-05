@@ -658,7 +658,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
               $f6Attr = htmlspecialchars($f6, ENT_QUOTES, 'UTF-8');
               $searchBlob = strtolower($id . ' ' . $f1Show . ' ' . $f2 . ' ' . $f6 . ' ' . $f5);
               $isPartner = ((float) $f5 > 0);
-              $cardClass = $isPartner ? 'plg-card plg-row is-partner' : 'plg-card plg-row';
+              $cardClass = $isPartner ? 'plg-card is-partner' : 'plg-card';
               $chipClass = $isPartner ? 'plg-chip plg-chip--yellow' : 'plg-chip';
               $hpDigits = preg_replace('/\D/', '', (string) $f2);
               $canChat = strlen($hpDigits) >= 8;
@@ -783,7 +783,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
     var nama = ($('#ordPlgNama').val() || '').toLowerCase().trim();
     var visible = 0;
 
-    $root.find('.plg-row').each(function () {
+    $root.find('.plg-card').each(function () {
       var blob = ($(this).attr('data-search') || '').toLowerCase();
       var ok = true;
       if (q && blob.indexOf(q) === -1) ok = false;
@@ -798,7 +798,7 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 
     var $emptyFilter = $('#plg-empty-filter');
     if ($emptyFilter.length) {
-      $emptyFilter.toggleClass('is-hidden', visible > 0 || $root.find('.plg-row').length === 0);
+      $emptyFilter.toggleClass('is-hidden', visible > 0 || $root.find('.plg-card').length === 0);
     }
   }
 
