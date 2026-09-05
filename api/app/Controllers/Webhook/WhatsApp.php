@@ -784,9 +784,20 @@ class WhatsApp extends Controller
             $ctx = $ctxMethod->invoke($replies, $waNumber);
             $sapaan = (string) ($ctx['sapaan'] ?? 'kak');
 
-            $replyMethod = new \ReflectionMethod($replies, 'pickPenutupThanksReply');
+            $replyMethod = new \ReflectionMethod($replies, 'pickPenutupPaymentReply');
             $replyMethod->setAccessible(true);
             $reply = (string) $replyMethod->invoke($replies, $sapaan);
+
+            $cooldownMethod = new \ReflectionMethod($replies, 'isInAutoreplyCooldown');
+            $cooldownMethod->setAccessible(true);
+            if ($cooldownMethod->invoke($replies, $waNumber, 'PENUTUP')) {
+                $this->logVisionImage('thanks_reply_skipped cooldown=PENUTUP');
+                return;
+            }
+
+            $recordMethod = new \ReflectionMethod($replies, 'recordHandlerCooldown');
+            $recordMethod->setAccessible(true);
+            $recordMethod->invoke($replies, $waNumber, 'PENUTUP');
 
             $sendMethod = new \ReflectionMethod($replies, 'sendAutoreplyText');
             $sendMethod->setAccessible(true);
