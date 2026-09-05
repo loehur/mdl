@@ -108,7 +108,7 @@ $this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRange
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-        Tidak ada data binding Mutasi BCA untuk periode ini
+         Tidak ada data BCA Lepas untuk periode ini
       </div>
     <?php } else { ?>
       <div class="nta-table-wrap">
