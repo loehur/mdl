@@ -230,27 +230,47 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
   }
   #plg-root .plg-card-meta {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     margin-top: 8px;
     font-size: 0.8rem;
     font-weight: 800;
     color: var(--plg-muted);
-    line-height: 1.35;
+    line-height: 1.25;
     min-width: 0;
   }
   #plg-root .plg-card-meta .plg-meta-phone {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     min-width: 0;
+    overflow: hidden;
+  }
+  #plg-root .plg-meta-phone__main,
+  #plg-root .plg-meta-phone__alt {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #plg-root .plg-meta-phone__main {
+    color: #1d4ed8;
+    font-weight: 900;
+  }
+  #plg-root .plg-meta-phone__alt {
+    color: var(--plg-muted);
+    font-size: 0.67rem;
+    font-weight: 800;
   }
   #plg-root .plg-card-meta .plg-chip,
   #plg-root .plg-card-meta .plg-badge {
     max-width: 100%;
     overflow-wrap: anywhere;
+  }
+  #plg-root .plg-card-meta > .plg-chip {
+    justify-self: end;
   }
   #plg-root .plg-badge {
     display: inline-flex;
@@ -650,9 +670,9 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
                 <div class="plg-card-meta">
                   <span class="plg-badge">#<?= $id ?></span>
                   <span class="plg-meta-phone">
-                    <span class="plg-chip plg-chip--blue"><?= $f2Html ?></span>
+                    <span class="plg-meta-phone__main" title="Nomor HP"><?= $f2Html ?></span>
                     <?php if ($f6 !== '') { ?>
-                      <span class="plg-chip" title="Nomor alternatif"><?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
+                      <span class="plg-meta-phone__alt" title="Nomor alternatif">Alt: <?= htmlspecialchars($f6, ENT_QUOTES, 'UTF-8') ?></span>
                     <?php } ?>
                   </span>
                   <span class="<?= $chipClass ?>">
