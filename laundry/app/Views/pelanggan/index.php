@@ -821,10 +821,13 @@ $namaCabangUi = (string) ($this->dCabang['nama'] ?? ('MDL ' . $kodeCabangUi));
 
   $root.on('click', '.plg-edit-btn', function () {
     var $btn = $(this);
+    var $card = $btn.closest('.plg-card');
+    var nomor = $btn.attr('data-nomor') || $card.find('.plg-meta-phone__main').text().trim();
+    var nomor2 = $btn.attr('data-nomor2') || $card.find('.plg-meta-phone__alt').text().replace(/^Alt:\s*/i, '').trim();
     $('#plg-edit-id').val($btn.attr('data-id'));
-    $('#plg-edit-nama').val($btn.attr('data-nama'));
-    $('#plg-edit-nomor').val($btn.attr('data-nomor'));
-    $('#plg-edit-nomor2').val($btn.attr('data-nomor2') || '');
+    $('#plg-edit-nama').val($btn.attr('data-nama') || $card.find('.plg-card-nama').text().trim());
+    $('#plg-edit-nomor').val(nomor);
+    $('#plg-edit-nomor2').val(nomor2);
     var $disc = $('#plg-edit-disc');
     if ($disc.length) $disc.val($btn.attr('data-disc') || '0');
     openEditModal();
