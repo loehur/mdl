@@ -23,6 +23,86 @@ $this->view('non_tunai_admin/_filter', [
 ]);
 ?>
 
+    <div class="nta-section">
+      <h6 class="nta-section-title">
+        <span><i class="fas fa-unlink me-1"></i>Belum Bind</span>
+         <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtNominal($unboundTotalNominal) ?></span>
+      </h6>
+
+      <?php if ($unboundRows === []) { ?>
+        <div class="nta-empty">
+          <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+          Semua mutasi periode ini sudah ter-bind
+        </div>
+      <?php } else { ?>
+        <div class="nta-table-wrap">
+          <table class="table table-sm table-bordered table-hover nta-table mb-0">
+            <thead>
+              <tr>
+                <th>ID Mutasi</th>
+                <th>Tanggal</th>
+                <th>Nominal</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($unboundRows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $mutasiId = (int) ($row['mutasi_id'] ?? 0);
+                $tanggalLabel = (string) ($row['tanggal'] ?? '');
+                if (strtoupper($tanggalLabel) !== 'PEND' && !empty($row['tanggal_iso'])) {
+                    $tanggalLabel = date('d/m/Y', strtotime((string) $row['tanggal_iso']));
+                }
+
+                $nominal = $row['nominal'] ?? null;
+                $ket = trim((string) ($row['keterangan'] ?? ''));
+                 $mutasiCreated = !empty($row['mutasi_created_at']) ? date('d/m/Y H:i', strtotime((string) $row['mutasi_created_at'])) : '—';
+
+                $detailPayload = [
+                    'title' => 'Mutasi BCA Belum Bind #' . $mutasiId,
+                    'fields' => [
+                        ['label' => 'Status', 'value' => 'Belum bind'],
+                        ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
+                         ['label' => 'Nominal', 'value' => $fmtNominal($nominal)],
+                        ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
+                        ['label' => 'Created Mutasi', 'value' => $mutasiCreated],
+                        ['label' => 'ID Mutasi', 'value' => (string) $mutasiId],
+                    ],
+                ];
+                $detailJson = json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (!is_string($detailJson)) {
+                    $detailJson = '{}';
+                }
+              ?>
+              <tr>
+                <td><?php $this->view('non_tunai_admin/_link_id_cell', [
+                    'linkId' => $mutasiId,
+                    'detailJson' => $detailJson,
+                ]); ?></td>
+                <td><?= htmlspecialchars($tanggalLabel) ?></td>
+                <td class="text-end"><span class="nta-nominal-single"><?= $fmtNominal($nominal) ?></span></td>
+                <td><span class="nta-badge nta-badge--unbound">Belum bind</span></td>
+              </tr>
+              <?php } ?>
+            </tbody>
+          </table>
+        </div>
+      <?php } ?>
+    </div>
+  </div>
+</div>
+
+<?php
+$this->view('non_tunai_admin/_detail_modal');
+$this->view('non_tunai_admin/_unbind_modal', [
+    'unbindUrl' => URL::BASE_URL . 'NonTunaiAdmin/unbindMutasiLink',
+]);
+$this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
+?>
+
     <?php if ($rows === []) { ?>
       <div class="nta-empty">
         <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
@@ -139,83 +219,3 @@ $this->view('non_tunai_admin/_filter', [
         </table>
       </div>
     <?php } ?>
-
-    <div class="nta-section">
-      <h6 class="nta-section-title">
-        <span><i class="fas fa-unlink me-1"></i>Belum Bind</span>
-         <span class="nta-count nta-count__unbound"><?= count($unboundRows) ?> transaksi · <?= $fmtNominal($unboundTotalNominal) ?></span>
-      </h6>
-
-      <?php if ($unboundRows === []) { ?>
-        <div class="nta-empty">
-          <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
-          Semua mutasi periode ini sudah ter-bind
-        </div>
-      <?php } else { ?>
-        <div class="nta-table-wrap">
-          <table class="table table-sm table-bordered table-hover nta-table mb-0">
-            <thead>
-              <tr>
-                <th>ID Mutasi</th>
-                <th>Tanggal</th>
-                <th>Nominal</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($unboundRows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $mutasiId = (int) ($row['mutasi_id'] ?? 0);
-                $tanggalLabel = (string) ($row['tanggal'] ?? '');
-                if (strtoupper($tanggalLabel) !== 'PEND' && !empty($row['tanggal_iso'])) {
-                    $tanggalLabel = date('d/m/Y', strtotime((string) $row['tanggal_iso']));
-                }
-
-                $nominal = $row['nominal'] ?? null;
-                $ket = trim((string) ($row['keterangan'] ?? ''));
-                 $mutasiCreated = !empty($row['mutasi_created_at']) ? date('d/m/Y H:i', strtotime((string) $row['mutasi_created_at'])) : '—';
-
-                $detailPayload = [
-                    'title' => 'Mutasi BCA Belum Bind #' . $mutasiId,
-                    'fields' => [
-                        ['label' => 'Status', 'value' => 'Belum bind'],
-                        ['label' => 'Tanggal Mutasi', 'value' => $tanggalLabel],
-                         ['label' => 'Nominal', 'value' => $fmtNominal($nominal)],
-                        ['label' => 'Keterangan', 'value' => $ket !== '' ? $ket : '—'],
-                        ['label' => 'Created Mutasi', 'value' => $mutasiCreated],
-                        ['label' => 'ID Mutasi', 'value' => (string) $mutasiId],
-                    ],
-                ];
-                $detailJson = json_encode($detailPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                if (!is_string($detailJson)) {
-                    $detailJson = '{}';
-                }
-              ?>
-              <tr>
-                <td><?php $this->view('non_tunai_admin/_link_id_cell', [
-                    'linkId' => $mutasiId,
-                    'detailJson' => $detailJson,
-                ]); ?></td>
-                <td><?= htmlspecialchars($tanggalLabel) ?></td>
-                <td class="text-end"><span class="nta-nominal-single"><?= $fmtNominal($nominal) ?></span></td>
-                <td><span class="nta-badge nta-badge--unbound">Belum bind</span></td>
-              </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      <?php } ?>
-    </div>
-  </div>
-</div>
-
-<?php
-$this->view('non_tunai_admin/_detail_modal');
-$this->view('non_tunai_admin/_unbind_modal', [
-    'unbindUrl' => URL::BASE_URL . 'NonTunaiAdmin/unbindMutasiLink',
-]);
-$this->view('non_tunai_admin/_filter_script', ['maxRangeDays' => $data['maxRangeDays'] ?? 7]);
-?>
