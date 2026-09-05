@@ -120,7 +120,7 @@ class NonTunaiAdmin extends Controller
             return;
         }
         try {
-            $delete = $this->db(100)->delete('bca_mutasi_bypass_rules', ['id' => $id]);
+            $delete = $this->db(100)->delete('bca_mutasi_bypass_rules', 'id = ' . $id);
             if (($delete['errno'] ?? 1) !== 0) {
                 echo json_encode(['ok' => false, 'message' => $delete['error'] ?? 'Gagal menghapus aturan bypass'], JSON_UNESCAPED_UNICODE);
                 return;
