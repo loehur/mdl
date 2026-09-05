@@ -601,6 +601,7 @@ class WhatsApp extends Controller
                         . ' eligible_order=' . ($hasEligibleOrder ? 'true' : 'false')
                     );
                     if (!$hasPendingPayment && $hasEligibleOrder) {
+                        $this->sendVisionThanksReply($waNumber);
                         $this->logVisionImage('ai_start media_url=' . $mediaUrl . ' mime=' . ($mediaMimeType ?: '-'));
                         $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
                         $this->logVisionImage('ai_result parsed=' . ($paymentResult !== null ? 'true' : 'false'));
@@ -767,6 +768,31 @@ class WhatsApp extends Controller
     private function logVisionImage(string $message): void
     {
         \Log::write($message, 'vision_image', 'Webhook');
+    }
+
+    private function sendVisionThanksReply(string $waNumber): void
+    {
+        try {
+            if (!class_exists('\\App\\Models\\WAReplies')) {
+                require_once __DIR__ . '/../../Models/WAReplies.php';
+            }
+            $replies = new \App\Models\WAReplies();
+            $ctxMethod = new \ReflectionMethod($replies, 'getGreetingContext');
+            $ctxMethod->setAccessible(true);
+            $ctx = $ctxMethod->invoke($replies, $waNumber);
+            $sapaan = (string) ($ctx['sapaan'] ?? 'kak');
+
+            $replyMethod = new \ReflectionMethod($replies, 'pickPenutupThanksReply');
+            $replyMethod->setAccessible(true);
+            $reply = (string) $replyMethod->invoke($replies, $sapaan);
+
+            $sendMethod = new \ReflectionMethod($replies, 'sendAutoreplyText');
+            $sendMethod->setAccessible(true);
+            $sendMethod->invoke($replies, $waNumber, $reply);
+            $this->logVisionImage('thanks_reply_sent text=' . $reply);
+        } catch (\Throwable $e) {
+            $this->logVisionImage('thanks_reply_exception class=' . get_class($e) . ' message=' . $e->getMessage());
+        }
     }
 
     private function customerHasPendingTransaction(string $phoneIn, string $waNumber, ?string $messageId = null): bool
