@@ -595,8 +595,12 @@ class WhatsApp extends Controller
                 if ($messageType === 'image' && $isPelanggan && $mediaUrl) {
                     $this->logVisionImage('guard_start phone=' . $waNumber . ' message_id=' . ($messageId ?: '-'));
                     $hasPendingPayment = $this->customerHasPendingTransaction($phoneIn, $waNumber, $messageId);
-                    $this->logVisionImage('guard_result pending_payment=' . ($hasPendingPayment ? 'true' : 'false'));
-                    if (!$hasPendingPayment) {
+                    $hasEligibleOrder = $this->customerHasEligibleOrder($phoneIn, $waNumber, $messageId);
+                    $this->logVisionImage(
+                        'guard_result pending_payment=' . ($hasPendingPayment ? 'true' : 'false')
+                        . ' eligible_order=' . ($hasEligibleOrder ? 'true' : 'false')
+                    );
+                    if (!$hasPendingPayment && $hasEligibleOrder) {
                         $this->logVisionImage('ai_start media_url=' . $mediaUrl . ' mime=' . ($mediaMimeType ?: '-'));
                         $paymentResult = $this->analyzePaymentImage($mediaUrl, $mediaMimeType, $waNumber);
                         $this->logVisionImage('ai_result parsed=' . ($paymentResult !== null ? 'true' : 'false'));
@@ -608,10 +612,20 @@ class WhatsApp extends Controller
                                 'vision_image',
                                 'Webhook'
                             );
-                            $this->sendPaymentImageResult($waNumber, $paymentResult);
+                            $allocation = $this->allocateVisionPayment(
+                                $waNumber,
+                                $paymentResult,
+                                $messageId
+                            );
+                            $this->logVisionImage(
+                                'allocation_result=' . json_encode($allocation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                            );
                         }
                     } else {
-                        $this->logVisionImage('skip_pending_payment phone=' . $waNumber);
+                        $this->logVisionImage(
+                            'skip_vision guard_failed pending_payment=' . ($hasPendingPayment ? 'true' : 'false')
+                            . ' eligible_order=' . ($hasEligibleOrder ? 'true' : 'false')
+                        );
                         \Log::write(
                             'Skip payment image analysis: customer has pending transaction phone=' . $waNumber,
                             'wa_info',
@@ -824,6 +838,72 @@ class WhatsApp extends Controller
         return $result ? ($result->result_array() ?: []) : [];
     }
 
+    private function allocateVisionPayment(string $waNumber, array $paymentResult, ?string $messageId): array
+    {
+        $customerId = 0;
+        try {
+            $db = \App\Core\DB::getInstance(1);
+            $rows = $this->findCustomerRowsByWaNumber($db, $waNumber);
+            $customerId = (int) ($rows[0]['id_pelanggan'] ?? 0);
+            if ($customerId <= 0) {
+                return ['ok' => false, 'message' => 'Pelanggan tidak ditemukan'];
+            }
+
+            if (empty($paymentResult['is_receipt']) || !in_array($paymentResult['type'] ?? null, ['BCA', 'QRIS'], true)) {
+                return ['ok' => false, 'message' => 'Gambar bukan bukti pembayaran yang valid'];
+            }
+            if (!is_numeric($paymentResult['nominal'] ?? null) || (int) $paymentResult['nominal'] <= 0) {
+                return ['ok' => false, 'message' => 'Nominal pembayaran tidak valid'];
+            }
+
+            if (!class_exists('\\App\\Helpers\\Laundry\\PaymentAllocator')) {
+                require_once __DIR__ . '/../../Helpers/Laundry/PaymentAllocator.php';
+            }
+            return (new \App\Helpers\Laundry\PaymentAllocator())->allocate(
+                $customerId,
+                (int) $paymentResult['nominal'],
+                (string) $paymentResult['type'],
+                $paymentResult['receipt_date'] ?? null,
+                $messageId
+            );
+        } catch (\Throwable $e) {
+            $this->logVisionImage('allocation_exception customer_id=' . $customerId . ' class=' . get_class($e) . ' message=' . $e->getMessage());
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function customerHasEligibleOrder(string $phoneIn, string $waNumber, ?string $messageId = null): bool
+    {
+        try {
+            $db1 = \App\Core\DB::getInstance(1);
+            $rows = $this->findCustomerRowsByWaNumber($db1, $waNumber);
+            $ids = array_values(array_filter(array_map('intval', array_column($rows, 'id_pelanggan'))));
+            if ($ids === []) {
+                $this->logVisionImage('eligible_order_no_customer_ids');
+                return false;
+            }
+
+            $idsIn = implode(',', $ids);
+            $sales = $db1->query(
+                "SELECT 1 FROM sale WHERE id_pelanggan IN ($idsIn) AND tuntas = 0 AND bin = 0 LIMIT 1"
+            );
+            if ($sales && $sales->num_rows() > 0) {
+                $this->logVisionImage('eligible_order_sale=true');
+                return true;
+            }
+
+            $members = $db1->query(
+                "SELECT 1 FROM member WHERE id_pelanggan IN ($idsIn) AND bin = 0 AND lunas = 0 LIMIT 1"
+            );
+            $eligible = $members && $members->num_rows() > 0;
+            $this->logVisionImage('eligible_order_sale=false member=' . ($eligible ? 'true' : 'false'));
+            return $eligible;
+        } catch (\Throwable $e) {
+            $this->logVisionImage('eligible_order_exception class=' . get_class($e) . ' message=' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function analyzePaymentImage(string $mediaUrl, ?string $mimeType, string $waNumber): ?array
     {
         try {
@@ -838,7 +918,7 @@ class WhatsApp extends Controller
                 'content' => [
                     [
                         'type' => 'text',
-                        'text' => 'Analisis gambar bukti pembayaran. Kembalikan HANYA JSON valid dengan format {"is_receipt":true|false,"type":"BCA"|"QRIS"|null,"nominal":number|null}. Tentukan type berdasarkan penerima/tujuan: gunakan "BCA" HANYA jika penerima/tujuan adalah "LUHUR GUNAWAN"; gunakan "QRIS" HANYA jika penerima/tujuan adalah "MADINAH LAUNDRY". Jika penerima/tujuan tidak terlihat, berbeda, atau tidak dapat dipastikan, gunakan is_receipt=false, type=null, nominal=null. Jangan menebak nominal.',
+                        'text' => 'Analisis gambar bukti pembayaran. Kembalikan HANYA JSON valid dengan format {"is_receipt":true|false,"type":"BCA"|"QRIS"|null,"nominal":number|null,"receipt_date":"YYYY-MM-DD"|null}. Tentukan type berdasarkan penerima/tujuan: gunakan "BCA" HANYA jika penerima/tujuan adalah "LUHUR GUNAWAN"; gunakan "QRIS" HANYA jika penerima/tujuan adalah "MADINAH LAUNDRY". receipt_date adalah tanggal transaksi pada bukti pembayaran dalam format YYYY-MM-DD, atau null jika tidak ditemukan. Jika penerima/tujuan tidak terlihat, berbeda, atau tidak dapat dipastikan, gunakan is_receipt=false, type=null, nominal=null, receipt_date=null. Jangan menebak nominal atau tanggal.',
                     ],
                     [
                         'type' => 'image_url',
@@ -859,12 +939,24 @@ class WhatsApp extends Controller
                 'is_receipt' => (bool) ($json['is_receipt'] ?? false),
                 'type' => in_array($type, ['BCA', 'QRIS'], true) ? $type : null,
                 'nominal' => isset($json['nominal']) && is_numeric($json['nominal']) ? (float) $json['nominal'] : null,
+                'receipt_date' => $this->normalizeReceiptDate($json['receipt_date'] ?? null),
             ];
         } catch (\Throwable $e) {
             $this->logVisionImage('ai_exception class=' . get_class($e) . ' message=' . $e->getMessage());
             \Log::write('Payment image AI failed: ' . $e->getMessage(), 'wa_error', 'Webhook');
             return null;
         }
+    }
+
+    private function normalizeReceiptDate($value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $date = \DateTime::createFromFormat('!Y-m-d', $value);
+        return $date && $date->format('Y-m-d') === $value ? $value : null;
     }
 
     private function invokeVisionAi(array $messages, string $waNumber): string
