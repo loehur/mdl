@@ -11,8 +11,8 @@
                             <div class="d-flex align-items-start gap-3">
                                 <div class="text-primary fs-4"><i class="fab fa-windows"></i></div>
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">Windows Kasir Debloat</h6>
-                                    <p class="text-muted small mb-3">Optimasi Windows PC kasir dengan menghapus aplikasi consumer dan mengurangi proses latar belakang. Jalankan sebagai Administrator, lalu restart Windows.</p>
+                                    <h6 class="mb-1">Windows Kasir Debloat V2</h6>
+                                    <p class="text-muted small mb-3">Optimasi Windows PC kasir dengan menghapus aplikasi consumer dan mengurangi proses latar belakang, tanpa mematikan Windows Search. Jalankan sebagai Administrator, lalu restart Windows.</p>
                                     <div class="alert alert-warning small py-2 mb-3">
                                         <i class="fas fa-exclamation-triangle me-1"></i> Script mengubah pengaturan Windows. Gunakan hanya pada PC kasir yang sudah disiapkan.
                                     </div>
