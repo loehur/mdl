@@ -1412,14 +1412,9 @@ trait WARepliesKurirTrait
             return true;
         }
 
-        // Menunggu shareloc tapi pesan bukan pin/maps → lepaskan ke intent lain
-        // (jangan consume & jangan tanya shareloc lagi di tengah chat harga/status/dll.)
+        // Menunggu shareloc tapi pesan bukan pin/maps → lepaskan ke intent lain.
+        // Session tetap dipertahankan sampai TTL.
         if (in_array($step, ['ask_shareloc', 'new_ask_shareloc'], true)) {
-            // Minta jemput/antar baru → anggap flow lama ditinggalkan
-            if ($this->messageLooksLikeKurir(mb_strtolower($msg))) {
-                $this->clearKurirSession($waNumber);
-                $this->clearLokasiSession($waNumber);
-            }
             $this->logAutoreplyTrace($waNumber, 'KURIR', 'ask_shareloc_waiting→release_other_intent');
             return false;
         }
@@ -1563,10 +1558,8 @@ trait WARepliesKurirTrait
                 return true;
             }
             if (($decision['action'] ?? '') === 'unrelated') {
-                // Lepas session WA kurir supaya intent lain (estimasi/bill/harga) bisa jalan
-                $this->clearKurirSession($waNumber);
-                $this->clearLokasiSession($waNumber);
-                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'unrelated→continue_routing');
+                // Intent lain boleh jalan, tetapi state kurir tetap hidup sampai TTL.
+                $this->logAutoreplyTrace($waNumber, 'KURIR_AI', 'unrelated→defer_continue_routing');
                 return false;
             }
             $this->kurirDispatchAiAction($waNumber, $sapaan, $session, $msg, $decision);

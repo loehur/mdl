@@ -106,7 +106,8 @@ trait WARepliesHargaTrait
     }
 
     /**
-     * Intent tegas lain → lepaskan session HARGA.
+     * Intent tegas lain → jangan konsumsi pesan sebagai follow-up HARGA.
+     * Session tetap hidup sampai TTL dan dapat dilanjutkan kemudian.
      */
     private function messageBreaksHargaSession(string $text, array $keywordConfig): bool
     {

@@ -2860,8 +2860,12 @@ class WAReplies
 
         // Intent Lab = klasifikasi teks saja; jangan pakai session nomor lab (bikin source kosong / menyesatkan)
         if (!$this->intentLabMode) {
+        // Intent tegas mendapat prioritas atas follow-up PERMINTAAN, tetapi
+        // session tetap dipertahankan agar rangkuman dapat dilanjutkan nanti.
+        $permintaanSessionActive = $this->getPermintaanSession($waNumber) !== null;
+
         // Session PERMINTAAN aktif: standby rangkum AI (tanpa autoreply), case 3
-        if ($this->getPermintaanSession($waNumber) !== null
+        if ($permintaanSessionActive
             && !$this->messageBreaksPermintaanSession($textBodyToCheck, $fullKeywordConfig)
             && $this->intentAllowedForMessageLength('PERMINTAAN', $fullKeywordConfig, $messageLength)
         ) {
@@ -2900,8 +2904,7 @@ class WAReplies
                     'conversation_id' => $conversationId,
                 ];
             }
-            $this->clearHargaSession($waNumber);
-            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_cleared→other_intent');
+            $this->logAutoreplyTrace($waNumber, 'BRANCH', 'harga_session_deferred→other_intent');
         }
 
         // Session LOKASI aktif: lengkapi alamat (kecuali intent jelas lain / jemput-antar)
@@ -2929,9 +2932,8 @@ class WAReplies
             } elseif ($this->getLokasiSession($waNumber) !== null
                 && $this->messageBreaksLokasiSession($textBodyToCheck, $fullKeywordConfig)
             ) {
-                // Topik pindah (bill/status/harga/…) → lepaskan session lokasi agar tidak nyangkut tanya shareloc/detail lagi
-                $this->clearLokasiSession($waNumber);
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_cleared→other_intent');
+                // Topik pindah: pertahankan session sampai TTL agar dapat dilanjutkan.
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'lokasi_session_deferred→other_intent');
             }
         } catch (\Throwable $e) {
             if (class_exists('\Log')) {
@@ -2973,15 +2975,11 @@ class WAReplies
             $estimasiCtx = $this->messageLooksLikeEstimasiSelesai($textBodyToCheck)
                 || $this->parseEstimasiRequestedRelativeDay($textBodyToCheck) !== null;
             if ($estimasiCtx && $hasActiveSale) {
-                $this->clearKurirSession($waNumber);
-                $this->clearLokasiSession($waNumber);
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→estimasi_context has_sale');
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_deferred→estimasi_context has_sale');
                 // fall through ke routing PERMINTAAN
             } elseif ($this->messageBreaksKurirSession($textBodyToCheck, $fullKeywordConfig, $hasActiveSale)) {
-                // Topik pindah (status/bill/harga/ingat/…) → clear agar tidak tiba-tiba tanya shareloc lagi
-                $this->clearKurirSession($waNumber);
-                $this->clearLokasiSession($waNumber);
-                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_cleared→other_intent');
+                // Topik pindah: pertahankan session sampai TTL agar dapat dilanjutkan.
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_deferred→other_intent');
             } elseif ($this->intentAllowedForMessageLength('KURIR', $fullKeywordConfig, $messageLength)) {
                 $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_session_followup→KURIR case=2');
                 $this->currentHandler = 'KURIR';
