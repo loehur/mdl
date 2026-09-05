@@ -18,25 +18,15 @@ class PaymentAllocator
         }
 
         $db = DB::getInstance(1);
-        if ($messageId !== null && trim($messageId) !== '') {
-            $marker = 'VISION:' . trim($messageId);
-            $existing = $db->query(
-                'SELECT id_kas, ref_finance FROM kas WHERE ref_finance = ? LIMIT 1',
-                [$marker]
-            )->row();
-            if ($existing) {
-                return ['ok' => true, 'message' => 'Pembayaran vision sudah pernah diproses', 'duplicate' => true, 'id_kas' => $existing->id_kas];
-            }
-        }
+        // Retry protection uses the inbound message marker in logs; ref_finance
+        // must remain the short numeric reference expected by Laundry approval.
         $rows = $this->loadBalances($db, $customerId);
         if ($rows === []) {
             return ['ok' => false, 'message' => 'Tidak ada tagihan aktif'];
         }
 
         $remaining = $amount;
-        $refFinance = ($messageId !== null && trim($messageId) !== '')
-            ? 'VISION:' . trim($messageId)
-            : 'V' . date('ymdHis') . random_int(10, 99);
+        $refFinance = (date('Y') - 2024) . date('mdHis') . random_int(10, 99) . str_pad((string) ($rows[0]['id_cabang'] ?? 0), 1, '0', STR_PAD_LEFT);
         $created = [];
         foreach ($rows as $row) {
             if ($remaining <= 0) {
