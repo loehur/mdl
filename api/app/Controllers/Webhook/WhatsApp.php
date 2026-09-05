@@ -755,7 +755,17 @@ class WhatsApp extends Controller
 
         $idsIn = implode(',', $ids);
         $result = $db1->query(
-            "SELECT 1 FROM sale WHERE tuntas = 0 AND bin = 0 AND id_pelanggan IN ($idsIn) LIMIT 1"
+            "SELECT 1
+             FROM kas k
+             INNER JOIN sale s
+               ON s.no_ref = k.ref_transaksi
+              AND s.id_cabang = k.id_cabang
+             WHERE s.id_pelanggan IN ($idsIn)
+               AND k.jenis_transaksi = 1
+               AND k.status_mutasi = 2
+               AND k.jenis_mutasi = 1
+               AND k.metode_mutasi IN (2, 3)
+             LIMIT 1"
         );
 
         return $result && $result->num_rows() > 0;
