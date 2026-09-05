@@ -52,8 +52,8 @@ class PaymentAllocator
                 'ref_finance' => $refFinance,
                 'insertTime' => date('Y-m-d H:i:s'),
             ]);
-            if (($insert['errno'] ?? 1) !== 0) {
-                return ['ok' => false, 'message' => $insert['error'] ?? 'Gagal menyimpan pembayaran', 'created' => $created];
+            if ($insert === false) {
+                return ['ok' => false, 'message' => $db->lastError() ?: 'Gagal menyimpan pembayaran', 'created' => $created];
             }
 
             $created[] = [
