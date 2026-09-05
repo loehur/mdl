@@ -23,6 +23,16 @@ class QrisLocalConfirm
             $stats['checked']++; $ref = trim((string) ($row['entity_ref'] ?? '')); $amount = (int) ($row['amount'] ?? 0);
             if ($ref === '' || $amount < 1) { $stats['errors']++; $stats['details'][] = 'ERROR reservasi tidak valid'; continue; }
             $type = self::entityType($ref);
+            $source = self::pendingSource($type, $ref, $laundryDb, $invoiceDb, $salonDb);
+            if (empty($source['valid'])) {
+                $mainDb->update(
+                    'qris_nominal_reservations',
+                    ['state' => 'expired', 'active_key' => null],
+                    ['entity_ref' => $ref, 'active_key' => 1]
+                );
+                $stats['details'][] = "RELEASE {$ref}: " . ($source['reason'] ?? 'sumber tidak valid');
+                continue;
+            }
             // Bind dapat dibuat lebih dahulu melalui Admin Approval. Tetap
             // jalankan efek bisnisnya; jangan menunggu transaksi menjadi unlinked.
             $existing = $mainDb->query(
@@ -43,6 +53,64 @@ class QrisLocalConfirm
         }
         return $stats;
     }
+    /**
+     * Validasi sumber QRIS masih menunggu pembayaran. Reservasi tetap boleh
+     * hidup 6 hari; yang dilepas di sini hanya sumber yang sudah hilang/tidak
+     * lagi pending sehingga nominalnya tidak terkunci tanpa transaksi.
+     *
+     * @return array{valid:bool,reason?:string}
+     */
+    private static function pendingSource(string $type, string $ref, $laundryDb, $invoiceDb, $salonDb): array
+    {
+        try {
+            if ($type === BcaScrapper::ENTITY_INVOICE) {
+                $row = $invoiceDb->query(
+                    "SELECT payment_status FROM invoice_payments WHERE payment_ref = ? LIMIT 1",
+                    [$ref]
+                )->row_array();
+                $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
+                return $status === 'pending'
+                    ? ['valid' => true]
+                    : ['valid' => false, 'reason' => $status === '' ? 'invoice tidak ditemukan' : "status invoice={$status}"];
+            }
+
+            if ($type === BcaScrapper::ENTITY_SALON_SUBSCRIPTION) {
+                $row = $salonDb->query(
+                    "SELECT payment_status FROM subscription_payments WHERE payment_ref = ? LIMIT 1",
+                    [$ref]
+                )->row_array();
+                $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
+                return $status === 'pending'
+                    ? ['valid' => true]
+                    : ['valid' => false, 'reason' => $status === '' ? 'pembayaran salon tidak ditemukan' : "status salon={$status}"];
+            }
+
+            $row = $laundryDb->query(
+                "SELECT status_mutasi, metode_mutasi, note
+                 FROM kas
+                 WHERE ref_finance = ?
+                 ORDER BY insertTime DESC
+                 LIMIT 1",
+                [$ref]
+            )->row_array();
+            if (!is_array($row)) {
+                return ['valid' => false, 'reason' => 'kas laundry tidak ditemukan'];
+            }
+            $isQris = (int) ($row['metode_mutasi'] ?? 0) === 2
+                && strtoupper(trim((string) ($row['note'] ?? ''))) === 'QRIS';
+            if (!$isQris) {
+                return ['valid' => false, 'reason' => 'kas bukan transaksi QRIS'];
+            }
+            return (int) ($row['status_mutasi'] ?? 0) === 2
+                ? ['valid' => true]
+                : ['valid' => false, 'reason' => 'status kas bukan pending'];
+        } catch (\Throwable $e) {
+            // Jangan melepas reservasi jika database sumber sedang bermasalah;
+            // retry cron berikutnya lebih aman daripada membuka nominal ganda.
+            return ['valid' => true, 'reason' => 'validasi sumber ditunda: ' . $e->getMessage()];
+        }
+    }
+
     private static function entityType(string $ref): string { if (strpos($ref, 'MDLINV_') === 0) return BcaScrapper::ENTITY_INVOICE; if (strpos($ref, 'SALONSUB_') === 0) return BcaScrapper::ENTITY_SALON_SUBSCRIPTION; return BcaScrapper::ENTITY_KAS_LAUNDRY; }
     private static function applyBusinessPayment(string $ref, $laundryDb, $invoiceDb, $salonDb, $crmDb): bool
     {
