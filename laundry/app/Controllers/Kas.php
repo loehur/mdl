@@ -563,7 +563,7 @@ class Kas extends Controller
          return false;
       }
 
-      $benchmark = $this->minimumGasLpgRatioFromSnapshots();
+       $benchmark = $this->minimumGasLpgRatioFromSnapshots();
       if ($benchmark === null) {
          return false;
       }
@@ -571,28 +571,14 @@ class Kas extends Controller
       return (($cycleGas + $jumlah) / $qty) <= ($benchmark * 1.20);
    }
 
-   /** Air Galon: bandingkan nominal dengan total aktual bulan kalender sebelumnya + 20%. */
+    /** Air Galon: snapshot cabang dulu, lalu fallback ke aktual bulan lalu. */
    private function isWajarPengeluaranAirGalon(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 3 || $jumlah <= 0) {
          return false;
       }
 
-      $db = $this->db(0);
-      $cabang = (int) $this->id_cabang;
-      if ($cabang < 1) {
-         return false;
-      }
-
-      $bulanLalu = date('Y-m', strtotime('first day of last month'));
-      $bulanEsc = $db->escape($bulanLalu);
-      $row = $db->query_array(
-         "SELECT COALESCE(SUM(jumlah), 0) AS total FROM kas "
-         . "WHERE id_cabang = {$cabang} AND jenis_transaksi = 4 AND jenis_mutasi = 2 "
-         . "AND status_mutasi <> 4 AND UPPER(note_primary) LIKE '%AIR GALON%' "
-         . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$bulanEsc}'"
-      );
-      $total = (int) (($row[0]['total'] ?? 0));
+       $total = $this->getPengeluaranBaseline('air_galon');
       if ($total <= 0) {
          return false;
       }
@@ -600,75 +586,88 @@ class Kas extends Controller
       return $jumlah <= ($total * 1.20);
    }
 
-   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata cabang pada snapshot bulan lalu + 20%. */
+    /** Minyak Kendaraan: rata-rata snapshot dulu, lalu fallback ke aktual bulan lalu. */
    private function isWajarPengeluaranMinyakKendaraan(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 2 || $jumlah <= 0) {
          return false;
       }
 
-      $bulanLalu = date('Y-m', strtotime('first day of last month'));
-      $bulanEsc = $this->db(0)->escape($bulanLalu);
-      $rows = $this->db(0)->query_array(
-         "SELECT kas_keluar_json FROM rekap_snapshot "
-         . "WHERE mode = 2 AND periode = '{$bulanEsc}' ORDER BY id_cabang ASC"
-      );
-      if (!is_array($rows) || $rows === []) {
-         return false;
-      }
-
-      $historicalTotals = [];
-      foreach ($rows as $row) {
-         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
-         $total = 0;
-         foreach ((array) $kas as $item) {
-            if (PengeluaranKendaraan::isMinyakKendaraan((string) ($item['note_primary'] ?? ''))) {
-               $total += (int) ($item['total'] ?? 0);
-            }
-         }
-         if ($total > 0) {
-            $historicalTotals[] = $total;
-         }
-      }
-
-      if ($historicalTotals === []) {
-         return false;
-      }
-
-      $average = array_sum($historicalTotals) / count($historicalTotals);
+       $average = $this->getPengeluaranBaseline('minyak_kendaraan', true);
+       if ($average === null) {
+          return false;
+       }
 
       return $jumlah <= ($average * 1.20);
    }
 
-   /** Pungutan: bandingkan dengan total bulan kalender sebelumnya di cabang yang sama + 20%. */
-   private function isWajarPengeluaranPungutan(int $idJenis, int $jumlah): bool
+    /** Pungutan: snapshot cabang dulu, lalu fallback ke aktual bulan lalu. */
+    private function isWajarPengeluaranPungutan(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 5 || $jumlah <= 0) {
          return false;
       }
 
-      $db = $this->db(0);
-      $cabang = (int) $this->id_cabang;
-      if ($cabang < 1) {
-         return false;
-      }
-
-      $bulanLalu = date('Y-m', strtotime('first day of last month'));
-      $bulanEsc = $db->escape($bulanLalu);
-      $jenisEsc = $db->escape(trim($jenis));
-      $row = $db->query_array(
-         "SELECT COALESCE(SUM(jumlah), 0) AS total FROM kas "
-         . "WHERE id_cabang = {$cabang} AND jenis_transaksi = 4 AND jenis_mutasi = 2 "
-         . "AND status_mutasi <> 4 AND note_primary = '{$jenisEsc}' "
-         . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$bulanEsc}'"
-      );
-      $total = (int) (($row[0]['total'] ?? 0));
+       $total = $this->getPengeluaranBaseline('pungutan', false, trim($jenis));
       if ($total <= 0) {
          return false;
       }
 
-      return $jumlah <= ($total * 1.20);
-   }
+       return $jumlah <= ($total * 1.20);
+    }
+
+    /** Cache semua baseline pengeluaran sekali per request; snapshot menjadi prioritas. */
+    private function getPengeluaranBaseline(string $jenis, bool $averageAllBranches = false, string $exactName = ''): ?float
+    {
+       static $cache = null;
+       if ($cache === null) {
+          $cache = ['snapshot' => [], 'actual' => []];
+          $db = $this->db(0);
+          $periode = date('Y-m', strtotime('first day of last month'));
+          $periodeEsc = $db->escape($periode);
+          $rows = $db->query_array(
+             "SELECT id_cabang, kas_keluar_json FROM rekap_snapshot "
+             . "WHERE mode = 2 AND periode = '{$periodeEsc}' ORDER BY id_cabang ASC"
+          );
+          foreach ((array) $rows as $row) {
+             $branch = (int) ($row['id_cabang'] ?? 0);
+             if ($branch < 1) continue;
+             foreach ((array) json_decode((string) ($row['kas_keluar_json'] ?? ''), true) as $item) {
+                $name = mb_strtoupper((string) ($item['note_primary'] ?? ''), 'UTF-8');
+                $key = $exactName !== '' && $name === mb_strtoupper($exactName, 'UTF-8') ? 'pungutan'
+                   : (str_contains($name, 'MINYAK') && str_contains($name, 'KENDARAAN')
+                   ? 'minyak_kendaraan'
+                   : (str_contains($name, 'AIR GALON') ? 'air_galon' : (str_contains($name, 'PUNGUTAN') ? 'pungutan' : null)));
+                if ($key !== null && (int) ($item['total'] ?? 0) > 0) {
+                   $cache['snapshot'][$key][$branch] = ($cache['snapshot'][$key][$branch] ?? 0) + (int) $item['total'];
+                }
+             }
+          }
+          $actual = $db->query_array(
+             "SELECT id_cabang, note_primary, SUM(jumlah) AS total FROM kas "
+             . "WHERE jenis_transaksi = 4 AND jenis_mutasi = 2 AND status_mutasi <> 4 "
+             . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$periodeEsc}' "
+             . "GROUP BY id_cabang, note_primary"
+          );
+          foreach ((array) $actual as $row) {
+             $name = mb_strtoupper((string) ($row['note_primary'] ?? ''), 'UTF-8');
+             $key = str_contains($name, 'MINYAK') && str_contains($name, 'KENDARAAN')
+                ? 'minyak_kendaraan' : (str_contains($name, 'AIR GALON') ? 'air_galon' : (str_contains($name, 'PUNGUTAN') ? 'pungutan' : null));
+             if ($key !== null && (int) ($row['total'] ?? 0) > 0) {
+                $cache['actual'][$key][(int) $row['id_cabang']] = ($cache['actual'][$key][(int) $row['id_cabang']] ?? 0) + (int) $row['total'];
+             }
+          }
+       }
+       $values = $cache['snapshot'][$jenis] ?? [];
+       if ($averageAllBranches) {
+          if ($values === []) $values = $cache['actual'][$jenis] ?? [];
+          return $values === [] ? null : array_sum($values) / count($values);
+       }
+       $branch = (int) $this->id_cabang;
+       $value = $values[$branch] ?? null;
+       if ($value === null) $value = $cache['actual'][$jenis][$branch] ?? null;
+       return $value !== null && $value > 0 ? (float) $value : null;
+    }
 
    private function minimumGasLpgRatioFromSnapshots(): ?float
    {
