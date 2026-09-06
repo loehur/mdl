@@ -571,7 +571,7 @@ class Kas extends Controller
       return (($cycleGas + $jumlah) / $qty) <= ($benchmark * 1.20);
    }
 
-   /** Air Galon: bandingkan nominal siklus dengan rata-rata historis cabang sendiri + 20%. */
+   /** Air Galon: bandingkan nominal dengan total aktual bulan kalender sebelumnya + 20%. */
    private function isWajarPengeluaranAirGalon(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 3 || $jumlah <= 0) {
@@ -584,35 +584,20 @@ class Kas extends Controller
          return false;
       }
 
-      $rows = $db->query_array(
-         "SELECT kas_keluar_json FROM rekap_snapshot "
-         . "WHERE mode = 2 AND id_cabang = {$cabang} ORDER BY periode ASC"
+      $bulanLalu = date('Y-m', strtotime('first day of last month'));
+      $bulanEsc = $db->escape($bulanLalu);
+      $row = $db->query_array(
+         "SELECT COALESCE(SUM(jumlah), 0) AS total FROM kas "
+         . "WHERE id_cabang = {$cabang} AND jenis_transaksi = 4 AND jenis_mutasi = 2 "
+         . "AND status_mutasi <> 4 AND UPPER(note_primary) LIKE '%AIR GALON%' "
+         . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$bulanEsc}'"
       );
-      if (!is_array($rows) || $rows === []) {
+      $total = (int) (($row[0]['total'] ?? 0));
+      if ($total <= 0) {
          return false;
       }
 
-      $historicalTotals = [];
-      foreach ($rows as $row) {
-         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
-         $total = 0;
-         foreach ((array) $kas as $item) {
-            if (stripos((string) ($item['note_primary'] ?? ''), 'AIR GALON') !== false) {
-               $total += (int) ($item['total'] ?? 0);
-            }
-         }
-         if ($total > 0) {
-            $historicalTotals[] = $total;
-         }
-      }
-
-      if ($historicalTotals === []) {
-         return false;
-      }
-
-      $average = array_sum($historicalTotals) / count($historicalTotals);
-
-      return $jumlah <= ($average * 1.20);
+      return $jumlah <= ($total * 1.20);
    }
 
    /** Minyak Kendaraan: bandingkan nominal dengan rata-rata seluruh cabang + 20%. */
