@@ -32,7 +32,7 @@ $this->view('non_tunai_admin/_filter', [
       <?php if ($unboundRows === []) { ?>
         <div class="nta-empty">
           <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
-          Tidak ada data QRIS Terikat untuk periode ini
+          Tidak ada data <?= $isBoundView ? 'QRIS Terikat' : 'QRIS Lepas' ?> untuk periode ini
         </div>
       <?php } else { ?>
         <div class="nta-table-wrap">

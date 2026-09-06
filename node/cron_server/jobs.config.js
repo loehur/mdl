@@ -11,7 +11,7 @@ module.exports = [
   {
     id: 'wadesk-blast',
     description: 'Process WaDesk template blast queue (1 pesan per run)',
-    schedule: '*/20 * * * * *', // tiap 20 detik
+    schedule: '*/30 * * * * *', // tiap 30 detik
     method: 'GET',
     url: '/Cron/WaDeskBlast/index',
     enabled: true,

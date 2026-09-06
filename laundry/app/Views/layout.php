@@ -2715,6 +2715,8 @@ if ($privUi === 100) {
             <script>
                 (function() {
                     var SWIPE_THRESHOLD = 50;
+                    // Swipe kanan hanya dimulai dari area dekat tepi kiri layar.
+                    var SWIPE_EDGE_ZONE = 80;
                     var MOBILE_BREAKPOINT = 992;
                     var startX = null;
                     var startY = null;
@@ -2855,11 +2857,12 @@ if ($privUi === 100) {
                     });
 
                     document.addEventListener('touchstart', function(event) {
-                        if (!event.touches || !event.touches.length) {
-                            return;
-                        }
-                        startX = event.touches[0].clientX;
-                        startY = event.touches[0].clientY;
+                         if (!event.touches || !event.touches.length) {
+                             return;
+                         }
+                         var touchX = event.touches[0].clientX;
+                         startX = touchX <= SWIPE_EDGE_ZONE ? touchX : null;
+                         startY = event.touches[0].clientY;
                     }, { passive: true });
 
                     document.addEventListener('touchend', function(event) {

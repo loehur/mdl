@@ -10,10 +10,10 @@ use App\Helpers\WaDesk\TemplateChannelSelector;
  * WaDeskBlast — process wa_blast_recipients queue.
  *
  * URL: /Cron/WaDeskBlast/index
- * Schedule every ~20 detik di cron_server (node-cron mendukung detik).
+ * Schedule every ~30 detik di cron_server (node-cron mendukung detik).
  *
  * Satu eksekusi memproses SATU pesan (recipient), lalu cron berikutnya
- * (setiap ~20 detik) melanjutkan recipient berikutnya.
+ * (setiap ~30 detik) melanjutkan recipient berikutnya.
  */
 class WaDeskBlast extends Controller
 {
@@ -42,7 +42,7 @@ class WaDeskBlast extends Controller
 
         if (!$blasts) {
             // Tidak ada blast aktif — normal, bukan error. Response kosong (204)
-            // supaya cron_server tidak mencatat baris "no active blasts" tiap 20 detik.
+            // supaya cron_server tidak mencatat baris "no active blasts" tiap 30 detik.
             http_response_code(204);
             return;
         }
