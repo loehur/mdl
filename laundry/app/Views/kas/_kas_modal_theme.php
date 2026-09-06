@@ -342,7 +342,7 @@
     pointer-events: auto;
   }
   .kas-pg-modal-grid > .op-field.is-hidden {
-    visibility: hidden;
+    display: none;
     pointer-events: none;
   }
   @media (min-width: 420px) {
