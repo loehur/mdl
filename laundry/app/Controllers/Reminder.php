@@ -36,7 +36,6 @@ class Reminder extends Controller
             'cycle' => (int)$_POST['cycle'],
             'cycle_type' => $_POST['cycle_type'],
             'range' => (int)$_POST['range'],
-            'notif_number' => '',
         ];
 
         $in = $this->db(100)->insert($table, $data);
