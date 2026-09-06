@@ -1,9 +1,0 @@
-<script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { Brain } from 'lucide-vue-next';
-import { googleClientId } from '@/services/api';
-import { loadGoogleIdentityScript, signInWithGoogleIdToken } from '@/services/auth-service';
-const googleButton = ref<HTMLElement>(); const error = ref(''); const loading = ref(false); const router = useRouter();
-onMounted(async () => { if (!googleClientId) { error.value = 'Google OAuth belum dikonfigurasi.'; return; } try { await loadGoogleIdentityScript(); window.google!.accounts.id.initialize({ client_id: googleClientId, callback: async ({ credential }) => { loading.value = true; error.value = ''; try { await signInWithGoogleIdToken(credential); await router.replace('/'); } catch { error.value = 'Login Google gagal. Coba lagi.'; } finally { loading.value = false; } } }); window.google!.accounts.id.renderButton(googleButton.value!, { theme: 'outline', size: 'large', width: 320, text: 'continue_with' }); } catch (reason) { error.value = reason instanceof Error ? reason.message : 'Google Sign-In gagal dimuat.'; } });
-</script><template><main class="grid min-h-dvh place-items-center bg-[#fbfdfb] px-6 dark:bg-[#090a0b]"><section class="w-full max-w-sm text-center"><span class="mx-auto grid size-14 place-items-center rounded-2xl bg-nemu-600 text-white"><Brain :size="27"/></span><h1 class="mt-6 text-3xl font-bold tracking-[-.04em]">NEMU</h1><p class="mt-1 text-xs font-medium text-muted">nemu.nalju.com</p><p class="mt-3 text-muted">Simpan sekarang,<br/>Temukan kapanpun dengan mudah.</p><div ref="googleButton" class="mt-10 flex min-h-11 justify-center" aria-label="Continue with Google" /><p v-if="loading" class="mt-4 text-sm text-muted">Memverifikasi akun…</p><p v-if="error" class="mt-4 text-sm text-red-600">{{ error }}</p><p class="mt-5 text-xs leading-5 text-muted">Memory kamu bersifat pribadi</p></section></main></template>
