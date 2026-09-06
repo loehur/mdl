@@ -600,15 +600,18 @@ class Kas extends Controller
       return $jumlah <= ($total * 1.20);
    }
 
-   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata seluruh cabang + 20%. */
+   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata cabang pada snapshot bulan lalu + 20%. */
    private function isWajarPengeluaranMinyakKendaraan(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 2 || $jumlah <= 0) {
          return false;
       }
 
+      $bulanLalu = date('Y-m', strtotime('first day of last month'));
+      $bulanEsc = $this->db(0)->escape($bulanLalu);
       $rows = $this->db(0)->query_array(
-         "SELECT kas_keluar_json FROM rekap_snapshot WHERE mode = 2 ORDER BY periode ASC"
+         "SELECT kas_keluar_json FROM rekap_snapshot "
+         . "WHERE mode = 2 AND periode = '{$bulanEsc}' ORDER BY id_cabang ASC"
       );
       if (!is_array($rows) || $rows === []) {
          return false;
@@ -669,9 +672,12 @@ class Kas extends Controller
 
    private function minimumGasLpgRatioFromSnapshots(): ?float
    {
+      $bulanLalu = date('Y-m', strtotime('first day of last month'));
+      $bulanEsc = $this->db(0)->escape($bulanLalu);
       $rows = $this->db(0)->query_array(
          "SELECT kas_keluar_json, qty_json FROM rekap_snapshot "
-         . "WHERE mode = 2 AND id_cabang > 0 ORDER BY periode ASC"
+         . "WHERE mode = 2 AND id_cabang > 0 AND periode = '{$bulanEsc}' "
+         . "ORDER BY id_cabang ASC"
       );
       if (!is_array($rows)) {
          return null;
