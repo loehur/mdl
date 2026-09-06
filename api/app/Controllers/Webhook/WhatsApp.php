@@ -613,7 +613,7 @@ class WhatsApp extends Controller
                                 'Webhook'
                             );
                             if (!empty($paymentResult['is_receipt'])) {
-                                $this->sendVisionThanksReply($waNumber);
+                                $this->sendVisionThanksReply($waNumber, $inboundLineKey, $businessPhone);
                             }
                             $allocation = $this->allocateVisionPayment(
                                 $waNumber,
@@ -772,13 +772,18 @@ class WhatsApp extends Controller
         \Log::write($message, 'vision_image', 'Webhook');
     }
 
-    private function sendVisionThanksReply(string $waNumber): void
+    private function sendVisionThanksReply(
+        string $waNumber,
+        ?string $lineKey = null,
+        ?string $businessPhone = null
+    ): void
     {
         try {
             if (!class_exists('\\App\\Models\\WAReplies')) {
                 require_once __DIR__ . '/../../Models/WAReplies.php';
             }
             $replies = new \App\Models\WAReplies();
+            $replies->setInboundLine($lineKey, $businessPhone);
             $ctxMethod = new \ReflectionMethod($replies, 'getGreetingContext');
             $ctxMethod->setAccessible(true);
             $ctx = $ctxMethod->invoke($replies, $waNumber);
