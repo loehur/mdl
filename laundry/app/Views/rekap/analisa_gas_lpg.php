@@ -1,13 +1,14 @@
 <?php
 $analysis = is_array($data['analysis'] ?? null) ? $data['analysis'] : [];
 $bestRatio = $data['bestRatio'] ?? null;
+$periode = (string) ($data['periode'] ?? '');
 ?>
 <div class="row mx-0">
   <div class="col-12">
     <div class="card">
       <div class="card-header">
         <h5 class="mb-1">Analisa Efisiensi Gas LPG</h5>
-        <small class="text-muted">Urutan berdasarkan biaya Gas LPG per layanan setrika dari paling hemat.</small>
+        <small class="text-muted">Periode: <?= htmlspecialchars($periode, ENT_QUOTES, 'UTF-8') ?>. Urutan berdasarkan biaya Gas LPG per layanan setrika dari paling hemat.</small>
       </div>
       <div class="card-body">
         <?php if ($bestRatio !== null) { ?>

@@ -79,9 +79,12 @@ class Rekap extends Controller
    /** Analisa efisiensi Gas LPG antar cabang berdasarkan snapshot bulanan. */
    public function analisa()
    {
+      $periode = date('Y-m', strtotime('first day of last month'));
+      $periodeEsc = $this->db(0)->escape($periode);
       $rows = $this->db(0)->query_array(
          "SELECT id_cabang, kas_keluar_json, qty_json "
-         . "FROM rekap_snapshot WHERE mode = 2 ORDER BY periode ASC"
+         . "FROM rekap_snapshot WHERE mode = 2 AND periode = '{$periodeEsc}' "
+         . "ORDER BY id_cabang ASC"
       );
       if (!is_array($rows)) {
          $rows = [];
@@ -156,6 +159,7 @@ class Rekap extends Controller
       $this->view('rekap/analisa_gas_lpg', [
          'analysis' => $analysis,
          'bestRatio' => $bestRatio,
+         'periode' => $periode,
       ]);
    }
 
