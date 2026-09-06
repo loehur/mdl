@@ -526,7 +526,7 @@ class Kas extends Controller
 
    /**
     * Gas LPG wajar jika rasio biaya per qty layanan setrika pada siklus
-    * sebelumnya tidak melebihi rasio cabang paling hemat + 15%.
+     * sebelumnya tidak melebihi rasio cabang paling hemat + 20%.
     */
    private function isWajarPengeluaranGasLpg(int $idJenis, int $jumlah): bool
    {
@@ -568,10 +568,10 @@ class Kas extends Controller
          return false;
       }
 
-      return (($cycleGas + $jumlah) / $qty) <= ($benchmark * 1.15);
+      return (($cycleGas + $jumlah) / $qty) <= ($benchmark * 1.20);
    }
 
-   /** Air Galon: bandingkan nominal siklus dengan rata-rata historis cabang sendiri + 15%. */
+   /** Air Galon: bandingkan nominal siklus dengan rata-rata historis cabang sendiri + 20%. */
    private function isWajarPengeluaranAirGalon(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 3 || $jumlah <= 0) {
@@ -612,10 +612,10 @@ class Kas extends Controller
 
       $average = array_sum($historicalTotals) / count($historicalTotals);
 
-      return $jumlah <= ($average * 1.15);
+      return $jumlah <= ($average * 1.20);
    }
 
-   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata seluruh cabang + 15%. */
+   /** Minyak Kendaraan: bandingkan nominal dengan rata-rata seluruh cabang + 20%. */
    private function isWajarPengeluaranMinyakKendaraan(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 2 || $jumlah <= 0) {
@@ -649,10 +649,10 @@ class Kas extends Controller
 
       $average = array_sum($historicalTotals) / count($historicalTotals);
 
-      return $jumlah <= ($average * 1.15);
+      return $jumlah <= ($average * 1.20);
    }
 
-   /** Pungutan: bandingkan dengan total bulan kalender sebelumnya di cabang yang sama + 15%. */
+   /** Pungutan: bandingkan dengan total bulan kalender sebelumnya di cabang yang sama + 20%. */
    private function isWajarPengeluaranPungutan(int $idJenis, int $jumlah): bool
    {
       if ($idJenis !== 5 || $jumlah <= 0) {
@@ -679,7 +679,7 @@ class Kas extends Controller
          return false;
       }
 
-      return $jumlah <= ($total * 1.15);
+      return $jumlah <= ($total * 1.20);
    }
 
    private function minimumGasLpgRatioFromSnapshots(): ?float

@@ -76,6 +76,89 @@ class Rekap extends Controller
       $this->view('rekap/rekap', $data);
    }
 
+   /** Analisa efisiensi Gas LPG antar cabang berdasarkan snapshot bulanan. */
+   public function analisa()
+   {
+      $rows = $this->db(0)->query_array(
+         "SELECT id_cabang, kas_keluar_json, qty_json "
+         . "FROM rekap_snapshot WHERE mode = 2 ORDER BY periode ASC"
+      );
+      if (!is_array($rows)) {
+         $rows = [];
+      }
+
+      $byCabang = [];
+      foreach ($rows as $row) {
+         $idCabang = (int) ($row['id_cabang'] ?? 0);
+         if ($idCabang < 1) {
+            continue;
+         }
+
+         $kas = json_decode((string) ($row['kas_keluar_json'] ?? ''), true);
+         $qtyData = json_decode((string) ($row['qty_json'] ?? ''), true);
+         $gas = 0;
+         foreach ((array) $kas as $item) {
+            if (stripos((string) ($item['note_primary'] ?? ''), 'GAS LPG') !== false) {
+               $gas += (int) ($item['total'] ?? 0);
+            }
+         }
+
+         $setrika = 0;
+         foreach ((array) ($qtyData['detail'] ?? []) as $item) {
+            if (stripos((string) ($item['layanan'] ?? ''), 'SETRIKA') !== false) {
+               $setrika += (float) ($item['qty'] ?? 0);
+            }
+         }
+
+         if (!isset($byCabang[$idCabang])) {
+            $byCabang[$idCabang] = ['gas' => 0, 'setrika' => 0, 'ratios' => [], 'snapshot_count' => 0];
+         }
+         $byCabang[$idCabang]['gas'] += $gas;
+         $byCabang[$idCabang]['setrika'] += $setrika;
+         if ($gas > 0 && $setrika > 0) {
+            $byCabang[$idCabang]['ratios'][] = $gas / $setrika;
+         }
+         $byCabang[$idCabang]['snapshot_count']++;
+      }
+
+      $cabangMap = $this->rekapCabangMap();
+      $analysis = [];
+      foreach ($byCabang as $idCabang => $item) {
+         $rasio = $item['ratios'] !== [] ? array_sum($item['ratios']) / count($item['ratios']) : null;
+         $analysis[] = [
+            'id_cabang' => (int) $idCabang,
+            'nama' => $this->rekapCabangLabel((int) $idCabang, $cabangMap),
+            'gas' => (int) $item['gas'],
+            'setrika' => (int) $item['setrika'],
+            'rasio' => $rasio,
+            'snapshot_count' => (int) $item['snapshot_count'],
+         ];
+      }
+
+      $validRatios = array_values(array_filter(array_column($analysis, 'rasio'), static function ($value) {
+         return $value !== null && $value >= 0;
+      }));
+      $bestRatio = $validRatios !== [] ? min($validRatios) : null;
+      foreach ($analysis as &$item) {
+         $item['gap_percent'] = ($bestRatio !== null && $item['rasio'] !== null && $bestRatio > 0)
+            ? (($item['rasio'] - $bestRatio) / $bestRatio) * 100
+            : null;
+      }
+      unset($item);
+
+      usort($analysis, static function ($a, $b) {
+         if ($a['rasio'] === null) return 1;
+         if ($b['rasio'] === null) return -1;
+         return $a['rasio'] <=> $b['rasio'];
+      });
+
+      $this->view('layout', ['data_operasi' => ['title' => 'Analisa Efisiensi Gas LPG']]);
+      $this->view('rekap/analisa_gas_lpg', [
+         'analysis' => $analysis,
+         'bestRatio' => $bestRatio,
+      ]);
+   }
+
    /**
     * Hitung seluruh angka rekap untuk periode tertentu (dipakai AJAX lazy load).
     * Logika sama dengan versi server-render lama.

@@ -173,6 +173,11 @@ if ($this->id_cabang > 0) {
             'c' => '@Rekap/i/2',
             'title' => 'Bulanan Cabang - Rekap',
             'txt' => 'Cabang Bulanan'
+        ],
+        [
+            'c' => '@Rekap/analisa',
+            'title' => 'Analisa Efisiensi Gas LPG',
+            'txt' => 'Analisa'
         ]
     ];
 
