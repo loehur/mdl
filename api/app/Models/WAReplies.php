@@ -2677,6 +2677,19 @@ class WAReplies
         } catch (\Throwable $e) { return 'Bind gagal diproses: ' . $e->getMessage(); }
     }
 
+
+    private function quotedMessageLooksLikeKurirStatePrompt(string $quote): bool
+    {
+        $quote = mb_strtolower(trim($quote));
+        if ($quote === '') {
+            return false;
+        }
+        return (bool) preg_match(
+            '/\b(konfirmasi|shareloc|lokasi|alamat|ongkir|jemput|diantar|antar|kurir)\b/iu',
+            $quote
+        ) && (bool) preg_match('/\b(balas|kirim|sebut|lanjut|benar|ya)\b/iu', $quote);
+    }
+
     public function process($phoneIn, $textBody, $waNumber, $contactName = null, $assigned_user_id = null, $code = null, $lastMessage = null, $cust_id = null)
     {
         if ($contactName !== null) {
@@ -2944,6 +2957,31 @@ class WAReplies
         // Session KURIR aktif: follow-up KURIR
         if ($this->getKurirSession($waNumber) !== null) {
             $kurirSessEarly = $this->getKurirSession($waNumber);
+            // A quote of a KURIR prompt is an explicit continuation signal. It
+            // must win over unrelated intent detection on the new message.
+            $quotedKurirPrompt = $this->hasInboundQuotedMessage()
+                && $this->quotedMessageLooksLikeKurirStatePrompt(
+                    (string) ($this->inboundQuotedMessage['body'] ?? '')
+                );
+            if ($quotedKurirPrompt) {
+                $this->logAutoreplyTrace($waNumber, 'BRANCH', 'kurir_quote_state_restore');
+                $this->currentHandler = 'KURIR';
+                $kurirConsumed = $this->handleKurir(
+                    $phoneIn,
+                    $waNumber,
+                    $this->textForStateHandler('KURIR', $textBody)
+                );
+                if ($kurirConsumed !== false) {
+                    $conversationId = $this->getOrCreateConversationWithCase(
+                        $db, $waNumber, $contactName, $assigned_user_id, $code, $cust_id, $lastMessage, 2
+                    );
+                    return (object) [
+                        'case' => 2,
+                        'notify' => (bool) ($fullKeywordConfig['KURIR']['notify'] ?? false),
+                        'conversation_id' => $conversationId,
+                    ];
+                }
+            }
             // Kurir menunggu LOKASI selesai → serahkan ke lokasi bila session ada
             try {
                 if ($kurirSessEarly && (string) ($kurirSessEarly['step'] ?? '') === 'wait_lokasi') {
