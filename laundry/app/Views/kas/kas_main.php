@@ -355,7 +355,7 @@
             <label class="op-label">Keterangan</label>
             <input type="text" name="f1" class="op-input keteranganPenarikan" required>
           </div>
-          <div class="op-field penarikanKeteranganNonTunaiField" style="display:none;">
+          <div class="op-field penarikanKeteranganNonTunaiField penarikanKeteranganGridField" style="display:none;">
             <label class="op-label">Keterangan</label>
             <input type="text" name="keterangan" class="op-input keteranganPenarikanNonTunai" maxlength="255" placeholder="Keterangan tambahan">
           </div>

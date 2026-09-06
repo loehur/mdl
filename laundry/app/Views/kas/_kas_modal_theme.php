@@ -278,6 +278,11 @@
       grid-column: 1 / -1;
     }
   }
+  @media (max-width: 419px) {
+    .kas-pg-modal-grid > .penarikanKeteranganNonTunaiField {
+      grid-column: 1;
+    }
+  }
   .kas-saldo-box {
     padding: 10px 12px;
     border: 1px solid #86efac;
@@ -339,6 +344,16 @@
   .kas-pg-modal-grid > .op-field.is-hidden {
     visibility: hidden;
     pointer-events: none;
+  }
+  @media (min-width: 420px) {
+    .kas-pg-modal-grid > .penarikanKeteranganNonTunaiField {
+      grid-column: 2;
+      grid-row: 3;
+    }
+    .kas-pg-modal-grid > .penarikanJumlahField {
+      grid-column: 1;
+      grid-row: 3;
+    }
   }
   .kas-limit-hint {
     display: block;
