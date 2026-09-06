@@ -27,12 +27,12 @@ $periode = (string) ($data['periode'] ?? '');
                 <th class="text-end">Qty Setrika</th>
                 <th class="text-end">Biaya / Layanan</th>
                 <th class="text-end">Gap dari Terhemat</th>
-                <th class="text-end">Snapshot</th>
+                 <th class="text-end">Sumber</th>
               </tr>
             </thead>
             <tbody>
               <?php if ($analysis === []) { ?>
-                <tr><td colspan="7" class="text-center text-muted">Belum ada data snapshot.</td></tr>
+                 <tr><td colspan="7" class="text-center text-muted">Belum ada data snapshot maupun aktual.</td></tr>
               <?php } else { foreach ($analysis as $index => $item) { ?>
                 <tr>
                   <td><?= $item['rasio'] === null ? '-' : (int) $index + 1 ?></td>
@@ -45,7 +45,13 @@ $periode = (string) ($data['periode'] ?? '');
                   <td class="text-end">
                     <?= $item['gap_percent'] === null ? '-' : number_format($item['gap_percent'], 2, ',', '.') . '%' ?>
                   </td>
-                  <td class="text-end"><?= (int) $item['snapshot_count'] ?></td>
+                   <td class="text-end">
+                     <?php if (($item['source'] ?? '') === 'snapshot') { ?>
+                       Snapshot (<?= (int) $item['snapshot_count'] ?>)
+                     <?php } else { ?>
+                       Aktual
+                     <?php } ?>
+                   </td>
                 </tr>
               <?php } } ?>
             </tbody>

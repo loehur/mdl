@@ -76,23 +76,32 @@ class Rekap extends Controller
       $this->view('rekap/rekap', $data);
    }
 
-   /** Analisa efisiensi Gas LPG antar cabang berdasarkan snapshot bulanan. */
-   public function analisa()
-   {
-      $periode = date('Y-m', strtotime('first day of last month'));
-      $periodeEsc = $this->db(0)->escape($periode);
-      $rows = $this->db(0)->query_array(
-         "SELECT id_cabang, kas_keluar_json, qty_json "
-         . "FROM rekap_snapshot WHERE mode = 2 AND periode = '{$periodeEsc}' "
-         . "ORDER BY id_cabang ASC"
-      );
-      if (!is_array($rows)) {
-         $rows = [];
-      }
+    /** Analisa efisiensi Gas LPG: snapshot bulan lalu, fallback ke data aktual. */
+    public function analisa()
+    {
+       $periode = date('Y-m', strtotime('first day of last month'));
+       $periodeEsc = $this->db(0)->escape($periode);
+       $snapshotRows = $this->db(0)->query_array(
+          "SELECT id_cabang, kas_keluar_json, qty_json "
+          . "FROM rekap_snapshot WHERE mode = 2 AND periode = '{$periodeEsc}' "
+          . "ORDER BY id_cabang ASC"
+       );
+       if (!is_array($snapshotRows)) {
+          $snapshotRows = [];
+       }
 
-      $byCabang = [];
-      foreach ($rows as $row) {
-         $idCabang = (int) ($row['id_cabang'] ?? 0);
+       $actualRows = $this->db(0)->query_array(
+          "SELECT id_cabang, note_primary, jumlah, insertTime "
+          . "FROM kas WHERE jenis_transaksi = 4 AND jenis_mutasi = 2 AND status_mutasi <> 4 "
+          . "AND DATE_FORMAT(insertTime, '%Y-%m') = '{$periodeEsc}' ORDER BY id_cabang ASC, insertTime ASC"
+       );
+       if (!is_array($actualRows)) {
+          $actualRows = [];
+       }
+
+       $byCabang = [];
+       foreach ($snapshotRows as $row) {
+          $idCabang = (int) ($row['id_cabang'] ?? 0);
          if ($idCabang < 1) {
             continue;
          }
@@ -114,15 +123,41 @@ class Rekap extends Controller
          }
 
          if (!isset($byCabang[$idCabang])) {
-            $byCabang[$idCabang] = ['gas' => 0, 'setrika' => 0, 'ratios' => [], 'snapshot_count' => 0];
+             $byCabang[$idCabang] = ['gas' => 0, 'setrika' => 0, 'ratios' => [], 'snapshot_count' => 0, 'source' => 'snapshot'];
          }
          $byCabang[$idCabang]['gas'] += $gas;
          $byCabang[$idCabang]['setrika'] += $setrika;
          if ($gas > 0 && $setrika > 0) {
             $byCabang[$idCabang]['ratios'][] = $gas / $setrika;
          }
-         $byCabang[$idCabang]['snapshot_count']++;
-      }
+          $byCabang[$idCabang]['snapshot_count']++;
+       }
+
+       // Snapshot menjadi sumber utama. Aktual hanya dipakai untuk cabang tanpa snapshot.
+       $actualByCabang = [];
+       foreach ($actualRows as $row) {
+          $idCabang = (int) ($row['id_cabang'] ?? 0);
+          $name = strtoupper((string) ($row['note_primary'] ?? ''));
+          if ($idCabang < 1 || stripos($name, 'GAS LPG') === false) {
+             continue;
+          }
+          $actualByCabang[$idCabang]['gas'] = ($actualByCabang[$idCabang]['gas'] ?? 0) + (int) ($row['jumlah'] ?? 0);
+       }
+       $actualCabangIds = [];
+       foreach ($actualRows as $row) {
+          $idCabang = (int) ($row['id_cabang'] ?? 0);
+          if ($idCabang < 1 || isset($byCabang[$idCabang])) continue;
+          $actualCabangIds[$idCabang] = true;
+       }
+       foreach (array_keys($actualCabangIds) as $idCabang) {
+          $saleRows = $this->db(0)->get_where('sale', "id_cabang = {$idCabang} AND bin = 0 AND DATE_FORMAT(insertTime, '%Y-%m') = '{$periodeEsc}'");
+          $setrika = $this->sumQtySetrikaForAnalysis($saleRows);
+          $gas = (int) ($actualByCabang[$idCabang]['gas'] ?? 0);
+          if ($gas > 0 || $setrika > 0) {
+             $byCabang[$idCabang] = ['gas' => $gas, 'setrika' => $setrika, 'ratios' => [], 'snapshot_count' => 0, 'source' => 'aktual'];
+             if ($gas > 0 && $setrika > 0) $byCabang[$idCabang]['ratios'][] = $gas / $setrika;
+          }
+       }
 
       $cabangMap = $this->rekapCabangMap();
       $analysis = [];
@@ -134,7 +169,8 @@ class Rekap extends Controller
             'gas' => (int) $item['gas'],
             'setrika' => (int) $item['setrika'],
             'rasio' => $rasio,
-            'snapshot_count' => (int) $item['snapshot_count'],
+             'snapshot_count' => (int) $item['snapshot_count'],
+             'source' => (string) ($item['source'] ?? 'aktual'),
          ];
       }
 
@@ -156,12 +192,30 @@ class Rekap extends Controller
       });
 
       $this->view('layout', ['data_operasi' => ['title' => 'Analisa Efisiensi Gas LPG']]);
-      $this->view('rekap/analisa_gas_lpg', [
+       $this->view('rekap/analisa_gas_lpg', [
          'analysis' => $analysis,
          'bestRatio' => $bestRatio,
          'periode' => $periode,
-      ]);
-   }
+       ]);
+    }
+
+    private function sumQtySetrikaForAnalysis($rows): float
+    {
+       $total = 0.0;
+       foreach ((array) $rows as $sale) {
+          $ids = @unserialize((string) ($sale['list_layanan'] ?? ''), ['allowed_classes' => false]);
+          if (!is_array($ids)) continue;
+          foreach ($ids as $id) {
+             foreach ((array) $this->dLayanan as $layanan) {
+                if ((int) ($layanan['id_layanan'] ?? 0) === (int) $id && stripos((string) ($layanan['layanan'] ?? ''), 'SETRIKA') !== false) {
+                   $total += (float) ($sale['qty'] ?? 0);
+                   continue 3;
+                }
+             }
+          }
+       }
+       return $total;
+    }
 
    /**
     * Hitung seluruh angka rekap untuk periode tertentu (dipakai AJAX lazy load).
