@@ -155,7 +155,8 @@ class KasModel extends Controller
                 'jenis_transaksi' => $jt,
                 'ref_transaksi' => $ref,
                 'metode_mutasi' => $metodeInt,
-                'note' => $note,
+                'note' => $this->isKasNoteSystemValue($note) ? strtoupper(trim((string) $note)) : '',
+                'keterangan' => $this->isKasNoteSystemValue($note) ? null : trim((string) $note),
                 'status_mutasi' => $status_mutasi,
                 'jumlah' => $jumlah,
                 'id_user' => $id_user,
@@ -183,6 +184,13 @@ class KasModel extends Controller
         }
 
         return 0;
+    }
+
+    private function isKasNoteSystemValue($note): bool
+    {
+        $value = strtoupper(trim((string) $note));
+        return in_array($value, ['BCA', 'QRIS', 'CASH', 'SALDO'], true)
+            || str_starts_with($value, 'TB:');
     }
 
     /**

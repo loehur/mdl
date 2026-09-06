@@ -1,0 +1,1 @@
+PHP MVC-style application with custom Controller/DB helpers and PHP views. Laundry module uses jQuery in server-rendered views. Database access is through custom $this->db() wrapper. No framework/package details established.

@@ -62,7 +62,7 @@ $telpCabang = trim((string) ($cabang['phone_number'] ?? ''));
   <div class="j-card">
     <div class="j-card-head">
       <div>
-        <strong><?= htmlspecialchars($fh['note'] ?: 'Non-Tunai') ?></strong>
+        <strong><?= htmlspecialchars($fh['note'] ?: ($fh['keterangan'] ?? 'Non-Tunai')) ?></strong>
         <small>Pending · <?= date('d M Y H:i', strtotime($fh['insertTime'])) ?></small>
       </div>
       <span class="j-badge warn">Rp<?= number_format((float) $fh['total']) ?></span>
@@ -178,6 +178,7 @@ $telpCabang = trim((string) ($cabang['phone_number'] ?? ''));
         <?php foreach ($ord['payments'] as $pay) {
           $st = (int) $pay['status'];
           $note = strtoupper(trim((string) ($pay['note'] ?? '')));
+          if ($note === '') $note = strtoupper(trim((string) ($pay['keterangan'] ?? '')));
           $nominal = 'Rp' . number_format((float) $pay['jumlah']);
           if ($st === 3) {
             $label = '✓' . ($note !== '' ? ' ' . $note : ' Lunas');

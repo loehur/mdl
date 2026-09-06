@@ -213,7 +213,8 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
             $f11 = $a['id_durasi'];
             $f6 = round((float) $a['qty'], 2);
             $f7 = $a['harga'];
-            $f8 = $a['note'];
+                  $f8 = trim((string) ($a['note'] ?? ''));
+                  if ($f8 === '') $f8 = trim((string) ($a['keterangan'] ?? ''));
             $f9 = $a['id_user'];
             $f12 = $a['hari'];
             $f13 = $a['jam'];
@@ -593,7 +594,8 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
                   }
                 }
 
-                $notenya = strtoupper($ka['note']);
+                $notenya = strtoupper(trim((string) ($ka['note'] ?? '')));
+                if ($notenya === '') $notenya = strtoupper(trim((string) ($ka['keterangan'] ?? '')));
 
                 switch ($ka['status_mutasi']) {
                   case '2':
@@ -1000,7 +1002,8 @@ $renderKurirUnbindBadges = static function ($id, $ref, $code, $kind, $canClick, 
             }
           }
 
-          $notenya = strtoupper($ka['note']);
+          $notenya = strtoupper(trim((string) ($ka['note'] ?? '')));
+          if ($notenya === '') $notenya = strtoupper(trim((string) ($ka['keterangan'] ?? '')));
           $st_mutasi = $ka['status_mutasi'];
 
           switch ($st_mutasi) {

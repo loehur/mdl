@@ -445,7 +445,8 @@ $modeView = $data['modeView'];
             }
           }
 
-          $notenya = strtoupper($ka['note']);
+          $notenya = strtoupper(trim((string) ($ka['note'] ?? '')));
+          if ($notenya === '') $notenya = strtoupper(trim((string) ($ka['keterangan'] ?? '')));
 
           switch ($ka['status_mutasi']) {
             case '2':

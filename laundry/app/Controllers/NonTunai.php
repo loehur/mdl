@@ -12,7 +12,7 @@ class NonTunai extends Controller
    {
       $limit = 30;
       $view = 'non_tunai/nt_main';
-      $cols = "id_cabang, ref_finance, MAX(ref_transaksi) AS ref_transaksi, note, id_user, id_client, status_mutasi, jenis_transaksi, SUM(jumlah) AS total, MIN(insertTime) AS insertTime";
+      $cols = "id_cabang, ref_finance, MAX(ref_transaksi) AS ref_transaksi, note, MAX(keterangan) AS keterangan, id_user, id_client, status_mutasi, jenis_transaksi, SUM(jumlah) AS total, MIN(insertTime) AS insertTime";
       $where = $this->wCabangAll('id_cabang', true) . " AND metode_mutasi = 2 AND status_mutasi = 2 AND ref_finance <> '' GROUP BY id_cabang, ref_finance ORDER BY insertTime DESC LIMIT $limit";
       $cek = $this->db(0)->get_cols_where('kas', $cols, $where, 1);
       if (!is_array($cek)) {

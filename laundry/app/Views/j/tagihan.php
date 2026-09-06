@@ -93,6 +93,7 @@ $summary = $data['summary'];
         <?php foreach ($ord['payments'] as $pay) {
           $st = (int) $pay['status'];
           $note = strtoupper(trim((string) ($pay['note'] ?? '')));
+          if ($note === '') $note = strtoupper(trim((string) ($pay['keterangan'] ?? '')));
           $nominal = 'Rp' . number_format((float) $pay['jumlah']);
           if ($st === 3) {
             $label = '✓' . ($note !== '' ? ' ' . $note : ' Lunas');

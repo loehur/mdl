@@ -63,7 +63,7 @@ $customer = $data['customer'] ?? ['id' => $id, 'nama' => $p['nama_pelanggan'], '
   <div class="j-card">
     <div class="j-card-head">
       <div>
-        <strong><?= htmlspecialchars($fh['note'] ?: 'Non-Tunai') ?></strong>
+        <strong><?= htmlspecialchars($fh['note'] ?: ($fh['keterangan'] ?? 'Non-Tunai')) ?></strong>
         <small>Pending · <?= date('d M Y H:i', strtotime($fh['insertTime'])) ?></small>
       </div>
       <span class="j-badge warn">Rp<?= number_format((float) $fh['total']) ?></span>

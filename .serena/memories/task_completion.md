@@ -1,0 +1,1 @@
+After modifying code, run graphify update . as required by AGENTS.md. Run targeted PHP syntax checks if PHP CLI is available; no repository-wide test runner has been confirmed.

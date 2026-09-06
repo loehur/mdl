@@ -1,0 +1,1 @@
+Laundry PHP code uses custom MVC controllers, server-rendered views, and $this->db() query/insert/update helpers. Escape user text in HTML with htmlspecialchars. Non-tunai kas invariant: kas.note is exactly BCA or QRIS for binding/approval logic; descriptive text must use a separate field. Preserve existing duplicate-click guards and HTTP 422/409 JSON responses.

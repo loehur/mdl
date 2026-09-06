@@ -47,7 +47,8 @@
                     foreach ($data['transaksi_list'] as $a) {
                       $id = $a['id_kas'];
                       $f1 = substr($a['insertTime'], 5, 11);
-                      $f2 = $a['note'];
+                      $f2 = trim((string) ($a['note'] ?? ''));
+                      if ($f2 === '') $f2 = trim((string) ($a['keterangan'] ?? ''));
                       $f2b = $a['note_primary'];
                       $f3 = $a['id_user'];
                       $f4 = $a['jumlah'];

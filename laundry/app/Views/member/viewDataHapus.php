@@ -390,7 +390,8 @@ $statusMutasiLabel = function ($sts) {
               <div class="hd-pay">
                 <div class="hd-pay__label">Pembayaran<?= $totalBayar > 0 ? ' · Rp' . number_format($totalBayar) : '' ?></div>
                 <?php foreach ($payRows as $ka) {
-                  $notePay = (string) ($ka['note'] ?? '');
+                  $notePay = trim((string) ($ka['note'] ?? ''));
+                  if ($notePay === '') $notePay = trim((string) ($ka['keterangan'] ?? ''));
                   $label = $statusMutasiLabel($ka['status_mutasi'] ?? '');
                   $payUser = '';
                   foreach ($this->userMerge as $usKas) {

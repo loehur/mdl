@@ -47,7 +47,8 @@ foreach ($this->pelanggan as $dp) {
           }
         }
 
-        $notenya = strtoupper($ka['note']);
+        $notenya = strtoupper(trim((string) ($ka['note'] ?? '')));
+        if ($notenya === '') $notenya = strtoupper(trim((string) ($ka['keterangan'] ?? '')));
         $st_mutasi = $ka['status_mutasi'];
 
         switch ($st_mutasi) {

@@ -39,7 +39,8 @@
                   foreach ($data['debit_list'] as $a) {
                     $id = $a['id_kas'];
                     $f1 = substr($a['insertTime'], 5, 11);
-                    $f2 = $a['note'];
+                    $f2 = trim((string) ($a['note'] ?? ''));
+                    if ($f2 === '') $f2 = trim((string) ($a['keterangan'] ?? ''));
                     $f2b = $a['note_primary'];
                     $f3 = $a['id_user'];
                     $f4 = $a['jumlah'];
@@ -122,7 +123,8 @@
                       $st_trx = $a['status_mutasi'];
 
                       $f1 = substr($a['insertTime'], 5, 11);
-                      $f2 = $a['note'];
+                      $f2 = trim((string) ($a['note'] ?? ''));
+                      if ($f2 === '') $f2 = trim((string) ($a['keterangan'] ?? ''));
                       $f2b = $a['note_primary'];
                       $f3 = $a['id_user'];
                       $f4 = $a['jumlah'];
@@ -352,6 +354,10 @@
           <div class="op-field penarikanKeteranganField">
             <label class="op-label">Keterangan</label>
             <input type="text" name="f1" class="op-input keteranganPenarikan" required>
+          </div>
+          <div class="op-field penarikanKeteranganNonTunaiField" style="display:none;">
+            <label class="op-label">Keterangan</label>
+            <input type="text" name="keterangan" class="op-input keteranganPenarikanNonTunai" maxlength="255" placeholder="Keterangan tambahan">
           </div>
           <div class="op-field kas-pg-span-2">
             <label class="op-label">Penyetor Kas</label>
@@ -631,9 +637,11 @@
     $form.find('.penarikanQrisGuideField').toggleClass('is-visible', isNonTunai && note === 'QRIS');
     $form.find('.penarikanBcaRekeningField').toggleClass('is-visible', isBca);
     $form.find('.penarikanKeteranganField').toggleClass('is-hidden', isNonTunai);
+    $form.find('.penarikanKeteranganNonTunaiField').toggle(isNonTunai);
     $form.find('.penarikanHintTunai').toggle(!isNonTunai);
     $form.find('.penarikanHintNonTunai').toggle(isNonTunai);
     $form.find('.keteranganPenarikan').prop('required', !isNonTunai);
+    $form.find('.keteranganPenarikanNonTunai').toggle(isNonTunai).prop('required', isNonTunai);
     if (isNonTunai) {
       $form.find('.keteranganPenarikan').val('');
     }

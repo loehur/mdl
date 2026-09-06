@@ -273,6 +273,7 @@ class Kas extends Controller
       $penarik = intval($_POST['f3'] ?? 0);
 
       $note = strtoupper(trim((string) ($_POST['note'] ?? '')));
+      $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
 
 
 
@@ -291,6 +292,12 @@ class Kas extends Controller
       if ($penarik < 1) {
          header('HTTP/1.1 422 Unprocessable Entity');
          echo json_encode(['error' => 'Penarik kas wajib dipilih']);
+         return;
+      }
+
+      if ($keterangan === '') {
+         header('HTTP/1.1 422 Unprocessable Entity');
+         echo json_encode(['error' => 'Keterangan wajib diisi']);
          return;
       }
 
@@ -357,7 +364,9 @@ class Kas extends Controller
 
          'metode_mutasi' => 2,
 
-         'note' => $note,
+          'note' => $note,
+
+          'keterangan' => $keterangan,
 
          'note_primary' => 'Setoran',
 

@@ -14,6 +14,7 @@ if (count($data['cek']) == 0) { ?>
     $idCabang = (int) ($a['id_cabang'] ?? 0);
     $f1 = $a['ref_finance'];
     $f2 = $a['note'];
+    $keterangan = trim((string) ($a['keterangan'] ?? ''));
     $f3 = $a['id_user'];
     $f4 = $a['total'];
     $f17 = $a['id_client'];
@@ -138,6 +139,9 @@ if (count($data['cek']) == 0) { ?>
       <?= htmlspecialchars($jenis_bill, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($metodeLabel, ENT_QUOTES, 'UTF-8') ?>
       <?php if ($needsBind) { ?> · <span class="nt-bind-hint">perlu bind <?= $isBca ? 'Mutasi BCA' : 'Mutasi QRIS' ?></span><?php } ?>
     </div>
+    <?php if ($keterangan !== '') { ?>
+    <div class="aa-card__meta">Keterangan: <?= htmlspecialchars($keterangan, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php } ?>
     <div class="aa-card__amount">Rp<?= number_format((float) $f4) ?></div>
     <div class="aa-actions">
       <span class="aa-btn aa-btn--danger nTolak" role="button"

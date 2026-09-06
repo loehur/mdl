@@ -545,7 +545,8 @@ class Sales extends Controller
              'jenis_mutasi' => 1,
              'jenis_transaksi' => 7, //sales
              'metode_mutasi' => $metode,
-             'note' => $note,
+             'note' => in_array(strtoupper(trim((string) $note)), ['BCA', 'QRIS'], true) ? strtoupper(trim((string) $note)) : '',
+             'keterangan' => !in_array(strtoupper(trim((string) $note)), ['BCA', 'QRIS'], true) ? trim((string) $note) : null,
              'jumlah' => $dibayar,
              'status_mutasi' => $status_mutasi //lunas
           ];

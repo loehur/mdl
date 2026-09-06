@@ -122,8 +122,9 @@ $isEmpty = empty($grouped);
               <td class="py-1 ps-0"><?= date('d/m/y H:i', strtotime($payment['insertTime'])) ?></td>
               <td class="py-1">
                 <span class="<?= $statusClass ?>"><?= $statusText ?></span>
-                <?php if (!empty($payment['note'])) { ?>
-                  <span class="text-muted">(<?= htmlspecialchars($payment['note'], ENT_QUOTES, 'UTF-8') ?>)</span>
+                <?php $paymentLabel = trim((string) ($payment['note'] ?? '')) ?: trim((string) ($payment['keterangan'] ?? '')); ?>
+                <?php if ($paymentLabel !== '') { ?>
+                  <span class="text-muted">(<?= htmlspecialchars($paymentLabel, ENT_QUOTES, 'UTF-8') ?>)</span>
                 <?php } ?>
               </td>
               <td class="py-1 text-end pe-0"><span class="fw-bold">Rp<?= number_format($payment['jumlah']) ?></span></td>

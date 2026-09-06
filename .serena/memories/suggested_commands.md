@@ -1,0 +1,1 @@
+Windows workspace. Use graphify query "..." for codebase questions when graphify-out/graph.json exists; run graphify update . after code changes. Prefer project tools for file edits/search. No verified project test command identified.
